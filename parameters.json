@@ -1,0 +1,38 @@
+[
+  {
+    "ParameterKey": "ProjectName",
+    "ParameterValue": "drs-orchestration"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "AdminEmail",
+    "ParameterValue": "YOUR_EMAIL@example.com"
+  },
+  {
+    "ParameterKey": "CognitoDomainPrefix",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "LambdaCodeBucket",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "LambdaCodeKey",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "FrontendCodeBucket",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "FrontendCodeKey",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "NotificationEmail",
+    "ParameterValue": ""
+  }
+]

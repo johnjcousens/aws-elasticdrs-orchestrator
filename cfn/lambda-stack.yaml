@@ -1,0 +1,366 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'AWS DRS Orchestration - Lambda Functions Nested Stack'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name'
+
+  ProtectionGroupsTableName:
+    Type: String
+    Description: 'DynamoDB table name for Protection Groups'
+
+  RecoveryPlansTableName:
+    Type: String
+    Description: 'DynamoDB table name for Recovery Plans'
+
+  ExecutionHistoryTableName:
+    Type: String
+    Description: 'DynamoDB table name for Execution History'
+
+  FrontendBucketName:
+    Type: String
+    Description: 'S3 bucket name for frontend hosting'
+
+  CloudFrontDistributionId:
+    Type: String
+    Description: 'CloudFront distribution ID'
+
+  NotificationTopicArn:
+    Type: String
+    Description: 'SNS topic ARN for notifications'
+    Default: ''
+
+Conditions:
+  HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 900
+    MemorySize: 512
+    Environment:
+      Variables:
+        PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+        RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+        EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+        NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
+    Tags:
+      Project: !Ref ProjectName
+      Environment: !Ref Environment
+
+Resources:
+  # IAM Role for API Handler Lambda
+  ApiHandlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-api-handler-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProtectionGroupsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*'
+        - PolicyName: StepFunctionsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                  - states:DescribeExecution
+                  - states:ListExecutions
+                Resource:
+                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration'
+                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-orchestration:*'
+        - PolicyName: DRSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:GetReplicationConfiguration
+                Resource: '*'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Orchestration Lambda
+  OrchestrationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-orchestration-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProtectionGroupsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*'
+        - PolicyName: DRSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeRecoveryInstances
+                  - drs:DescribeJobs
+                  - drs:StartRecovery
+                  - drs:GetReplicationConfiguration
+                  - drs:GetLaunchConfiguration
+                Resource: '*'
+        - PolicyName: EC2Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeTags
+                Resource: '*'
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:StartAutomationExecution
+                  - ssm:DescribeAutomationExecutions
+                  - ssm:GetAutomationExecution
+                  - ssm:StopAutomationExecution
+                  - ssm:SendCommand
+                  - ssm:GetCommandInvocation
+                Resource: '*'
+        - PolicyName: SNSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !If [HasNotificationTopic, !Ref NotificationTopicArn, !Ref 'AWS::NoValue']
+        - PolicyName: STSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: 'arn:aws:iam::*:role/drs-orchestration-cross-account-role'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Custom Resource Lambdas
+  CustomResourceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-custom-resource-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:DeleteObjectVersion
+                Resource:
+                  - !Sub 'arn:aws:s3:::${FrontendBucketName}'
+                  - !Sub 'arn:aws:s3:::${FrontendBucketName}/*'
+        - PolicyName: CloudFrontAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistributionId}'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # API Handler Lambda Function
+  ApiHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-api-handler'
+      Description: 'API Gateway handler for DRS Orchestration'
+      CodeUri: ../lambda/api-handler/
+      Handler: index.lambda_handler
+      Role: !GetAtt ApiHandlerRole.Arn
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+  # Orchestration Lambda Function
+  OrchestrationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-orchestration'
+      Description: 'Step Functions orchestrator for DRS recovery execution'
+      CodeUri: ../lambda/orchestration/
+      Handler: drs_orchestrator.lambda_handler
+      Role: !GetAtt OrchestrationRole.Arn
+
+  # S3 Cleanup Custom Resource Lambda
+  S3CleanupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-s3-cleanup'
+      Description: 'Custom resource to empty S3 bucket on stack deletion'
+      CodeUri: ../lambda/custom-resources/
+      Handler: s3_cleanup.lambda_handler
+      Role: !GetAtt CustomResourceRole.Arn
+      Timeout: 300
+
+  # Frontend Builder Custom Resource Lambda
+  FrontendBuilderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-frontend-builder'
+      Description: 'Custom resource to build and deploy React frontend'
+      CodeUri: ../lambda/frontend-builder/
+      Handler: build_and_deploy.lambda_handler
+      Role: !GetAtt CustomResourceRole.Arn
+      Timeout: 600
+      MemorySize: 2048
+      Environment:
+        Variables:
+          FRONTEND_BUCKET: !Ref FrontendBucketName
+          CLOUDFRONT_DISTRIBUTION_ID: !Ref CloudFrontDistributionId
+
+  # Log Groups with retention
+  ApiHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ApiHandlerFunction}'
+      RetentionInDays: 30
+
+  OrchestrationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${OrchestrationFunction}'
+      RetentionInDays: 30
+
+  S3CleanupLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${S3CleanupFunction}'
+      RetentionInDays: 7
+
+  FrontendBuilderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${FrontendBuilderFunction}'
+      RetentionInDays: 7
+
+Outputs:
+  ApiHandlerFunctionArn:
+    Description: 'API Handler Lambda Function ARN'
+    Value: !GetAtt ApiHandlerFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiHandlerArn'
+
+  ApiHandlerFunctionName:
+    Description: 'API Handler Lambda Function Name'
+    Value: !Ref ApiHandlerFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiHandlerName'
+
+  OrchestrationFunctionArn:
+    Description: 'Orchestration Lambda Function ARN'
+    Value: !GetAtt OrchestrationFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestrationArn'
+
+  OrchestrationFunctionName:
+    Description: 'Orchestration Lambda Function Name'
+    Value: !Ref OrchestrationFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestrationName'
+
+  S3CleanupFunctionArn:
+    Description: 'S3 Cleanup Lambda Function ARN'
+    Value: !GetAtt S3CleanupFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-S3CleanupArn'
+
+  FrontendBuilderFunctionArn:
+    Description: 'Frontend Builder Lambda Function ARN'
+    Value: !GetAtt FrontendBuilderFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBuilderArn'

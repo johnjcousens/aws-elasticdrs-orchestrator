@@ -1,0 +1,86 @@
+schemaVersion: '0.3'
+description: 'Post-launch health check for recovered instances'
+assumeRole: '{{ AutomationAssumeRole }}'
+parameters:
+  InstanceIds:
+    type: StringList
+    description: 'List of EC2 instance IDs to check'
+  AutomationAssumeRole:
+    type: String
+    description: 'IAM role for SSM automation'
+    default: ''
+mainSteps:
+  - name: checkInstanceStatus
+    action: 'aws:waitForAwsResourceProperty'
+    timeoutSeconds: 600
+    inputs:
+      Service: ec2
+      Api: DescribeInstanceStatus
+      InstanceIds: '{{ InstanceIds }}'
+      PropertySelector: '$.InstanceStatuses[0].InstanceStatus.Status'
+      DesiredValues:
+        - ok
+    description: 'Wait for EC2 instance status checks to pass'
+    
+  - name: checkSystemStatus
+    action: 'aws:waitForAwsResourceProperty'
+    timeoutSeconds: 600
+    inputs:
+      Service: ec2
+      Api: DescribeInstanceStatus
+      InstanceIds: '{{ InstanceIds }}'
+      PropertySelector: '$.InstanceStatuses[0].SystemStatus.Status'
+      DesiredValues:
+        - ok
+    description: 'Wait for EC2 system status checks to pass'
+    
+  - name: runHealthCheckLinux
+    action: 'aws:runCommand'
+    onFailure: Continue
+    inputs:
+      DocumentName: AWS-RunShellScript
+      InstanceIds: '{{ InstanceIds }}'
+      Parameters:
+        commands:
+          - |
+            #!/bin/bash
+            # Check if instance is running Linux
+            if [ -f /etc/os-release ]; then
+              echo "OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
+              echo "Uptime: $(uptime)"
+              echo "Memory: $(free -h | grep Mem)"
+              echo "Disk: $(df -h / | tail -1)"
+              echo "Network: $(ip addr show | grep inet | grep -v inet6 | grep -v 127.0.0.1)"
+              echo "Health check passed for Linux instance"
+              exit 0
+            else
+              echo "Not a Linux instance, skipping"
+              exit 0
+            fi
+    description: 'Run health check on Linux instances'
+    
+  - name: runHealthCheckWindows
+    action: 'aws:runCommand'
+    onFailure: Continue
+    inputs:
+      DocumentName: AWS-RunPowerShellScript
+      InstanceIds: '{{ InstanceIds }}'
+      Parameters:
+        commands:
+          - |
+            # Check if instance is running Windows
+            if ($env:OS -like "*Windows*") {
+              Write-Output "OS: $((Get-WmiObject Win32_OperatingSystem).Caption)"
+              Write-Output "Uptime: $((Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime)"
+              Write-Output "Memory: $(Get-WmiObject Win32_ComputerSystem | Select-Object TotalPhysicalMemory)"
+              Write-Output "Disk: $(Get-PSDrive C | Select-Object Used,Free)"
+              Write-Output "Network: $(Get-NetIPAddress | Where-Object {$_.AddressFamily -eq 'IPv4'})"
+              Write-Output "Health check passed for Windows instance"
+            } else {
+              Write-Output "Not a Windows instance, skipping"
+            }
+    description: 'Run health check on Windows instances'
+
+outputs:
+  - checkInstanceStatus.InstanceStatus
+  - checkSystemStatus.SystemStatus
