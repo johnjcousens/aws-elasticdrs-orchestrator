@@ -1,3 +1,8 @@
+# Temporary files
+.cfn_upload_manifest.json
+*.backup
+
+# macOS files
 tests/.DS_Store
 lambda/.DS_Store
 frontend/.DS_Store
