@@ -33,13 +33,13 @@ export const Dashboard: React.FC = () => {
     <PageTransition>
       <Box>
         <Typography variant="h4" gutterBottom fontWeight={600}>
-        Dashboard
-      </Typography>
+          Dashboard
+        </Typography>
       <Typography variant="body1" color="text.secondary" paragraph>
         AWS Disaster Recovery Service Orchestration Platform
       </Typography>
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ mt: 2 }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 2, md: 3 }} sx={{ mt: 2 }}>
         <Box sx={{ flex: 1 }}>
           <Card
             sx={{
@@ -55,9 +55,9 @@ export const Dashboard: React.FC = () => {
             }}
             onClick={() => navigate('/protection-groups')}
           >
-            <CardContent>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <SecurityIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+                <SecurityIcon sx={{ fontSize: { xs: 32, sm: 40 }, color: 'primary.main', mr: 2 }} />
                 <Typography variant="h5" component="div">
                   Protection Groups
                 </Typography>
@@ -95,9 +95,9 @@ export const Dashboard: React.FC = () => {
             }}
             onClick={() => navigate('/recovery-plans')}
           >
-            <CardContent>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <MapIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+                <MapIcon sx={{ fontSize: { xs: 32, sm: 40 }, color: 'primary.main', mr: 2 }} />
                 <Typography variant="h5" component="div">
                   Recovery Plans
                 </Typography>
@@ -135,9 +135,9 @@ export const Dashboard: React.FC = () => {
             }}
             onClick={() => navigate('/executions')}
           >
-            <CardContent>
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <PlayArrowIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+                <PlayArrowIcon sx={{ fontSize: { xs: 32, sm: 40 }, color: 'primary.main', mr: 2 }} />
                 <Typography variant="h5" component="div">
                   Executions
                 </Typography>
@@ -160,12 +160,12 @@ export const Dashboard: React.FC = () => {
         </Box>
       </Stack>
 
-      <Box sx={{ mt: 4 }}>
+      <Box sx={{ mt: { xs: 3, md: 4 } }}>
         <Typography variant="h5" gutterBottom>
           Quick Start Guide
         </Typography>
         <Card>
-          <CardContent>
+          <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
             <Typography variant="body1" paragraph>
               <strong>Step 1:</strong> Create a Protection Group to define which servers to protect
             </Typography>

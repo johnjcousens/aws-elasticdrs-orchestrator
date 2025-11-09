@@ -94,29 +94,44 @@ export const theme = createTheme({
       'sans-serif',
     ].join(','),
     h1: {
-      fontSize: '2.5rem',
+      fontSize: '2rem', // Reduced for mobile
       fontWeight: 700,
       lineHeight: 1.2,
+      '@media (min-width:600px)': {
+        fontSize: '2.5rem',
+      },
     },
     h2: {
-      fontSize: '2rem',
+      fontSize: '1.75rem',
       fontWeight: 700,
       lineHeight: 1.3,
+      '@media (min-width:600px)': {
+        fontSize: '2rem',
+      },
     },
     h3: {
-      fontSize: '1.75rem',
-      fontWeight: 600,
-      lineHeight: 1.4,
-    },
-    h4: {
       fontSize: '1.5rem',
       fontWeight: 600,
       lineHeight: 1.4,
+      '@media (min-width:600px)': {
+        fontSize: '1.75rem',
+      },
     },
-    h5: {
+    h4: {
       fontSize: '1.25rem',
       fontWeight: 600,
+      lineHeight: 1.4,
+      '@media (min-width:600px)': {
+        fontSize: '1.5rem',
+      },
+    },
+    h5: {
+      fontSize: '1.125rem',
+      fontWeight: 600,
       lineHeight: 1.5,
+      '@media (min-width:600px)': {
+        fontSize: '1.25rem',
+      },
     },
     h6: {
       fontSize: '1rem',
@@ -137,6 +152,9 @@ export const theme = createTheme({
     },
   },
   
+  // Responsive spacing configuration
+  spacing: 8, // Base spacing unit (8px)
+  
   shape: {
     borderRadius: 4, // AWS uses subtle rounded corners
   },
@@ -150,12 +168,23 @@ export const theme = createTheme({
           padding: '8px 16px',
           fontSize: '0.875rem',
           fontWeight: 600,
+          minHeight: '44px', // Touch-friendly minimum
+          minWidth: '44px',
         },
         contained: {
           boxShadow: 'none',
           '&:hover': {
             boxShadow: 'none',
           },
+        },
+      },
+    },
+    
+    // IconButton touch-friendly sizing
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          padding: 12, // Ensures 44x44px touch target with icon
         },
       },
     },
