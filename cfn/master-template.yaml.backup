@@ -47,7 +47,7 @@ Parameters:
 
   SourceBucket:
     Type: String
-    Description: 'S3 bucket containing nested CloudFormation templates and Lambda code at root level'
+    Description: 'S3 bucket containing nested CloudFormation templates and Lambda code'
 
   AdminEmail:
     Type: String
@@ -97,7 +97,7 @@ Resources:
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/database-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/database-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -113,7 +113,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: DatabaseStack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/lambda-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/lambda-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -136,7 +136,7 @@ Resources:
       - DatabaseStack
       - LambdaStack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/api-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -157,6 +157,7 @@ Resources:
       TimeoutInMinutes: 20
 
   # Frontend Stack - S3, CloudFront, Custom Resources
+  # Note: SecurityStack removed for MVP deployment - Phase 2 enhancement
   FrontendStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Retain
@@ -165,7 +166,7 @@ Resources:
       - LambdaStack
       - ApiStack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/frontend-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/frontend-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -173,6 +174,7 @@ Resources:
         UserPoolClientId: !GetAtt ApiStack.Outputs.UserPoolClientId
         IdentityPoolId: !GetAtt ApiStack.Outputs.IdentityPoolId
         ApiEndpoint: !GetAtt ApiStack.Outputs.ApiEndpoint
+        S3CleanupFunctionArn: !GetAtt LambdaStack.Outputs.S3CleanupFunctionArn
         FrontendBuilderFunctionArn: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
       Tags:
         - Key: Project
@@ -231,6 +233,12 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationArn'
+
+  S3CleanupFunctionArn:
+    Description: 'S3 Cleanup Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.S3CleanupFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-S3CleanupArn'
 
   FrontendBuilderFunctionArn:
     Description: 'Frontend Builder Lambda Function ARN'
@@ -319,6 +327,7 @@ Outputs:
       Name: !Sub '${AWS::StackName}-NetworkValidationDocument'
 
   # General Outputs
+  # Note: SecurityStack outputs removed - Phase 2 enhancement
   Region:
     Description: 'AWS Region'
     Value: !Ref AWS::Region

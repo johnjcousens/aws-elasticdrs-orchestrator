@@ -1,0 +1,25 @@
+{
+  "timestamp": "2025-11-09T19:39:06Z",
+  "bucket": "s3://onprem-aws-ia/AWS-DRS-Orchestration",
+  "dryRun": true,
+  "forceAll": false,
+  "uploadedCount": 3,
+  "failedCount": 0,
+  "files": [
+    {
+      "filename": "[0;32m[INFO][0m Detecting changed CloudFormation templates since last commit...",
+      "s3Uri": "s3://onprem-aws-ia/AWS-DRS-Orchestration/cfn/[0;32m[INFO][0m Detecting changed CloudFormation templates since last commit..."
+    }
+,
+    {
+      "filename": "lambda-stack.yaml",
+      "s3Uri": "s3://onprem-aws-ia/AWS-DRS-Orchestration/cfn/lambda-stack.yaml"
+    }
+,
+    {
+      "filename": "master-template.yaml",
+      "s3Uri": "s3://onprem-aws-ia/AWS-DRS-Orchestration/cfn/master-template.yaml"
+    }
+
+  ]
+}
