@@ -39,8 +39,10 @@ Parameters:
     Default: 'prod'
     Description: 'Environment name (dev, test, prod)'
     AllowedValues:
-      - dev
       - test
+      - dev
+      - qa
+      - uat
       - prod
 
   SourceBucket:
@@ -119,10 +121,7 @@ Resources:
         ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
-        NotificationTopicArn: !If
-          - HasNotificationEmail
-          - !GetAtt ApiStack.Outputs.NotificationTopicArn
-          - ''
+        NotificationTopicArn: ''
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -161,6 +160,8 @@ Resources:
   # Note: SecurityStack removed for MVP deployment - Phase 2 enhancement
   FrontendStack:
     Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     DependsOn:
       - LambdaStack
       - ApiStack
@@ -180,7 +181,7 @@ Resources:
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
-      TimeoutInMinutes: 30
+      TimeoutInMinutes: 45
 
 Outputs:
   # Database Stack Outputs
@@ -202,6 +203,24 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTable'
 
+  ProtectionGroupsTableArn:
+    Description: 'DynamoDB table ARN for Protection Groups'
+    Value: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableArn
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupsTableArn'
+
+  RecoveryPlansTableArn:
+    Description: 'DynamoDB table ARN for Recovery Plans'
+    Value: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableArn
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryPlansTableArn'
+
+  ExecutionHistoryTableArn:
+    Description: 'DynamoDB table ARN for Execution History'
+    Value: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionHistoryTableArn'
+
   # Lambda Stack Outputs
   ApiHandlerFunctionArn:
     Description: 'API Handler Lambda Function ARN'
@@ -214,6 +233,18 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationArn'
+
+  S3CleanupFunctionArn:
+    Description: 'S3 Cleanup Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.S3CleanupFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-S3CleanupArn'
+
+  FrontendBuilderFunctionArn:
+    Description: 'Frontend Builder Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBuilderArn'
 
   # API Stack Outputs
   UserPoolId:
@@ -264,6 +295,12 @@ Outputs:
     Value: !GetAtt FrontendStack.Outputs.CloudFrontUrl
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontUrl'
+
+  CloudFrontDistributionId:
+    Description: 'CloudFront Distribution ID'
+    Value: !GetAtt FrontendStack.Outputs.CloudFrontDistributionId
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
 
   FrontendBucketName:
     Description: 'S3 bucket for frontend hosting'
