@@ -1,5 +1,4 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
 Description: 'AWS DRS Orchestration - Lambda Functions Nested Stack'
 
 Parameters:
@@ -10,6 +9,10 @@ Parameters:
   Environment:
     Type: String
     Description: 'Environment name'
+
+  SourceBucket:
+    Type: String
+    Description: 'S3 bucket containing Lambda deployment packages'
 
   ProtectionGroupsTableName:
     Type: String
@@ -25,10 +28,12 @@ Parameters:
 
   FrontendBucketName:
     Type: String
+    Default: ''
     Description: 'S3 bucket name for frontend hosting'
 
   CloudFrontDistributionId:
     Type: String
+    Default: ''
     Description: 'CloudFront distribution ID'
 
   NotificationTopicArn:
@@ -38,21 +43,7 @@ Parameters:
 
 Conditions:
   HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
-
-Globals:
-  Function:
-    Runtime: python3.12
-    Timeout: 900
-    MemorySize: 512
-    Environment:
-      Variables:
-        PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
-        RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
-        EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-        NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
-    Tags:
-      Project: !Ref ProjectName
-      Environment: !Ref Environment
+  HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, '']]
 
 Resources:
   # IAM Role for API Handler Lambda
@@ -249,59 +240,110 @@ Resources:
 
   # API Handler Lambda Function
   ApiHandlerFunction:
-    Type: AWS::Serverless::Function
+    Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-api-handler'
       Description: 'API Gateway handler for DRS Orchestration'
-      CodeUri: ../lambda/api-handler/
+      Runtime: python3.12
       Handler: index.lambda_handler
       Role: !GetAtt ApiHandlerRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/api-handler.zip'
+      Timeout: 900
+      MemorySize: 512
       Environment:
         Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
           STATE_MACHINE_ARN: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration'
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /{proxy+}
-            Method: ANY
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
 
   # Orchestration Lambda Function
   OrchestrationFunction:
-    Type: AWS::Serverless::Function
+    Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-orchestration'
       Description: 'Step Functions orchestrator for DRS recovery execution'
-      CodeUri: ../lambda/orchestration/
+      Runtime: python3.12
       Handler: drs_orchestrator.lambda_handler
       Role: !GetAtt OrchestrationRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/orchestration.zip'
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
 
   # S3 Cleanup Custom Resource Lambda
   S3CleanupFunction:
-    Type: AWS::Serverless::Function
+    Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-s3-cleanup'
       Description: 'Custom resource to empty S3 bucket on stack deletion'
-      CodeUri: ../lambda/custom-resources/
+      Runtime: python3.12
       Handler: s3_cleanup.lambda_handler
       Role: !GetAtt CustomResourceRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/s3-cleanup.zip'
       Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
 
   # Frontend Builder Custom Resource Lambda
   FrontendBuilderFunction:
-    Type: AWS::Serverless::Function
+    Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-frontend-builder'
       Description: 'Custom resource to build and deploy React frontend'
-      CodeUri: ../lambda/frontend-builder/
+      Runtime: python3.12
       Handler: build_and_deploy.lambda_handler
       Role: !GetAtt CustomResourceRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/frontend-builder.zip'
       Timeout: 600
       MemorySize: 2048
       Environment:
         Variables:
-          FRONTEND_BUCKET: !Ref FrontendBucketName
-          CLOUDFRONT_DISTRIBUTION_ID: !Ref CloudFrontDistributionId
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
+          FRONTEND_BUCKET: !If [HasFrontendBucket, !Ref FrontendBucketName, !Ref 'AWS::NoValue']
+          CLOUDFRONT_DISTRIBUTION_ID: !If [HasFrontendBucket, !Ref CloudFrontDistributionId, !Ref 'AWS::NoValue']
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
 
   # Log Groups with retention
   ApiHandlerLogGroup:
