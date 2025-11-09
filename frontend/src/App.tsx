@@ -10,6 +10,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
@@ -61,7 +62,8 @@ function App() {
       />
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
+          <ErrorBoundary>
+            <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
             
@@ -125,6 +127,7 @@ function App() {
             {/* Catch-all redirect to home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
