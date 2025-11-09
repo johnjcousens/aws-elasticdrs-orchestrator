@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - Database Stack (DynamoDB Tables)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name used for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+
+Resources:
+  # Protection Groups Table
+  ProtectionGroupsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-protection-groups'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: GroupId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: GroupId
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Recovery Plans Table
+  RecoveryPlansTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-recovery-plans'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PlanId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PlanId
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Execution History Table
+  ExecutionHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-execution-history'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: ExecutionId
+          AttributeType: S
+        - AttributeName: PlanId
+          AttributeType: S
+        - AttributeName: StartTime
+          AttributeType: N
+      KeySchema:
+        - AttributeName: ExecutionId
+          KeyType: HASH
+        - AttributeName: PlanId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: PlanIdIndex
+          KeySchema:
+            - AttributeName: PlanId
+              KeyType: HASH
+            - AttributeName: StartTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  ProtectionGroupsTableName:
+    Description: 'DynamoDB table name for Protection Groups'
+    Value: !Ref ProtectionGroupsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupsTableName'
+
+  ProtectionGroupsTableArn:
+    Description: 'DynamoDB table ARN for Protection Groups'
+    Value: !GetAtt ProtectionGroupsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupsTableArn'
+
+  RecoveryPlansTableName:
+    Description: 'DynamoDB table name for Recovery Plans'
+    Value: !Ref RecoveryPlansTable
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryPlansTableName'
+
+  RecoveryPlansTableArn:
+    Description: 'DynamoDB table ARN for Recovery Plans'
+    Value: !GetAtt RecoveryPlansTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryPlansTableArn'
+
+  ExecutionHistoryTableName:
+    Description: 'DynamoDB table name for Execution History'
+    Value: !Ref ExecutionHistoryTable
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionHistoryTableName'
+
+  ExecutionHistoryTableArn:
+    Description: 'DynamoDB table ARN for Execution History'
+    Value: !GetAtt ExecutionHistoryTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionHistoryTableArn'

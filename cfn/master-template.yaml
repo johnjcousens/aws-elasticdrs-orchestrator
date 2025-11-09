@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration Solution - Master Template'
+Description: 'AWS DRS Orchestration Solution - Master Template (Nested Stack Architecture)'
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -9,25 +9,22 @@ Metadata:
         Parameters:
           - ProjectName
           - Environment
+          - SourceBucket
       - Label:
           default: 'Authentication Configuration'
         Parameters:
           - AdminEmail
           - CognitoDomainPrefix
       - Label:
-          default: 'Lambda Configuration'
-        Parameters:
-          - LambdaCodeBucket
-          - LambdaCodeKey
-      - Label:
-          default: 'Frontend Configuration'
-        Parameters:
-          - FrontendCodeBucket
-          - FrontendCodeKey
-      - Label:
           default: 'Notification Configuration'
         Parameters:
           - NotificationEmail
+      - Label:
+          default: 'Security Configuration (Optional)'
+        Parameters:
+          - EnableWAF
+          - EnableCloudTrail
+          - EnableSecretsManager
 
 Parameters:
   ProjectName:
@@ -46,6 +43,10 @@ Parameters:
       - test
       - prod
 
+  SourceBucket:
+    Type: String
+    Description: 'S3 bucket containing nested CloudFormation templates and Lambda code'
+
   AdminEmail:
     Type: String
     Description: 'Email address for initial Cognito admin user'
@@ -57,1114 +58,279 @@ Parameters:
     Default: ''
     Description: 'Optional: Custom domain prefix for Cognito (leave empty for auto-generated)'
 
-  LambdaCodeBucket:
-    Type: String
-    Default: ''
-    Description: 'Optional: S3 bucket containing Lambda deployment packages (leave empty to use inline code)'
-
-  LambdaCodeKey:
-    Type: String
-    Default: ''
-    Description: 'Optional: S3 key prefix for Lambda code'
-
-  FrontendCodeBucket:
-    Type: String
-    Default: ''
-    Description: 'Optional: S3 bucket containing frontend source code'
-
-  FrontendCodeKey:
-    Type: String
-    Default: ''
-    Description: 'Optional: S3 key for frontend source code zip'
-
   NotificationEmail:
     Type: String
     Default: ''
     Description: 'Optional: Email address for execution notifications (leave empty to skip)'
 
+  EnableWAF:
+    Type: String
+    Default: 'true'
+    Description: 'Enable AWS WAF for API Gateway protection'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  EnableCloudTrail:
+    Type: String
+    Default: 'true'
+    Description: 'Enable CloudTrail for audit logging'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  EnableSecretsManager:
+    Type: String
+    Default: 'true'
+    Description: 'Enable Secrets Manager for secure credential storage'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
 Conditions:
-  HasLambdaCodeBucket: !Not [!Equals [!Ref LambdaCodeBucket, '']]
-  HasFrontendCodeBucket: !Not [!Equals [!Ref FrontendCodeBucket, '']]
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
-  HasCognitoDomain: !Not [!Equals [!Ref CognitoDomainPrefix, '']]
 
 Resources:
-  # DynamoDB Tables
-  ProtectionGroupsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub '${ProjectName}-protection-groups'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: GroupId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: GroupId
-          KeyType: HASH
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-      SSESpecification:
-        SSEEnabled: true
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  RecoveryPlansTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub '${ProjectName}-recovery-plans'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: PlanId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: PlanId
-          KeyType: HASH
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-      SSESpecification:
-        SSEEnabled: true
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  ExecutionHistoryTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub '${ProjectName}-execution-history'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: ExecutionId
-          AttributeType: S
-        - AttributeName: PlanId
-          AttributeType: S
-        - AttributeName: StartTime
-          AttributeType: N
-      KeySchema:
-        - AttributeName: ExecutionId
-          KeyType: HASH
-        - AttributeName: PlanId
-          KeyType: RANGE
-      GlobalSecondaryIndexes:
-        - IndexName: PlanIdIndex
-          KeySchema:
-            - AttributeName: PlanId
-              KeyType: HASH
-            - AttributeName: StartTime
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-      SSESpecification:
-        SSEEnabled: true
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # SSM Documents for Post-Recovery Actions
-  HealthCheckDocument:
-    Type: AWS::SSM::Document
-    Properties:
-      Name: !Sub '${ProjectName}-health-check'
-      DocumentType: Command
-      Content:
-        schemaVersion: '2.2'
-        description: 'Post-recovery health check for Windows and Linux instances'
-        parameters:
-          workingDirectory:
-            type: String
-            description: 'Working directory'
-            default: '/tmp'
-        mainSteps:
-          - action: aws:runShellScript
-            name: linuxHealthCheck
-            precondition:
-              StringEquals:
-                - platformType
-                - Linux
-            inputs:
-              runCommand:
-                - |
-                  #!/bin/bash
-                  echo "=== Linux Health Check ==="
-                  echo "Hostname: $(hostname)"
-                  echo "Uptime: $(uptime)"
-                  echo "Disk Usage:"
-                  df -h
-                  echo "Memory Usage:"
-                  free -m
-                  echo "CPU Info:"
-                  top -bn1 | head -5
-                  echo "Network Connectivity:"
-                  ping -c 3 8.8.8.8
-                  echo "Health check completed"
-          - action: aws:runPowerShellScript
-            name: windowsHealthCheck
-            precondition:
-              StringEquals:
-                - platformType
-                - Windows
-            inputs:
-              runCommand:
-                - |
-                  Write-Host "=== Windows Health Check ==="
-                  Write-Host "Hostname: $env:COMPUTERNAME"
-                  Write-Host "Uptime:"
-                  Get-CimInstance Win32_OperatingSystem | Select-Object LastBootUpTime
-                  Write-Host "Disk Usage:"
-                  Get-PSDrive -PSProvider FileSystem
-                  Write-Host "Memory Usage:"
-                  Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize
-                  Write-Host "Network Connectivity:"
-                  Test-Connection -ComputerName 8.8.8.8 -Count 3
-                  Write-Host "Health check completed"
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  ApplicationStartupDocument:
-    Type: AWS::SSM::Document
-    Properties:
-      Name: !Sub '${ProjectName}-app-startup'
-      DocumentType: Command
-      Content:
-        schemaVersion: '2.2'
-        description: 'Start application services after recovery'
-        parameters:
-          serviceName:
-            type: String
-            description: 'Service name to start'
-            default: 'app'
-        mainSteps:
-          - action: aws:runShellScript
-            name: linuxStartService
-            precondition:
-              StringEquals:
-                - platformType
-                - Linux
-            inputs:
-              runCommand:
-                - |
-                  #!/bin/bash
-                  SERVICE_NAME="{{ serviceName }}"
-                  echo "Starting service: $SERVICE_NAME"
-                  systemctl start $SERVICE_NAME
-                  systemctl status $SERVICE_NAME
-          - action: aws:runPowerShellScript
-            name: windowsStartService
-            precondition:
-              StringEquals:
-                - platformType
-                - Windows
-            inputs:
-              runCommand:
-                - |
-                  $ServiceName = "{{ serviceName }}"
-                  Write-Host "Starting service: $ServiceName"
-                  Start-Service -Name $ServiceName
-                  Get-Service -Name $ServiceName
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  NetworkValidationDocument:
-    Type: AWS::SSM::Document
-    Properties:
-      Name: !Sub '${ProjectName}-network-validation'
-      DocumentType: Command
-      Content:
-        schemaVersion: '2.2'
-        description: 'Validate network connectivity after recovery'
-        parameters:
-          targetHost:
-            type: String
-            description: 'Target host to test connectivity'
-            default: '8.8.8.8'
-        mainSteps:
-          - action: aws:runShellScript
-            name: linuxNetworkTest
-            precondition:
-              StringEquals:
-                - platformType
-                - Linux
-            inputs:
-              runCommand:
-                - |
-                  #!/bin/bash
-                  TARGET="{{ targetHost }}"
-                  echo "Testing connectivity to: $TARGET"
-                  ping -c 5 $TARGET
-                  echo "DNS Resolution:"
-                  nslookup google.com
-                  echo "Route Table:"
-                  route -n
-          - action: aws:runPowerShellScript
-            name: windowsNetworkTest
-            precondition:
-              StringEquals:
-                - platformType
-                - Windows
-            inputs:
-              runCommand:
-                - |
-                  $Target = "{{ targetHost }}"
-                  Write-Host "Testing connectivity to: $Target"
-                  Test-Connection -ComputerName $Target -Count 5
-                  Write-Host "DNS Resolution:"
-                  Resolve-DnsName google.com
-                  Write-Host "Route Table:"
-                  route print
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # S3 Bucket for Frontend Hosting
-  FrontendBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-frontend-${AWS::AccountId}'
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      VersioningConfiguration:
-        Status: Enabled
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # CloudFront Origin Access Control
-  CloudFrontOAC:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub '${ProjectName}-oac'
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  # CloudFront Distribution
-  CloudFrontDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        Comment: !Sub '${ProjectName} Frontend Distribution'
-        DefaultRootObject: index.html
-        Origins:
-          - Id: S3Origin
-            DomainName: !GetAtt FrontendBucket.RegionalDomainName
-            OriginAccessControlId: !Ref CloudFrontOAC
-            S3OriginConfig:
-              OriginAccessIdentity: ''
-        DefaultCacheBehavior:
-          TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods:
-            - GET
-            - HEAD
-            - OPTIONS
-          CachedMethods:
-            - GET
-            - HEAD
-            - OPTIONS
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
-          Compress: true
-          DefaultTTL: 86400
-          MaxTTL: 31536000
-          MinTTL: 0
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 300
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 300
-        PriceClass: PriceClass_100
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # S3 Bucket Policy for CloudFront
-  FrontendBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref FrontendBucket
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
-            Resource: !Sub '${FrontendBucket.Arn}/*'
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
-
-  # Cognito User Pool
-  UserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: !Sub '${ProjectName}-users'
-      AutoVerifiedAttributes:
-        - email
-      UsernameAttributes:
-        - email
-      UsernameConfiguration:
-        CaseSensitive: false
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: true
-          RequireUppercase: true
-      Schema:
-        - Name: email
-          AttributeDataType: String
-          Required: true
-          Mutable: true
-      UserAttributeUpdateSettings:
-        AttributesRequireVerificationBeforeUpdate:
-          - email
-      AccountRecoverySetting:
-        RecoveryMechanisms:
-          - Name: verified_email
-            Priority: 1
-      UserPoolTags:
-        Project: !Ref ProjectName
-        Environment: !Ref Environment
-
-  # Cognito User Pool Client
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName: !Sub '${ProjectName}-client'
-      UserPoolId: !Ref UserPool
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_SRP_AUTH
-      PreventUserExistenceErrors: ENABLED
-      AccessTokenValidity: 60
-      IdTokenValidity: 60
-      RefreshTokenValidity: 30
-      TokenValidityUnits:
-        AccessToken: minutes
-        IdToken: minutes
-        RefreshToken: days
-
-  # Cognito Identity Pool
-  IdentityPool:
-    Type: AWS::Cognito::IdentityPool
-    Properties:
-      IdentityPoolName: !Sub '${ProjectName}_identity_pool'
-      AllowUnauthenticatedIdentities: false
-      CognitoIdentityProviders:
-        - ClientId: !Ref UserPoolClient
-          ProviderName: !GetAtt UserPool.ProviderName
-
-  # IAM Role for Authenticated Users
-  CognitoAuthRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub '${ProjectName}-cognito-auth-role'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-            Action: sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringEquals:
-                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
-              ForAnyValue:StringLike:
-                cognito-identity.amazonaws.com:amr: authenticated
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonCognitoReadOnly
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # Attach Identity Pool Roles
-  IdentityPoolRoleAttachment:
-    Type: AWS::Cognito::IdentityPoolRoleAttachment
-    Properties:
-      IdentityPoolId: !Ref IdentityPool
-      Roles:
-        authenticated: !GetAtt CognitoAuthRole.Arn
-
-  # SNS Topic for Notifications (Optional)
-  NotificationTopic:
-    Type: AWS::SNS::Topic
-    Condition: HasNotificationEmail
-    Properties:
-      TopicName: !Sub '${ProjectName}-notifications'
-      DisplayName: 'DRS Orchestration Notifications'
-      Subscription:
-        - Endpoint: !Ref NotificationEmail
-          Protocol: email
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # Step Functions State Machine
-  StepFunctionsLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/vendedlogs/states/${ProjectName}-orchestration'
-      RetentionInDays: 30
-
-  StepFunctionsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub '${ProjectName}-stepfunctions-role'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: states.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-      Policies:
-        - PolicyName: StepFunctionsExecutionPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  - !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                Resource:
-                  - !GetAtt ExecutionHistoryTable.Arn
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: !If
-                  - HasNotificationEmail
-                  - !Ref NotificationTopic
-                  - !Ref AWS::NoValue
-
-  OrchestrationStateMachine:
-    Type: AWS::StepFunctions::StateMachine
-    Properties:
-      StateMachineName: !Sub '${ProjectName}-orchestration'
-      RoleArn: !GetAtt StepFunctionsRole.Arn
-      LoggingConfiguration:
-        Level: ALL
-        IncludeExecutionData: true
-        Destinations:
-          - CloudWatchLogsLogGroup:
-              LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
-      DefinitionString: !Sub |
-        {
-          "Comment": "DRS Orchestration State Machine",
-          "StartAt": "InitializeExecution",
-          "States": {
-            "InitializeExecution": {
-              "Type": "Task",
-              "Resource": "${LambdaStack.Outputs.OrchestrationFunctionArn}",
-              "Parameters": {
-                "action": "initialize",
-                "executionId.$": "$$.Execution.Name",
-                "input.$": "$"
-              },
-              "ResultPath": "$.executionContext",
-              "Next": "ProcessWaves"
-            },
-            "ProcessWaves": {
-              "Type": "Map",
-              "ItemsPath": "$.executionContext.waves",
-              "Iterator": {
-                "StartAt": "ProcessWave",
-                "States": {
-                  "ProcessWave": {
-                    "Type": "Task",
-                    "Resource": "${LambdaStack.Outputs.OrchestrationFunctionArn}",
-                    "Parameters": {
-                      "action": "processWave",
-                      "wave.$": "$",
-                      "executionId.$": "$.executionId"
-                    },
-                    "ResultPath": "$.waveResult",
-                    "End": true
-                  }
-                }
-              },
-              "ResultPath": "$.waveResults",
-              "Next": "FinalizeExecution"
-            },
-            "FinalizeExecution": {
-              "Type": "Task",
-              "Resource": "${LambdaStack.Outputs.OrchestrationFunctionArn}",
-              "Parameters": {
-                "action": "finalize",
-                "executionId.$": "$$.Execution.Name",
-                "results.$": "$.waveResults"
-              },
-              "End": true
-            }
-          }
-        }
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # Lambda Nested Stack
-  LambdaStack:
+  # Database Stack - DynamoDB Tables
+  DatabaseStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub 'https://s3.${AWS::Region}.amazonaws.com/${LambdaCodeBucket}/lambda-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/database-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        ProtectionGroupsTableName: !Ref ProtectionGroupsTable
-        RecoveryPlansTableName: !Ref RecoveryPlansTable
-        ExecutionHistoryTableName: !Ref ExecutionHistoryTable
-        FrontendBucketName: !Ref FrontendBucket
-        CloudFrontDistributionId: !Ref CloudFrontDistribution
-        NotificationTopicArn: !If [HasNotificationEmail, !Ref NotificationTopic, '']
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+      TimeoutInMinutes: 15
 
-  # API Gateway REST API
-  RestApi:
-    Type: AWS::ApiGateway::RestApi
+  # Lambda Stack - Lambda Functions and IAM Roles
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DatabaseStack
     Properties:
-      Name: !Sub '${ProjectName}-api'
-      Description: 'DRS Orchestration REST API'
-      EndpointConfiguration:
-        Types:
-          - REGIONAL
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/lambda-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        SourceBucket: !Ref SourceBucket
+        ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
+        RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
+        ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
+        NotificationTopicArn: !If
+          - HasNotificationEmail
+          - !GetAtt ApiStack.Outputs.NotificationTopicArn
+          - ''
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+      TimeoutInMinutes: 30
 
-  # Cognito Authorizer
-  ApiAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      Name: CognitoAuthorizer
-      Type: COGNITO_USER_POOLS
-      RestApiId: !Ref RestApi
-      IdentitySource: method.request.header.Authorization
-      ProviderARNs:
-        - !GetAtt UserPool.Arn
-
-  # API Gateway IAM Role for CloudWatch Logs
-  ApiGatewayCloudWatchRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-
-  # API Gateway Account (for CloudWatch Logs)
-  ApiGatewayAccount:
-    Type: AWS::ApiGateway::Account
-    Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
-
-  # Request Validator
-  ApiRequestValidator:
-    Type: AWS::ApiGateway::RequestValidator
-    Properties:
-      Name: RequestValidator
-      RestApiId: !Ref RestApi
-      ValidateRequestBody: true
-      ValidateRequestParameters: true
-
-  # API Resources - Protection Groups
-  ProtectionGroupsResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref RestApi
-      ParentId: !GetAtt RestApi.RootResourceId
-      PathPart: protection-groups
-
-  ProtectionGroupResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref RestApi
-      ParentId: !Ref ProtectionGroupsResource
-      PathPart: '{id}'
-
-  # Methods - GET /protection-groups
-  ProtectionGroupsGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref ProtectionGroupsResource
-      HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Methods - POST /protection-groups
-  ProtectionGroupsPostMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref ProtectionGroupsResource
-      HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      RequestValidatorId: !Ref ApiRequestValidator
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 201
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Methods - GET /protection-groups/{id}
-  ProtectionGroupGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref ProtectionGroupResource
-      HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Methods - PUT /protection-groups/{id}
-  ProtectionGroupPutMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref ProtectionGroupResource
-      HttpMethod: PUT
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      RequestValidatorId: !Ref ApiRequestValidator
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Methods - DELETE /protection-groups/{id}
-  ProtectionGroupDeleteMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref ProtectionGroupResource
-      HttpMethod: DELETE
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 204
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # CORS - OPTIONS /protection-groups
-  ProtectionGroupsOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref ProtectionGroupsResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-            ResponseTemplates:
-              application/json: ''
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # CORS - OPTIONS /protection-groups/{id}
-  ProtectionGroupOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref ProtectionGroupResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-            ResponseTemplates:
-              application/json: ''
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # API Resources - Recovery Plans
-  RecoveryPlansResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref RestApi
-      ParentId: !GetAtt RestApi.RootResourceId
-      PathPart: recovery-plans
-
-  RecoveryPlanResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref RestApi
-      ParentId: !Ref RecoveryPlansResource
-      PathPart: '{id}'
-
-  RecoveryPlanExecuteResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref RestApi
-      ParentId: !Ref RecoveryPlanResource
-      PathPart: execute
-
-  # Methods - GET /recovery-plans
-  RecoveryPlansGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref RecoveryPlansResource
-      HttpMethod: GET
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Methods - POST /recovery-plans
-  RecoveryPlansPostMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref RecoveryPlansResource
-      HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      RequestValidatorId: !Ref ApiRequestValidator
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 201
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Methods - POST /recovery-plans/{id}/execute
-  RecoveryPlanExecuteMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref RecoveryPlanExecuteResource
-      HttpMethod: POST
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ApiAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaStack.Outputs.ApiHandlerFunctionArn}/invocations'
-      MethodResponses:
-        - StatusCode: 202
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # CORS - OPTIONS /recovery-plans
-  RecoveryPlansOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !Ref RecoveryPlansResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-            ResponseTemplates:
-              application/json: ''
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Lambda Permission for API Gateway
-  ApiGatewayInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*'
-
-  # API Deployment
-  ApiDeployment:
-    Type: AWS::ApiGateway::Deployment
+  # API Stack - Cognito, API Gateway, Step Functions
+  ApiStack:
+    Type: AWS::CloudFormation::Stack
     DependsOn:
-      - ProtectionGroupsGetMethod
-      - ProtectionGroupsPostMethod
-      - ProtectionGroupGetMethod
-      - ProtectionGroupPutMethod
-      - ProtectionGroupDeleteMethod
-      - ProtectionGroupsOptionsMethod
-      - ProtectionGroupOptionsMethod
-      - RecoveryPlansGetMethod
-      - RecoveryPlansPostMethod
-      - RecoveryPlanExecuteMethod
-      - RecoveryPlansOptionsMethod
+      - DatabaseStack
+      - LambdaStack
     Properties:
-      RestApiId: !Ref RestApi
-
-  # API Stage
-  ApiStage:
-    Type: AWS::ApiGateway::Stage
-    Properties:
-      StageName: !Ref Environment
-      RestApiId: !Ref RestApi
-      DeploymentId: !Ref ApiDeployment
-      TracingEnabled: true
-      MethodSettings:
-        - ResourcePath: '/*'
-          HttpMethod: '*'
-          LoggingLevel: INFO
-          DataTraceEnabled: true
-          MetricsEnabled: true
-          ThrottlingBurstLimit: 500
-          ThrottlingRateLimit: 1000
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/api-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        AdminEmail: !Ref AdminEmail
+        CognitoDomainPrefix: !Ref CognitoDomainPrefix
+        NotificationEmail: !Ref NotificationEmail
+        ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
+        RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
+        ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
+        ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+        OrchestrationFunctionArn: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+      TimeoutInMinutes: 20
 
-  # S3 Cleanup Custom Resource
-  S3CleanupResource:
-    Type: Custom::S3Cleanup
+  # Security Stack - WAF, CloudTrail, Secrets Manager (Optional)
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ApiStack
     Properties:
-      ServiceToken: !GetAtt LambdaStack.Outputs.S3CleanupFunctionArn
-      BucketName: !Ref FrontendBucket
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/security-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt ApiStack.Outputs.ApiId
+        RestApiStage: !Ref Environment
+        EnableWAF: !Ref EnableWAF
+        EnableCloudTrail: !Ref EnableCloudTrail
+        EnableSecretsManager: !Ref EnableSecretsManager
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 20
 
-  # Frontend Build Custom Resource
-  FrontendBuildResource:
-    Type: Custom::FrontendBuild
+  # Frontend Stack - S3, CloudFront, Custom Resources
+  FrontendStack:
+    Type: AWS::CloudFormation::Stack
     DependsOn:
-      - FrontendBucket
-      - CloudFrontDistribution
-      - RestApi
-      - ApiStage
+      - LambdaStack
+      - ApiStack
     Properties:
-      ServiceToken: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
-      BucketName: !Ref FrontendBucket
-      DistributionId: !Ref CloudFrontDistribution
-      ApiEndpoint: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStage}'
-      UserPoolId: !Ref UserPool
-      UserPoolClientId: !Ref UserPoolClient
-      IdentityPoolId: !Ref IdentityPool
-      Region: !Ref AWS::Region
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/frontend-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        UserPoolId: !GetAtt ApiStack.Outputs.UserPoolId
+        UserPoolClientId: !GetAtt ApiStack.Outputs.UserPoolClientId
+        IdentityPoolId: !GetAtt ApiStack.Outputs.IdentityPoolId
+        ApiEndpoint: !GetAtt ApiStack.Outputs.ApiEndpoint
+        S3CleanupFunctionArn: !GetAtt LambdaStack.Outputs.S3CleanupFunctionArn
+        FrontendBuilderFunctionArn: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 30
 
 Outputs:
+  # Database Stack Outputs
   ProtectionGroupsTableName:
     Description: 'DynamoDB table for Protection Groups'
-    Value: !Ref ProtectionGroupsTable
+    Value: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
     Export:
       Name: !Sub '${AWS::StackName}-ProtectionGroupsTable'
 
   RecoveryPlansTableName:
     Description: 'DynamoDB table for Recovery Plans'
-    Value: !Ref RecoveryPlansTable
+    Value: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
     Export:
       Name: !Sub '${AWS::StackName}-RecoveryPlansTable'
 
   ExecutionHistoryTableName:
     Description: 'DynamoDB table for Execution History'
-    Value: !Ref ExecutionHistoryTable
+    Value: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTable'
 
+  # Lambda Stack Outputs
+  ApiHandlerFunctionArn:
+    Description: 'API Handler Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiHandlerArn'
+
+  OrchestrationFunctionArn:
+    Description: 'Orchestration Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestrationArn'
+
+  # API Stack Outputs
   UserPoolId:
     Description: 'Cognito User Pool ID'
-    Value: !Ref UserPool
+    Value: !GetAtt ApiStack.Outputs.UserPoolId
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolId'
 
   UserPoolClientId:
     Description: 'Cognito User Pool Client ID'
-    Value: !Ref UserPoolClient
+    Value: !GetAtt ApiStack.Outputs.UserPoolClientId
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolClientId'
 
   IdentityPoolId:
     Description: 'Cognito Identity Pool ID'
-    Value: !Ref IdentityPool
+    Value: !GetAtt ApiStack.Outputs.IdentityPoolId
     Export:
       Name: !Sub '${AWS::StackName}-IdentityPoolId'
 
-  CloudFrontUrl:
-    Description: 'CloudFront Distribution URL'
-    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
-    Export:
-      Name: !Sub '${AWS::StackName}-CloudFrontUrl'
-
   ApiEndpoint:
     Description: 'API Gateway endpoint URL'
-    Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStage}'
+    Value: !GetAtt ApiStack.Outputs.ApiEndpoint
     Export:
       Name: !Sub '${AWS::StackName}-ApiEndpoint'
 
   ApiId:
     Description: 'API Gateway ID'
-    Value: !Ref RestApi
+    Value: !GetAtt ApiStack.Outputs.ApiId
     Export:
       Name: !Sub '${AWS::StackName}-ApiId'
 
-  FrontendBucketName:
-    Description: 'S3 bucket for frontend hosting'
-    Value: !Ref FrontendBucket
+  StateMachineArn:
+    Description: 'Step Functions State Machine ARN'
+    Value: !GetAtt ApiStack.Outputs.StateMachineArn
     Export:
-      Name: !Sub '${AWS::StackName}-FrontendBucket'
+      Name: !Sub '${AWS::StackName}-StateMachineArn'
 
   NotificationTopicArn:
     Description: 'SNS Topic ARN for notifications'
-    Value: !If [HasNotificationEmail, !Ref NotificationTopic, '']
+    Value: !GetAtt ApiStack.Outputs.NotificationTopicArn
     Export:
       Name: !Sub '${AWS::StackName}-NotificationTopicArn'
 
+  # Frontend Stack Outputs
+  CloudFrontUrl:
+    Description: 'CloudFront Distribution URL'
+    Value: !GetAtt FrontendStack.Outputs.CloudFrontUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontUrl'
+
+  FrontendBucketName:
+    Description: 'S3 bucket for frontend hosting'
+    Value: !GetAtt FrontendStack.Outputs.FrontendBucketName
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucket'
+
+  SSMHealthCheckDocument:
+    Description: 'SSM Health Check Document Name'
+    Value: !GetAtt FrontendStack.Outputs.SSMHealthCheckDocument
+    Export:
+      Name: !Sub '${AWS::StackName}-HealthCheckDocument'
+
+  SSMAppStartupDocument:
+    Description: 'SSM Application Startup Document Name'
+    Value: !GetAtt FrontendStack.Outputs.SSMAppStartupDocument
+    Export:
+      Name: !Sub '${AWS::StackName}-AppStartupDocument'
+
+  SSMNetworkValidationDocument:
+    Description: 'SSM Network Validation Document Name'
+    Value: !GetAtt FrontendStack.Outputs.SSMNetworkValidationDocument
+    Export:
+      Name: !Sub '${AWS::StackName}-NetworkValidationDocument'
+
+  # Security Stack Outputs (Optional)
+  WAFWebACLArn:
+    Description: 'WAF Web ACL ARN (if enabled)'
+    Value: !GetAtt SecurityStack.Outputs.WAFWebACLArn
+    Export:
+      Name: !Sub '${AWS::StackName}-WAFWebACLArn'
+
+  CloudTrailArn:
+    Description: 'CloudTrail ARN (if enabled)'
+    Value: !GetAtt SecurityStack.Outputs.CloudTrailArn
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudTrailArn'
+
+  # General Outputs
   Region:
     Description: 'AWS Region'
     Value: !Ref AWS::Region
     Export:
       Name: !Sub '${AWS::StackName}-Region'
 
-  StateMachineArn:
-    Description: 'Step Functions State Machine ARN'
-    Value: !Ref OrchestrationStateMachine
+  DeploymentBucket:
+    Description: 'S3 bucket used for deployment artifacts'
+    Value: !Ref SourceBucket
     Export:
-      Name: !Sub '${AWS::StackName}-StateMachineArn'
-
-  SSMHealthCheckDocument:
-    Description: 'SSM Health Check Document Name'
-    Value: !Ref HealthCheckDocument
-    Export:
-      Name: !Sub '${AWS::StackName}-HealthCheckDocument'
-
-  SSMAppStartupDocument:
-    Description: 'SSM Application Startup Document Name'
-    Value: !Ref ApplicationStartupDocument
-    Export:
-      Name: !Sub '${AWS::StackName}-AppStartupDocument'
-
-  SSMNetworkValidationDocument:
-    Description: 'SSM Network Validation Document Name'
-    Value: !Ref NetworkValidationDocument
-    Export:
-      Name: !Sub '${AWS::StackName}-NetworkValidationDocument'
+      Name: !Sub '${AWS::StackName}-DeploymentBucket'

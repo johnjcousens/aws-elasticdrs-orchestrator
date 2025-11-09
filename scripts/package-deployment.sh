@@ -45,7 +45,13 @@ EXAMPLE:
 
 OUTPUT STRUCTURE:
     deployment-package/
-    ├── master-template-consolidated.yaml
+    ├── master-template.yaml
+    ├── nested-stacks/
+    │   ├── database-stack.yaml
+    │   ├── lambda-stack.yaml
+    │   ├── api-stack.yaml
+    │   ├── security-stack.yaml
+    │   └── frontend-stack.yaml
     ├── lambda/
     │   ├── api-handler.zip
     │   ├── orchestration.zip
@@ -66,7 +72,7 @@ NEXT STEPS:
     3. Users deploy with:
        aws cloudformation create-stack \\
          --stack-name drs-orchestration \\
-         --template-url https://your-solution-bucket.s3.amazonaws.com/master-template-consolidated.yaml \\
+         --template-url https://your-solution-bucket.s3.amazonaws.com/master-template.yaml \\
          --parameters ParameterKey=SourceBucket,ParameterValue=your-solution-bucket \\
                       ParameterKey=AdminEmail,ParameterValue=admin@example.com \\
          --capabilities CAPABILITY_NAMED_IAM
@@ -118,6 +124,7 @@ fi
 # Create output directory structure
 print_info "Creating output directory structure..."
 mkdir -p "$OUTPUT_DIR/lambda"
+mkdir -p "$OUTPUT_DIR/nested-stacks"
 if [ "$SKIP_FRONTEND" = false ]; then
     mkdir -p "$OUTPUT_DIR/frontend"
 fi
@@ -219,18 +226,29 @@ else
     print_info "Skipping frontend packaging (--skip-frontend specified)"
 fi
 
-# Copy CloudFormation template
-print_info "Copying CloudFormation template..."
+# Copy CloudFormation templates
+print_info "Copying CloudFormation templates..."
 
-# Check if consolidated template exists
-if [ -f "$PROJECT_ROOT/cfn/master-template-consolidated.yaml" ]; then
-    cp "$PROJECT_ROOT/cfn/master-template-consolidated.yaml" "$OUTPUT_DIR/"
-    print_info "  ✓ Copied master-template-consolidated.yaml"
-else
-    print_warn "  Consolidated template not found, copying master-template.yaml"
-    print_warn "  Note: You should consolidate templates first!"
+# Copy master template
+if [ -f "$PROJECT_ROOT/cfn/master-template.yaml" ]; then
     cp "$PROJECT_ROOT/cfn/master-template.yaml" "$OUTPUT_DIR/"
+    print_info "  ✓ Copied master-template.yaml"
+else
+    print_error "  Master template not found!"
+    exit 1
 fi
+
+# Copy nested stack templates
+print_info "Copying nested stack templates..."
+for template in database-stack lambda-stack api-stack security-stack frontend-stack; do
+    if [ -f "$PROJECT_ROOT/cfn/${template}.yaml" ]; then
+        cp "$PROJECT_ROOT/cfn/${template}.yaml" "$OUTPUT_DIR/nested-stacks/"
+        print_info "  ✓ Copied ${template}.yaml"
+    else
+        print_error "  ${template}.yaml not found!"
+        exit 1
+    fi
+done
 
 # Create README for deployment package
 print_info "Creating deployment README..."
@@ -243,7 +261,13 @@ This package contains all artifacts needed to deploy the AWS DRS Orchestration s
 
 ```
 deployment-package/
-├── master-template-consolidated.yaml  # CloudFormation template
+├── master-template.yaml               # Root CloudFormation template
+├── nested-stacks/                     # Nested stack templates
+│   ├── database-stack.yaml
+│   ├── lambda-stack.yaml
+│   ├── api-stack.yaml
+│   ├── security-stack.yaml
+│   └── frontend-stack.yaml
 ├── lambda/                            # Lambda function code
 │   ├── api-handler.zip
 │   ├── orchestration.zip
@@ -267,8 +291,8 @@ aws s3 mb s3://my-drs-solution-bucket --region us-west-2
 aws s3 sync . s3://my-drs-solution-bucket/ --exclude "README.md"
 
 # Make template publicly readable (optional, for easier access)
-aws s3 cp s3://my-drs-solution-bucket/master-template-consolidated.yaml \
-  s3://my-drs-solution-bucket/master-template-consolidated.yaml \
+aws s3 cp s3://my-drs-solution-bucket/master-template.yaml \
+  s3://my-drs-solution-bucket/master-template.yaml \
   --acl public-read
 ```
 
@@ -279,7 +303,7 @@ aws s3 cp s3://my-drs-solution-bucket/master-template-consolidated.yaml \
 ```bash
 aws cloudformation create-stack \
   --stack-name drs-orchestration \
-  --template-url https://my-drs-solution-bucket.s3.amazonaws.com/master-template-consolidated.yaml \
+  --template-url https://my-drs-solution-bucket.s3.amazonaws.com/master-template.yaml \
   --parameters \
     ParameterKey=SourceBucket,ParameterValue=my-drs-solution-bucket \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
@@ -292,7 +316,7 @@ aws cloudformation create-stack \
 1. Open AWS CloudFormation Console
 2. Create Stack → With new resources
 3. Template source: Amazon S3 URL
-4. Enter URL: `https://my-drs-solution-bucket.s3.amazonaws.com/master-template-consolidated.yaml`
+4. Enter URL: `https://my-drs-solution-bucket.s3.amazonaws.com/master-template.yaml`
 5. Provide parameters:
    - **SourceBucket**: `my-drs-solution-bucket`
    - **AdminEmail**: Your email address
@@ -386,7 +410,7 @@ print_info ""
 print_info "  2. Deploy stack:"
 print_info "     aws cloudformation create-stack \\"
 print_info "       --stack-name drs-orchestration \\"
-print_info "       --template-url https://your-solution-bucket.s3.amazonaws.com/master-template-consolidated.yaml \\"
+print_info "       --template-url https://your-solution-bucket.s3.amazonaws.com/master-template.yaml \\"
 print_info "       --parameters ParameterKey=SourceBucket,ParameterValue=your-solution-bucket \\"
 print_info "                    ParameterKey=AdminEmail,ParameterValue=admin@example.com \\"
 print_info "       --capabilities CAPABILITY_NAMED_IAM"

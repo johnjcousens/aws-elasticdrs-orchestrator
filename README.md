@@ -19,6 +19,21 @@ This solution enables you to define, execute, and monitor complex failover/failb
 
 ## Architecture
 
+### Modular CloudFormation Architecture
+
+The solution uses a **modular nested stack architecture** for better maintainability and scalability:
+
+| Stack | Lines | Purpose |
+|-------|-------|---------|
+| **master-template.yaml** | 336 | Root orchestrator coordinating all nested stacks |
+| **database-stack.yaml** | 130 | DynamoDB tables (3) with encryption & PITR |
+| **lambda-stack.yaml** | 408 | Lambda functions (4) + IAM roles + CloudWatch Log Groups |
+| **api-stack.yaml** | 696 | Cognito User Pool, API Gateway REST API, Step Functions |
+| **security-stack.yaml** | 648 | WAF, CloudTrail, Secrets Manager (optional) |
+| **frontend-stack.yaml** | 361 | S3 bucket, CloudFront distribution, Custom Resources |
+
+**Benefits**: Each template under 750 lines, single-command deployment, modular updates, professional AWS patterns.
+
 ### Components
 
 - **Frontend**: React 18.3+ SPA with Material-UI, hosted on S3/CloudFront
@@ -27,7 +42,8 @@ This solution enables you to define, execute, and monitor complex failover/failb
 - **Orchestration**: Step Functions for wave-based recovery execution
 - **Data**: DynamoDB tables for Protection Groups, Recovery Plans, and Execution History
 - **Automation**: SSM Documents for post-launch actions
-- **Notifications**: SNS for execution status notifications
+- **Notifications**: SNS for execution status notifications (optional)
+- **Security**: WAF for API protection, CloudTrail for audit logging (optional)
 
 ### AWS Services Used
 
@@ -54,46 +70,112 @@ This solution enables you to define, execute, and monitor complex failover/failb
 
 ## Deployment
 
-### Quick Start
+The solution uses **S3-hosted deployment** with nested CloudFormation stacks for a professional, scalable architecture.
 
-1. **Clone the repository and navigate to the project directory**:
-   ```bash
-   cd AWS-DRS-Orchestration
-   ```
+### Deployment Methods
 
-2. **Update parameters**:
-   Edit `parameters.json` and set your admin email:
-   ```json
-   {
-     "ParameterKey": "AdminEmail",
-     "ParameterValue": "your-email@example.com"
-   }
-   ```
+**Choose One**:
+1. **S3-Hosted Deployment** (Recommended for production) - Professional, supports nested stacks
+2. **Local Deployment** (For development/testing) - Direct deployment from local files
 
-3. **Deploy the stack**:
-   ```bash
-   aws cloudformation create-stack \
-     --stack-name drs-orchestration \
-     --template-body file://cfn/master-template.yaml \
-     --parameters file://parameters.json \
-     --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM \
-     --region us-west-2
-   ```
+### Option 1: S3-Hosted Deployment (Recommended)
 
-4. **Monitor deployment**:
-   ```bash
-   aws cloudformation wait stack-create-complete --stack-name drs-orchestration
-   aws cloudformation describe-stacks --stack-name drs-orchestration --query 'Stacks[0].Outputs'
-   ```
+**Best for**: Production environments, team collaboration, repeatable deployments
 
-5. **Access the application**:
-   - Get the CloudFront URL from stack outputs
-   - Check your email for Cognito temporary password
-   - Log in and change your password
+#### Step 1: Package Deployment Artifacts
 
-### Manual Deployment
+```bash
+cd AWS-DRS-Orchestration
 
-For detailed step-by-step deployment instructions, see [docs/deployment-guide.md](docs/deployment-guide.md).
+# Create deployment package
+./scripts/package-deployment.sh
+
+# Output: deployment-package/ directory with all templates and code
+```
+
+#### Step 2: Upload to S3
+
+```bash
+# Create S3 bucket for deployment artifacts
+aws s3 mb s3://my-drs-solution-bucket --region us-west-2
+
+# Upload deployment package
+aws s3 sync deployment-package/ s3://my-drs-solution-bucket/ \
+  --exclude "README.md" \
+  --region us-west-2
+
+# Verify upload
+aws s3 ls s3://my-drs-solution-bucket/ --recursive
+```
+
+#### Step 3: Deploy Stack
+
+```bash
+# Deploy using S3-hosted template
+aws cloudformation create-stack \
+  --stack-name drs-orchestration \
+  --template-url https://my-drs-solution-bucket.s3.amazonaws.com/master-template.yaml \
+  --parameters \
+    ParameterKey=SourceBucket,ParameterValue=my-drs-solution-bucket \
+    ParameterKey=AdminEmail,ParameterValue=admin@example.com \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-west-2
+```
+
+#### Step 4: Monitor Deployment
+
+```bash
+# Wait for completion (20-30 minutes)
+aws cloudformation wait stack-create-complete --stack-name drs-orchestration
+
+# Get stack outputs
+aws cloudformation describe-stacks \
+  --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs' \
+  --output table
+```
+
+#### Step 5: Access Application
+
+```bash
+# Get CloudFront URL
+aws cloudformation describe-stacks \
+  --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+  --output text
+```
+
+- Open the CloudFront URL in your browser
+- Check email for temporary Cognito password
+- Log in and change your password
+
+### Option 2: Local Deployment (Development/Testing)
+
+**Best for**: Quick testing, development iterations, single deployments
+
+```bash
+cd AWS-DRS-Orchestration
+
+# Package Lambda functions
+./scripts/package-lambdas.sh
+
+# Deploy directly from local files
+aws cloudformation create-stack \
+  --stack-name drs-orchestration-dev \
+  --template-body file://cfn/master-template-local.yaml \
+  --parameters \
+    ParameterKey=AdminEmail,ParameterValue=admin@example.com \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-west-2
+```
+
+**Note**: Local deployment requires all Lambda code to be packaged locally and uploaded during stack creation.
+
+### Detailed Deployment Instructions
+
+For comprehensive step-by-step deployment instructions, troubleshooting, and advanced configurations, see:
+- **[docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)** - Complete deployment guide
+- **[docs/MODULAR_ARCHITECTURE_COMPLETED.md](docs/MODULAR_ARCHITECTURE_COMPLETED.md)** - Architecture details
 
 ## Configuration
 
@@ -375,4 +457,4 @@ Built with:
 **Version**: 1.0.0-beta  
 **Last Updated**: November 8, 2025
 
-**Status**: Phase 6 Complete (90% MVP) - Production-ready UI with full CRUD operations
+**Status**: **Modular Architecture Complete** - Production-ready nested stack architecture with S3-hosted deployment
