@@ -22,6 +22,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import toast from 'react-hot-toast';
 import { DataGridWrapper } from '../components/DataGridWrapper';
+import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { StatusBadge } from '../components/StatusBadge';
@@ -236,9 +237,10 @@ export const RecoveryPlansPage: React.FC = () => {
   })), [plans]);
 
   return (
-    <Box>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+    <PageTransition in={!loading && !error}>
+      <Box>
+        {/* Header */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
         <Box>
           <Typography variant="h4" gutterBottom>
             Recovery Plans
@@ -289,6 +291,7 @@ export const RecoveryPlansPage: React.FC = () => {
         onClose={handleDialogClose}
         onSave={handleDialogSave}
       />
-    </Box>
+      </Box>
+    </PageTransition>
   );
 };

@@ -15,6 +15,7 @@ import {
   Stack,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { PageTransition } from '../components/PageTransition';
 import SecurityIcon from '@mui/icons-material/Security';
 import MapIcon from '@mui/icons-material/Map';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -29,8 +30,9 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom fontWeight={600}>
+    <PageTransition>
+      <Box>
+        <Typography variant="h4" gutterBottom fontWeight={600}>
         Dashboard
       </Typography>
       <Typography variant="body1" color="text.secondary" paragraph>
@@ -176,6 +178,7 @@ export const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
       </Box>
-    </Box>
+      </Box>
+    </PageTransition>
   );
 };

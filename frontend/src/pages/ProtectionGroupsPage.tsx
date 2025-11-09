@@ -21,6 +21,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import toast from 'react-hot-toast';
 import { DataGridWrapper } from '../components/DataGridWrapper';
+import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { ProtectionGroupDialog } from '../components/ProtectionGroupDialog';
@@ -181,9 +182,10 @@ export const ProtectionGroupsPage: React.FC = () => {
   })), [groups]);
 
   return (
-    <Box>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+    <PageTransition in={!loading && !error}>
+      <Box>
+        {/* Header */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
         <Box>
           <Typography variant="h4" gutterBottom>
             Protection Groups
@@ -234,6 +236,7 @@ export const ProtectionGroupsPage: React.FC = () => {
         onClose={handleDialogClose}
         onSave={handleDialogSave}
       />
-    </Box>
+      </Box>
+    </PageTransition>
   );
 };
