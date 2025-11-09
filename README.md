@@ -166,7 +166,7 @@ aws cloudformation describe-stacks \
 **Pre-built Lambda Packages**: The repository includes ready-to-use .zip files in `lambda/`:
 - ✅ `api-handler.zip` (5.7 KB) - API request handler
 - ✅ `orchestration.zip` (5.5 KB) - DRS recovery orchestration
-- ✅ `frontend-builder.zip` (4.3 KB) - React frontend build & deploy
+- ✅ `frontend-builder.zip` (132 KB) - React frontend build & deploy (includes bundled React source)
 
 **No Build Required**: Lambda functions include all dependencies. CloudFormation references them directly from S3.
 
@@ -177,11 +177,12 @@ aws cloudformation describe-stacks \
 If you modify Lambda source code:
 
 ```bash
-# Recreate the .zip files
+# Recreate api-handler and orchestration .zip files
 cd lambda/api-handler && zip -r ../api-handler.zip . && cd ../..
 cd lambda/orchestration && zip -r ../orchestration.zip . && cd ../..
-cd lambda/custom-resources && zip -r ../s3-cleanup.zip . && cd ../..
-cd lambda/frontend-builder && zip -r ../frontend-builder.zip . && cd ../..
+
+# Rebuild frontend-builder with bundled React source
+bash scripts/package-frontend-builder.sh
 
 # Re-upload to S3
 aws s3 sync lambda/ s3://my-drs-solution-bucket/AWS-DRS-Orchestration/lambda/ \
