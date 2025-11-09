@@ -30,6 +30,8 @@ import toast from 'react-hot-toast';
 import { DataGridWrapper } from '../components/DataGridWrapper';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
+import { CardSkeleton } from '../components/CardSkeleton';
+import { PageTransition } from '../components/PageTransition';
 import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { ExecutionDetails } from '../components/ExecutionDetails';
@@ -241,9 +243,10 @@ export const ExecutionsPage: React.FC = () => {
   }
 
   return (
-    <Box>
-      {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+    <PageTransition in={!loading && !error}>
+      <Box>
+        {/* Header */}
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
         <Box>
           <Typography variant="h4" gutterBottom>
             Execution Dashboard
@@ -282,7 +285,11 @@ export const ExecutionsPage: React.FC = () => {
 
       {/* Active Executions Tab */}
       <TabPanel value={tabValue} index={0}>
-        {activeExecutions.length === 0 ? (
+        {loading ? (
+          <CardSkeleton count={5} showProgress={true} />
+        ) : error ? (
+          <ErrorState message={error} onRetry={handleRefresh} />
+        ) : activeExecutions.length === 0 ? (
           <Paper sx={{ p: 4, textAlign: 'center' }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
               No Active Executions
@@ -381,6 +388,7 @@ export const ExecutionsPage: React.FC = () => {
         onClose={handleCloseDetails}
         onRefresh={fetchExecutions}
       />
-    </Box>
+      </Box>
+    </PageTransition>
   );
 };
