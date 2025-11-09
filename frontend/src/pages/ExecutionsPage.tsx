@@ -24,6 +24,7 @@ import {
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import toast from 'react-hot-toast';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { StatusBadge } from '../components/StatusBadge';
@@ -87,7 +88,9 @@ export const ExecutionsPage: React.FC = () => {
       const response = await apiClient.listExecutions();
       setExecutions(response.items);
     } catch (err: any) {
-      setError(err.message || 'Failed to load executions');
+      const errorMessage = err.message || 'Failed to load executions';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -24,6 +24,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import toast from 'react-hot-toast';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -58,7 +59,9 @@ export const ProtectionGroupsPage: React.FC = () => {
       const data = await apiClient.listProtectionGroups();
       setGroups(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load protection groups');
+      const errorMessage = err.message || 'Failed to load protection groups';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -75,10 +78,13 @@ export const ProtectionGroupsPage: React.FC = () => {
     try {
       await apiClient.deleteProtectionGroup(groupToDelete.id);
       setGroups(groups.filter(g => g.id !== groupToDelete.id));
+      toast.success(`Protection group "${groupToDelete.name}" deleted successfully`);
       setDeleteDialogOpen(false);
       setGroupToDelete(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete protection group');
+      const errorMessage = err.message || 'Failed to delete protection group';
+      setError(errorMessage);
+      toast.error(errorMessage);
       setDeleteDialogOpen(false);
     }
   };
@@ -99,6 +105,10 @@ export const ProtectionGroupsPage: React.FC = () => {
   };
 
   const handleDialogSave = (savedGroup: ProtectionGroup) => {
+    // Show success toast
+    const action = editingGroup ? 'updated' : 'created';
+    toast.success(`Protection group "${savedGroup.name}" ${action} successfully`);
+    
     // Refresh the groups list after save
     fetchGroups();
   };
