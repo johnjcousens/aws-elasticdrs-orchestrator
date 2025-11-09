@@ -142,7 +142,7 @@ aws cloudformation describe-stacks \
 
 **Deployment Progress**:
 1. ✅ Database Stack (5 min) - 3 DynamoDB tables
-2. ✅ Lambda Stack (5 min) - 4 Lambda functions
+2. ✅ Lambda Stack (5 min) - 3 Lambda functions
 3. ✅ API Stack (5 min) - Cognito + API Gateway + Step Functions
 4. ✅ Security Stack (3 min) - WAF + CloudTrail (if enabled)
 5. ✅ Frontend Stack (10 min) - S3 + CloudFront + Frontend build
@@ -166,7 +166,6 @@ aws cloudformation describe-stacks \
 **Pre-built Lambda Packages**: The repository includes ready-to-use .zip files in `lambda/`:
 - ✅ `api-handler.zip` (5.7 KB) - API request handler
 - ✅ `orchestration.zip` (5.5 KB) - DRS recovery orchestration
-- ✅ `s3-cleanup.zip` (1.3 KB) - S3 bucket cleanup on stack deletion
 - ✅ `frontend-builder.zip` (4.3 KB) - React frontend build & deploy
 
 **No Build Required**: Lambda functions include all dependencies. CloudFormation references them directly from S3.
@@ -342,7 +341,6 @@ pytest e2e/ -v
 All Lambda functions log to CloudWatch:
 - `/aws/lambda/drs-orchestration-api-handler`
 - `/aws/lambda/drs-orchestration-orchestration`
-- `/aws/lambda/drs-orchestration-s3-cleanup`
 - `/aws/lambda/drs-orchestration-frontend-builder`
 
 ### CloudWatch Metrics
