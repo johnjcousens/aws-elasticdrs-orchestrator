@@ -5,7 +5,7 @@
  * Provides real-time visibility into active and historical executions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -22,9 +22,12 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material';
+import type { GridColDef } from '@mui/x-data-grid';
+import { GridActionsCellItem } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import toast from 'react-hot-toast';
+import { DataGridWrapper } from '../components/DataGridWrapper';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { StatusBadge } from '../components/StatusBadge';
@@ -147,6 +150,71 @@ export const ExecutionsPage: React.FC = () => {
     }
     return `${minutes}m`;
   };
+
+  // DataGrid columns configuration for History tab
+  const historyColumns: GridColDef[] = useMemo(() => [
+    {
+      field: 'recoveryPlanName',
+      headerName: 'Plan Name',
+      width: 200,
+      sortable: true,
+    },
+    {
+      field: 'status',
+      headerName: 'Status',
+      width: 140,
+      sortable: true,
+      renderCell: (params) => <StatusBadge status={params.value} />,
+    },
+    {
+      field: 'totalWaves',
+      headerName: 'Waves',
+      width: 100,
+      sortable: true,
+      renderCell: (params) => `${params.value} waves`,
+    },
+    {
+      field: 'startTime',
+      headerName: 'Started',
+      width: 180,
+      sortable: true,
+      renderCell: (params) => <DateTimeDisplay value={params.value} format="relative" />,
+    },
+    {
+      field: 'endTime',
+      headerName: 'Completed',
+      width: 180,
+      sortable: true,
+      renderCell: (params) => params.value ? <DateTimeDisplay value={params.value} format="relative" /> : '-',
+    },
+    {
+      field: 'duration',
+      headerName: 'Duration',
+      width: 120,
+      sortable: false,
+      valueGetter: (params) => calculateDuration(params.row as ExecutionListItem),
+    },
+    {
+      field: 'actions',
+      type: 'actions',
+      headerName: 'Actions',
+      width: 120,
+      getActions: (params) => [
+        <GridActionsCellItem
+          icon={<VisibilityIcon />}
+          label="View Details"
+          onClick={() => handleViewDetails(params.row as ExecutionListItem)}
+          showInMenu={false}
+        />,
+      ],
+    },
+  ], []);
+
+  // Transform history data for DataGrid
+  const historyRows = useMemo(() => historyExecutions.map((execution) => ({
+    id: execution.executionId,
+    ...execution,
+  })), [historyExecutions]);
 
   // Get border color based on status
   const getBorderColor = (status: string): string => {
@@ -295,65 +363,15 @@ export const ExecutionsPage: React.FC = () => {
 
       {/* History Tab */}
       <TabPanel value={tabValue} index={1}>
-        {historyExecutions.length === 0 ? (
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No Execution History
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Completed executions will appear here
-            </Typography>
-          </Paper>
-        ) : (
-          <Stack spacing={2}>
-            {historyExecutions.map((execution) => (
-              <Card 
-                key={execution.executionId}
-                sx={{ 
-                  borderLeft: 4,
-                  borderColor: getBorderColor(execution.status),
-                }}
-              >
-                <CardContent>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h6" gutterBottom>
-                        {execution.recoveryPlanName}
-                      </Typography>
-                      
-                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
-                        <StatusBadge status={execution.status} />
-                        
-                        <Typography variant="body2" color="text.secondary">
-                          {execution.totalWaves} waves
-                        </Typography>
-                        
-                        <DateTimeDisplay value={execution.startTime} format="relative" />
-                        
-                        {execution.endTime && (
-                          <Typography variant="body2" color="text.secondary">
-                            Duration: {calculateDuration(execution)}
-                          </Typography>
-                        )}
-                      </Stack>
-
-                    </Box>
-                  </Stack>
-                </CardContent>
-                
-                <CardActions>
-                  <Button
-                    size="small"
-                    startIcon={<VisibilityIcon />}
-                    onClick={() => handleViewDetails(execution)}
-                  >
-                    View Details
-                  </Button>
-                </CardActions>
-              </Card>
-            ))}
-          </Stack>
-        )}
+        <DataGridWrapper
+          rows={historyRows}
+          columns={historyColumns}
+          loading={loading && historyExecutions.length === 0}
+          error={error && historyExecutions.length === 0 ? error : null}
+          onRetry={fetchExecutions}
+          emptyMessage="No execution history available. Completed executions will appear here."
+          height={600}
+        />
       </TabPanel>
 
       {/* Execution Details Modal */}

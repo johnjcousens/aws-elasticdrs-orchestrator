@@ -5,28 +5,22 @@
  * Displays list of groups with CRUD operations.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Typography,
-  IconButton,
   Chip,
   Stack,
 } from '@mui/material';
+import type { GridColDef } from '@mui/x-data-grid';
+import { GridActionsCellItem } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import toast from 'react-hot-toast';
-import { LoadingState } from '../components/LoadingState';
-import { ErrorState } from '../components/ErrorState';
+import { DataGridWrapper } from '../components/DataGridWrapper';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { ProtectionGroupDialog } from '../components/ProtectionGroupDialog';
@@ -118,13 +112,73 @@ export const ProtectionGroupsPage: React.FC = () => {
     setEditingGroup(null);
   };
 
-  if (loading) {
-    return <LoadingState message="Loading protection groups..." />;
-  }
+  // DataGrid columns configuration
+  const columns: GridColDef[] = useMemo(() => [
+    {
+      field: 'name',
+      headerName: 'Name',
+      width: 200,
+      sortable: true,
+    },
+    {
+      field: 'description',
+      headerName: 'Description',
+      flex: 1,
+      sortable: true,
+      renderCell: (params) => params.value || '-',
+    },
+    {
+      field: 'tagFilters',
+      headerName: 'Tag Filters',
+      width: 350,
+      sortable: false,
+      renderCell: (params) => (
+        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+          {params.value.map((filter: any, idx: number) => (
+            <Chip
+              key={idx}
+              label={`${filter.key}: ${filter.values.join(', ')}`}
+              size="small"
+            />
+          ))}
+        </Stack>
+      ),
+    },
+    {
+      field: 'createdAt',
+      headerName: 'Created',
+      width: 180,
+      sortable: true,
+      renderCell: (params) => <DateTimeDisplay value={params.value} format="relative" />,
+    },
+    {
+      field: 'actions',
+      type: 'actions',
+      headerName: 'Actions',
+      width: 120,
+      getActions: (params) => [
+        <GridActionsCellItem
+          icon={<EditIcon />}
+          label="Edit"
+          onClick={() => handleEdit(params.row as ProtectionGroup)}
+          showInMenu={false}
+        />,
+        <GridActionsCellItem
+          icon={<DeleteIcon />}
+          label="Delete"
+          onClick={() => handleDelete(params.row as ProtectionGroup)}
+          showInMenu={false}
+          sx={{ color: 'error.main' }}
+        />,
+      ],
+    },
+  ], []);
 
-  if (error) {
-    return <ErrorState error={error} onRetry={fetchGroups} />;
-  }
+  // Transform data for DataGrid (requires 'id' field)
+  const rows = useMemo(() => groups.map((group) => ({
+    id: group.id,
+    ...group,
+  })), [groups]);
 
   return (
     <Box>
@@ -147,86 +201,16 @@ export const ProtectionGroupsPage: React.FC = () => {
         </Button>
       </Stack>
 
-      {/* Protection Groups Table */}
-      {groups.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            No Protection Groups
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Create your first protection group to start organizing servers
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreate}
-          >
-            Create Protection Group
-          </Button>
-        </Paper>
-      ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Description</TableCell>
-                <TableCell>Tag Filters</TableCell>
-                <TableCell>Created</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {groups.map((group) => (
-                <TableRow key={group.id} hover>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {group.name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {group.description || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1} flexWrap="wrap">
-                      {group.tagFilters.map((filter, index) => (
-                        <Chip
-                          key={index}
-                          label={`${filter.key}: ${filter.values.join(', ')}`}
-                          size="small"
-                          sx={{ mb: 0.5 }}
-                        />
-                      ))}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <DateTimeDisplay value={group.createdAt} format="relative" />
-                  </TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEdit(group)}
-                      title="Edit"
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDelete(group)}
-                      title="Delete"
-                      color="error"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+      {/* Protection Groups DataGrid */}
+      <DataGridWrapper
+        rows={rows}
+        columns={columns}
+        loading={loading}
+        error={error}
+        onRetry={fetchGroups}
+        emptyMessage="No protection groups found. Click 'Create Group' above to get started."
+        height={600}
+      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
