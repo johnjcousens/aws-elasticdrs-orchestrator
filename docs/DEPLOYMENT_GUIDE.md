@@ -1,211 +1,216 @@
 # Frontend Deployment Guide
 
-This guide provides comprehensive instructions for deploying the AWS DRS Orchestration React frontend to S3 and CloudFront.
+This guide explains how the AWS DRS Orchestration React frontend is automatically deployed through CloudFormation Custom Resources.
+
+## Overview
+
+The frontend deployment is **fully automated** through CloudFormation. When you create or update the CloudFormation stack, a Custom Resource Lambda function automatically:
+
+1. Extracts AWS configuration from CloudFormation outputs (Cognito, API Gateway, Region)
+2. Injects configuration into the React app's `aws-config.ts`
+3. Builds the React application with `npm run build`
+4. Uploads the production build to S3 with proper cache headers
+5. Invalidates the CloudFront cache
+6. Provides the CloudFront URL for immediate access
+
+**No external scripts or manual configuration needed!**
+
+---
 
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Quick Start](#quick-start)
-3. [Deployment Options](#deployment-options)
+2. [Deployment Methods](#deployment-methods)
+3. [How It Works](#how-it-works)
 4. [Configuration Management](#configuration-management)
 5. [Build Optimization](#build-optimization)
 6. [Troubleshooting](#troubleshooting)
-7. [Rollback Procedures](#rollback-procedures)
-8. [Performance Tips](#performance-tips)
-9. [CI/CD Integration](#cicd-integration)
+7. [Advanced Topics](#advanced-topics)
 
 ---
 
 ## Prerequisites
 
-### Required Tools
+### AWS Requirements
 
-1. **AWS CLI** - Version 2.x or later
-   ```bash
-   aws --version
-   # Install: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-   ```
+1. **AWS Account** with appropriate permissions
+2. **AWS CLI** configured (for stack deployment)
+3. **S3 Bucket** for Lambda deployment packages
+4. **IAM Permissions**:
+   - `cloudformation:*`
+   - `lambda:*`
+   - `s3:*`
+   - `cloudfront:*`
+   - `cognito-idp:*`
+   - `apigateway:*`
 
-2. **Node.js and npm** - Version 18.x or later
-   ```bash
-   node --version
-   npm --version
-   # Install: https://nodejs.org/
-   ```
+### Local Development
 
-3. **jq** - JSON processor (for parsing CloudFormation outputs)
-   ```bash
-   jq --version
-   # macOS: brew install jq
-   # Linux: apt-get install jq or yum install jq
-   ```
+For local development only (not required for deployment):
+- **Node.js 18+** and **npm**
+- **TypeScript** for type checking
 
-### AWS Prerequisites
+---
 
-1. **AWS Credentials**
-   - Configure AWS CLI with credentials:
-     ```bash
-     aws configure
-     ```
-   - For Amazon employees using Ada:
-     ```bash
-     ada credentials update --account=YOUR_ACCOUNT --role=YOUR_ROLE
-     ```
+## Deployment Methods
 
-2. **CloudFormation Stack**
-   - Ensure the CloudFormation stack is deployed and in CREATE_COMPLETE or UPDATE_COMPLETE status
-   - Default stack name: `DRS-Orchestration`
-   - The stack must have these outputs:
-     - `WebsiteBucket` - S3 bucket for hosting
-     - `CloudFrontDistributionId` - CloudFront distribution ID
-     - `CloudFrontUrl` - CloudFront URL
-     - `ApiEndpoint` - API Gateway endpoint
-     - `UserPoolId` - Cognito User Pool ID
-     - `UserPoolClientId` - Cognito User Pool Client ID
-     - `IdentityPoolId` - Cognito Identity Pool ID
+### Method 1: Initial Stack Creation (Recommended)
 
-3. **IAM Permissions**
-   The AWS credentials must have permissions for:
-   - `cloudformation:DescribeStacks`
-   - `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`
-   - `cloudfront:CreateInvalidation`
-
-### Verify Prerequisites
-
-Run this command to verify all prerequisites:
+Deploy the complete CloudFormation stack, which automatically builds and deploys the frontend:
 
 ```bash
-# Check AWS CLI
-aws --version
+# 1. Package Lambda functions
+cd AWS-DRS-Orchestration
+./scripts/package-lambdas.sh your-deployment-bucket
 
-# Check Node.js and npm
-node --version && npm --version
+# 2. Deploy CloudFormation stack
+aws cloudformation create-stack \
+  --stack-name DRS-Orchestration \
+  --template-body file://cfn/master-template.yaml \
+  --parameters \
+    ParameterKey=AdminEmail,ParameterValue=your@email.com \
+    ParameterKey=LambdaCodeBucket,ParameterValue=your-deployment-bucket \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-west-2
 
-# Check jq
-jq --version
+# 3. Monitor deployment (wait ~10-15 minutes)
+aws cloudformation wait stack-create-complete --stack-name DRS-Orchestration
 
-# Check AWS credentials
-aws sts get-caller-identity
+# 4. Get CloudFront URL
+aws cloudformation describe-stacks \
+  --stack-name DRS-Orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+  --output text
+```
 
-# Check CloudFormation stack
-aws cloudformation describe-stacks --stack-name DRS-Orchestration
+**That's it!** The frontend is automatically built and deployed.
+
+### Method 2: Stack Update (Frontend Changes)
+
+When you make changes to the frontend code and want to redeploy:
+
+```bash
+# 1. Update Lambda package with new frontend code
+./scripts/package-lambdas.sh your-deployment-bucket
+
+# 2. Update CloudFormation stack (triggers rebuild)
+aws cloudformation update-stack \
+  --stack-name DRS-Orchestration \
+  --template-body file://cfn/master-template.yaml \
+  --parameters \
+    ParameterKey=AdminEmail,UsePreviousValue=true \
+    ParameterKey=LambdaCodeBucket,UsePreviousValue=true \
+  --capabilities CAPABILITY_NAMED_IAM
+
+# 3. Wait for update
+aws cloudformation wait stack-update-complete --stack-name DRS-Orchestration
+```
+
+The Custom Resource Lambda detects the update and automatically rebuilds the frontend.
+
+### Method 3: Using Frontend Source from S3
+
+For production deployments, upload frontend source to S3:
+
+```bash
+# 1. Create zip of frontend source
+cd AWS-DRS-Orchestration
+zip -r frontend.zip frontend/ -x "frontend/node_modules/*" -x "frontend/dist/*"
+
+# 2. Upload to S3
+aws s3 cp frontend.zip s3://your-deployment-bucket/frontend.zip
+
+# 3. Deploy/update stack with frontend source parameters
+aws cloudformation create-stack \
+  --stack-name DRS-Orchestration \
+  --template-body file://cfn/master-template.yaml \
+  --parameters \
+    ParameterKey=AdminEmail,ParameterValue=your@email.com \
+    ParameterKey=LambdaCodeBucket,ParameterValue=your-deployment-bucket \
+    ParameterKey=FrontendCodeBucket,ParameterValue=your-deployment-bucket \
+    ParameterKey=FrontendCodeKey,ParameterValue=frontend.zip \
+  --capabilities CAPABILITY_NAMED_IAM
 ```
 
 ---
 
-## Quick Start
+## How It Works
 
-### Option 1: Using npm Scripts (Recommended)
+### CloudFormation Custom Resource Flow
 
-From the `frontend/` directory:
-
-```bash
-# Deploy to default stack (DRS-Orchestration) in production mode
-npm run deploy
-
-# Deploy to development environment
-npm run deploy:dev
-
-# Deploy to staging environment
-npm run deploy:staging
-
-# Deploy to production environment (explicit)
-npm run deploy:prod
+```
+CloudFormation Stack
+       ↓
+   [Create/Update Event]
+       ↓
+Frontend Builder Lambda (Custom Resource)
+       ↓
+   [Check for Frontend Source]
+       ├─→ Option 1: Lambda Package (/var/task/frontend)
+       ├─→ Option 2: S3 Download (FrontendCodeBucket/FrontendCodeKey)
+       └─→ Fallback: Deploy Placeholder HTML
+       ↓
+   [Inject AWS Config]
+   - Extract from CloudFormation ResourceProperties
+   - Generate aws-config.ts with actual values
+       ↓
+   [Build React App]
+   - npm ci (install dependencies)
+   - npm run build (TypeScript + Vite)
+       ↓
+   [Upload to S3]
+   - dist/ → S3 bucket
+   - Cache headers: 1-year for assets, no-cache for index.html
+       ↓
+   [Invalidate CloudFront]
+   - Create invalidation for /*
+   - Return invalidation ID
+       ↓
+   [Complete]
+   - CloudFormation receives success
+   - Frontend available at CloudFront URL
 ```
 
-### Option 2: Using Deployment Script Directly
+### Custom Resource Lambda
 
-From the project root:
+Location: `lambda/frontend-builder/build_and_deploy.py`
 
-```bash
-# Deploy with default settings
-./scripts/deploy-frontend.sh
+**Capabilities:**
+- Automatic AWS configuration injection
+- React build with TypeScript validation
+- S3 upload with optimized cache headers
+- CloudFront cache invalidation
+- Fallback to placeholder HTML if source unavailable
 
-# Deploy to specific stack and environment
-./scripts/deploy-frontend.sh MY-STACK-NAME dev
-
-# Examples
-./scripts/deploy-frontend.sh DRS-Orchestration prod
-./scripts/deploy-frontend.sh DRS-Orchestration-Test staging
-```
-
----
-
-## Deployment Options
-
-### Environment Modes
-
-The deployment script supports three environment modes:
-
-1. **Production (prod)** - Default
-   - Full optimization enabled
-   - Console logs removed
-   - No source maps
-   - Minification with esbuild
-
-2. **Staging (staging)**
-   - Similar to production
-   - May include additional debugging options
-
-3. **Development (dev)**
-   - Faster builds
-   - Debug-friendly
-   - May include source maps
-
-### Command Parameters
-
-```bash
-./scripts/deploy-frontend.sh [STACK_NAME] [ENVIRONMENT]
-```
-
-- **STACK_NAME** - CloudFormation stack name (default: `DRS-Orchestration`)
-- **ENVIRONMENT** - Environment mode: `dev`, `staging`, or `prod` (default: `prod`)
-
-### Examples
-
-```bash
-# Production deployment to default stack
-./scripts/deploy-frontend.sh
-
-# Development deployment
-./scripts/deploy-frontend.sh DRS-Orchestration dev
-
-# Staging deployment to custom stack
-./scripts/deploy-frontend.sh DRS-Orchestration-Staging staging
-
-# Multiple environments with different stacks
-./scripts/deploy-frontend.sh DRS-Dev dev
-./scripts/deploy-frontend.sh DRS-Staging staging
-./scripts/deploy-frontend.sh DRS-Production prod
-```
+**Lambda Configuration:**
+- Memory: 512 MB (configurable)
+- Timeout: 900 seconds (15 minutes for build)
+- Runtime: Python 3.12
+- Dependencies: boto3, crhelper
 
 ---
 
 ## Configuration Management
 
-### Automated Configuration Injection
+### Automatic Configuration Injection
 
-The deployment script automatically:
+The Lambda Custom Resource automatically generates `aws-config.ts` with values from CloudFormation:
 
-1. **Extracts** CloudFormation stack outputs
-2. **Generates** `frontend/src/aws-config.ts` with actual values
-3. **Creates** backup as `aws-config.ts.backup`
-4. **Builds** frontend with injected configuration
-5. **Deploys** to S3 and CloudFront
-
-### Configuration Structure
-
-The generated `aws-config.ts` includes:
-
+**Generated File** (`frontend/src/aws-config.ts`):
 ```typescript
+// AWS Configuration - Auto-generated by CloudFormation Custom Resource
+// DO NOT EDIT - This file is automatically generated during CloudFormation deployment
+
 export const awsConfig = {
   Auth: {
     Cognito: {
       region: 'us-west-2',
-      userPoolId: 'us-west-2_ABC123',
-      userPoolClientId: '1234567890abcdefghijk',
+      userPoolId: 'us-west-2_ABC123...',
+      userPoolClientId: '1234567890abcdefg...',
       identityPoolId: 'us-west-2:12345678-1234-1234-1234-123456789012',
-      loginWith: { email: true }
+      loginWith: {
+        email: true
+      }
     }
   },
   API: {
@@ -219,378 +224,216 @@ export const awsConfig = {
 };
 ```
 
-### Manual Configuration (Development Only)
+**Configuration Sources:**
+- CloudFormation Outputs:
+  - `UserPoolId` → Cognito User Pool
+  - `UserPoolClientId` → Cognito Client
+  - `IdentityPoolId` → Cognito Identity Pool
+  - `ApiEndpoint` → API Gateway
+  - `Region` → AWS Region
 
-For local development without deployment:
-
-1. Get CloudFormation outputs:
-   ```bash
-   aws cloudformation describe-stacks \
-     --stack-name DRS-Orchestration \
-     --query 'Stacks[0].Outputs' \
-     --output table
-   ```
-
-2. Manually edit `frontend/src/aws-config.ts` with the values
-
-3. Run local development server:
-   ```bash
-   cd frontend
-   npm run dev
-   ```
+**Benefits:**
+- ✅ No manual configuration needed
+- ✅ Always in sync with infrastructure
+- ✅ Environment-specific values automatically injected
+- ✅ No config files to manage
 
 ---
 
 ## Build Optimization
 
-### Optimization Features
+### Vite Configuration
 
-The Vite configuration includes:
+The React app uses Vite with these optimizations:
 
-1. **Code Splitting**
-   - Vendor chunks separated by library
-   - React/React-DOM in separate chunk
-   - Material-UI core and extended in separate chunks
-   - AWS Amplify in separate chunk
-
-2. **Minification**
-   - esbuild for fast minification
-   - Tree-shaking enabled
-   - Dead code elimination
-
-3. **Caching Strategy**
-   - Static assets: 1-year cache (`public, max-age=31536000, immutable`)
-   - index.html: No cache (`no-cache, no-store, must-revalidate`)
-   - Source maps: Private, no cache
-
-4. **Bundle Size Targets**
-   - JavaScript bundle: < 500KB gzipped
-   - Chunk size warning at 500KB
-   - Asset inline limit: 4KB
-
-### Build Analysis
-
-To analyze bundle size:
-
-```bash
-cd frontend
-
-# Build for production
-npm run build
-
-# Check build output
-ls -lh dist/assets/
-
-# Get total size
-du -sh dist/
+**Code Splitting** (`frontend/vite.config.ts`):
+```typescript
+manualChunks: {
+  'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+  'vendor-mui-core': ['@mui/material', '@mui/icons-material'],
+  'vendor-mui-extended': ['@mui/x-data-grid'],
+  'vendor-aws': ['aws-amplify', '@aws-amplify/ui-react'],
+  'vendor-http': ['axios']
+}
 ```
 
-Expected output structure:
-```
-dist/
-├── assets/
-│   ├── index-[hash].js          # Main app bundle
-│   ├── vendor-react-[hash].js   # React libraries
-│   ├── vendor-mui-core-[hash].js
-│   ├── vendor-mui-extended-[hash].js
-│   ├── vendor-aws-[hash].js
-│   └── vendor-http-[hash].js
-└── index.html
-```
+**Build Features:**
+- esbuild minification (fast builds)
+- CSS code splitting
+- Asset inlining (< 4KB)
+- 500KB chunk size warnings
+- Dev server on port 3000
+
+**Bundle Size Targets:**
+- JavaScript: < 500KB gzipped
+- Initial load: < 3 seconds on 3G
+- Lighthouse score: > 90
+
+### Cache Strategy
+
+**S3 + CloudFront Caching:**
+
+| File Type | Cache-Control | Duration | Why |
+|-----------|---------------|----------|-----|
+| `index.html` | `no-cache, no-store, must-revalidate` | None | Always fetch fresh for SPA routing |
+| Static assets (JS/CSS) | `public, max-age=31536000, immutable` | 1 year | Hashed filenames enable long-term caching |
+| Images/Fonts | `public, max-age=31536000, immutable` | 1 year | Immutable static resources |
+
+**Benefits:**
+- Fast subsequent page loads (cached assets)
+- Always fresh app shell (index.html)
+- Efficient bandwidth usage
+- CloudFront edge caching
 
 ---
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Issue 1: Stack Creation Fails on FrontendBuildResource
 
-#### 1. "CloudFormation stack not found"
+**Symptom**: CloudFormation stack creation fails with Custom Resource error.
 
-**Problem**: Stack name is incorrect or doesn't exist.
-
-**Solution**:
-```bash
-# List available stacks
-aws cloudformation list-stacks \
-  --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
-  --query 'StackSummaries[].StackName' \
-  --output table
-
-# Verify specific stack
-aws cloudformation describe-stacks --stack-name YOUR-STACK-NAME
-```
-
-#### 2. "AWS credentials are not configured"
-
-**Problem**: AWS CLI credentials expired or not configured.
-
-**Solution**:
-```bash
-# For Amazon employees
-ada credentials update --account=YOUR_ACCOUNT --role=YOUR_ROLE
-
-# For general AWS users
-aws configure
-
-# Verify credentials
-aws sts get-caller-identity
-```
-
-#### 3. "No outputs found for stack"
-
-**Problem**: CloudFormation stack doesn't have required outputs.
-
-**Solution**:
-```bash
-# Check stack outputs
-aws cloudformation describe-stacks \
-  --stack-name DRS-Orchestration \
-  --query 'Stacks[0].Outputs'
-
-# If outputs are missing, re-deploy CloudFormation stack
-cd cfn
-aws cloudformation update-stack \
-  --stack-name DRS-Orchestration \
-  --template-body file://master-template.yaml \
-  --capabilities CAPABILITY_IAM
-```
-
-#### 4. "TypeScript compilation failed"
-
-**Problem**: TypeScript errors in frontend code.
-
-**Solution**:
-```bash
-cd frontend
-
-# Check for TypeScript errors
-npx tsc --noEmit
-
-# Fix errors before deploying
-# Common fixes:
-# - Update type definitions
-# - Fix type mismatches
-# - Add missing imports
-```
-
-#### 5. "Build failed"
-
-**Problem**: npm build command failed.
-
-**Solution**:
-```bash
-cd frontend
-
-# Clean and reinstall dependencies
-rm -rf node_modules package-lock.json
-npm install
-
-# Try building again
-npm run build
-
-# Check for specific errors in output
-```
-
-#### 6. "S3 sync failed"
-
-**Problem**: Insufficient S3 permissions or bucket doesn't exist.
-
-**Solution**:
-```bash
-# Verify bucket exists
-aws s3 ls s3://YOUR-BUCKET-NAME/
-
-# Check IAM permissions
-aws iam simulate-principal-policy \
-  --policy-source-arn $(aws sts get-caller-identity --query Arn --output text) \
-  --action-names s3:PutObject s3:DeleteObject s3:ListBucket \
-  --resource-arns arn:aws:s3:::YOUR-BUCKET-NAME/*
-```
-
-#### 7. "CloudFront invalidation failed"
-
-**Problem**: Insufficient CloudFront permissions or distribution doesn't exist.
-
-**Solution**:
-```bash
-# Verify distribution exists
-aws cloudfront list-distributions \
-  --query 'DistributionList.Items[].Id' \
-  --output table
-
-# Check specific distribution
-aws cloudfront get-distribution --id YOUR-DISTRIBUTION-ID
-```
-
-#### 8. "Changes not visible after deployment"
-
-**Problem**: Browser caching or CloudFront cache not invalidated.
+**Causes**:
+1. Lambda timeout (build takes > 15 minutes)
+2. npm dependencies installation failure
+3. TypeScript compilation errors
+4. Missing frontend source code
 
 **Solutions**:
-```bash
-# Hard refresh in browser (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows)
-
-# Check invalidation status
-aws cloudfront get-invalidation \
-  --distribution-id YOUR-DISTRIBUTION-ID \
-  --id YOUR-INVALIDATION-ID
-
-# Create manual invalidation if needed
-aws cloudfront create-invalidation \
-  --distribution-id YOUR-DISTRIBUTION-ID \
-  --paths "/*"
-
-# Clear browser cache completely
-```
-
-### Debug Mode
-
-For detailed debugging:
 
 ```bash
-# Enable bash debug mode
-bash -x ./scripts/deploy-frontend.sh DRS-Orchestration dev
+# Check Lambda logs
+aws logs tail /aws/lambda/DRS-Orchestration-FrontendBuilder --follow
 
-# Check deployment script logs
-cat /tmp/deploy-frontend-*.log  # If logging is enabled
-```
+# Common fixes:
+# 1. Increase Lambda timeout in lambda-stack.yaml
+Timeout: 900  # 15 minutes
 
----
+# 2. Pre-install node_modules in Lambda package
+cd frontend && npm ci && cd ..
+./scripts/package-lambdas.sh your-bucket
 
-## Rollback Procedures
-
-### Option 1: Re-deploy Previous Version
-
-If you have the previous code in git:
-
-```bash
-# Find previous commit
-git log --oneline frontend/
-
-# Checkout previous version
-git checkout PREVIOUS_COMMIT_HASH
-
-# Re-deploy
+# 3. Fix TypeScript errors locally first
 cd frontend
-npm run deploy
-
-# Return to current version
-git checkout main
+npx tsc --noEmit
+npm run build
 ```
 
-### Option 2: Use S3 Versioning
+### Issue 2: Placeholder HTML Deployed Instead of React App
 
-If S3 versioning is enabled on the bucket:
+**Symptom**: CloudFront shows placeholder page with "React App Not Yet Deployed" message.
+
+**Cause**: Frontend source code not available to Lambda.
+
+**Solution**:
 
 ```bash
-# List object versions
-aws s3api list-object-versions \
-  --bucket YOUR-BUCKET-NAME \
-  --prefix index.html
+# Option 1: Include frontend in Lambda package
+# Ensure package-lambdas.sh includes frontend source
 
-# Restore specific version
-aws s3api copy-object \
-  --bucket YOUR-BUCKET-NAME \
-  --copy-source YOUR-BUCKET-NAME/index.html?versionId=VERSION_ID \
-  --key index.html
+# Option 2: Upload frontend to S3
+zip -r frontend.zip frontend/ -x "frontend/node_modules/*"
+aws s3 cp frontend.zip s3://your-bucket/frontend.zip
 
-# Invalidate CloudFront cache
+# Update stack with parameters
+aws cloudformation update-stack \
+  --stack-name DRS-Orchestration \
+  --use-previous-template \
+  --parameters \
+    ParameterKey=FrontendCodeBucket,ParameterValue=your-bucket \
+    ParameterKey=FrontendCodeKey,ParameterValue=frontend.zip \
+    --capabilities CAPABILITY_NAMED_IAM
+```
+
+### Issue 3: Changes Not Visible After Stack Update
+
+**Symptom**: Frontend changes not reflected after CloudFormation update.
+
+**Solutions**:
+
+```bash
+# 1. Hard refresh browser (Cmd+Shift+R or Ctrl+Shift+R)
+
+# 2. Check CloudFront invalidation status
+INVALIDATION_ID=$(aws cloudformation describe-stacks \
+  --stack-name DRS-Orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`InvalidationId`].OutputValue' \
+  --output text)
+
+aws cloudfront get-invalidation \
+  --distribution-id YOUR-DIST-ID \
+  --id $INVALIDATION_ID
+
+# 3. Manual invalidation if needed
 aws cloudfront create-invalidation \
-  --distribution-id YOUR-DISTRIBUTION-ID \
+  --distribution-id YOUR-DIST-ID \
   --paths "/*"
 ```
 
-### Option 3: Emergency Static Page
+### Issue 4: TypeScript Compilation Errors
 
-Deploy a maintenance page:
+**Symptom**: Build fails with TypeScript errors.
+
+**Solution**:
 
 ```bash
-# Create simple maintenance page
-cat > /tmp/maintenance.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Maintenance</title>
-    <style>
-        body { font-family: Arial; text-align: center; padding: 50px; }
-        h1 { color: #FF9900; }
-    </style>
-</head>
-<body>
-    <h1>System Maintenance</h1>
-    <p>We'll be back shortly. Thank you for your patience.</p>
-</body>
-</html>
-EOF
+# Validate TypeScript locally before deploying
+cd frontend
+npx tsc --noEmit
 
-# Upload to S3
-aws s3 cp /tmp/maintenance.html s3://YOUR-BUCKET-NAME/index.html
+# Fix all errors, then rebuild
+npm run build
 
-# Invalidate cache
-aws cloudfront create-invalidation \
-  --distribution-id YOUR-DISTRIBUTION-ID \
-  --paths "/index.html"
+# Verify dist/ created successfully
+ls -la dist/
+```
+
+### Issue 5: Lambda Out of Memory
+
+**Symptom**: Lambda fails with "Task timed out" or memory errors.
+
+**Solution**:
+
+Update Lambda memory in `cfn/lambda-stack.yaml`:
+
+```yaml
+FrontendBuilderFunction:
+  Type: AWS::Lambda::Function
+  Properties:
+    MemorySize: 1024  # Increase from 512MB
+    Timeout: 900      # Keep 15 minutes
 ```
 
 ---
 
-## Performance Tips
+## Advanced Topics
 
-### 1. Bundle Size Optimization
+### Custom Lambda Layer for Node.js
 
-- **Audit bundle size**:
-  ```bash
-  cd frontend
-  npm run build
-  npx vite-bundle-visualizer dist/stats.html
-  ```
+For faster builds, create a Lambda Layer with Node.js and npm pre-installed:
 
-- **Tree-shake unused code**:
-  - Import only needed components
-  - Use named imports: `import { Button } from '@mui/material'`
-  - Avoid importing entire libraries
+```bash
+# Create layer with Node.js 18
+mkdir -p layer/bin
+cd layer/bin
+wget https://nodejs.org/dist/v18.18.0/node-v18.18.0-linux-x64.tar.xz
+tar xf node-v18.18.0-linux-x64.tar.xz
+mv node-v18.18.0-linux-x64 nodejs
+cd ../..
 
-### 2. Caching Strategy
+# Package layer
+zip -r nodejs-layer.zip layer/
 
-- **Leverage CloudFront caching**:
-  - Static assets cached for 1 year
-  - index.html never cached (always fresh)
-  - Update cache headers in deployment script if needed
+# Upload and create layer
+aws lambda publish-layer-version \
+  --layer-name nodejs-18 \
+  --zip-file fileb://nodejs-layer.zip \
+  --compatible-runtimes python3.12
+```
 
-### 3. Image Optimization
+### CI/CD Integration
 
-- Use WebP format when possible
-- Compress images before deployment
-- Consider using CloudFront image optimization
-
-### 4. Code Splitting
-
-Current configuration splits:
-- React libraries (vendor-react)
-- Material-UI core (vendor-mui-core)
-- Material-UI extended (vendor-mui-extended)
-- AWS Amplify (vendor-aws)
-- HTTP client (vendor-http)
-
-### 5. Monitoring
-
-Monitor key metrics:
-- **Time to First Byte (TTFB)**: < 200ms
-- **First Contentful Paint (FCP)**: < 1.5s
-- **Largest Contentful Paint (LCP)**: < 2.5s
-- **Total Bundle Size**: < 500KB gzipped
-
-Use CloudWatch to monitor CloudFront metrics:
-- Requests
-- Bytes downloaded
-- Error rates
-- Cache hit ratio
-
----
-
-## CI/CD Integration
-
-### GitHub Actions Example
+**GitHub Actions Example**:
 
 ```yaml
 name: Deploy Frontend
@@ -600,20 +443,13 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'cfn/**'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
       
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -622,79 +458,68 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-west-2
       
-      - name: Deploy Frontend
+      - name: Package Lambdas
+        run: ./scripts/package-lambdas.sh ${{ secrets.DEPLOYMENT_BUCKET }}
+      
+      - name: Update CloudFormation Stack
         run: |
-          cd frontend
-          npm ci
-          npm run deploy:prod
+          aws cloudformation update-stack \
+            --stack-name DRS-Orchestration \
+            --template-body file://cfn/master-template.yaml \
+            --parameters \
+              ParameterKey=AdminEmail,UsePreviousValue=true \
+              ParameterKey=LambdaCodeBucket,UsePreviousValue=true \
+            --capabilities CAPABILITY_NAMED_IAM
 ```
 
-### Jenkins Pipeline Example
+### Monitoring and Logging
 
-```groovy
-pipeline {
-    agent any
-    
-    environment {
-        AWS_REGION = 'us-west-2'
-        STACK_NAME = 'DRS-Orchestration'
-    }
-    
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-        
-        stage('Install Dependencies') {
-            steps {
-                dir('frontend') {
-                    sh 'npm ci'
-                }
-            }
-        }
-        
-        stage('Deploy') {
-            steps {
-                withAWS(credentials: 'aws-credentials') {
-                    sh './scripts/deploy-frontend.sh ${STACK_NAME} prod'
-                }
-            }
-        }
-    }
-    
-    post {
-        success {
-            echo 'Deployment successful!'
-        }
-        failure {
-            echo 'Deployment failed!'
-        }
-    }
-}
+**CloudWatch Logs**:
+```bash
+# View Lambda build logs
+aws logs tail /aws/lambda/DRS-Orchestration-FrontendBuilder --follow --format short
+
+# Filter for errors
+aws logs filter-log-events \
+  --log-group-name /aws/lambda/DRS-Orchestration-FrontendBuilder \
+  --filter-pattern "ERROR"
+```
+
+**Custom Metrics**:
+- Build duration
+- Bundle size
+- Deployment success/failure rate
+
+---
+
+## Summary
+
+### Key Takeaways
+
+✅ **Fully Automated** - No manual configuration or deployment scripts  
+✅ **CloudFormation-Native** - Deployment via Custom Resource  
+✅ **Always In Sync** - AWS config automatically injected from CloudFormation outputs  
+✅ **Production-Ready** - Optimized build, proper caching, CloudFront CDN  
+✅ **Simple Updates** - Just update the CloudFormation stack to redeploy  
+
+### Quick Reference
+
+```bash
+# Initial deployment
+./scripts/package-lambdas.sh YOUR-BUCKET
+aws cloudformation create-stack --stack-name DRS-Orchestration ...
+
+# Update frontend
+./scripts/package-lambdas.sh YOUR-BUCKET
+aws cloudformation update-stack --stack-name DRS-Orchestration ...
+
+# Get frontend URL
+aws cloudformation describe-stacks --stack-name DRS-Orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+  --output text
 ```
 
 ---
 
-## Additional Resources
-
-- [AWS CloudFront Documentation](https://docs.aws.amazon.com/cloudfront/)
-- [Vite Build Optimization](https://vitejs.dev/guide/build.html)
-- [React Production Build](https://react.dev/learn/start-a-new-react-project#building-for-production)
-- [AWS S3 Static Website Hosting](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html)
-
----
-
-## Support
-
-For issues or questions:
-1. Check the troubleshooting section above
-2. Review CloudFormation stack events for infrastructure issues
-3. Check CloudWatch logs for application errors
-4. Review browser console for frontend errors
-
----
-
-**Last Updated**: November 8, 2025
-**Version**: 1.0.0
+**Last Updated**: November 8, 2025  
+**Version**: 2.0.0 (CloudFormation-First Architecture)
