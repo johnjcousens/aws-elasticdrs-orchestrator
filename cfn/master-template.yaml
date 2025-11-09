@@ -95,7 +95,7 @@ Resources:
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/database-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/database-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -111,7 +111,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: DatabaseStack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/lambda-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/lambda-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -137,7 +137,7 @@ Resources:
       - DatabaseStack
       - LambdaStack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/api-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/api-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -162,7 +162,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: ApiStack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/security-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/security-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -185,7 +185,7 @@ Resources:
       - LambdaStack
       - ApiStack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/nested-stacks/frontend-stack.yaml'
+      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/frontend-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
