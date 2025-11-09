@@ -47,7 +47,7 @@ Parameters:
 
   SourceBucket:
     Type: String
-    Description: 'S3 bucket containing nested CloudFormation templates and Lambda code'
+    Description: 'S3 bucket and path containing nested CloudFormation templates and Lambda code (format: bucket-name/path or just bucket-name)'
 
   AdminEmail:
     Type: String
@@ -97,7 +97,10 @@ Resources:
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/database-stack.yaml'
+      TemplateURL: !Sub 
+        - 'https://${BucketName}.s3.${AWS::Region}.amazonaws.com/${BucketPath}/cfn/database-stack.yaml'
+        - BucketName: !Select [0, !Split ['/', !Ref SourceBucket]]
+          BucketPath: !Select [1, !Split ['/', !Ref SourceBucket]]
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -113,7 +116,10 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: DatabaseStack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/lambda-stack.yaml'
+      TemplateURL: !Sub 
+        - 'https://${BucketName}.s3.${AWS::Region}.amazonaws.com/${BucketPath}/cfn/lambda-stack.yaml'
+        - BucketName: !Select [0, !Split ['/', !Ref SourceBucket]]
+          BucketPath: !Select [1, !Split ['/', !Ref SourceBucket]]
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -136,7 +142,10 @@ Resources:
       - DatabaseStack
       - LambdaStack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/api-stack.yaml'
+      TemplateURL: !Sub 
+        - 'https://${BucketName}.s3.${AWS::Region}.amazonaws.com/${BucketPath}/cfn/api-stack.yaml'
+        - BucketName: !Select [0, !Split ['/', !Ref SourceBucket]]
+          BucketPath: !Select [1, !Split ['/', !Ref SourceBucket]]
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -157,7 +166,6 @@ Resources:
       TimeoutInMinutes: 20
 
   # Frontend Stack - S3, CloudFront, Custom Resources
-  # Note: SecurityStack removed for MVP deployment - Phase 2 enhancement
   FrontendStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Retain
@@ -166,7 +174,10 @@ Resources:
       - LambdaStack
       - ApiStack
     Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/frontend-stack.yaml'
+      TemplateURL: !Sub 
+        - 'https://${BucketName}.s3.${AWS::Region}.amazonaws.com/${BucketPath}/cfn/frontend-stack.yaml'
+        - BucketName: !Select [0, !Split ['/', !Ref SourceBucket]]
+          BucketPath: !Select [1, !Split ['/', !Ref SourceBucket]]
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -320,7 +331,6 @@ Outputs:
       Name: !Sub '${AWS::StackName}-NetworkValidationDocument'
 
   # General Outputs
-  # Note: SecurityStack outputs removed - Phase 2 enhancement
   Region:
     Description: 'AWS Region'
     Value: !Ref AWS::Region
