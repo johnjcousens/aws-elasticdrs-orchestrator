@@ -17,3 +17,4 @@ lambda/*/bin/
 
 # Individual dependency files
 lambda/*/six.py
+.cline_memory/conversations/
