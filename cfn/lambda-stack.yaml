@@ -231,7 +231,7 @@ Resources:
                 Action:
                   - cloudfront:CreateInvalidation
                   - cloudfront:GetInvalidation
-                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistributionId}'
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/*'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
