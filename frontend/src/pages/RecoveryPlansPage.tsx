@@ -26,6 +26,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import toast from 'react-hot-toast';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -61,7 +62,9 @@ export const RecoveryPlansPage: React.FC = () => {
       const data = await apiClient.listRecoveryPlans();
       setPlans(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load recovery plans');
+      const errorMessage = err.message || 'Failed to load recovery plans';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -78,10 +81,13 @@ export const RecoveryPlansPage: React.FC = () => {
     try {
       await apiClient.deleteRecoveryPlan(planToDelete.id);
       setPlans(plans.filter(p => p.id !== planToDelete.id));
+      toast.success(`Recovery plan "${planToDelete.name}" deleted successfully`);
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete recovery plan');
+      const errorMessage = err.message || 'Failed to delete recovery plan';
+      setError(errorMessage);
+      toast.error(errorMessage);
       setDeleteDialogOpen(false);
     }
   };
@@ -102,6 +108,10 @@ export const RecoveryPlansPage: React.FC = () => {
   };
 
   const handleDialogSave = (savedPlan: RecoveryPlan) => {
+    // Show success toast
+    const action = editingPlan ? 'updated' : 'created';
+    toast.success(`Recovery plan "${savedPlan.name}" ${action} successfully`);
+    
     // Refresh the plans list after save
     fetchPlans();
   };
