@@ -50,7 +50,6 @@ Resources:
   ApiHandlerRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ProjectName}-api-handler-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -109,7 +108,6 @@ Resources:
   OrchestrationRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ProjectName}-orchestration-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -171,14 +169,17 @@ Resources:
                   - ssm:SendCommand
                   - ssm:GetCommandInvocation
                 Resource: '*'
-        - PolicyName: SNSAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: !If [HasNotificationTopic, !Ref NotificationTopicArn, !Ref 'AWS::NoValue']
+        - !If
+          - HasNotificationTopic
+          - PolicyName: SNSAccess
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - sns:Publish
+                  Resource: !Ref NotificationTopicArn
+          - !Ref 'AWS::NoValue'
         - PolicyName: STSAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -197,7 +198,6 @@ Resources:
   CustomResourceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ProjectName}-custom-resource-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
