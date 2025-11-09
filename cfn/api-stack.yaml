@@ -205,13 +205,13 @@ Resources:
                   - dynamodb:UpdateItem
                 Resource:
                   - !Ref ExecutionHistoryTableArn
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: !If
-                  - HasNotificationEmail
-                  - !Ref NotificationTopic
-                  - !Ref AWS::NoValue
+              - !If
+                - HasNotificationEmail
+                - Effect: Allow
+                  Action:
+                    - sns:Publish
+                  Resource: !Ref NotificationTopic
+                - !Ref AWS::NoValue
 
   OrchestrationStateMachine:
     Type: AWS::StepFunctions::StateMachine
@@ -684,8 +684,9 @@ Outputs:
       Name: !Sub '${AWS::StackName}-ApiId'
 
   NotificationTopicArn:
+    Condition: HasNotificationEmail
     Description: 'SNS Topic ARN for notifications'
-    Value: !If [HasNotificationEmail, !Ref NotificationTopic, '']
+    Value: !Ref NotificationTopic
     Export:
       Name: !Sub '${AWS::StackName}-NotificationTopicArn'
 

@@ -157,28 +157,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 20
 
-  # Security Stack - WAF, CloudTrail, Secrets Manager (Optional)
-  SecurityStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: ApiStack
-    Properties:
-      TemplateURL: !Sub 'https://${SourceBucket}.s3.${AWS::Region}.amazonaws.com/cfn/security-stack.yaml'
-      Parameters:
-        ProjectName: !Ref ProjectName
-        Environment: !Ref Environment
-        RestApiId: !GetAtt ApiStack.Outputs.ApiId
-        RestApiStage: !Ref Environment
-        EnableWAF: !Ref EnableWAF
-        EnableCloudTrail: !Ref EnableCloudTrail
-        EnableSecretsManager: !Ref EnableSecretsManager
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-      TimeoutInMinutes: 20
-
   # Frontend Stack - S3, CloudFront, Custom Resources
+  # Note: SecurityStack removed for MVP deployment - Phase 2 enhancement
   FrontendStack:
     Type: AWS::CloudFormation::Stack
     DependsOn:
@@ -309,20 +289,8 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-NetworkValidationDocument'
 
-  # Security Stack Outputs (Optional)
-  WAFWebACLArn:
-    Description: 'WAF Web ACL ARN (if enabled)'
-    Value: !GetAtt SecurityStack.Outputs.WAFWebACLArn
-    Export:
-      Name: !Sub '${AWS::StackName}-WAFWebACLArn'
-
-  CloudTrailArn:
-    Description: 'CloudTrail ARN (if enabled)'
-    Value: !GetAtt SecurityStack.Outputs.CloudTrailArn
-    Export:
-      Name: !Sub '${AWS::StackName}-CloudTrailArn'
-
   # General Outputs
+  # Note: SecurityStack outputs removed - Phase 2 enhancement
   Region:
     Description: 'AWS Region'
     Value: !Ref AWS::Region
