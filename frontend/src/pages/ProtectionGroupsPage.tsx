@@ -28,6 +28,7 @@ import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
+import { ProtectionGroupDialog } from '../components/ProtectionGroupDialog';
 import apiClient from '../services/api';
 import type { ProtectionGroup } from '../types';
 
@@ -42,6 +43,8 @@ export const ProtectionGroupsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<ProtectionGroup | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<ProtectionGroup | null>(null);
 
   // Fetch protection groups on mount
   useEffect(() => {
@@ -85,6 +88,26 @@ export const ProtectionGroupsPage: React.FC = () => {
     setGroupToDelete(null);
   };
 
+  const handleCreate = () => {
+    setEditingGroup(null);
+    setDialogOpen(true);
+  };
+
+  const handleEdit = (group: ProtectionGroup) => {
+    setEditingGroup(group);
+    setDialogOpen(true);
+  };
+
+  const handleDialogSave = (savedGroup: ProtectionGroup) => {
+    // Refresh the groups list after save
+    fetchGroups();
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+    setEditingGroup(null);
+  };
+
   if (loading) {
     return <LoadingState message="Loading protection groups..." />;
   }
@@ -108,7 +131,7 @@ export const ProtectionGroupsPage: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => {/* TODO: Open create dialog */}}
+          onClick={handleCreate}
         >
           Create Group
         </Button>
@@ -126,7 +149,7 @@ export const ProtectionGroupsPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => {/* TODO: Open create dialog */}}
+            onClick={handleCreate}
           >
             Create Protection Group
           </Button>
@@ -174,7 +197,7 @@ export const ProtectionGroupsPage: React.FC = () => {
                   <TableCell align="right">
                     <IconButton
                       size="small"
-                      onClick={() => {/* TODO: Open edit dialog */}}
+                      onClick={() => handleEdit(group)}
                       title="Edit"
                     >
                       <EditIcon fontSize="small" />
@@ -208,6 +231,14 @@ export const ProtectionGroupsPage: React.FC = () => {
         confirmColor="error"
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
+      />
+
+      {/* Create/Edit Dialog */}
+      <ProtectionGroupDialog
+        open={dialogOpen}
+        group={editingGroup}
+        onClose={handleDialogClose}
+        onSave={handleDialogSave}
       />
     </Box>
   );
