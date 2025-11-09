@@ -23,6 +23,8 @@ import {
   Box,
   Divider,
   Button,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -36,7 +38,8 @@ interface LayoutProps {
   children: ReactNode;
 }
 
-const DRAWER_WIDTH = 260;
+const DRAWER_WIDTH = 280;
+const DRAWER_WIDTH_MOBILE = 260;
 
 interface NavItem {
   text: string;
@@ -55,20 +58,24 @@ const navigationItems: NavItem[] = [
 /**
  * Layout Component
  * 
- * Main application layout with persistent navigation drawer and top app bar.
+ * Main application layout with responsive navigation drawer and top app bar.
  */
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const handleDrawerToggle = () => {
-    setDrawerOpen(!drawerOpen);
+    setMobileDrawerOpen(!mobileDrawerOpen);
   };
 
   const handleNavigate = (path: string) => {
     navigate(path);
-    setDrawerOpen(false);
+    if (isMobile) {
+      setMobileDrawerOpen(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -120,7 +127,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         position="fixed"
         sx={{
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: 'primary.main',
+          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          ml: { md: `${DRAWER_WIDTH}px` },
+          backgroundColor: 'secondary.main',
         }}
       >
         <Toolbar>
@@ -129,30 +138,68 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             aria-label="open drawer"
             edge="start"
             onClick={handleDrawerToggle}
-            sx={{ mr: 2 }}
+            sx={{ 
+              mr: 2,
+              display: { md: 'none' }, // Hide on desktop (drawer is permanent)
+            }}
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            AWS DRS Orchestration Platform
+          <Typography 
+            variant="h6" 
+            noWrap 
+            component="div" 
+            sx={{ 
+              flexGrow: 1,
+              fontSize: { xs: '1rem', sm: '1.25rem' },
+            }}
+          >
+            {isMobile ? 'AWS DRS' : 'AWS DRS Orchestration Platform'}
           </Typography>
-          <Typography variant="body2" sx={{ mr: 2 }}>
-            {user?.username}
-          </Typography>
-          <Button color="inherit" onClick={handleSignOut} startIcon={<LogoutIcon />}>
-            Sign Out
-          </Button>
+          {!isMobile && (
+            <>
+              <Typography variant="body2" sx={{ mr: 2 }}>
+                {user?.username}
+              </Typography>
+              <Button 
+                color="inherit" 
+                onClick={handleSignOut} 
+                startIcon={<LogoutIcon />}
+                sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+              >
+                Sign Out
+              </Button>
+            </>
+          )}
         </Toolbar>
       </AppBar>
 
+      {/* Mobile drawer - temporary (slides in/out) */}
       <Drawer
         variant="temporary"
-        open={drawerOpen}
+        open={mobileDrawerOpen}
         onClose={handleDrawerToggle}
         ModalProps={{
           keepMounted: true, // Better open performance on mobile
         }}
         sx={{
+          display: { xs: 'block', md: 'none' },
+          width: DRAWER_WIDTH_MOBILE,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            width: DRAWER_WIDTH_MOBILE,
+            boxSizing: 'border-box',
+          },
+        }}
+      >
+        {drawerContent}
+      </Drawer>
+
+      {/* Desktop drawer - permanent (always visible) */}
+      <Drawer
+        variant="permanent"
+        sx={{
+          display: { xs: 'none', md: 'block' },
           width: DRAWER_WIDTH,
           flexShrink: 0,
           '& .MuiDrawer-paper': {
@@ -168,9 +215,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: { xs: 2, sm: 3 }, // Less padding on mobile
           mt: 8,
-          width: '100%',
+          width: { xs: '100%', md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          ml: { md: `${DRAWER_WIDTH}px` },
           minHeight: '100vh',
           backgroundColor: 'background.default',
         }}
