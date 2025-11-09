@@ -566,6 +566,56 @@ This project has comprehensive checkpoint history with full conversation context
 
 ### Session Checkpoints
 
+**Session 18: Lambda Dependency Fix & Deployment #6** (November 9, 2025 - 12:00-12:10 AM)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251109_001022.md`
+- **Git Commit**: Pending deployment completion
+- **Summary**: Identified and fixed critical Lambda packaging issue - crhelper dependency missing from frontend-builder package
+- **Issue Discovered**:
+  - Deployment #5 rolled back due to FrontendStack failure
+  - Frontend-builder Lambda failing immediately: `[ERROR] Runtime.ImportModuleError: No module named 'crhelper'`
+  - Lambda package only 4.3 KB (contained requirements.txt + build_and_deploy.py, no dependencies)
+  - CloudFormation retrying Lambda for 10+ minutes before timeout
+- **Root Cause Analysis**:
+  - Previous `package-lambdas.sh` execution didn't properly install dependencies
+  - `pip install -r requirements.txt -t .` ran but packages weren't included in zip
+  - requirements.txt correctly specified `crhelper>=2.0.0` but library files missing from package
+- **Fix Applied**:
+  - Re-installed all dependencies locally: `pip3 install -r requirements.txt -t . --upgrade`
+  - Verified installation: crhelper, boto3, botocore, s3transfer, jmespath, python-dateutil, six, urllib3
+  - Re-packaged Lambda: `zip -r frontend-builder-fixed.zip .` (14.3 MB with dependencies)
+  - Uploaded fixed package to S3: `aws s3 cp frontend-builder-fixed.zip s3://.../lambda/frontend-builder.zip`
+- **Deployment Success (Stacks 1-3)**:
+  - ✅ DatabaseStack: CREATE_COMPLETE (3 DynamoDB tables)
+  - ✅ LambdaStack: CREATE_COMPLETE (all SNS conditional fixes working!)
+  - ✅ ApiStack: CREATE_COMPLETE (Cognito + API Gateway + Step Functions)
+  - 🔄 FrontendStack: IN PROGRESS (waiting for fixed Lambda package)
+- **SNS Conditional Logic Validated** 🎉:
+  - Lambda SNSAccess IAM policy with `Condition: HasNotificationTopic` ✅ WORKING
+  - API OrchestratorRole SNS statement with `!If [HasNotificationTopic, ...]` ✅ WORKING  
+  - API NotificationTopicArn output with `Condition: HasNotificationTopic` ✅ WORKING
+- **Technical Achievements**:
+  - Diagnosed Lambda failure from CloudWatch Logs (/aws/lambda/drs-orchestration-frontend-builder)
+  - Identified missing dependencies through S3 zip inspection (only 2 files, should have 100+)
+  - Successfully re-packaged with all Python dependencies (from 4.3 KB to 14.3 MB)
+  - Confirmed dependency installation with `ls -la | grep crhelper` showing all required libraries
+  - Stack deletion automated (rollback triggered DELETE_IN_PROGRESS automatically)
+- **Deployment Timeline**:
+  - Attempt #5: Rolled back at 04:54 UTC due to Lambda ImportModuleError
+  - Stack deletion: Completed at 04:56 UTC
+  - Attempt #6: Initiated at 04:58 UTC with fixed Lambda package
+  - Current status: FrontendStack building (as of 05:10 UTC)
+- **Lessons Learned**:
+  - Always verify Lambda zip contents before deployment (`unzip -l package.zip`)
+  - Lambda package size is good indicator (4 KB = no deps, 14 MB = with deps)
+  - CloudFormation custom resources will retry failed Lambda invocations
+  - ImportModuleError appears immediately in CloudWatch Logs
+- **Result**: Deployment #6 IN PROGRESS, 3/4 stacks complete, MVP 96% complete maintained
+- **Next Steps**: 
+  - Monitor FrontendStack completion (frontend build + S3 upload + CloudFront invalidation)
+  - Verify full stack deployment success
+  - Test frontend application at CloudFront URL
+  - Document Lambda packaging best practices
+
 **Session 17: Deployment Simplification Complete** (November 8, 2025 - 11:00-11:04 PM)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251108_230419.md`
 - **Git Commit**: `025f6eb` - feat: Simplify deployment with pre-built Lambda packages
