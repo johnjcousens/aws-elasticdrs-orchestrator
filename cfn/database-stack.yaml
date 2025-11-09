@@ -15,7 +15,7 @@ Resources:
   ProtectionGroupsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${ProjectName}-protection-groups'
+      TableName: !Sub '${ProjectName}-protection-groups-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: GroupId
@@ -37,7 +37,7 @@ Resources:
   RecoveryPlansTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${ProjectName}-recovery-plans'
+      TableName: !Sub '${ProjectName}-recovery-plans-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: PlanId
@@ -59,7 +59,7 @@ Resources:
   ExecutionHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub '${ProjectName}-execution-history'
+      TableName: !Sub '${ProjectName}-execution-history-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: ExecutionId
