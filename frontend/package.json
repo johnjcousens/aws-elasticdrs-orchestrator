@@ -7,11 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "deploy": "cd .. && ./scripts/deploy-frontend.sh",
-    "deploy:dev": "cd .. && ./scripts/deploy-frontend.sh DRS-Orchestration dev",
-    "deploy:staging": "cd .. && ./scripts/deploy-frontend.sh DRS-Orchestration-Staging staging",
-    "deploy:prod": "cd .. && ./scripts/deploy-frontend.sh DRS-Orchestration prod"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.13.1",
