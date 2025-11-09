@@ -44,7 +44,6 @@ Parameters:
 Conditions:
   HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
   HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, '']]
-  HasSourcePath: !Contains [!Ref SourceBucket, '/']
 
 Resources:
   # IAM Role for API Handler Lambda
@@ -249,13 +248,8 @@ Resources:
       Handler: index.lambda_handler
       Role: !GetAtt ApiHandlerRole.Arn
       Code:
-        S3Bucket: !Select [0, !Split ['/', !Ref SourceBucket]]
-        S3Key: !If
-          - HasSourcePath
-          - !Sub
-            - '${PathPrefix}/lambda/api-handler.zip'
-            - PathPrefix: !Select [1, !Split ['/', !Ref SourceBucket]]
-          - 'lambda/api-handler.zip'
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/api-handler.zip'
       Timeout: 900
       MemorySize: 512
       Environment:
@@ -281,13 +275,8 @@ Resources:
       Handler: drs_orchestrator.lambda_handler
       Role: !GetAtt OrchestrationRole.Arn
       Code:
-        S3Bucket: !Select [0, !Split ['/', !Ref SourceBucket]]
-        S3Key: !If
-          - HasSourcePath
-          - !Sub
-            - '${PathPrefix}/lambda/orchestration.zip'
-            - PathPrefix: !Select [1, !Split ['/', !Ref SourceBucket]]
-          - 'lambda/orchestration.zip'
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/orchestration.zip'
       Timeout: 900
       MemorySize: 512
       Environment:
@@ -312,13 +301,8 @@ Resources:
       Handler: build_and_deploy.lambda_handler
       Role: !GetAtt CustomResourceRole.Arn
       Code:
-        S3Bucket: !Select [0, !Split ['/', !Ref SourceBucket]]
-        S3Key: !If
-          - HasSourcePath
-          - !Sub
-            - '${PathPrefix}/lambda/frontend-builder.zip'
-            - PathPrefix: !Select [1, !Split ['/', !Ref SourceBucket]]
-          - 'lambda/frontend-builder.zip'
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/frontend-builder.zip'
       Timeout: 600
       MemorySize: 2048
       Environment:
