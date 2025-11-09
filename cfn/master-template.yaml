@@ -174,7 +174,6 @@ Resources:
         UserPoolClientId: !GetAtt ApiStack.Outputs.UserPoolClientId
         IdentityPoolId: !GetAtt ApiStack.Outputs.IdentityPoolId
         ApiEndpoint: !GetAtt ApiStack.Outputs.ApiEndpoint
-        S3CleanupFunctionArn: !GetAtt LambdaStack.Outputs.S3CleanupFunctionArn
         FrontendBuilderFunctionArn: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
       Tags:
         - Key: Project
@@ -233,12 +232,6 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationArn'
-
-  S3CleanupFunctionArn:
-    Description: 'S3 Cleanup Lambda Function ARN'
-    Value: !GetAtt LambdaStack.Outputs.S3CleanupFunctionArn
-    Export:
-      Name: !Sub '${AWS::StackName}-S3CleanupArn'
 
   FrontendBuilderFunctionArn:
     Description: 'Frontend Builder Lambda Function ARN'

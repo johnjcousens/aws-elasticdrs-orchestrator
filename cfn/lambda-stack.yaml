@@ -291,32 +291,6 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # S3 Cleanup Custom Resource Lambda
-  S3CleanupFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub '${ProjectName}-s3-cleanup-${Environment}'
-      Description: 'Custom resource to empty S3 bucket on stack deletion'
-      Runtime: python3.12
-      Handler: s3_cleanup.lambda_handler
-      Role: !GetAtt CustomResourceRole.Arn
-      Code:
-        S3Bucket: !Ref SourceBucket
-        S3Key: 'lambda/s3-cleanup.zip'
-      Timeout: 300
-      MemorySize: 512
-      Environment:
-        Variables:
-          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
-          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
-          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
   # Frontend Builder Custom Resource Lambda
   FrontendBuilderFunction:
     Type: AWS::Lambda::Function
@@ -358,12 +332,6 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/${OrchestrationFunction}'
       RetentionInDays: 30
 
-  S3CleanupLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/${S3CleanupFunction}'
-      RetentionInDays: 7
-
   FrontendBuilderLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -394,12 +362,6 @@ Outputs:
     Value: !Ref OrchestrationFunction
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationName'
-
-  S3CleanupFunctionArn:
-    Description: 'S3 Cleanup Lambda Function ARN'
-    Value: !GetAtt S3CleanupFunction.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-S3CleanupArn'
 
   FrontendBuilderFunctionArn:
     Description: 'Frontend Builder Lambda Function ARN'

@@ -34,10 +34,6 @@ Parameters:
     Description: 'API Gateway endpoint URL'
 
   # Lambda ARNs from Lambda Stack
-  S3CleanupFunctionArn:
-    Type: String
-    Description: 'S3 Cleanup Lambda Function ARN'
-
   FrontendBuilderFunctionArn:
     Type: String
     Description: 'Frontend Builder Lambda Function ARN'
@@ -304,13 +300,6 @@ Resources:
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
-
-  # S3 Cleanup Custom Resource
-  S3CleanupResource:
-    Type: Custom::S3Cleanup
-    Properties:
-      ServiceToken: !Ref S3CleanupFunctionArn
-      BucketName: !Ref FrontendBucket
 
   # Frontend Build Custom Resource
   FrontendBuildResource:
