@@ -87,8 +87,8 @@ Resources:
                   - states:DescribeExecution
                   - states:ListExecutions
                 Resource:
-                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration'
-                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-orchestration:*'
+                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
+                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-orchestration-${Environment}:*'
         - PolicyName: DRSAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -221,8 +221,8 @@ Resources:
                   - s3:DeleteObject
                   - s3:DeleteObjectVersion
                 Resource:
-                  - !Sub 'arn:aws:s3:::${FrontendBucketName}'
-                  - !Sub 'arn:aws:s3:::${FrontendBucketName}/*'
+                  - !Sub 'arn:aws:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}'
+                  - !Sub 'arn:aws:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}/*'
         - PolicyName: CloudFrontAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -242,7 +242,7 @@ Resources:
   ApiHandlerFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-api-handler'
+      FunctionName: !Sub '${ProjectName}-api-handler-${Environment}'
       Description: 'API Gateway handler for DRS Orchestration'
       Runtime: python3.12
       Handler: index.lambda_handler
@@ -258,7 +258,7 @@ Resources:
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
-          STATE_MACHINE_ARN: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration'
+          STATE_MACHINE_ARN: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -269,7 +269,7 @@ Resources:
   OrchestrationFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-orchestration'
+      FunctionName: !Sub '${ProjectName}-orchestration-${Environment}'
       Description: 'Step Functions orchestrator for DRS recovery execution'
       Runtime: python3.12
       Handler: drs_orchestrator.lambda_handler
@@ -295,7 +295,7 @@ Resources:
   S3CleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-s3-cleanup'
+      FunctionName: !Sub '${ProjectName}-s3-cleanup-${Environment}'
       Description: 'Custom resource to empty S3 bucket on stack deletion'
       Runtime: python3.12
       Handler: s3_cleanup.lambda_handler
@@ -321,7 +321,7 @@ Resources:
   FrontendBuilderFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-frontend-builder'
+      FunctionName: !Sub '${ProjectName}-frontend-builder-${Environment}'
       Description: 'Custom resource to build and deploy React frontend'
       Runtime: python3.12
       Handler: build_and_deploy.lambda_handler

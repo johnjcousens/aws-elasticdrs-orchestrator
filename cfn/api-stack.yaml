@@ -59,7 +59,7 @@ Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub '${ProjectName}-users'
+      UserPoolName: !Sub '${ProjectName}-users-${Environment}'
       AutoVerifiedAttributes:
         - email
       UsernameAttributes:
@@ -123,7 +123,7 @@ Resources:
   CognitoAuthRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ProjectName}-cognito-auth-role'
+      RoleName: !Sub '${ProjectName}-cognito-auth-role-${Environment}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -157,7 +157,7 @@ Resources:
     Type: AWS::SNS::Topic
     Condition: HasNotificationEmail
     Properties:
-      TopicName: !Sub '${ProjectName}-notifications'
+      TopicName: !Sub '${ProjectName}-notifications-${Environment}'
       DisplayName: 'DRS Orchestration Notifications'
       Subscription:
         - Endpoint: !Ref NotificationEmail
@@ -172,13 +172,13 @@ Resources:
   StepFunctionsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/vendedlogs/states/${ProjectName}-orchestration'
+      LogGroupName: !Sub '/aws/vendedlogs/states/${ProjectName}-orchestration-${Environment}'
       RetentionInDays: 30
 
   StepFunctionsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub '${ProjectName}-stepfunctions-role'
+      RoleName: !Sub '${ProjectName}-stepfunctions-role-${Environment}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -216,7 +216,7 @@ Resources:
   OrchestrationStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      StateMachineName: !Sub '${ProjectName}-orchestration'
+      StateMachineName: !Sub '${ProjectName}-orchestration-${Environment}'
       RoleArn: !GetAtt StepFunctionsRole.Arn
       LoggingConfiguration:
         Level: ALL

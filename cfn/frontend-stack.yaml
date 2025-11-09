@@ -10,6 +10,11 @@ Parameters:
     Type: String
     Description: 'Environment name (dev, test, prod)'
 
+  BucketSuffix:
+    Type: String
+    Description: 'Unique suffix for bucket name (timestamp or random string)'
+    Default: 'v1'
+
   # Cognito IDs from API Stack
   UserPoolId:
     Type: String
@@ -42,7 +47,7 @@ Resources:
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${ProjectName}-frontend-${AWS::AccountId}'
+      BucketName: !Sub '${ProjectName}-fe-${AWS::AccountId}-${Environment}'
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:

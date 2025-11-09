@@ -156,7 +156,7 @@ def create_or_update(event, context):
                         'Quantity': 1,
                         'Items': ['/*']
                     },
-                    'CallerReference': str(context.request_id)
+                    'CallerReference': str(context.aws_request_id)
                 }
             )
             
@@ -358,7 +358,7 @@ def deploy_placeholder(bucket_name, distribution_id, properties, context):
         DistributionId=distribution_id,
         InvalidationBatch={
             'Paths': {'Quantity': 1, 'Items': ['/*']},
-            'CallerReference': str(context.request_id)
+            'CallerReference': str(context.aws_request_id)
         }
     )
     
