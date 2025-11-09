@@ -28,6 +28,7 @@ import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
+import { ExecutionDetails } from '../components/ExecutionDetails';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
 
@@ -55,7 +56,7 @@ export const ExecutionsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0); // 0 = Active, 1 = History
-  const [selectedExecution, setSelectedExecution] = useState<ExecutionListItem | null>(null);
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Fetch executions on mount
@@ -97,8 +98,13 @@ export const ExecutionsPage: React.FC = () => {
   };
 
   const handleViewDetails = (execution: ExecutionListItem) => {
-    setSelectedExecution(execution);
+    setSelectedExecutionId(execution.executionId);
     setDetailsOpen(true);
+  };
+
+  const handleCloseDetails = () => {
+    setDetailsOpen(false);
+    setSelectedExecutionId(null);
   };
 
   const handleRefresh = () => {
@@ -347,13 +353,13 @@ export const ExecutionsPage: React.FC = () => {
         )}
       </TabPanel>
 
-      {/* TODO: Add ExecutionDetails modal component */}
-      {/* <ExecutionDetails
+      {/* Execution Details Modal */}
+      <ExecutionDetails
         open={detailsOpen}
-        execution={selectedExecution}
-        onClose={() => setDetailsOpen(false)}
+        executionId={selectedExecutionId}
+        onClose={handleCloseDetails}
         onRefresh={fetchExecutions}
-      /> */}
+      />
     </Box>
   );
 };
