@@ -15,6 +15,7 @@ import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { ProtectionGroupsPage } from './pages/ProtectionGroupsPage';
 import { ExecutionsPage } from './pages/ExecutionsPage';
+import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
 import { theme } from './theme';
 import apiClient from './services/api';
 import { awsConfig } from './aws-config';
@@ -67,7 +68,7 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <Dashboard />
+                    <RecoveryPlansPage />
                   </Layout>
                 </ProtectedRoute>
               }
