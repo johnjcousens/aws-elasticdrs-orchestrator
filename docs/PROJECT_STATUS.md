@@ -1,12 +1,12 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 9, 2025 - 2:00 AM  
+**Last Updated**: November 9, 2025 - 1:38 PM  
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
 **Phase 6 Status**: ✅ COMPLETE (100%)  
 **Phase 7 Status**: 🔄 IN PROGRESS (86% - Phases 7.1, 7.2, 7.3, 7.4, 7.5, 7.6 complete)  
-**Deployment Status**: 🔄 TEST Environment Deploying (3/4 stacks complete)  
+**Deployment Status**: ⚠️ S3CleanupResource Removed - Ready for Clean Deployment  
 **Overall MVP Progress**: ~96%  
 **Last Sanity Check**: ✅ November 8, 2025 - 10:12 PM - ALL TESTS PASSING
 
@@ -565,6 +565,65 @@ npm run dev
 This project has comprehensive checkpoint history with full conversation context for continuity.
 
 ### Session Checkpoints
+
+**Session 20: S3CleanupResource Removal & Snapshot Workflow Enhancement** (November 9, 2025 - 12:52-1:38 PM)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251109_133816.md`
+- **Git Commits**: 
+  - `449b584` - chore: Add .cline_memory/conversations/ to .gitignore
+  - Pending: S3CleanupResource removal changes
+  - Pending: Snapshot workflow enhancement
+- **Summary**: Removed problematic S3CleanupResource from all CloudFormation templates and enhanced snapshot workflow with S3 sync automation
+- **Issues Discovered**:
+  - **Deployment #8**: S3CleanupResource stuck CREATE_IN_PROGRESS since 12:48 PM
+  - Lambda couldn't import crhelper → no CloudFormation response → 1-hour timeout expected
+  - S3CleanupResource optional but causing deployment delays and reliability issues
+- **Root Cause Analysis**:
+  - S3CleanupResource custom resource designed to empty S3 bucket on stack deletion
+  - Requires Lambda with crhelper dependency working correctly
+  - Lambda packaging issues repeatedly caused deployment timeouts
+  - Adding complexity for edge-case cleanup functionality
+- **Decision Made**:
+  - Remove S3CleanupResource entirely (user requested: "S3CleanupResource is always problematic and next run run with option to retain resources so you can troubleshoot")
+  - Simpler deployments without custom resource complexity
+  - Manual bucket cleanup acceptable tradeoff: `aws s3 rm s3://bucket --recursive`
+- **Comprehensive Removal**:
+  - **frontend-stack.yaml**: Removed S3CleanupResource custom resource and S3CleanupFunctionArn parameter
+  - **lambda-stack.yaml**: Removed S3CleanupFunction Lambda definition and S3CleanupLogGroup
+  - **master-template.yaml**: Removed S3CleanupFunctionArn parameter passing and output
+  - Uploaded all updated templates to S3 deployment bucket
+- **Snapshot Workflow Enhancement**:
+  - Updated `.clinerules/snapshot-workflow.md` to add Step 4: S3 synchronization
+  - Command: `aws s3 sync /path/to/AWS-DRS-Orchestration/ s3://onprem-aws-ia/AWS-DRS-Orchestration/ --exclude ".git/*" --exclude "node_modules/*" --exclude "build/*" --exclude ".cline_memory/*" --delete`
+  - Syncs CloudFormation templates, Lambda code, and frontend after each snapshot
+  - Testing bucket: `s3://onprem-aws-ia/AWS-DRS-Orchestration/` with cfn/, lambda/, frontend/ subdirectories
+- **Technical Achievements**:
+  - Simplified CloudFormation architecture (removed 1 Lambda, 1 custom resource, 1 log group)
+  - Automated S3 testing environment sync in snapshot workflow
+  - Faster future deployments without S3CleanupResource delays
+  - Clean rollback: Deployment #8 pending timeout, new deployment will use updated templates
+- **Files Modified** (4 files):
+  - `cfn/frontend-stack.yaml`: Removed S3CleanupResource and parameter
+  - `cfn/lambda-stack.yaml`: Removed S3CleanupFunction and log group
+  - `cfn/master-template.yaml`: Removed S3CleanupFunctionArn passing/output
+  - `.clinerules/snapshot-workflow.md`: Added S3 sync step
+- **Deployment Timeline**:
+  - Deployment #8 started 12:48 PM (still running with old templates)
+  - S3CleanupResource stuck since 12:48 PM (20+ minutes)
+  - Expected timeout: ~1:18 PM (30-minute FrontendStack timeout)
+  - Next deployment: Will use updated templates without S3CleanupResource
+- **Benefits**:
+  - ✅ Simpler deployments: One less custom resource failure point
+  - ✅ Faster stack creation: No waiting for S3CleanupResource Lambda
+  - ✅ More reliable: Fewer dependencies and failure modes
+  - ✅ Automated S3 sync: Testing environment always current
+  - ⚠️ Manual cleanup: Need to empty bucket before stack deletion
+- **Result**: S3CleanupResource removed, snapshot workflow enhanced, MVP 96% complete maintained
+- **Lines of Code**: 152 deletions (frontend-stack), 80 deletions (lambda-stack), 10 deletions (master-template), 7 insertions (snapshot-workflow)
+- **Next Steps**: 
+  - Wait for Deployment #8 to timeout/fail
+  - Deploy with updated templates (no S3CleanupResource)
+  - Verify successful deployment without custom resource
+  - Document manual S3 cleanup procedure in README
 
 **Session 19: CloudFormation Naming Conflicts Resolution** (November 9, 2025 - 1:20-2:00 AM)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251109_015903.md`
