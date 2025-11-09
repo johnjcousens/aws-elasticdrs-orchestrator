@@ -72,70 +72,75 @@ The solution uses a **modular nested stack architecture** for better maintainabi
 
 The solution uses **S3-hosted deployment** with nested CloudFormation stacks for a professional, scalable architecture.
 
-### Deployment Methods
+### Quick Deployment (3 Steps)
 
-**Choose One**:
-1. **S3-Hosted Deployment** (Recommended for production) - Professional, supports nested stacks
-2. **Local Deployment** (For development/testing) - Direct deployment from local files
+The repository is **deployment-ready** with pre-built Lambda .zip files. No build steps required!
 
-### Option 1: S3-Hosted Deployment (Recommended)
-
-**Best for**: Production environments, team collaboration, repeatable deployments
-
-#### Step 1: Package Deployment Artifacts
-
-```bash
-cd AWS-DRS-Orchestration
-
-# Create deployment package
-./scripts/package-deployment.sh
-
-# Output: deployment-package/ directory with all templates and code
-```
-
-#### Step 2: Upload to S3
+#### Step 1: Upload Directory to S3
 
 ```bash
 # Create S3 bucket for deployment artifacts
 aws s3 mb s3://my-drs-solution-bucket --region us-west-2
 
-# Upload deployment package
-aws s3 sync deployment-package/ s3://my-drs-solution-bucket/ \
-  --exclude "README.md" \
+# Upload entire directory to S3
+aws s3 sync . s3://my-drs-solution-bucket/AWS-DRS-Orchestration/ \
+  --exclude ".git/*" \
+  --exclude "node_modules/*" \
+  --exclude "frontend/node_modules/*" \
+  --exclude ".DS_Store" \
   --region us-west-2
 
 # Verify upload
-aws s3 ls s3://my-drs-solution-bucket/ --recursive
+aws s3 ls s3://my-drs-solution-bucket/AWS-DRS-Orchestration/ --recursive
 ```
 
-#### Step 3: Deploy Stack
+**What gets uploaded**:
+- ✅ `cfn/*.yaml` - All 6 CloudFormation templates
+- ✅ `lambda/*.zip` - Pre-built Lambda deployment packages (4 functions)
+- ✅ `lambda/*/` - Lambda source code (for reference)
+- ✅ `frontend/` - React frontend source code
+- ✅ `docs/` - Documentation
+
+#### Step 2: Deploy Stack
 
 ```bash
-# Deploy using S3-hosted template
+# Deploy using S3-hosted master template
 aws cloudformation create-stack \
   --stack-name drs-orchestration \
-  --template-url https://my-drs-solution-bucket.s3.amazonaws.com/master-template.yaml \
+  --template-url https://my-drs-solution-bucket.s3.us-west-2.amazonaws.com/AWS-DRS-Orchestration/cfn/master-template.yaml \
   --parameters \
-    ParameterKey=SourceBucket,ParameterValue=my-drs-solution-bucket \
+    ParameterKey=SourceBucket,ParameterValue=my-drs-solution-bucket/AWS-DRS-Orchestration \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-west-2
 ```
 
-#### Step 4: Monitor Deployment
+**Important**: The `SourceBucket` parameter must include the full S3 path: `bucket-name/AWS-DRS-Orchestration`
+
+#### Step 3: Monitor Deployment
 
 ```bash
-# Wait for completion (20-30 minutes)
-aws cloudformation wait stack-create-complete --stack-name drs-orchestration
+# Wait for completion (20-30 minutes for full deployment)
+aws cloudformation wait stack-create-complete \
+  --stack-name drs-orchestration \
+  --region us-west-2
 
 # Get stack outputs
 aws cloudformation describe-stacks \
   --stack-name drs-orchestration \
   --query 'Stacks[0].Outputs' \
-  --output table
+  --output table \
+  --region us-west-2
 ```
 
-#### Step 5: Access Application
+**Deployment Progress**:
+1. ✅ Database Stack (5 min) - 3 DynamoDB tables
+2. ✅ Lambda Stack (5 min) - 4 Lambda functions
+3. ✅ API Stack (5 min) - Cognito + API Gateway + Step Functions
+4. ✅ Security Stack (3 min) - WAF + CloudTrail (if enabled)
+5. ✅ Frontend Stack (10 min) - S3 + CloudFront + Frontend build
+
+#### Access Application
 
 ```bash
 # Get CloudFront URL
@@ -145,31 +150,48 @@ aws cloudformation describe-stacks \
   --output text
 ```
 
-- Open the CloudFront URL in your browser
-- Check email for temporary Cognito password
-- Log in and change your password
+1. Open the CloudFront URL in your browser
+2. Check email for temporary Cognito password
+3. Log in and change your password
 
-### Option 2: Local Deployment (Development/Testing)
+### Why This Works
 
-**Best for**: Quick testing, development iterations, single deployments
+**Pre-built Lambda Packages**: The repository includes ready-to-use .zip files in `lambda/`:
+- ✅ `api-handler.zip` (5.7 KB) - API request handler
+- ✅ `orchestration.zip` (5.5 KB) - DRS recovery orchestration
+- ✅ `s3-cleanup.zip` (1.3 KB) - S3 bucket cleanup on stack deletion
+- ✅ `frontend-builder.zip` (4.3 KB) - React frontend build & deploy
+
+**No Build Required**: Lambda functions include all dependencies. CloudFormation references them directly from S3.
+
+**Modular Templates**: All 6 CloudFormation templates are in `cfn/` directory, ready to deploy.
+
+### Updating Lambda Code
+
+If you modify Lambda source code:
 
 ```bash
-cd AWS-DRS-Orchestration
+# Recreate the .zip files
+cd lambda/api-handler && zip -r ../api-handler.zip . && cd ../..
+cd lambda/orchestration && zip -r ../orchestration.zip . && cd ../..
+cd lambda/custom-resources && zip -r ../s3-cleanup.zip . && cd ../..
+cd lambda/frontend-builder && zip -r ../frontend-builder.zip . && cd ../..
 
-# Package Lambda functions
-./scripts/package-lambdas.sh
+# Re-upload to S3
+aws s3 sync lambda/ s3://my-drs-solution-bucket/AWS-DRS-Orchestration/lambda/ \
+  --exclude "*/
 
-# Deploy directly from local files
-aws cloudformation create-stack \
-  --stack-name drs-orchestration-dev \
-  --template-body file://cfn/master-template-local.yaml \
-  --parameters \
-    ParameterKey=AdminEmail,ParameterValue=admin@example.com \
+" --include "*.zip" \
+  --region us-west-2
+
+# Update CloudFormation stack to trigger redeployment
+aws cloudformation update-stack \
+  --stack-name drs-orchestration \
+  --use-previous-template \
+  --parameters UsePreviousValue=true \
   --capabilities CAPABILITY_NAMED_IAM \
   --region us-west-2
 ```
-
-**Note**: Local deployment requires all Lambda code to be packaged locally and uploaded during stack creation.
 
 ### Detailed Deployment Instructions
 
