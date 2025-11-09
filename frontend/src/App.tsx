@@ -13,6 +13,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
+import { ProtectionGroupsPage } from './pages/ProtectionGroupsPage';
 import { theme } from './theme';
 import apiClient from './services/api';
 import { awsConfig } from './aws-config';
@@ -48,13 +49,13 @@ function App() {
               }
             />
             
-            {/* Placeholder routes for future pages */}
+            {/* Protection Groups */}
             <Route
               path="/protection-groups"
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <Dashboard />
+                    <ProtectionGroupsPage />
                   </Layout>
                 </ProtectedRoute>
               }
