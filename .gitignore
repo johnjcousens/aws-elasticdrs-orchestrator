@@ -8,7 +8,13 @@ lambda/.DS_Store
 frontend/.DS_Store
 .DS_Store
 
-# Lambda dependencies (installed via pip, packaged separately)
+# Lambda source directories (only .zip files needed for deployment)
+lambda/api-handler/
+lambda/orchestration/
+lambda/custom-resources/
+lambda/frontend-builder/
+
+# Lambda dependencies (if source directories are re-added)
 lambda/*/boto3*/
 lambda/*/botocore*/
 lambda/*/crhelper*/
@@ -19,7 +25,5 @@ lambda/*/s3transfer*/
 lambda/*/six*/
 lambda/*/urllib3*/
 lambda/*/bin/
-
-# Individual dependency files
 lambda/*/six.py
 .cline_memory/conversations/
