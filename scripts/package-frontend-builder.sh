@@ -1,5 +1,5 @@
 #!/bin/bash
-# Package frontend-builder Lambda with React source code bundled
+# Package frontend-builder Lambda with Python dependencies AND React source code
 # This creates a self-contained Lambda that can build and deploy the frontend
 
 set -e
@@ -10,18 +10,28 @@ LAMBDA_DIR="$PROJECT_ROOT/lambda"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 
 echo "================================================"
-echo "Packaging frontend-builder Lambda with frontend source"
+echo "Packaging frontend-builder Lambda with dependencies + frontend source"
 echo "================================================"
 
 # Create temporary directory
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
 
-echo "Step 1: Extract existing frontend-builder.zip..."
 cd "$TEMP_DIR"
-unzip -q "$LAMBDA_DIR/frontend-builder.zip"
 
-echo "Step 2: Copy frontend source (excluding build artifacts)..."
+echo "Step 1: Extract existing frontend-builder.zip for Python code..."
+unzip -q "$LAMBDA_DIR/frontend-builder.zip" "*.py" "requirements.txt" 2>/dev/null || true
+
+if [ ! -f "requirements.txt" ]; then
+    echo "ERROR: requirements.txt not found in frontend-builder.zip"
+    exit 1
+fi
+
+echo "Step 2: Install Python dependencies..."
+echo "Installing: $(cat requirements.txt)"
+pip3 install -r requirements.txt -t . --upgrade --quiet
+
+echo "Step 3: Copy frontend source (excluding build artifacts)..."
 mkdir -p frontend
 rsync -av \
   --exclude 'node_modules' \
@@ -32,22 +42,26 @@ rsync -av \
   --exclude 'dev.sh' \
   "$FRONTEND_DIR/" frontend/
 
-echo "Step 3: Create new frontend-builder.zip..."
+echo "Step 4: Create new frontend-builder.zip with ALL components..."
 zip -r "$LAMBDA_DIR/frontend-builder.zip" . -q
 
 # Get size information
-OLD_SIZE=$(unzip -l "$LAMBDA_DIR/frontend-builder.zip" 2>/dev/null | tail -1 | awk '{print $1}')
 NEW_SIZE=$(du -h "$LAMBDA_DIR/frontend-builder.zip" | awk '{print $1}')
+FILE_COUNT=$(unzip -l "$LAMBDA_DIR/frontend-builder.zip" | tail -1 | awk '{print $2}')
 
 echo ""
 echo "================================================"
-echo "✅ Success! frontend-builder.zip updated"
+echo "✅ Success! frontend-builder.zip rebuilt with dependencies"
 echo "================================================"
 echo "Package size: $NEW_SIZE"
-echo "Contents:"
-unzip -l "$LAMBDA_DIR/frontend-builder.zip" | head -20
+echo "Total files: $FILE_COUNT"
 echo ""
-echo "Total files: $(unzip -l "$LAMBDA_DIR/frontend-builder.zip" | tail -1 | awk '{print $2}')"
+echo "Package contents (first 30 files):"
+unzip -l "$LAMBDA_DIR/frontend-builder.zip" | head -35
 echo ""
-echo "Frontend source is now bundled with Lambda!"
-echo "Lambda can access frontend at: /var/task/frontend/"
+echo "Python dependencies installed:"
+ls -1 | grep -E "^(crhelper|boto3|botocore)" | head -10
+echo ""
+echo "Frontend source bundled: $(find frontend -type f | wc -l) files"
+echo ""
+echo "Lambda package ready for deployment!"
