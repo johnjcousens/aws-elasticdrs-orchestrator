@@ -143,21 +143,13 @@ export const ProtectionGroupsPage: React.FC = () => {
         
         return (
           <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-            {filters.map((filter: any, idx: number) => {
-              // Ensure filter.values is an array before calling join
-              const values = Array.isArray(filter?.values) ? filter.values : [];
-              const label = filter?.key 
-                ? `${filter.key}: ${values.join(', ')}` 
-                : 'Invalid filter';
-              
-              return (
-                <Chip
-                  key={idx}
-                  label={label}
-                  size="small"
-                />
-              );
-            })}
+            {filters.map((filter: any, idx: number) => (
+              <Chip
+                key={idx}
+                label={`${filter.key}: ${filter.values.join(', ')}`}
+                size="small"
+              />
+            ))}
           </Stack>
         );
       },
