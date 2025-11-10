@@ -84,15 +84,27 @@ export const awsConfig = window.AWS_CONFIG;
         with open(index_html_path, 'r') as f:
             html_content = f.read()
         
-        # Add script tag just before the closing </head> tag
-        # Use regular script (NOT module) to ensure synchronous loading before React
-        script_tag = '  <script src="/assets/aws-config.js"></script>\n  </head>'
-        html_content = html_content.replace('</head>', script_tag)
+        # Add script tag BEFORE the first script tag (React bundle)
+        # This ensures aws-config.js loads and executes BEFORE React starts
+        # Find the first <script tag and insert our config script before it
+        import re
+        script_pattern = r'(<script[^>]*>)'
+        match = re.search(script_pattern, html_content)
+        
+        if match:
+            # Insert config script before first script tag
+            insert_pos = match.start()
+            config_script = '    <script src="/assets/aws-config.js"></script>\n    '
+            html_content = html_content[:insert_pos] + config_script + html_content[insert_pos:]
+            print("Injected aws-config.js script tag BEFORE React bundle")
+        else:
+            # Fallback: insert before </head> if no script tags found
+            script_tag = '    <script src="/assets/aws-config.js"></script>\n  </head>'
+            html_content = html_content.replace('</head>', script_tag)
+            print("Injected aws-config.js script tag before </head> (no script tags found)")
         
         with open(index_html_path, 'w') as f:
             f.write(html_content)
-        
-        print(f"Injected aws-config.js script tag into index.html")
     else:
         print(f"WARNING: index.html not found at {index_html_path}")
 
