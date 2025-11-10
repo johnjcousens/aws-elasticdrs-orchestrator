@@ -566,31 +566,29 @@ This project has comprehensive checkpoint history with full conversation context
 
 ### Session Checkpoints
 
-**Session 25: AWS Configuration Integration Fix** (November 9, 2025 - 8:50-9:16 PM)
-- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251109_211619.md`
+**Session 25 Extended: Root Cause - React App Never Rebuilt** (November 9, 2025 - 8:50-9:28 PM)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251109_212844.md`
 - **Git Commits**: 
   - `6840cf7` - docs: Update PROJECT_STATUS.md - Session 25 configuration integration fixes
   - Pending: Local changes to frontend files (aws-config.ts, api.ts, App.tsx)
-- **Summary**: Fixed critical AWS configuration integration issues preventing frontend from loading
-- **Problem Identified**:
-  - Frontend loading blank page despite successful CloudFormation deployment
-  - Lambda didn't run during stack update (no changes to trigger custom resource)
-  - index.html missing script tag to load aws-config.js
-  - aws-config.js had ES module export syntax incompatible with regular script loading
+- **Summary**: Discovered and fixed root cause - LOCAL source files modified but React app NEVER REBUILT with fixes
+- **Critical Discovery**:
+  - Browser console: `Uncaught SyntaxError: Unexpected token 'export'` + `Cannot read properties of undefined (reading 'REST')`
+  - Issue: We fixed LOCAL source code (aws-config.ts, api.ts, App.tsx) but CloudFront served OLD JavaScript bundle
+  - Root cause: Modified source files but never ran `npm run build` to rebuild React app with fixes!
+  - S3 aws-config.js was correct (no export), but React bundle still had old code
 - **Root Cause Analysis**:
   - CloudFormation stack update didn't trigger Lambda because no template changes detected
   - Lambda only runs on Create/Update of custom resource, not on every stack update
   - Manual fixes required to S3 files: index.html and aws-config.js
   - Script tag loading issue: type="module" vs regular script semantics
-- **Fixes Applied** (3 manual S3 uploads + CloudFront invalidations):
-  - **Fix 1**: Fixed aws-config.ts to work with window.AWS_CONFIG from script tag
-  - **Fix 2**: Fixed api.ts to read config from window.AWS_CONFIG.API.REST
-  - **Fix 3**: Fixed App.tsx Amplify.configure() to use proper config structure
-  - **Fix 4**: Rebuilt frontend with fixes (1.27 MB, 12 files)
-  - **Fix 5**: Repackaged Lambda with new build (frontend-builder.zip 15.5 MB)
-  - **Fix 6**: Created fixed index.html with `<script src="/assets/aws-config.js"></script>` tag
-  - **Fix 7**: Fixed aws-config.js removing ES module export statement
-  - **Fix 8**: Multiple CloudFront invalidations (index.html, aws-config.js, /*)
+- **Complete Fix Workflow**:
+  - **Step 1**: Fixed 3 LOCAL source files (aws-config.ts, api.ts, App.tsx)
+  - **Step 2**: **REBUILT React app** → `npx vite build` (CRITICAL MISSING STEP!)
+  - **Step 3**: Uploaded NEW dist/ to S3 (10 files, 1.27 MB)
+  - **Step 4**: Created full CloudFront invalidation (ID: I2NIC62A0Z23L854VMZY1D5O5D)
+  - **Step 5**: Waited 30-60 seconds for propagation
+  - **Result**: Frontend now serves REBUILT JavaScript bundle with configuration fixes
 - **Technical Challenges**:
   - CloudFront aggressive caching prevented updated files from loading
   - Browser deep cache required multiple invalidation attempts
@@ -610,11 +608,14 @@ This project has comprehensive checkpoint history with full conversation context
   - Regular script tag loads config into window.AWS_CONFIG
   - React app reads from window.AWS_CONFIG
   - No ES module import/export - pure global variable pattern
-- **Files Modified Locally** (4 files):
-  - `frontend/src/aws-config.ts`: Changed from file-based to window.AWS_CONFIG
-  - `frontend/src/services/api.ts`: Read from window.AWS_CONFIG.API.REST
-  - `frontend/src/App.tsx`: Fixed Amplify.configure() call
-  - `lambda/build_and_deploy.py`: Already had correct code
+- **Source Code Changes** (3 files):
+  - `frontend/src/aws-config.ts`: Changed to `export const awsConfig = (window as any).AWS_CONFIG;`
+  - `frontend/src/services/api.ts`: Changed to `const API_ENDPOINT = (window as any).AWS_CONFIG?.API?.REST?.endpoint || '';`
+  - `frontend/src/App.tsx`: Fixed Amplify.configure() to use `{ Auth: { Cognito: { ... } } }` structure
+- **Build Process** (THE KEY STEP):
+  - Ran `npx vite build` in frontend directory (4.83 seconds)
+  - Generated new JavaScript bundles: index-By7iUePu.js, vendor-*.js (1.27 MB total)
+  - New bundles include source code fixes - read from window.AWS_CONFIG correctly
 - **Deployment Status**:
   - Stack: drs-orchestration-test (UPDATE_COMPLETE at 8:56 PM)
   - Frontend files uploaded to S3 manually
@@ -622,12 +623,13 @@ This project has comprehensive checkpoint history with full conversation context
   - Waiting for cache propagation (30-60 seconds after 9:04 PM)
 - **Result**: Configuration integration fixed, full cache invalidation created, MVP 96% complete maintained
 - **Lines of Code**: ~200 lines modified across frontend/lambda/S3 files
-- **Lessons Learned**:
-  - Lambda custom resources only run when resource properties change
-  - CloudFront caching extremely aggressive - requires full /* invalidation
-  - ES module exports incompatible with regular script tags
-  - Browser cache can persist even after CloudFront invalidation
-  - Manual S3 fixes necessary when Lambda doesn't trigger
+- **Lessons Learned** (CRITICAL):
+  1. **React Development vs Production**: Modifying source files (aws-config.ts, api.ts) does NOTHING without rebuilding
+  2. **Build Step is Mandatory**: Source changes require `npm run build` or `npx vite build` to take effect
+  3. **S3 Serves Build Artifacts**: CloudFront/S3 serve dist/ folder, NOT source files
+  4. **Two-Step Fix Process**: (1) Fix source code, (2) Rebuild and upload
+  5. **Verification Strategy**: Check BOTH source files AND built JavaScript bundles
+  6. **CloudFront Caching**: Full /* invalidation required after uploading new dist/
 - **Next Steps**:
   - Wait for CloudFront cache to clear (~1-2 minutes from 9:04 PM)
   - Test application with fresh browser session
