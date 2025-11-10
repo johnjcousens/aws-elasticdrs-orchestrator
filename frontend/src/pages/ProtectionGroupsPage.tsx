@@ -133,17 +133,26 @@ export const ProtectionGroupsPage: React.FC = () => {
       headerName: 'Tag Filters',
       width: 350,
       sortable: false,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-          {params.value.map((filter: any, idx: number) => (
-            <Chip
-              key={idx}
-              label={`${filter.key}: ${filter.values.join(', ')}`}
-              size="small"
-            />
-          ))}
-        </Stack>
-      ),
+      renderCell: (params) => {
+        // Handle cases where tagFilters might not be an array
+        const filters = Array.isArray(params.value) ? params.value : [];
+        
+        if (filters.length === 0) {
+          return <Typography variant="body2" color="text.secondary">-</Typography>;
+        }
+        
+        return (
+          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+            {filters.map((filter: any, idx: number) => (
+              <Chip
+                key={idx}
+                label={`${filter.key}: ${filter.values.join(', ')}`}
+                size="small"
+              />
+            ))}
+          </Stack>
+        );
+      },
     },
     {
       field: 'createdAt',
