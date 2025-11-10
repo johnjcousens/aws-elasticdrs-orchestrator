@@ -19,13 +19,19 @@ trap "rm -rf $TEMP_DIR" EXIT
 
 cd "$TEMP_DIR"
 
-echo "Step 1: Extract existing frontend-builder.zip for Python code..."
-unzip -q "$LAMBDA_DIR/frontend-builder.zip" "*.py" "requirements.txt" 2>/dev/null || true
-
-if [ ! -f "requirements.txt" ]; then
-    echo "ERROR: requirements.txt not found in frontend-builder.zip"
+echo "Step 1: Copy Python source files from lambda directory..."
+cp "$LAMBDA_DIR/build_and_deploy.py" . 2>/dev/null || {
+    echo "ERROR: build_and_deploy.py not found in $LAMBDA_DIR"
     exit 1
-fi
+}
+
+cp "$LAMBDA_DIR/requirements.txt" . 2>/dev/null || {
+    # Try to extract requirements.txt from existing zip as fallback
+    unzip -q "$LAMBDA_DIR/frontend-builder.zip" "requirements.txt" 2>/dev/null || {
+        echo "ERROR: requirements.txt not found"
+        exit 1
+    }
+}
 
 echo "Step 2: Install Python dependencies..."
 echo "Installing: $(cat requirements.txt)"
