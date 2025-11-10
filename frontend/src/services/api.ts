@@ -8,7 +8,7 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { API_NAME } from '../aws-config';
+import { awsConfig } from '../aws-config';
 import type {
   ProtectionGroup,
   CreateProtectionGroupRequest,
@@ -19,14 +19,11 @@ import type {
   Execution,
   ExecuteRecoveryPlanRequest,
   ExecutionListItem,
-  ApiResponse,
   PaginatedResponse,
 } from '../types';
 
 // API configuration
 const API_TIMEOUT = 30000; // 30 seconds
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
 
 /**
  * API Client Class
@@ -36,10 +33,13 @@ const RETRY_DELAY = 1000; // 1 second
  */
 class ApiClient {
   private axiosInstance: AxiosInstance;
-  private apiEndpoint: string = '';
 
   constructor() {
+    // Get API endpoint from AWS config
+    const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
+    
     this.axiosInstance = axios.create({
+      baseURL: apiEndpoint,
       timeout: API_TIMEOUT,
       headers: {
         'Content-Type': 'application/json',
@@ -47,14 +47,8 @@ class ApiClient {
     });
 
     this.setupInterceptors();
-  }
-
-  /**
-   * Initialize the API client with the endpoint
-   */
-  public initialize(endpoint: string): void {
-    this.apiEndpoint = endpoint;
-    this.axiosInstance.defaults.baseURL = endpoint;
+    
+    console.log('API Client initialized with endpoint:', apiEndpoint);
   }
 
   /**
@@ -312,7 +306,6 @@ export default apiClient;
 
 // Export individual methods for convenience
 export const {
-  initialize,
   listProtectionGroups,
   getProtectionGroup,
   createProtectionGroup,
