@@ -31,18 +31,27 @@ echo "Step 2: Install Python dependencies..."
 echo "Installing: $(cat requirements.txt)"
 pip3 install -r requirements.txt -t . --upgrade --quiet
 
-echo "Step 3: Copy frontend source (excluding build artifacts)..."
+echo "Step 3: Build React frontend..."
+cd "$FRONTEND_DIR"
+echo "  Installing npm dependencies..."
+npm ci --silent
+echo "  Building production bundle..."
+npx vite build
+BUILD_SIZE=$(du -sh dist 2>/dev/null | awk '{print $1}' || echo "N/A")
+echo "  ✅ Build complete (dist size: $BUILD_SIZE)"
+cd "$TEMP_DIR"
+
+echo "Step 4: Copy frontend source WITH pre-built dist/..."
 mkdir -p frontend
 rsync -av \
   --exclude 'node_modules' \
-  --exclude 'dist' \
   --exclude '.git' \
   --exclude '.DS_Store' \
   --exclude '*.log' \
   --exclude 'dev.sh' \
   "$FRONTEND_DIR/" frontend/
 
-echo "Step 4: Create new frontend-builder.zip with ALL components..."
+echo "Step 5: Create new frontend-builder.zip with ALL components..."
 zip -r "$LAMBDA_DIR/frontend-builder.zip" . -q
 
 # Get size information
