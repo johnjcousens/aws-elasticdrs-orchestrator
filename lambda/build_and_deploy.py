@@ -60,8 +60,6 @@ window.AWS_CONFIG = {{
     }}
   }}
 }};
-
-export const awsConfig = window.AWS_CONFIG;
 """
     
     # Create assets directory if it doesn't exist
