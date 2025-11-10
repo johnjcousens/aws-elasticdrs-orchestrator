@@ -26,11 +26,3 @@ lambda/*/six*/
 lambda/*/urllib3*/
 lambda/*/bin/
 lambda/*/six.py
-
-# Test artifacts and configuration
-.env.test
-tests/playwright/test-results/
-test-results/
-playwright-report/
-playwright/.cache/
-*.spec.ts.snap
