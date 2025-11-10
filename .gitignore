@@ -7,22 +7,3 @@ tests/.DS_Store
 lambda/.DS_Store
 frontend/.DS_Store
 .DS_Store
-
-# Lambda source directories (only .zip files needed for deployment)
-lambda/api-handler/
-lambda/orchestration/
-lambda/custom-resources/
-lambda/frontend-builder/
-
-# Lambda dependencies (if source directories are re-added)
-lambda/*/boto3*/
-lambda/*/botocore*/
-lambda/*/crhelper*/
-lambda/*/dateutil/
-lambda/*/jmespath*/
-lambda/*/python_dateutil*/
-lambda/*/s3transfer*/
-lambda/*/six*/
-lambda/*/urllib3*/
-lambda/*/bin/
-lambda/*/six.py
