@@ -19,17 +19,12 @@ import { ProtectionGroupsPage } from './pages/ProtectionGroupsPage';
 import { ExecutionsPage } from './pages/ExecutionsPage';
 import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
 import { theme } from './theme';
-import apiClient from './services/api';
-import { awsConfig } from './aws-config';
-
-// Initialize API client with endpoint from AWS config
-const apiEndpoint = awsConfig.API.REST.DRSOrchestration.endpoint;
-apiClient.initialize(apiEndpoint);
 
 /**
  * Main App Component
  * 
  * Provides routing, theming, and authentication context to the entire application.
+ * API client is automatically initialized with AWS config from window.AWS_CONFIG.
  */
 function App() {
   return (

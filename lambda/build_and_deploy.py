@@ -32,7 +32,7 @@ def use_prebuilt_dist(frontend_dir):
 
 
 def inject_aws_config_into_dist(dist_dir, properties):
-    """Generate aws-config.js in dist/assets/ with CloudFormation outputs"""
+    """Generate aws-config.js and inject script tag into index.html"""
     print("Injecting AWS configuration into pre-built dist...")
     region = properties.get('Region', os.environ.get('AWS_REGION', 'us-west-2'))
     
@@ -77,6 +77,23 @@ export const awsConfig = window.AWS_CONFIG;
     print(f"  Region: {region}")
     print(f"  User Pool ID: {properties.get('UserPoolId', '')}")
     print(f"  API Endpoint: {properties.get('ApiEndpoint', '')}")
+    
+    # Inject script tag into index.html to load aws-config.js before React app
+    index_html_path = os.path.join(dist_dir, 'index.html')
+    if os.path.exists(index_html_path):
+        with open(index_html_path, 'r') as f:
+            html_content = f.read()
+        
+        # Add script tag just before the closing </head> tag
+        script_tag = '  <script type="module" src="/assets/aws-config.js"></script>\n  </head>'
+        html_content = html_content.replace('</head>', script_tag)
+        
+        with open(index_html_path, 'w') as f:
+            f.write(html_content)
+        
+        print(f"Injected aws-config.js script tag into index.html")
+    else:
+        print(f"WARNING: index.html not found at {index_html_path}")
 
 
 @helper.create
