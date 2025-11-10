@@ -115,6 +115,7 @@ export const LoginPage: React.FC = () => {
               <TextField
                 fullWidth
                 label="Username"
+                name="username"
                 variant="outlined"
                 margin="normal"
                 required
@@ -126,6 +127,7 @@ export const LoginPage: React.FC = () => {
               <TextField
                 fullWidth
                 label="Password"
+                name="password"
                 type="password"
                 variant="outlined"
                 margin="normal"
