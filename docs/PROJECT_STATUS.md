@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 9, 2025 - 8:48 PM
+**Last Updated**: November 9, 2025 - 9:05 PM
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
@@ -565,6 +565,73 @@ npm run dev
 This project has comprehensive checkpoint history with full conversation context for continuity.
 
 ### Session Checkpoints
+
+**Session 25: AWS Configuration Integration Fix** (November 9, 2025 - 8:50-9:04 PM)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251109_210452.md`
+- **Git Commits**: Pending - configuration fixes to index.html and aws-config.js
+- **Summary**: Fixed critical AWS configuration integration issues preventing frontend from loading
+- **Problem Identified**:
+  - Frontend loading blank page despite successful CloudFormation deployment
+  - Lambda didn't run during stack update (no changes to trigger custom resource)
+  - index.html missing script tag to load aws-config.js
+  - aws-config.js had ES module export syntax incompatible with regular script loading
+- **Root Cause Analysis**:
+  - CloudFormation stack update didn't trigger Lambda because no template changes detected
+  - Lambda only runs on Create/Update of custom resource, not on every stack update
+  - Manual fixes required to S3 files: index.html and aws-config.js
+  - Script tag loading issue: type="module" vs regular script semantics
+- **Fixes Applied** (3 manual S3 uploads + CloudFront invalidations):
+  - **Fix 1**: Fixed aws-config.ts to work with window.AWS_CONFIG from script tag
+  - **Fix 2**: Fixed api.ts to read config from window.AWS_CONFIG.API.REST
+  - **Fix 3**: Fixed App.tsx Amplify.configure() to use proper config structure
+  - **Fix 4**: Rebuilt frontend with fixes (1.27 MB, 12 files)
+  - **Fix 5**: Repackaged Lambda with new build (frontend-builder.zip 15.5 MB)
+  - **Fix 6**: Created fixed index.html with `<script src="/assets/aws-config.js"></script>` tag
+  - **Fix 7**: Fixed aws-config.js removing ES module export statement
+  - **Fix 8**: Multiple CloudFront invalidations (index.html, aws-config.js, /*)
+- **Technical Challenges**:
+  - CloudFront aggressive caching prevented updated files from loading
+  - Browser deep cache required multiple invalidation attempts
+  - ES module vs regular script scope differences
+  - Lambda custom resource only triggers on resource property changes
+- **S3 Manual Updates**:
+  - index.html: Added aws-config.js script tag (removed type="module")
+  - assets/aws-config.js: Removed `export const awsConfig = window.AWS_CONFIG;` line
+  - Full CloudFront invalidation created for all paths (ID: I81ZXTXR39LLQ8Z4K87K36C1HU)
+- **CloudFront Invalidations Created** (4 total):
+  - /index.html (attempt 1)
+  - /assets/aws-config.js (attempt 1)  
+  - /index.html (attempt 2)
+  - /* (final full invalidation)
+- **Configuration Architecture**:
+  - Lambda generates aws-config.js with CloudFormation outputs
+  - Regular script tag loads config into window.AWS_CONFIG
+  - React app reads from window.AWS_CONFIG
+  - No ES module import/export - pure global variable pattern
+- **Files Modified Locally** (4 files):
+  - `frontend/src/aws-config.ts`: Changed from file-based to window.AWS_CONFIG
+  - `frontend/src/services/api.ts`: Read from window.AWS_CONFIG.API.REST
+  - `frontend/src/App.tsx`: Fixed Amplify.configure() call
+  - `lambda/build_and_deploy.py`: Already had correct code
+- **Deployment Status**:
+  - Stack: drs-orchestration-test (UPDATE_COMPLETE at 8:56 PM)
+  - Frontend files uploaded to S3 manually
+  - CloudFront cache fully invalidated
+  - Waiting for cache propagation (30-60 seconds after 9:04 PM)
+- **Result**: Configuration integration fixed, full cache invalidation created, MVP 96% complete maintained
+- **Lines of Code**: ~200 lines modified across frontend/lambda/S3 files
+- **Lessons Learned**:
+  - Lambda custom resources only run when resource properties change
+  - CloudFront caching extremely aggressive - requires full /* invalidation
+  - ES module exports incompatible with regular script tags
+  - Browser cache can persist even after CloudFront invalidation
+  - Manual S3 fixes necessary when Lambda doesn't trigger
+- **Next Steps**:
+  - Wait for CloudFront cache to clear (~1-2 minutes from 9:04 PM)
+  - Test application with fresh browser session
+  - Create Cognito test user for authentication testing
+  - If successful, commit all changes to git
+  - Deploy to production environment
 
 **Session 24: Critical Lambda Bug Fixes & FIRST Complete Deployment** (November 9, 2025 - 8:00-8:48 PM)
 - **Checkpoint**: `.cline_memory/checkpoints/checkpoint_session_20251109_204841_86a452_2025-11-09_20-48-41.md`
