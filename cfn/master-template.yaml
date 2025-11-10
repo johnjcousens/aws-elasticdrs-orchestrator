@@ -275,11 +275,6 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-StateMachineArn'
 
-  NotificationTopicArn:
-    Description: 'SNS Topic ARN for notifications'
-    Value: !GetAtt ApiStack.Outputs.NotificationTopicArn
-    Export:
-      Name: !Sub '${AWS::StackName}-NotificationTopicArn'
 
   # Frontend Stack Outputs
   CloudFrontUrl:
