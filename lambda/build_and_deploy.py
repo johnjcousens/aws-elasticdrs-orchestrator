@@ -85,7 +85,8 @@ export const awsConfig = window.AWS_CONFIG;
             html_content = f.read()
         
         # Add script tag just before the closing </head> tag
-        script_tag = '  <script type="module" src="/assets/aws-config.js"></script>\n  </head>'
+        # Use regular script (NOT module) to ensure synchronous loading before React
+        script_tag = '  <script src="/assets/aws-config.js"></script>\n  </head>'
         html_content = html_content.replace('</head>', script_tag)
         
         with open(index_html_path, 'w') as f:
