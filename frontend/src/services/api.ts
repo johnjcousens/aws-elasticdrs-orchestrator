@@ -154,7 +154,9 @@ class ApiClient {
    * List all protection groups
    */
   public async listProtectionGroups(): Promise<ProtectionGroup[]> {
-    return this.get<ProtectionGroup[]>('/protection-groups');
+    const response = await this.get<ProtectionGroup[]>('/protection-groups');
+    // Defensive: Ensure response is always an array
+    return Array.isArray(response) ? response : [];
   }
 
   /**
@@ -198,7 +200,9 @@ class ApiClient {
    * List all recovery plans
    */
   public async listRecoveryPlans(): Promise<RecoveryPlan[]> {
-    return this.get<RecoveryPlan[]>('/recovery-plans');
+    const response = await this.get<RecoveryPlan[]>('/recovery-plans');
+    // Defensive: Ensure response is always an array
+    return Array.isArray(response) ? response : [];
   }
 
   /**
