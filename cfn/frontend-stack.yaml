@@ -66,7 +66,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub '${ProjectName}-oac'
+        Name: !Sub '${ProjectName}-oac-${Environment}'
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -142,7 +142,7 @@ Resources:
   HealthCheckDocument:
     Type: AWS::SSM::Document
     Properties:
-      Name: !Sub '${ProjectName}-health-check'
+      Name: !Sub '${ProjectName}-health-check-${Environment}'
       DocumentType: Command
       Content:
         schemaVersion: '2.2'
@@ -204,7 +204,7 @@ Resources:
   ApplicationStartupDocument:
     Type: AWS::SSM::Document
     Properties:
-      Name: !Sub '${ProjectName}-app-startup'
+      Name: !Sub '${ProjectName}-app-startup-${Environment}'
       DocumentType: Command
       Content:
         schemaVersion: '2.2'
@@ -251,7 +251,7 @@ Resources:
   NetworkValidationDocument:
     Type: AWS::SSM::Document
     Properties:
-      Name: !Sub '${ProjectName}-network-validation'
+      Name: !Sub '${ProjectName}-network-validation-${Environment}'
       DocumentType: Command
       Content:
         schemaVersion: '2.2'
