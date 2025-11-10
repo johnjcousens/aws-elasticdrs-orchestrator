@@ -27,9 +27,6 @@ lambda/*/urllib3*/
 lambda/*/bin/
 lambda/*/six.py
 
-# Cline conversation history
-.cline_memory/conversations/
-
 # Test artifacts and configuration
 .env.test
 tests/playwright/test-results/
