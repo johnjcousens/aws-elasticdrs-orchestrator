@@ -1,0 +1,921 @@
+{
+  "config": {
+    "configFile": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/playwright.config.ts",
+    "rootDir": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "test-results/html-report"
+        }
+      ],
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 2,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.56.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "smoke-tests.spec.ts",
+      "file": "smoke-tests.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Smoke Tests - Button Responsiveness",
+          "file": "smoke-tests.spec.ts",
+          "line": 20,
+          "column": 6,
+          "specs": [
+            {
+              "title": "User can login successfully",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16041,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:37:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:37:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-10T20:25:21.593Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16132,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:37:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:37:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-11-10T20:25:38.715Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 15991,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:37:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:37:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2025-11-10T20:25:55.875Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry2/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry2/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----4c867-User-can-login-successfully-chromium-retry2/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "a8bb41ad8b38f84bf4a2-f3f715c4a2a69ba8a9e9",
+              "file": "smoke-tests.spec.ts",
+              "line": 33,
+              "column": 7
+            },
+            {
+              "title": "Protection Groups \"Create Group\" button opens dialog",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16020,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:52:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:52:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-10T20:26:12.969Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16225,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:52:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:52:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-11-10T20:26:30.032Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16531,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:52:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:52:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2025-11-10T20:26:47.504Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry2/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry2/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----b0e4f-e-Group-button-opens-dialog-chromium-retry2/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "a8bb41ad8b38f84bf4a2-548dff8757f90e566290",
+              "file": "smoke-tests.spec.ts",
+              "line": 49,
+              "column": 7
+            },
+            {
+              "title": "Recovery Plans \"Create Plan\" button opens dialog",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16024,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:103:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:103:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-10T20:27:05.112Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16032,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:103:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:103:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-11-10T20:27:22.229Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 15915,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:103:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:103:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2025-11-10T20:27:39.357Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry2/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry2/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----aa112-te-Plan-button-opens-dialog-chromium-retry2/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "a8bb41ad8b38f84bf4a2-43bbee4310b3763c4bff",
+              "file": "smoke-tests.spec.ts",
+              "line": 100,
+              "column": 7
+            },
+            {
+              "title": "Dialog can be opened and closed",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 9,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16226,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:159:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:159:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-10T20:27:56.393Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 10,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16037,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:159:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:159:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2025-11-10T20:28:13.769Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    },
+                    {
+                      "workerIndex": 11,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 16159,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:159:5",
+                        "location": {
+                          "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                          "column": 21,
+                          "line": 54
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mauth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                            "column": 21,
+                            "line": 54
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/dashboard\" until \"networkidle\"\n============================================================\n\n   at auth-helper.ts:54\n\n  52 |     \n  53 |     // Wait for successful login (redirect to dashboard)\n> 54 |     await this.page.waitForURL('**/dashboard', { \n     |                     ^\n  55 |       timeout: 15000,\n  56 |       waitUntil: 'networkidle'\n  57 |     });\n    at AuthHelper.login (/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts:54:21)\n    at /Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/smoke-tests.spec.ts:159:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "Logging in as: drs-test-user@example.com\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2025-11-10T20:28:30.788Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry2/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry2/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/test-results/artifacts/smoke-tests-Smoke-Tests----12bad-og-can-be-opened-and-closed-chromium-retry2/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AWS-DRS-Orchestration/tests/playwright/auth-helper.ts",
+                        "column": 21,
+                        "line": 54
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "a8bb41ad8b38f84bf4a2-0bd3e057d5ec21b37171",
+              "file": "smoke-tests.spec.ts",
+              "line": 156,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2025-11-10T20:25:21.003Z",
+    "duration": 206579.255,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 4,
+    "flaky": 0
+  }
+}
