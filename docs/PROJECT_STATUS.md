@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 10, 2025 - 8:11 PM
+**Last Updated**: November 10, 2025 - 9:50 PM
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
@@ -565,6 +565,46 @@ npm run dev
 This project has comprehensive checkpoint history with full conversation context for continuity.
 
 ### Session Checkpoints
+
+**Session 31: Automatic Server Discovery Planning Complete** (November 10, 2025 - 9:27-9:50 PM)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251110_215007.md` (71 KB, 656 lines)
+- **Git Commits**:
+  - `077f203` - docs: Add VMWARE_SRM_TO_AWS_DRS_COMPLETE_GUIDE.md
+  - `de5189c` - docs: Update PROJECT_STATUS.md - Session 31 planning complete
+  - `7fcef37` - docs: Add automatic server discovery implementation guide
+- **Summary**: Completed comprehensive planning documentation for automatic DRS server discovery feature
+- **Documentation Created**:
+  - `AUTOMATIC_SERVER_DISCOVERY_IMPLEMENTATION.md` (1,319 lines) - Complete implementation guide
+  - `VMWARE_SRM_TO_AWS_DRS_COMPLETE_GUIDE.md` (8,500+ lines) - Feature comparison and migration guide
+- **Feature Planning Complete**:
+  - Automatic DRS source server discovery via AWS region selector
+  - Single Protection Group per server constraint with enforced validation
+  - Real-time search and filtering (hostname/ID/Protection Group)
+  - 30-second auto-refresh for server list updates
+  - Visual assignment status indicators (green=available, gray=assigned)
+  - DRS initialization check per region
+  - Complete VMware SRM-like discovery experience
+- **Implementation Roadmap** (12-14 hours total):
+  - Phase 1: Backend API (4 hours) - `/drs/source-servers` endpoint, validation, IAM
+  - Phase 2: Frontend Components (5 hours) - RegionSelector, ServerDiscoveryPanel, ServerListItem
+  - Phase 3: API Gateway (1 hour) - Endpoint configuration, CORS
+  - Phase 4: Testing (2 hours) - Unit, integration, e2e validation
+- **Architecture Changes**:
+  - **Current System**: Tag-based (manual tagging, no visibility, error-prone)
+  - **New System**: Discovery-based (automatic discovery, full visibility, enforced uniqueness)
+  - Protection Group model: Removed `tags` field, added `region` and `sourceServerIds` array
+- **Technical Specifications**:
+  - Backend: Lambda `/drs/source-servers` endpoint with assignment tracking
+  - Frontend: 3 new React components with search and auto-refresh
+  - Database: Schema changes to Protection Group model
+  - Validation: Single-PG-per-server enforcement with conflict detection
+- **Next Session Pickup Instructions**:
+  - User message: "with context. i will re-authenticate tomorrow morning and continue"
+  - Starting point: Read implementation guide → Begin Phase 1, Task 1.1 (backend API)
+  - Exact command: Navigate to package directory, open lambda/index.py
+- **Result**: Complete planning documentation ready, MVP 100% maintained (planning phase)
+- **Lines of Code**: 9,819 lines documentation (1,319 + 8,500)
+- **Next Steps**: Implementation tomorrow morning starting with backend API endpoint
 
 **Session 31: Automatic Server Discovery Implementation Planning** (November 10, 2025 - 9:27-9:37 PM)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251110_213712.md`
