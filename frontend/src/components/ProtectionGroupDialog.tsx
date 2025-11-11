@@ -2,7 +2,7 @@
  * Protection Group Dialog Component
  * 
  * Modal dialog for creating and editing protection groups.
- * Includes form fields for name, description, and tag filters.
+ * Includes form fields for name, description, and automatic server discovery.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -16,9 +16,10 @@ import {
   Box,
   Alert,
 } from '@mui/material';
-import { TagFilterEditor } from './TagFilterEditor';
+import { RegionSelector } from './RegionSelector';
+import { ServerDiscoveryPanel } from './ServerDiscoveryPanel';
 import apiClient from '../services/api';
-import type { ProtectionGroup, TagFilter } from '../types';
+import type { ProtectionGroup } from '../types';
 
 interface ProtectionGroupDialogProps {
   open: boolean;
@@ -30,8 +31,8 @@ interface ProtectionGroupDialogProps {
 /**
  * Protection Group Dialog Component
  * 
- * Provides form for creating/editing protection groups.
- * Validates inputs and handles API calls.
+ * Provides form for creating/editing protection groups with automatic server discovery.
+ * Validates inputs and handles API calls with conflict detection.
  */
 export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   open,
@@ -41,12 +42,14 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [tagFilters, setTagFilters] = useState<TagFilter[]>([]);
+  const [region, setRegion] = useState('');
+  const [selectedServerIds, setSelectedServerIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{
     name?: string;
-    tagFilters?: string;
+    region?: string;
+    servers?: string;
   }>({});
 
   const isEditMode = Boolean(group);
@@ -58,12 +61,14 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         // Edit mode - populate form with existing data
         setName(group.name);
         setDescription(group.description || '');
-        setTagFilters(group.tagFilters.length > 0 ? group.tagFilters : []);
+        setRegion(group.region || '');
+        setSelectedServerIds(group.sourceServerIds || []);
       } else {
         // Create mode - reset form
         setName('');
         setDescription('');
-        setTagFilters([]);
+        setRegion('us-east-1'); // Default region
+        setSelectedServerIds([]);
       }
       setError(null);
       setValidationErrors({});
@@ -71,24 +76,21 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   }, [open, group]);
 
   const validateForm = (): boolean => {
-    const errors: { name?: string; tagFilters?: string } = {};
+    const errors: { name?: string; region?: string; servers?: string } = {};
 
     // Validate name
     if (!name.trim()) {
       errors.name = 'Name is required';
     }
 
-    // Validate tag filters
-    if (tagFilters.length === 0) {
-      errors.tagFilters = 'At least one tag filter is required';
-    } else {
-      // Check each filter has a key and at least one value
-      const invalidFilters = tagFilters.some(
-        filter => !filter.key.trim() || filter.values.length === 0 || filter.values.every(v => !v.trim())
-      );
-      if (invalidFilters) {
-        errors.tagFilters = 'All tag filters must have a key and at least one value';
-      }
+    // Validate region
+    if (!region) {
+      errors.region = 'Region is required';
+    }
+
+    // Validate server selection
+    if (selectedServerIds.length === 0) {
+      errors.servers = 'At least one server must be selected';
     }
 
     setValidationErrors(errors);
@@ -104,16 +106,11 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      // Clean up tag filters - remove empty values
-      const cleanedFilters = tagFilters.map(filter => ({
-        key: filter.key.trim(),
-        values: filter.values.filter(v => v.trim()).map(v => v.trim()),
-      }));
-
       const groupData = {
         name: name.trim(),
         description: description.trim() || undefined,
-        tagFilters: cleanedFilters,
+        region: region,
+        sourceServerIds: selectedServerIds,
       };
 
       let savedGroup: ProtectionGroup;
@@ -129,7 +126,23 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       onSave(savedGroup);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to save protection group');
+      // Handle conflict errors with detailed messages
+      if (err.response?.status === 409) {
+        const conflictData = err.response?.data;
+        if (conflictData?.conflictType === 'NAME_CONFLICT') {
+          setError(`Protection Group name "${name}" is already in use. Please choose a different name.`);
+        } else if (conflictData?.conflictType === 'SERVER_CONFLICT') {
+          const conflicts = conflictData.conflicts || [];
+          const conflictMessages = conflicts.map((c: any) => 
+            `${c.serverId} is assigned to "${c.protectionGroupName}"`
+          ).join(', ');
+          setError(`Server conflict: ${conflictMessages}. Please deselect these servers or remove them from their current Protection Group.`);
+        } else {
+          setError(conflictData?.message || 'Conflict detected. Please check your inputs.');
+        }
+      } else {
+        setError(err.message || 'Failed to save protection group');
+      }
     } finally {
       setLoading(false);
     }
@@ -168,7 +181,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             error={Boolean(validationErrors.name)}
-            helperText={validationErrors.name || 'A unique name for this protection group'}
+            helperText={validationErrors.name || 'A globally unique name for this protection group'}
             disabled={loading}
             sx={{ mb: 2 }}
           />
@@ -177,7 +190,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           <TextField
             fullWidth
             label="Description"
-            placeholder="e.g., All production servers in us-west-2"
+            placeholder="e.g., All production servers in us-east-1"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             multiline
@@ -187,12 +200,36 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
             sx={{ mb: 3 }}
           />
 
-          {/* Tag Filters Editor */}
-          <TagFilterEditor
-            filters={tagFilters}
-            onChange={setTagFilters}
-            error={validationErrors.tagFilters}
-          />
+          {/* Region Selector */}
+          <Box sx={{ mb: 3 }}>
+            <RegionSelector
+              value={region}
+              onChange={setRegion}
+              disabled={loading || isEditMode} // Disable region change in edit mode
+              error={Boolean(validationErrors.region)}
+              helperText={
+                isEditMode 
+                  ? 'Region cannot be changed after creation'
+                  : validationErrors.region || 'Select the AWS region where servers are located'
+              }
+            />
+          </Box>
+
+          {/* Server Discovery Panel */}
+          {region && (
+            <Box>
+              {validationErrors.servers && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {validationErrors.servers}
+                </Alert>
+              )}
+              <ServerDiscoveryPanel
+                region={region}
+                selectedServerIds={selectedServerIds}
+                onSelectionChange={setSelectedServerIds}
+              />
+            </Box>
+          )}
         </Box>
       </DialogContent>
 
@@ -206,7 +243,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         <Button
           onClick={handleSave}
           variant="contained"
-          disabled={loading}
+          disabled={loading || !region}
         >
           {loading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Group'}
         </Button>
