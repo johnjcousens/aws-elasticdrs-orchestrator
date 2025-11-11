@@ -87,7 +87,29 @@ function App() {
             />
             
             <Route
+              path="/protection-groups/new"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ProtectionGroupsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
               path="/recovery-plans"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <RecoveryPlansPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/recovery-plans/new"
               element={
                 <ProtectedRoute>
                   <Layout>
