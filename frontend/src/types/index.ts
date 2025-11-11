@@ -12,7 +12,8 @@ export interface ProtectionGroup {
   id: string;
   name: string;
   description?: string;
-  tagFilters: TagFilter[];
+  region: string;
+  sourceServerIds: string[];
   createdAt: string;
   updatedAt: string;
   createdBy?: string;
@@ -20,21 +21,18 @@ export interface ProtectionGroup {
   status?: 'active' | 'inactive';
 }
 
-export interface TagFilter {
-  key: string;
-  values: string[];
-}
-
 export interface CreateProtectionGroupRequest {
   name: string;
   description?: string;
-  tagFilters: TagFilter[];
+  region: string;
+  sourceServerIds: string[];
 }
 
 export interface UpdateProtectionGroupRequest {
   name?: string;
   description?: string;
-  tagFilters?: TagFilter[];
+  region?: string;
+  sourceServerIds?: string[];
 }
 
 // ============================================================================
