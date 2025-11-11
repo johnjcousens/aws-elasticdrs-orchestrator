@@ -566,6 +566,22 @@ This project has comprehensive checkpoint history with full conversation context
 
 ### Session Checkpoints
 
+**Session 31: Snapshot Workflow Loop Fix** (November 10, 2025 - 8:14-8:19 PM)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251110_201854.md`
+- **Git Commit**: Pending
+- **Summary**: Fixed infinite loop issue in snapshot-workflow automation rule
+- **Issue Discovered**: snapshot-workflow.md Step 4 (create new_task) was causing infinite loops by triggering another snapshot
+- **Solution Applied**: Removed Step 4 from workflow, updated automation principles to prevent loops
+- **Modified Files** (1 file):
+  - `.clinerules/snapshot-workflow.md`: Removed new_task step, updated automation to complete after commit
+- **Technical Achievement**:
+  - Workflow now stops cleanly after 3 steps (export, update docs, commit)
+  - All context preserved in checkpoint files
+  - User can manually create new task if needed using checkpoint context
+- **Result**: Snapshot workflow safe to use, no infinite loops
+- **Lines of Code**: 20 deletions, 5 insertions
+- **Next Steps**: Workflow ready for regular use
+
 **Session 30 Complete: MVP 100% COMPLETE 🎉** (November 10, 2025 - 6:20-8:14 PM)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251110_201455.md`
 - **Git Commits**:
