@@ -96,6 +96,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - drs:DescribeSourceServers
+                  - drs:DescribeReplicationConfigurationTemplates
                   - drs:GetReplicationConfiguration
                 Resource: '*'
       Tags:
