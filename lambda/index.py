@@ -112,41 +112,51 @@ def handle_protection_groups(method: str, path_params: Dict, body: Dict) -> Dict
 
 
 def create_protection_group(body: Dict) -> Dict:
-    """Create a new Protection Group"""
+    """Create a new Protection Group with automatic server discovery"""
     try:
-        # Validate required fields
-        required_fields = ['GroupName', 'Description', 'Tags', 'AccountId', 'Region', 'Owner']
-        for field in required_fields:
-            if field not in body:
-                return response(400, {'error': f'Missing required field: {field}'})
+        # Validate required fields for new schema
+        if 'GroupName' not in body:
+            return response(400, {'error': 'GroupName is required'})
+        
+        if 'Region' not in body:
+            return response(400, {'error': 'Region is required'})
+        
+        if 'sourceServerIds' not in body or not body['sourceServerIds']:
+            return response(400, {'error': 'At least one source server must be selected'})
+        
+        name = body['GroupName']
+        server_ids = body['sourceServerIds']
+        
+        # Validate unique name (case-insensitive, global across all users)
+        if not validate_unique_pg_name(name):
+            return response(409, {  # Conflict
+                'error': 'PG_NAME_EXISTS',
+                'message': f'A Protection Group named "{name}" already exists',
+                'existingName': name
+            })
+        
+        # Validate server assignments (no conflicts across all users)
+        conflicts = validate_server_assignments(server_ids)
+        if conflicts:
+            return response(409, {  # Conflict
+                'error': 'SERVER_ASSIGNMENT_CONFLICT',
+                'message': 'Some servers are already assigned to other Protection Groups',
+                'conflicts': conflicts
+            })
         
         # Generate UUID for GroupId
         group_id = str(uuid.uuid4())
         
-        # Validate source servers exist with specified tags
-        source_server_ids = validate_and_get_source_servers(
-            body['AccountId'],
-            body['Region'],
-            body['Tags']
-        )
-        
-        if not source_server_ids:
-            return response(400, {
-                'error': 'No source servers found with specified tags',
-                'tags': body['Tags']
-            })
-        
-        # Create Protection Group item
+        # Create Protection Group with new schema
         timestamp = int(time.time())
         item = {
             'GroupId': group_id,
-            'GroupName': body['GroupName'],
-            'Description': body['Description'],
-            'SourceServerIds': source_server_ids,
-            'Tags': body['Tags'],
-            'AccountId': body['AccountId'],
+            'GroupName': name,
+            'Description': body.get('Description', ''),
             'Region': body['Region'],
-            'Owner': body['Owner'],
+            'SourceServerIds': server_ids,
+            'AccountId': body.get('AccountId', ''),
+            'Owner': body.get('Owner', ''),
             'CreatedDate': timestamp,
             'LastModifiedDate': timestamp
         }
@@ -154,11 +164,13 @@ def create_protection_group(body: Dict) -> Dict:
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
         
-        print(f"Created Protection Group: {group_id}")
+        print(f"Created Protection Group: {group_id} with {len(server_ids)} servers")
         return response(201, item)
         
     except Exception as e:
         print(f"Error creating Protection Group: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return response(500, {'error': str(e)})
 
 
@@ -218,7 +230,7 @@ def get_protection_group(group_id: str) -> Dict:
 
 
 def update_protection_group(group_id: str, body: Dict) -> Dict:
-    """Update an existing Protection Group"""
+    """Update an existing Protection Group with validation"""
     try:
         # Check if group exists
         result = protection_groups_table.get_item(Key={'GroupId': group_id})
@@ -227,7 +239,29 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         
         existing_group = result['Item']
         
-        # Update allowed fields
+        # Prevent region changes
+        if 'Region' in body and body['Region'] != existing_group.get('Region'):
+            return response(400, {'error': 'Cannot change region after creation'})
+        
+        # Validate unique name if changing
+        if 'GroupName' in body and body['GroupName'] != existing_group.get('GroupName'):
+            if not validate_unique_pg_name(body['GroupName'], group_id):
+                return response(409, {
+                    'error': 'PG_NAME_EXISTS',
+                    'message': f'A Protection Group named "{body["GroupName"]}" already exists'
+                })
+        
+        # If updating server list, validate assignments
+        if 'sourceServerIds' in body:
+            conflicts = validate_server_assignments(body['sourceServerIds'], current_pg_id=group_id)
+            if conflicts:
+                return response(409, {
+                    'error': 'SERVER_ASSIGNMENT_CONFLICT',
+                    'message': 'Some servers are already assigned to other Protection Groups',
+                    'conflicts': conflicts
+                })
+        
+        # Build update expression
         update_expression = "SET LastModifiedDate = :timestamp"
         expression_values = {':timestamp': int(time.time())}
         expression_names = {}
@@ -241,16 +275,13 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             expression_values[':desc'] = body['Description']
             expression_names['#desc'] = 'Description'
         
+        if 'sourceServerIds' in body:
+            update_expression += ", SourceServerIds = :servers"
+            expression_values[':servers'] = body['sourceServerIds']
+        
+        # Legacy support for Tags (if present, ignore - new schema doesn't use them)
         if 'Tags' in body:
-            # Re-validate source servers with new tags
-            source_server_ids = validate_and_get_source_servers(
-                existing_group['AccountId'],
-                existing_group['Region'],
-                body['Tags']
-            )
-            update_expression += ", Tags = :tags, SourceServerIds = :servers"
-            expression_values[':tags'] = body['Tags']
-            expression_values[':servers'] = source_server_ids
+            print(f"Warning: Tags field ignored in update (legacy field)")
         
         # Update item
         update_args = {
@@ -270,6 +301,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         
     except Exception as e:
         print(f"Error updating Protection Group: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return response(500, {'error': str(e)})
 
 
@@ -877,45 +910,188 @@ def resume_execution(execution_id: str) -> Dict:
 
 
 # ============================================================================
-# DRS Source Servers Handler
+# DRS Source Servers Handler (AUTOMATIC DISCOVERY)
 # ============================================================================
 
 def handle_drs_source_servers(query_params: Dict) -> Dict:
-    """List DRS source servers"""
+    """Route DRS source servers discovery requests"""
+    region = query_params.get('region')
+    
+    if not region:
+        return response(400, {'error': 'region parameter is required'})
+    
+    return list_source_servers(region)
+
+
+def list_source_servers(region: str) -> Dict:
+    """
+    Discover DRS source servers in a region and track assignments
+    
+    Returns:
+    - All DRS source servers in region
+    - Assignment status for each server
+    - DRS initialization status
+    """
+    print(f"Listing source servers for region: {region}")
+    
     try:
-        account_id = query_params.get('accountId')
-        region = query_params.get('region')
-        
-        if not account_id or not region:
-            return response(400, {'error': 'Missing accountId or region parameter'})
-        
-        # For now, use current account credentials
-        # In production, would assume cross-account role
+        # 1. Query DRS for source servers
         drs_client = boto3.client('drs', region_name=region)
         
-        # Get source servers
-        servers_response = drs_client.describe_source_servers()
-        servers = servers_response.get('items', [])
+        try:
+            servers_response = drs_client.describe_source_servers(maxResults=200)
+            drs_initialized = True
+        except drs_client.exceptions.UninitializedAccountException:
+            print(f"DRS not initialized in {region}")
+            return response(400, {
+                'error': 'DRS_NOT_INITIALIZED',
+                'message': f'DRS is not initialized in {region}. Please initialize DRS before creating Protection Groups.',
+                'region': region,
+                'initialized': False
+            })
+        except Exception as e:
+            print(f"Error querying DRS: {str(e)}")
+            # Check if it's an uninitialized error by message
+            if 'UninitializedAccountException' in str(e) or 'not initialized' in str(e).lower():
+                return response(400, {
+                    'error': 'DRS_NOT_INITIALIZED',
+                    'message': f'DRS is not initialized in {region}. Please initialize DRS before creating Protection Groups.',
+                    'region': region,
+                    'initialized': False
+                })
+            raise
         
-        # Format response
-        formatted_servers = []
-        for server in servers:
-            formatted_servers.append({
-                'SourceServerId': server.get('sourceServerID'),
-                'Hostname': server.get('sourceProperties', {}).get('identificationHints', {}).get('hostname', 'Unknown'),
-                'ReplicationStatus': server.get('dataReplicationInfo', {}).get('dataReplicationState', 'Unknown'),
-                'LastSeenTime': server.get('sourceProperties', {}).get('lastUpdatedDateTime', ''),
-                'Tags': server.get('tags', {})
+        # 2. Build server list from DRS response
+        servers = []
+        for item in servers_response.get('items', []):
+            server_id = item['sourceServerID']
+            
+            # Extract server metadata
+            source_props = item.get('sourceProperties', {})
+            ident_hints = source_props.get('identificationHints', {})
+            hostname = ident_hints.get('hostname', 'Unknown')
+            
+            # Extract replication info
+            lifecycle = item.get('lifeCycle', {})
+            state = lifecycle.get('state', 'UNKNOWN')
+            
+            data_rep_info = item.get('dataReplicationInfo', {})
+            rep_state = data_rep_info.get('dataReplicationState', 'UNKNOWN')
+            lag_duration = data_rep_info.get('lagDuration', 'UNKNOWN')
+            
+            servers.append({
+                'sourceServerID': server_id,
+                'hostname': hostname,
+                'state': state,
+                'replicationState': rep_state,
+                'lagDuration': lag_duration,
+                'lastSeen': lifecycle.get('lastSeenByServiceDateTime', ''),
+                'assignedToProtectionGroup': None,  # Will be populated below
+                'selectable': True  # Will be updated below
             })
         
+        # 3. Query ALL Protection Groups to build assignment map
+        pg_response = protection_groups_table.scan()
+        
+        assignment_map = {}
+        for pg in pg_response.get('Items', []):
+            pg_id = pg.get('GroupId') or pg.get('protectionGroupId')
+            pg_name = pg.get('GroupName') or pg.get('name')
+            pg_servers = pg.get('SourceServerIds') or pg.get('sourceServerIds', [])
+            
+            for server_id in pg_servers:
+                assignment_map[server_id] = {
+                    'protectionGroupId': pg_id,
+                    'protectionGroupName': pg_name
+                }
+        
+        # 4. Update servers with assignment info
+        for server in servers:
+            server_id = server['sourceServerID']
+            if server_id in assignment_map:
+                server['assignedToProtectionGroup'] = assignment_map[server_id]
+                server['selectable'] = False
+        
+        # 5. Return enhanced server list
         return response(200, {
-            'servers': formatted_servers,
-            'count': len(formatted_servers)
+            'region': region,
+            'initialized': True,
+            'servers': servers,
+            'totalCount': len(servers),
+            'availableCount': sum(1 for s in servers if s['selectable']),
+            'assignedCount': sum(1 for s in servers if not s['selectable'])
         })
         
     except Exception as e:
-        print(f"Error listing DRS source servers: {str(e)}")
-        return response(500, {'error': str(e)})
+        print(f"Error listing source servers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'INTERNAL_ERROR',
+            'message': f'Failed to list source servers: {str(e)}'
+        })
+
+
+def validate_server_assignments(server_ids: List[str], current_pg_id: Optional[str] = None) -> List[Dict]:
+    """
+    Validate that servers are not already assigned to other Protection Groups
+    
+    Args:
+    - server_ids: List of server IDs to validate
+    - current_pg_id: Optional PG ID to exclude (for edit operations)
+    
+    Returns:
+    - conflicts: List of {serverId, protectionGroupId, protectionGroupName}
+    """
+    pg_response = protection_groups_table.scan()
+    
+    conflicts = []
+    for pg in pg_response.get('Items', []):
+        pg_id = pg.get('GroupId') or pg.get('protectionGroupId')
+        
+        # Skip current PG when editing
+        if current_pg_id and pg_id == current_pg_id:
+            continue
+        
+        assigned_servers = pg.get('SourceServerIds') or pg.get('sourceServerIds', [])
+        for server_id in server_ids:
+            if server_id in assigned_servers:
+                pg_name = pg.get('GroupName') or pg.get('name')
+                conflicts.append({
+                    'serverId': server_id,
+                    'protectionGroupId': pg_id,
+                    'protectionGroupName': pg_name
+                })
+    
+    return conflicts
+
+
+def validate_unique_pg_name(name: str, current_pg_id: Optional[str] = None) -> bool:
+    """
+    Validate that Protection Group name is unique (case-insensitive)
+    
+    Args:
+    - name: Protection Group name to validate
+    - current_pg_id: Optional PG ID to exclude (for edit operations)
+    
+    Returns:
+    - True if unique, False if duplicate exists
+    """
+    pg_response = protection_groups_table.scan()
+    
+    name_lower = name.lower()
+    for pg in pg_response.get('Items', []):
+        pg_id = pg.get('GroupId') or pg.get('protectionGroupId')
+        
+        # Skip current PG when editing
+        if current_pg_id and pg_id == current_pg_id:
+            continue
+        
+        existing_name = pg.get('GroupName') or pg.get('name', '')
+        if existing_name.lower() == name_lower:
+            return False
+    
+    return True
 
 
 # ============================================================================
