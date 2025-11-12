@@ -169,7 +169,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     {wave.name}
                   </Typography>
                   <Chip
-                    label={`${wave.serverIds.length} server${wave.serverIds.length !== 1 ? 's' : ''}`}
+                    label={`${(wave.serverIds || []).length} server${(wave.serverIds || []).length !== 1 ? 's' : ''}`}
                     size="small"
                     color="primary"
                     variant="outlined"
@@ -313,7 +313,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       )}
 
       {/* Validation Messages */}
-      {safeWaves.length > 0 && safeWaves.some(w => w.serverIds.length === 0) && (
+      {safeWaves.length > 0 && safeWaves.some(w => (w.serverIds || []).length === 0) && (
         <Alert severity="warning" sx={{ mt: 2 }}>
           Some waves have no servers selected. Each wave must include at least one server.
         </Alert>
