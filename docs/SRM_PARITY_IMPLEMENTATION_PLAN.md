@@ -401,6 +401,89 @@ No new external dependencies required. All functionality uses existing libraries
 
 Comprehensive testing strategy for SRM parity changes.
 
+### Test Environment Inventory
+
+**Current System**: 3 Protection Groups with 6 total source servers
+
+This inventory provides concrete test data for validating the SRM-compliant architecture implementation where Protection Groups are selected at the Recovery Plan level, entire Protection Groups are assigned to Waves, and no individual server selection is permitted (PGs are atomic units).
+
+#### Protection Group Details
+
+**1. DataBaseServers**
+- **Group ID**: `ccb54548-1a46-4522-b403-68961c7684b4`
+- **Server Count**: 2 servers
+- **Servers**:
+  - `s-3afa164776f93ce4f`
+  - `s-3c63bb8be30d7d071`
+- **Typical Usage**: Database tier - should be recovered in Wave 1 (first priority)
+
+**2. AppServers**
+- **Group ID**: `81ff4f2c-087f-4ef3-a8e4-de191a8bd432`
+- **Server Count**: 2 servers
+- **Servers**:
+  - `s-3578f52ef3bdd58b4`
+  - `s-3b9401c1cd270a7a8`
+- **Typical Usage**: Application tier - should be recovered in Wave 2 (after databases)
+
+**3. WebServers**
+- **Group ID**: `a879e21d-3a57-4577-b31c-c59913931814`
+- **Server Count**: 2 servers
+- **Servers**:
+  - `s-3c1730a9e0771ea14`
+  - `s-3d75cdc0d9a28a725`
+- **Typical Usage**: Web tier - should be recovered in Wave 3 (after apps)
+
+#### Server ID Reference Table
+
+| Protection Group | Server 1 | Server 2 |
+|-----------------|----------|----------|
+| DataBaseServers | `s-3afa164776f93ce4f` | `s-3c63bb8be30d7d071` |
+| AppServers | `s-3578f52ef3bdd58b4` | `s-3b9401c1cd270a7a8` |
+| WebServers | `s-3c1730a9e0771ea14` | `s-3d75cdc0d9a28a725` |
+
+#### Testing Scenarios with Real Data
+
+**Scenario 1: Basic 3-Tier Recovery**
+- **Recovery Plan**: "3-Tier Application"
+- **Selected Protection Groups**: All 3 (DataBaseServers, AppServers, WebServers)
+- **Wave Assignment**:
+  - Wave 1: DataBaseServers (2 servers)
+  - Wave 2: AppServers (2 servers)
+  - Wave 3: WebServers (2 servers)
+- **Expected Behavior**:
+  - All 6 servers available for recovery
+  - Cannot cherry-pick individual servers
+  - Each wave recovers complete Protection Group
+  - Boot order configurable within each wave
+
+**Scenario 2: Database-Only Recovery**
+- **Recovery Plan**: "Database DR Test"
+- **Selected Protection Groups**: DataBaseServers only
+- **Wave Assignment**: Wave 1: DataBaseServers (2 servers)
+- **Expected Behavior**:
+  - Only 2 database servers available
+  - Other Protection Groups not selectable in waves
+  - Validates single-PG recovery workflow
+
+**Scenario 3: Multi-Wave with Single PG**
+- **Recovery Plan**: "Staged Database Recovery"
+- **Selected Protection Groups**: DataBaseServers only
+- **Wave Assignment**:
+  - Wave 1: Primary DB server (configured via boot order)
+  - Wave 2: Replica DB server (configured via boot order)
+- **Expected Behavior**:
+  - Same Protection Group can have servers in different waves
+  - Boot order determines which server starts first
+  - Tests granular recovery control
+
+**Scenario 4: Validation - Duplicate PG Assignment**
+- **Recovery Plan**: "Invalid - Duplicate Assignment"
+- **Attempt**: Assign DataBaseServers to both Wave 1 and Wave 2
+- **Expected Behavior**:
+  - ❌ Validation error
+  - Message: "Protection Group DataBaseServers assigned to multiple waves"
+  - Prevents data inconsistency
+
 ### Unit Tests:
 
 **1. WaveConfigEditor.test.tsx** (new file)
