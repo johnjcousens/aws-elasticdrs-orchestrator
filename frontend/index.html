@@ -4,7 +4,47 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>DRS Orchestration</title>
+    <!-- Load AWS config BEFORE React app loads -->
+    <script>
+      // Create a promise that resolves when config is loaded
+      window.configReady = new Promise(async (resolve) => {
+        try {
+          const response = await fetch('/aws-config.json');
+          const config = await response.json();
+          
+          window.AWS_CONFIG = {
+            Auth: {
+              Cognito: {
+                region: config.region,
+                userPoolId: config.userPoolId,
+                userPoolClientId: config.userPoolClientId,
+                identityPoolId: config.identityPoolId,
+                loginWith: {
+                  email: true
+                }
+              }
+            },
+            API: {
+              REST: {
+                DRSOrchestration: {
+                  endpoint: config.apiEndpoint,
+                  region: config.region
+                }
+              }
+            }
+          };
+          
+          console.log('✅ AWS Config loaded successfully');
+          console.log('API Endpoint:', config.apiEndpoint);
+          resolve();
+        } catch (error) {
+          console.error('❌ Failed to load AWS config:', error);
+          // Resolve anyway so app doesn't hang
+          resolve();
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
