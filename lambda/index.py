@@ -1411,37 +1411,56 @@ def get_drs_source_server_details(account_id: str, region: str, server_ids: List
 
 
 def validate_waves(waves: List[Dict]) -> Optional[str]:
-    """Validate wave configuration"""
+    """Validate wave configuration - supports both single and multi-PG formats"""
     try:
         if not waves:
             return "Waves array cannot be empty"
         
-        # Check for duplicate wave IDs
-        wave_ids = [w.get('WaveId') for w in waves]
-        if len(wave_ids) != len(set(wave_ids)):
+        # Check for duplicate wave IDs (if present)
+        wave_ids = [w.get('WaveId') for w in waves if w.get('WaveId')]
+        if wave_ids and len(wave_ids) != len(set(wave_ids)):
             return "Duplicate WaveId found in waves"
         
-        # Check for duplicate execution orders
-        exec_orders = [w.get('ExecutionOrder') for w in waves]
-        if len(exec_orders) != len(set(exec_orders)):
+        # Check for duplicate execution orders (if present)
+        exec_orders = [w.get('ExecutionOrder') for w in waves if w.get('ExecutionOrder') is not None]
+        if exec_orders and len(exec_orders) != len(set(exec_orders)):
             return "Duplicate ExecutionOrder found in waves"
         
-        # Check for circular dependencies
+        # Check for circular dependencies (if present)
         dependency_graph = {}
         for wave in waves:
             wave_id = wave.get('WaveId')
-            dependencies = [d.get('DependsOnWaveId') for d in wave.get('Dependencies', [])]
-            dependency_graph[wave_id] = dependencies
+            if wave_id:
+                dependencies = [d.get('DependsOnWaveId') for d in wave.get('Dependencies', [])]
+                dependency_graph[wave_id] = dependencies
         
-        if has_circular_dependencies(dependency_graph):
+        if dependency_graph and has_circular_dependencies(dependency_graph):
             return "Circular dependency detected in wave configuration"
         
         # Validate each wave has required fields
+        # NEW: Support both old (single PG) and new (multi-PG) formats
         for wave in waves:
-            required_fields = ['WaveId', 'WaveName', 'ExecutionOrder', 'ProtectionGroupId']
-            for field in required_fields:
-                if field not in wave:
-                    return f"Wave missing required field: {field}"
+            # Accept both backend (WaveId, WaveName) and frontend (waveNumber, name) formats
+            if 'WaveId' not in wave and 'waveNumber' not in wave:
+                return "Wave missing required field: WaveId or waveNumber"
+            
+            if 'WaveName' not in wave and 'name' not in wave:
+                return "Wave missing required field: WaveName or name"
+            
+            # NEW: Accept either protectionGroupId (single) OR protectionGroupIds (multi)
+            has_single_pg = 'ProtectionGroupId' in wave or 'protectionGroupId' in wave
+            has_multi_pg = 'ProtectionGroupIds' in wave or 'protectionGroupIds' in wave
+            
+            if not has_single_pg and not has_multi_pg:
+                return "Wave missing Protection Group assignment (protectionGroupId or protectionGroupIds required)"
+            
+            # Validate protectionGroupIds is an array if present
+            pg_ids = wave.get('protectionGroupIds') or wave.get('ProtectionGroupIds')
+            if pg_ids is not None:
+                if not isinstance(pg_ids, list):
+                    return f"protectionGroupIds must be an array, got {type(pg_ids)}"
+                if len(pg_ids) == 0:
+                    return "protectionGroupIds array cannot be empty"
         
         return None  # No errors
         
