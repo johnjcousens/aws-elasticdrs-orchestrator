@@ -1317,11 +1317,22 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
                 except (ValueError, IndexError):
                     pass
         
+        # ROBUST: Extract ServerIds with multiple fallback strategies
+        server_ids = wave.get('ServerIds', [])
+        
+        # Handle boto3 deserialization - ensure we have a list
+        if not isinstance(server_ids, list):
+            print(f"WARNING: ServerIds is not a list, got type {type(server_ids)}: {server_ids}")
+            server_ids = []
+        
+        # DEFENSIVE: Log wave transformation for debugging
+        print(f"Transforming wave {idx}: name={wave.get('WaveName')}, serverIds count={len(server_ids)}")
+        
         waves.append({
             'waveNumber': idx,
             'name': wave.get('WaveName', ''),
             'description': wave.get('WaveDescription', ''),
-            'serverIds': wave.get('ServerIds', []),  # Transform ServerIds -> serverIds
+            'serverIds': server_ids,  # Now guaranteed to be a list
             'executionType': wave.get('ExecutionType', 'sequential'),
             'dependsOnWaves': depends_on_waves,
             'ProtectionGroupId': wave.get('ProtectionGroupId')  # Keep for backend reference
