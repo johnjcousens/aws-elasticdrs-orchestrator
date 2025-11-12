@@ -37,7 +37,9 @@ import type { Wave } from '../types';
 
 interface WaveConfigEditorProps {
   waves: Wave[];
-  protectionGroupId: string;
+  protectionGroupId: string;  // Keep for backward compatibility, use as default
+  protectionGroupIds?: string[];  // NEW: Array of available PG IDs
+  protectionGroups?: Array<{ protectionGroupId: string; name: string }>;  // NEW: For dropdown
   onChange: (waves: Wave[]) => void;
   readonly?: boolean;
 }
@@ -50,6 +52,7 @@ interface WaveConfigEditorProps {
 export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   waves,
   protectionGroupId,
+  protectionGroups,
   onChange,
   readonly = false,
 }) => {
@@ -66,6 +69,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       serverIds: [],
       executionType: 'sequential',
       dependsOnWaves: [],
+      protectionGroupId: protectionGroupId,  // Use default/first PG
     };
     onChange([...safeWaves, newWave]);
     setExpandedWave(safeWaves.length);
@@ -293,17 +297,58 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
 
                   <Divider />
 
+                  {/* Protection Group Selection (if multiple available) */}
+                  {protectionGroups && protectionGroups.length > 0 && (
+                    <>
+                      <Box>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Protection Group
+                        </Typography>
+                        <FormControl fullWidth required disabled={readonly}>
+                          <InputLabel>Protection Group</InputLabel>
+                          <Select
+                            value={wave.protectionGroupId || ''}
+                            label="Protection Group"
+                            onChange={(e) => {
+                              // Clear server selections when PG changes
+                              handleUpdateWave(wave.waveNumber, 'protectionGroupId', e.target.value);
+                              handleUpdateWave(wave.waveNumber, 'serverIds', []);
+                            }}
+                          >
+                            {protectionGroups.map((pg) => (
+                              <MenuItem key={pg.protectionGroupId} value={pg.protectionGroupId}>
+                                {pg.name}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                        {!wave.protectionGroupId && (
+                          <Alert severity="warning" sx={{ mt: 1 }}>
+                            Please select a Protection Group for this wave
+                          </Alert>
+                        )}
+                      </Box>
+                      <Divider />
+                    </>
+                  )}
+
                   {/* Server Selection */}
                   <Box>
                     <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
                       Server Selection
                     </Typography>
-                    <ServerSelector
-                      protectionGroupId={protectionGroupId}
-                      selectedServerIds={wave.serverIds}
-                      onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
-                      readonly={readonly}
-                    />
+                    {wave.protectionGroupId ? (
+                      <ServerSelector
+                        protectionGroupId={wave.protectionGroupId}
+                        selectedServerIds={wave.serverIds}
+                        onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
+                        readonly={readonly}
+                      />
+                    ) : (
+                      <Alert severity="info">
+                        Select a Protection Group above to choose servers for this wave
+                      </Alert>
+                    )}
                   </Box>
                 </Stack>
               </AccordionDetails>

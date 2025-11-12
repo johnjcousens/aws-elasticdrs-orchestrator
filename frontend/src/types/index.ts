@@ -65,7 +65,8 @@ export interface Wave {
   serverCount?: number;
   executionType: 'sequential' | 'parallel';
   dependsOnWaves?: number[];
-  ProtectionGroupId?: string;  // Added - waves store their Protection Group ID
+  protectionGroupId: string;  // Required - each wave must have a Protection Group
+  ProtectionGroupId?: string;  // Backend PascalCase version for compatibility
   preWaveActions?: WaveAction[];
   postWaveActions?: WaveAction[];
   healthCheckConfig?: HealthCheckConfig;
