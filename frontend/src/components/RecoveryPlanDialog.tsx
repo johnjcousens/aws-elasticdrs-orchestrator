@@ -135,14 +135,29 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData);
         onSave(updatedPlan);
       } else {
-        // Create new plan
-        const createData: CreateRecoveryPlanRequest = {
-          name,
-          description,
-          protectionGroupId,
-          waves,
+        // Create new plan - transform to backend format
+        const createData = {
+          PlanName: name,
+          Description: description,
+          AccountId: '438465159935', // TODO: Get from AWS config or user context
+          Region: 'us-east-1', // TODO: Get from selected protection group
+          Owner: 'demo-user', // TODO: Get from auth context
+          RPO: '1h',  // Recovery Point Objective - 1 hour default
+          RTO: '30m', // Recovery Time Objective - 30 minutes default
+          Waves: waves.map((wave, index) => ({
+            WaveId: `wave-${index}`,
+            WaveName: wave.name,
+            WaveDescription: wave.description || '',
+            ExecutionOrder: index,
+            ProtectionGroupId: protectionGroupId,
+            ServerIds: wave.serverIds,
+            ExecutionType: wave.executionType,
+            Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
+              DependsOnWaveId: `wave-${depNum}`
+            }))
+          }))
         };
-        const newPlan = await apiClient.createRecoveryPlan(createData);
+        const newPlan = await apiClient.createRecoveryPlan(createData as any);
         onSave(newPlan);
       }
 

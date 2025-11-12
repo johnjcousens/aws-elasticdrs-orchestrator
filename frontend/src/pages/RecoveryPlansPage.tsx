@@ -116,13 +116,28 @@ export const RecoveryPlansPage: React.FC = () => {
   };
 
   const handleExecute = async (plan: RecoveryPlan) => {
-    // TODO: Navigate to execution confirmation or trigger execution
-    console.log('Execute plan:', plan.id);
-    // Could navigate to /executions or show execution dialog
+    try {
+      // Execute recovery plan in DRILL mode
+      const execution = await apiClient.executeRecoveryPlan({
+        recoveryPlanId: plan.id,
+        dryRun: false,
+        executedBy: 'demo-user' // TODO: Get from auth context
+      });
+      
+      toast.success(`Execution started: ${execution.executionId}`);
+      
+      // Navigate to execution details page
+      // TODO: Add navigation to /executions/{executionId}
+      console.log('Execution started:', execution.executionId);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to execute recovery plan';
+      toast.error(errorMessage);
+      console.error('Execution error:', err);
+    }
   };
 
   // DataGrid columns configuration
-  const columns: GridColDef[] = useMemo(() => [
+  const columns: GridColDef<RecoveryPlan>[] = useMemo(() => [
     {
       field: 'name',
       headerName: 'Plan Name',

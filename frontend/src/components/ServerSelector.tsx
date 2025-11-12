@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { LoadingState } from './LoadingState';
 import { ErrorState } from './ErrorState';
+import apiClient from '../services/api';
 
 interface ServerSelectorProps {
   protectionGroupId: string;
@@ -62,16 +63,28 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
       setLoading(true);
       setError(null);
       
-      // TODO: Call actual API when available
-      // For now, mock data
-      const mockServers: Server[] = [
-        { id: 'server-1', hostname: 'web-server-01.example.com', tags: { Environment: 'Production', Tier: 'Web' } },
-        { id: 'server-2', hostname: 'app-server-01.example.com', tags: { Environment: 'Production', Tier: 'App' } },
-        { id: 'server-3', hostname: 'db-server-01.example.com', tags: { Environment: 'Production', Tier: 'Database' } },
-        { id: 'server-4', hostname: 'web-server-02.example.com', tags: { Environment: 'Production', Tier: 'Web' } },
-      ];
+      // Call real DRS API to get source servers
+      const response = await apiClient.listDRSSourceServers('us-east-1', protectionGroupId);
       
-      setServers(mockServers);
+      if (!response.initialized) {
+        setError('DRS is not initialized in us-east-1. Please initialize DRS first.');
+        setServers([]);
+        return;
+      }
+      
+      // Transform DRS response to Server format
+      const drsServers: Server[] = response.servers
+        .filter((s: any) => s.selectable) // Only show available servers
+        .map((s: any) => ({
+          id: s.sourceServerID,
+          hostname: s.hostname,
+          tags: {
+            State: s.state,
+            ReplicationState: s.replicationState
+          }
+        }));
+      
+      setServers(drsServers);
     } catch (err: any) {
       setError(err.message || 'Failed to load servers');
     } finally {
