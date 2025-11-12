@@ -153,9 +153,9 @@ class ApiClient {
    * List all protection groups
    */
   public async listProtectionGroups(): Promise<ProtectionGroup[]> {
-    const response = await this.get<ProtectionGroup[]>('/protection-groups');
-    // Defensive: Ensure response is always an array
-    return Array.isArray(response) ? response : [];
+    const response = await this.get<{ groups: ProtectionGroup[]; count: number }>('/protection-groups');
+    // API returns {groups: [...], count: N}
+    return response.groups || [];
   }
 
   /**
@@ -199,9 +199,9 @@ class ApiClient {
    * List all recovery plans
    */
   public async listRecoveryPlans(): Promise<RecoveryPlan[]> {
-    const response = await this.get<RecoveryPlan[]>('/recovery-plans');
-    // Defensive: Ensure response is always an array
-    return Array.isArray(response) ? response : [];
+    const response = await this.get<{ plans: RecoveryPlan[]; count: number }>('/recovery-plans');
+    // API returns {plans: [...], count: N}
+    return response.plans || [];
   }
 
   /**
@@ -296,8 +296,12 @@ class ApiClient {
   /**
    * List DRS source servers in a region
    */
-  public async listDRSSourceServers(region: string): Promise<any> {
-    return this.get<any>(`/drs/source-servers?region=${region}`);
+  public async listDRSSourceServers(region: string, currentProtectionGroupId?: string): Promise<any> {
+    const params = new URLSearchParams({ region });
+    if (currentProtectionGroupId) {
+      params.append('currentProtectionGroupId', currentProtectionGroupId);
+    }
+    return this.get<any>(`/drs/source-servers?${params.toString()}`);
   }
 
   // ============================================================================

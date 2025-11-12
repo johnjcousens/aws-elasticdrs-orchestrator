@@ -931,14 +931,15 @@ def resume_execution(execution_id: str) -> Dict:
 def handle_drs_source_servers(query_params: Dict) -> Dict:
     """Route DRS source servers discovery requests"""
     region = query_params.get('region')
+    current_pg_id = query_params.get('currentProtectionGroupId')
     
     if not region:
         return response(400, {'error': 'region parameter is required'})
     
-    return list_source_servers(region)
+    return list_source_servers(region, current_pg_id)
 
 
-def list_source_servers(region: str) -> Dict:
+def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dict:
     """
     Discover DRS source servers in a region and track assignments
     
@@ -1020,11 +1021,17 @@ def list_source_servers(region: str) -> Dict:
             })
         
         # 3. Query ALL Protection Groups to build assignment map
+        # Exclude current PG if editing (allows deselection)
         pg_response = protection_groups_table.scan()
         
         assignment_map = {}
         for pg in pg_response.get('Items', []):
             pg_id = pg.get('GroupId') or pg.get('protectionGroupId')
+            
+            # Skip current PG when editing - allows deselection
+            if current_pg_id and pg_id == current_pg_id:
+                continue
+            
             pg_name = pg.get('GroupName') or pg.get('name')
             pg_servers = pg.get('SourceServerIds') or pg.get('sourceServerIds', [])
             

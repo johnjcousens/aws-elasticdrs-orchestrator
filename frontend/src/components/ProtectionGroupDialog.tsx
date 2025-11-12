@@ -223,11 +223,12 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                   {validationErrors.servers}
                 </Alert>
               )}
-              <ServerDiscoveryPanel
-                region={region}
-                selectedServerIds={selectedServerIds}
-                onSelectionChange={setSelectedServerIds}
-              />
+          <ServerDiscoveryPanel
+            region={region}
+            selectedServerIds={selectedServerIds}
+            onSelectionChange={setSelectedServerIds}
+            currentProtectionGroupId={group?.protectionGroupId}
+          />
             </Box>
           )}
         </Box>
