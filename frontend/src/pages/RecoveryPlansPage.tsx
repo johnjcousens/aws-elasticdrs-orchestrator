@@ -157,13 +157,6 @@ export const RecoveryPlansPage: React.FC = () => {
       ),
     },
     {
-      field: 'protectionGroupName',
-      headerName: 'Protection Group',
-      width: 200,
-      sortable: true,
-      valueGetter: (params) => params.row.protectionGroupName || params.row.protectionGroupId,
-    },
-    {
       field: 'waves',
       headerName: 'Waves',
       width: 100,
