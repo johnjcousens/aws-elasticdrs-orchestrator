@@ -201,6 +201,8 @@ export interface ExecuteRecoveryPlanRequest {
   skipHealthChecks?: boolean;
   startFromWave?: number;
   parameters?: Record<string, any>;
+  executedBy?: string;  // Added for backend compatibility
+  topicArn?: string;    // Added for backend SNS notifications
 }
 
 export interface ExecutionListItem {
