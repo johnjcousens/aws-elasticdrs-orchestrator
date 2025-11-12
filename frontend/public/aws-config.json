@@ -1,6 +1,7 @@
 {
+  "apiEndpoint": "https://etv40zymeg.execute-api.us-east-1.amazonaws.com/test",
   "region": "us-east-1",
-  "userPoolId": "REPLACE_WITH_COGNITO_POOL_ID",
-  "userPoolClientId": "REPLACE_WITH_COGNITO_CLIENT_ID",
-  "apiEndpoint": "REPLACE_WITH_API_ENDPOINT"
+  "userPoolId": "us-east-1_tj03fVI31",
+  "userPoolClientId": "7l8f5q9llq1qjbbte3u8f6pfbh",
+  "identityPoolId": "us-east-1:6e0ecacb-6e37-4569-aa5c-ba11021a7932"
 }
