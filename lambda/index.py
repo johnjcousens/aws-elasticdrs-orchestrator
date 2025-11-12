@@ -519,11 +519,9 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 def delete_recovery_plan(plan_id: str) -> Dict:
     """Delete a Recovery Plan"""
     try:
-        # Check for active executions
-        executions_result = execution_history_table.query(
-            IndexName='PlanIdIndex',
-            KeyConditionExpression=Key('PlanId').eq(plan_id),
-            FilterExpression=Attr('Status').eq('RUNNING')
+        # Check for active executions using scan (doesn't require GSI)
+        executions_result = execution_history_table.scan(
+            FilterExpression=Attr('PlanId').eq(plan_id) & Attr('Status').eq('RUNNING')
         )
         
         if executions_result.get('Items'):
@@ -1304,6 +1302,31 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
 
 def transform_rp_to_camelcase(rp: Dict) -> Dict:
     """Transform Recovery Plan from DynamoDB PascalCase to frontend camelCase"""
+    
+    # Transform waves array from backend PascalCase to frontend camelCase
+    waves = []
+    for idx, wave in enumerate(rp.get('Waves', [])):
+        # Extract dependency wave numbers from WaveId format (e.g., "wave-0" -> 0)
+        depends_on_waves = []
+        for dep in wave.get('Dependencies', []):
+            wave_id = dep.get('DependsOnWaveId', '')
+            if wave_id and '-' in wave_id:
+                try:
+                    wave_num = int(wave_id.split('-')[-1])
+                    depends_on_waves.append(wave_num)
+                except (ValueError, IndexError):
+                    pass
+        
+        waves.append({
+            'waveNumber': idx,
+            'name': wave.get('WaveName', ''),
+            'description': wave.get('WaveDescription', ''),
+            'serverIds': wave.get('ServerIds', []),  # Transform ServerIds -> serverIds
+            'executionType': wave.get('ExecutionType', 'sequential'),
+            'dependsOnWaves': depends_on_waves,
+            'ProtectionGroupId': wave.get('ProtectionGroupId')  # Keep for backend reference
+        })
+    
     return {
         'id': rp.get('PlanId'),
         'name': rp.get('PlanName'),
@@ -1313,11 +1336,11 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'owner': rp.get('Owner'),
         'rpo': rp.get('RPO'),
         'rto': rp.get('RTO'),
-        'waves': rp.get('Waves', []),
+        'waves': waves,  # Now properly transformed
         'createdAt': rp.get('CreatedDate'),
         'updatedAt': rp.get('LastModifiedDate'),
         'lastExecutedAt': rp.get('LastExecutedDate'),
-        'waveCount': rp.get('WaveCount', len(rp.get('Waves', [])))
+        'waveCount': len(waves)
     }
 
 
