@@ -53,23 +53,26 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   onChange,
   readonly = false,
 }) => {
-  const [expandedWave, setExpandedWave] = useState<number | null>(waves.length > 0 ? 0 : null);
+  // Defensive: ensure waves is never undefined
+  const safeWaves = waves || [];
+  
+  const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
   const handleAddWave = () => {
     const newWave: Wave = {
-      waveNumber: waves.length,
-      name: `Wave ${waves.length + 1}`,
+      waveNumber: safeWaves.length,
+      name: `Wave ${safeWaves.length + 1}`,
       description: '',
       serverIds: [],
       executionType: 'sequential',
       dependsOnWaves: [],
     };
-    onChange([...waves, newWave]);
-    setExpandedWave(waves.length);
+    onChange([...safeWaves, newWave]);
+    setExpandedWave(safeWaves.length);
   };
 
   const handleRemoveWave = (waveNumber: number) => {
-    const updatedWaves = waves
+    const updatedWaves = safeWaves
       .filter(w => w.waveNumber !== waveNumber)
       .map((w, index) => ({
         ...w,
@@ -86,13 +89,13 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   const handleMoveWave = (waveNumber: number, direction: 'up' | 'down') => {
     if (
       (direction === 'up' && waveNumber === 0) ||
-      (direction === 'down' && waveNumber === waves.length - 1)
+      (direction === 'down' && waveNumber === safeWaves.length - 1)
     ) {
       return;
     }
 
     const newIndex = direction === 'up' ? waveNumber - 1 : waveNumber + 1;
-    const updatedWaves = [...waves];
+    const updatedWaves = [...safeWaves];
     [updatedWaves[waveNumber], updatedWaves[newIndex]] = [updatedWaves[newIndex], updatedWaves[waveNumber]];
     
     // Renumber waves and update dependencies
@@ -111,7 +114,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   };
 
   const handleUpdateWave = (waveNumber: number, field: keyof Wave, value: any) => {
-    const updatedWaves = waves.map(w =>
+    const updatedWaves = safeWaves.map(w =>
       w.waveNumber === waveNumber ? { ...w, [field]: value } : w
     );
     onChange(updatedWaves);
@@ -148,13 +151,13 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       </Stack>
 
       {/* Waves list */}
-      {waves.length === 0 ? (
+      {safeWaves.length === 0 ? (
         <Alert severity="info">
           No waves configured. Add at least one wave to define the recovery sequence.
         </Alert>
       ) : (
         <Stack spacing={2}>
-          {waves.map((wave) => (
+          {safeWaves.map((wave) => (
             <Accordion
               key={wave.waveNumber}
               expanded={expandedWave === wave.waveNumber}
@@ -195,7 +198,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                           e.stopPropagation();
                           handleMoveWave(wave.waveNumber, 'down');
                         }}
-                        disabled={wave.waveNumber === waves.length - 1}
+                        disabled={wave.waveNumber === safeWaves.length - 1}
                       >
                         <ArrowDownwardIcon fontSize="small" />
                       </IconButton>
@@ -279,7 +282,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                           >
                             {getAvailableDependencies(wave.waveNumber).map((waveNum) => (
                               <MenuItem key={waveNum} value={waveNum}>
-                                Wave {waveNum + 1} - {waves[waveNum].name}
+                                Wave {waveNum + 1} - {safeWaves[waveNum].name}
                               </MenuItem>
                             ))}
                           </Select>
@@ -310,7 +313,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       )}
 
       {/* Validation Messages */}
-      {waves.length > 0 && waves.some(w => w.serverIds.length === 0) && (
+      {safeWaves.length > 0 && safeWaves.some(w => w.serverIds.length === 0) && (
         <Alert severity="warning" sx={{ mt: 2 }}>
           Some waves have no servers selected. Each wave must include at least one server.
         </Alert>
