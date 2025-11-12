@@ -379,7 +379,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                             handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
                             // Keep protectionGroupId in sync for backward compatibility
                             handleUpdateWave(wave.waveNumber, 'protectionGroupId', pgIds[0] || '');
-                            // Clear server selections when PGs change
+                            // CRITICAL: Clear server selections when PGs change (servers belong to different PGs)
                             handleUpdateWave(wave.waveNumber, 'serverIds', []);
                           }}
                           renderInput={(params) => (
