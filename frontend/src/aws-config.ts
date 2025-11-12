@@ -14,11 +14,11 @@ declare global {
     AWS_CONFIG?: {
       Auth: {
         Cognito: {
-          region: string;
-          userPoolId: string;
-          userPoolClientId: string;
-          identityPoolId: string;
-          loginWith: {
+      region: string;
+      userPoolId: string;
+      userPoolClientId: string;
+      identityPoolId?: string; // Optional - only needed for AWS service access
+      loginWith: {
             email: boolean;
           };
         };
@@ -43,7 +43,7 @@ const defaultConfig = {
       region: 'us-east-1',
       userPoolId: 'UPDATE_ME',
       userPoolClientId: 'UPDATE_ME',
-      identityPoolId: 'UPDATE_ME',
+      // identityPoolId not needed for basic Cognito auth
       loginWith: {
         email: true
       }
