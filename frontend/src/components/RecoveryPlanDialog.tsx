@@ -68,7 +68,9 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
     if (plan) {
       setName(plan.name);
       setDescription(plan.description || '');
-      setProtectionGroupId(plan.protectionGroupId);
+      // Extract Protection Group ID from first wave (PG IDs are stored in waves, not at root)
+      const firstWave = plan.waves?.[0];
+      setProtectionGroupId(firstWave?.ProtectionGroupId || '');
       setWaves(plan.waves);
     } else {
       // Reset form for create mode
@@ -252,7 +254,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                   onChange={(e) => setProtectionGroupId(e.target.value)}
                 >
                   {protectionGroups.map((group) => (
-                    <MenuItem key={group.protectionGroupId} value={group.protectionGroupId}>
+                    <MenuItem key={group.id} value={group.id}>
                       {group.name}
                     </MenuItem>
                   ))}
