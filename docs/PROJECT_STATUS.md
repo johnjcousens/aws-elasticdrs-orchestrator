@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 12, 2025 - 10:13 AM EST
+**Last Updated**: November 12, 2025 - 12:20 PM EST
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
@@ -13,6 +13,40 @@
 ---
 
 ## 📜 Session Checkpoints
+
+**Session 35: Recovery Plan Dialog Bug Fixes** (November 12, 2025 - 12:04 PM - 12:20 PM EST)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_122036.md`
+- **Git Commit**: `2443218` - fix: Recovery Plan edit dialog and Protection Group dropdown bugs
+- **Summary**: Fixed 3 critical bugs preventing Recovery Plan management and edit functionality
+- **Modified Files**: (2 files, 7 insertions, 3 deletions)
+  - `frontend/src/components/RecoveryPlanDialog.tsx` - Fixed MenuItem field name and edit mode initialization
+  - `frontend/src/types/index.ts` - Added id and ProtectionGroupId fields for type safety
+- **Technical Achievements**:
+  - **BUG #1 FIXED** (Protection Group Dropdown Empty):
+    * MenuItem was using `group.protectionGroupId` but Lambda returns `group.id`
+    * Changed MenuItem key and value to use `group.id` from Lambda's transform_pg_to_camelcase()
+    * Dropdown now populates correctly with all Protection Groups
+  - **BUG #2 FIXED** (Edit Dialog Can't Load Protection Group):
+    * Dialog tried to access `plan.protectionGroupId` which doesn't exist at root level
+    * Protection Group IDs are stored in waves: `wave.ProtectionGroupId`
+    * Extract PG ID from first wave: `const firstWave = plan.waves?.[0]; setProtectionGroupId(firstWave?.ProtectionGroupId || '')`
+    * Edit mode now correctly populates Protection Group selection
+  - **BUG #3 FIXED** (TypeScript Type Mismatches):
+    * Added `id` field to ProtectionGroup interface (Lambda returns this, not protectionGroupId)
+    * Kept `protectionGroupId` as alias for backward compatibility
+    * Added `ProtectionGroupId` field to Wave interface (waves store their PG ID)
+    * All TypeScript compilation errors resolved
+- **Deployment**:
+  - Lambda: Updated function `drs-orchestration-api-handler-test` (DELETE endpoint now works)
+  - Frontend: Rebuilt with Vite, deployed to S3, CloudFront invalidated
+  - CloudFront Invalidation: IC6985S24OY135H7R00A3XIE7P (InProgress)
+- **Root Causes Identified**:
+  - Lambda's transform_pg_to_camelcase() returns `{id: pg.get('GroupId')}` not `protectionGroupId`
+  - Recovery Plan data structure stores PG IDs per-wave, not at root level
+  - Frontend types didn't match Lambda's camelCase transformation output
+- **Result**: Edit/create dialogs functional, dropdown populates, DELETE works, types safe
+- **Lines of Code**: 7 insertions, 3 deletions across 2 files
+- **Next Steps**: Wait 5 min for CloudFront cache clear, then test all fixes
 
 **Session 34: Critical Bug Fixes - Demo Unblocked** (November 12, 2025 - 10:09 AM - 10:15 AM EST)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_101540.md`
