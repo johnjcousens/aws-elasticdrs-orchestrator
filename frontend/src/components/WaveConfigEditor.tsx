@@ -79,13 +79,26 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
 
     return protectionGroups.map(pg => {
       // Get all servers from other waves using this PG
-      const otherWavesWithThisPg = safeWaves.filter(
-        w => w.waveNumber !== currentWaveNumber && w.protectionGroupId === pg.protectionGroupId
-      );
+      // Check BOTH old protectionGroupId field AND new protectionGroupIds array for backward compatibility
+      const otherWavesWithThisPg = safeWaves.filter(w => {
+        if (w.waveNumber === currentWaveNumber) return false;
+        
+        // Check new array format first
+        if (w.protectionGroupIds && w.protectionGroupIds.includes(pg.protectionGroupId)) {
+          return true;
+        }
+        
+        // Fallback to old single field format
+        if (w.protectionGroupId === pg.protectionGroupId) {
+          return true;
+        }
+        
+        return false;
+      });
 
       // Get all server IDs assigned to other waves for this PG
       const assignedServerIds = new Set(
-        otherWavesWithThisPg.flatMap(w => w.serverIds)
+        otherWavesWithThisPg.flatMap(w => w.serverIds || [])
       );
 
       // Calculate available servers (all servers in PG minus assigned ones)
