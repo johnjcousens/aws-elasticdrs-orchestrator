@@ -24,7 +24,8 @@ import { ErrorState } from './ErrorState';
 import apiClient from '../services/api';
 
 interface ServerSelectorProps {
-  protectionGroupId: string;
+  protectionGroupId: string;  // Backward compatibility - single PG
+  protectionGroupIds?: string[];  // Multi-PG support (VMware SRM parity)
   selectedServerIds: string[];
   onChange: (serverIds: string[]) => void;
   readonly?: boolean;
@@ -34,6 +35,8 @@ interface Server {
   id: string;
   hostname?: string;
   tags?: Record<string, string>;
+  protectionGroupId?: string;  // Track which PG this server belongs to
+  protectionGroupName?: string;  // Display friendly PG name
 }
 
 /**
@@ -43,6 +46,7 @@ interface Server {
  */
 export const ServerSelector: React.FC<ServerSelectorProps> = ({
   protectionGroupId,
+  protectionGroupIds,
   selectedServerIds,
   onChange,
   readonly = false,
@@ -50,48 +54,65 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
   // Defensive: ensure selectedServerIds is always an array
   const safeSelectedServerIds = selectedServerIds || [];
   
+  // Use protectionGroupIds if provided, otherwise fall back to single protectionGroupId
+  const pgIds = protectionGroupIds && protectionGroupIds.length > 0 
+    ? protectionGroupIds 
+    : (protectionGroupId ? [protectionGroupId] : []);
+  
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    if (protectionGroupId) {
+    if (pgIds.length > 0) {
       fetchServers();
     }
-  }, [protectionGroupId]);
+  }, [JSON.stringify(pgIds)]);  // Watch for changes in the PG IDs array
 
   const fetchServers = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Call DRS API with filtering by Protection Group
-      // This ensures we only get servers that belong to this PG
-      const response = await apiClient.listDRSSourceServers(
-        'us-east-1',
-        undefined, // currentProtectionGroupId - not editing a PG
-        protectionGroupId // filterByProtectionGroup - show only this PG's servers
-      );
+      // Fetch servers from all selected Protection Groups
+      const allServers: Server[] = [];
       
-      if (!response.initialized) {
-        setError('DRS is not initialized in us-east-1. Please initialize DRS first.');
-        setServers([]);
-        return;
+      for (const pgId of pgIds) {
+        try {
+          const response = await apiClient.listDRSSourceServers(
+            'us-east-1',
+            undefined, // currentProtectionGroupId - not editing a PG
+            pgId // filterByProtectionGroup - show only this PG's servers
+          );
+          
+          if (!response.initialized) {
+            setError('DRS is not initialized in us-east-1. Please initialize DRS first.');
+            setServers([]);
+            return;
+          }
+          
+          // Transform DRS response to Server format with PG tracking
+          const drsServers: Server[] = response.servers.map((s: any) => ({
+            id: s.sourceServerID,
+            hostname: s.hostname,
+            protectionGroupId: pgId,
+            protectionGroupName: s.assignedToProtectionGroup?.protectionGroupName || 'Unknown PG',
+            tags: {
+              'Protection Group': s.assignedToProtectionGroup?.protectionGroupName || 'Unknown',
+              State: s.state,
+              ReplicationState: s.replicationState
+            }
+          }));
+          
+          allServers.push(...drsServers);
+        } catch (pgError: any) {
+          console.error(`Failed to fetch servers for PG ${pgId}:`, pgError);
+          // Continue with other PGs even if one fails
+        }
       }
       
-      // Transform DRS response to Server format
-      // All servers returned are from this PG and selectable
-      const drsServers: Server[] = response.servers.map((s: any) => ({
-        id: s.sourceServerID,
-        hostname: s.hostname,
-        tags: {
-          State: s.state,
-          ReplicationState: s.replicationState
-        }
-      }));
-      
-      setServers(drsServers);
+      setServers(allServers);
     } catch (err: any) {
       setError(err.message || 'Failed to load servers');
     } finally {

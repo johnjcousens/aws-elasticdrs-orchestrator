@@ -26,6 +26,7 @@ import {
   AccordionDetails,
   Alert,
   Divider,
+  Autocomplete,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -99,7 +100,8 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       serverIds: [],
       executionType: 'sequential',
       dependsOnWaves: [],
-      protectionGroupId: protectionGroupId,  // Use default/first PG
+      protectionGroupIds: protectionGroupId ? [protectionGroupId] : [],  // Convert to array for multi-PG support
+      protectionGroupId: protectionGroupId,  // Keep for backward compatibility
     };
     onChange([...safeWaves, newWave]);
     setExpandedWave(safeWaves.length);
@@ -203,6 +205,12 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     {wave.name}
                   </Typography>
                   <Chip
+                    label={`${(wave.protectionGroupIds || []).length} PG${(wave.protectionGroupIds || []).length !== 1 ? 's' : ''}`}
+                    size="small"
+                    color="secondary"
+                    variant="outlined"
+                  />
+                  <Chip
                     label={`${(wave.serverIds || []).length} server${(wave.serverIds || []).length !== 1 ? 's' : ''}`}
                     size="small"
                     color="primary"
@@ -211,7 +219,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                   <Chip
                     label={wave.executionType}
                     size="small"
-                    color="secondary"
+                    color="default"
                     variant="outlined"
                   />
                   {!readonly && (
@@ -327,41 +335,63 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
 
                   <Divider />
 
-                  {/* Protection Group Selection (if multiple available) */}
+                  {/* Protection Group Selection - Multi-Select (VMware SRM Parity) */}
                   {protectionGroups && protectionGroups.length > 0 && (
                     <>
                       <Box>
                         <Typography variant="subtitle2" gutterBottom>
-                          Protection Group
+                          Protection Groups
                         </Typography>
-                        <FormControl fullWidth required disabled={readonly}>
-                          <InputLabel>Protection Group</InputLabel>
-                          <Select
-                            value={wave.protectionGroupId || ''}
-                            label="Protection Group"
-                            onChange={(e) => {
-                              // Clear server selections when PG changes
-                              handleUpdateWave(wave.waveNumber, 'protectionGroupId', e.target.value);
-                              handleUpdateWave(wave.waveNumber, 'serverIds', []);
-                            }}
-                          >
-                            {getAvailableProtectionGroups(wave.waveNumber).map((pg) => (
-                              <MenuItem 
-                                key={pg.protectionGroupId} 
-                                value={pg.protectionGroupId}
-                                disabled={!pg.isAvailable}
-                              >
-                                {pg.name}
-                                {!pg.isAvailable && ' (All servers assigned)'}
-                                {pg.isAvailable && pg.availableServerCount < (pg.sourceServerIds?.length || 0) && 
-                                  ` (${pg.availableServerCount} of ${pg.sourceServerIds?.length} available)`}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                        {!wave.protectionGroupId && (
+                        <Autocomplete
+                          multiple
+                          value={getAvailableProtectionGroups(wave.waveNumber).filter(pg => 
+                            (wave.protectionGroupIds || []).includes(pg.protectionGroupId)
+                          )}
+                          options={getAvailableProtectionGroups(wave.waveNumber)}
+                          getOptionLabel={(pg) => pg.name}
+                          getOptionDisabled={(pg) => !pg.isAvailable}
+                          onChange={(event, newValue) => {
+                            const pgIds = newValue.map(pg => pg.protectionGroupId);
+                            handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
+                            // Keep protectionGroupId in sync for backward compatibility
+                            handleUpdateWave(wave.waveNumber, 'protectionGroupId', pgIds[0] || '');
+                            // Clear server selections when PGs change
+                            handleUpdateWave(wave.waveNumber, 'serverIds', []);
+                          }}
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              label="Protection Groups" 
+                              placeholder="Select one or more Protection Groups"
+                              required
+                              helperText="Multiple Protection Groups can be selected per wave (VMware SRM parity)"
+                            />
+                          )}
+                          renderTags={(value, getTagProps) =>
+                            value.map((pg, index) => {
+                              const availableCount = pg.availableServerCount || 0;
+                              const totalCount = pg.sourceServerIds?.length || 0;
+                              return (
+                                <Chip
+                                  label={`${pg.name} (${availableCount}/${totalCount})`}
+                                  {...getTagProps({ index })}
+                                  color={availableCount > 0 ? "primary" : "default"}
+                                  size="small"
+                                />
+                              );
+                            })
+                          }
+                          disabled={readonly}
+                          fullWidth
+                        />
+                        {(wave.protectionGroupIds || []).length === 0 && (
                           <Alert severity="warning" sx={{ mt: 1 }}>
-                            Please select a Protection Group for this wave
+                            Please select at least one Protection Group for this wave
+                          </Alert>
+                        )}
+                        {(wave.protectionGroupIds || []).length > 1 && (
+                          <Alert severity="info" sx={{ mt: 1 }}>
+                            Multiple Protection Groups selected (VMware SRM behavior). Servers from all selected PGs will be available for this wave.
                           </Alert>
                         )}
                       </Box>
@@ -374,17 +404,18 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
                       Server Selection
                     </Typography>
-                    {wave.protectionGroupId ? (
+                    {(wave.protectionGroupIds || []).length > 0 ? (
                       <ServerSelector
-                        key={wave.protectionGroupId}
-                        protectionGroupId={wave.protectionGroupId}
+                        key={(wave.protectionGroupIds || []).join(',')}
+                        protectionGroupIds={wave.protectionGroupIds || []}
+                        protectionGroupId={wave.protectionGroupId || wave.protectionGroupIds?.[0] || ''}
                         selectedServerIds={wave.serverIds}
                         onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
                         readonly={readonly}
                       />
                     ) : (
                       <Alert severity="info">
-                        Select a Protection Group above to choose servers for this wave
+                        Select one or more Protection Groups above to choose servers for this wave
                       </Alert>
                     )}
                   </Box>
