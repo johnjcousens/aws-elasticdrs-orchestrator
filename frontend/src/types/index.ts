@@ -65,8 +65,10 @@ export interface Wave {
   serverCount?: number;
   executionType: 'sequential' | 'parallel';
   dependsOnWaves?: number[];
-  protectionGroupId: string;  // Required - each wave must have a Protection Group
-  ProtectionGroupId?: string;  // Backend PascalCase version for compatibility
+  protectionGroupIds: string[];  // Required - wave can have multiple Protection Groups (VMware SRM parity)
+  protectionGroupId?: string;  // Backward compatibility - single PG (deprecated, use protectionGroupIds)
+  ProtectionGroupIds?: string[];  // Backend PascalCase version for compatibility
+  ProtectionGroupId?: string;  // Backend PascalCase version for compatibility (deprecated)
   preWaveActions?: WaveAction[];
   postWaveActions?: WaveAction[];
   healthCheckConfig?: HealthCheckConfig;
