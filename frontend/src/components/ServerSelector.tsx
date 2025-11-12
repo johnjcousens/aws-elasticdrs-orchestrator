@@ -63,8 +63,13 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
       setLoading(true);
       setError(null);
       
-      // Call real DRS API to get source servers
-      const response = await apiClient.listDRSSourceServers('us-east-1', protectionGroupId);
+      // Call DRS API with filtering by Protection Group
+      // This ensures we only get servers that belong to this PG
+      const response = await apiClient.listDRSSourceServers(
+        'us-east-1',
+        undefined, // currentProtectionGroupId - not editing a PG
+        protectionGroupId // filterByProtectionGroup - show only this PG's servers
+      );
       
       if (!response.initialized) {
         setError('DRS is not initialized in us-east-1. Please initialize DRS first.');
@@ -73,16 +78,15 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
       }
       
       // Transform DRS response to Server format
-      const drsServers: Server[] = response.servers
-        .filter((s: any) => s.selectable) // Only show available servers
-        .map((s: any) => ({
-          id: s.sourceServerID,
-          hostname: s.hostname,
-          tags: {
-            State: s.state,
-            ReplicationState: s.replicationState
-          }
-        }));
+      // All servers returned are from this PG and selectable
+      const drsServers: Server[] = response.servers.map((s: any) => ({
+        id: s.sourceServerID,
+        hostname: s.hostname,
+        tags: {
+          State: s.state,
+          ReplicationState: s.replicationState
+        }
+      }));
       
       setServers(drsServers);
     } catch (err: any) {

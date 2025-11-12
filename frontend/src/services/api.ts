@@ -306,11 +306,22 @@ class ApiClient {
 
   /**
    * List DRS source servers in a region
+   * 
+   * @param region - AWS region
+   * @param currentProtectionGroupId - Optional PG ID to exclude when editing
+   * @param filterByProtectionGroup - Optional PG ID to filter servers (only show servers in this PG)
    */
-  public async listDRSSourceServers(region: string, currentProtectionGroupId?: string): Promise<any> {
+  public async listDRSSourceServers(
+    region: string, 
+    currentProtectionGroupId?: string,
+    filterByProtectionGroup?: string
+  ): Promise<any> {
     const params = new URLSearchParams({ region });
     if (currentProtectionGroupId) {
       params.append('currentProtectionGroupId', currentProtectionGroupId);
+    }
+    if (filterByProtectionGroup) {
+      params.append('filterByProtectionGroup', filterByProtectionGroup);
     }
     return this.get<any>(`/drs/source-servers?${params.toString()}`);
   }
