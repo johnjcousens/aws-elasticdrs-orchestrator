@@ -34,12 +34,14 @@ interface ServerDiscoveryPanelProps {
   region: string;
   selectedServerIds: string[];
   onSelectionChange: (serverIds: string[]) => void;
+  currentProtectionGroupId?: string;
 }
 
 export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   region,
   selectedServerIds,
-  onSelectionChange
+  onSelectionChange,
+  currentProtectionGroupId
 }) => {
   const [servers, setServers] = useState<DRSServer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     setError(null);
     
     try {
-      const response = await apiClient.listDRSSourceServers(region);
+      const response = await apiClient.listDRSSourceServers(region, currentProtectionGroupId);
       
       if (response.initialized === false) {
         setDrsInitialized(false);
