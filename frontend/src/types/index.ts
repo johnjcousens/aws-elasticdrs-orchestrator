@@ -9,29 +9,30 @@
 // ============================================================================
 
 export interface ProtectionGroup {
-  id: string;
+  protectionGroupId: string;
   name: string;
   description?: string;
   region: string;
   sourceServerIds: string[];
-  createdAt: string;
-  updatedAt: string;
-  createdBy?: string;
-  serverCount?: number;
-  status?: 'active' | 'inactive';
+  createdAt: number;
+  updatedAt: number;
+  accountId?: string;
+  owner?: string;
+  serverDetails?: any[];
 }
 
 export interface CreateProtectionGroupRequest {
-  name: string;
-  description?: string;
-  region: string;
+  GroupName: string;  // API expects PascalCase
+  Description?: string;
+  Region: string;
   sourceServerIds: string[];
+  AccountId?: string;
+  Owner?: string;
 }
 
 export interface UpdateProtectionGroupRequest {
-  name?: string;
-  description?: string;
-  region?: string;
+  GroupName?: string;  // API expects PascalCase
+  Description?: string;
   sourceServerIds?: string[];
 }
 

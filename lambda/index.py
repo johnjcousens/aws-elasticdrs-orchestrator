@@ -164,8 +164,11 @@ def create_protection_group(body: Dict) -> Dict:
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
         
+        # Transform to camelCase for frontend
+        response_item = transform_pg_to_camelcase(item)
+        
         print(f"Created Protection Group: {group_id} with {len(server_ids)} servers")
-        return response(201, item)
+        return response(201, response_item)
         
     except Exception as e:
         print(f"Error creating Protection Group: {str(e)}")
@@ -180,20 +183,29 @@ def get_protection_groups() -> Dict:
         result = protection_groups_table.scan()
         groups = result.get('Items', [])
         
-        # Enrich with current DRS source server status
+        # Transform to camelCase and enrich with current DRS source server status
+        camelcase_groups = []
         for group in groups:
-            try:
-                server_details = get_drs_source_server_details(
-                    group['AccountId'],
-                    group['Region'],
-                    group['SourceServerIds']
-                )
-                group['ServerDetails'] = server_details
-            except Exception as e:
-                print(f"Error enriching group {group['GroupId']}: {str(e)}")
+            # Only enrich if AccountId is present
+            if group.get('AccountId') and group.get('SourceServerIds'):
+                try:
+                    server_details = get_drs_source_server_details(
+                        group['AccountId'],
+                        group['Region'],
+                        group['SourceServerIds']
+                    )
+                    group['ServerDetails'] = server_details
+                except Exception as e:
+                    print(f"Error enriching group {group['GroupId']}: {str(e)}")
+                    group['ServerDetails'] = []
+            else:
+                # Skip enrichment if AccountId is missing
                 group['ServerDetails'] = []
+            
+            # Transform to camelCase
+            camelcase_groups.append(transform_pg_to_camelcase(group))
         
-        return response(200, {'groups': groups, 'count': len(groups)})
+        return response(200, {'groups': camelcase_groups, 'count': len(camelcase_groups)})
         
     except Exception as e:
         print(f"Error listing Protection Groups: {str(e)}")
@@ -222,7 +234,10 @@ def get_protection_group(group_id: str) -> Dict:
             print(f"Error enriching group: {str(e)}")
             group['ServerDetails'] = []
         
-        return response(200, group)
+        # Transform to camelCase
+        camelcase_group = transform_pg_to_camelcase(group)
+        
+        return response(200, camelcase_group)
         
     except Exception as e:
         print(f"Error getting Protection Group: {str(e)}")
@@ -973,16 +988,30 @@ def list_source_servers(region: str) -> Dict:
             
             # Extract replication info
             lifecycle = item.get('lifeCycle', {})
-            state = lifecycle.get('state', 'UNKNOWN')
             
             data_rep_info = item.get('dataReplicationInfo', {})
             rep_state = data_rep_info.get('dataReplicationState', 'UNKNOWN')
             lag_duration = data_rep_info.get('lagDuration', 'UNKNOWN')
             
+            # Map replication state to lifecycle state for display
+            state_mapping = {
+                'STOPPED': 'STOPPED',
+                'INITIATING': 'INITIATING',
+                'INITIAL_SYNC': 'SYNCING',
+                'BACKLOG': 'SYNCING',
+                'CREATING_SNAPSHOT': 'SYNCING',
+                'CONTINUOUS': 'READY_FOR_RECOVERY',
+                'PAUSED': 'PAUSED',
+                'RESCAN': 'SYNCING',
+                'STALLED': 'STALLED',
+                'DISCONNECTED': 'DISCONNECTED'
+            }
+            display_state = state_mapping.get(rep_state, rep_state)
+            
             servers.append({
                 'sourceServerID': server_id,
                 'hostname': hostname,
-                'state': state,
+                'state': display_state,
                 'replicationState': rep_state,
                 'lagDuration': lag_duration,
                 'lastSeen': lifecycle.get('lastSeenByServiceDateTime', ''),
@@ -1097,6 +1126,22 @@ def validate_unique_pg_name(name: str, current_pg_id: Optional[str] = None) -> b
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+def transform_pg_to_camelcase(pg: Dict) -> Dict:
+    """Transform Protection Group from DynamoDB PascalCase to frontend camelCase"""
+    return {
+        'protectionGroupId': pg.get('GroupId'),
+        'name': pg.get('GroupName'),
+        'description': pg.get('Description', ''),
+        'region': pg.get('Region'),
+        'sourceServerIds': pg.get('SourceServerIds', []),
+        'accountId': pg.get('AccountId', ''),
+        'owner': pg.get('Owner', ''),
+        'createdAt': pg.get('CreatedDate'),
+        'updatedAt': pg.get('LastModifiedDate'),
+        'serverDetails': pg.get('ServerDetails', [])
+    }
+
 
 def validate_and_get_source_servers(account_id: str, region: str, tags: Dict) -> List[str]:
     """Validate source servers exist with specified tags and return their IDs"""

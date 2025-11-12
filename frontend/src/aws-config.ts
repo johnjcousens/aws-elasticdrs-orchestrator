@@ -8,7 +8,7 @@
  * to placeholder values. Update these for local testing.
  */
 
-// Extend Window interface to include AWS_CONFIG
+// Extend Window interface to include AWS_CONFIG and configReady promise
 declare global {
   interface Window {
     AWS_CONFIG?: {
@@ -32,6 +32,7 @@ declare global {
         };
       };
     };
+    configReady?: Promise<void>;
   }
 }
 
@@ -58,10 +59,23 @@ const defaultConfig = {
   }
 };
 
-// Use runtime-injected config if available, otherwise use defaults
-export const awsConfig = window.AWS_CONFIG || defaultConfig;
+// Function to get config - checks window.AWS_CONFIG dynamically
+function getAwsConfig() {
+  if (window.AWS_CONFIG) {
+    return window.AWS_CONFIG;
+  }
+  return defaultConfig;
+}
 
-// Log which config is being used (helps with debugging)
+// Export as getter property so it always gets fresh value
+export const awsConfig = new Proxy({} as typeof defaultConfig, {
+  get(_target, prop) {
+    const config = getAwsConfig();
+    return config[prop as keyof typeof config];
+  }
+});
+
+// Log which config is being used on first access
 if (window.AWS_CONFIG) {
   console.log('Using CloudFormation-injected AWS configuration');
   console.log('API Endpoint:', window.AWS_CONFIG.API.REST.DRSOrchestration.endpoint);
