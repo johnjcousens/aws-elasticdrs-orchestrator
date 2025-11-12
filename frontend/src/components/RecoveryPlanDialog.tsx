@@ -25,8 +25,9 @@ import {
 } from '@mui/material';
 import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
+import { ConfirmDialog } from './ConfirmDialog';
 import apiClient from '../services/api';
-import type { RecoveryPlan, ProtectionGroup, Wave, CreateRecoveryPlanRequest, UpdateRecoveryPlanRequest } from '../types';
+import type { RecoveryPlan, ProtectionGroup, Wave } from '../types';
 
 interface RecoveryPlanDialogProps {
   open: boolean;
@@ -55,6 +56,9 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPgChangeConfirm, setShowPgChangeConfirm] = useState(false);
+  const [pendingPgId, setPendingPgId] = useState<string>('');
+  const [originalPgId, setOriginalPgId] = useState<string>('');
 
   // Load protection groups on mount
   useEffect(() => {
@@ -70,18 +74,52 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       setDescription(plan.description || '');
       // Extract Protection Group ID from first wave (PG IDs are stored in waves, not at root)
       const firstWave = plan.waves?.[0];
-      setProtectionGroupId(firstWave?.ProtectionGroupId || '');
+      const pgId = firstWave?.ProtectionGroupId || '';
+      setProtectionGroupId(pgId);
+      setOriginalPgId(pgId); // Store original for comparison
       setWaves(plan.waves || []); // Default to empty array if undefined
     } else {
       // Reset form for create mode
       setName('');
       setDescription('');
       setProtectionGroupId('');
+      setOriginalPgId('');
       setWaves([]);
     }
     setErrors({});
     setError(null);
   }, [plan, open]);
+
+  const handleProtectionGroupChange = (newPgId: string) => {
+    // If editing and PG is different from original, show confirmation
+    if (plan && originalPgId && newPgId !== originalPgId) {
+      setPendingPgId(newPgId);
+      setShowPgChangeConfirm(true);
+    } else {
+      // New plan or same PG - just update
+      setProtectionGroupId(newPgId);
+    }
+  };
+
+  const handleConfirmPgChange = () => {
+    // Apply the Protection Group change and reset all server selections in waves
+    setProtectionGroupId(pendingPgId);
+    
+    // Clear serverIds from all waves (keeps wave structure)
+    const clearedWaves = waves.map(wave => ({
+      ...wave,
+      serverIds: []
+    }));
+    setWaves(clearedWaves);
+    
+    setShowPgChangeConfirm(false);
+    setPendingPgId('');
+  };
+
+  const handleCancelPgChange = () => {
+    setShowPgChangeConfirm(false);
+    setPendingPgId('');
+  };
 
   const fetchProtectionGroups = async () => {
     try {
@@ -128,13 +166,24 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       setError(null);
 
       if (plan) {
-        // Update existing plan
-        const updateData: UpdateRecoveryPlanRequest = {
-          name,
-          description,
-          waves,
+        // Update existing plan - transform waves to backend format
+        const updateData = {
+          PlanName: name,
+          Description: description,
+          Waves: waves.map((wave, index) => ({
+            WaveId: `wave-${index}`,
+            WaveName: wave.name,
+            WaveDescription: wave.description || '',
+            ExecutionOrder: index,
+            ProtectionGroupId: protectionGroupId,
+            ServerIds: wave.serverIds,
+            ExecutionType: wave.executionType,
+            Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
+              DependsOnWaveId: `wave-${depNum}`
+            }))
+          }))
         };
-        const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData);
+        const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData as any);
         onSave(updatedPlan);
       } else {
         // Create new plan - transform to backend format
@@ -245,16 +294,15 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                 fullWidth
                 error={!!errors.protectionGroupId}
                 required
-                disabled={!!plan} // Can't change protection group when editing
               >
                 <InputLabel>Protection Group</InputLabel>
                 <Select
                   value={protectionGroupId}
                   label="Protection Group"
-                  onChange={(e) => setProtectionGroupId(e.target.value)}
+                  onChange={(e) => handleProtectionGroupChange(e.target.value)}
                 >
                   {protectionGroups.map((group) => (
-                    <MenuItem key={group.id} value={group.id}>
+                    <MenuItem key={group.protectionGroupId} value={group.protectionGroupId}>
                       {group.name}
                     </MenuItem>
                   ))}
@@ -266,9 +314,9 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                 )}
               </FormControl>
               {plan && (
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Protection group cannot be changed after plan creation
-                </Typography>
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  Changing the Protection Group will clear all server selections from waves
+                </Alert>
               )}
             </Box>
 
@@ -309,6 +357,17 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
           {loading ? 'Saving...' : plan ? 'Update Plan' : 'Create Plan'}
         </Button>
       </DialogActions>
+
+      {/* Protection Group Change Confirmation Dialog */}
+      <ConfirmDialog
+        open={showPgChangeConfirm}
+        title="Change Protection Group?"
+        message="Changing the Protection Group will clear all server selections from waves. You will need to re-select servers for each wave. Do you want to continue?"
+        onConfirm={handleConfirmPgChange}
+        onCancel={handleCancelPgChange}
+        confirmLabel="Change Protection Group"
+        confirmColor="warning"
+      />
     </Dialog>
   );
 };
