@@ -71,7 +71,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       // Extract Protection Group ID from first wave (PG IDs are stored in waves, not at root)
       const firstWave = plan.waves?.[0];
       setProtectionGroupId(firstWave?.ProtectionGroupId || '');
-      setWaves(plan.waves);
+      setWaves(plan.waves || []); // Default to empty array if undefined
     } else {
       // Reset form for create mode
       setName('');
