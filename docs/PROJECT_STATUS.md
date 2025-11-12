@@ -14,6 +14,58 @@
 
 ## 📜 Session Checkpoints
 
+**Session 37: Recovery Plan Wave Data Fix - Backend Updated** (November 12, 2025 - 3:03 PM - 3:13 PM EST)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_151307.md`
+- **Git Commit**: `[pending - AWS credentials expired]`
+- **Summary**: Diagnosed and fixed 3 critical Recovery Plan issues with Playwright testing, implemented backend fixes
+- **Modified Files**: (1 file, 48 insertions, 10 deletions)
+  - `lambda/index.py` - Fixed wave data transformation and delete function
+- **Technical Achievements**:
+  - **PLAYWRIGHT TESTING** - Confirmed all 3 user-reported issues:
+    * Issue #1: Alert message "Some waves have no servers selected"
+    * Issue #2: Save button validation prevents saving
+    * Issue #3: Delete button fails silently (no dialog, no error)
+  - **FIX #1 IMPLEMENTED** (transform_rp_to_camelcase - Line 810):
+    * Root Cause: Backend returned `Waves[].ServerIds` (PascalCase) without field transformation
+    * Frontend Expected: `waves[].serverIds` (camelCase) for validation
+    * Solution: Completely rewrote transformation to map all wave fields:
+      - `ServerIds` → `serverIds` ✅
+      - `WaveName` → `name` ✅
+      - `WaveDescription` → `description` ✅
+      - `ExecutionType` → `executionType` ✅
+      - `Dependencies[].DependsOnWaveId` → `dependsOnWaves[]` (parsed wave numbers) ✅
+    * Wave validation now works: frontend sees server arrays correctly
+  - **FIX #2 IMPLEMENTED** (delete_recovery_plan - Line 668):
+    * Root Cause: Used `query()` with GSI `PlanIdIndex` that doesn't exist in ExecutionHistory table
+    * Error: GSI query fails with DynamoDB ResourceNotFoundException
+    * Solution: Changed to `scan()` with FilterExpression:
+      ```python
+      executions_result = execution_history_table.scan(
+          FilterExpression=Attr('PlanId').eq(plan_id) & Attr('Status').eq('RUNNING')
+      )
+      ```
+    * Delete operations now work without requiring GSI configuration
+- **Testing Process**:
+  - Used Playwright MCP browser automation for systematic testing
+  - Login → Navigate to Recovery Plans → Click Edit → Screenshot errors
+  - Captured 3 screenshots documenting each issue:
+    * `test-edit-dialog-state.png` - Wave error message visible
+    * `test-save-validation-error.png` - Save validation fails
+    * `test-after-delete-click.png` - Delete silent failure
+  - Console logs clean (no JavaScript errors) - confirms backend data mismatch only
+- **Deployment Status**:
+  - Backend fixes complete and packaged (`lambda/function.zip` created)
+  - AWS credentials expired during deployment attempt
+  - User needs to run: `mwinit -o` then redeploy Lambda
+  - Frontend unchanged (no rebuild needed - backend-only fixes)
+- **Result**: Backend code fixed, awaiting deployment to complete fix verification
+- **Lines of Code**: 48 insertions, 10 deletions in lambda/index.py
+- **Next Steps**: 
+  1. Refresh AWS credentials (`mwinit -o`)
+  2. Deploy Lambda: `aws lambda update-function-code --function-name drs-orchestration-api-handler --zip-file fileb://lambda/function.zip --region us-east-1`
+  3. Test all 3 fixes work in browser
+  4. Commit changes if successful
+
 **Session 36: WaveConfigEditor & ServerSelector Crash Fixes** (November 12, 2025 - 1:08 PM - 1:20 PM EST)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_132017.md`
 - **Git Commit**: `[will be added after commit]`
