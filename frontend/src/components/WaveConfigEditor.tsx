@@ -371,6 +371,9 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                           options={getAvailableProtectionGroups(wave.waveNumber)}
                           getOptionLabel={(pg) => pg.name}
                           getOptionDisabled={(pg) => !pg.isAvailable}
+                          isOptionEqualToValue={(option, value) => 
+                            option.protectionGroupId === value.protectionGroupId
+                          }
                           onChange={(_event, newValue) => {
                             const pgIds = newValue.map(pg => pg.protectionGroupId);
                             handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
