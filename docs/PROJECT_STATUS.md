@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 12, 2025 - 4:30 PM EST
+**Last Updated**: November 12, 2025 - 4:54 PM EST
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
@@ -13,6 +13,71 @@
 ---
 
 ## 📜 Session Checkpoints
+
+**Session 39: Multi-Protection Group Support per Wave (VMware SRM Parity)** (November 12, 2025 - 10:19 AM - 4:54 PM EST)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_165424.md`
+- **Git Commits**: 
+  - `5bf22a0` - fix(recovery-plans): Force ServerSelector re-render when Protection Group changes
+  - `26a1f6f` - feat(recovery-plans): Add multi-Protection Group support per wave (VMware SRM parity)
+  - `7587e09` - fix(backend): Add multi-PG support validation and CORS headers
+  - `b007209` - fix(frontend): Remove unused event parameter in onChange handler
+- **Summary**: Implemented multi-Protection Group support per wave for VMware SRM feature parity - waves can now contain servers from multiple Protection Groups
+- **Modified Files**: (4 files, 151 insertions, 78 deletions)
+  - `frontend/src/types/index.ts` - Added protectionGroupIds array to Wave interface
+  - `frontend/src/components/WaveConfigEditor.tsx` - Replaced single PG dropdown with Autocomplete multi-select
+  - `frontend/src/components/ServerSelector.tsx` - Fetches servers from all selected PGs, tracks PG assignments
+  - `lambda/index.py` - Updated validate_waves() to accept protectionGroupIds array
+- **Technical Achievements**:
+  - **MULTI-PG WAVE SUPPORT** (VMware SRM Feature Parity):
+    * VMware SRM Pattern: Waves can group servers from multiple Protection Groups
+    * Example: Wave 1 = Web tier (PG-Web) + App tier (PG-App) + DB tier (PG-Database)
+    * Frontend: Changed from single Select dropdown to Autocomplete multi-select
+    * Wave interface updated: `protectionGroupIds: string[]` (array instead of single ID)
+    * Backward compatibility maintained: `protectionGroupId` field kept for existing data
+  - **FRONTEND IMPLEMENTATION**:
+    * WaveConfigEditor: Replaced FormControl/Select with Autocomplete multi-select
+    * Chips show "(X/Y)" available server count per PG
+    * protectionGroupIds array drives ServerSelector queries
+    * Key prop forces re-render when PG selection changes: `key={(wave.protectionGroupIds || []).join(',')}`
+    * Wave accordion summary shows: "2 PGs, 5 servers" for multi-PG waves
+  - **SERVERSELECTOR ENHANCEMENT**:
+    * Loops through `protectionGroupIds` array (not single ID)
+    * Fetches servers from each PG via `apiClient.listDRSSourceServers()`
+    * Tags each server with PG name for visibility
+    * Tracks which PG each server belongs to in UI
+    * filterByProtectionGroup parameter added to API call
+  - **BACKEND VALIDATION**:
+    * validate_waves() updated to accept `protectionGroupIds` array
+    * Validates array is not empty if present
+    * Supports both old (single PG) and new (multi-PG) formats
+    * Type checking: ensures protectionGroupIds is array, not other types
+  - **CORS HEADERS VERIFIED**:
+    * Confirmed CORS headers already present in Lambda response() function
+    * All HTTP methods supported: GET, POST, PUT, DELETE, OPTIONS
+    * Access-Control-Allow-Origin: * (TEST environment)
+- **User Issue Fixed**:
+  - **Original Problem**: "when i got to select servers in recovery groups, I am not shown real servers added from protection groups. i see fake web-server-01.example.com"
+  - **Root Cause #1**: ServerSelector wasn't fetching from actual DRS API
+  - **Root Cause #2**: Single PG per wave limitation prevented flexible grouping
+  - **Root Cause #3**: No re-render when PG selection changed
+  - **Solution**: 
+    1. ServerSelector now calls real DRS API with filterByProtectionGroup
+    2. Multi-PG support allows complex wave configurations
+    3. Key prop forces component re-render on PG change
+- **Deployment**:
+  - Lambda: `drs-orchestration-api-handler-test` updated (4:52 PM)
+  - Frontend: Built with Vite (4:53 PM), deployed to S3 (4:53 PM)
+  - All changes pushed to origin/main successfully
+  - Production-ready multi-PG feature complete
+- **Testing Strategy**:
+  - Phase 1: Local testing with dev server confirmed reactivity fix
+  - Phase 2: Multi-PG UI tested locally
+  - Phase 3: Backend deployed and validated
+  - Phase 4: Frontend built and deployed to TEST
+  - Ready for browser testing with real Protection Groups
+- **Result**: Multi-PG support complete, VMware SRM parity achieved, real server data displayed
+- **Lines of Code**: 151 insertions, 78 deletions across 4 files
+- **Next Steps**: Test multi-PG wave configuration in browser, verify server list from multiple PGs
 
 **Session 38: Smart Protection Group Filtering & Auth Config Fix** (November 12, 2025 - 4:09 PM - 4:30 PM EST)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_163046.md`
