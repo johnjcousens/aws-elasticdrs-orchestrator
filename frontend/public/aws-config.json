@@ -1,0 +1,6 @@
+{
+  "region": "us-east-1",
+  "userPoolId": "REPLACE_WITH_COGNITO_POOL_ID",
+  "userPoolClientId": "REPLACE_WITH_COGNITO_CLIENT_ID",
+  "apiEndpoint": "REPLACE_WITH_API_ENDPOINT"
+}

@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# AWS Config (template in public/ is OK, real values generated during build)
+# public/aws-config.json contains placeholders - safe to commit
+# dist/aws-config.json is generated - ignored via dist/ above
