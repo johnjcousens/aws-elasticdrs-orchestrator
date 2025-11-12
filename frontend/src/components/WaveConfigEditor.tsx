@@ -57,8 +57,16 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   onChange,
   readonly = false,
 }) => {
-  // Defensive: ensure waves is never undefined
-  const safeWaves = waves || [];
+  // Defensive: ensure waves is never undefined AND migrate old format to new
+  const safeWaves = (waves || []).map(wave => ({
+    ...wave,
+    // Ensure protectionGroupIds array exists (migrate from old single protectionGroupId format)
+    protectionGroupIds: wave.protectionGroupIds && wave.protectionGroupIds.length > 0
+      ? wave.protectionGroupIds
+      : wave.protectionGroupId 
+        ? [wave.protectionGroupId]
+        : []
+  }));
   
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
