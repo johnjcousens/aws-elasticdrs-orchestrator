@@ -276,6 +276,43 @@ export interface DRSRecoveryInstance {
 }
 
 // ============================================================================
+// DRS Server Discovery Types
+// ============================================================================
+
+export interface DRSServer {
+  sourceServerID: string;
+  hostname: string;
+  state: string;
+  replicationState: string;
+  lagDuration: string;
+  lastSeen: string;
+  assignedToProtectionGroup: {
+    protectionGroupId: string;
+    protectionGroupName: string;
+  } | null;
+  selectable: boolean;
+}
+
+export interface DRSServerResponse {
+  region: string;
+  initialized: boolean;
+  servers: DRSServer[];
+  totalCount: number;
+  availableCount: number;
+  assignedCount: number;
+}
+
+// ============================================================================
+// Legacy Types (for backward compatibility)
+// ============================================================================
+
+export interface TagFilter {
+  KeyName: string;
+  KeyValue: string;
+  Values?: string[];
+}
+
+// ============================================================================
 // UI State Types
 // ============================================================================
 
