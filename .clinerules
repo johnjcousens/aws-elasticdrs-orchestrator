@@ -1,0 +1,106 @@
+# AWS DRS Orchestration - Snapshot Workflow Automation
+
+## CRITICAL: This is an ACTION rule, not documentation
+
+When the user says "snapshot", "checkpoint", or "create checkpoint", you MUST automatically execute the following steps in sequence. Do NOT ask for confirmation - execute immediately.
+
+## Step 1: Export Conversation & Create Checkpoint
+
+Execute the bash script that creates both checkpoint summary and conversation export:
+
+```bash
+bash ~/.cline_sub_agents/create_checkpoint_with_conversation.sh
+```
+
+This script:
+- Creates checkpoint in `.cline_memory/checkpoints/checkpoint_YYYYMMDD_HHMMSS.md`
+- Exports full conversation to `.cline_memory/conversations/conversation_export_YYYYMMDD_HHMMSS.md`
+- Returns the paths of created files
+
+## Step 2: Determine Session Number
+
+Read `docs/PROJECT_STATUS.md` and find the last session number in the "Session Checkpoints" section. The new session number is last_session_number + 1.
+
+Example: If last session was "Session 32", new session is "Session 33"
+
+## Step 3: Update PROJECT_STATUS.md
+
+Add a new session entry at the TOP of the "Session Checkpoints" section (or create the section if it doesn't exist).
+
+**Format:**
+```markdown
+**Session [N]: [Brief Title]** ([Date] - [Time Range])
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_[timestamp].md`
+- **Git Commit**: `[will be added after commit]`
+- **Summary**: [One sentence describing what was accomplished]
+- **Created**: [List new files with line counts]
+- **Modified Files**: ([count] files, [X] insertions, [Y] deletions)
+- **Technical Achievements**:
+  - [Key accomplishment 1]
+  - [Key accomplishment 2]
+  - [etc.]
+- **Result**: [Phase/feature status]
+- **Lines of Code**: [Summary of code changes]
+- **Next Steps**: [What should be worked on next]
+```
+
+**IMPORTANT**: Update the header timestamps:
+- "Last Updated" field
+- Any phase completion percentages if applicable
+
+## Step 4: Commit Changes
+
+Stage and commit the PROJECT_STATUS.md update:
+
+```bash
+git add docs/PROJECT_STATUS.md
+git commit -m "docs: Update PROJECT_STATUS.md - Session [N] snapshot"
+```
+
+**DO NOT PUSH** - user will push manually.
+
+## Step 5: Report Completion
+
+Report to the user:
+- ✅ Checkpoint created: [path]
+- ✅ Conversation exported: [path]
+- ✅ PROJECT_STATUS.md updated with Session [N]
+- ✅ Git commit: [commit hash]
+- ℹ️  Ready for next session
+
+## Implementation Requirements
+
+1. **Automatic Execution**: When triggered, execute ALL steps without asking for confirmation
+2. **Error Handling**: If any step fails, report the error but continue with remaining steps
+3. **Session Numbering**: Always increment from the last session in PROJECT_STATUS.md
+4. **Git Operations**: Always stage and commit, but NEVER push
+5. **No New Task**: Do NOT use the new_task tool - workflow completes after commit
+
+## Trigger Keywords
+
+Execute this workflow when user says:
+- "snapshot"
+- "checkpoint" 
+- "create checkpoint"
+- "save checkpoint"
+- "create snapshot"
+
+These are ACTION commands, not requests for information. Execute immediately.
+
+## What Makes This Different from Documentation
+
+This file IS the automation rule. When you see the trigger keywords:
+1. Don't explain what you're going to do
+2. Don't ask for confirmation
+3. Just execute the steps in sequence
+4. Report results when complete
+
+The rule is successful when:
+- New files exist in `.cline_memory/`
+- PROJECT_STATUS.md has new session entry
+- Git commit is created with updated documentation
+
+---
+
+**Last Updated**: November 11, 2025 - 11:22 PM EST
+**Status**: ACTIVE - This rule should execute automatically on trigger keywords
