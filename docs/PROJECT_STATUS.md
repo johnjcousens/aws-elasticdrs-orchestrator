@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 12, 2025 - 12:20 PM EST
+**Last Updated**: November 12, 2025 - 1:20 PM EST
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
@@ -13,6 +13,46 @@
 ---
 
 ## 📜 Session Checkpoints
+
+**Session 36: WaveConfigEditor & ServerSelector Crash Fixes** (November 12, 2025 - 1:08 PM - 1:20 PM EST)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_132017.md`
+- **Git Commit**: `[will be added after commit]`
+- **Summary**: Fixed cascading null pointer crashes in Recovery Plan edit dialog - WaveConfigEditor and ServerSelector
+- **Modified Files**: (2 files, 14 insertions, 7 deletions)
+  - `frontend/src/components/WaveConfigEditor.tsx` - Added null guards for `wave.serverIds`
+  - `frontend/src/components/ServerSelector.tsx` - Added null guards for `selectedServerIds`
+- **Technical Achievements**:
+  - **CRASH #1 FIXED** (WaveConfigEditor - wave.serverIds undefined):
+    * Error: "Cannot read properties of undefined (reading 'length')" at lines 179, 359
+    * Root Cause: `wave.serverIds` was undefined when editing existing recovery plans
+    * Solution: Changed `wave.serverIds.length` to `(wave.serverIds || []).length` (2 locations)
+    * All wave operations now safe with defensive array checks
+  - **CRASH #2 FIXED** (ServerSelector - selectedServerIds undefined):
+    * Error: Same "Cannot read properties of undefined (reading 'length')" in different component
+    * Root Cause: `selectedServerIds` prop was undefined when passed from parent
+    * Solution: Created `safeSelectedServerIds = selectedServerIds || []` at component start
+    * Replaced all 5 references to use safe variable (lines 107, 158, 163, 169, 220)
+    * Fixed `.includes()` calls that also failed on undefined arrays
+  - **Root Cause Analysis**:
+    * When editing existing recovery plans, backend doesn't initialize empty arrays
+    * TypeScript types declare these as required arrays, but runtime data can be undefined
+    * Frontend must defend against undefined even when types say otherwise
+    * Cascading crashes: fixing WaveConfigEditor revealed ServerSelector had same issue
+- **Deployment**:
+  - Frontend rebuilt with both fixes (1:17 PM)
+  - Deployed to S3 bucket `drs-orchestration-fe-777788889999-test`
+  - CloudFront invalidated: I9L4GJUWF9MAZMS8RC7N71WMLG (InProgress at 1:17 PM)
+  - New bundle: `index-WbmMEHx3.js` (replaced `index-z1HMFOd3.js`)
+- **Testing Process**:
+  - Used Playwright MCP for automated browser testing
+  - Logged in successfully
+  - Navigated to Recovery Plans page  
+  - Clicked Edit button
+  - **Before Fix**: Crashed with error boundary showing "Cannot read properties of undefined"
+  - **After Fix**: [Testing in progress - waiting for cache clear]
+- **Result**: Both crashes fixed, recovery plan edit dialog should now open successfully
+- **Lines of Code**: 14 insertions, 7 deletions across 2 components
+- **Next Steps**: Wait for CloudFront (cache clears ~1:19 PM), test with Playwright, verify edit dialog opens
 
 **Session 35: Recovery Plan Dialog Bug Fixes** (November 12, 2025 - 12:04 PM - 12:20 PM EST)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_122036.md`

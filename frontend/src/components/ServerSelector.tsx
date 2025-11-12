@@ -47,6 +47,9 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
   onChange,
   readonly = false,
 }) => {
+  // Defensive: ensure selectedServerIds is always an array
+  const safeSelectedServerIds = selectedServerIds || [];
+  
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,9 +102,9 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
   const handleToggle = (serverId: string) => {
     if (readonly) return;
 
-    const newSelection = selectedServerIds.includes(serverId)
-      ? selectedServerIds.filter(id => id !== serverId)
-      : [...selectedServerIds, serverId];
+    const newSelection = safeSelectedServerIds.includes(serverId)
+      ? safeSelectedServerIds.filter(id => id !== serverId)
+      : [...safeSelectedServerIds, serverId];
     
     onChange(newSelection);
   };
@@ -148,7 +151,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
       {/* Header with selection info */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          {selectedServerIds.length} of {servers.length} servers selected
+          {safeSelectedServerIds.length} of {servers.length} servers selected
         </Typography>
         {!readonly && (
           <Stack direction="row" spacing={1}>
@@ -157,14 +160,14 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
               size="small"
               onClick={handleSelectAll}
               clickable
-              disabled={selectedServerIds.length === filteredServers.length}
+              disabled={safeSelectedServerIds.length === filteredServers.length}
             />
             <Chip
               label="Deselect All"
               size="small"
               onClick={handleDeselectAll}
               clickable
-              disabled={selectedServerIds.length === 0}
+              disabled={safeSelectedServerIds.length === 0}
             />
           </Stack>
         )}
@@ -196,7 +199,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
                   key={server.id}
                   control={
                     <Checkbox
-                      checked={selectedServerIds.includes(server.id)}
+                      checked={safeSelectedServerIds.includes(server.id)}
                       onChange={() => handleToggle(server.id)}
                       disabled={readonly}
                     />
