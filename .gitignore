@@ -9,3 +9,13 @@ frontend/.DS_Store
 .DS_Store
 # Exclude conversation exports with potential secrets
 .cline_memory/
+
+# Screenshots and test files
+*.png
+test-*.html
+
+# Q developer cache
+.amazonq/
+
+# Lambda build artifacts
+lambda/*.zip
