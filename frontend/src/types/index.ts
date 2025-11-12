@@ -9,7 +9,8 @@
 // ============================================================================
 
 export interface ProtectionGroup {
-  protectionGroupId: string;
+  id: string;  // Lambda returns 'id' from transform_pg_to_camelcase
+  protectionGroupId: string;  // Alias for backward compatibility
   name: string;
   description?: string;
   region: string;
@@ -64,6 +65,7 @@ export interface Wave {
   serverCount?: number;
   executionType: 'sequential' | 'parallel';
   dependsOnWaves?: number[];
+  ProtectionGroupId?: string;  // Added - waves store their Protection Group ID
   preWaveActions?: WaveAction[];
   postWaveActions?: WaveAction[];
   healthCheckConfig?: HealthCheckConfig;
