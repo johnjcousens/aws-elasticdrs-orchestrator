@@ -376,6 +376,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     </Typography>
                     {wave.protectionGroupId ? (
                       <ServerSelector
+                        key={wave.protectionGroupId}
                         protectionGroupId={wave.protectionGroupId}
                         selectedServerIds={wave.serverIds}
                         onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
