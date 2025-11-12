@@ -22,6 +22,8 @@ import {
   Box,
   Typography,
   Divider,
+  Autocomplete,
+  Chip,
 } from '@mui/material';
 import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
@@ -49,16 +51,12 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [protectionGroupId, setProtectionGroupId] = useState('');
   const [waves, setWaves] = useState<Wave[]>([]);
   const [protectionGroups, setProtectionGroups] = useState<ProtectionGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showPgChangeConfirm, setShowPgChangeConfirm] = useState(false);
-  const [pendingPgId, setPendingPgId] = useState<string>('');
-  const [originalPgId, setOriginalPgId] = useState<string>('');
 
   // Load protection groups on mount
   useEffect(() => {
@@ -69,57 +67,27 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
   // Populate form when editing
   useEffect(() => {
-    if (plan) {
+    if (plan && protectionGroups.length > 0) {
       setName(plan.name);
       setDescription(plan.description || '');
-      // Extract Protection Group ID from first wave (PG IDs are stored in waves, not at root)
-      const firstWave = plan.waves?.[0];
-      const pgId = firstWave?.ProtectionGroupId || '';
-      setProtectionGroupId(pgId);
-      setOriginalPgId(pgId); // Store original for comparison
-      setWaves(plan.waves || []); // Default to empty array if undefined
-    } else {
+      
+      // Populate waves with their Protection Group IDs (camelCase for frontend)
+      // Use first PG as default if wave doesn't have one
+      const firstPgId = protectionGroups[0]?.protectionGroupId || '';
+      const wavesWithPgId = (plan.waves || []).map(w => ({
+        ...w,
+        protectionGroupId: w.ProtectionGroupId || firstPgId
+      }));
+      setWaves(wavesWithPgId);
+    } else if (!plan) {
       // Reset form for create mode
       setName('');
       setDescription('');
-      setProtectionGroupId('');
-      setOriginalPgId('');
       setWaves([]);
     }
     setErrors({});
     setError(null);
-  }, [plan, open]);
-
-  const handleProtectionGroupChange = (newPgId: string) => {
-    // If editing and PG is different from original, show confirmation
-    if (plan && originalPgId && newPgId !== originalPgId) {
-      setPendingPgId(newPgId);
-      setShowPgChangeConfirm(true);
-    } else {
-      // New plan or same PG - just update
-      setProtectionGroupId(newPgId);
-    }
-  };
-
-  const handleConfirmPgChange = () => {
-    // Apply the Protection Group change and reset all server selections in waves
-    setProtectionGroupId(pendingPgId);
-    
-    // Clear serverIds from all waves (keeps wave structure)
-    const clearedWaves = waves.map(wave => ({
-      ...wave,
-      serverIds: []
-    }));
-    setWaves(clearedWaves);
-    
-    setShowPgChangeConfirm(false);
-    setPendingPgId('');
-  };
-
-  const handleCancelPgChange = () => {
-    setShowPgChangeConfirm(false);
-    setPendingPgId('');
-  };
+  }, [plan, open, protectionGroups]);
 
   const fetchProtectionGroups = async () => {
     try {
@@ -140,12 +108,12 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       newErrors.name = 'Plan name is required';
     }
 
-    if (!protectionGroupId) {
-      newErrors.protectionGroupId = 'Protection group is required';
-    }
-
     if (waves.length === 0) {
       newErrors.waves = 'At least one wave is required';
+    }
+
+    if (waves.some(w => !w.protectionGroupId)) {
+      newErrors.waves = 'All waves must have a Protection Group selected';
     }
 
     if (waves.some(w => w.serverIds.length === 0)) {
@@ -166,7 +134,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       setError(null);
 
       if (plan) {
-        // Update existing plan - transform waves to backend format
+        // Update existing plan - each wave uses its own Protection Group
         const updateData = {
           PlanName: name,
           Description: description,
@@ -175,7 +143,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             WaveName: wave.name,
             WaveDescription: wave.description || '',
             ExecutionOrder: index,
-            ProtectionGroupId: protectionGroupId,
+            ProtectionGroupId: wave.protectionGroupId,  // Use wave's PG
             ServerIds: wave.serverIds,
             ExecutionType: wave.executionType,
             Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
@@ -186,21 +154,21 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData as any);
         onSave(updatedPlan);
       } else {
-        // Create new plan - transform to backend format
+        // Create new plan - each wave uses its own Protection Group
         const createData = {
           PlanName: name,
           Description: description,
-          AccountId: '777788889999', // TODO: Get from AWS config or user context
-          Region: 'us-east-1', // TODO: Get from selected protection group
-          Owner: 'demo-user', // TODO: Get from auth context
-          RPO: '1h',  // Recovery Point Objective - 1 hour default
-          RTO: '30m', // Recovery Time Objective - 30 minutes default
+          AccountId: '777788889999',
+          Region: 'us-east-1',
+          Owner: 'demo-user',
+          RPO: '1h',
+          RTO: '30m',
           Waves: waves.map((wave, index) => ({
             WaveId: `wave-${index}`,
             WaveName: wave.name,
             WaveDescription: wave.description || '',
             ExecutionOrder: index,
-            ProtectionGroupId: protectionGroupId,
+            ProtectionGroupId: wave.protectionGroupId,  // Use wave's PG
             ServerIds: wave.serverIds,
             ExecutionType: wave.executionType,
             Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
@@ -223,7 +191,6 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
   const handleClose = () => {
     setName('');
     setDescription('');
-    setProtectionGroupId('');
     setWaves([]);
     setErrors({});
     setError(null);
@@ -285,56 +252,14 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
             <Divider />
 
-            {/* Protection Group Selection */}
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Protection Group
-              </Typography>
-              <FormControl
-                fullWidth
-                error={!!errors.protectionGroupId}
-                required
-              >
-                <InputLabel>Protection Group</InputLabel>
-                <Select
-                  value={protectionGroupId}
-                  label="Protection Group"
-                  onChange={(e) => handleProtectionGroupChange(e.target.value)}
-                >
-                  {protectionGroups.map((group) => (
-                    <MenuItem key={group.protectionGroupId} value={group.protectionGroupId}>
-                      {group.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {errors.protectionGroupId && (
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
-                    {errors.protectionGroupId}
-                  </Typography>
-                )}
-              </FormControl>
-              {plan && (
-                <Alert severity="warning" sx={{ mt: 1 }}>
-                  Changing the Protection Group will clear all server selections from waves
-                </Alert>
-              )}
-            </Box>
-
-            <Divider />
-
             {/* Wave Configuration */}
             <Box>
-              {protectionGroupId ? (
-                <WaveConfigEditor
-                  waves={waves}
-                  protectionGroupId={protectionGroupId}
-                  onChange={setWaves}
-                />
-              ) : (
-                <Alert severity="info">
-                  Select a protection group to configure waves
-                </Alert>
-              )}
+              <WaveConfigEditor
+                waves={waves}
+                protectionGroupId={protectionGroups[0]?.protectionGroupId || ''}
+                protectionGroups={protectionGroups}
+                onChange={setWaves}
+              />
               {errors.waves && (
                 <Alert severity="error" sx={{ mt: 2 }}>
                   {errors.waves}
@@ -357,17 +282,6 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
           {loading ? 'Saving...' : plan ? 'Update Plan' : 'Create Plan'}
         </Button>
       </DialogActions>
-
-      {/* Protection Group Change Confirmation Dialog */}
-      <ConfirmDialog
-        open={showPgChangeConfirm}
-        title="Change Protection Group?"
-        message="Changing the Protection Group will clear all server selections from waves. You will need to re-select servers for each wave. Do you want to continue?"
-        onConfirm={handleConfirmPgChange}
-        onCancel={handleCancelPgChange}
-        confirmLabel="Change Protection Group"
-        confirmColor="warning"
-      />
     </Dialog>
   );
 };
