@@ -71,13 +71,20 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       setName(plan.name);
       setDescription(plan.description || '');
       
-      // Populate waves with their Protection Group IDs (camelCase for frontend)
+      // Populate waves with BOTH protectionGroupId and protectionGroupIds array
       // Use first PG as default if wave doesn't have one
       const firstPgId = protectionGroups[0]?.protectionGroupId || '';
-      const wavesWithPgId = (plan.waves || []).map(w => ({
-        ...w,
-        protectionGroupId: w.ProtectionGroupId || firstPgId
-      }));
+      const wavesWithPgId = (plan.waves || []).map(w => {
+        // Extract PG ID from various possible fields (backend sends both now)
+        const pgId = w.protectionGroupId || w.ProtectionGroupId || firstPgId;
+        const pgIds = w.protectionGroupIds || (pgId ? [pgId] : []);
+        
+        return {
+          ...w,
+          protectionGroupId: pgId,  // Single field for backward compatibility
+          protectionGroupIds: pgIds  // Array field for Autocomplete
+        };
+      });
       setWaves(wavesWithPgId);
     } else if (!plan) {
       // Reset form for create mode

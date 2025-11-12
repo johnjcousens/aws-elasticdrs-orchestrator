@@ -1335,7 +1335,8 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
             'serverIds': server_ids,  # Now guaranteed to be a list
             'executionType': wave.get('ExecutionType', 'sequential'),
             'dependsOnWaves': depends_on_waves,
-            'ProtectionGroupId': wave.get('ProtectionGroupId')  # Keep for backend reference
+            'protectionGroupId': wave.get('ProtectionGroupId'),  # camelCase for frontend
+            'protectionGroupIds': [wave.get('ProtectionGroupId')] if wave.get('ProtectionGroupId') else []  # Array format
         })
     
     return {
