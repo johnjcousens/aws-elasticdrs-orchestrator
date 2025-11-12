@@ -107,9 +107,9 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       setError(null);
 
       const groupData = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        region: region,
+        GroupName: name.trim(),
+        Description: description.trim() || undefined,
+        Region: region,
         sourceServerIds: selectedServerIds,
       };
 
@@ -117,7 +117,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 
       if (isEditMode && group) {
         // Update existing group
-        savedGroup = await apiClient.updateProtectionGroup(group.id, groupData);
+        savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData);
       } else {
         // Create new group
         savedGroup = await apiClient.createProtectionGroup(groupData);

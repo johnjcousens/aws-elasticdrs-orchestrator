@@ -237,7 +237,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                   onChange={(e) => setProtectionGroupId(e.target.value)}
                 >
                   {protectionGroups.map((group) => (
-                    <MenuItem key={group.id} value={group.id}>
+                    <MenuItem key={group.protectionGroupId} value={group.protectionGroupId}>
                       {group.name}
                     </MenuItem>
                   ))}

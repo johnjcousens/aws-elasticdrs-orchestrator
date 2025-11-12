@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { ServerListItem } from './ServerListItem';
-import { apiClient } from '../services/api';
+import apiClient from '../services/api';
 
 interface DRSServer {
   sourceServerID: string;
@@ -56,21 +56,21 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     setError(null);
     
     try {
-      const response = await apiClient.get(`/drs/source-servers?region=${region}`);
+      const response = await apiClient.listDRSSourceServers(region);
       
-      if (response.data.initialized === false) {
+      if (response.initialized === false) {
         setDrsInitialized(false);
-        setError(response.data.message);
+        setError(response.message);
         setServers([]);
       } else {
         setDrsInitialized(true);
-        setServers(response.data.servers || []);
+        setServers(response.servers || []);
       }
     } catch (err: any) {
       console.error('Error fetching servers:', err);
-      if (err.response?.data?.error === 'DRS_NOT_INITIALIZED') {
+      if (err.message?.includes('DRS_NOT_INITIALIZED') || err.message?.includes('not initialized')) {
         setDrsInitialized(false);
-        setError(err.response.data.message);
+        setError(err.message);
         setServers([]);
       } else {
         setError('Failed to fetch DRS source servers. Please try again.');

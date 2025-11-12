@@ -35,11 +35,8 @@ class ApiClient {
   private axiosInstance: AxiosInstance;
 
   constructor() {
-    // Get API endpoint from AWS config
-    const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
-    
+    // Don't read endpoint here - will be set dynamically in interceptor
     this.axiosInstance = axios.create({
-      baseURL: apiEndpoint,
       timeout: API_TIMEOUT,
       headers: {
         'Content-Type': 'application/json',
@@ -47,17 +44,19 @@ class ApiClient {
     });
 
     this.setupInterceptors();
-    
-    console.log('API Client initialized with endpoint:', apiEndpoint);
   }
 
   /**
    * Setup request and response interceptors
    */
   private setupInterceptors(): void {
-    // Request interceptor - Add authentication token
+    // Request interceptor - Set baseURL dynamically and add auth token
     this.axiosInstance.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
+        // Read endpoint fresh on each request (after window.AWS_CONFIG is loaded)
+        const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
+        config.baseURL = apiEndpoint;
+
         try {
           // Get the current authentication session
           const session = await fetchAuthSession();
@@ -288,6 +287,17 @@ class ApiClient {
    */
   public async resumeExecution(executionId: string): Promise<void> {
     return this.post<void>(`/executions/${executionId}/resume`);
+  }
+
+  // ============================================================================
+  // DRS Source Servers API
+  // ============================================================================
+
+  /**
+   * List DRS source servers in a region
+   */
+  public async listDRSSourceServers(region: string): Promise<any> {
+    return this.get<any>(`/drs/source-servers?region=${region}`);
   }
 
   // ============================================================================

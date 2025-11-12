@@ -71,8 +71,8 @@ export const ProtectionGroupsPage: React.FC = () => {
     if (!groupToDelete) return;
 
     try {
-      await apiClient.deleteProtectionGroup(groupToDelete.id);
-      setGroups(groups.filter(g => g.id !== groupToDelete.id));
+      await apiClient.deleteProtectionGroup(groupToDelete.protectionGroupId);
+      setGroups(groups.filter(g => g.protectionGroupId !== groupToDelete.protectionGroupId));
       toast.success(`Protection group "${groupToDelete.name}" deleted successfully`);
       setDeleteDialogOpen(false);
       setGroupToDelete(null);
@@ -129,29 +129,19 @@ export const ProtectionGroupsPage: React.FC = () => {
       renderCell: (params) => params.value || '-',
     },
     {
-      field: 'tagFilters',
-      headerName: 'Tag Filters',
-      width: 350,
-      sortable: false,
+      field: 'region',
+      headerName: 'Region',
+      width: 150,
+      sortable: true,
+    },
+    {
+      field: 'sourceServerIds',
+      headerName: 'Servers',
+      width: 100,
+      sortable: true,
       renderCell: (params) => {
-        // Handle cases where tagFilters might not be an array
-        const filters = Array.isArray(params.value) ? params.value : [];
-        
-        if (filters.length === 0) {
-          return <Typography variant="body2" color="text.secondary">-</Typography>;
-        }
-        
-        return (
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-            {filters.map((filter: any, idx: number) => (
-              <Chip
-                key={idx}
-                label={`${filter.key}: ${filter.values.join(', ')}`}
-                size="small"
-              />
-            ))}
-          </Stack>
-        );
+        const serverIds = params.value as string[] || [];
+        return <Typography variant="body2">{serverIds.length}</Typography>;
       },
     },
     {
@@ -174,11 +164,10 @@ export const ProtectionGroupsPage: React.FC = () => {
           showInMenu={false}
         />,
         <GridActionsCellItem
-          icon={<DeleteIcon />}
+          icon={<DeleteIcon color="error" />}
           label="Delete"
           onClick={() => handleDelete(params.row as ProtectionGroup)}
           showInMenu={false}
-          sx={{ color: 'error.main' }}
         />,
       ],
     },
@@ -186,7 +175,7 @@ export const ProtectionGroupsPage: React.FC = () => {
 
   // Transform data for DataGrid (requires 'id' field)
   const rows = useMemo(() => groups.map((group) => ({
-    id: group.id,
+    id: group.protectionGroupId,
     ...group,
   })), [groups]);
 

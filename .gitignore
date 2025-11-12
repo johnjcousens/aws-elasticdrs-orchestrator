@@ -7,3 +7,5 @@ tests/.DS_Store
 lambda/.DS_Store
 frontend/.DS_Store
 .DS_Store
+# Exclude conversation exports with potential secrets
+.cline_memory/
