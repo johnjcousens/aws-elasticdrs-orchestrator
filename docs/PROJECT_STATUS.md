@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 12, 2025 - 1:20 PM EST
+**Last Updated**: November 12, 2025 - 4:30 PM EST
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
@@ -8,11 +8,61 @@
 **Phase 7 Status**: ✅ COMPLETE (100% - All features including Executions backend)  
 **Deployment Status**: ✅ PRODUCTION-READY - TEST Environment Fully Operational
 **Overall MVP Progress**: 100% - ALL FEATURES COMPLETE 🎉
-**Last Deployment**: ✅ November 11, 2025 - 9:37 PM EST - Session 32 Complete
+**Last Deployment**: ✅ November 12, 2025 - 4:29 PM EST - Session 38 Complete
 
 ---
 
 ## 📜 Session Checkpoints
+
+**Session 38: Smart Protection Group Filtering & Auth Config Fix** (November 12, 2025 - 4:09 PM - 4:30 PM EST)
+- **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_163046.md`
+- **Git Commits**: 
+  - `fdca0a0` - fix(auth): Replace placeholder AWS config with real CloudFormation values
+  - `6e91d65` - feat(recovery-plans): Add smart Protection Group filtering to prevent server conflicts
+- **Summary**: Fixed authentication config issue and implemented intelligent Protection Group conflict prevention
+- **Modified Files**: (2 files, 46 insertions, 8 deletions)
+  - `frontend/public/aws-config.json` - Fixed placeholder values with real CloudFormation outputs
+  - `frontend/src/components/WaveConfigEditor.tsx` - Added smart PG availability filtering
+- **Technical Achievements**:
+  - **AUTHENTICATION FIX** (Login NetworkError → NotAuthorizedException):
+    * Issue: aws-config.json had placeholder values (REPLACE_WITH_API_ENDPOINT, etc.)
+    * Login failed with "NetworkError" trying to reach cognito-idp.replace.amazonaws.com
+    * Fetched real CloudFormation outputs from drs-orchestration-test stack
+    * Updated config with real values:
+      - apiEndpoint: https://etv40zymeg.execute-api.us-east-1.amazonaws.com/test
+      - userPoolId: us-east-1_tj03fVI31
+      - userPoolClientId: 7l8f5q9llq1qjbbte3u8f6pfbh
+      - identityPoolId: us-east-1:6e0ecacb-6e37-4569-aa5c-ba11021a7932
+    * Result: Login now connects to real Cognito (auth error changed from NetworkError to NotAuthorizedException - expected behavior)
+  - **SMART PG FILTERING IMPLEMENTED**:
+    * Issue: Protection Groups could be selected multiple times causing server conflicts
+    * Requirement: Each wave ONE PG, PGs with all servers assigned should be unavailable
+    * Added `getAvailableProtectionGroups()` function that:
+      - Calculates server availability per wave
+      - Tracks which servers are assigned to other waves
+      - Computes available server count for each PG
+    * Updated PG dropdown to show:
+      - "(All servers assigned)" for unavailable PGs (disabled)
+      - "(X of Y available)" for partially used PGs
+      - Visual feedback on server availability
+    * Example: Wave 1 uses PG-Database (3 servers) → Wave 2 sees "PG-Database (All servers assigned)" - DISABLED
+  - **TYPE SAFETY IMPROVED**:
+    * Changed WaveConfigEditor props to accept full ProtectionGroup objects
+    * Fixed TypeScript error accessing sourceServerIds
+    * Proper type interface with ProtectionGroup from types/index.ts
+- **Deployment**:
+  - Frontend rebuilt with Vite (new bundle: index-rOCCv-Xf.js)
+  - Deployed to S3: drs-orchestration-fe-777788889999-test
+  - CloudFront invalidated: I33P9KUH2MP1DH5BVPQJAZ9M4W (InProgress at 4:29 PM)
+  - Both fixes deployed and ready for testing
+- **Testing with Playwright MCP**:
+  - Used browser automation to diagnose auth issue
+  - Captured before/after console logs showing fix
+  - Confirmed: cognito-idp.replace.amazonaws.com → cognito-idp.us-east-1.amazonaws.com
+  - Authentication system now properly configured
+- **Result**: Auth config fixed, smart PG filtering prevents server conflicts, all changes deployed
+- **Lines of Code**: 46 insertions, 8 deletions across 2 files
+- **Next Steps**: Test login with valid credentials, verify PG filtering in wave configuration
 
 **Session 37: Recovery Plan Wave Data Fix - Backend Updated** (November 12, 2025 - 3:03 PM - 3:13 PM EST)
 - **Checkpoint**: `.cline_memory/conversations/conversation_export_20251112_151307.md`
