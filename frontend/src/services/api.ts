@@ -239,12 +239,23 @@ class ApiClient {
 
   /**
    * Execute a recovery plan
+   * 
+   * Note: Backend expects POST to /executions (not /recovery-plans/{id}/execute)
+   * with PlanId in the body, not as a path parameter.
    */
   public async executeRecoveryPlan(
-    id: string,
     data: ExecuteRecoveryPlanRequest
   ): Promise<Execution> {
-    return this.post<Execution>(`/recovery-plans/${id}/execute`, data);
+    // Transform frontend request to backend format
+    const backendRequest = {
+      PlanId: data.recoveryPlanId,
+      ExecutionType: 'DRILL', // Always DRILL for POC demo
+      InitiatedBy: data.executedBy || 'demo-user',
+      DryRun: data.dryRun || false,
+      TopicArn: data.topicArn || ''
+    };
+    
+    return this.post<Execution>('/executions', backendRequest);
   }
 
   // ============================================================================
