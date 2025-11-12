@@ -33,13 +33,13 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { ServerSelector } from './ServerSelector';
-import type { Wave } from '../types';
+import type { Wave, ProtectionGroup } from '../types';
 
 interface WaveConfigEditorProps {
   waves: Wave[];
   protectionGroupId: string;  // Keep for backward compatibility, use as default
-  protectionGroupIds?: string[];  // NEW: Array of available PG IDs
-  protectionGroups?: Array<{ protectionGroupId: string; name: string }>;  // NEW: For dropdown
+  protectionGroupIds?: string[];  // Array of available PG IDs
+  protectionGroups?: ProtectionGroup[];  // Full ProtectionGroup objects with sourceServerIds
   onChange: (waves: Wave[]) => void;
   readonly?: boolean;
 }
@@ -60,6 +60,36 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   const safeWaves = waves || [];
   
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
+
+  /**
+   * Calculate which Protection Groups are available for a specific wave
+   * A PG is unavailable if ALL its servers are already assigned to OTHER waves
+   */
+  const getAvailableProtectionGroups = (currentWaveNumber: number) => {
+    if (!protectionGroups || protectionGroups.length === 0) return [];
+
+    return protectionGroups.map(pg => {
+      // Get all servers from other waves using this PG
+      const otherWavesWithThisPg = safeWaves.filter(
+        w => w.waveNumber !== currentWaveNumber && w.protectionGroupId === pg.protectionGroupId
+      );
+
+      // Get all server IDs assigned to other waves for this PG
+      const assignedServerIds = new Set(
+        otherWavesWithThisPg.flatMap(w => w.serverIds)
+      );
+
+      // Calculate available servers (all servers in PG minus assigned ones)
+      const totalServers = pg.sourceServerIds?.length || 0;
+      const availableServerCount = totalServers - assignedServerIds.size;
+
+      return {
+        ...pg,
+        availableServerCount,
+        isAvailable: availableServerCount > 0
+      };
+    });
+  };
 
   const handleAddWave = () => {
     const newWave: Wave = {
@@ -315,9 +345,16 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                               handleUpdateWave(wave.waveNumber, 'serverIds', []);
                             }}
                           >
-                            {protectionGroups.map((pg) => (
-                              <MenuItem key={pg.protectionGroupId} value={pg.protectionGroupId}>
+                            {getAvailableProtectionGroups(wave.waveNumber).map((pg) => (
+                              <MenuItem 
+                                key={pg.protectionGroupId} 
+                                value={pg.protectionGroupId}
+                                disabled={!pg.isAvailable}
+                              >
                                 {pg.name}
+                                {!pg.isAvailable && ' (All servers assigned)'}
+                                {pg.isAvailable && pg.availableServerCount < (pg.sourceServerIds?.length || 0) && 
+                                  ` (${pg.availableServerCount} of ${pg.sourceServerIds?.length} available)`}
                               </MenuItem>
                             ))}
                           </Select>
