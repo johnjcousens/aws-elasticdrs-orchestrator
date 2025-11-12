@@ -603,6 +603,113 @@ aws cognito-idp admin-set-user-password \
 
 ---
 
+## Frontend Development Workflow
+
+### Making Frontend Changes
+
+When you modify frontend code, follow this workflow to ensure changes survive CloudFormation redeployment:
+
+**Step 1: Edit & Test Locally**
+```bash
+cd frontend
+
+# Edit source files in frontend/src/
+
+# Local development server
+npm run dev
+
+# Test changes at http://localhost:5173
+```
+
+**Step 2: Build Frontend**
+```bash
+# Option A: Quick build (for testing)
+npm run build
+
+# Option B: Full build with config injection (recommended)
+./build.sh
+```
+
+**Step 3: Commit Source Changes**
+```bash
+# Commit ONLY source code changes, not dist/
+git add frontend/src/ frontend/public/
+git commit -m "fix: Description of your changes"
+git push
+```
+
+**Step 4: Rebuild Lambda Package** ⚠️ **CRITICAL STEP**
+```bash
+# From project root
+./scripts/package-frontend-builder.sh
+```
+
+This script:
+- Builds fresh React app with your latest changes
+- Includes the built `dist/` folder in Lambda package
+- Packages Python dependencies (crhelper, boto3)
+- Creates `lambda/frontend-builder.zip` (~12MB)
+
+**Step 5: Commit Lambda Package**
+```bash
+git add lambda/frontend-builder.zip lambda/requirements.txt
+git commit -m "build: Rebuild Lambda package with latest frontend"
+git push
+```
+
+**Why This Matters:**
+- CloudFormation deploys `frontend-builder.zip` from your repo
+- Lambda extracts and uses the `frontend/dist/` folder inside the zip
+- If you don't rebuild the package, old code gets deployed
+- This is THE critical step for surviving redeployment
+
+### Build Infrastructure Files
+
+**frontend/public/aws-config.json** - Template with placeholders
+```json
+{
+  "region": "UPDATE_ME",
+  "userPoolId": "UPDATE_ME",
+  "userPoolClientId": "UPDATE_ME",
+  "apiEndpoint": "UPDATE_ME"
+}
+```
+- Vite copies `public/` → `dist/` during build
+- CloudFormation Lambda replaces placeholders with real values
+- Safe to commit (contains no secrets)
+
+**frontend/build.sh** - Automated build script
+```bash
+#!/bin/bash
+# Reads .env.test for credentials
+# Generates aws-config.json dynamically
+# Builds React app
+# Shows S3/CloudFront deployment commands
+```
+
+**lambda/requirements.txt** - Python dependencies
+```
+crhelper==2.0.11
+boto3==1.26.137
+```
+- Required for `build_and_deploy.py` Lambda function
+- Extracted from existing package if missing
+
+### Redeployment Checklist
+
+Before redeploying CloudFormation:
+
+- [ ] Frontend source changes committed to git
+- [ ] `npm run build` or `./build.sh` executed successfully
+- [ ] `./scripts/package-frontend-builder.sh` completed
+- [ ] `lambda/frontend-builder.zip` updated (check file size ~12MB)
+- [ ] Lambda package committed to git
+- [ ] Ready to deploy CloudFormation
+
+Now your changes will survive redeployment! ✅
+
+---
+
 ## Updating the Stack
 
 ### Update Process
