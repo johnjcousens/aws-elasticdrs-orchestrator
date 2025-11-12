@@ -149,6 +149,14 @@ def create_protection_group(body: Dict) -> Dict:
         
         # Create Protection Group with new schema
         timestamp = int(time.time())
+        
+        # Validate timestamp is not 0 or negative
+        if timestamp <= 0:
+            print(f"WARNING: Invalid timestamp generated: {timestamp}")
+            timestamp = int(time.time())  # Retry
+            if timestamp <= 0:
+                raise Exception("Failed to generate valid timestamp")
+        
         item = {
             'GroupId': group_id,
             'GroupName': name,
@@ -160,6 +168,8 @@ def create_protection_group(body: Dict) -> Dict:
             'CreatedDate': timestamp,
             'LastModifiedDate': timestamp
         }
+        
+        print(f"Creating Protection Group with timestamp: {timestamp} ({time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(timestamp))} UTC)")
         
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
@@ -420,11 +430,14 @@ def get_recovery_plans() -> Dict:
         result = recovery_plans_table.scan()
         plans = result.get('Items', [])
         
-        # Add wave counts
+        # Transform to camelCase for frontend
+        camelcase_plans = []
         for plan in plans:
+            # Add wave count before transformation
             plan['WaveCount'] = len(plan.get('Waves', []))
+            camelcase_plans.append(transform_rp_to_camelcase(plan))
         
-        return response(200, {'plans': plans, 'count': len(plans)})
+        return response(200, {'plans': camelcase_plans, 'count': len(camelcase_plans)})
         
     except Exception as e:
         print(f"Error listing Recovery Plans: {str(e)}")
@@ -435,12 +448,18 @@ def get_recovery_plan(plan_id: str) -> Dict:
     """Get a single Recovery Plan by ID"""
     try:
         result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
-        
+
         if 'Item' not in result:
             return response(404, {'error': 'Recovery Plan not found'})
+
+        plan = result['Item']
+        plan['WaveCount'] = len(plan.get('Waves', []))
         
-        return response(200, result['Item'])
+        # Transform to camelCase for frontend
+        camelcase_plan = transform_rp_to_camelcase(plan)
         
+        return response(200, camelcase_plan)
+
     except Exception as e:
         print(f"Error getting Recovery Plan: {str(e)}")
         return response(500, {'error': str(e)})
@@ -932,9 +951,14 @@ def handle_drs_source_servers(query_params: Dict) -> Dict:
     """Route DRS source servers discovery requests"""
     region = query_params.get('region')
     current_pg_id = query_params.get('currentProtectionGroupId')
+    filter_by_pg = query_params.get('filterByProtectionGroup')  # NEW: Filter mode
     
     if not region:
         return response(400, {'error': 'region parameter is required'})
+    
+    # NEW: If filtering by PG, return only that PG's servers
+    if filter_by_pg:
+        return get_protection_group_servers(filter_by_pg, region)
     
     return list_source_servers(region, current_pg_id)
 
@@ -1068,6 +1092,134 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
         })
 
 
+def get_protection_group_servers(pg_id: str, region: str) -> Dict:
+    """
+    Get servers that belong to a specific Protection Group
+    
+    Args:
+    - pg_id: Protection Group ID
+    - region: AWS region
+    
+    Returns:
+    - Response with servers from the Protection Group
+    """
+    print(f"Getting servers for Protection Group: {pg_id}")
+    
+    try:
+        # 1. Get the Protection Group
+        result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+        
+        if 'Item' not in result:
+            return response(404, {
+                'error': 'PROTECTION_GROUP_NOT_FOUND',
+                'message': f'Protection Group {pg_id} not found'
+            })
+        
+        pg = result['Item']
+        pg_server_ids = pg.get('SourceServerIds', [])
+        
+        if not pg_server_ids:
+            return response(200, {
+                'region': region,
+                'protectionGroupId': pg_id,
+                'protectionGroupName': pg.get('GroupName'),
+                'initialized': True,
+                'servers': [],
+                'totalCount': 0
+            })
+        
+        # 2. Query DRS for these specific servers
+        drs_client = boto3.client('drs', region_name=region)
+        
+        try:
+            servers_response = drs_client.describe_source_servers(
+                filters={
+                    'sourceServerIDs': pg_server_ids
+                }
+            )
+        except drs_client.exceptions.UninitializedAccountException:
+            return response(400, {
+                'error': 'DRS_NOT_INITIALIZED',
+                'message': f'DRS is not initialized in {region}',
+                'region': region,
+                'initialized': False
+            })
+        except Exception as e:
+            print(f"Error querying DRS: {str(e)}")
+            if 'UninitializedAccountException' in str(e) or 'not initialized' in str(e).lower():
+                return response(400, {
+                    'error': 'DRS_NOT_INITIALIZED',
+                    'message': f'DRS is not initialized in {region}',
+                    'region': region,
+                    'initialized': False
+                })
+            raise
+        
+        # 3. Build server list from DRS response
+        servers = []
+        for item in servers_response.get('items', []):
+            server_id = item['sourceServerID']
+            
+            # Extract server metadata
+            source_props = item.get('sourceProperties', {})
+            ident_hints = source_props.get('identificationHints', {})
+            hostname = ident_hints.get('hostname', 'Unknown')
+            
+            # Extract replication info
+            lifecycle = item.get('lifeCycle', {})
+            data_rep_info = item.get('dataReplicationInfo', {})
+            rep_state = data_rep_info.get('dataReplicationState', 'UNKNOWN')
+            lag_duration = data_rep_info.get('lagDuration', 'UNKNOWN')
+            
+            # Map replication state to lifecycle state for display
+            state_mapping = {
+                'STOPPED': 'STOPPED',
+                'INITIATING': 'INITIATING',
+                'INITIAL_SYNC': 'SYNCING',
+                'BACKLOG': 'SYNCING',
+                'CREATING_SNAPSHOT': 'SYNCING',
+                'CONTINUOUS': 'READY_FOR_RECOVERY',
+                'PAUSED': 'PAUSED',
+                'RESCAN': 'SYNCING',
+                'STALLED': 'STALLED',
+                'DISCONNECTED': 'DISCONNECTED'
+            }
+            display_state = state_mapping.get(rep_state, rep_state)
+            
+            servers.append({
+                'sourceServerID': server_id,
+                'hostname': hostname,
+                'state': display_state,
+                'replicationState': rep_state,
+                'lagDuration': lag_duration,
+                'lastSeen': lifecycle.get('lastSeenByServiceDateTime', ''),
+                'assignedToProtectionGroup': {
+                    'protectionGroupId': pg_id,
+                    'protectionGroupName': pg.get('GroupName')
+                },
+                'selectable': True  # All servers in this PG are selectable for waves
+            })
+        
+        # 4. Return server list
+        return response(200, {
+            'region': region,
+            'protectionGroupId': pg_id,
+            'protectionGroupName': pg.get('GroupName'),
+            'initialized': True,
+            'servers': servers,
+            'totalCount': len(servers)
+        })
+        
+    except Exception as e:
+        print(f"Error getting Protection Group servers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'INTERNAL_ERROR',
+            'message': f'Failed to get Protection Group servers: {str(e)}'
+        })
+
+
 def validate_server_assignments(server_ids: List[str], current_pg_id: Optional[str] = None) -> List[Dict]:
     """
     Validate that servers are not already assigned to other Protection Groups
@@ -1147,6 +1299,25 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
         'createdAt': pg.get('CreatedDate'),
         'updatedAt': pg.get('LastModifiedDate'),
         'serverDetails': pg.get('ServerDetails', [])
+    }
+
+
+def transform_rp_to_camelcase(rp: Dict) -> Dict:
+    """Transform Recovery Plan from DynamoDB PascalCase to frontend camelCase"""
+    return {
+        'id': rp.get('PlanId'),
+        'name': rp.get('PlanName'),
+        'description': rp.get('Description', ''),
+        'accountId': rp.get('AccountId'),
+        'region': rp.get('Region'),
+        'owner': rp.get('Owner'),
+        'rpo': rp.get('RPO'),
+        'rto': rp.get('RTO'),
+        'waves': rp.get('Waves', []),
+        'createdAt': rp.get('CreatedDate'),
+        'updatedAt': rp.get('LastModifiedDate'),
+        'lastExecutedAt': rp.get('LastExecutedDate'),
+        'waveCount': rp.get('WaveCount', len(rp.get('Waves', [])))
     }
 
 
