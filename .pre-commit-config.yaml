@@ -1,0 +1,82 @@
+# Pre-commit hooks for CloudFormation template validation
+# Run 'pre-commit install' to enable these hooks
+# Run 'pre-commit run --all-files' to check all files
+
+repos:
+  - repo: local
+    hooks:
+      - id: cfn-lint
+        name: CloudFormation Linter
+        description: Validate CloudFormation templates with cfn-lint
+        entry: make lint
+        language: system
+        files: '^templates/.*\.yaml$'
+        pass_filenames: false
+        always_run: false
+        
+      - id: yaml-syntax-check
+        name: YAML Syntax Check
+        description: Validate YAML syntax
+        entry: python3
+        args: ['-c', 'import sys, yaml; [yaml.safe_load(open(f)) for f in sys.argv[1:]]']
+        language: system
+        files: '\.ya?ml$'
+        
+      - id: template-validation
+        name: Template Validation Script
+        description: Run comprehensive template validation
+        entry: ./scripts/validate-templates.sh
+        language: system
+        files: '^templates/.*\.yaml$'
+        pass_filenames: false
+        always_run: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+        description: Remove trailing whitespace
+        
+      - id: end-of-file-fixer
+        name: Fix End of Files
+        description: Ensure files end with a newline
+        
+      - id: check-yaml
+        name: Check YAML
+        description: Validate YAML files
+        exclude: '^templates/.*\.yaml$'  # Use cfn-lint for CloudFormation templates
+        
+      - id: check-merge-conflict
+        name: Check for Merge Conflicts
+        description: Check for merge conflict markers
+        
+      - id: check-case-conflict
+        name: Check for Case Conflicts
+        description: Check for files with names that would conflict on case-insensitive filesystems
+        
+      - id: mixed-line-ending
+        name: Mixed Line Ending
+        description: Replaces or checks mixed line endings
+
+  - repo: https://github.com/jumanjihouse/pre-commit-hooks
+    rev: 3.0.0
+    hooks:
+      - id: markdownlint
+        name: Markdown Linter
+        description: Lint Markdown files
+        args: ['--config', '.markdownlint.json']
+        files: '\.md$'
+
+# Configuration for specific hooks
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

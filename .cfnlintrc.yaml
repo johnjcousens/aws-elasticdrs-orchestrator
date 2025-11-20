@@ -1,0 +1,19 @@
+# AWS CloudFormation Linter Configuration
+# Auto-generated for AWS-DRS-Orchestration on 2025-11-13 18:22:23
+
+ignore_checks:
+  - W2001  # Parameter not used - common in reusable templates
+  - W3005  # DependsOn may not be necessary - architectural choice
+
+regions:
+  - us-east-1
+  - us-west-2
+
+# Include template paths for this repository
+include_checks:
+  - I  # Informational checks
+  - W  # Warnings  
+  - E  # Errors
+
+# Template directories for AWS-DRS-Orchestration
+# Detected CloudFormation directories: Directory: cfn/
