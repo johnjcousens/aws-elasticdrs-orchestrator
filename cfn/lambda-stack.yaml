@@ -304,7 +304,7 @@ Resources:
       Code:
         S3Bucket: !Ref SourceBucket
         S3Key: 'lambda/frontend-builder.zip'
-      Timeout: 600
+      Timeout: 900
       MemorySize: 2048
       Environment:
         Variables:
