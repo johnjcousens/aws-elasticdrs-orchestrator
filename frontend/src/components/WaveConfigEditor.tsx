@@ -121,8 +121,8 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       serverIds: [],
       executionType: 'sequential',
       dependsOnWaves: [],
-      protectionGroupIds: protectionGroupId ? [protectionGroupId] : [],  // Convert to array for multi-PG support
-      protectionGroupId: protectionGroupId,  // Keep for backward compatibility
+      protectionGroupIds: [],  // Empty - user must select PG
+      protectionGroupId: '',  // Empty - no default
     };
     onChange([...safeWaves, newWave]);
     setExpandedWave(safeWaves.length);
@@ -181,14 +181,6 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
     // Waves can only depend on previous waves to prevent circular dependencies
     return Array.from({ length: currentWaveNumber }, (_, i) => i);
   };
-
-  if (!protectionGroupId) {
-    return (
-      <Alert severity="warning">
-        Please select a protection group before configuring waves.
-      </Alert>
-    );
-  }
 
   return (
     <Box>
@@ -357,71 +349,68 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                   <Divider />
 
                   {/* Protection Group Selection - Multi-Select (VMware SRM Parity) */}
-                  {protectionGroups && protectionGroups.length > 0 && (
-                    <>
-                      <Box>
-                        <Typography variant="subtitle2" gutterBottom>
-                          Protection Groups
-                        </Typography>
-                        <Autocomplete
-                          multiple
-                          value={getAvailableProtectionGroups(wave.waveNumber).filter(pg => 
-                            (wave.protectionGroupIds || []).includes(pg.protectionGroupId)
-                          )}
-                          options={getAvailableProtectionGroups(wave.waveNumber)}
-                          getOptionLabel={(pg) => pg.name}
-                          getOptionDisabled={(pg) => !pg.isAvailable}
-                          isOptionEqualToValue={(option, value) => 
-                            option.protectionGroupId === value.protectionGroupId
-                          }
-                          onChange={(_event, newValue) => {
-                            const pgIds = newValue.map(pg => pg.protectionGroupId);
-                            handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
-                            // Keep protectionGroupId in sync for backward compatibility
-                            handleUpdateWave(wave.waveNumber, 'protectionGroupId', pgIds[0] || '');
-                            // CRITICAL: Clear server selections when PGs change (servers belong to different PGs)
-                            handleUpdateWave(wave.waveNumber, 'serverIds', []);
-                          }}
-                          renderInput={(params) => (
-                            <TextField 
-                              {...params} 
-                              label="Protection Groups" 
-                              placeholder="Select one or more Protection Groups"
-                              required
-                              helperText="Multiple Protection Groups can be selected per wave (VMware SRM parity)"
-                            />
-                          )}
-                          renderTags={(value, getTagProps) =>
-                            value.map((pg, index) => {
-                              const availableCount = pg.availableServerCount || 0;
-                              const totalCount = pg.sourceServerIds?.length || 0;
-                              return (
-                                <Chip
-                                  label={`${pg.name} (${availableCount}/${totalCount})`}
-                                  {...getTagProps({ index })}
-                                  color={availableCount > 0 ? "primary" : "default"}
-                                  size="small"
-                                />
-                              );
-                            })
-                          }
-                          disabled={readonly}
-                          fullWidth
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Protection Groups
+                    </Typography>
+                    <Autocomplete
+                      multiple
+                      value={getAvailableProtectionGroups(wave.waveNumber).filter(pg => 
+                        (wave.protectionGroupIds || []).includes(pg.protectionGroupId)
+                      )}
+                      options={getAvailableProtectionGroups(wave.waveNumber)}
+                      getOptionLabel={(pg) => pg.name}
+                      getOptionDisabled={(pg) => !pg.isAvailable}
+                      isOptionEqualToValue={(option, value) => 
+                        option.protectionGroupId === value.protectionGroupId
+                      }
+                      onChange={(_event, newValue) => {
+                        const pgIds = newValue.map(pg => pg.protectionGroupId);
+                        handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
+                        // Keep protectionGroupId in sync for backward compatibility
+                        handleUpdateWave(wave.waveNumber, 'protectionGroupId', pgIds[0] || '');
+                        // CRITICAL: Clear server selections when PGs change (servers belong to different PGs)
+                        handleUpdateWave(wave.waveNumber, 'serverIds', []);
+                      }}
+                      renderInput={(params) => (
+                        <TextField 
+                          {...params} 
+                          label="Protection Groups" 
+                          placeholder="Select one or more Protection Groups"
+                          required
+                          helperText="Multiple Protection Groups can be selected per wave (VMware SRM parity)"
                         />
-                        {(wave.protectionGroupIds || []).length === 0 && (
-                          <Alert severity="warning" sx={{ mt: 1 }}>
-                            Please select at least one Protection Group for this wave
-                          </Alert>
-                        )}
-                        {(wave.protectionGroupIds || []).length > 1 && (
-                          <Alert severity="info" sx={{ mt: 1 }}>
-                            Multiple Protection Groups selected (VMware SRM behavior). Servers from all selected PGs will be available for this wave.
-                          </Alert>
-                        )}
-                      </Box>
-                      <Divider />
-                    </>
-                  )}
+                      )}
+                      renderTags={(value, getTagProps) =>
+                        value.map((pg, index) => {
+                          const availableCount = pg.availableServerCount || 0;
+                          const totalCount = pg.sourceServerIds?.length || 0;
+                          return (
+                            <Chip
+                              label={`${pg.name} (${availableCount}/${totalCount})`}
+                              {...getTagProps({ index })}
+                              color={availableCount > 0 ? "primary" : "default"}
+                              size="small"
+                            />
+                          );
+                        })
+                      }
+                      disabled={readonly}
+                      fullWidth
+                    />
+                    {(wave.protectionGroupIds || []).length === 0 && (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        Please select at least one Protection Group for this wave
+                      </Alert>
+                    )}
+                    {(wave.protectionGroupIds || []).length > 1 && (
+                      <Alert severity="info" sx={{ mt: 1 }}>
+                        Multiple Protection Groups selected (VMware SRM behavior). Servers from all selected PGs will be available for this wave.
+                      </Alert>
+                    )}
+                  </Box>
+
+                  <Divider />
 
                   {/* Server Selection */}
                   <Box>
