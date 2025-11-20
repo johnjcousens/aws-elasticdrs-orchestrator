@@ -96,6 +96,8 @@ Resources:
   # Database Stack - DynamoDB Tables
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/database-stack.yaml'
       Parameters:
@@ -111,6 +113,8 @@ Resources:
   # Lambda Stack - Lambda Functions and IAM Roles
   LambdaStack:
     Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     DependsOn: DatabaseStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/lambda-stack.yaml'
@@ -132,6 +136,8 @@ Resources:
   # API Stack - Cognito, API Gateway, Step Functions
   ApiStack:
     Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     DependsOn:
       - DatabaseStack
       - LambdaStack
@@ -159,8 +165,8 @@ Resources:
   # Frontend Stack - S3, CloudFront, Custom Resources
   FrontendStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     DependsOn:
       - LambdaStack
       - ApiStack
