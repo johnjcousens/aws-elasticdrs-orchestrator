@@ -263,7 +263,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             <Box>
               <WaveConfigEditor
                 waves={waves}
-                protectionGroupId={protectionGroups[0]?.protectionGroupId || ''}
+                protectionGroupId=""
                 protectionGroups={protectionGroups}
                 onChange={setWaves}
               />

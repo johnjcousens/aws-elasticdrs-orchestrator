@@ -473,8 +473,22 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         if 'Item' not in result:
             return response(404, {'error': 'Recovery Plan not found'})
         
-        # Validate waves if provided
+        # NEW: Pre-write validation for Waves
         if 'Waves' in body:
+            print(f"Updating plan {plan_id} with {len(body['Waves'])} waves")
+            
+            # DEFENSIVE: Validate ServerIds in each wave
+            for idx, wave in enumerate(body['Waves']):
+                server_ids = wave.get('ServerIds', [])
+                if not isinstance(server_ids, list):
+                    print(f"ERROR: Wave {idx} ServerIds is not a list: {type(server_ids)}")
+                    return response(400, {
+                        'error': 'INVALID_WAVE_DATA',
+                        'message': f'Wave {idx} has invalid ServerIds format (must be array)',
+                        'waveIndex': idx
+                    })
+                print(f"Wave {idx}: {wave.get('WaveName')} - {len(server_ids)} servers")
+            
             validation_error = validate_waves(body['Waves'])
             if validation_error:
                 return response(400, {'error': validation_error})
@@ -517,28 +531,54 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
 
 def delete_recovery_plan(plan_id: str) -> Dict:
-    """Delete a Recovery Plan"""
+    """Delete a Recovery Plan if no active executions exist"""
     try:
-        # Check for active executions using scan (doesn't require GSI)
-        executions_result = execution_history_table.scan(
-            FilterExpression=Attr('PlanId').eq(plan_id) & Attr('Status').eq('RUNNING')
-        )
+        # OPTION 1: Query with GSI if available (preferred), FALLBACK to scan
+        try:
+            executions_result = execution_history_table.query(
+                IndexName='PlanIdIndex',
+                KeyConditionExpression=Key('PlanId').eq(plan_id),
+                FilterExpression=Attr('Status').eq('RUNNING'),
+                Limit=1  # Only need to find one
+            )
+        except Exception as gsi_error:
+            # FALLBACK: GSI doesn't exist or error, use scan
+            print(f"GSI query failed, falling back to scan: {gsi_error}")
+            executions_result = execution_history_table.scan(
+                FilterExpression=Attr('PlanId').eq(plan_id) & Attr('Status').eq('RUNNING'),
+                Limit=1
+            )
         
+        # Check if any active executions found
         if executions_result.get('Items'):
-            return response(400, {
-                'error': 'Cannot delete Recovery Plan with active executions',
-                'activeExecutions': len(executions_result['Items'])
+            active_count = len(executions_result['Items'])
+            print(f"Cannot delete plan {plan_id}: {active_count} active execution(s)")
+            return response(409, {  # Conflict
+                'error': 'PLAN_HAS_ACTIVE_EXECUTIONS',
+                'message': f'Cannot delete Recovery Plan with {active_count} active execution(s)',
+                'activeExecutions': active_count,
+                'planId': plan_id
             })
         
-        # Delete the plan
+        # No active executions, safe to delete
+        print(f"Deleting Recovery Plan: {plan_id}")
         recovery_plans_table.delete_item(Key={'PlanId': plan_id})
         
-        print(f"Deleted Recovery Plan: {plan_id}")
-        return response(200, {'message': 'Recovery Plan deleted successfully'})
+        print(f"Successfully deleted Recovery Plan: {plan_id}")
+        return response(200, {
+            'message': 'Recovery Plan deleted successfully',
+            'planId': plan_id
+        })
         
     except Exception as e:
-        print(f"Error deleting Recovery Plan: {str(e)}")
-        return response(500, {'error': str(e)})
+        print(f"Error deleting Recovery Plan {plan_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'DELETE_FAILED',
+            'message': f'Failed to delete Recovery Plan: {str(e)}',
+            'planId': plan_id
+        })
 
 
 # ============================================================================
@@ -1306,7 +1346,22 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
     # Transform waves array from backend PascalCase to frontend camelCase
     waves = []
     for idx, wave in enumerate(rp.get('Waves', [])):
-        # Extract dependency wave numbers from WaveId format (e.g., "wave-0" -> 0)
+        # CRITICAL FIX: Defensive ServerIds extraction with recovery logic
+        server_ids = wave.get('ServerIds', [])
+        
+        # DEFENSIVE: Ensure we have a list (boto3 deserialization issue)
+        if not isinstance(server_ids, list):
+            print(f"ERROR: ServerIds is not a list for wave {idx}, got type {type(server_ids)}: {server_ids}")
+            # Attempt recovery: wrap in list if string, empty list otherwise
+            if isinstance(server_ids, str):
+                server_ids = [server_ids]
+            else:
+                server_ids = []
+        
+        # LOGGING: Track transformation for debugging
+        print(f"Transforming wave {idx}: name={wave.get('WaveName')}, serverIds={server_ids}, count={len(server_ids)}")
+        
+        # Extract dependency wave numbers from WaveId format
         depends_on_waves = []
         for dep in wave.get('Dependencies', []):
             wave_id = dep.get('DependsOnWaveId', '')
@@ -1314,19 +1369,8 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
                 try:
                     wave_num = int(wave_id.split('-')[-1])
                     depends_on_waves.append(wave_num)
-                except (ValueError, IndexError):
-                    pass
-        
-        # ROBUST: Extract ServerIds with multiple fallback strategies
-        server_ids = wave.get('ServerIds', [])
-        
-        # Handle boto3 deserialization - ensure we have a list
-        if not isinstance(server_ids, list):
-            print(f"WARNING: ServerIds is not a list, got type {type(server_ids)}: {server_ids}")
-            server_ids = []
-        
-        # DEFENSIVE: Log wave transformation for debugging
-        print(f"Transforming wave {idx}: name={wave.get('WaveName')}, serverIds count={len(server_ids)}")
+                except (ValueError, IndexError) as e:
+                    print(f"WARNING: Failed to parse dependency wave ID '{wave_id}': {e}")
         
         waves.append({
             'waveNumber': idx,
