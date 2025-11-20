@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 20, 2025 - 1:46 PM EST
+**Last Updated**: November 20, 2025 - 1:53 PM EST
 **Version**: 1.0.0-beta  
 **Overall MVP Progress**: 100% - ALL FEATURES COMPLETE 🎉
 
@@ -8,9 +8,26 @@
 
 ## 📜 Session Checkpoints
 
-**Session 7: DeletionPolicy Bug Fix - All Nested Stacks** (November 20, 2025 - 1:45 PM - 1:46 PM EST)
-- **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_134613_d4e783_2025-11-20_13-46-13.md`
+**Session 8: Snapshot Workflow Rule Update - Automatic new_task** (November 20, 2025 - 1:49 PM - 1:53 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_135256_760e0a_2025-11-20_13-52-56.md`
 - **Git Commit**: [pending]
+- **Summary**: Updated global snapshot-workflow.md to automatically create new_task with preserved context
+- **Modified Files**: (1 file)
+  - /Users/jocousen/Documents/Cline/Rules/snapshot-workflow.md (added Step 5: auto new_task)
+- **Deleted Files**: (1 file)
+  - .clinerules (removed redundant local rule file)
+- **Technical Achievements**:
+  - ✅ Added Step 5 to global snapshot workflow: automatic new_task creation
+  - ✅ Preserved context structure defined (summary, technical context, file state, next steps)
+  - ✅ Removed redundant local .clinerules file (global rules apply to all projects)
+  - ✅ Snapshot workflow now seamlessly transitions to fresh task with zero context loss
+- **Result**: Snapshot command now automatically creates new task with preserved context
+- **Lines of Code**: ~50 lines added to global rule
+- **Next Steps**: Upload fixed templates to S3 and redeploy stack to validate deletion cascade behavior
+
+**Session 7: DeletionPolicy Bug Fix - All Nested Stacks** (November 20, 2025 - 1:45 PM - 1:47 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_134613_d4e783_2025-11-20_13-46-13.md`
+- **Git Commit**: `4324411` - fix(cfn): Add DeletionPolicy to all nested stacks
 - **Summary**: Fixed DeletionPolicy bug - all 4 nested stacks now properly cascade delete
 - **Modified Files**: (2 files, ~8 insertions)
   - cfn/master-template.yaml (added DeletionPolicy to 4 nested stacks)
