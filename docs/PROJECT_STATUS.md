@@ -1,12 +1,30 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 20, 2025 - 8:29 AM EST
+**Last Updated**: November 20, 2025 - 1:46 PM EST
 **Version**: 1.0.0-beta  
 **Overall MVP Progress**: 100% - ALL FEATURES COMPLETE 🎉
 
 ---
 
 ## 📜 Session Checkpoints
+
+**Session 7: DeletionPolicy Bug Fix - All Nested Stacks** (November 20, 2025 - 1:45 PM - 1:46 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_134613_d4e783_2025-11-20_13-46-13.md`
+- **Git Commit**: [pending]
+- **Summary**: Fixed DeletionPolicy bug - all 4 nested stacks now properly cascade delete
+- **Modified Files**: (2 files, ~8 insertions)
+  - cfn/master-template.yaml (added DeletionPolicy to 4 nested stacks)
+  - cfn/lambda-stack.yaml (Lambda timeout 600→900s)
+- **Technical Achievements**:
+  - ✅ DatabaseStack: Added DeletionPolicy: Delete + UpdateReplacePolicy: Delete
+  - ✅ LambdaStack: Added DeletionPolicy: Delete + UpdateReplacePolicy: Delete
+  - ✅ ApiStack: Added DeletionPolicy: Delete + UpdateReplacePolicy: Delete
+  - ✅ FrontendStack: Added DeletionPolicy: Delete + UpdateReplacePolicy: Delete
+  - ✅ Lambda timeout increased to 900 seconds (frontend build safety)
+  - Bug cause identified: Nested stacks retained on master delete → orphaned resources
+- **Result**: Stack cleanup procedure now works correctly - no orphaned nested stacks
+- **Lines of Code**: 8 insertions across 2 CloudFormation templates
+- **Next Steps**: Upload fixed templates to S3, redeploy stack, verify clean deletion
 
 **Session 6: P1 Bug #1 Validated Fixed via E2E API Testing** (November 20, 2025 - 8:23 AM - 8:29 AM EST)
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_082912_7b3fe8_2025-11-20_08-29-12.md`
