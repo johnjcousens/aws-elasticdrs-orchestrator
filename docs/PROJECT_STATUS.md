@@ -8,9 +8,9 @@
 
 ## 📜 Session Checkpoints
 
-**Session 11: DeletionPolicy & S3 Cleanup Validation** (November 20, 2025 - 2:09 PM - 2:26 PM EST)
-- **Checkpoint**: N/A - Deployment validation session
-- **Git Commit**: [Pending] - docs: Session 11 - Validated both Session 7 & 10 fixes
+**Session 11: DeletionPolicy & S3 Cleanup Validation + Best Known Config** (November 20, 2025 - 2:09 PM - 2:39 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_143919_7160a0_2025-11-20_14-39-19.md`
+- **Git Commit**: `fae6519` - docs: Update README with Best-Known-Config tag
 - **Summary**: ✅ BOTH FIXES VALIDATED - Deployed test stack, confirmed DeletionPolicy cascade deletion AND S3 cleanup Lambda working
 - **Modified Files**: (1 file)
   - docs/DELETION_POLICY_BUG.md (added validation results section)
