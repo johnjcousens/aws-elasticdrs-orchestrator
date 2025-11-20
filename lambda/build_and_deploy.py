@@ -258,9 +258,61 @@ def get_content_type(filename):
 
 @helper.delete
 def delete(event, context):
-    """No-op for Delete - S3 cleanup handles bucket emptying"""
-    print("Frontend Builder: Delete event - S3 cleanup handles bucket emptying")
-    return None
+    """Empty S3 bucket before CloudFormation deletes it"""
+    properties = event['ResourceProperties']
+    bucket_name = properties['BucketName']
+    
+    print(f"Frontend Builder: Emptying bucket {bucket_name} before deletion...")
+    
+    try:
+        # Delete all objects (including versions if versioning enabled)
+        paginator = s3.get_paginator('list_object_versions')
+        
+        delete_count = 0
+        for page in paginator.paginate(Bucket=bucket_name):
+            # Collect all objects and delete markers
+            objects_to_delete = []
+            
+            # Add regular versions
+            if 'Versions' in page:
+                for version in page['Versions']:
+                    objects_to_delete.append({
+                        'Key': version['Key'],
+                        'VersionId': version['VersionId']
+                    })
+            
+            # Add delete markers
+            if 'DeleteMarkers' in page:
+                for marker in page['DeleteMarkers']:
+                    objects_to_delete.append({
+                        'Key': marker['Key'],
+                        'VersionId': marker['VersionId']
+                    })
+            
+            # Delete objects in batches of 1000 (AWS limit)
+            if objects_to_delete:
+                s3.delete_objects(
+                    Bucket=bucket_name,
+                    Delete={'Objects': objects_to_delete}
+                )
+                delete_count += len(objects_to_delete)
+                print(f"  Deleted {len(objects_to_delete)} objects/versions")
+        
+        print(f"✅ Bucket emptied successfully. Total objects deleted: {delete_count}")
+        return None
+        
+    except s3.exceptions.NoSuchBucket:
+        print(f"Bucket {bucket_name} doesn't exist - skipping cleanup")
+        return None
+        
+    except Exception as e:
+        error_msg = f"Error emptying bucket {bucket_name}: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        # Don't raise - allow stack deletion to continue even if cleanup fails
+        print("⚠️  Continuing with stack deletion despite cleanup error")
+        return None
 
 
 def lambda_handler(event, context):
