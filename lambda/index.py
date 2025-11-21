@@ -382,26 +382,31 @@ def handle_recovery_plans(method: str, path_params: Dict, body: Dict) -> Dict:
 def create_recovery_plan(body: Dict) -> Dict:
     """Create a new Recovery Plan"""
     try:
-        # Validate required fields
-        required_fields = ['PlanName', 'Description', 'AccountId', 'Region', 'Owner', 'RPO', 'RTO']
-        for field in required_fields:
-            if field not in body:
-                return response(400, {'error': f'Missing required field: {field}'})
+        # Validate required fields (VMware SRM model)
+        if 'PlanName' not in body:
+            return response(400, {'error': 'Missing required field: PlanName'})
+        
+        if 'Waves' not in body or not body['Waves']:
+            return response(400, {'error': 'At least one Wave is required'})
+        
+        # Validate unique name (case-insensitive, global across all users)
+        plan_name = body['PlanName']
+        if not validate_unique_rp_name(plan_name):
+            return response(409, {  # Conflict
+                'error': 'RP_NAME_EXISTS',
+                'message': f'A Recovery Plan named "{plan_name}" already exists',
+                'existingName': plan_name
+            })
         
         # Generate UUID for PlanId
         plan_id = str(uuid.uuid4())
         
-        # Create Recovery Plan item
+        # Create Recovery Plan item (VMware SRM model - minimal required fields)
         timestamp = int(time.time())
         item = {
             'PlanId': plan_id,
             'PlanName': body['PlanName'],
-            'Description': body['Description'],
-            'AccountId': body['AccountId'],
-            'Region': body['Region'],
-            'Owner': body['Owner'],
-            'RPO': body['RPO'],
-            'RTO': body['RTO'],
+            'Description': body.get('Description', ''),  # Optional
             'Waves': body.get('Waves', []),
             'CreatedDate': timestamp,
             'LastModifiedDate': timestamp
@@ -472,6 +477,17 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
         if 'Item' not in result:
             return response(404, {'error': 'Recovery Plan not found'})
+        
+        existing_plan = result['Item']
+        
+        # Validate unique name if changing
+        if 'PlanName' in body and body['PlanName'] != existing_plan.get('PlanName'):
+            if not validate_unique_rp_name(body['PlanName'], plan_id):
+                return response(409, {
+                    'error': 'RP_NAME_EXISTS',
+                    'message': f'A Recovery Plan named "{body["PlanName"]}" already exists',
+                    'existingName': body['PlanName']
+                })
         
         # NEW: Pre-write validation for Waves
         if 'Waves' in body:
@@ -1314,6 +1330,34 @@ def validate_unique_pg_name(name: str, current_pg_id: Optional[str] = None) -> b
             continue
         
         existing_name = pg.get('GroupName') or pg.get('name', '')
+        if existing_name.lower() == name_lower:
+            return False
+    
+    return True
+
+
+def validate_unique_rp_name(name: str, current_rp_id: Optional[str] = None) -> bool:
+    """
+    Validate that Recovery Plan name is unique (case-insensitive)
+    
+    Args:
+    - name: Recovery Plan name to validate
+    - current_rp_id: Optional RP ID to exclude (for edit operations)
+    
+    Returns:
+    - True if unique, False if duplicate exists
+    """
+    rp_response = recovery_plans_table.scan()
+    
+    name_lower = name.lower()
+    for rp in rp_response.get('Items', []):
+        rp_id = rp.get('PlanId')
+        
+        # Skip current RP when editing
+        if current_rp_id and rp_id == current_rp_id:
+            continue
+        
+        existing_name = rp.get('PlanName', '')
         if existing_name.lower() == name_lower:
             return False
     
