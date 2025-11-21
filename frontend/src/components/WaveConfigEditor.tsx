@@ -346,19 +346,24 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
 
                   <Divider />
 
-                  {/* Protection Group Selection - Multi-Select (VMware SRM Parity) */}
+                  {/* Protection Group Selection - Multi-Select Support */}
                   <Box>
                     <Typography variant="subtitle2" gutterBottom>
                       Protection Groups
                     </Typography>
                     <Autocomplete
                       multiple
-                      value={getAvailableProtectionGroups(wave.waveNumber).filter(pg => 
+                      value={(protectionGroups || []).filter(pg => 
                         (wave.protectionGroupIds || []).includes(pg.protectionGroupId)
                       )}
-                      options={getAvailableProtectionGroups(wave.waveNumber)}
-                      getOptionLabel={(pg) => pg.name}
-                      getOptionDisabled={() => false}  // Allow selecting any PG - validation happens at server selection
+                      options={protectionGroups || []}
+                      getOptionLabel={(pg) => {
+                        const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
+                        const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
+                        const availableCount = availableInfo?.availableServerCount || 0;
+                        const totalCount = pg.sourceServerIds?.length || 0;
+                        return `${pg.name} (${availableCount}/${totalCount} available)`;
+                      }}
                       isOptionEqualToValue={(option, value) => 
                         option.protectionGroupId === value.protectionGroupId
                       }
@@ -367,7 +372,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                         handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
                         // Keep protectionGroupId in sync for backward compatibility
                         handleUpdateWave(wave.waveNumber, 'protectionGroupId', pgIds[0] || '');
-                        // CRITICAL: Clear server selections when PGs change (servers belong to different PGs)
+                        // Clear server selections when PGs change
                         handleUpdateWave(wave.waveNumber, 'serverIds', []);
                       }}
                       renderInput={(params) => (
@@ -376,12 +381,14 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                           label="Protection Groups" 
                           placeholder="Select one or more Protection Groups"
                           required
-                          helperText="Multiple Protection Groups can be selected per wave (VMware SRM parity)"
+                          helperText="Multiple Protection Groups can be selected per wave"
                         />
                       )}
                       renderTags={(value, getTagProps) =>
                         value.map((pg, index) => {
-                          const availableCount = pg.availableServerCount || 0;
+                          const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
+                          const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
+                          const availableCount = availableInfo?.availableServerCount || 0;
                           const totalCount = pg.sourceServerIds?.length || 0;
                           return (
                             <Chip
@@ -403,7 +410,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     )}
                     {(wave.protectionGroupIds || []).length > 1 && (
                       <Alert severity="info" sx={{ mt: 1 }}>
-                        Multiple Protection Groups selected (VMware SRM behavior). Servers from all selected PGs will be available for this wave.
+                        Multiple Protection Groups selected. Servers from all selected Protection Groups will be available for this wave.
                       </Alert>
                     )}
                   </Box>
