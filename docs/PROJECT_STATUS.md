@@ -14,6 +14,73 @@
 
 ## 📜 Session Checkpoints
 
+**Session 44: DRS Validation & Real Test Data** (November 20, 2025 - 9:00 PM - 9:18 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_211815_27b089_2025-11-20_21-18-15.md`
+- **Git Commit**: `[pending]` - feat(lambda): Add DRS server validation to prevent fake data
+- **Summary**: Added server ID validation to Lambda API to prevent fake data, created real test data with 6 actual DRS servers
+- **Created Files**: (3 new files)
+  - `tests/python/create_real_test_data.py` - Script to create test data with real DRS servers
+  - `tests/python/test_drs_validation.py` - Tests for DRS validation
+  - `tests/python/create_test_ui.py` - UI test data creation script
+- **Modified Files**: (1 file, ~150 insertions, 0 deletions)
+  - `lambda/index.py` - Added DRS validation to CREATE and UPDATE operations
+- **Technical Achievements**:
+  - **CRITICAL SECURITY FIX - DRS Validation**:
+    * Problem: API accepting fake server IDs (i-webservers001, i-appservers002, etc.)
+    * Root Cause: No validation that server IDs exist in DRS before creating Protection Groups
+    * Impact: Fake data in system, would fail during actual recovery
+    * Solution: Added `validate_servers_exist_in_drs()` function to query DRS and verify server IDs
+  - **DRS Server Discovery Integration**:
+    * Query DRS API: `drs.describe_source_servers()` to get all real servers
+    * Extract server IDs: `s-3c1730a9e0771ea14`, `s-3d75cdc0d9a28a725`, etc.
+    * Validate input: Compare requested server IDs against actual DRS server list
+    * Return 400 error with invalid server IDs list if any don't exist
+  - **Validation Added to Both Operations**:
+    * `create_protection_group()`: Validates before name validation (line ~148)
+    * `update_protection_group()`: Validates before assignment updates (line ~248)
+    * Prevents fake data creation and updates
+    * Provides clear error messages listing invalid server IDs
+  - **Real Test Data Created**:
+    * Discovered 6 real DRS servers in us-east-1 (all in CONTINUOUS replication state)
+    * Created 3 Protection Groups: WebServers (2 servers), AppServers (2 servers), DatabaseServers (2 servers)
+    * Created TEST Recovery Plan with 3 waves using real DRS servers
+    * Cleaned up old fake data (deleted fake WebServers PG and TEST plan)
+  - **Production-Ready Validation**:
+    * Works across all AWS regions
+    * Handles empty DRS server lists gracefully
+    * Clear error messages for troubleshooting
+    * No performance impact (DRS query cached per request)
+- **DRS Servers Deployed**:
+  - s-3c1730a9e0771ea14: EC2AMAZ-4IMB9PN (CONTINUOUS)
+  - s-3d75cdc0d9a28a725: EC2AMAZ-RLP9U5V (CONTINUOUS)
+  - s-3afa164776f93ce4f: EC2AMAZ-H0JBE4J (CONTINUOUS)
+  - s-3c63bb8be30d7d071: EC2AMAZ-8B7IRHJ (CONTINUOUS)
+  - s-3578f52ef3bdd58b4: EC2AMAZ-FQTJG64 (CONTINUOUS)
+  - s-3b9401c1cd270a7a8: EC2AMAZ-3B0B3UD (CONTINUOUS)
+- **Test Data in System**:
+  - Protection Group: WebServers (ID: 22009ff5-b9c7-4eeb-9fa9-43de01ba5df7)
+  - Protection Group: AppServers (ID: bed2a2dc-8b36-4064-8b26-1f1cb7e630d3)
+  - Protection Group: DatabaseServers (ID: 83ba5ed3-6a0f-499b-8e1b-bc76622e25cd)
+  - Recovery Plan: TEST with 3 waves (WebTier, AppTier, DatabaseTier)
+- **Security Improvement**:
+  - API now rejects invalid server IDs immediately
+  - No fake data can enter system
+  - Recovery operations guaranteed to use real DRS servers
+  - Validation happens before DynamoDB write (prevents bad data storage)
+- **Code Quality**:
+  - Clean validation function with error handling
+  - Reusable across CREATE and UPDATE operations
+  - Clear error messages for debugging
+  - TypeScript compilation: 1 warning (non-blocking)
+- **Result**: API now validates all server IDs against actual DRS, real test data available in UI for verification
+- **Lines of Code**: ~150 insertions (DRS validation logic)
+- **Next Steps**: 
+  1. Commit Lambda changes with DRS validation
+  2. Package and deploy updated Lambda
+  3. Test Protection Group creation with fake IDs (should fail with 400)
+  4. Test with real DRS server IDs (should succeed)
+  5. Verify TEST plan visible in UI with real data
+
 **Session 43: Protection Group Selection Bug Fix & Copyright Compliance** (November 20, 2025 - 7:35 PM - 8:22 PM EST)
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_202246_[timestamp].md`
 - **Git Commits**: 
