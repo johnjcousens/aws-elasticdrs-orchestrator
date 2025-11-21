@@ -102,7 +102,9 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       );
 
       // Calculate available servers (all servers in PG minus assigned ones)
-      const totalServers = pg.sourceServerIds?.length || 0;
+      // Support both sourceServerIds (camelCase) and SourceServerIds (PascalCase from Lambda)
+      const serverIds = pg.sourceServerIds || (pg as any).SourceServerIds || [];
+      const totalServers = serverIds.length;
       const availableServerCount = totalServers - assignedServerIds.size;
 
       return {
