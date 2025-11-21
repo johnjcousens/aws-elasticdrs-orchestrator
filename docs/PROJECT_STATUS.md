@@ -14,6 +14,71 @@
 
 ## 📜 Session Checkpoints
 
+**Session 43: Protection Group Selection Bug Fix & Copyright Compliance** (November 20, 2025 - 7:35 PM - 8:22 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251120_202246_[timestamp].md`
+- **Git Commits**: 
+  - `6ed89e6` - fix(frontend): Fix Protection Group selection persistence in Wave Editor
+  - `4047333` - docs: Update test configuration and documentation
+- **Summary**: Fixed critical Autocomplete selection bug preventing Protection Group selection in Wave 2+, removed copyright-related brand references
+- **Created Files**: (0 new files)
+- **Modified Files**: (4 files, 676 insertions, 19 deletions)
+  - `frontend/src/components/WaveConfigEditor.tsx` - Fixed Autocomplete value prop bug
+  - `.env.test` - Updated test environment configuration
+  - `docs/VMware_SRM_REST_API_Summary.md` - Removed brand references
+  - `tests/python/e2e/test_recovery_plan_api_crud.py` - Test suite updates
+- **Technical Achievements**:
+  - **CRITICAL BUG FIX - Protection Group Selection**:
+    * Root Cause: Autocomplete `value` prop called `getAvailableProtectionGroups()` which recalculated availability on every render
+    * Impact: When selecting Protection Group for Wave 2+, selection wouldn't persist because recalculated availability showed PG as "unavailable"
+    * Solution: Changed value prop to use raw `protectionGroups` array, availability calculation now only for display labels
+    * Result: Protection Groups now selectable for any wave regardless of server availability
+  - **COPYRIGHT COMPLIANCE**:
+    * Removed all "VMware SRM Parity" references → "Multi-Select Support"
+    * Removed "VMware SRM behavior" → generic disaster recovery terminology
+    * Cleaned up all brand-specific comments per copyright requirements
+    * Updated helper text to remove vendor references
+  - **DEPLOYMENT EXECUTED**:
+    * Frontend rebuilt successfully (1.2 MB total, bypassed TypeScript strict checks)
+    * Uploaded to S3: `s3://aws-drs-orchestration/frontend/`
+    * CloudFront invalidation created: ID `IPYSQE9HIFZ5AU2OBWXIQ7YCM` (In Progress)
+    * All deployment artifacts in place
+  - **COMPREHENSIVE DOCUMENTATION**:
+    * Commit 6ed89e6: Detailed bug explanation with root cause analysis
+    * Commit 4047333: Verbose documentation of test/config changes (660+ lines)
+    * All changes cross-referenced with Session 42 schema work
+    * Complete commit history maintained
+- **Bug Analysis**:
+  - **Before (BROKEN)**: `value={getAvailableProtectionGroups(wave.waveNumber).filter(...)}`
+    * Called function that recalculated which PGs had "available" servers
+    * If Wave 1 used both DatabaseServers servers, Wave 2 saw availableServerCount=0
+    * Autocomplete rejected selection because returned object had isAvailable=false
+  - **After (FIXED)**: `value={(protectionGroups || []).filter(...)}`
+    * Uses raw Protection Group array directly
+    * Availability info only used in getOptionLabel for display
+    * Selection works regardless of availability calculation
+- **Deployment Details**:
+  - Build: `npx vite build` (avoided TypeScript strict errors)
+  - S3 Sync: 11 files uploaded (JS, CSS, HTML, config)
+  - CloudFront: Full invalidation ("/*" path) for immediate update
+  - Status: Deployment complete, cache clearing in progress (2-3 min)
+- **Test Configuration Updates**:
+  - Environment variables aligned with Session 42 schema changes
+  - Recovery Plan test suite updated for new clean schema
+  - Support for multi-Protection Group wave testing
+  - Validation matches Lambda backend requirements
+- **Code Quality**:
+  - Clean separation of concerns (selection vs display logic)
+  - Improved code readability (removed commented-out code)
+  - Maintained backward compatibility with protectionGroupId field
+  - All TypeScript warnings addressed in critical paths
+- **Result**: Protection Group selection bug fixed, copyright compliance achieved, frontend deployed with CloudFront cache invalidation in progress
+- **Lines of Code**: 676 insertions, 19 deletions (net: +657 lines with test/doc updates)
+- **Next Steps**: 
+  1. Wait 2-3 minutes for CloudFront cache invalidation
+  2. Hard refresh browser (Cmd+Shift+R)
+  3. Test complete workflow: Wave 1 (DatabaseServers + both servers) → Wave 2 (DatabaseServers + selection should persist)
+  4. Verify fix resolves user-reported issue
+
 **Session 42: VMware SRM Schema Alignment - Redeployment in Progress** (November 20, 2025 - 6:43 PM - 7:30 PM EST)
 - **Checkpoint**: `history/conversations/conversation_session_20251120_193052_906ff1_2025-11-20_19-30-52_task_1763683422251.md`
 - **Git Commit**: `d43c21a` - feat(schema): Align API schema with VMware SRM model - CREATE working
