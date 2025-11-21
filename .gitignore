@@ -7,15 +7,54 @@ tests/.DS_Store
 lambda/.DS_Store
 frontend/.DS_Store
 .DS_Store
+
 # Exclude conversation exports with potential secrets
 .cline_memory/
 
 # Screenshots and test files
 *.png
 test-*.html
+test-results/
 
 # Q developer cache
 .amazonq/
 
+# Kiro IDE
+.kiro/
+
 # Lambda build artifacts
+*.zip
 lambda/*.zip
+lambda/__pycache__/
+lambda/package/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing artifacts
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.pytest_cache/
+.hypothesis/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node modules (if any frontend dependencies)
+node_modules/
