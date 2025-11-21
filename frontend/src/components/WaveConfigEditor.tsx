@@ -9,9 +9,6 @@ import React, { useState } from 'react';
 import {
   Box,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
   TextField,
   Select,
   MenuItem,
@@ -52,7 +49,6 @@ interface WaveConfigEditorProps {
  */
 export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   waves,
-  protectionGroupId,
   protectionGroups,
   onChange,
   readonly = false,
@@ -362,7 +358,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                       )}
                       options={getAvailableProtectionGroups(wave.waveNumber)}
                       getOptionLabel={(pg) => pg.name}
-                      getOptionDisabled={(pg) => !pg.isAvailable}
+                      getOptionDisabled={() => false}  // Allow selecting any PG - validation happens at server selection
                       isOptionEqualToValue={(option, value) => 
                         option.protectionGroupId === value.protectionGroupId
                       }
