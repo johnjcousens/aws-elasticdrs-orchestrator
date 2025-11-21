@@ -15,9 +15,9 @@ import pytest
 from typing import Dict, List
 
 # Test Configuration
-API_ENDPOINT = "https://yta7zbmsz1.execute-api.us-east-1.amazonaws.com/test"
-USER_POOL_ID = "us-east-1_uCT6Sr0iO"
-USER_POOL_CLIENT_ID = "1inhoq5alvu9p24dmqkdkc8jbj"
+API_ENDPOINT = "https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test"
+USER_POOL_ID = "us-east-1_wfyuacMBX"
+USER_POOL_CLIENT_ID = "48fk7bjefk88aejr1rc7dvmbv0"
 REGION = "us-east-1"
 USERNAME = "testuser@example.com"
 PASSWORD = "IiG2b1o+D$"
