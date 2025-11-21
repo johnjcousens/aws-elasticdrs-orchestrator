@@ -656,6 +656,61 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  # Methods - GET /recovery-plans/{id}
+  RecoveryPlanGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref RecoveryPlanResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Methods - PUT /recovery-plans/{id}
+  RecoveryPlanPutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref RecoveryPlanResource
+      HttpMethod: PUT
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      RequestValidatorId: !Ref ApiRequestValidator
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Methods - DELETE /recovery-plans/{id}
+  RecoveryPlanDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref RecoveryPlanResource
+      HttpMethod: DELETE
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 204
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
   # Methods - POST /recovery-plans/{id}/execute
   RecoveryPlanExecuteMethod:
     Type: AWS::ApiGateway::Method
@@ -672,6 +727,33 @@ Resources:
       MethodResponses:
         - StatusCode: 202
           ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # CORS - OPTIONS /recovery-plans/{id}
+  RecoveryPlanOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref RecoveryPlanResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
   # CORS - OPTIONS /recovery-plans
@@ -872,8 +954,12 @@ Resources:
       - DRSSourceServersOptionsMethod
       - RecoveryPlansGetMethod
       - RecoveryPlansPostMethod
+      - RecoveryPlanGetMethod
+      - RecoveryPlanPutMethod
+      - RecoveryPlanDeleteMethod
       - RecoveryPlanExecuteMethod
       - RecoveryPlansOptionsMethod
+      - RecoveryPlanOptionsMethod
       - ExecutionsGetMethod
       - ExecutionGetMethod
       - ExecutionCancelMethod

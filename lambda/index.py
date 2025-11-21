@@ -126,6 +126,17 @@ def create_protection_group(body: Dict) -> Dict:
         
         name = body['GroupName']
         server_ids = body['sourceServerIds']
+        region = body['Region']
+        
+        # NEW: Validate servers exist in DRS (CRITICAL - prevents fake data)
+        invalid_servers = validate_servers_exist_in_drs(region, server_ids)
+        if invalid_servers:
+            return response(400, {
+                'error': 'INVALID_SERVER_IDS',
+                'message': f'{len(invalid_servers)} server ID(s) do not exist in DRS',
+                'invalidServers': invalid_servers,
+                'region': region
+            })
         
         # Validate unique name (case-insensitive, global across all users)
         if not validate_unique_pg_name(name):
@@ -276,8 +287,19 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     'message': f'A Protection Group named "{body["GroupName"]}" already exists'
                 })
         
-        # If updating server list, validate assignments
+        # If updating server list, validate they exist in DRS first
         if 'sourceServerIds' in body:
+            # NEW: Validate servers exist in DRS
+            invalid_servers = validate_servers_exist_in_drs(existing_group['Region'], body['sourceServerIds'])
+            if invalid_servers:
+                return response(400, {
+                    'error': 'INVALID_SERVER_IDS',
+                    'message': f'{len(invalid_servers)} server ID(s) do not exist in DRS',
+                    'invalidServers': invalid_servers,
+                    'region': existing_group['Region']
+                })
+            
+            # Then validate assignments
             conflicts = validate_server_assignments(body['sourceServerIds'], current_pg_id=group_id)
             if conflicts:
                 return response(409, {
@@ -382,26 +404,31 @@ def handle_recovery_plans(method: str, path_params: Dict, body: Dict) -> Dict:
 def create_recovery_plan(body: Dict) -> Dict:
     """Create a new Recovery Plan"""
     try:
-        # Validate required fields
-        required_fields = ['PlanName', 'Description', 'AccountId', 'Region', 'Owner', 'RPO', 'RTO']
-        for field in required_fields:
-            if field not in body:
-                return response(400, {'error': f'Missing required field: {field}'})
+        # Validate required fields (VMware SRM model)
+        if 'PlanName' not in body:
+            return response(400, {'error': 'Missing required field: PlanName'})
+        
+        if 'Waves' not in body or not body['Waves']:
+            return response(400, {'error': 'At least one Wave is required'})
+        
+        # Validate unique name (case-insensitive, global across all users)
+        plan_name = body['PlanName']
+        if not validate_unique_rp_name(plan_name):
+            return response(409, {  # Conflict
+                'error': 'RP_NAME_EXISTS',
+                'message': f'A Recovery Plan named "{plan_name}" already exists',
+                'existingName': plan_name
+            })
         
         # Generate UUID for PlanId
         plan_id = str(uuid.uuid4())
         
-        # Create Recovery Plan item
+        # Create Recovery Plan item (VMware SRM model - minimal required fields)
         timestamp = int(time.time())
         item = {
             'PlanId': plan_id,
             'PlanName': body['PlanName'],
-            'Description': body['Description'],
-            'AccountId': body['AccountId'],
-            'Region': body['Region'],
-            'Owner': body['Owner'],
-            'RPO': body['RPO'],
-            'RTO': body['RTO'],
+            'Description': body.get('Description', ''),  # Optional
             'Waves': body.get('Waves', []),
             'CreatedDate': timestamp,
             'LastModifiedDate': timestamp
@@ -472,6 +499,17 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
         if 'Item' not in result:
             return response(404, {'error': 'Recovery Plan not found'})
+        
+        existing_plan = result['Item']
+        
+        # Validate unique name if changing
+        if 'PlanName' in body and body['PlanName'] != existing_plan.get('PlanName'):
+            if not validate_unique_rp_name(body['PlanName'], plan_id):
+                return response(409, {
+                    'error': 'RP_NAME_EXISTS',
+                    'message': f'A Recovery Plan named "{body["PlanName"]}" already exists',
+                    'existingName': body['PlanName']
+                })
         
         # NEW: Pre-write validation for Waves
         if 'Waves' in body:
@@ -1292,6 +1330,39 @@ def validate_server_assignments(server_ids: List[str], current_pg_id: Optional[s
     return conflicts
 
 
+def validate_servers_exist_in_drs(region: str, server_ids: List[str]) -> List[str]:
+    """
+    Validate that server IDs actually exist in DRS
+    
+    Args:
+    - region: AWS region to check
+    - server_ids: List of server IDs to validate
+    
+    Returns:
+    - List of invalid server IDs (empty list if all valid)
+    """
+    try:
+        drs_client = boto3.client('drs', region_name=region)
+        
+        # Get all source servers in the region
+        response = drs_client.describe_source_servers(maxResults=200)
+        valid_server_ids = {s['sourceServerID'] for s in response.get('items', [])}
+        
+        # Find invalid servers
+        invalid_servers = [sid for sid in server_ids if sid not in valid_server_ids]
+        
+        if invalid_servers:
+            print(f"Invalid server IDs detected: {invalid_servers}")
+        
+        return invalid_servers
+        
+    except Exception as e:
+        print(f"Error validating servers in DRS: {str(e)}")
+        # On error, assume servers might be valid (fail open for now)
+        # In production, might want to fail closed
+        return []
+
+
 def validate_unique_pg_name(name: str, current_pg_id: Optional[str] = None) -> bool:
     """
     Validate that Protection Group name is unique (case-insensitive)
@@ -1314,6 +1385,34 @@ def validate_unique_pg_name(name: str, current_pg_id: Optional[str] = None) -> b
             continue
         
         existing_name = pg.get('GroupName') or pg.get('name', '')
+        if existing_name.lower() == name_lower:
+            return False
+    
+    return True
+
+
+def validate_unique_rp_name(name: str, current_rp_id: Optional[str] = None) -> bool:
+    """
+    Validate that Recovery Plan name is unique (case-insensitive)
+    
+    Args:
+    - name: Recovery Plan name to validate
+    - current_rp_id: Optional RP ID to exclude (for edit operations)
+    
+    Returns:
+    - True if unique, False if duplicate exists
+    """
+    rp_response = recovery_plans_table.scan()
+    
+    name_lower = name.lower()
+    for rp in rp_response.get('Items', []):
+        rp_id = rp.get('PlanId')
+        
+        # Skip current RP when editing
+        if current_rp_id and rp_id == current_rp_id:
+            continue
+        
+        existing_name = rp.get('PlanName', '')
         if existing_name.lower() == name_lower:
             return False
     
