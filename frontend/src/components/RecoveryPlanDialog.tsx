@@ -161,15 +161,10 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData as any);
         onSave(updatedPlan);
       } else {
-        // Create new plan - each wave uses its own Protection Group
+        // Create new plan - VMware SRM model (waves specify their own Protection Groups)
         const createData = {
           PlanName: name,
           Description: description,
-          AccountId: '***REMOVED***',
-          Region: 'us-east-1',
-          Owner: 'demo-user',
-          RPO: '1h',
-          RTO: '30m',
           Waves: waves.map((wave, index) => ({
             WaveId: `wave-${index}`,
             WaveName: wave.name,
