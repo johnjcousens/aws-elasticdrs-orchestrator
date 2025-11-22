@@ -980,6 +980,7 @@ Resources:
       - RecoveryPlansOptionsMethod
       - RecoveryPlanOptionsMethod
       - ExecutionsGetMethod
+      - ExecutionsPostMethod
       - ExecutionGetMethod
       - ExecutionCancelMethod
       - ExecutionPauseMethod
