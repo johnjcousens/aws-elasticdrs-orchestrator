@@ -367,14 +367,16 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                       isOptionEqualToValue={(option, value) => 
                         option.protectionGroupId === value.protectionGroupId
                       }
-                      onChange={(event, newValue) => {
+                      onChange={(_, newValue) => {
                         const pgIds = newValue.map(pg => pg.protectionGroupId);
-                        console.log('🔵 onChange fired!', { newValue });
-                        handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
-                        // Keep protectionGroupId in sync for backward compatibility
-                        handleUpdateWave(wave.waveNumber, 'protectionGroupId', pgIds[0] || '');
-                        // Clear server selections when PGs change
-                        handleUpdateWave(wave.waveNumber, 'serverIds', []);
+                        console.log('🔵 onChange fired!', { newValue, pgIds });
+                        // Batch all updates in ONE call to prevent stale state
+                        const updatedWaves = safeWaves.map(w =>
+                          w.waveNumber === wave.waveNumber 
+                            ? { ...w, protectionGroupIds: pgIds, protectionGroupId: pgIds[0] || '', serverIds: [] } 
+                            : w
+                        );
+                        onChange(updatedWaves);
                       }}
                       renderInput={(params) => (
                         <TextField 
