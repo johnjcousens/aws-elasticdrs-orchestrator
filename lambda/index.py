@@ -866,13 +866,16 @@ def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id
 def get_execution_status(execution_id: str) -> Dict:
     """Get current execution status"""
     try:
-        # Get from DynamoDB
-        result = execution_history_table.get_item(Key={'ExecutionId': execution_id})
+        # Get from DynamoDB using Query (table has composite key: ExecutionId + PlanId)
+        result = execution_history_table.query(
+            KeyConditionExpression=Key('ExecutionId').eq(execution_id),
+            Limit=1
+        )
         
-        if 'Item' not in result:
+        if not result.get('Items'):
             return response(404, {'error': 'Execution not found'})
         
-        execution = result['Item']
+        execution = result['Items'][0]
         
         # Get current status from Step Functions if still running
         if execution['Status'] == 'RUNNING':
@@ -971,6 +974,14 @@ def list_executions(query_params: Dict) -> Dict:
 def get_execution_details(execution_id: str) -> Dict:
     """Get detailed information about a specific execution"""
     try:
+        # Handle both UUID and ARN formats for backwards compatibility
+        # ARN format: arn:aws:states:region:account:execution:state-machine-name:execution-uuid
+        # Extract UUID from ARN if provided
+        if execution_id.startswith('arn:'):
+            # Extract the last segment which is the UUID
+            execution_id = execution_id.split(':')[-1]
+            print(f"Extracted UUID from ARN: {execution_id}")
+        
         # Get from DynamoDB
         result = execution_history_table.get_item(Key={'ExecutionId': execution_id})
         
