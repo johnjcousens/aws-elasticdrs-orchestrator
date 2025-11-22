@@ -367,8 +367,9 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                       isOptionEqualToValue={(option, value) => 
                         option.protectionGroupId === value.protectionGroupId
                       }
-                      onChange={(_event, newValue) => {
+                      onChange={(event, newValue) => {
                         const pgIds = newValue.map(pg => pg.protectionGroupId);
+                        console.log('🔵 onChange fired!', { newValue });
                         handleUpdateWave(wave.waveNumber, 'protectionGroupIds', pgIds);
                         // Keep protectionGroupId in sync for backward compatibility
                         handleUpdateWave(wave.waveNumber, 'protectionGroupId', pgIds[0] || '');
