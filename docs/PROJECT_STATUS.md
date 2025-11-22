@@ -14,6 +14,37 @@
 
 ## 📜 Session Checkpoints
 
+**Session 47: MVP Phase 1 - Frontend Execution Visibility (Planning)** (November 22, 2025 - 4:52 PM - 4:54 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251122_165421_437419_2025-11-22_16-54-21.md`
+- **Git Commit**: Pending - Planning phase complete
+- **Summary**: Comprehensive planning for frontend execution visibility feature - analyzed backend structure, API methods, type definitions, and routing
+- **Created Files**:
+  - `docs/SESSION_47_IMPLEMENTATION_PLAN.md` (400+ lines) - Complete implementation roadmap with UI mockups, component structure, polling strategy
+- **Technical Analysis**:
+  - ✅ Verified GET /executions/{executionId} backend endpoint exists (get_execution_details)
+  - ✅ Confirmed apiClient.getExecution() method ready to use
+  - ✅ Analyzed execution response structure (ExecutionId, Status, Waves, Servers, InstanceIds)
+  - ✅ Verified frontend types match backend structure (Execution, WaveExecution, ServerExecution)
+  - ✅ Reviewed RecoveryPlansPage executeRecoveryPlan flow
+  - ✅ Checked routing structure in App.tsx
+- **Implementation Plan Created**:
+  - Task 1: ExecutionDetailsPage component with polling (45-60 min)
+  - Task 2: Add route to App.tsx (5 min)
+  - Task 3: Update RecoveryPlansPage navigation (10 min)
+  - Task 4: Update type definitions if needed (10 min)
+  - Task 5: Create reusable components (ServerStatusChip, InstanceLink, ExecutionTimeline) (30 min)
+  - Task 6: Testing and verification (30 min)
+  - Total estimated time: 2-3 hours
+- **Key Features Planned**:
+  - Real-time status polling every 15 seconds while IN_PROGRESS
+  - Per-server status indicators (🟡 LAUNCHING, 🟢 LAUNCHED, 🔴 FAILED)
+  - Clickable instance ID links to AWS console
+  - Wave-by-wave progress visualization
+  - Automatic polling stop when execution complete
+- **Result**: ✅ Planning phase complete - Ready for implementation in next session
+- **Token Management**: Checkpoint created at 80% token usage to preserve context
+- **Next Steps**: Begin implementation of ExecutionDetailsPage component
+
 **Session 46: MVP Phase 1 - DRS Recovery Launching (Backend)** (November 22, 2025 - 4:26 PM - 4:36 PM EST)
 - **Checkpoint**: TBD - To be created at session end
 - **Git Commit**: TBD - Changes to be committed
