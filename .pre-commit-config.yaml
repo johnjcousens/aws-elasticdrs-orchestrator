@@ -1,82 +1,71 @@
-# Pre-commit hooks for CloudFormation template validation
-# Run 'pre-commit install' to enable these hooks
-# Run 'pre-commit run --all-files' to check all files
+# Pre-commit hooks for AWS DRS Orchestration
+# Install: pip install pre-commit && pre-commit install
 
 repos:
+  # TypeScript/JavaScript validation
+  - repo: local
+    hooks:
+      - id: typescript-check
+        name: TypeScript Syntax Check
+        entry: bash -c 'cd frontend && npm run type-check'
+        language: system
+        files: \.(ts|tsx)$
+        pass_filenames: false
+        stages: [commit]
+        
+      - id: jsx-corruption-check
+        name: Check for JSX Corruption Patterns
+        entry: scripts/check-jsx-corruption.sh
+        language: script
+        files: \.(tsx|jsx)$
+        stages: [commit]
+        
+      - id: verify-tsx-syntax
+        name: Verify TSX File Syntax
+        entry: scripts/verify-tsx.sh
+        language: script
+        files: \.(tsx)$
+        stages: [commit]
+
+  # CloudFormation validation
   - repo: local
     hooks:
       - id: cfn-lint
         name: CloudFormation Linter
-        description: Validate CloudFormation templates with cfn-lint
-        entry: make lint
-        language: system
-        files: '^templates/.*\.yaml$'
-        pass_filenames: false
-        always_run: false
-        
-      - id: yaml-syntax-check
-        name: YAML Syntax Check
-        description: Validate YAML syntax
-        entry: python3
-        args: ['-c', 'import sys, yaml; [yaml.safe_load(open(f)) for f in sys.argv[1:]]']
-        language: system
-        files: '\.ya?ml$'
-        
-      - id: template-validation
-        name: Template Validation Script
-        description: Run comprehensive template validation
-        entry: ./scripts/validate-templates.sh
-        language: system
-        files: '^templates/.*\.yaml$'
-        pass_filenames: false
-        always_run: false
+        entry: cfn-lint
+        language: python
+        files: ^cfn/.*\.yaml$
+        stages: [commit]
 
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+  # Python validation
+  - repo: local
+    hooks:
+      - id: python-syntax
+        name: Python Syntax Check
+        entry: python -m py_compile
+        language: system
+        files: \.py$
+        stages: [commit]
+
+  # General file checks
+  - repo: pre-commit/pre-commit-hooks
+    rev: v4.5.0
     hooks:
       - id: trailing-whitespace
-        name: Trim Trailing Whitespace
-        description: Remove trailing whitespace
-        
       - id: end-of-file-fixer
-        name: Fix End of Files
-        description: Ensure files end with a newline
-        
       - id: check-yaml
-        name: Check YAML
-        description: Validate YAML files
-        exclude: '^templates/.*\.yaml$'  # Use cfn-lint for CloudFormation templates
-        
+        exclude: ^cfn/
+      - id: check-json
       - id: check-merge-conflict
-        name: Check for Merge Conflicts
-        description: Check for merge conflict markers
-        
-      - id: check-case-conflict
-        name: Check for Case Conflicts
-        description: Check for files with names that would conflict on case-insensitive filesystems
-        
+      - id: detect-private-key
       - id: mixed-line-ending
-        name: Mixed Line Ending
-        description: Replaces or checks mixed line endings
 
-  - repo: https://github.com/jumanjihouse/pre-commit-hooks
-    rev: 3.0.0
+  # Prevent large files
+  - repo: pre-commit/pre-commit-hooks
+    rev: v4.5.0
     hooks:
-      - id: markdownlint
-        name: Markdown Linter
-        description: Lint Markdown files
-        args: ['--config', '.markdownlint.json']
-        files: '\.md$'
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
 
-# Configuration for specific hooks
-ci:
-  autofix_commit_msg: |
-    [pre-commit.ci] auto fixes from pre-commit hooks
-
-    for more information, see https://pre-commit.ci
-  autofix_prs: true
-  autoupdate_branch: ''
-  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
-  autoupdate_schedule: weekly
-  skip: []
-  submodules: false
+# To bypass hooks in emergency (NOT recommended):
+# git commit --no-verify -m "emergency fix"
