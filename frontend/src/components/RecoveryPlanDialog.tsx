@@ -67,7 +67,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
   // Populate form when editing
   useEffect(() => {
-    if (plan && protectionGroups.length > 0) {
+    if (plan && protectionGroups.length > 0 && waves.length === 0) {
       setName(plan.name);
       setDescription(plan.description || '');
       
