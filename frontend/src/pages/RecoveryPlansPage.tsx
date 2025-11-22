@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -36,6 +37,7 @@ import type { RecoveryPlan } from '../types';
  * Manages the display and CRUD operations for recovery plans.
  */
 export const RecoveryPlansPage: React.FC = () => {
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<RecoveryPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,11 +126,10 @@ export const RecoveryPlansPage: React.FC = () => {
         executedBy: 'demo-user' // TODO: Get from auth context
       });
       
-      toast.success(`Execution started: ${execution.executionId}`);
+      toast.success('Recovery execution started');
       
       // Navigate to execution details page
-      // TODO: Add navigation to /executions/{executionId}
-      console.log('Execution started:', execution.executionId);
+      navigate(`/executions/${execution.executionId}`);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to execute recovery plan';
       toast.error(errorMessage);

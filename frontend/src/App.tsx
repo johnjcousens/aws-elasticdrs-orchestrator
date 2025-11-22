@@ -17,6 +17,7 @@ import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { ProtectionGroupsPage } from './pages/ProtectionGroupsPage';
 import { ExecutionsPage } from './pages/ExecutionsPage';
+import { ExecutionDetailsPage } from './pages/ExecutionDetailsPage';
 import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
 import { theme } from './theme';
 
@@ -114,6 +115,17 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <RecoveryPlansPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            <Route
+              path="/executions/:executionId"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ExecutionDetailsPage />
                   </Layout>
                 </ProtectedRoute>
               }
