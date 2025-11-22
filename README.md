@@ -382,6 +382,31 @@ The **Execution History** page shows:
 - Wave-by-wave results
 - Error details for failed executions
 
+## 📚 Documentation
+
+### Getting Started
+- [Deployment Guide](docs/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) - Complete deployment instructions
+- [Stack Cleanup Procedure](docs/STACK_CLEANUP_PROCEDURE.md) - How to properly delete stacks
+- [Testing & QA Guide](docs/TESTING_AND_QUALITY_ASSURANCE.md) - Testing procedures and quality assurance
+
+### Architecture & Design
+- [Architecture Document](docs/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture and design
+- [Architecture Diagram](docs/AWS-DRS-Orchestration-Architecture.drawio) - Visual architecture (DrawIO format)
+- [Product Requirements](docs/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Feature requirements and specifications
+- [Software Requirements](docs/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications
+- [UX/UI Design Specifications](docs/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design guidelines
+
+### API References
+- [AWS DRS API Reference](docs/AWS_DRS_API_REFERENCE.md) - AWS Elastic Disaster Recovery API documentation
+- [DRS-SRM API Mapping](docs/DRS_SRM_API_MAPPING.md) - VMware SRM to AWS DRS API mapping reference
+- [VMware SRM API Summary](docs/VMware_SRM_REST_API_Summary.md) - VMware Site Recovery Manager REST API
+
+### Project Management
+- [Project Status](docs/PROJECT_STATUS.md) - Current project status and complete session history
+
+### Historical Documentation
+- [Archived Docs](docs/archive-2025-11-22.zip) - Historical session notes, debugging guides, and development documentation
+
 ## SSM Documents
 
 The solution includes pre-built SSM documents:
