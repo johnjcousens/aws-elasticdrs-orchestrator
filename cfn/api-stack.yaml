@@ -10,6 +10,11 @@ Parameters:
     Type: String
     Description: 'Environment name (dev, test, prod)'
 
+  DeploymentTimestamp:
+    Type: String
+    Default: '20251122-174200'
+    Description: 'Timestamp to force new API deployment (change to trigger replacement)'
+
   AdminEmail:
     Type: String
     Description: 'Email address for initial Cognito admin user'
@@ -989,7 +994,7 @@ Resources:
       - ExecutionOptionsMethod
     Properties:
       RestApiId: !Ref RestApi
-      Description: !Sub 'Deployment ${AWS::StackName} - v2 - with POST executions endpoint'
+      Description: !Sub 'Deployment ${DeploymentTimestamp} - ${AWS::StackName}'
 
   # API Stage
   ApiStage:
