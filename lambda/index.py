@@ -982,13 +982,17 @@ def get_execution_details(execution_id: str) -> Dict:
             execution_id = execution_id.split(':')[-1]
             print(f"Extracted UUID from ARN: {execution_id}")
         
-        # Get from DynamoDB
-        result = execution_history_table.get_item(Key={'ExecutionId': execution_id})
-        
-        if 'Item' not in result:
+        # Get from DynamoDB using query (table has composite key: ExecutionId + PlanId)
+        result = execution_history_table.query(
+            KeyConditionExpression='ExecutionId = :eid',
+            ExpressionAttributeValues={':eid': execution_id},
+            Limit=1
+        )
+
+        if 'Items' not in result or len(result['Items']) == 0:
             return response(404, {'error': 'Execution not found'})
-        
-        execution = result['Item']
+
+        execution = result['Items'][0]
         
         # Enrich with recovery plan details
         try:
