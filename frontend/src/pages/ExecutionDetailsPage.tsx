@@ -134,7 +134,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   // Helper: Get status icon
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): React.ReactElement | undefined => {
     switch (status) {
       case 'COMPLETED':
       case 'LAUNCHED':
@@ -145,7 +145,7 @@ export const ExecutionDetailsPage: React.FC = () => {
       case 'LAUNCHING':
         return <ScheduleIcon fontSize="small" />;
       default:
-        return null;
+        return undefined;
     }
   };
 
