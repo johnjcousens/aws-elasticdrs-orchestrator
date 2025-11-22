@@ -804,6 +804,25 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  # Methods - POST /executions
+  ExecutionsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ExecutionsResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      RequestValidatorId: !Ref ApiRequestValidator
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 201
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
   # Methods - GET /executions/{executionId}
   ExecutionGetMethod:
     Type: AWS::ApiGateway::Method
