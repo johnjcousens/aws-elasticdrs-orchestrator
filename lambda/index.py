@@ -647,7 +647,7 @@ def handle_executions(method: str, path_params: Dict, query_params: Dict, body: 
 
 
 def execute_recovery_plan(body: Dict) -> Dict:
-    """Execute a Recovery Plan"""
+    """Execute a Recovery Plan - MVP Phase 1: Direct DRS Integration"""
     try:
         # Validate required fields
         required_fields = ['PlanId', 'ExecutionType', 'InitiatedBy']
@@ -657,6 +657,7 @@ def execute_recovery_plan(body: Dict) -> Dict:
         
         plan_id = body['PlanId']
         execution_type = body['ExecutionType']
+        is_drill = execution_type == 'DRILL'
         
         # Validate execution type
         if execution_type not in ['DRILL', 'RECOVERY', 'FAILBACK']:
@@ -673,35 +674,52 @@ def execute_recovery_plan(body: Dict) -> Dict:
         if not plan.get('Waves'):
             return response(400, {'error': 'Recovery Plan has no waves configured'})
         
-        # Start Step Functions execution
-        execution_input = {
-            'ExecutionType': execution_type,
-            'PlanId': plan_id,
-            'InitiatedBy': body['InitiatedBy'],
-            'TopicArn': body.get('TopicArn', ''),
-            'DryRun': body.get('DryRun', False)
-        }
+        # Generate execution ID
+        execution_id = str(uuid.uuid4())
+        timestamp = int(time.time())
         
-        sf_response = stepfunctions.start_execution(
-            stateMachineArn=STATE_MACHINE_ARN,
-            input=json.dumps(execution_input)
-        )
-        
-        execution_arn = sf_response['executionArn']
+        print(f"Starting execution {execution_id} for plan {plan_id}")
         
         # Create initial execution history record
-        timestamp = int(time.time())
         history_item = {
-            'ExecutionId': execution_arn,
+            'ExecutionId': execution_id,
             'PlanId': plan_id,
             'ExecutionType': execution_type,
-            'Status': 'RUNNING',
+            'Status': 'IN_PROGRESS',
             'StartTime': timestamp,
             'InitiatedBy': body['InitiatedBy'],
-            'TopicArn': body.get('TopicArn', ''),
-            'WaveResults': []
+            'Waves': []
         }
         
+        # Execute waves sequentially
+        for wave_index, wave in enumerate(plan['Waves']):
+            wave_number = wave_index + 1
+            wave_name = wave.get('WaveName', f'Wave {wave_number}')
+            pg_id = wave.get('ProtectionGroupId')
+            
+            if not pg_id:
+                print(f"Wave {wave_number} has no Protection Group, skipping")
+                continue
+            
+            print(f"Executing Wave {wave_number}: {wave_name}")
+            
+            # Execute wave and get results
+            wave_result = execute_wave(wave, pg_id, execution_id, is_drill)
+            
+            # Add wave result to history
+            history_item['Waves'].append(wave_result)
+        
+        # Update final status
+        has_failures = any(
+            s.get('Status') == 'FAILED' 
+            for w in history_item['Waves'] 
+            for s in w.get('Servers', [])
+        )
+        
+        history_item['Status'] = 'PARTIAL' if has_failures else 'COMPLETED'
+        history_item['EndTime'] = int(time.time())
+        
+        # Store execution history
         execution_history_table.put_item(Item=history_item)
         
         # Update plan's LastExecutedDate
@@ -711,17 +729,138 @@ def execute_recovery_plan(body: Dict) -> Dict:
             ExpressionAttributeValues={':timestamp': timestamp}
         )
         
-        print(f"Started execution: {execution_arn}")
+        print(f"Execution {execution_id} completed with status: {history_item['Status']}")
         return response(202, {
-            'executionArn': execution_arn,
-            'executionId': execution_arn,
-            'status': 'RUNNING',
-            'message': 'Execution started successfully'
+            'executionId': execution_id,
+            'status': history_item['Status'],
+            'message': 'Recovery execution started successfully',
+            'wavesExecuted': len(history_item['Waves'])
         })
         
     except Exception as e:
         print(f"Error executing Recovery Plan: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return response(500, {'error': str(e)})
+
+
+def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_drill: bool) -> Dict:
+    """Execute a single wave - launch DRS recovery for all servers"""
+    try:
+        # Get Protection Group
+        pg_result = protection_groups_table.get_item(Key={'GroupId': protection_group_id})
+        if 'Item' not in pg_result:
+            return {
+                'WaveName': wave.get('WaveName', 'Unknown'),
+                'ProtectionGroupId': protection_group_id,
+                'Status': 'FAILED',
+                'Error': 'Protection Group not found',
+                'Servers': [],
+                'StartTime': int(time.time())
+            }
+        
+        pg = pg_result['Item']
+        region = pg['Region']
+        server_ids = pg.get('SourceServerIds', [])
+        
+        if not server_ids:
+            return {
+                'WaveName': wave.get('WaveName', 'Unknown'),
+                'ProtectionGroupId': protection_group_id,
+                'Status': 'COMPLETED',
+                'Servers': [],
+                'StartTime': int(time.time()),
+                'EndTime': int(time.time())
+            }
+        
+        print(f"Launching recovery for {len(server_ids)} servers in region {region}")
+        
+        # Launch recovery for each server
+        server_results = []
+        for server_id in server_ids:
+            try:
+                job_result = start_drs_recovery(server_id, region, is_drill, execution_id)
+                server_results.append(job_result)
+            except Exception as e:
+                print(f"Error launching recovery for server {server_id}: {str(e)}")
+                server_results.append({
+                    'SourceServerId': server_id,
+                    'Status': 'FAILED',
+                    'Error': str(e),
+                    'LaunchTime': int(time.time())
+                })
+        
+        # Determine wave status
+        has_failures = any(s['Status'] == 'FAILED' for s in server_results)
+        wave_status = 'PARTIAL' if has_failures else 'IN_PROGRESS'
+        
+        return {
+            'WaveName': wave.get('WaveName', 'Unknown'),
+            'ProtectionGroupId': protection_group_id,
+            'Region': region,
+            'Status': wave_status,
+            'Servers': server_results,
+            'StartTime': int(time.time()),
+            'EndTime': int(time.time())
+        }
+        
+    except Exception as e:
+        print(f"Error executing wave: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'WaveName': wave.get('WaveName', 'Unknown'),
+            'ProtectionGroupId': protection_group_id,
+            'Status': 'FAILED',
+            'Error': str(e),
+            'Servers': [],
+            'StartTime': int(time.time())
+        }
+
+
+def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id: str) -> Dict:
+    """Launch DRS recovery for a single source server"""
+    try:
+        drs_client = boto3.client('drs', region_name=region)
+        
+        print(f"Starting {'drill' if is_drill else 'recovery'} for server {server_id}")
+        
+        # Start recovery job
+        response = drs_client.start_recovery(
+            sourceServers=[{
+                'sourceServerID': server_id,
+                'recoverySnapshotID': 'auto'  # Use latest snapshot
+            }],
+            isDrill=is_drill,
+            tags={
+                'ExecutionId': execution_id,
+                'ManagedBy': 'DRS-Orchestration'
+            }
+        )
+        
+        job = response.get('job', {})
+        job_id = job.get('jobID', 'unknown')
+        
+        print(f"Started recovery job {job_id} for server {server_id}")
+        
+        return {
+            'SourceServerId': server_id,
+            'RecoveryJobId': job_id,
+            'Status': 'LAUNCHING',
+            'InstanceId': None,  # Will be populated later when instance launches
+            'LaunchTime': int(time.time()),
+            'Error': None
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Failed to start recovery for server {server_id}: {error_msg}")
+        return {
+            'SourceServerId': server_id,
+            'Status': 'FAILED',
+            'Error': error_msg,
+            'LaunchTime': int(time.time())
+        }
 
 
 def get_execution_status(execution_id: str) -> Dict:

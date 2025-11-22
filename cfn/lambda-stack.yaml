@@ -98,6 +98,15 @@ Resources:
                   - drs:DescribeSourceServers
                   - drs:DescribeReplicationConfigurationTemplates
                   - drs:GetReplicationConfiguration
+                  - drs:StartRecovery
+                  - drs:DescribeJobs
+                  - drs:DescribeRecoverySnapshots
+                  - drs:TerminateRecoveryInstances
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
                 Resource: '*'
       Tags:
         - Key: Project
