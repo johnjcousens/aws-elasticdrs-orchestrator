@@ -826,10 +826,10 @@ def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id
         print(f"Starting {'drill' if is_drill else 'recovery'} for server {server_id}")
         
         # Start recovery job
+        # Omit recoverySnapshotID to use latest point-in-time snapshot (AWS default)
         response = drs_client.start_recovery(
             sourceServers=[{
-                'sourceServerID': server_id,
-                'recoverySnapshotID': 'auto'  # Use latest snapshot
+                'sourceServerID': server_id
             }],
             isDrill=is_drill,
             tags={
