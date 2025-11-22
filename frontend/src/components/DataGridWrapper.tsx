@@ -64,7 +64,7 @@ export const DataGridWrapper = ({
 
   // Show error state with retry option
   if (error) {
-    return <ErrorState message={error} onRetry={onRetry} />;
+    return <ErrorState error={error} onRetry={onRetry} />;
   }
 
   // Show empty state when no rows

@@ -347,7 +347,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
                 <Typography variant="subtitle1" gutterBottom>
                   Wave Progress
                 </Typography>
-                <WaveProgress waveExecutions={execution.waveExecutions} />
+                <WaveProgress waves={execution.waveExecutions} />
               </Box>
             </Stack>
           ) : null}
@@ -377,11 +377,10 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
         open={cancelDialogOpen}
         title="Cancel Execution"
         message="Are you sure you want to cancel this execution? This action cannot be undone. Servers that have already been recovered will remain in their current state."
-        confirmText="Cancel Execution"
+        confirmLabel="Cancel Execution"
         confirmColor="error"
         onConfirm={handleCancelExecution}
         onCancel={() => setCancelDialogOpen(false)}
-        loading={cancelling}
       />
     </>
   );
