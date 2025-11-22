@@ -1,17 +1,37 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 22, 2025 - 2:42 PM EST
+**Last Updated**: November 22, 2025 - 3:42 PM EST
 **Version**: 1.0.0-beta  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **Phase 5 Status**: ✅ COMPLETE (100%)  
 **Phase 6 Status**: ✅ COMPLETE (100%)  
 **Phase 7 Status**: ✅ COMPLETE (100% - All features including Executions backend)  
 **Overall MVP Progress**: 100% - ALL FEATURES COMPLETE 🎉
-**Last Major Update**: Session 45 - Protection Group Dropdown Fix RE-DEPLOYED ✅
+**Last Major Update**: Session 45 Part 3 - Batched State Update Fix DEPLOYED ✅
 
 ---
 
 ## 📜 Session Checkpoints
+
+**Session 45 Part 3: Batched State Update Fix - DEPLOYED** (November 22, 2025 - 3:35 PM - 3:42 PM EST)
+- **Checkpoint**: N/A - Fix applied by Amazon Q following manual guide
+- **Git Commit**: `83df57a` - fix(frontend): Batch Protection Group state updates to prevent stale state
+- **Summary**: Fixed final Protection Group chip persistence issue by implementing batched state updates
+- **Root Cause**: React stale state issue - multiple sequential state updates (`protectionGroupIds`, `protectionGroupId`, `serverIds`) could use stale closure values for second/third update
+- **Solution**: Single batched update in onChange handler (line 363-379 in WaveConfigEditor.tsx)
+  - Before: Three separate `handleUpdateWave` calls prone to stale state
+  - After: Single `onChange` call with all properties updated atomically via `map`
+  - Result: All three properties guaranteed to update together with current state
+  - Added debug logging: `console.log('🔵 onChange fired!', { newValue, pgIds })`
+- **Implementation**: Amazon Q applied fix from `docs/SESSION_45_MANUAL_FIX_GUIDE.md`
+- **Deployment**:
+  - Built: index-KNMpUCAH.js (266KB, new bundle)
+  - Deployed to S3: drs-orchestration-fe-***REMOVED***-test at 3:39 PM
+  - CloudFront invalidation: I307A3VO8HNBWGOSYCC9HWU6HF (Completed at 3:42 PM)
+  - Distribution: E46O075T9AHF3
+- **Result**: ✅ ALL THREE Session 45 bugs resolved - Protection Group dropdown FULLY FUNCTIONAL
+- **Testing**: User manual testing required following `docs/SESSION_45_PART_3_DEPLOYMENT.md`
+- **Next Steps**: Verify chips persist, multiple PG selection works, server dropdown populates
 
 **Session 45 Part 2: Protection Group onChange Fix - RE-DEPLOYED** (November 22, 2025 - 2:02 PM - 2:42 PM EST)
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251122_144155_d8c8dd_2025-11-22_14-41-55.md`
@@ -97,20 +117,22 @@
 - Real test data with 6 actual DRS servers
 
 ### Known Issues
-- 🔴 **CRITICAL: Protection Group dropdown completely broken** - onChange handler not firing
-  - User can see dropdown options but clicking does nothing
-  - Affects ALL waves (not just Wave 2+)
-  - Fresh vite build completed 9:43 AM (Nov 22)
-  - Awaiting deployment to S3 + CloudFront invalidation
-- 🔴 **AWS credentials expired** - Need refresh before deployment
+- ✅ **RESOLVED: Protection Group dropdown fixed** - All Session 45 bugs resolved (Parts 1-3)
+  - Part 1: onChange parameter fix (`_event` → `event`)
+  - Part 2: Removed interfering useEffect
+  - Part 3: Batched state updates to prevent stale state
+  - **Status**: DEPLOYED to production at 3:39 PM, CloudFront invalidation complete
+  - **Testing**: User verification required
 
-### What's Next - IMMEDIATE DEPLOYMENT REQUIRED
-1. **Refresh AWS credentials** (expired)
-2. **Deploy fresh build** from frontend/dist/ to S3
-3. **Invalidate CloudFront cache** to force new code
-4. **Test Protection Group dropdown** in ALL waves
-5. **Run Recovery Plan UPDATE/DELETE tests**
-6. **Complete UI end-to-end testing**
+### What's Next - USER TESTING REQUIRED
+1. **Test Protection Group dropdown** - Follow `docs/SESSION_45_PART_3_DEPLOYMENT.md`
+   - Verify blue circle console logs appear
+   - Verify chips appear and persist
+   - Verify server dropdown populates
+   - Test multiple PG selection
+2. **Run Recovery Plan UPDATE/DELETE tests**
+3. **Complete UI end-to-end testing**
+4. **Document any remaining issues**
 
 ---
 
