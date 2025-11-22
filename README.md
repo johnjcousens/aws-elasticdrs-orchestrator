@@ -571,7 +571,7 @@ For typical usage (10 executions/month):
 
 ## Roadmap
 
-### Recently Completed (Session 32 - November 11, 2025)
+### Recently Completed (Session 45 Part 2 - November 22, 2025)
 - [x] VMware SRM-like automatic server discovery
 - [x] Server assignment tracking and conflict detection
 - [x] Server deselection in edit mode
@@ -579,27 +579,86 @@ For typical usage (10 executions/month):
 - [x] Auto-refresh server status
 - [x] Dual config format (JSON + JS)
 - [x] API response parsing fixes
+- [x] Protection Group dropdown onChange handler fix (deployed to production)
 
-### Planned Features (Next Steps)
+### 🚀 Current Development (In Progress - Session 46)
 
-**Recovery Plans Development** (Next Priority):
-- [ ] Wave-based recovery plan creation UI
-- [ ] Protection Group selection per wave
-- [ ] Wave dependency configuration
-- [ ] Pre-wave and post-wave automation setup
-- [ ] Recovery plan execution workflow
-- [ ] Real-time execution monitoring
-- [ ] Execution history and reporting
+**MVP Phase 1: DRS Recovery Launching** (2-3 Sessions)
 
-**Future Enhancements**:
-- [ ] Automated failback orchestration
-- [ ] Multi-region recovery support
-- [ ] Recovery plan templates
-- [ ] Custom metrics and dashboards
-- [ ] Slack/Teams integration for notifications
-- [ ] Recovery time analytics
-- [ ] Automated compliance reporting
-- [ ] Integration with AWS Backup
+**Goal**: Implement actual DRS recovery instance launching - Currently only CRUD operations exist, no actual AWS DRS instance launching
+
+**Session 1: Core DRS Integration (Backend)** - Next Up
+- [ ] Implement `start_recovery_for_wave()` function in Lambda
+- [ ] Add DRS `StartRecovery` API integration using boto3
+- [ ] Create DRS helper functions for launch operations
+- [ ] Update execution tracking with recovery job IDs
+- [ ] Add per-server launch status tracking to DynamoDB
+- [ ] Implement error handling for partial success scenarios
+- [ ] Fire-and-forget model: launch instances and return immediately
+
+**Session 2: Frontend Execution Visibility**
+- [ ] Update Execution Details page with recovery instance info
+- [ ] Add real-time status polling (10-30 sec intervals)
+- [ ] Display per-server launch status with visual indicators
+- [ ] Show launched EC2 instance IDs and console links
+- [ ] Implement wave progress indicators
+- [ ] Add DRS job ID tracking display
+- [ ] Auto-refresh execution status
+
+**Session 3: Testing & IAM Permissions**
+- [ ] Update CloudFormation with DRS permissions (StartRecovery, DescribeRecoveryInstances)
+- [ ] Add IAM permissions for EC2 describe operations
+- [ ] Create end-to-end test scripts for recovery execution
+- [ ] Validate actual instance launching works in TEST environment
+- [ ] Update API documentation with execution flow
+- [ ] Document DRS recovery process and troubleshooting
+
+### 🔮 Future Enhancements (Post-MVP)
+
+**Phase 2: Step Functions Orchestration** (After MVP)
+- [ ] Replace simple Lambda execution with Step Functions state machine
+- [ ] Implement parallel wave execution for faster recovery
+- [ ] Add pause/resume capabilities for long-running recoveries
+- [ ] Implement wave timeout handling and retry logic
+- [ ] Add complex inter-wave dependency management
+- [ ] Create visual state machine diagram for execution flow
+- [ ] Implement execution checkpoints for resume capability
+
+**Phase 3: Advanced Recovery Configuration** (After Phase 2)
+- [ ] Per-server targeting configuration overrides
+  - Custom subnet selection per server
+  - Security group overrides per server
+  - Instance type modifications
+  - EBS volume configuration
+- [ ] Launch Template management UI for custom configurations
+- [ ] Wave-level targeting defaults with server-level overrides
+- [ ] Configuration templates for common recovery scenarios
+
+**Phase 4: Health Checks & Validation** (After Phase 3)
+- [ ] Post-launch health check integration via SSM
+- [ ] Application-level health verification scripts
+- [ ] Network connectivity validation (VPC, routing, DNS)
+- [ ] Custom health check script execution
+- [ ] Automatic remediation for failed health checks
+- [ ] Configurable health check thresholds and timeouts
+
+**Phase 5: Rollback & Recovery** (After Phase 4)
+- [ ] Automatic rollback on failure with configurable thresholds
+- [ ] Manual rollback trigger from UI
+- [ ] State preservation for rollback operations
+- [ ] Rollback to specific wave with partial execution
+- [ ] Cleanup of failed recovery instances
+- [ ] Rollback history and audit trail
+
+**Phase 6: Advanced Monitoring & Analytics** (After Phase 5)
+- [ ] Real-time WebSocket updates (replace polling)
+- [ ] Recovery time analytics dashboard with historical trends
+- [ ] Cost analysis per recovery execution
+- [ ] Recovery success rate metrics by Protection Group
+- [ ] Automated compliance reporting for audit requirements
+- [ ] Custom CloudWatch metrics for recovery KPIs
+- [ ] Slack/Teams integration for execution notifications
+- [ ] Recovery plan effectiveness scoring
 
 ## Support
 
