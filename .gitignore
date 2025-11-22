@@ -15,6 +15,7 @@ frontend/.DS_Store
 *.png
 test-*.html
 test-results/
+playwright-report/
 
 # Q developer cache
 .amazonq/
