@@ -45,6 +45,9 @@ export const RecoveryPlansPage: React.FC = () => {
   const [planToDelete, setPlanToDelete] = useState<RecoveryPlan | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RecoveryPlan | null>(null);
+  const [executeDialogOpen, setExecuteDialogOpen] = useState(false);
+  const [planToExecute, setPlanToExecute] = useState<RecoveryPlan | null>(null);
+  const [executionType, setExecutionType] = useState<'DRILL' | 'RECOVERY'>('DRILL');
 
   // Fetch recovery plans on mount
   useEffect(() => {
@@ -117,16 +120,26 @@ export const RecoveryPlansPage: React.FC = () => {
     setEditingPlan(null);
   };
 
-  const handleExecute = async (plan: RecoveryPlan) => {
+  const handleExecuteClick = (plan: RecoveryPlan) => {
+    setPlanToExecute(plan);
+    setExecutionType('DRILL'); // Default to DRILL for MVP
+    setExecuteDialogOpen(true);
+  };
+
+  const confirmExecute = async () => {
+    if (!planToExecute) return;
+
     try {
-      // Execute recovery plan in DRILL mode
+      // Execute recovery plan with selected type
       const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: plan.id,
+        recoveryPlanId: planToExecute.id,
         dryRun: false,
         executedBy: 'demo-user' // TODO: Get from auth context
+        // Note: executionType will be added to backend in future iteration
       });
       
-      toast.success('Recovery execution started');
+      toast.success(`${executionType} execution started`);
+      setExecuteDialogOpen(false);
       
       // Navigate to execution details page
       navigate(`/executions/${execution.executionId}`);
@@ -134,7 +147,14 @@ export const RecoveryPlansPage: React.FC = () => {
       const errorMessage = err.message || 'Failed to execute recovery plan';
       toast.error(errorMessage);
       console.error('Execution error:', err);
+      setExecuteDialogOpen(false);
     }
+  };
+
+  const cancelExecute = () => {
+    setExecuteDialogOpen(false);
+    setPlanToExecute(null);
+    setExecutionType('DRILL');
   };
 
   // DataGrid columns configuration
@@ -217,10 +237,9 @@ export const RecoveryPlansPage: React.FC = () => {
         <GridActionsCellItem
           icon={<PlayArrowIcon />}
           label="Execute"
-          onClick={() => handleExecute(params.row as RecoveryPlan)}
+          onClick={() => handleExecuteClick(params.row as RecoveryPlan)}
           disabled={params.row.status === 'archived'}
           showInMenu={false}
-          sx={{ color: 'success.main' }}
         />,
         <GridActionsCellItem
           icon={<EditIcon />}
@@ -233,7 +252,6 @@ export const RecoveryPlansPage: React.FC = () => {
           label="Delete"
           onClick={() => handleDelete(params.row as RecoveryPlan)}
           showInMenu={false}
-          sx={{ color: 'error.main' }}
         />,
       ],
     },
@@ -299,6 +317,24 @@ export const RecoveryPlansPage: React.FC = () => {
         plan={editingPlan}
         onClose={handleDialogClose}
         onSave={handleDialogSave}
+      />
+
+      {/* Execution Type Dialog */}
+      <ConfirmDialog
+        open={executeDialogOpen}
+        title={`Execute ${planToExecute?.name || 'Recovery Plan'}`}
+        message={
+          executionType === 'DRILL'
+            ? '🔵 DRILL Mode: Launches recovery instances for testing. ' +
+              'Servers remain available in DRS for future drills and actual recovery.'
+            : '⚠️ RECOVERY Mode: Performs actual failover. ' +
+              'This will mark servers as recovered in DRS and they cannot be re-used for drills. ' +
+              'Only use this for real disaster recovery scenarios!'
+        }
+        confirmLabel={`Start ${executionType}`}
+        confirmColor={executionType === 'DRILL' ? 'primary' : 'warning'}
+        onConfirm={confirmExecute}
+        onCancel={cancelExecute}
       />
       </Box>
     </PageTransition>
