@@ -194,7 +194,7 @@ export const ExecutionsPage: React.FC = () => {
       headerName: 'Duration',
       width: 120,
       sortable: false,
-      valueGetter: (params) => calculateDuration(params.row as ExecutionListItem),
+      valueGetter: (value, row: ExecutionListItem) => calculateDuration(row),
     },
     {
       field: 'actions',
@@ -288,7 +288,7 @@ export const ExecutionsPage: React.FC = () => {
         {loading ? (
           <CardSkeleton count={5} showProgress={true} />
         ) : error ? (
-          <ErrorState message={error} onRetry={handleRefresh} />
+          <ErrorState error={error} onRetry={handleRefresh} />
         ) : activeExecutions.length === 0 ? (
           <Paper sx={{ p: 4, textAlign: 'center' }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
