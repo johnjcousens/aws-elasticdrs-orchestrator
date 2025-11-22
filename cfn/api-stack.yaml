@@ -989,6 +989,7 @@ Resources:
       - ExecutionOptionsMethod
     Properties:
       RestApiId: !Ref RestApi
+      Description: !Sub 'Deployment ${AWS::StackName} - ${AWS::StackId}'
 
   # API Stage
   ApiStage:
