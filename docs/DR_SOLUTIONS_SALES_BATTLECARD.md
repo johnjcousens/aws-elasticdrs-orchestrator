@@ -1,7 +1,7 @@
-# AWS DRS Orchestration Solution - 1,000 VM Single Account Scale
+# AWS DRS Orchestration Solution - 1,000 VM Scale
 
 **Last Updated**: November 22, 2025  
-**Purpose**: Single account DRS deployment for up to 1,000 VMs
+**Purpose**: DRS orchestration for up to 1,000 VMs
 
 ---
 
