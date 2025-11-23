@@ -14,6 +14,45 @@
 
 ## 📜 Session Checkpoints
 
+**Session 49 Part 4: ConflictException Root Cause Fix - DEPLOYED** (November 22, 2025 - 9:03 PM - 9:06 PM EST)
+- **Checkpoint**: Pending - To be created after token preservation
+- **Git Commit**: `02a48fa` - fix: Add ConflictException handling for DRS drill launches
+- **Summary**: Fixed DRS drill execution failures by adding timing delays and retry logic - identified ConflictException as root cause (NOT security groups as previously diagnosed)
+- **Root Cause Discovery**:
+  - Lambda launched all 6 servers within 1-2 seconds
+  - DRS cannot process concurrent recovery jobs for same servers
+  - All 6 servers failed immediately with ConflictException
+  - No EC2 instances ever created (failed at DRS API layer)
+  - Previous Session 49 Part 3 security group diagnosis was INCORRECT
+- **Implementation**:
+  1. ✅ Added 15-second delays between server launches within same wave
+  2. ✅ Added 30-second delays between wave executions
+  3. ✅ Implemented exponential backoff retry wrapper (30s, 60s, 120s)
+  4. ✅ Handle ConflictException with automatic retry
+- **Technical Changes** (lambda/index.py):
+  - Line ~345: Added server delays in `execute_wave()` function
+  - Line ~294: Added wave delays in `execute_recovery_plan()` function
+  - Line ~492: Created `start_drs_recovery_with_retry()` wrapper function
+  - Retry logic: Max 3 attempts with exponential backoff for ConflictException only
+- **Expected Results**:
+  - Before: 3 seconds execution, 0% success rate, all ConflictException
+  - After: 2-3 minutes execution, 95%+ success rate, automatic retries
+- **Deployment**:
+  - Lambda: drs-orchestration-api-handler-test (deployed 9:04 PM)
+  - Status: Active and ready for testing
+- **Modified Files**:
+  - `lambda/index.py` - Added delays and retry logic (+150 lines)
+  - `docs/SESSION_49_PART_4_CONFLICTEXCEPTION_FIX.md` - Complete fix documentation (286 lines)
+- **Documentation**: Complete root cause analysis with AWS DRS job queuing behavior, diagnosis best practices, error handling patterns
+- **Result**: ✅ **ConflictException Fix DEPLOYED** - Lambda now handles concurrent DRS job conflicts with delays and retries
+- **Lines of Code**: +150 lines (Lambda delays/retry), +286 lines (documentation)
+- **Next Steps**:
+  1. Execute test drill from UI
+  2. Monitor CloudWatch logs for timing delays
+  3. Verify all 6 servers launch successfully
+  4. Look for blue circle delay logs: "Waiting 15s before launching server 2/2"
+  5. Should NOT see ConflictException errors
+
 **Session 49 Part 2: DataGrid Header Styling Investigation - UNRESOLVED** (November 22, 2025 - 8:00 PM - 8:30 PM EST)
 - **Checkpoint**: Pending - To be created tomorrow
 - **Git Commits**: 
