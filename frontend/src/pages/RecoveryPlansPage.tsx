@@ -191,35 +191,51 @@ export const RecoveryPlansPage: React.FC = () => {
       ),
     },
     {
-      field: 'status',
+      field: 'lastExecutionStatus',
       headerName: 'Status',
-      width: 120,
+      width: 130,
       sortable: true,
-      renderCell: (params) => <StatusBadge status={params.value || 'draft'} />,
+      renderCell: (params) => {
+        if (!params.value) {
+          return (
+            <Chip label="Never Executed" size="small" variant="outlined" />
+          );
+        }
+        return <StatusBadge status={params.value} />;
+      },
     },
     {
-      field: 'lastExecutedAt',
-      headerName: 'Last Execution',
+      field: 'lastStartTime',
+      headerName: 'Last Start',
       width: 180,
       sortable: true,
       renderCell: (params) => {
-        // Defensive: Check for null, undefined, 0, or invalid timestamps
-        if (!params.value || params.value === 0) {
+        if (!params.value) {
           return (
             <Typography variant="body2" color="text.secondary">
               Never
             </Typography>
           );
         }
-        // Has valid execution timestamp
-        return (
-          <Box>
-            <StatusBadge status={params.row.lastExecutionStatus || 'completed'} size="small" />
-            <Typography variant="caption" color="text.secondary" display="block">
-              <DateTimeDisplay value={params.value} format="full" />
+        // lastStartTime comes as Unix timestamp in seconds, convert to milliseconds
+        return <DateTimeDisplay value={params.value * 1000} format="full" />;
+      },
+    },
+    {
+      field: 'lastEndTime',
+      headerName: 'Last End',
+      width: 180,
+      sortable: true,
+      renderCell: (params) => {
+        if (!params.value) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              Never
             </Typography>
-          </Box>
-        );
+          );
+        }
+        // lastEndTime comes as Unix timestamp in seconds, convert to milliseconds
+        return <DateTimeDisplay value={params.value * 1000} format="full" />;
       },
     },
     {
