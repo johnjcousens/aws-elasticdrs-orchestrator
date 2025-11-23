@@ -1579,6 +1579,10 @@ def validate_unique_rp_name(name: str, current_rp_id: Optional[str] = None) -> b
 
 def transform_pg_to_camelcase(pg: Dict) -> Dict:
     """Transform Protection Group from DynamoDB PascalCase to frontend camelCase"""
+    # Convert timestamps from seconds to milliseconds for JavaScript Date()
+    created_at = pg.get('CreatedDate')
+    updated_at = pg.get('LastModifiedDate')
+    
     return {
         'protectionGroupId': pg.get('GroupId'),
         'name': pg.get('GroupName'),
@@ -1587,8 +1591,8 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
         'sourceServerIds': pg.get('SourceServerIds', []),
         'accountId': pg.get('AccountId', ''),
         'owner': pg.get('Owner', ''),
-        'createdAt': pg.get('CreatedDate'),
-        'updatedAt': pg.get('LastModifiedDate'),
+        'createdAt': int(created_at * 1000) if created_at else None,
+        'updatedAt': int(updated_at * 1000) if updated_at else None,
         'serverDetails': pg.get('ServerDetails', [])
     }
 
@@ -1641,6 +1645,11 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
             'protectionGroupIds': [wave.get('ProtectionGroupId')] if wave.get('ProtectionGroupId') else []  # Array format
         })
     
+    # Convert timestamps from seconds to milliseconds for JavaScript Date()
+    created_at = rp.get('CreatedDate')
+    updated_at = rp.get('LastModifiedDate')
+    last_executed_at = rp.get('LastExecutedDate')
+    
     return {
         'id': rp.get('PlanId'),
         'name': rp.get('PlanName'),
@@ -1652,9 +1661,9 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'rpo': rp.get('RPO'),
         'rto': rp.get('RTO'),
         'waves': waves,  # Now properly transformed
-        'createdAt': rp.get('CreatedDate'),
-        'updatedAt': rp.get('LastModifiedDate'),
-        'lastExecutedAt': rp.get('LastExecutedDate'),
+        'createdAt': int(created_at * 1000) if created_at else None,
+        'updatedAt': int(updated_at * 1000) if updated_at else None,
+        'lastExecutedAt': int(last_executed_at * 1000) if last_executed_at else None,
         'lastExecutionStatus': rp.get('LastExecutionStatus'),  # NEW: Execution status if available
         'waveCount': len(waves)
     }
