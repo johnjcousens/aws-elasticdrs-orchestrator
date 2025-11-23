@@ -384,28 +384,42 @@ The **Execution History** page shows:
 
 ## 📚 Documentation
 
-### Getting Started
-- [Deployment Guide](docs/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) - Complete deployment instructions
-- [Stack Cleanup Procedure](docs/STACK_CLEANUP_PROCEDURE.md) - How to properly delete stacks
-- [Testing & QA Guide](docs/TESTING_AND_QUALITY_ASSURANCE.md) - Testing procedures and quality assurance
+### Requirements & Specifications
+Comprehensive requirements documentation transformed to prescriptive specifications format:
+- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Product vision, features, cost analysis, and strategic positioning
+- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Functional requirements, API specifications, and data models
+- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design, component library, and interaction patterns
 
 ### Architecture & Design
-- [Architecture Document](docs/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture and design
-- [Architecture Diagram](docs/AWS-DRS-Orchestration-Architecture.drawio) - Visual architecture (DrawIO format)
-- [Product Requirements](docs/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Feature requirements and specifications
-- [Software Requirements](docs/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications
-- [UX/UI Design Specifications](docs/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design guidelines
+System architecture, design decisions, and cost analysis:
+- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - Complete system architecture and technical design
+- [Architecture Diagram](docs/architecture/AWS-DRS-Orchestration-Architecture.drawio) - Visual architecture diagram (DrawIO format)
+- [TCO Analysis](docs/AWS_DRS_ORCHESTRATION_TCO_ANALYSIS_FIXED.md) - Total cost of ownership analysis and AWS vs VMware SRM comparison
+
+### Deployment & Operations
+Guides for deploying, operating, and testing the solution:
+- [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) - Complete deployment instructions and operational procedures
+- [Testing & Quality Assurance](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) - Testing procedures, validation, and QA processes
+- [MVP Phase 1: DRS Integration](docs/guides/MVP_PHASE1_DRS_INTEGRATION.md) - Phase 1 implementation guide for DRS recovery launching
 
 ### API References
-- [AWS DRS API Reference](docs/AWS_DRS_API_REFERENCE.md) - AWS Elastic Disaster Recovery API documentation
-- [DRS-SRM API Mapping](docs/DRS_SRM_API_MAPPING.md) - VMware SRM to AWS DRS API mapping reference
-- [VMware SRM API Summary](docs/VMware_SRM_REST_API_Summary.md) - VMware Site Recovery Manager REST API
+AWS DRS API documentation and VMware SRM comparison guides:
+- [AWS DRS API Reference](docs/guides/AWS_DRS_API_REFERENCE.md) - AWS Elastic Disaster Recovery API documentation
+- [DRS-SRM API Mapping](docs/guides/DRS_SRM_API_MAPPING.md) - VMware SRM to AWS DRS API mapping reference
+- [DR Solutions API Comparison](docs/guides/DR_SOLUTIONS_API_COMPARISON.md) - Comprehensive API comparison across DR solutions
+
+### Competitive Analysis
+Market analysis and competitive positioning:
+- [DR Solutions Comparison](docs/competitive-analysis/DR_SOLUTIONS_COMPARISON.md) - Feature and capability comparison across DR solutions
+- [Sales Battlecard](docs/competitive-analysis/DR_SOLUTIONS_SALES_BATTLECARD.md) - Competitive positioning and sales guidance
+- [Disaster Recovery Solutions Analysis](docs/competitive-analysis/disaster_recovery_solutions___competitive_analysis.md) - Comprehensive market analysis
 
 ### Project Management
-- [Project Status](docs/PROJECT_STATUS.md) - Current project status and complete session history
+- [Project Status](docs/PROJECT_STATUS.md) - Current project status with complete session history and implementation tracking
 
 ### Historical Documentation
-- [Archived Docs](docs/archive-2025-11-22.zip) - Historical session notes, debugging guides, and development documentation
+Archived session notes, debugging guides, and development documentation:
+- [Archive Directory](docs/archive/) - Historical documentation from previous development sessions
 
 ## SSM Documents
 
