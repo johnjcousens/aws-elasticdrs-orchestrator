@@ -452,20 +452,52 @@ def create_recovery_plan(body: Dict) -> Dict:
 
 
 def get_recovery_plans() -> Dict:
-    """List all Recovery Plans"""
+    """List all Recovery Plans with latest execution history"""
     try:
         result = recovery_plans_table.scan()
         plans = result.get('Items', [])
-        
+
+        # Enrich each plan with latest execution data
+        for plan in plans:
+            plan_id = plan.get('PlanId')
+            
+            # Query ExecutionHistoryTable for latest execution
+            try:
+                execution_result = execution_history_table.query(
+                    IndexName='PlanIdIndex',
+                    KeyConditionExpression=Key('PlanId').eq(plan_id),
+                    ScanIndexForward=False,  # Sort by StartTime DESC
+                    Limit=1  # Get only the latest execution
+                )
+                
+                if execution_result.get('Items'):
+                    latest_execution = execution_result['Items'][0]
+                    plan['LastExecutionStatus'] = latest_execution.get('Status')
+                    plan['LastStartTime'] = latest_execution.get('StartTime')
+                    plan['LastEndTime'] = latest_execution.get('EndTime')
+                else:
+                    # No executions found for this plan
+                    plan['LastExecutionStatus'] = None
+                    plan['LastStartTime'] = None
+                    plan['LastEndTime'] = None
+                    
+            except Exception as e:
+                print(f"Error querying execution history for plan {plan_id}: {str(e)}")
+                # Set null values on error
+                plan['LastExecutionStatus'] = None
+                plan['LastStartTime'] = None
+                plan['LastEndTime'] = None
+
+            # Add wave count before transformation
+            plan['WaveCount'] = len(plan.get('Waves', []))
+
         # Transform to camelCase for frontend
         camelcase_plans = []
         for plan in plans:
-            # Add wave count before transformation
-            plan['WaveCount'] = len(plan.get('Waves', []))
             camelcase_plans.append(transform_rp_to_camelcase(plan))
-        
+
         return response(200, {'plans': camelcase_plans, 'count': len(camelcase_plans)})
-        
+
     except Exception as e:
         print(f"Error listing Recovery Plans: {str(e)}")
         return response(500, {'error': str(e)})
@@ -1649,6 +1681,8 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
     created_at = rp.get('CreatedDate')
     updated_at = rp.get('LastModifiedDate')
     last_executed_at = rp.get('LastExecutedDate')
+    last_start_time = rp.get('LastStartTime')
+    last_end_time = rp.get('LastEndTime')
     
     return {
         'id': rp.get('PlanId'),
@@ -1664,7 +1698,9 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'createdAt': int(created_at * 1000) if created_at else None,
         'updatedAt': int(updated_at * 1000) if updated_at else None,
         'lastExecutedAt': int(last_executed_at * 1000) if last_executed_at else None,
-        'lastExecutionStatus': rp.get('LastExecutionStatus'),  # NEW: Execution status if available
+        'lastExecutionStatus': rp.get('LastExecutionStatus'),  # NEW: Execution status
+        'lastStartTime': last_start_time,  # NEW: Unix timestamp (seconds) - no conversion needed
+        'lastEndTime': last_end_time,  # NEW: Unix timestamp (seconds) - no conversion needed
         'waveCount': len(waves)
     }
 
