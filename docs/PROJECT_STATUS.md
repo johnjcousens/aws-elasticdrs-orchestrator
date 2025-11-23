@@ -14,6 +14,43 @@
 
 ## 📜 Session Checkpoints
 
+**Session 49 Part 5: Wave Dependency Enhancement Documentation** (November 22, 2025 - 9:16 PM - 9:51 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251122_215156_8e5c59_2025-11-22_21-51-56.md`
+- **Git Commits**: `081a470` - docs: Document wave dependency enhancement and DRS drill failure analysis
+- **Summary**: Documented wave dependency completion logic requirements for next session implementation
+- **Key Discovery**: ConflictException fix (Part 4) only delays wave **startup**, does NOT wait for wave **completion** before starting dependent waves
+- **Current Behavior**:
+  - Wave 1 starts → 30s delay → Wave 2 starts (Wave 1 still launching in background!)
+  - All waves overlap during execution, only startup is delayed
+  - DependsOn relationships ignored during execution
+- **Required Enhancement**:
+  - Waves with DependsOn should wait for dependent wave to COMPLETE (all servers launched)
+  - Waves without DependsOn should start immediately (parallel execution)
+  - DRS job polling needed to track completion status
+- **Documentation Created**:
+  - `docs/SESSION_49_PART_5_WAVE_DEPENDENCY_ENHANCEMENT.md` (400+ lines)
+  - Complete implementation specification with code examples
+  - DRS DescribeJobs polling logic with timeout handling
+  - Dependency parsing from wave configuration
+  - Three test scenarios (sequential, parallel, complex dependencies)
+  - Execution history schema updates for completion tracking
+- **Implementation Requirements**:
+  1. Add `get_wave_dependencies()` function to parse DependsOn from waves
+  2. Add `wait_for_wave_completion()` function with DRS job polling
+  3. Update `execute_recovery_plan()` to implement dependency logic
+  4. Update execution history schema with completion times
+  5. Update frontend to show wave completion status
+- **Estimated Implementation**: 2-3 hours for next session
+- **Modified Files**: None (documentation only)
+- **Result**: ✅ **Enhancement Requirements Documented** - Ready for implementation in Session 50
+- **Lines of Code**: +400 lines (implementation guide)
+- **Next Steps**:
+  1. Implement wave dependency completion logic in lambda/index.py
+  2. Add DRS job polling with 30-second intervals and 1-hour timeout
+  3. Test with sequential dependencies (Database → App → Web)
+  4. Test with parallel waves (no dependencies)
+  5. Update frontend ExecutionDetailsPage to show completion status
+
 **Session 49 Part 4: ConflictException Root Cause Fix - DEPLOYED** (November 22, 2025 - 9:03 PM - 9:06 PM EST)
 - **Checkpoint**: Pending - To be created after token preservation
 - **Git Commit**: `02a48fa` - fix: Add ConflictException handling for DRS drill launches
