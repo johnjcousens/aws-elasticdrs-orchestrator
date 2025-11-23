@@ -3,7 +3,6 @@
 
 **Version**: 1.0  
 **Date**: November 12, 2025  
-**Status**: Production Release (MVP Complete)  
 **Document Owner**: Requirements Engineering Team  
 **Target Audience**: Software Engineers, QA Engineers, Product Managers, Business Analysts
 
@@ -44,16 +43,6 @@ This SRS specifies 87 functional requirements across 6 major feature areas:
 5. **Authentication & Authorization** (11 requirements) - User management
 6. **Audit & Monitoring** (10 requirements) - Logging and compliance
 
-### Requirements Status
-
-| Category | Total | Implemented | Tested | Status |
-|----------|-------|-------------|--------|--------|
-| Functional | 87 | 83 (95%) | 13 (15%) | ⚠️ Testing needed |
-| Non-Functional | 32 | 30 (94%) | 8 (25%) | ⚠️ Testing needed |
-| **Total** | **119** | **113 (95%)** | **21 (18%)** | **⚠️ Testing Gap** |
-
-**Critical Gap**: Execution Engine untested (0% coverage) - highest priority for next phase.
-
 ---
 
 ## Scope & Context
@@ -86,7 +75,6 @@ This SRS specifies 87 functional requirements across 6 major feature areas:
 
 **Requirement ID**: FR-PG-001  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ⚠️ Needs Testing
 
 **Description**: The system shall allow users to create a Protection Group by specifying a unique name, AWS region, optional description, optional tags, and a list of DRS source server IDs.
 
@@ -136,7 +124,6 @@ serverIds: required, array<string>, min=1, max=200, pattern=s-[a-f0-9]{17}
 
 **Requirement ID**: FR-PG-002  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ✅ Tested
 
 **Description**: The system shall return a list of all Protection Groups accessible to the authenticated user.
 
@@ -173,7 +160,6 @@ serverIds: required, array<string>, min=1, max=200, pattern=s-[a-f0-9]{17}
 
 **Requirement ID**: FR-PG-003  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ✅ Tested
 
 **Description**: The system shall return detailed information for a specific Protection Group by ID.
 
@@ -190,7 +176,6 @@ serverIds: required, array<string>, min=1, max=200, pattern=s-[a-f0-9]{17}
 
 **Requirement ID**: FR-PG-004  
 **Priority**: High  
-**Status**: ✅ Implemented, ⚠️ Needs Testing
 
 **Description**: The system shall allow users to update an existing Protection Group's mutable fields: description, tags, and server assignments.
 
@@ -220,7 +205,6 @@ PUT /protection-groups/{id}
 
 **Requirement ID**: FR-PG-005  
 **Priority**: High  
-**Status**: ✅ Implemented, ⚠️ Needs Testing
 
 **Description**: The system shall allow users to delete a Protection Group if it's not currently referenced by any Recovery Plans.
 
@@ -256,7 +240,6 @@ PUT /protection-groups/{id}
 
 **Requirement ID**: FR-PG-006  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ⚠️ Needs Testing
 
 **Description**: The system shall enforce that each DRS source server can be assigned to at most one Protection Group at any given time (globally unique constraint).
 
@@ -275,7 +258,6 @@ PUT /protection-groups/{id}
 
 **Requirement ID**: FR-PG-007  
 **Priority**: Medium  
-**Status**: ✅ Implemented, ⚠️ Needs Testing
 
 **Description**: The system shall allow users to filter DRS source servers by tags when discovering servers for Protection Group assignment.
 
@@ -318,7 +300,6 @@ Response:
 
 **Requirement ID**: FR-RP-001  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ⚠️ Needs Testing
 
 **Description**: The system shall allow users to create a Recovery Plan with a unique name, description, one or more Protection Group IDs, and wave configuration defining recovery execution order.
 
@@ -362,7 +343,6 @@ Response:
 
 **Requirement ID**: FR-RP-002  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ✅ Tested
 
 **Description**: The system shall return a list of all Recovery Plans accessible to the authenticated user.
 
@@ -378,7 +358,6 @@ Response:
 
 **Requirement ID**: FR-RP-003  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ✅ Tested
 
 **Description**: The system shall return complete details for a specific Recovery Plan including all wave configurations.
 
@@ -394,26 +373,18 @@ Response:
 #### FR-2.4: Update Recovery Plan
 
 **Requirement ID**: FR-RP-004  
-**Priority**: High  
-**Status**: ✅ Implemented, ⚠️ **CRITICAL BUG DISCOVERED**
+**Priority**: High
 
 **Description**: The system shall allow users to update an existing Recovery Plan's waves, description, and Protection Group assignments.
 
 **Acceptance Criteria**:
-- AC-001: Can update description
-- AC-002: Can add/remove Protection Groups (must update wave assignments accordingly)
-- AC-003: Can modify wave configurations (add/remove/reorder waves)
-- AC-004: Cannot update plan name (immutable)
-- AC-005: All validation rules from FR-RP-001 apply
-- AC-006: Returns 409 Conflict if plan is currently executing
-- AC-007: Updates UpdatedAt timestamp
-
-**CRITICAL BUG**: 
-- **Issue**: When updating Recovery Plan with renamed waves (e.g., "Database Wave" → "Database Tier"), frontend may receive inconsistent data causing UI errors
-- **Root Cause**: Wave data transformation bug in API Lambda (PascalCase ↔ camelCase conversion)
-- **Status**: ⚠️ **Fix in progress** (Session 33 identified the issue)
-- **Workaround**: Refresh page after editing Recovery Plan
-- **Priority**: P1 - Blocks production use
+- AC-001: System shall update description field
+- AC-002: System shall add/remove Protection Groups (with corresponding wave assignment updates)
+- AC-003: System shall modify wave configurations (add/remove/reorder waves)
+- AC-004: System shall not allow updates to plan name (immutable)
+- AC-005: System shall apply all validation rules from FR-RP-001
+- AC-006: System shall return 409 Conflict if plan is currently executing
+- AC-007: System shall update UpdatedAt timestamp
 
 ---
 
@@ -421,7 +392,6 @@ Response:
 
 **Requirement ID**: FR-RP-005  
 **Priority**: High  
-**Status**: ✅ Implemented, ⚠️ Needs Testing
 
 **Description**: The system shall allow users to delete a Recovery Plan if it's not currently executing.
 
@@ -437,7 +407,6 @@ Response:
 
 **Requirement ID**: FR-RP-006  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ❌ Untested
 
 **Description**: The system shall validate wave dependencies to ensure no circular dependencies and that dependent waves execute after their prerequisites.
 
@@ -471,7 +440,6 @@ Error Response:
 
 **Requirement ID**: FR-RP-007  
 **Priority**: High  
-**Status**: ✅ Implemented, ❌ Untested
 
 **Description**: The system shall support two wave execution types: SEQUENTIAL (servers launch one-by-one) and PARALLEL (all servers launch simultaneously).
 
@@ -511,7 +479,6 @@ Wave 2 (PARALLEL): [s-app1, s-app2, s-app3]
 
 **Requirement ID**: FR-EXE-001  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ❌ **UNTESTED - HIGHEST PRIORITY**
 
 **Description**: The system shall allow users to start a recovery execution for a specified Recovery Plan with either DRILL or RECOVERY mode.
 
@@ -565,7 +532,6 @@ Response: 202 Accepted
 
 **Requirement ID**: FR-EXE-002  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ❌ **UNTESTED - CRITICAL**
 
 **Description**: The system shall execute waves sequentially according to their wave number, respecting dependencies and wait times.
 
@@ -595,7 +561,6 @@ FOR EACH wave IN recovery_plan.waves:
 
 **Requirement ID**: FR-EXE-003  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ❌ **UNTESTED**
 
 **Description**: The system shall call AWS DRS StartRecovery API for each server in a wave, passing appropriate parameters for drill vs production mode.
 
@@ -633,7 +598,6 @@ job_id = response['job']['jobID']
 
 **Requirement ID**: FR-EXE-004  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ❌ **UNTESTED**
 
 **Description**: The system shall monitor DRS recovery jobs by polling DRS DescribeJobs API every 30 seconds until all jobs reach terminal state (COMPLETED or FAILED).
 
@@ -662,7 +626,6 @@ FAILED (launch error) → Mark server failed, continue
 
 **Requirement ID**: FR-EXE-005  
 **Priority**: High  
-**Status**: ✅ Implemented, ❌ **UNTESTED**
 
 **Description**: The system shall perform health checks on recovered EC2 instances using EC2 DescribeInstanceStatus API to verify instances are running and passing system checks.
 
@@ -694,7 +657,6 @@ def health_check(instance_id, timeout=300):
 
 **Requirement ID**: FR-EXE-006  
 **Priority**: Critical  
-**Status**: ✅ Implemented, ✅ Tested
 
 **Description**: The system shall allow users to query the status of a running or completed execution.
 
@@ -744,7 +706,6 @@ def health_check(instance_id, timeout=300):
 
 **Requirement ID**: FR-EXE-007  
 **Priority**: Medium  
-**Status**: ✅ Implemented, ❌ **UNTESTED**
 
 **Description**: The system shall allow users to cancel a running execution, stopping recovery job initiation and terminating drill instances.
 
