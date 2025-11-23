@@ -59,3 +59,6 @@ env/
 
 # Node modules (if any frontend dependencies)
 node_modules/
+
+# Lambda deployment artifacts (use lambda/*.zip instead)
+/*.zip
