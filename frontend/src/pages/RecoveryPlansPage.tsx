@@ -216,7 +216,7 @@ export const RecoveryPlansPage: React.FC = () => {
           <Box>
             <StatusBadge status={params.row.lastExecutionStatus || 'completed'} size="small" />
             <Typography variant="caption" color="text.secondary" display="block">
-              <DateTimeDisplay value={params.value} format="relative" />
+              <DateTimeDisplay value={params.value} format="full" />
             </Typography>
           </Box>
         );
@@ -236,7 +236,7 @@ export const RecoveryPlansPage: React.FC = () => {
             </Typography>
           );
         }
-        return <DateTimeDisplay value={params.value} format="relative" />;
+        return <DateTimeDisplay value={params.value} format="full" />;
       },
     },
     {
