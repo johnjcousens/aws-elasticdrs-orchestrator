@@ -723,7 +723,7 @@ def execute_recovery_plan(body: Dict) -> Dict:
             'Waves': []
         }
         
-        # Execute waves sequentially
+        # Execute waves sequentially with delays between waves
         for wave_index, wave in enumerate(plan['Waves']):
             wave_number = wave_index + 1
             wave_name = wave.get('WaveName', f'Wave {wave_number}')
@@ -732,6 +732,11 @@ def execute_recovery_plan(body: Dict) -> Dict:
             if not pg_id:
                 print(f"Wave {wave_number} has no Protection Group, skipping")
                 continue
+            
+            # Add 30-second delay between waves (except first wave)
+            if wave_index > 0:
+                print(f"Waiting 30s before executing wave {wave_number}/{len(plan['Waves'])}")
+                time.sleep(30)
             
             print(f"Executing Wave {wave_number}: {wave_name}")
             
@@ -807,11 +812,16 @@ def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dri
         
         print(f"Launching recovery for {len(server_ids)} servers in region {region}")
         
-        # Launch recovery for each server
+        # Launch recovery for each server with delays between servers
         server_results = []
-        for server_id in server_ids:
+        for i, server_id in enumerate(server_ids):
+            # Add 15-second delay between servers (except first server)
+            if i > 0:
+                print(f"Waiting 15s before launching server {i+1}/{len(server_ids)}")
+                time.sleep(15)
+            
             try:
-                job_result = start_drs_recovery(server_id, region, is_drill, execution_id)
+                job_result = start_drs_recovery_with_retry(server_id, region, is_drill, execution_id)
                 server_results.append(job_result)
             except Exception as e:
                 print(f"Error launching recovery for server {server_id}: {str(e)}")
@@ -893,6 +903,34 @@ def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id
             'Error': error_msg,
             'LaunchTime': int(time.time())
         }
+
+
+def start_drs_recovery_with_retry(server_id: str, region: str, is_drill: bool, execution_id: str) -> Dict:
+    """Launch DRS recovery with ConflictException retry logic"""
+    from botocore.exceptions import ClientError
+    
+    max_retries = 3
+    base_delay = 30  # Base delay in seconds
+    
+    for attempt in range(max_retries):
+        try:
+            return start_drs_recovery(server_id, region, is_drill, execution_id)
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            
+            # Only retry on ConflictException
+            if error_code == 'ConflictException' and attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)  # Exponential backoff: 30s, 60s, 120s
+                print(f"ConflictException for server {server_id} (attempt {attempt + 1}/{max_retries})")
+                print(f"Server is being processed by another job, retrying in {delay}s...")
+                time.sleep(delay)
+                continue
+            
+            # Re-raise if not ConflictException or last attempt
+            raise
+        except Exception as e:
+            # Re-raise non-ClientError exceptions immediately
+            raise
 
 
 def get_execution_status(execution_id: str) -> Dict:
