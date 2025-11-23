@@ -106,10 +106,10 @@ export const DataGridWrapper = ({
           disableRowSelectionOnClick
           density={isMobile ? 'compact' : 'standard'}
           sx={{
-            // AWS theme styling for headers
+            // AWS theme styling for headers - use Squid Ink for better contrast
             '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: 'primary.main',
-              color: 'primary.contrastText',
+              backgroundColor: 'secondary.main', // AWS Squid Ink (#232F3E) for visibility
+              color: 'secondary.contrastText',
               fontWeight: 600,
               fontSize: isMobile ? '0.75rem' : '0.875rem',
             },
