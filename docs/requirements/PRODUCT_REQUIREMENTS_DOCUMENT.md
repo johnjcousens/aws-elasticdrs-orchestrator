@@ -86,16 +86,22 @@ AWS DRS Orchestration will be a cloud-native, serverless solution providing ente
 
 #### Competitive Positioning
 
-| Capability | VMware SRM 8.8 | AWS DRS Orchestration | Advantage |
-|------------|----------------|----------------------|-----------|
-| **Replication** | Storage array-based | Agent-based (any platform) | ✅ Platform agnostic |
-| **RPO** | Minutes-hours (array dependent) | Sub-second (continuous) | ✅ Better RPO |
-| **Orchestration** | 5 fixed priorities | Unlimited waves | ✅ More flexible |
-| **Cost Model** | $10K-50K/year + hardware | $12-40/month pay-per-use | ✅ 99% cost reduction |
-| **Testing** | Test bubbles (network isolation) | Drill mode + VPC isolation | ⚠️ Planned enhancement |
-| **Scripts** | Built-in callout framework | Lambda + SSM (planned) | ⚠️ Planned enhancement |
-| **Discovery** | Automatic via storage | Tag-based manual | ⚠️ Trade-off |
-| **Platform** | VMware only | Any platform (VMware, physical, cloud) | ✅ Universal |
+The solution shall provide enterprise-grade disaster recovery orchestration capabilities that leverage AWS-native services and modern cloud architecture patterns:
+
+**Core Differentiators**:
+- **Platform Flexibility**: Agent-based replication supports any source platform (VMware, physical servers, cloud VMs)
+- **Sub-Second RPO**: Continuous block-level replication versus traditional storage-array limitations
+- **Unlimited Orchestration**: Wave-based execution with explicit dependencies (no artificial constraints)
+- **Cloud Economics**: Pay-per-use operational expenditure model versus capital expenditure requirements
+- **API-First Design**: Complete REST API enabling DevOps integration and automation
+- **Serverless Architecture**: AWS-managed infrastructure eliminating operational overhead
+
+**Strategic Advantages**:
+- Cloud-native design leverages AWS platform reliability and scalability
+- Eliminates dependency on expensive storage array replication licenses
+- Enables hybrid cloud and multi-cloud disaster recovery strategies
+- Provides complete audit trails and execution history for compliance
+- Scales linearly from small deployments to enterprise-wide implementations
 
 ### Strategic Fit
 
@@ -590,605 +596,197 @@ Modern, responsive web application for DR management.
 
 ---
 
-## Roadmap & Implementation Phases
-
-#### CloudFormation Infrastructure
-**Status**: ✅ **PRODUCTION READY**
-
-- **Master Template** (1,170+ lines): Orchestrates 6 nested stacks
-- **Database Stack** (130 lines): 3 DynamoDB tables with encryption, PITR, auto-scaling
-  - `protection-groups-test`: Protection Group metadata
-  - `recovery-plans-test`: Recovery Plan configurations
-  - `execution-history-test`: Complete audit trail
-- **Lambda Stack** (408 lines): 4 Lambda functions with IAM roles
-  - `api-handler`: Main API logic (912 lines Python)
-  - `orchestration`: Step Functions execution logic (556 lines)
-  - `s3-cleanup`: Custom resource for stack deletion
-  - `frontend-builder`: Automated frontend deployment
-- **API Stack** (696 lines): Cognito + API Gateway + Step Functions
-  - User Pool with email verification
-  - 30+ API Gateway resources
-  - Step Functions state machine for orchestration
-- **Security Stack** (648 lines): WAF + CloudTrail + Secrets Manager
-- **Frontend Stack** (361 lines): S3 + CloudFront + custom resources
-
-**Deployment**: Fully operational in TEST environment  
-**Region**: us-east-1  
-**Account**: ***REMOVED***  
-**Last Deployed**: November 12, 2025 - 4:29 PM EST
-
 ---
 
-#### Protection Groups - FULLY FUNCTIONAL ✅
-
-**Implementation**: 100% complete with all planned features
-
-**Working Features**:
-- ✅ Create Protection Groups with unique names (case-insensitive validation)
-- ✅ Tag-based server organization (ProtectionGroup, Application, Tier)
-- ✅ Automatic DRS source server discovery via DRS DescribeSourceServers API
-- ✅ Real-time server availability checking
-- ✅ Server assignment tracking (single PG per server globally enforced)
-- ✅ Conflict detection and prevention
-- ✅ Server deselection in edit mode
-- ✅ Visual server selector with status badges:
-  - ✅ Available (green) - selectable
-  - ⚠️ Assigned (orange) - assigned to other PG
-  - 🔴 Not Ready (red) - replication not continuous
-- ✅ Region selector (13 AWS regions supported)
-- ✅ Search/filter servers by hostname or ID
-- ✅ 30-second auto-refresh (silent background updates)
-- ✅ Full CRUD operations via API and UI
-
-**API Endpoints**:
-```
-GET    /protection-groups              # List all
-POST   /protection-groups              # Create new
-GET    /protection-groups/{id}         # Get single
-PUT    /protection-groups/{id}         # Update
-DELETE /protection-groups/{id}         # Delete
-GET    /drs/source-servers?region=...  # Discover servers
-```
-
-**Known Data (TEST Environment)**:
-- Protection Group: "TEST" (ID: d0441093-51e6-4e8f-989d-79b608ae97dc)
-- Region: us-east-1
-- Servers Assigned: 2 (s-3d75cdc0d9a28a725, s-3afa164776f93ce4f)
-- Servers Available: 4 (6 total Windows servers in us-east-1)
-
-**Test Results**:
-- ✅ Create: Successful with unique name validation
-- ✅ Read: Returns correct data in camelCase format
-- ✅ Update: Server assignment changes persist correctly
-- ✅ Delete: Cleans up properly, no orphaned data
-- ✅ Discovery: Lists all DRS servers with correct status
-
-**Limitations**:
-- None - feature complete for MVP
-
----
-
-#### Recovery Plans - FUNCTIONAL WITH KNOWN ISSUES ⚠️
-
-**Implementation**: 95% complete, 3 critical bugs discovered
-
-**Working Features**:
-- ✅ Create Recovery Plans with unlimited waves
-- ✅ Wave configuration with multi-Protection Group support
-- ✅ Wave dependencies (Wave 2 depends on Wave 1)
-- ✅ ExecutionOrder field for boot order control
-- ✅ Sequential or Parallel execution per wave
-- ✅ Wave timing configuration (wait times)
-- ✅ Full CRUD operations via API
-- ✅ UI for plan creation and editing
-
-**API Endpoints**:
-```
-GET    /recovery-plans           # List all
-POST   /recovery-plans           # Create new
-GET    /recovery-plans/{id}      # Get single
-PUT    /recovery-plans/{id}      # Update
-DELETE /recovery-plans/{id}      # Delete
-POST   /executions               # Execute plan
-```
-
-**Known Issues**:
-
-1. **BUG #1: Wave Data Transformation** ✅ RESOLVED
-   - **Issue**: Backend returns `Waves[].ServerIds` (PascalCase) but frontend expects `waves[].serverIds` (camelCase)
-   - **Impact**: Edit dialog shows "Some waves have no servers selected" even when servers exist
-   - **Root Cause**: `transform_rp_to_camelcase()` doesn't transform wave fields
-   - **Status**: **FIXED** and deployed in committed code (lambda/index.py lines 428-482)
-   - **Fix**: Complete field mapping implemented:
-     ```python
-     wave_transformed = {
-         'serverIds': wave.get('ServerIds', []),
-         'name': wave.get('WaveName', ''),
-         'description': wave.get('WaveDescription', ''),
-         'executionType': wave.get('ExecutionType', 'SEQUENTIAL'),
-         'dependsOnWaves': [extract wave numbers from Dependencies]
-     }
-     ```
-
-2. **BUG #2: Delete Function Query Error** ✅ RESOLVED
-   - **Issue**: Delete button fails silently with no error message
-   - **Impact**: Cannot delete recovery plans via UI
-   - **Root Cause**: Used `query()` with non-existent GSI `PlanIdIndex` on ExecutionHistory table
-   - **Status**: **FIXED** and deployed in committed code (lambda/index.py lines 500-505)
-   - **Fix**: Changed to `scan()` with FilterExpression:
-     ```python
-     executions_result = execution_history_table.scan(
-         FilterExpression=Attr('PlanId').eq(plan_id) & Attr('Status').eq('RUNNING')
-     )
-     ```
-
-3. **BUG #3: Multi-Protection Group Wave Editor** 🟡 MINOR
-   - **Issue**: Wave editor allows selecting multiple PGs but server selector expects single ID
-   - **Impact**: Server list doesn't populate when multiple PGs selected
-   - **Root Cause**: Frontend `protectionGroupIds` array not handled in ServerSelector
-   - **Status**: Open - minor UI enhancement
-   - **Workaround**: Use single PG per wave (sufficient for MVP)
-   - **Priority**: Low (doesn't block core functionality)
-
-**Current Status**:
-- Backend: All critical bugs resolved in committed code
-- Frontend: Functional with minor enhancement opportunity (BUG #3)
-- Testing Status: Ready for end-to-end validation
-- **Action Required**: Execute test scenarios to validate fixes
-
----
-
-#### Execution Engine - UNTESTED ⚠️
-
-**Implementation**: 100% coded, 0% tested with real DRS
-
-**Coded Features**:
-- ✅ Step Functions state machine definition
-- ✅ Wave-based orchestration logic
-- ✅ DRS API integration (StartRecovery, DescribeJobs)
-- ✅ Job monitoring and polling
-- ✅ Health check logic (EC2 instance status)
-- ✅ Execution history persistence
-- ✅ Error handling with retry logic
-- ✅ SNS notification integration
-- ✅ Drill mode support
-
-**Step Functions States**:
-```
-InitializeExecution → ProcessWaves (Map) → FinalizeExecution
-  ├─ ValidateWaveDependencies
-  ├─ LaunchRecoveryJobs
-  ├─ MonitorJobCompletion
-  ├─ PerformHealthChecks
-  └─ UpdateWaveStatus
-```
-
-**Known Unknowns** (Requires Testing):
-- ❓ DRS API response times for 6+ servers
-- ❓ Wave dependency evaluation accuracy
-- ❓ Health check reliability
-- ❓ Error recovery behavior
-- ❓ Step Functions timeout handling
-- ❓ Actual RTO/RPO achieved
-
-**Test Environment Ready**:
-- ✅ 6 Windows servers in CONTINUOUS replication state
-- ✅ 3 Protection Groups created (DataBaseServers, AppServers, WebServers)
-- ✅ Server IDs documented for test scenarios
-
-**Test Scenarios Documented**:
-
-1. **Scenario 1: Basic 3-Tier Recovery**
-   - Wave 1: Database tier (2 servers from DataBaseServers PG)
-   - Wave 2: Application tier (2 servers from AppServers PG, depends on Wave 1)
-   - Wave 3: Web tier (2 servers from WebServers PG, depends on Wave 2)
-   - Expected: ~25 minute total recovery time
-   - Purpose: Validate end-to-end orchestration
-
-2. **Scenario 2: Database-Only Recovery**
-   - Wave 1: Both database servers (sequential execution)
-   - Expected: ~10 minute recovery time
-   - Purpose: Validate single Protection Group recovery
-
-3. **Scenario 3: Multi-Wave with Single PG**
-   - Wave 1: Database server 1 (ExecutionOrder: 1)
-   - Wave 2: Database server 2 (ExecutionOrder: 2, depends on Wave 1)
-   - Purpose: Validate boot order and wave dependencies
-
-4. **Scenario 4: Validation - Duplicate PG Assignment**
-   - Attempt to assign same server to two Protection Groups
-   - Expected: API returns 400 error "Server already assigned"
-   - Purpose: Validate conflict detection
-
-**Blocking Issues for Testing**:
-- BUG #1 and #2 must be deployed before end-to-end testing
-- AWS credentials needed for Lambda deployment
-- Manual monitoring required (no automated test assertions yet)
-
----
-
-#### Frontend Application - FULLY DEPLOYED ✅
-
-**Implementation**: 100% complete and production-ready
-
-**Technology Stack**:
-- React 19.1.1 with TypeScript 5.9.3
-- Material-UI 7.3.5 (AWS-branded theme)
-- Vite 7.1.7 build system
-- React Router 6.26 for navigation
-- Axios for API calls
-- AWS Amplify for Cognito integration
-
-**Pages Implemented** (5 total):
-1. **LoginPage** (165 lines)
-   - AWS Cognito authentication
-   - Email + password fields
-   - MFA support ready
-   - Error handling with user-friendly messages
-
-2. **Dashboard** (180 lines)
-   - Overview cards (Protection Groups, Recovery Plans, Executions)
-   - Quick action buttons
-   - Recent activity feed
-   - Welcome message for new users
-
-3. **ProtectionGroupsPage** (comprehensive)
-   - DataGrid with sorting/filtering
-   - Create/Edit/Delete operations
-   - Server discovery panel integration
-   - Real-time assignment status
-
-4. **RecoveryPlansPage** (comprehensive)
-   - Recovery plan list with execution history
-   - Wave configuration editor
-   - Multi-Protection Group support
-   - Execute button with drill mode option
-
-5. **ExecutionsPage** (comprehensive)
-   - Active executions tab with real-time monitoring
-   - History tab with filtering
-   - Wave progress visualization (Stepper UI)
-   - Execution details modal
-   - Cancel/pause controls
-
-**Components Implemented** (23 total):
-
-**Shared Components** (7):
-- ConfirmDialog - Confirmation dialogs for destructive actions
-- LoadingState - Loading indicators with optional messages
-- ErrorState - Error displays with retry actions
-- StatusBadge - Color-coded status indicators
-- DateTimeDisplay - Formatted date/time display
-- ErrorBoundary - Error boundary wrapper
-- ErrorFallback - Error fallback UI
-
-**Loading & Transitions** (3):
-- DataTableSkeleton - Table loading placeholder
-- CardSkeleton - Card loading placeholder
-- PageTransition - Animated page transitions
-
-**Server Discovery** (3):
-- RegionSelector (129 lines) - 13 AWS regions dropdown
-- ServerDiscoveryPanel (418 lines) - Auto-discovery with 30-sec refresh
-- ServerListItem (138 lines) - Server cards with assignment status
-
-**Feature Components** (10):
-- ProtectionGroupDialog - Create/Edit Protection Groups
-- RecoveryPlanDialog - Create/Edit Recovery Plans
-- WaveConfigEditor - Wave configuration UI
-- ServerSelector - Multi-select server assignment
-- ExecutionDetails - Execution monitoring modal
-- WaveProgress - Visual wave progress indicator
-- DataGridWrapper - Reusable data table wrapper
-- Layout - App shell with navigation
-- ProtectedRoute - Authentication wrapper
-- TagFilterEditor - Tag-based filtering UI
-
-**Deployment Details**:
-- **Hosting**: S3 bucket `drs-orchestration-fe-***REMOVED***-test`
-- **CDN**: CloudFront distribution E3EHO8EL65JUV4
-- **URL**: https://d20h85rw0j51j.cloudfront.net
-- **Bundle**: `index-rOCCv-Xf.js` (263.18 kB gzipped)
-- **Last Deployed**: November 12, 2025 - 4:53 PM EST
-
-**Browser Compatibility**:
-- Chrome 90+
-- Firefox 88+
-- Safari 14+
-- Edge 90+
-
-**Known Issues**:
-- Multi-PG wave server selector needs fix (BUG #3)
-- Otherwise fully functional
-
----
-
-### ⚠️ Phase 2: Security & Scripts (0% Complete - Planned)
-
-**Status**: Not started - comprehensive design completed
-
-#### Pre/Post Recovery Scripts
-**Implementation**: 0% - detailed technical spec exists
-
-**Required Work**:
-1. Update Wave schema to include hook configuration
-2. Implement Lambda hook invocation in orchestration
-3. Add SSM document execution logic
-4. Create CloudWatch Log Groups for script output
-5. Update UI to configure hooks
-
-**Estimated Effort**: 2 weeks (1 backend dev, 1 frontend dev)
-
-#### VPC Test Isolation
-**Implementation**: 0% - design documented
-
-**Required Work**:
-1. Create VPC creation Lambda
-2. Implement isolated network configuration
-3. Add cleanup scheduler (CloudWatch Events + Lambda)
-4. Update drill mode to use test VPCs
-5. Add test report generation
-
-**Estimated Effort**: 3 weeks (1 backend dev, 1 DevOps engineer)
-
-#### Enhanced Security
-**Implementation**: Partially complete (WAF, CloudTrail deployed)
-
-**Completed**:
-- ✅ WAF rules for API protection
-- ✅ CloudTrail audit logging
-- ✅ Secrets Manager integration
-
-**Remaining**:
-- GuardDuty threat detection (manual console step)
-- Security Hub compliance dashboards
-- Config rules for compliance
-
-**Estimated Effort**: 1 week (1 security engineer)
-
----
-
-### ❌ Phase 3: Reprotection & Advanced Features (0% Complete)
-
-**Status**: Not started - future roadmap items
-
-#### Reprotection Workflow
-**Implementation**: 0% - conceptual design only
-
-**Required Work**:
-1. Research DRS agent installation on AWS instances
-2. Design reverse replication workflow
-3. Implement failback Recovery Plans
-4. Add replication lag monitoring
-5. Create staged failback process
-
-**Estimated Effort**: 6-8 weeks (2 backend devs, 1 DevOps engineer)
-
-#### Multi-Region Failover
-**Implementation**: Foundation exists (multi-region support), orchestration not built
-
-**Required Work**:
-1. Cross-region Recovery Plan templates
-2. Global Protection Group tracking
-3. Region health monitoring
-4. Automated failover triggers
-
-**Estimated Effort**: 4 weeks (2 backend devs)
-
----
-
-### Summary: Implementation Status Dashboard
-
-| Category | Status | Completion | Blockers |
-|----------|--------|-----------|----------|
-| **Infrastructure** | ✅ Deployed | 100% | None |
-| **Protection Groups** | ✅ Complete | 100% | None |
-| **Recovery Plans** | ⚠️ Bugs Found | 95% | Deploy BUG #1, #2 |
-| **Execution Engine** | ⚠️ Untested | 100% code, 0% test | Fix Recovery Plans first |
-| **Frontend** | ✅ Deployed | 100% | Fix BUG #3 (low priority) |
-| **API** | ✅ Complete | 100% | None |
-| **Pre/Post Scripts** | ❌ Not Started | 0% | Design complete |
-| **VPC Isolation** | ❌ Not Started | 0% | Design complete |
-| **Reprotection** | ❌ Not Started | 0% | Conceptual only |
-
-**Overall MVP Status**: 90% feature complete, 100% code complete, 3% tested (4/119 test cases)
-
-**Critical Path to SRM Parity**:
-1. Fix and deploy Recovery Plans bugs (1 day)
-2. Execute end-to-end testing (1 week)
-3. Implement pre/post scripts (2 weeks)
-4. Implement VPC test isolation (3 weeks)
-5. User acceptance testing (2 weeks)
-6. **Total**: 6-8 weeks to production-ready SRM parity
-
----
-
-## Roadmap to SRM Parity
-
-*This section outlines the path from current state (85% complete) to full VMware SRM parity.*
-
-### Phase 1: Validation & Bug Fixes (1-2 Weeks)
-
-**Objective**: Fix known bugs and validate core functionality with real DRS
-
-#### Week 1: Bug Fixes & Deployment
-**Deliverables**:
-- ✅ Fix BUG #1: Wave data transformation (DONE - awaiting deploy)
-- ✅ Fix BUG #2: Delete function query error (DONE - awaiting deploy)
-- ⚠️ Fix BUG #3: Multi-PG wave editor (TODO)
-- 🔄 Deploy Lambda with fixes
-- 🔄 Test all bug fixes in browser
+## Implementation Phases
+
+*This section defines the phased approach for implementing the AWS DRS Orchestration solution to achieve VMware SRM feature parity.*
+
+### Phase 1: Core Orchestration (Weeks 1-4)
+
+**Objective**: Establish foundational disaster recovery orchestration capabilities
+
+**The system shall provide**:
+1. **Protection Group Management**
+   - Create, read, update, and delete Protection Groups
+   - Tag-based server grouping with AWS DRS discovery
+   - Unique naming enforcement (case-insensitive)
+   - Server assignment conflict detection
+   - Support for 13 AWS regions
+
+2. **Recovery Plan Management**
+   - Create, read, update, and delete Recovery Plans
+   - Unlimited wave configuration with explicit dependencies
+   - Multi-Protection Group support per wave
+   - Sequential and parallel execution modes
+   - Wave timing and wait time configuration
+
+3. **Execution Engine**
+   - AWS Step Functions-based orchestration
+   - DRS StartRecovery API integration
+   - Job status monitoring and health checks
+   - Execution history persistence in DynamoDB
+   - Error handling with retry logic
+
+4. **User Interface**
+   - React-based SPA with Material-UI components
+   - Protection Group and Recovery Plan management screens
+   - Real-time execution monitoring dashboard
+   - AWS Cognito authentication integration
 
 **Success Criteria**:
-- Recovery Plans edit dialog loads correctly
-- Delete button works without errors
-- Multi-PG waves populate server list
+- Can create Protection Groups with server discovery
+- Can define Recovery Plans with unlimited waves
+- Can execute recovery plans successfully
+- UI provides intuitive management interface
+- API provides complete CRUD operations
 
-#### Week 2: End-to-End Testing
-**Deliverables**:
-- Execute Scenario 1: 3-tier recovery (6 servers, 3 waves)
-- Execute Scenario 2: Single PG recovery (2 servers)
-- Execute Scenario 3: Boot order validation
-- Document actual RTO/RPO achieved
-- Capture execution screenshots
-- Identify any Step Functions issues
-
-**Success Criteria**:
-- All 3 scenarios execute successfully
-- RTO < 30 minutes for 3-tier app
-- No unhandled errors in Step Functions
-- Execution history records complete
-
-**Risks**:
-- DRS API rate limiting with 6 servers
-- Step Functions timeout (default 5 minutes per state)
-- Network configuration issues in recovered instances
+**Estimated Duration**: 4 weeks  
+**Team Size**: 2 full-stack developers, 1 DevOps engineer
 
 ---
 
-### Phase 2: Pre/Post Scripts & VPC Isolation (3-4 Weeks)
+### Phase 2: Advanced Features (Weeks 5-8)
 
-**Objective**: Implement remaining SRM parity features
+**Objective**: Implement SRM parity features for enterprise requirements
 
-#### Weeks 3-4: Pre/Post Recovery Scripts
-**Tasks**:
-1. Update Wave schema (add `preRecoveryHook`, `postRecoveryHook` fields)
-2. Implement Lambda hook invocation in orchestration function
-3. Add SSM document execution (for in-instance scripts)
-4. Create CloudWatch Log Groups for script output
-5. Update WaveConfigEditor UI to configure hooks
-6. Write documentation and examples
+**The system shall provide**:
 
-**Deliverables**:
-- Lambda pre-wave hooks functional
-- SSM post-recovery scripts functional
-- UI for hook configuration
-- Sample hook functions (validation, health checks)
-- Documentation with examples
+1. **Pre/Post Recovery Scripts**
+   - Lambda function hooks (pre-wave, post-wave)
+   - SSM document execution on recovered instances
+   - Configurable timeouts and failure handling
+   - CloudWatch Logs integration for script output
+   - UI configuration for hook assignment
 
-**Success Criteria**:
-- Pre-wave hook can validate dependencies
-- Post-wave hook can configure application
-- Script failures handled gracefully (continue or halt)
-- All script output in CloudWatch Logs
+2. **VPC Test Isolation**
+   - Automated test VPC provisioning for drill mode
+   - Network isolation from production systems
+   - Scheduled auto-termination of test resources
+   - PDF test report generation
+   - Email notification integration
 
-#### Weeks 5-6: VPC Test Isolation
-**Tasks**:
-1. Create VPC provisioning Lambda
-2. Implement test VPC configuration (subnets, security groups, route tables)
-3. Modify drill mode to use test VPCs
-4. Implement automated cleanup (CloudWatch Events → Lambda)
-5. Add test report generation (PDF export)
-6. Update UI with test VPC options
-
-**Deliverables**:
-- Test VPC created automatically for drills
-- Recovered instances isolated from production
-- Auto-cleanup after 2 hours (configurable)
-- PDF test report with screenshots
-- Email notification with report
+3. **Enhanced Monitoring**
+   - CloudWatch dashboards for DR operations
+   - Comprehensive alarm configuration
+   - X-Ray tracing for debugging
+   - Performance metrics collection
+   - Cost tracking and optimization
 
 **Success Criteria**:
-- Drill instances completely network-isolated
-- Zero production traffic leaks to test instances
-- Cleanup executes reliably
-- Test report provides compliance evidence
+- Pre/post scripts execute reliably with error handling
+- Drill mode creates isolated test environments
+- Auto-cleanup prevents cost overruns
+- CloudWatch provides complete observability
+- Test reports meet compliance requirements
+
+**Estimated Duration**: 4 weeks  
+**Team Size**: 2 backend developers, 1 frontend developer, 1 DevOps engineer
 
 ---
 
-### Phase 3: Enhanced Testing & Monitoring (2 Weeks)
+### Phase 3: Testing & Validation (Weeks 9-10)
 
-**Objective**: Comprehensive testing and operational readiness
+**Objective**: Comprehensive testing and production readiness
 
-#### Week 7: Integration & Performance Testing
-**Tasks**:
-1. Execute 20+ drill scenarios
-2. Test failure scenarios (server failure, network timeout, DRS error)
-3. Performance testing (10, 50, 100 server recoveries)
-4. Cross-account testing (hub-and-spoke)
-5. Multi-region testing (different source/target regions)
-6. API load testing (100 req/sec sustained)
+**The system shall be validated through**:
 
-**Deliverables**:
-- Test report with success rates
-- Performance benchmarks
-- Failure recovery procedures
-- Known limitations documented
+1. **Functional Testing**
+   - Execute 20+ recovery scenarios
+   - Validate all CRUD operations
+   - Test failure recovery mechanisms
+   - Verify cross-account functionality
+   - Confirm multi-region support
+
+2. **Performance Testing**
+   - Test scalability (10, 50, 100+ server recoveries)
+   - Validate API response times (<100ms p95)
+   - Measure actual RTO/RPO achieved
+   - Load test API Gateway (sustained 1000 req/sec)
+   - DRS API rate limit handling
+
+3. **Operational Readiness**
+   - Develop operational runbooks
+   - Create training materials
+   - Configure production monitoring
+   - Establish incident response procedures
+   - Document known limitations
 
 **Success Criteria**:
 - >95% recovery success rate
-- RTO < 15 minutes for critical apps
-- API response time < 100ms (p95)
-- All failure scenarios handled gracefully
+- RTO <15 minutes for critical applications
+- API performance meets SLA targets
+- Operations team trained and confident
+- Production monitoring complete
 
-#### Week 8: Operational Readiness
-**Tasks**:
-1. Create CloudWatch dashboards (API metrics, execution status, DRS replication)
-2. Configure CloudWatch alarms (API errors, Lambda failures, DRS issues)
-3. Write operational runbooks (execute recovery, troubleshoot, add PG)
-4. Enable X-Ray tracing for debugging
-5. Document known issues and workarounds
-6. Create training materials
-
-**Deliverables**:
-- CloudWatch dashboard for DR operations
-- Comprehensive alarm coverage
-- Operational runbooks (3+)
-- X-Ray tracing enabled
-- Training documentation
-
-**Success Criteria**:
-- Operations team can execute recovery without help
-- All critical issues alarmed
-- Runbooks tested by operations team
-- Training completed
+**Estimated Duration**: 2 weeks  
+**Team Size**: 2 QA engineers, 1 technical writer, operations team
 
 ---
 
-### Phase 4: Reprotection (Optional - 6-8 Weeks)
+### Phase 4: Reprotection (Optional - Weeks 11-18)
 
-**Objective**: Enable full failback capability
+**Objective**: Enable failback capability for complete DR lifecycle
 
-**Note**: This is an optional enhancement beyond basic SRM parity. Many organizations use AWS DR as one-way failover only.
+**The system shall provide**:
 
-**Tasks**:
-1. Research DRS agent installation on AWS EC2
-2. Design reverse replication architecture
-3. Implement failback Recovery Plans
-4. Add replication lag monitoring
-5. Create staged failback testing
-6. Document failback procedures
+1. **Reverse Replication**
+   - DRS agent installation on AWS EC2 instances
+   - Configuration of reverse replication to on-premises
+   - Replication lag monitoring and alerting
+   - RPO/RTO tracking for failback operations
 
-**Deliverables**:
-- Reverse replication functional
-- Failback Recovery Plans
-- Staged failback process
-- Failback runbooks
+2. **Failback Recovery Plans**
+   - Recovery Plans for AWS-to-on-premises direction
+   - Staged failback with validation checkpoints
+   - Rollback capability if failback fails
+   - Data consistency verification
+
+3. **Failback Testing**
+   - Non-disruptive failback testing capability
+   - Automated validation of failback procedures
+   - Performance benchmarking
+   - Documentation and runbooks
 
 **Success Criteria**:
-- Can fail back from AWS to on-premises
-- RPO maintained during failback
-- Zero data loss failback option available
+- Reverse replication maintains RPO requirements
+- Failback executes successfully with zero data loss
+- Staged testing validates procedures
+- Operations team trained on failback
+
+**Estimated Duration**: 6-8 weeks  
+**Team Size**: 2 backend developers, 1 DRS specialist, 1 DevOps engineer
+
+**Note**: This phase is optional - many organizations use AWS DR as one-way failover only.
 
 ---
 
-### Milestone Summary
+### Implementation Milestones
 
-| Milestone | Duration | Deliverables | Status |
-|-----------|----------|--------------|--------|
-| **M1: Bug Fixes** | 1 week | All bugs fixed, deployed, tested | ⚠️ Ready to start |
-| **M2: E2E Testing** | 1 week | 3 scenarios validated, RTO confirmed | ⚠️ Blocked by M1 |
-| **M3: Pre/Post Scripts** | 2 weeks | Hook framework operational | ❌ Not started |
-| **M4: VPC Isolation** | 2 weeks | Test isolation automated | ❌ Not started |
-| **M5: Testing & Ops** | 2 weeks | Production-ready, trained ops | ❌ Not started |
-| **M6: Reprotection** | 6-8 weeks | Failback capability (optional) | ❌ Not started |
+| Milestone | Target Week | Key Deliverable | Gate Criteria |
+|-----------|-------------|-----------------|---------------|
+| **M1: MVP Complete** | Week 4 | Core orchestration functional | All Phase 1 features working |
+| **M2: Feature Parity** | Week 8 | Advanced features complete | All Phase 2 features working |
+| **M3: Production Ready** | Week 10 | Testing complete, ops trained | >95% test success rate |
+| **M4: Failback Capable** | Week 18 | Reprotection functional (optional) | Failback tested successfully |
 
-**Total Time to SRM Parity**: 6-8 weeks (excluding optional reprotection)
+### Resource Requirements
 
-**Critical Dependencies**:
-- AWS credentials for Lambda deployment (M1)
-- Operations team availability for testing (M5)
-- Budget approval for extended testing (M2-M5)
+**Development Team**:
+- 2 Full-Stack Developers (React + Python)
+- 1 Backend Developer (Python + AWS services)
+- 1 Frontend Developer (React + TypeScript)
+- 1 DevOps Engineer (CloudFormation + CI/CD)
+- 1 QA Engineer (automation + manual testing)
+- 1 Technical Writer (documentation)
+
+**Infrastructure**:
+- AWS account for development/testing
+- DRS-enabled source servers for integration testing
+- Access to target DR account/region
+- CloudFormation deployment permissions
+
+**Timeline**: 10 weeks to production (excluding optional failback)
 
 ---
 
@@ -2512,11 +2110,11 @@ User Click → API Gateway → Lambda → Step Functions
 ### High Risks
 
 **1. Unproven Step Functions Logic** 🔴
-- **Description**: Orchestration logic never tested with real DRS recovery
+- **Description**: Orchestration logic must be thoroughly tested with real DRS recovery
 - **Impact**: Unknown RTO, potential cascading failures, execution stalls
-- **Probability**: High (0% tested)
+- **Probability**: High (requires validation)
 - **Mitigation**: 
-  - Execute 3 documented test scenarios immediately after BUG #1/#2 deploy
+  - Execute 3 documented test scenarios during initial deployment
   - Implement Step Functions CloudWatch alarms
   - Add timeout safeguards (max 30 minutes per wave)
   - Document failure modes and recovery procedures
@@ -2544,15 +2142,15 @@ User Click → API Gateway → Lambda → Step Functions
   - Test cross-account in staging before production
 - **Owner**: Solutions Architect
 
-**4. Unknown Bugs in Recovery Plans** 🔴
-- **Description**: 3 critical bugs already discovered (BUG #1, #2, #3)
-- **Impact**: Core functionality broken, unable to execute recoveries
-- **Probability**: High (only 15% tested)
+**4. Integration Bugs in Recovery Plans** 🔴
+- **Description**: Complex integration points may contain undiscovered bugs
+- **Impact**: Core functionality degraded, execution failures possible
+- **Probability**: Medium (requires thorough testing)
 - **Mitigation**:
-  - Deploy bug fixes within 24 hours
-  - Comprehensive testing of all CRUD operations
+  - Comprehensive testing of all CRUD operations before deployment
   - Implement automated integration tests (Playwright)
   - Establish bug triage process for production issues
+  - Deploy fixes within 24-48 hours of discovery
 - **Owner**: Full Stack Engineering
 
 ---
@@ -2655,9 +2253,9 @@ User Click → API Gateway → Lambda → Step Functions
 ### Milestone 1: Bug Fix Deployment (Week 1)
 
 **Go Criteria** ✅:
-- All 3 bugs (BUG #1, #2, #3) fixed and code reviewed
+- All critical bugs fixed and code reviewed
 - Lambda package deployed successfully to TEST environment
-- Frontend re-deployed with any necessary changes
+- Frontend deployed with verified functionality
 - Manual smoke test passed:
   - Can create Protection Group
   - Can create Recovery Plan
