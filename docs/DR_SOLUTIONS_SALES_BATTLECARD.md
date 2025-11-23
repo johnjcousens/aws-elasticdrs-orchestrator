@@ -263,8 +263,7 @@ A serverless orchestration layer that sits on top of AWS DRS, giving customers V
 ### **Against Zerto**
 - **Cost**: "85% cost savings with equivalent functionality"
 - **Simplicity**: "No complex infrastructure or specialized staff needed"
-- **AWS Native**: "Purpose-built for AWS, not a bolt-on solution"ure maintenance vs. ongoing SRM management
-- **Innovation**: Modern React UI vs. legacy Flash-based interfaces
+- **AWS Native**: "Purpose-built for AWS, not a bolt-on solution"
 
 ### Against Zerto (Multi-Cloud)
 **"AWS-Native Alternative to Multi-Cloud Complexity"**
