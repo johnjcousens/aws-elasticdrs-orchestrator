@@ -105,11 +105,19 @@ export const DataGridWrapper = ({
           checkboxSelection={false}
           disableRowSelectionOnClick
           density={isMobile ? 'compact' : 'standard'}
+          slotProps={{
+            columnHeaders: {
+              style: {
+                backgroundColor: '#232F3E',
+                color: '#FFFFFF',
+              },
+            },
+          }}
           sx={{
             // AWS theme styling for headers - use Squid Ink for better contrast
             '& .MuiDataGrid-columnHeaders': {
-              backgroundColor: 'secondary.main', // AWS Squid Ink (#232F3E) for visibility
-              color: 'secondary.contrastText',
+              backgroundColor: '#232F3E !important', // AWS Squid Ink - force override
+              color: '#FFFFFF !important', // White text - force override
               fontWeight: 600,
               fontSize: isMobile ? '0.75rem' : '0.875rem',
             },
