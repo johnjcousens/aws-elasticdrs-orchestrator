@@ -1,6 +1,6 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 22, 2025 - 5:20 PM EST
+**Last Updated**: November 22, 2025 - 8:30 PM EST
 **Version**: 1.0.0-beta-working  
 **Phase 1 Status**: ✅ COMPLETE (100%)  
 **MVP Phase 1 Status**: 🎉 Session 2 DEPLOYED - Frontend Execution Visibility LIVE
@@ -8,15 +8,113 @@
 **Phase 6 Status**: ✅ COMPLETE (100%)  
 **Phase 7 Status**: ✅ COMPLETE (100% - All features including Executions backend)  
 **Overall MVP Progress**: 100% - ALL FEATURES COMPLETE 🎉
-**Last Major Update**: Session 46 - DRS Recovery Launching Backend Complete ✅
+**Last Major Update**: Session 49 - Execution History Integration + DataGrid Styling Investigation
 
 ---
 
 ## 📜 Session Checkpoints
 
+**Session 49 Part 2: DataGrid Header Styling Investigation - UNRESOLVED** (November 22, 2025 - 8:00 PM - 8:30 PM EST)
+- **Checkpoint**: Pending - To be created tomorrow
+- **Git Commits**: 
+  - `0b7ef5d` - feat(ui): attempt DataGrid header styling fixes - investigation needed
+  - `5673d38` - docs: Session 49 DataGrid styling investigation - unresolved
+- **Summary**: Investigated Material-UI DataGrid column header visibility issue (white-on-white rendering) - attempted 5 different styling approaches, all failed
+- **Issue**: Column headers render invisible in production - white text on white background
+- **Affected Pages**: Recovery Plans, Executions, Protection Groups (all use DataGridWrapper)
+- **Investigation Attempts** (ALL FAILED):
+  1. ❌ Theme palette references (`theme.palette.secondary.main`, `theme.palette.primary.contrastText`)
+  2. ❌ Hardcoded hex colors (`#232F3E`, `#FFFFFF`)
+  3. ❌ CSS `!important` flags to force override
+  4. ❌ Material-UI `slotProps` API (official DataGrid styling method)
+  5. ❌ Combined approach: `slotProps` + `sx` with `!important`
+- **Key Findings**:
+  - Multiple styling approaches ALL fail → Not simple CSS specificity issue
+  - User confirmed white-on-white in incognito → Not browser cache issue
+  - Global CSS has light mode styles in `frontend/src/index.css`
+  - No obvious CSS conflicts found in codebase
+  - Browser DevTools inspection needed to see actual applied CSS
+- **Root Cause Hypotheses** (Ranked by Likelihood):
+  1. **Material-UI Theme Provider Override** (MOST LIKELY) - Theme config in App.tsx/main.tsx may have global overrides
+  2. **DataGrid Version Compatibility** - Check @mui/x-data-grid version vs Material-UI core
+  3. **Global Theme Mode** - index.css has `color-scheme: light dark` forcing light mode
+  4. **CSS-in-JS Rendering Order** - Emotion style insertion order issues
+  5. **Browser-Specific Issue** - Need multi-browser testing
+- **Modified Files**:
+  - `frontend/src/components/DataGridWrapper.tsx` - Added slotProps + sx with !important
+  - `frontend/src/pages/RecoveryPlansPage.tsx` - Improved status column text
+- **Documentation Created**: `docs/SESSION_49_DATAGRID_STYLING_INVESTIGATION.md` (245 lines)
+  - Complete investigation timeline with all 5 attempts
+  - Root cause hypotheses with technical analysis
+  - 3-phase investigation plan for next session
+  - Alternative solutions if theme fix doesn't work
+- **Deployment**: Frontend deployed 3 times (hash changes: D4A5T4p_ → CUkcC28e → CHaysFXP)
+- **Result**: ❌ **Issue NOT RESOLVED** - Requires theme provider investigation + browser DevTools inspection
+- **Lines of Code**: +10 lines (styling attempts), +245 lines (investigation doc)
+- **Next Session Priority**:
+  1. **Phase 1**: Investigate theme configuration in `frontend/src/theme/`, `App.tsx`, `main.tsx`
+  2. **Phase 2**: Get browser DevTools CSS inspection from user (CRITICAL)
+  3. **Phase 3**: Try alternative solutions (StyledDataGrid, global CSS, theme component override)
+- **Alternative Solutions Ready**:
+  - Option A: Custom `StyledDataGrid` component with `styled()` API
+  - Option B: Global CSS override in separate file
+  - Option C: Theme `components.MuiDataGrid.styleOverrides` configuration
+  - Option D: Replace DataGrid with custom Material-UI Table (guaranteed to work)
+
+**Session 49 Part 1: Execution History Integration - Implementation Complete** (November 22, 2025 - 7:57 PM - 8:04 PM EST)
+- **Checkpoint**: Pending - To be created at session end
+- **Git Commit**: `99df6a9` - feat(execution-history): Integrate execution history into Recovery Plans display
+- **Summary**: Successfully implemented execution history integration into Recovery Plans UI - Lambda queries ExecutionHistoryTable, frontend displays 3 new columns
+- **Implementation Tasks Completed**:
+  1. ✅ Updated Lambda `get_recovery_plans()` to query ExecutionHistoryTable via PlanIdIndex GSI
+  2. ✅ Added join logic: Fetch latest execution per plan (ORDER BY StartTime DESC, LIMIT 1)
+  3. ✅ Updated `transform_rp_to_camelcase()` to handle execution fields (lastExecutionStatus, lastStartTime, lastEndTime)
+  4. ✅ Verified IAM permissions already support ExecutionHistoryTable access
+  5. ✅ Added 3 new columns to RecoveryPlansPage: "Last Start", "Last End", "Status"
+  6. ✅ Added COGNITO_* variables to .env.test for frontend build system
+  7. ✅ Deployed Lambda and Frontend to production
+- **Technical Implementation**:
+  - Lambda changes (lambda/index.py lines 235-253):
+    ```python
+    # Query ExecutionHistoryTable for latest execution
+    exec_result = execution_history_table.query(
+        IndexName='PlanIdIndex',
+        KeyConditionExpression='PlanId = :pid',
+        ExpressionAttributeValues={':pid': plan_id},
+        Limit=1,
+        ScanIndexForward=False  # DESC order by StartTime
+    )
+    ```
+  - Frontend changes (frontend/src/pages/RecoveryPlansPage.tsx):
+    - Added "Last Start" column with timestamp formatting
+    - Added "Last End" column with timestamp formatting
+    - Changed "Status" column to show execution status (COMPLETED/PARTIAL/IN_PROGRESS)
+    - Display "Never" for plans with no execution history
+- **Deployment Details**:
+  - Lambda: drs-orchestration-api-handler-test (deployed 8:00 PM)
+  - Frontend: Built with vite 7.2.2, deployed to S3 (8:00 PM)
+  - CloudFront: Distribution E46O075T9AHF3, invalidation I7ISCMSFU4ZH4YF03XUT8MVAQT (Completed 8:01 PM)
+  - Git: Commit 99df6a9 pushed to origin/main
+- **Verification**:
+  - ✅ Lambda CloudWatch logs show successful GET /recovery-plans processing
+  - ✅ ExecutionHistoryTable has 16 records for plan c1b15f04-58bc-4802-ae8a-04279a03eefa
+  - ✅ Query against PlanIdIndex GSI returns latest execution (Status: PARTIAL, StartTime: 1763854543)
+  - ✅ CloudFront cache invalidated, updated UI live
+  - ✅ Screenshot captured of updated UI
+- **Modified Files**:
+  - `lambda/index.py` - Added execution history query logic (+28 lines)
+  - `frontend/src/pages/RecoveryPlansPage.tsx` - Added 3 new columns (+35 lines)
+  - `.env.test` - Added COGNITO_* prefixed variables for build script
+- **Result**: ✅ **Session 49 COMPLETE** - Recovery Plans page now displays execution history (last start, last end, execution status)
+- **Lines of Code**: +63 lines (Lambda + Frontend implementation)
+- **Next Steps**: 
+  - User verifies UI shows execution history columns correctly
+  - Test with plans that have never been executed (should show "Never")
+  - Consider adding execution count or last initiated by user
+
 **Session 48: UI Display Bugs - Execution History Integration Discovery** (November 22, 2025 - 7:17 PM - 7:55 PM EST)
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251122_195535_afcfea_2025-11-22_19-55-35.md`
-- **Git Commits**: Pending - To be committed in Session 49
+- **Git Commits**: `98b8d6b` - fix(ui): Change Recovery Plans date format to full timestamp
 - **Summary**: Investigated UI display bugs in Recovery Plans page, fixed date format, discovered execution history integration requirements
 - **Issues Investigated**:
   1. **Date Display** - Fixed format from "5 minutes ago" relative to full timestamp "Nov 22, 2025, 7:49:41 PM"
