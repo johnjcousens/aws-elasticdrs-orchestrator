@@ -197,7 +197,7 @@ A serverless orchestration layer that sits on top of AWS DRS, giving customers V
 - No other vendor solving this specific gap
 
 ### **Sales Positioning**
-*"Finally, you can have VMware SRM-level automation with AWS DRS economics. Get enterprise-grade disaster recovery orchestration at 75% cost savings, with zero infrastructure to manage."* Pay-per-use | ✅ Pay-per-use | ✅ **Pay-per-use** |
+*"Finally, you can have VMware SRM-level automation with AWS DRS economics. Get enterprise-grade disaster recovery orchestration at 75% cost savings, with zero infrastructure to manage."*
 
 ---
 
