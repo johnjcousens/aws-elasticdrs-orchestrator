@@ -198,7 +198,7 @@ export const RecoveryPlansPage: React.FC = () => {
       renderCell: (params) => {
         if (!params.value) {
           return (
-            <Chip label="Never Executed" size="small" variant="outlined" />
+            <Chip label="Not Run" size="small" variant="outlined" />
           );
         }
         return <StatusBadge status={params.value} />;
