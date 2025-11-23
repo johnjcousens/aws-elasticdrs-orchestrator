@@ -199,29 +199,6 @@ A serverless orchestration layer that sits on top of AWS DRS, giving customers V
 ### **Sales Positioning**
 *"Finally, you can have VMware SRM-level automation with AWS DRS economics. Get enterprise-grade disaster recovery orchestration at 75% cost savings, with zero infrastructure to manage."*
 
----
-
-## 💰 Cost Comparison
-
-### ROI Analysis - 1,000 VM Environment (3 Years)
-
-| Solution | Licensing | Infrastructure | Staff Costs | **Total** | **Savings vs SRM** |
-|----------|-----------|----------------|-------------|-----------|--------------------|
-| **VMware SRM** | $1.5M | $750K | $900K | **$3.15M** | *Baseline* |
-| **Zerto** | $2M | $500K | $750K | **$3.25M** | -$100K |
-| **AWS DRS (Manual)** | $0 | $240K | $1.2M | **$1.44M** | **+$1.7M** |
-| **Proposed Solution** | $0 | $250K | $300K | **$550K** | **+$2.6M** |
-
-### **Why Manual AWS DRS Costs More Than Expected**
-- **Staff Costs**: 3-5 FTEs @ $150K each for manual DR operations
-- **Downtime Risk**: Longer RTOs = higher business impact costs
-- **Compliance Fines**: Manual processes fail audit requirements
-- **Opportunity Cost**: Staff time that could be spent on innovation
-
-**Bottom Line**: *"Finally, enterprise-grade DR orchestration that doesn't break the budget"*
-
-### Cost Breakdown Details
-
 ### **Sales Objection Handling**
 
 **"We're happy with VMware SRM"**
@@ -356,39 +333,6 @@ A serverless orchestration layer that sits on top of AWS DRS, giving customers V
 
 ---
 
-## 🎪 Demo Script
-
-### 5-Minute Demo Flow
-
-1. **Protection Groups** (1 min)
-   - Show automatic DRS server discovery
-   - Demonstrate VMware SRM-like server selection
-   - Highlight conflict prevention and assignment tracking
-
-2. **Recovery Plans** (2 min)
-   - Create multi-wave recovery plan
-   - Configure wave dependencies
-   - Add pre/post automation actions
-
-3. **Execution** (1 min)
-   - Launch recovery in drill mode
-   - Show real-time progress dashboard
-   - Demonstrate wave-by-wave execution
-
-4. **Monitoring** (1 min)
-   - Review execution history
-   - Show CloudWatch integration
-   - Highlight audit trail capabilities
-
-### Key Demo Points
-
-- **"This is VMware SRM for AWS"** - Familiar concepts, modern implementation
-- **"Zero infrastructure to manage"** - Serverless deployment and scaling
-- **"Enterprise-grade orchestration"** - Wave dependencies and automation
-- **"Complete audit trail"** - Compliance and governance built-in
-
----
-
 ## 🚨 Objection Handling
 
 ### "We're already invested in VMware SRM"
@@ -428,77 +372,6 @@ A serverless orchestration layer that sits on top of AWS DRS, giving customers V
 - "Complete CloudTrail integration for audit requirements"
 - "Execution history with detailed logging and reporting"
 - "AWS compliance certifications (SOC, PCI, HIPAA, etc.)"
-
----
-
-## 📊 ROI Calculator
-
-### 3-Year ROI Analysis (100 VMs)
-
-**Traditional Solution (VMware SRM)**:
-- Initial Cost: $225K (licenses + infrastructure)
-- Annual Cost: $30K (maintenance + management)
-- **3-Year Total**: $315K
-
-**Our Solution**:
-- Initial Cost: $0 (serverless deployment)
-- Annual Cost: $18K (AWS services + minimal management)
-- **3-Year Total**: $55K
-
-**ROI Calculation**:
-- **Cost Savings**: $260K over 3 years
-- **ROI Percentage**: 473%
-- **Payback Period**: Immediate (no upfront costs)
-
-### Additional Benefits (Quantified)
-
-**Reduced Downtime**:
-- Faster recovery: 50% RTO improvement = $500K/year risk reduction
-- Automated testing: 90% reduction in DR test time = $50K/year savings
-
-**Operational Efficiency**:
-- No infrastructure management: 2 FTE savings = $200K/year
-- Automated processes: 75% reduction in manual tasks = $100K/year
-
-**Total 3-Year Value**: $2.55M in cost savings and risk reduction
-
----
-
-## 🎯 Next Steps
-
-### Immediate Actions
-1. **Technical Demo**: Schedule 30-minute technical demonstration
-2. **Pilot Program**: Deploy in test environment (1-2 weeks)
-3. **ROI Workshop**: Detailed cost analysis for customer environment
-4. **Architecture Review**: AWS Well-Architected Framework assessment
-
-### Implementation Timeline
-- **Week 1-2**: Pilot deployment and testing
-- **Week 3-4**: Production deployment planning
-- **Week 5-6**: Production rollout and training
-- **Week 7-8**: Optimization and fine-tuning
-
-### Success Metrics
-- **RTO Improvement**: Target 50% reduction in recovery time
-- **Cost Reduction**: Achieve 70%+ TCO savings vs. current solution
-- **Operational Efficiency**: 80% reduction in manual DR processes
-- **Compliance**: 100% audit trail coverage for DR activities
-
----
-
-## 📞 Contact Information
-
-**AWS Solutions Architecture Team**  
-**Disaster Recovery Specialists**
-
-- Technical Questions: AWS Solutions Architects
-- Pricing Discussions: AWS Account Team
-- Implementation Support: AWS Professional Services
-- Ongoing Support: AWS Premium Support
-
-**Repository**: [AWS DRS Orchestration Solution](https://github.com/aws-samples/drs-orchestration)  
-**Documentation**: Complete deployment and user guides included  
-**Support**: Community support + AWS Professional Services available
 
 ---
 
