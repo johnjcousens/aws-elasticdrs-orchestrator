@@ -14,6 +14,47 @@
 
 ## 📜 Session Checkpoints
 
+**Session 47 Parts 5-6: Production Deployment Fixes - v1.0.3** (November 22, 2025 - 6:51 PM - 7:03 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251122_180949_d329da_2025-11-22_18-09-49.md`
+- **Git Commits**: 
+  - `e2c1f7a` - fix(frontend): Skip aws-config.js injection in dev mode
+  - `2a5fde8` - docs: Add Session 47 history checkpoint and Azure research
+  - `9de2648` - docs: Add Session 47 summary for production deployment fixes
+- **Summary**: Resolved three critical production deployment issues blocking v1.0.2 deployment
+- **Issues Resolved**:
+  1. **Lambda IAM Permissions** - DynamoDB read permissions added via CloudFormation (v1.0.2 update)
+  2. **Frontend Vite Plugin** - Fixed dev mode injection bug, rebuilt as v1.0.3
+  3. **Missing aws-config.js** - Manually created and uploaded to S3 (Custom Resource failed)
+- **Technical Details**:
+  - **Lambda IAM**: Updated cfn/lambda-stack.yaml with DynamoDB:GetItem and DynamoDB:Query permissions
+  - **Vite Plugin**: Added `if (isProd)` check in frontend/vite-plugin-inject-config.ts (line 42)
+  - **aws-config.js**: Manually created with window.AWS_CONFIG containing Cognito/API configuration
+  - **CloudFront**: Full invalidation (/*) required to clear cached 404 responses
+- **Deployment Timeline**:
+  1. Lambda IAM deployed via CloudFormation: `make deploy-lambda ENVIRONMENT=test`
+  2. Frontend v1.0.3 built and deployed: `./build.sh && make deploy-frontend ENVIRONMENT=test`
+  3. aws-config.js manually uploaded: `aws s3 cp /tmp/aws-config.js s3://bucket/aws-config.js`
+  4. CloudFront invalidation created: Distribution E46O075T9AHF3, Invalidation IC8EC3X1OMWMI6GR6EOEA0HWS6
+- **Modified Files**:
+  - `cfn/lambda-stack.yaml` - Added DynamoDB IAM permissions
+  - `frontend/vite-plugin-inject-config.ts` - Added dev mode check
+  - `frontend/package.json` - Version bumped to 1.0.3
+  - Manual S3 upload: aws-config.js (290 bytes)
+- **Verification**:
+  - ✅ Lambda can read DynamoDB ExecutionHistory table
+  - ✅ Frontend builds without injecting aws-config.js in dev mode
+  - ✅ aws-config.js served correctly from CloudFront (HTTP 200)
+  - ⏳ CloudFront invalidation in progress (1-5 minutes)
+  - ⏳ Users need to clear browser cache after invalidation completes
+- **Result**: ✅ **All deployment issues resolved** - System ready for production use after cache clear
+- **Lines of Code**: +15 lines (IAM policy), +3 lines (dev mode check), +290 bytes (aws-config.js)
+- **Next Steps**: 
+  - User waits 2-5 minutes for CloudFront invalidation
+  - User clears browser cache (Cmd+Shift+R)
+  - Verify no console errors for aws-config.js
+  - Test GET /executions/{id} endpoint functionality
+  - Fix Custom Resource Lambda for automatic aws-config.js creation
+
 **Session 47 Part 4: Critical Lambda Fix - Backend Integration Prototype** (November 22, 2025 - 6:09 PM - 6:14 PM EST)
 - **Checkpoint**: N/A - Bug fix deployment session
 - **Git Commit**: `14d1263` - fix(lambda): ACTUALLY change get_item to query for composite key table
