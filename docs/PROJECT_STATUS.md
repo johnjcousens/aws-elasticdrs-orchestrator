@@ -14,6 +14,39 @@
 
 ## 📜 Session Checkpoints
 
+**Session 48: UI Display Bugs - Execution History Integration Discovery** (November 22, 2025 - 7:17 PM - 7:55 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251122_195535_afcfea_2025-11-22_19-55-35.md`
+- **Git Commits**: Pending - To be committed in Session 49
+- **Summary**: Investigated UI display bugs in Recovery Plans page, fixed date format, discovered execution history integration requirements
+- **Issues Investigated**:
+  1. **Date Display** - Fixed format from "5 minutes ago" relative to full timestamp "Nov 22, 2025, 7:49:41 PM"
+  2. **Status Column** - Discovered showing wrong status (plan creation status vs execution status)
+  3. **Last Execution** - Need separate "Last Start" and "Last End" columns for execution times
+- **Key Discovery**: ExecutionHistoryTable exists with rich execution data
+  - Table: `drs-orchestration-execution-history-test`
+  - Structure: ExecutionId (PK), PlanId (SK), Status, StartTime, EndTime, Waves, InitiatedBy
+  - Status values: "COMPLETED", "PARTIAL" (failed), "IN_PROGRESS"
+  - 16 execution records found for plan: c1b15f04-58bc-4802-ae8a-04279a03eefa
+  - Latest execution: Status "PARTIAL" with detailed wave/server failure information
+- **Technical Analysis**:
+  - Current Lambda `get_recovery_plans()` only returns plan data (no execution join)
+  - Frontend RecoveryPlansPage shows plan metadata, not execution history
+  - Need Lambda changes to query ExecutionHistoryTable via PlanIdIndex
+  - Need to join latest execution per plan (ORDER BY StartTime DESC, LIMIT 1)
+- **Modified Files**:
+  - `frontend/src/pages/RecoveryPlansPage.tsx` - Fixed date format to show full timestamp
+- **Deployment**: Frontend with date fix deployed at 7:50 PM EST
+- **Result**: ✅ Date display fixed, execution history integration requirements documented
+- **Lines of Code**: +2 lines (date format change)
+- **Next Steps for Session 49**:
+  1. Update Lambda `get_recovery_plans()` to query ExecutionHistoryTable
+  2. Join latest execution data per plan using PlanIdIndex (GSI)
+  3. Add IAM permissions for ExecutionHistoryTable read access
+  4. Add "Last Start" and "Last End" columns to frontend
+  5. Fix "Status" column to show execution status (COMPLETED/PARTIAL/IN_PROGRESS)
+  6. Deploy Lambda and frontend changes
+  7. Test with real execution data
+
 **Session 47 Parts 5-6: Production Deployment Fixes - v1.0.3** (November 22, 2025 - 6:51 PM - 7:03 PM EST)
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251122_180949_d329da_2025-11-22_18-09-49.md`
 - **Git Commits**: 
