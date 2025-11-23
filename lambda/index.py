@@ -1596,6 +1596,11 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
 def transform_rp_to_camelcase(rp: Dict) -> Dict:
     """Transform Recovery Plan from DynamoDB PascalCase to frontend camelCase"""
     
+    # Determine plan status based on execution history
+    # - 'draft' if never executed (no LastExecutedDate)
+    # - 'active' if has been executed
+    status = 'active' if rp.get('LastExecutedDate') else 'draft'
+    
     # Transform waves array from backend PascalCase to frontend camelCase
     waves = []
     for idx, wave in enumerate(rp.get('Waves', [])):
@@ -1640,6 +1645,7 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'id': rp.get('PlanId'),
         'name': rp.get('PlanName'),
         'description': rp.get('Description', ''),
+        'status': status,  # NEW: Draft if never executed, Active if executed
         'accountId': rp.get('AccountId'),
         'region': rp.get('Region'),
         'owner': rp.get('Owner'),
@@ -1649,6 +1655,7 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'createdAt': rp.get('CreatedDate'),
         'updatedAt': rp.get('LastModifiedDate'),
         'lastExecutedAt': rp.get('LastExecutedDate'),
+        'lastExecutionStatus': rp.get('LastExecutionStatus'),  # NEW: Execution status if available
         'waveCount': len(waves)
     }
 

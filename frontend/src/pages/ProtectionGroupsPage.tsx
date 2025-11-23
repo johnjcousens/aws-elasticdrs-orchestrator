@@ -9,9 +9,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
-  Paper,
   Typography,
-  Chip,
   Stack,
 } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -173,10 +171,10 @@ export const ProtectionGroupsPage: React.FC = () => {
     },
   ], []);
 
-  // Transform data for DataGrid (requires 'id' field)
+  // Transform data for DataGrid - use protectionGroupId as id
   const rows = useMemo(() => groups.map((group) => ({
-    id: group.protectionGroupId,
     ...group,
+    id: group.protectionGroupId,
   })), [groups]);
 
   return (

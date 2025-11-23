@@ -10,7 +10,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
-  Paper,
   Typography,
   Chip,
   Stack,
@@ -204,16 +203,18 @@ export const RecoveryPlansPage: React.FC = () => {
       width: 180,
       sortable: true,
       renderCell: (params) => {
-        if (!params.value) {
+        // Defensive: Check for null, undefined, 0, or invalid timestamps
+        if (!params.value || params.value === 0) {
           return (
             <Typography variant="body2" color="text.secondary">
-              Never executed
+              Never
             </Typography>
           );
         }
+        // Has valid execution timestamp
         return (
           <Box>
-            <StatusBadge status={params.row.lastExecutionStatus || 'pending'} size="small" />
+            <StatusBadge status={params.row.lastExecutionStatus || 'completed'} size="small" />
             <Typography variant="caption" color="text.secondary" display="block">
               <DateTimeDisplay value={params.value} format="relative" />
             </Typography>
@@ -226,7 +227,17 @@ export const RecoveryPlansPage: React.FC = () => {
       headerName: 'Created',
       width: 150,
       sortable: true,
-      renderCell: (params) => <DateTimeDisplay value={params.value} format="relative" />,
+      renderCell: (params) => {
+        // Defensive: Check for null, undefined, 0, or invalid timestamps
+        if (!params.value || params.value === 0) {
+          return (
+            <Typography variant="body2" color="text.secondary">
+              Unknown
+            </Typography>
+          );
+        }
+        return <DateTimeDisplay value={params.value} format="relative" />;
+      },
     },
     {
       field: 'actions',
@@ -257,11 +268,8 @@ export const RecoveryPlansPage: React.FC = () => {
     },
   ], []);
 
-  // Transform data for DataGrid (requires 'id' field)
-  const rows = useMemo(() => plans.map((plan) => ({
-    id: plan.id,
-    ...plan,
-  })), [plans]);
+  // Transform data for DataGrid (requires 'id' field) - plans already have id
+  const rows = useMemo(() => plans, [plans]);
 
   return (
     <PageTransition in={!loading && !error}>
