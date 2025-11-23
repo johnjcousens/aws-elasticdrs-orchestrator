@@ -92,6 +92,20 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           icon: <UndoIcon />,
         };
       
+      case 'draft':
+        return {
+          label: 'Draft',
+          color: 'default' as const,
+          icon: undefined,
+        };
+      
+      case 'active':
+        return {
+          label: 'Active',
+          color: 'success' as const,
+          icon: <CheckCircleIcon />,
+        };
+      
       default:
         return {
           label: status.charAt(0).toUpperCase() + status.slice(1),
