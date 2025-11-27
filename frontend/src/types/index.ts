@@ -63,7 +63,8 @@ export interface Wave {
   description?: string;
   serverIds: string[];
   serverCount?: number;
-  executionType: 'sequential' | 'parallel';
+  // executionType removed - backend ignores this field, all within-wave execution
+  // is parallel with DRS-safe delays (15s between servers). Use dependsOnWaves for sequential operations.
   dependsOnWaves?: number[];
   protectionGroupIds: string[];  // Required - wave can have multiple Protection Groups (VMware SRM parity)
   protectionGroupId?: string;  // Backward compatibility - single PG (deprecated, use protectionGroupIds)
