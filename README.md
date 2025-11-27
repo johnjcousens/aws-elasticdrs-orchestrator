@@ -182,6 +182,76 @@ aws cloudformation describe-stacks \
 4. ✅ Security Stack (3 min) - WAF + CloudTrail (if enabled)
 5. ✅ Frontend Stack (10 min) - S3 + CloudFront + Frontend build
 
+### S3 Deployment Repository Automation
+
+The complete repository is maintained at `s3://aws-drs-orchestration` with automated sync, versioning, and git commit tracking.
+
+#### Features
+
+**✅ S3 Versioning Enabled**
+- Every file version preserved for recovery
+- Can restore accidentally deleted files
+- Complete version history available
+
+**✅ Git Commit Tagging**
+- All S3 objects tagged with source git commit hash
+- Sync timestamp included in metadata
+- Query S3 by commit for audit trail
+
+**✅ Automated Sync Script**
+```bash
+# Sync complete repository to S3
+./scripts/sync-to-deployment-bucket.sh
+
+# Build frontend and sync
+./scripts/sync-to-deployment-bucket.sh --build-frontend
+
+# Preview changes without executing
+./scripts/sync-to-deployment-bucket.sh --dry-run
+```
+
+#### Query S3 by Git Commit
+
+```bash
+# Find all files from specific deployment
+aws s3api list-objects-v2 \
+  --bucket aws-drs-orchestration \
+  --query "Contents[?Metadata.'git-commit'=='a93a255'].[Key]" \
+  --output text
+
+# View object metadata
+aws s3api head-object \
+  --bucket aws-drs-orchestration \
+  --key cfn/master-template.yaml \
+  --query "Metadata"
+```
+
+#### Recovery from S3
+
+**Primary: Git Checkout + Re-sync**
+```bash
+# Restore to previous commit
+git checkout abc1234
+./scripts/sync-to-deployment-bucket.sh
+
+# Return to main
+git checkout main
+```
+
+**Backup: S3 Versioning**
+```bash
+# List all versions of a file
+aws s3api list-object-versions \
+  --bucket aws-drs-orchestration \
+  --prefix cfn/master-template.yaml
+
+# Restore specific version
+aws s3api copy-object \
+  --copy-source "aws-drs-orchestration/cfn/master-template.yaml?versionId=VERSION_ID" \
+  --bucket aws-drs-orchestration \
+  --key cfn/master-template.yaml
+```
+
 #### Access Application
 
 ```bash
