@@ -1,7 +1,7 @@
-# AD-PKI-AIRGAPPED CloudFormation Template Makefile
-# Provides automation for template validation, formatting, and testing
+# AWS DRS Orchestration Makefile
+# Provides automation for S3 sync, validation, and deployment
 
-.PHONY: help install lint validate format test clean all
+.PHONY: help install lint validate format test clean all sync-s3 sync-s3-build enable-auto-sync disable-auto-sync
 
 # Default target
 .DEFAULT_GOAL := help
@@ -18,13 +18,20 @@ PYTHON := python3
 PIP := pip3
 
 help: ## Show this help message
-	@echo "AD-PKI-AIRGAPPED CloudFormation Template Management"
-	@echo "=================================================="
+	@echo "AWS DRS Orchestration Management"
+	@echo "=================================="
 	@echo ""
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Templates found: $(TEMPLATES)"
+	@echo ""
+	@echo "S3 Sync Status:"
+	@if [ -x .git/hooks/post-push ]; then \
+		echo "  ✅ Auto-sync ENABLED (runs after git push)"; \
+	else \
+		echo "  ⚠️  Auto-sync DISABLED"; \
+	fi
 
 install: ## Install required validation tools
 	@echo "Installing CloudFormation validation tools..."
@@ -137,3 +144,63 @@ deploy-check: validate ## Pre-deployment validation
 	@echo "Running pre-deployment checks..."
 	@$(MAKE) check-ami
 	@echo "✅ Ready for deployment"
+
+# S3 Sync Automation Targets
+sync-s3: ## Sync repository to S3 deployment bucket
+	@echo "📦 Syncing to S3 deployment bucket..."
+	@./scripts/sync-to-deployment-bucket.sh
+	@echo "✅ S3 sync complete"
+
+sync-s3-build: ## Build frontend and sync to S3
+	@echo "📦 Building frontend and syncing to S3..."
+	@./scripts/sync-to-deployment-bucket.sh --build-frontend
+	@echo "✅ Frontend build and S3 sync complete"
+
+sync-s3-dry-run: ## Preview S3 sync without making changes
+	@echo "🔍 Previewing S3 sync (dry-run mode)..."
+	@./scripts/sync-to-deployment-bucket.sh --dry-run
+	@echo "✅ Dry-run complete"
+
+enable-auto-sync: ## Enable automatic S3 sync after git push
+	@echo "⚙️  Enabling automatic S3 sync..."
+	@if [ ! -f .git/hooks/post-push ]; then \
+		echo "❌ post-push hook not found - run setup first"; \
+		exit 1; \
+	fi
+	@chmod +x .git/hooks/post-push
+	@echo "✅ Auto-sync ENABLED - S3 will sync after every git push"
+
+disable-auto-sync: ## Disable automatic S3 sync
+	@echo "⚙️  Disabling automatic S3 sync..."
+	@if [ -f .git/hooks/post-push ]; then \
+		chmod -x .git/hooks/post-push; \
+		echo "✅ Auto-sync DISABLED"; \
+	else \
+		echo "⚠️  post-push hook not found"; \
+	fi
+
+setup-auto-sync: ## Setup automatic S3 sync (creates hook)
+	@echo "🔧 Setting up automatic S3 sync..."
+	@if [ ! -f .git/hooks/post-push ]; then \
+		echo "Creating post-push hook..."; \
+		cat > .git/hooks/post-push << 'EOF'
+#!/bin/bash
+# Auto-sync to S3 after successful git push
+echo ""
+echo "🔄 Auto-syncing to S3 deployment bucket..."
+echo ""
+./scripts/sync-to-deployment-bucket.sh
+if [ $$? -eq 0 ]; then
+    echo ""
+    echo "✅ S3 sync complete!"
+    echo ""
+else
+    echo ""
+    echo "❌ S3 sync failed"
+    echo ""
+    exit 1
+fi
+EOF
+	fi
+	@chmod +x .git/hooks/post-push
+	@echo "✅ Auto-sync setup complete"
