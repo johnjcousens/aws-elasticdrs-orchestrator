@@ -62,3 +62,4 @@ node_modules/
 
 # Lambda deployment artifacts (use lambda/*.zip instead)
 /*.zip
+scripts/set-aws-credentials.sh
