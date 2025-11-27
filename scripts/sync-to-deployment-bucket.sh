@@ -16,6 +16,10 @@ BUCKET="aws-drs-orchestration"
 REGION="us-east-1"
 BUILD_FRONTEND=false
 DRY_RUN=false
+CLEAN_ORPHANS=false
+
+# Approved top-level directories (directories synced by this script)
+APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -28,9 +32,13 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --clean-orphans)
+            CLEAN_ORPHANS=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--build-frontend] [--dry-run]"
+            echo "Usage: $0 [--build-frontend] [--dry-run] [--clean-orphans]"
             exit 1
             ;;
     esac
@@ -74,6 +82,106 @@ fi
 
 echo "✅ AWS credentials verified"
 echo ""
+
+# Clean orphaned directories if requested
+if [ "$CLEAN_ORPHANS" = true ]; then
+    echo "🧹 Checking for orphaned directories in S3..."
+    echo ""
+    
+    # Get all top-level directories from S3
+    S3_DIRS=$(aws s3 ls s3://$BUCKET/ --region $REGION | grep PRE | awk '{print $2}' | sed 's/\///')
+    
+    # Find orphaned directories
+    ORPHANED_DIRS=()
+    ORPHANED_FILES=()
+    
+    for dir in $S3_DIRS; do
+        # Check if directory is in approved list
+        is_approved=false
+        for approved in "${APPROVED_DIRS[@]}"; do
+            if [ "$dir" = "$approved" ]; then
+                is_approved=true
+                break
+            fi
+        done
+        if [ "$is_approved" = false ]; then
+            ORPHANED_DIRS+=("$dir")
+        fi
+    done
+    
+    # Check for orphaned files at root level (excluding approved files)
+    S3_FILES=$(aws s3 ls s3://$BUCKET/ --region $REGION | grep -v PRE | awk '{print $4}')
+    APPROVED_FILES=("README.md" ".gitignore" "Makefile")
+    
+    for file in $S3_FILES; do
+        is_approved=false
+        for approved in "${APPROVED_FILES[@]}"; do
+            if [ "$file" = "$approved" ]; then
+                is_approved=true
+                break
+            fi
+        done
+        if [ "$is_approved" = false ]; then
+            ORPHANED_FILES+=("$file")
+        fi
+    done
+    
+    # Report findings
+    if [ ${#ORPHANED_DIRS[@]} -eq 0 ] && [ ${#ORPHANED_FILES[@]} -eq 0 ]; then
+        echo "✅ No orphaned directories or files found!"
+        echo ""
+    else
+        echo "⚠️  Found orphaned items:"
+        echo ""
+        
+        if [ ${#ORPHANED_DIRS[@]} -gt 0 ]; then
+            echo "  Orphaned directories:"
+            for dir in "${ORPHANED_DIRS[@]}"; do
+                echo "    - $dir/"
+            done
+            echo ""
+        fi
+        
+        if [ ${#ORPHANED_FILES[@]} -gt 0 ]; then
+            echo "  Orphaned files:"
+            for file in "${ORPHANED_FILES[@]}"; do
+                echo "    - $file"
+            done
+            echo ""
+        fi
+        
+        # Confirm deletion (skip in dry-run mode)
+        if [ "$DRY_RUN" = true ]; then
+            echo "  (DRY RUN: Would prompt for deletion confirmation)"
+            echo ""
+        else
+            read -p "Delete these orphaned items? (y/n): " -n 1 -r
+            echo ""
+            
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                # Delete orphaned directories
+                for dir in "${ORPHANED_DIRS[@]}"; do
+                    echo "  🗑️  Deleting $dir/..."
+                    aws s3 rm s3://$BUCKET/$dir/ --recursive --region $REGION
+                done
+                
+                # Delete orphaned files
+                for file in "${ORPHANED_FILES[@]}"; do
+                    echo "  🗑️  Deleting $file..."
+                    aws s3 rm s3://$BUCKET/$file --region $REGION
+                done
+                
+                echo ""
+                echo "✅ Orphaned items deleted!"
+                echo ""
+            else
+                echo ""
+                echo "ℹ️  Orphaned items kept (not deleted)"
+                echo ""
+            fi
+        fi
+    fi
+fi
 
 # Build frontend if requested
 if [ "$BUILD_FRONTEND" = true ]; then
