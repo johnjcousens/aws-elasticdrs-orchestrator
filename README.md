@@ -252,6 +252,95 @@ aws s3api copy-object \
   --key cfn/master-template.yaml
 ```
 
+### Automated S3 Sync Workflow
+
+**✅ Auto-sync on every git push!**
+
+The repository includes a git `post-push` hook that automatically syncs to S3 after every successful `git push`. This ensures S3 is always in sync with your git repository.
+
+#### Quick Commands
+
+```bash
+# Manual sync
+make sync-s3
+
+# Build frontend and sync
+make sync-s3-build
+
+# Preview changes (dry-run)
+make sync-s3-dry-run
+
+# Enable auto-sync (if disabled)
+make enable-auto-sync
+
+# Disable auto-sync
+make disable-auto-sync
+
+# Check sync status
+make help
+```
+
+#### How Auto-Sync Works
+
+1. **You commit and push changes:**
+   ```bash
+   git add .
+   git commit -m "feat: Add new feature"
+   git push origin main
+   ```
+
+2. **Post-push hook automatically triggers:**
+   - Detects current git commit hash
+   - Tags all S3 objects with commit metadata
+   - Syncs changes to `s3://aws-drs-orchestration`
+   - Reports success/failure
+
+3. **S3 is automatically updated:**
+   - All files tagged with latest commit
+   - Versioning preserves previous versions
+   - No manual sync needed!
+
+#### Enable/Disable Auto-Sync
+
+**Auto-sync is enabled by default.** To control it:
+
+```bash
+# Disable auto-sync (sync only on demand)
+make disable-auto-sync
+
+# Re-enable auto-sync
+make enable-auto-sync
+
+# Check current status
+make help  # Shows "✅ Auto-sync ENABLED" or "⚠️ Auto-sync DISABLED"
+```
+
+#### Manual Sync Options
+
+Even with auto-sync enabled, you can manually sync anytime:
+
+```bash
+# Quick sync (uses current git commit)
+make sync-s3
+
+# Sync with frontend build
+make sync-s3-build
+
+# Test sync without changes
+make sync-s3-dry-run
+
+# Direct script usage (all options)
+./scripts/sync-to-deployment-bucket.sh [--build-frontend] [--dry-run]
+```
+
+#### Workflow Benefits
+
+✅ **Zero Manual Effort** - S3 stays in sync automatically  
+✅ **Always Audit Trail** - Every S3 object tagged with git commit  
+✅ **Version Protection** - S3 versioning enabled for all files  
+✅ **Fail-Safe** - Hook fails if sync fails (prevents incomplete updates)  
+✅ **Flexible** - Can disable and sync manually when needed
+
 #### Access Application
 
 ```bash
