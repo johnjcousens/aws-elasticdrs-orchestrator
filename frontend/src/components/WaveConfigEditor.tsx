@@ -117,7 +117,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       name: `Wave ${safeWaves.length + 1}`,
       description: '',
       serverIds: [],
-      executionType: 'sequential',
+      // executionType removed - all within-wave execution is parallel with delays
       dependsOnWaves: [],
       protectionGroupIds: [],  // Empty - user must select PG
       protectionGroupId: '',  // Empty - no default
@@ -227,12 +227,6 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     color="primary"
                     variant="outlined"
                   />
-                  <Chip
-                    label={wave.executionType}
-                    size="small"
-                    color="default"
-                    variant="outlined"
-                  />
                   {!readonly && (
                     <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
                       <IconButton
@@ -305,17 +299,10 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                       Execution Configuration
                     </Typography>
                     <Stack spacing={2}>
-                      <FormControl fullWidth disabled={readonly}>
-                        <InputLabel>Execution Type</InputLabel>
-                        <Select
-                          value={wave.executionType}
-                          label="Execution Type"
-                          onChange={(e) => handleUpdateWave(wave.waveNumber, 'executionType', e.target.value)}
-                        >
-                          <MenuItem value="sequential">Sequential (one server at a time)</MenuItem>
-                          <MenuItem value="parallel">Parallel (all servers simultaneously)</MenuItem>
-                        </Select>
-                      </FormControl>
+                      <Alert severity="info" sx={{ mb: 1 }}>
+                        All servers within a wave launch in parallel with DRS-safe delays (15s between servers).
+                        Use wave dependencies for sequential operations.
+                      </Alert>
 
                       {getAvailableDependencies(wave.waveNumber).length > 0 && (
                         <FormControl fullWidth disabled={readonly}>
