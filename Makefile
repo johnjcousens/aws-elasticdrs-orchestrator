@@ -161,6 +161,11 @@ sync-s3-dry-run: ## Preview S3 sync without making changes
 	@./scripts/sync-to-deployment-bucket.sh --dry-run
 	@echo "✅ Dry-run complete"
 
+clean-s3-orphans: ## Check for and remove orphaned directories/files in S3
+	@echo "🧹 Checking for orphaned items in S3..."
+	@./scripts/sync-to-deployment-bucket.sh --clean-orphans
+	@echo "✅ Orphan check complete"
+
 enable-auto-sync: ## Enable automatic S3 sync after git push
 	@echo "⚙️  Enabling automatic S3 sync..."
 	@if [ ! -f .git/hooks/post-push ]; then \
