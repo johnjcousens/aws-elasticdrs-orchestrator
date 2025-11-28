@@ -751,7 +751,7 @@ def execute_recovery_plan(body: Dict) -> Dict:
         lambda_client.invoke(
             FunctionName=current_function_name,
             InvocationType='Event',  # Async invocation
-            Payload=json.dumps(worker_payload)
+            Payload=json.dumps(worker_payload, cls=DecimalEncoder)
         )
         
         print(f"Async worker invoked for execution {execution_id}")
