@@ -699,7 +699,7 @@ def execute_recovery_plan(body: Dict) -> Dict:
         execution_type = body['ExecutionType']
         
         # Validate execution type
-        if execution_type not in ['DRILL', 'RECOVERY', 'FAILBACK']:
+        if execution_type not in ['DRILL', 'RECOVERY']:
             return response(400, {'error': 'Invalid ExecutionType'})
         
         # Get Recovery Plan
@@ -734,8 +734,8 @@ def execute_recovery_plan(body: Dict) -> Dict:
         execution_history_table.put_item(Item=history_item)
         
         # Invoke this same Lambda asynchronously to do the actual work
-        # This allows us to return immediately while work continues in background
-        lambda_function_name = os.environ.get('AWS_LAMBDA_FUNCTION_NAME')
+        # AWS_LAMBDA_FUNCTION_NAME is automatically set by Lambda runtime
+        current_function_name = os.environ['AWS_LAMBDA_FUNCTION_NAME']
         
         # Prepare payload for async worker
         worker_payload = {
@@ -749,7 +749,7 @@ def execute_recovery_plan(body: Dict) -> Dict:
         
         # Invoke async (Event invocation type = fire and forget)
         lambda_client.invoke(
-            FunctionName=lambda_function_name,
+            FunctionName=current_function_name,
             InvocationType='Event',  # Async invocation
             Payload=json.dumps(worker_payload)
         )
