@@ -33,46 +33,47 @@ import {
 import apiClient from '../services/api';
 import { PageTransition } from '../components/PageTransition';
 
-// Backend response types (PascalCase from Lambda)
-interface BackendServerExecution {
-  SourceServerId: string;
-  RecoveryJobId?: string;
-  InstanceId?: string | null;
-  Status: 'LAUNCHING' | 'LAUNCHED' | 'FAILED';
-  LaunchTime: number;
-  Error?: string;
+// CONSISTENCY FIX: Use camelCase types that match backend transformation
+interface ServerExecution {
+  sourceServerId: string;
+  recoveryJobId?: string;
+  instanceId?: string | null;
+  status: 'LAUNCHING' | 'LAUNCHED' | 'FAILED';
+  launchTime: number;
+  error?: string;
 }
 
-interface BackendWaveExecution {
-  WaveName: string;
-  ProtectionGroupId: string;
-  Region: string;
-  Status: string;
-  Servers: BackendServerExecution[];
-  StartTime: number;
-  EndTime?: number;
+interface WaveExecution {
+  waveName: string;
+  protectionGroupId: string;
+  region: string;
+  status: string;
+  servers: ServerExecution[];
+  startTime: number;
+  endTime?: number;
 }
 
-interface BackendExecutionDetails {
-  ExecutionId: string;
-  PlanId: string;
-  ExecutionType: 'DRILL' | 'RECOVERY' | 'FAILBACK';
-  Status: 'IN_PROGRESS' | 'COMPLETED' | 'PARTIAL' | 'FAILED';
-  StartTime: number;
-  EndTime?: number;
-  InitiatedBy: string;
-  Waves: BackendWaveExecution[];
-  RecoveryPlanName?: string;
+interface ExecutionDetails {
+  executionId: string;
+  recoveryPlanId: string;
+  executionType: string;
+  status: string;  // Already lowercase from backend
+  startTime: number;
+  endTime?: number;
+  initiatedBy: string;
+  waves: WaveExecution[];
+  recoveryPlanName?: string;
 }
 
 export const ExecutionDetailsPage: React.FC = () => {
   const { executionId } = useParams<{ executionId: string }>();
   const navigate = useNavigate();
   
-  const [execution, setExecution] = useState<BackendExecutionDetails | null>(null);
+  const [execution, setExecution] = useState<ExecutionDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(true);
+  const [countdown, setCountdown] = useState(15);
 
   // Fetch execution details
   const fetchExecution = async () => {
@@ -80,13 +81,13 @@ export const ExecutionDetailsPage: React.FC = () => {
     
     try {
       const data = await apiClient.getExecution(executionId);
-      // Cast to our backend type (backend returns PascalCase)
-      setExecution(data as unknown as BackendExecutionDetails);
+      // Backend now returns camelCase (consistent transformation)
+      setExecution(data as unknown as ExecutionDetails);
       setError(null);
       
       // Disable polling if execution is complete
-      const typedData = data as unknown as BackendExecutionDetails;
-      if (typedData.Status !== 'IN_PROGRESS') {
+      const typedData = data as unknown as ExecutionDetails;
+      if (typedData.status !== 'in_progress') {
         setPollingEnabled(false);
       }
     } catch (err: any) {
@@ -102,18 +103,24 @@ export const ExecutionDetailsPage: React.FC = () => {
     fetchExecution();
   }, [executionId]);
 
-  // Polling effect - refresh every 15 seconds while IN_PROGRESS
+  // Countdown timer effect - updates every second
   useEffect(() => {
-    if (!pollingEnabled || execution?.Status !== 'IN_PROGRESS') {
+    if (!pollingEnabled || execution?.status !== 'in_progress') {
       return;
     }
 
-    const interval = setInterval(() => {
-      fetchExecution();
-    }, 15000); // 15 seconds
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          fetchExecution();
+          return 15; // Reset countdown
+        }
+        return prev - 1;
+      });
+    }, 1000); // Update every second
 
-    return () => clearInterval(interval);
-  }, [pollingEnabled, execution?.Status]);
+    return () => clearInterval(timer);
+  }, [pollingEnabled, execution?.status]);
 
   // Helper: Get status color
   const getStatusColor = (status: string): 'success' | 'error' | 'warning' | 'info' => {
@@ -164,9 +171,9 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   // Helper: Calculate wave progress
-  const calculateProgress = (waves: BackendWaveExecution[]): number => {
+  const calculateProgress = (waves: WaveExecution[]): number => {
     if (!waves || waves.length === 0) return 0;
-    const completedWaves = waves.filter(w => w.Status === 'COMPLETED').length;
+    const completedWaves = waves.filter(w => w.status === 'completed').length;
     return (completedWaves / waves.length) * 100;
   };
 
@@ -216,8 +223,8 @@ export const ExecutionDetailsPage: React.FC = () => {
     );
   }
 
-  const progress = calculateProgress(execution.Waves);
-  const completedWaves = execution.Waves.filter(w => w.Status === 'COMPLETED').length;
+  const progress = calculateProgress(execution.waves);
+  const completedWaves = execution.waves.filter(w => w.status === 'completed').length;
 
   return (
     <PageTransition>
@@ -243,31 +250,31 @@ export const ExecutionDetailsPage: React.FC = () => {
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h5" gutterBottom>
-              {execution.RecoveryPlanName || 'Recovery Plan'} - {execution.ExecutionType} Execution
+              {execution.recoveryPlanName || 'Recovery Plan'} - {execution.executionType} Execution
             </Typography>
             
             <Box display="flex" gap={2} alignItems="center" mb={2}>
               <Chip
-                icon={getStatusIcon(execution.Status)}
-                label={execution.Status}
-                color={getStatusColor(execution.Status)}
+                icon={getStatusIcon(execution.status)}
+                label={execution.status}
+                color={getStatusColor(execution.status)}
                 size="medium"
               />
-              {execution.Status === 'IN_PROGRESS' && (
+              {execution.status === 'in_progress' && (
                 <Typography variant="body2" color="text.secondary">
-                  Auto-refreshing every 15 seconds...
+                  Refreshing in {countdown}s...
                 </Typography>
               )}
             </Box>
 
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              <strong>Execution ID:</strong> {execution.ExecutionId}
+              <strong>Execution ID:</strong> {execution.executionId}
             </Typography>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              <strong>Started:</strong> {formatTimestamp(execution.StartTime)} by {execution.InitiatedBy}
+              <strong>Started:</strong> {formatTimestamp(execution.startTime)} by {execution.initiatedBy}
             </Typography>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              <strong>Duration:</strong> {calculateDuration(execution.StartTime, execution.EndTime)}
+              <strong>Duration:</strong> {calculateDuration(execution.startTime, execution.endTime)}
             </Typography>
           </CardContent>
         </Card>
@@ -276,7 +283,7 @@ export const ExecutionDetailsPage: React.FC = () => {
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Wave Progress: {completedWaves} of {execution.Waves.length} complete
+              Wave Progress: {completedWaves} of {execution.waves.length} complete
             </Typography>
             <LinearProgress
               variant="determinate"
@@ -290,21 +297,21 @@ export const ExecutionDetailsPage: React.FC = () => {
         </Card>
 
         {/* Waves */}
-        {execution.Waves.map((wave, index) => (
-          <Accordion key={index} defaultExpanded={wave.Status === 'IN_PROGRESS'}>
+        {execution.waves.map((wave, index) => (
+          <Accordion key={index} defaultExpanded={wave.status === 'in_progress'}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Box display="flex" alignItems="center" gap={2} width="100%">
                 <Chip
-                  icon={getStatusIcon(wave.Status)}
-                  label={wave.Status}
-                  color={getStatusColor(wave.Status)}
+                  icon={getStatusIcon(wave.status)}
+                  label={wave.status}
+                  color={getStatusColor(wave.status)}
                   size="small"
                 />
                 <Typography variant="h6">
-                  Wave {index + 1}: {wave.WaveName}
+                  Wave {index + 1}: {wave.waveName}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                  Region: {wave.Region}
+                  Region: {wave.region}
                 </Typography>
               </Box>
             </AccordionSummary>
@@ -321,53 +328,53 @@ export const ExecutionDetailsPage: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {wave.Servers.map((server, serverIndex) => (
+                    {wave.servers.map((server, serverIndex) => (
                       <TableRow key={serverIndex}>
                         <TableCell>
                           <Typography variant="body2" fontFamily="monospace">
-                            {server.SourceServerId}
+                            {server.sourceServerId}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Chip
-                            icon={getStatusIcon(server.Status)}
-                            label={server.Status}
-                            color={getStatusColor(server.Status)}
+                            icon={getStatusIcon(server.status)}
+                            label={server.status}
+                            color={getStatusColor(server.status)}
                             size="small"
                           />
                         </TableCell>
                         <TableCell>
-                          {server.InstanceId ? (
+                          {server.instanceId ? (
                             <Link
-                              href={getConsoleLink(server.InstanceId, wave.Region)}
+                              href={getConsoleLink(server.instanceId, wave.region)}
                               target="_blank"
                               rel="noopener noreferrer"
                               sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                             >
                               <Typography variant="body2" fontFamily="monospace">
-                                {server.InstanceId}
+                                {server.instanceId}
                               </Typography>
                               🔗
                             </Link>
                           ) : (
                             <Typography variant="body2" color="text.secondary">
-                              {server.Status === 'LAUNCHING' ? 'Launching...' : '-'}
+                              {server.status === 'LAUNCHING' ? 'Launching...' : '-'}
                             </Typography>
                           )}
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" fontFamily="monospace">
-                            {server.RecoveryJobId || '-'}
+                            {server.recoveryJobId || '-'}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">
-                            {formatTimestamp(server.LaunchTime)}
+                            {formatTimestamp(server.launchTime)}
                           </Typography>
                         </TableCell>
                       </TableRow>
                     ))}
-                    {wave.Servers.length === 0 && (
+                    {wave.servers.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} align="center">
                           <Typography variant="body2" color="text.secondary">
@@ -381,11 +388,11 @@ export const ExecutionDetailsPage: React.FC = () => {
               </TableContainer>
 
               {/* Show errors if any */}
-              {wave.Servers.some(s => s.Error) && (
+              {wave.servers.some(s => s.error) && (
                 <Box mt={2}>
-                  {wave.Servers.filter(s => s.Error).map((server, idx) => (
+                  {wave.servers.filter(s => s.error).map((server, idx) => (
                     <Alert severity="error" key={idx} sx={{ mb: 1 }}>
-                      <strong>{server.SourceServerId}:</strong> {server.Error}
+                      <strong>{server.sourceServerId}:</strong> {server.error}
                     </Alert>
                   ))}
                 </Box>
