@@ -288,7 +288,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - lambda:InvokeFunction
-                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-execution-poller-${Environment}'
+                Resource: !GetAtt ExecutionPollerFunction.Arn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
