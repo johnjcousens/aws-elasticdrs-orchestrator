@@ -280,6 +280,56 @@ class ApiClient {
   }
 
   /**
+   * Poll execution status until completion
+   * 
+   * Polls GET /executions/{executionId} every 5 seconds until:
+   * - Status is COMPLETED, FAILED, PARTIAL, or CANCELLED
+   * - Maximum polling duration (15 minutes) is reached
+   * 
+   * @param executionId - Execution ID to poll
+   * @param onUpdate - Optional callback fired on each status update
+   * @param pollInterval - Polling interval in ms (default: 5000)
+   * @param maxDuration - Maximum polling duration in ms (default: 900000 = 15 min)
+   * @returns Final execution status
+   */
+  public async pollExecutionStatus(
+    executionId: string,
+    onUpdate?: (execution: Execution) => void,
+    pollInterval: number = 5000,
+    maxDuration: number = 900000
+  ): Promise<Execution> {
+    const startTime = Date.now();
+    const terminalStatuses = ['COMPLETED', 'FAILED', 'PARTIAL', 'CANCELLED'];
+
+    while (Date.now() - startTime < maxDuration) {
+      try {
+        const execution = await this.getExecution(executionId);
+        
+        // Fire update callback if provided
+        if (onUpdate) {
+          onUpdate(execution);
+        }
+
+        // Check if execution reached terminal status
+        if (terminalStatuses.includes(execution.status)) {
+          return execution;
+        }
+
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      } catch (error) {
+        console.error('Error polling execution status:', error);
+        // Continue polling despite errors (execution might still be running)
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+    }
+
+    // Max duration reached - fetch final status
+    const finalExecution = await this.getExecution(executionId);
+    return finalExecution;
+  }
+
+  /**
    * Cancel a running execution
    */
   public async cancelExecution(executionId: string): Promise<void> {

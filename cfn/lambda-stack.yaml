@@ -108,6 +108,14 @@ Resources:
                   - ec2:DescribeInstances
                   - ec2:DescribeInstanceStatus
                 Resource: '*'
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-api-handler-${Environment}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName

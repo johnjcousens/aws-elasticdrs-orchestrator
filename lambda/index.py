@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Optional
 dynamodb = boto3.resource('dynamodb')
 stepfunctions = boto3.client('stepfunctions')
 drs = boto3.client('drs')
+lambda_client = boto3.client('lambda')
 
 # Environment variables
 PROTECTION_GROUPS_TABLE = os.environ['PROTECTION_GROUPS_TABLE']
@@ -60,6 +61,13 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
     print(f"Received event: {json.dumps(event)}")
     
     try:
+        # Check if this is a worker invocation (async execution)
+        if event.get('worker'):
+            print("Worker mode detected - executing background task")
+            execute_recovery_plan_worker(event)
+            return {'statusCode': 200, 'body': 'Worker completed'}
+        
+        # Normal API Gateway request handling
         http_method = event.get('httpMethod', '')
         path = event.get('path', '')
         path_parameters = event.get('pathParameters') or {}
@@ -679,7 +687,7 @@ def handle_executions(method: str, path_params: Dict, query_params: Dict, body: 
 
 
 def execute_recovery_plan(body: Dict) -> Dict:
-    """Execute a Recovery Plan - MVP Phase 1: Direct DRS Integration"""
+    """Execute a Recovery Plan - Async pattern to avoid API Gateway timeout"""
     try:
         # Validate required fields
         required_fields = ['PlanId', 'ExecutionType', 'InitiatedBy']
@@ -689,7 +697,6 @@ def execute_recovery_plan(body: Dict) -> Dict:
         
         plan_id = body['PlanId']
         execution_type = body['ExecutionType']
-        is_drill = execution_type == 'DRILL'
         
         # Validate execution type
         if execution_type not in ['DRILL', 'RECOVERY', 'FAILBACK']:
@@ -710,20 +717,81 @@ def execute_recovery_plan(body: Dict) -> Dict:
         execution_id = str(uuid.uuid4())
         timestamp = int(time.time())
         
-        print(f"Starting execution {execution_id} for plan {plan_id}")
+        print(f"Creating async execution {execution_id} for plan {plan_id}")
         
-        # Create initial execution history record
+        # Create initial execution history record with PENDING status
         history_item = {
             'ExecutionId': execution_id,
             'PlanId': plan_id,
             'ExecutionType': execution_type,
-            'Status': 'IN_PROGRESS',
+            'Status': 'PENDING',
             'StartTime': timestamp,
             'InitiatedBy': body['InitiatedBy'],
             'Waves': []
         }
         
-        # Execute waves sequentially with delays between waves
+        # Store execution history immediately
+        execution_history_table.put_item(Item=history_item)
+        
+        # Invoke this same Lambda asynchronously to do the actual work
+        # This allows us to return immediately while work continues in background
+        lambda_function_name = os.environ.get('AWS_LAMBDA_FUNCTION_NAME')
+        
+        # Prepare payload for async worker
+        worker_payload = {
+            'worker': True,  # Flag to route to worker handler
+            'executionId': execution_id,
+            'planId': plan_id,
+            'executionType': execution_type,
+            'isDrill': execution_type == 'DRILL',
+            'plan': plan
+        }
+        
+        # Invoke async (Event invocation type = fire and forget)
+        lambda_client.invoke(
+            FunctionName=lambda_function_name,
+            InvocationType='Event',  # Async invocation
+            Payload=json.dumps(worker_payload)
+        )
+        
+        print(f"Async worker invoked for execution {execution_id}")
+        
+        # Return immediately with 202 Accepted
+        return response(202, {
+            'executionId': execution_id,
+            'status': 'PENDING',
+            'message': 'Execution started - check status with GET /executions/{id}',
+            'statusUrl': f'/executions/{execution_id}'
+        })
+        
+    except Exception as e:
+        print(f"Error starting execution: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': str(e)})
+
+
+def execute_recovery_plan_worker(payload: Dict) -> None:
+    """Background worker - executes the actual recovery (async invocation)"""
+    try:
+        execution_id = payload['executionId']
+        plan_id = payload['planId']
+        execution_type = payload['executionType']
+        is_drill = payload['isDrill']
+        plan = payload['plan']
+        
+        print(f"Worker starting execution {execution_id}")
+        
+        # Update status to IN_PROGRESS
+        execution_history_table.update_item(
+            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+            UpdateExpression='SET #status = :status',
+            ExpressionAttributeNames={'#status': 'Status'},
+            ExpressionAttributeValues={':status': 'IN_PROGRESS'}
+        )
+        
+        # Execute waves sequentially with delays
+        wave_results = []
         for wave_index, wave in enumerate(plan['Waves']):
             wave_number = wave_index + 1
             wave_name = wave.get('WaveName', f'Wave {wave_number}')
@@ -742,43 +810,65 @@ def execute_recovery_plan(body: Dict) -> Dict:
             
             # Execute wave and get results
             wave_result = execute_wave(wave, pg_id, execution_id, is_drill)
+            wave_results.append(wave_result)
             
-            # Add wave result to history
-            history_item['Waves'].append(wave_result)
+            # Update progress in DynamoDB after each wave
+            execution_history_table.update_item(
+                Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+                UpdateExpression='SET Waves = :waves',
+                ExpressionAttributeValues={':waves': wave_results}
+            )
         
-        # Update final status
+        # Determine final status
         has_failures = any(
             s.get('Status') == 'FAILED' 
-            for w in history_item['Waves'] 
+            for w in wave_results 
             for s in w.get('Servers', [])
         )
         
-        history_item['Status'] = 'PARTIAL' if has_failures else 'COMPLETED'
-        history_item['EndTime'] = int(time.time())
+        final_status = 'PARTIAL' if has_failures else 'COMPLETED'
+        end_time = int(time.time())
         
-        # Store execution history
-        execution_history_table.put_item(Item=history_item)
+        # Update final status
+        execution_history_table.update_item(
+            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+            UpdateExpression='SET #status = :status, EndTime = :endtime, Waves = :waves',
+            ExpressionAttributeNames={'#status': 'Status'},
+            ExpressionAttributeValues={
+                ':status': final_status,
+                ':endtime': end_time,
+                ':waves': wave_results
+            }
+        )
         
         # Update plan's LastExecutedDate
         recovery_plans_table.update_item(
             Key={'PlanId': plan_id},
             UpdateExpression='SET LastExecutedDate = :timestamp',
-            ExpressionAttributeValues={':timestamp': timestamp}
+            ExpressionAttributeValues={':timestamp': end_time}
         )
         
-        print(f"Execution {execution_id} completed with status: {history_item['Status']}")
-        return response(202, {
-            'executionId': execution_id,
-            'status': history_item['Status'],
-            'message': 'Recovery execution started successfully',
-            'wavesExecuted': len(history_item['Waves'])
-        })
+        print(f"Worker completed execution {execution_id} with status: {final_status}")
         
     except Exception as e:
-        print(f"Error executing Recovery Plan: {str(e)}")
+        print(f"Worker error for execution {execution_id}: {str(e)}")
         import traceback
         traceback.print_exc()
-        return response(500, {'error': str(e)})
+        
+        # Mark execution as failed
+        try:
+            execution_history_table.update_item(
+                Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+                UpdateExpression='SET #status = :status, EndTime = :endtime, ErrorMessage = :error',
+                ExpressionAttributeNames={'#status': 'Status'},
+                ExpressionAttributeValues={
+                    ':status': 'FAILED',
+                    ':endtime': int(time.time()),
+                    ':error': str(e)
+                }
+            )
+        except Exception as update_error:
+            print(f"Failed to update error status: {str(update_error)}")
 
 
 def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_drill: bool) -> Dict:
@@ -798,7 +888,21 @@ def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dri
         
         pg = pg_result['Item']
         region = pg['Region']
-        server_ids = pg.get('SourceServerIds', [])
+        
+        # Get servers from both wave and protection group
+        pg_servers = pg.get('SourceServerIds', [])
+        wave_servers = wave.get('ServerIds', [])
+        
+        # Filter to only launch servers specified in this wave
+        # This ensures each wave launches its designated subset of servers
+        if wave_servers:
+            # Wave has explicit server list - filter PG servers to this subset
+            server_ids = [s for s in wave_servers if s in pg_servers]
+            print(f"Wave specifies {len(wave_servers)} servers, {len(server_ids)} are in Protection Group")
+        else:
+            # No ServerIds in wave - launch all PG servers (legacy behavior)
+            server_ids = pg_servers
+            print(f"Wave has no ServerIds field, launching all {len(server_ids)} Protection Group servers")
         
         if not server_ids:
             return {
