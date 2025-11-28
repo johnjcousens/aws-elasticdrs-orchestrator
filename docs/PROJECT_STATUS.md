@@ -14,6 +14,52 @@
 
 ## 📜 Session Checkpoints
 
+**Session 53: DRS Execution Fix - Planning & Architecture** (November 28, 2025 - 12:19 AM - 1:24 AM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251128_012415_387174_2025-11-28_01-24-15.md`
+- **Git Commit**: Pending - To be created
+- **Summary**: Analyzed DRS execution timeout issue, designed unified execution engine supporting both drill and production recovery modes
+- **Technical Context**:
+  - **Problem Identified**: Lambda timeout (15 min) vs DRS execution duration (20-30 min)
+  - **Root Cause**: Synchronous execution pattern in asynchronous world
+  - **Solution Designed**: Async pattern with EventBridge polling service
+  - **Drill Execution**: ~20 minutes (PENDING 13m, IN_PROGRESS 6m)
+  - **Production Recovery**: ~30 minutes (adds 10m for SSM post-launch actions)
+  - **Architecture Choice**: Unified execution engine (single codebase, mode flag)
+- **Documents Created**:
+  1. `docs/DRS_EXECUTION_FIX_IMPLEMENTATION_PLAN.md` (1,700+ lines) - Complete implementation guide
+  2. `docs/guides/AWS_DRS_DRILL_EXECUTION_WALKTHROUGH.md` - Live drill walkthrough documentation
+  3. `docs/guides/AWS_DRS_RECOVERY_EXECUTION_WALKTHROUGH.md` - Production recovery documentation
+- **Architecture Decisions**:
+  - **Option Selected**: Unified execution engine (vs separate drill/recovery systems)
+  - **Production Ready**: Supports both modes from day one
+  - **Developer Friendly**: Single codebase with `ExecutionType: DRILL | RECOVERY`
+  - **Customer Friendly**: Consistent API and user experience
+- **Implementation Plan**:
+  - Phase 1: Lambda refactoring (remove sync waiting, add mode awareness)
+  - Phase 2: DynamoDB schema updates (add ExecutionType, polling status)
+  - Phase 3: EventBridge polling service (30s intervals, unified for both modes)
+  - Phase 4: Frontend updates (mode-aware UI, extended polling)
+  - Phase 5: Monitoring & observability
+  - Phase 6: Testing strategy
+- **Key Insights**:
+  - DRS jobs stay PENDING for 68% of execution time (13+ minutes)
+  - Can't check status more than once per 30s (DRS API limit)
+  - Production recovery includes SSM health checks (10 additional minutes)
+  - Lambda must return immediately (202 Accepted), polling continues async
+- **Technical Achievements**:
+  - Comprehensive 6-phase implementation plan
+  - Timing breakdown from real DRS drill execution
+  - Mode comparison table (DRILL vs RECOVERY)
+  - Polling service architecture with EventBridge
+  - Frontend progress tracking design (20-30 min expected duration)
+- **Result**: ✅ **DRS Execution Fix DESIGNED** - Ready for implementation in next session
+- **Lines of Code**: +1,700 lines (implementation plan documentation)
+- **Next Steps**:
+  1. Begin Phase 1: Lambda refactoring (remove synchronous waiting)
+  2. Implement mode-aware wave initiation
+  3. Add ExecutionType parameter to API
+  4. Create EventBridge polling Lambda
+
 **Session 52: Execution History Cleanup** (November 28, 2025 - 12:04 AM - 12:19 AM EST)
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251128_001940_a7b177_2025-11-28_00-19-40.md`
 - **Git Commit**: Pending - To be created
