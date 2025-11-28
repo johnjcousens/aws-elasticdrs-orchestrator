@@ -347,7 +347,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
                 <Typography variant="subtitle1" gutterBottom>
                   Wave Progress
                 </Typography>
-                <WaveProgress waves={execution.waveExecutions} />
+                <WaveProgress waves={execution.waveExecutions || []} />
               </Box>
             </Stack>
           ) : null}
