@@ -772,7 +772,7 @@ def execute_recovery_plan(body: Dict) -> Dict:
 
 
 def execute_recovery_plan_worker(payload: Dict) -> None:
-    """Background worker - executes the actual recovery (async invocation)"""
+    """Background worker - initiates DRS jobs without waiting (async invocation)"""
     try:
         execution_id = payload['executionId']
         plan_id = payload['planId']
@@ -780,17 +780,17 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         is_drill = payload['isDrill']
         plan = payload['plan']
         
-        print(f"Worker starting execution {execution_id}")
+        print(f"Worker initiating execution {execution_id} (type: {execution_type})")
         
-        # Update status to IN_PROGRESS
+        # Update status to POLLING (not IN_PROGRESS)
         execution_history_table.update_item(
             Key={'ExecutionId': execution_id, 'PlanId': plan_id},
             UpdateExpression='SET #status = :status',
             ExpressionAttributeNames={'#status': 'Status'},
-            ExpressionAttributeValues={':status': 'IN_PROGRESS'}
+            ExpressionAttributeValues={':status': 'POLLING'}
         )
         
-        # Execute waves sequentially with delays
+        # Initiate waves immediately (NO DELAYS)
         wave_results = []
         for wave_index, wave in enumerate(plan['Waves']):
             wave_number = wave_index + 1
@@ -801,54 +801,23 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
                 print(f"Wave {wave_number} has no Protection Group, skipping")
                 continue
             
-            # Add 30-second delay between waves (except first wave)
-            if wave_index > 0:
-                print(f"Waiting 30s before executing wave {wave_number}/{len(plan['Waves'])}")
-                time.sleep(30)
+            print(f"Initiating Wave {wave_number}: {wave_name}")
             
-            print(f"Executing Wave {wave_number}: {wave_name}")
-            
-            # Execute wave and get results
-            wave_result = execute_wave(wave, pg_id, execution_id, is_drill)
+            # Initiate wave and get job IDs (no waiting)
+            wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
             wave_results.append(wave_result)
             
-            # Update progress in DynamoDB after each wave
+            # Update progress in DynamoDB after each wave initiation
             execution_history_table.update_item(
                 Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                 UpdateExpression='SET Waves = :waves',
                 ExpressionAttributeValues={':waves': wave_results}
             )
         
-        # Determine final status
-        has_failures = any(
-            s.get('Status') == 'FAILED' 
-            for w in wave_results 
-            for s in w.get('Servers', [])
-        )
-        
-        final_status = 'PARTIAL' if has_failures else 'COMPLETED'
-        end_time = int(time.time())
-        
-        # Update final status
-        execution_history_table.update_item(
-            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
-            UpdateExpression='SET #status = :status, EndTime = :endtime, Waves = :waves',
-            ExpressionAttributeNames={'#status': 'Status'},
-            ExpressionAttributeValues={
-                ':status': final_status,
-                ':endtime': end_time,
-                ':waves': wave_results
-            }
-        )
-        
-        # Update plan's LastExecutedDate
-        recovery_plans_table.update_item(
-            Key={'PlanId': plan_id},
-            UpdateExpression='SET LastExecutedDate = :timestamp',
-            ExpressionAttributeValues={':timestamp': end_time}
-        )
-        
-        print(f"Worker completed execution {execution_id} with status: {final_status}")
+        # Final status is POLLING (not COMPLETED)
+        # External poller will update to COMPLETED when jobs finish
+        print(f"Worker completed initiation for execution {execution_id}")
+        print(f"Status: POLLING - awaiting external poller to track completion")
         
     except Exception as e:
         print(f"Worker error for execution {execution_id}: {str(e)}")
@@ -871,8 +840,8 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
             print(f"Failed to update error status: {str(update_error)}")
 
 
-def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_drill: bool) -> Dict:
-    """Execute a single wave - launch DRS recovery for all servers"""
+def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_drill: bool, execution_type: str = 'DRILL') -> Dict:
+    """Initiate DRS recovery jobs for a wave without waiting for completion"""
     try:
         # Get Protection Group
         pg_result = protection_groups_table.get_item(Key={'GroupId': protection_group_id})
@@ -908,27 +877,21 @@ def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dri
             return {
                 'WaveName': wave.get('WaveName', 'Unknown'),
                 'ProtectionGroupId': protection_group_id,
-                'Status': 'COMPLETED',
+                'Status': 'INITIATED',
                 'Servers': [],
-                'StartTime': int(time.time()),
-                'EndTime': int(time.time())
+                'StartTime': int(time.time())
             }
         
-        print(f"Launching recovery for {len(server_ids)} servers in region {region}")
+        print(f"Initiating recovery for {len(server_ids)} servers in region {region}")
         
-        # Launch recovery for each server with delays between servers
+        # Initiate recovery for each server immediately (NO DELAYS)
         server_results = []
         for i, server_id in enumerate(server_ids):
-            # Add 15-second delay between servers (except first server)
-            if i > 0:
-                print(f"Waiting 15s before launching server {i+1}/{len(server_ids)}")
-                time.sleep(15)
-            
             try:
-                job_result = start_drs_recovery_with_retry(server_id, region, is_drill, execution_id)
+                job_result = start_drs_recovery(server_id, region, is_drill, execution_id, execution_type)
                 server_results.append(job_result)
             except Exception as e:
-                print(f"Error launching recovery for server {server_id}: {str(e)}")
+                print(f"Error initiating recovery for server {server_id}: {str(e)}")
                 server_results.append({
                     'SourceServerId': server_id,
                     'Status': 'FAILED',
@@ -936,9 +899,10 @@ def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dri
                     'LaunchTime': int(time.time())
                 })
         
-        # Determine wave status
+        # Wave status is INITIATED (not IN_PROGRESS)
+        # External poller will update to IN_PROGRESS/COMPLETED
         has_failures = any(s['Status'] == 'FAILED' for s in server_results)
-        wave_status = 'PARTIAL' if has_failures else 'IN_PROGRESS'
+        wave_status = 'PARTIAL' if has_failures else 'INITIATED'
         
         return {
             'WaveName': wave.get('WaveName', 'Unknown'),
@@ -946,12 +910,11 @@ def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dri
             'Region': region,
             'Status': wave_status,
             'Servers': server_results,
-            'StartTime': int(time.time()),
-            'EndTime': int(time.time())
+            'StartTime': int(time.time())
         }
         
     except Exception as e:
-        print(f"Error executing wave: {str(e)}")
+        print(f"Error initiating wave: {str(e)}")
         import traceback
         traceback.print_exc()
         return {
@@ -964,12 +927,12 @@ def execute_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dri
         }
 
 
-def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id: str) -> Dict:
+def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id: str, execution_type: str = 'DRILL') -> Dict:
     """Launch DRS recovery for a single source server"""
     try:
         drs_client = boto3.client('drs', region_name=region)
         
-        print(f"Starting {'drill' if is_drill else 'recovery'} for server {server_id}")
+        print(f"Starting {execution_type} {'drill' if is_drill else 'recovery'} for server {server_id}")
         
         # Start recovery job
         # Omit recoverySnapshotID to use latest point-in-time snapshot (AWS default)
@@ -980,6 +943,7 @@ def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id
             isDrill=is_drill,
             tags={
                 'ExecutionId': execution_id,
+                'ExecutionType': execution_type,
                 'ManagedBy': 'DRS-Orchestration'
             }
         )
@@ -1857,6 +1821,39 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
 def transform_execution_to_camelcase(execution: Dict) -> Dict:
     """Transform Execution from DynamoDB PascalCase to frontend camelCase"""
     
+    # Helper function to safely convert timestamp (string or int) to int
+    def safe_timestamp_to_int(value):
+        if value is None:
+            return None
+        try:
+            # Handle both string and int types
+            return int(value) if value else None
+        except (ValueError, TypeError):
+            print(f"WARNING: Invalid timestamp value: {value}")
+            return None
+    
+    # Helper function to map execution status
+    def map_execution_status(status):
+        """Map backend status to frontend display status"""
+        if not status:
+            return 'unknown'
+        
+        status_upper = status.upper()
+        
+        # Map status for frontend display
+        status_mapping = {
+            'PENDING': 'pending',
+            'IN_PROGRESS': 'in_progress', 
+            'RUNNING': 'in_progress',
+            'COMPLETED': 'completed',
+            'PARTIAL': 'failed',  # CRITICAL FIX: PARTIAL means some servers failed
+            'FAILED': 'failed',
+            'CANCELLED': 'cancelled',
+            'PAUSED': 'paused'
+        }
+        
+        return status_mapping.get(status_upper, status.lower())
+    
     # Transform waves array to camelCase
     waves = []
     for wave in execution.get('Waves', []):
@@ -1867,8 +1864,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                 'sourceServerId': server.get('SourceServerId'),
                 'recoveryJobId': server.get('RecoveryJobId'),
                 'instanceId': server.get('InstanceId'),
-                'status': server.get('Status', 'UNKNOWN'),  # Keep uppercase for now
-                'launchTime': server.get('LaunchTime'),
+                'status': server.get('Status', 'UNKNOWN'),  # Keep uppercase for consistency
+                'launchTime': safe_timestamp_to_int(server.get('LaunchTime')),
                 'error': server.get('Error')
             })
         
@@ -1876,22 +1873,26 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
             'waveName': wave.get('WaveName'),
             'protectionGroupId': wave.get('ProtectionGroupId'),
             'region': wave.get('Region'),
-            'status': wave.get('Status', 'unknown').lower(),  # Lowercase for consistency
+            'status': map_execution_status(wave.get('Status')),  # Use status mapping
             'servers': servers,
-            'startTime': wave.get('StartTime'),
-            'endTime': wave.get('EndTime')
+            'startTime': safe_timestamp_to_int(wave.get('StartTime')),
+            'endTime': safe_timestamp_to_int(wave.get('EndTime'))
         })
+    
+    # CRITICAL FIX: Convert string timestamps to integers for JavaScript Date()
+    start_time = safe_timestamp_to_int(execution.get('StartTime'))
+    end_time = safe_timestamp_to_int(execution.get('EndTime'))
     
     return {
         'executionId': execution.get('ExecutionId'),
         'recoveryPlanId': execution.get('PlanId'),
         'recoveryPlanName': execution.get('RecoveryPlanName', 'Unknown'),
         'executionType': execution.get('ExecutionType'),
-        'status': execution.get('Status', 'unknown').lower(),  # Convert to lowercase for frontend
-        'startTime': execution.get('StartTime'),  # Unix timestamp in seconds
-        'endTime': execution.get('EndTime'),  # Unix timestamp in seconds
+        'status': map_execution_status(execution.get('Status')),  # CRITICAL FIX: Map PARTIAL → failed
+        'startTime': start_time,  # Now properly converted to int
+        'endTime': end_time,  # Now properly converted to int
         'initiatedBy': execution.get('InitiatedBy'),
-        'waves': waves,  # Now properly transformed
+        'waves': waves,  # Now properly transformed with fixed timestamps and status
         'currentWave': len([w for w in waves if w.get('status') == 'in_progress']),
         'totalWaves': len(waves),
         'errorMessage': execution.get('ErrorMessage')
