@@ -952,30 +952,80 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
 
 
 def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bool, execution_id: str, execution_type: str = 'DRILL') -> Dict:
-    """Launch DRS recovery for all servers in a wave with ONE API call - returns ONE job ID"""
+    """
+    Launch DRS recovery for all servers in a wave with ONE API call
+    
+    CRITICAL PATTERN (from DRS drill learning session):
+    - Launches ALL servers in wave with SINGLE start_recovery() call
+    - Returns ONE job ID for entire wave (not per server)
+    - This job ID is what ExecutionPoller tracks for wave completion
+    - All servers in wave share same job ID and are tracked together
+    
+    DRS API Response Structure:
+    {
+        'job': {
+            'jobID': 'drsjob-xxxxx',
+            'status': 'PENDING',  # Initial status
+            'type': 'LAUNCH',
+            'participatingServers': [
+                {'sourceServerID': 's-xxx', 'launchStatus': 'PENDING'}
+            ]
+        }
+    }
+    
+    Expected Job Status Progression:
+    PENDING → STARTED → COMPLETED (or FAILED)
+    
+    Per-Server Launch Status:
+    PENDING → LAUNCHED → (job completes)
+    
+    Args:
+        server_ids: List of DRS source server IDs to launch
+        region: AWS region for DRS API call
+        is_drill: True for drill, False for actual recovery
+        execution_id: Execution ID for tracking
+        execution_type: 'DRILL' or 'RECOVERY'
+    
+    Returns:
+        Dict with JobId (wave-level) and Servers array
+    """
     try:
         drs_client = boto3.client('drs', region_name=region)
         
-        print(f"Starting {execution_type} {'drill' if is_drill else 'recovery'} for {len(server_ids)} servers in wave")
+        print(f"[DRS API] Starting {execution_type} {'drill' if is_drill else 'recovery'}")
+        print(f"[DRS API] Region: {region}, Servers: {len(server_ids)}")
+        print(f"[DRS API] Server IDs: {server_ids}")
         
         # Build sourceServers array for DRS API
         source_servers = [{'sourceServerID': sid} for sid in server_ids]
         
         # CRITICAL: Start recovery for ALL servers in ONE API call
+        # This pattern matches DRS API design and what ExecutionPoller expects
+        print(f"[DRS API] Calling start_recovery() for {len(source_servers)} servers...")
+        
         response = drs_client.start_recovery(
             sourceServers=source_servers,
-            isDrill=is_drill,
-            tags={
-                'ExecutionId': execution_id,
-                'ExecutionType': execution_type,
-                'ManagedBy': 'DRS-Orchestration'
-            }
+            isDrill=is_drill
         )
         
-        job = response.get('job', {})
-        job_id = job.get('jobID', 'unknown')
+        # Validate response structure (defensive programming)
+        if 'job' not in response:
+            raise Exception("DRS API response missing 'job' field")
         
-        print(f"Started recovery job {job_id} for wave with {len(server_ids)} servers")
+        job = response['job']
+        job_id = job.get('jobID')
+        
+        if not job_id:
+            raise Exception("DRS API response missing 'jobID' field")
+        
+        job_status = job.get('status', 'UNKNOWN')
+        job_type = job.get('type', 'UNKNOWN')
+        
+        print(f"[DRS API] ✅ Job created successfully")
+        print(f"[DRS API]   Job ID: {job_id}")
+        print(f"[DRS API]   Status: {job_status}")
+        print(f"[DRS API]   Type: {job_type}")
+        print(f"[DRS API]   Servers: {len(server_ids)} (all share this job ID)")
         
         # Build server results array (all servers share same job ID)
         server_results = []
@@ -989,14 +1039,26 @@ def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bo
                 'Error': None
             })
         
+        print(f"[DRS API] Wave initiation complete - ExecutionPoller will track job {job_id}")
+        
         return {
-            'JobId': job_id,  # Wave-level Job ID
+            'JobId': job_id,  # Wave-level Job ID for poller
             'Servers': server_results
         }
         
     except Exception as e:
         error_msg = str(e)
-        print(f"Failed to start recovery for wave: {error_msg}")
+        error_type = type(e).__name__
+        
+        print(f"[DRS API] ❌ Failed to start recovery for wave")
+        print(f"[DRS API]   Error Type: {error_type}")
+        print(f"[DRS API]   Error Message: {error_msg}")
+        print(f"[DRS API]   Region: {region}")
+        print(f"[DRS API]   Server Count: {len(server_ids)}")
+        
+        # Log full traceback for debugging
+        import traceback
+        traceback.print_exc()
         
         # Return failed results for all servers
         server_results = []
@@ -1004,7 +1066,7 @@ def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bo
             server_results.append({
                 'SourceServerId': server_id,
                 'Status': 'FAILED',
-                'Error': error_msg,
+                'Error': f"{error_type}: {error_msg}",
                 'LaunchTime': int(time.time())
             })
         
@@ -1027,12 +1089,7 @@ def start_drs_recovery(server_id: str, region: str, is_drill: bool, execution_id
             sourceServers=[{
                 'sourceServerID': server_id
             }],
-            isDrill=is_drill,
-            tags={
-                'ExecutionId': execution_id,
-                'ExecutionType': execution_type,
-                'ManagedBy': 'DRS-Orchestration'
-            }
+            isDrill=is_drill
         )
         
         job = response.get('job', {})
