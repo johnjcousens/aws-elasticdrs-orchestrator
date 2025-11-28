@@ -913,20 +913,13 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         
         print(f"Initiating recovery for {len(server_ids)} servers in region {region}")
         
-        # Initiate recovery for each server immediately (NO DELAYS)
-        server_results = []
-        for i, server_id in enumerate(server_ids):
-            try:
-                job_result = start_drs_recovery(server_id, region, is_drill, execution_id, execution_type)
-                server_results.append(job_result)
-            except Exception as e:
-                print(f"Error initiating recovery for server {server_id}: {str(e)}")
-                server_results.append({
-                    'SourceServerId': server_id,
-                    'Status': 'FAILED',
-                    'Error': str(e),
-                    'LaunchTime': int(time.time())
-                })
+        # CRITICAL FIX: Launch ALL servers in wave with ONE DRS API call
+        # This gives us ONE job ID per wave (which poller expects)
+        wave_job_result = start_drs_recovery_for_wave(server_ids, region, is_drill, execution_id, execution_type)
+        
+        # Extract job ID and server results
+        wave_job_id = wave_job_result.get('JobId')
+        server_results = wave_job_result.get('Servers', [])
         
         # Wave status is INITIATED (not IN_PROGRESS)
         # External poller will update to IN_PROGRESS/COMPLETED
@@ -935,6 +928,8 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         
         return {
             'WaveName': wave.get('name', 'Unknown'),
+            'WaveId': wave.get('WaveId') or wave.get('waveNumber'),  # Support both formats
+            'JobId': wave_job_id,  # CRITICAL: Wave-level Job ID for poller
             'ProtectionGroupId': protection_group_id,
             'Region': region,
             'Status': wave_status,
@@ -953,6 +948,69 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
             'Error': str(e),
             'Servers': [],
             'StartTime': int(time.time())
+        }
+
+
+def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bool, execution_id: str, execution_type: str = 'DRILL') -> Dict:
+    """Launch DRS recovery for all servers in a wave with ONE API call - returns ONE job ID"""
+    try:
+        drs_client = boto3.client('drs', region_name=region)
+        
+        print(f"Starting {execution_type} {'drill' if is_drill else 'recovery'} for {len(server_ids)} servers in wave")
+        
+        # Build sourceServers array for DRS API
+        source_servers = [{'sourceServerID': sid} for sid in server_ids]
+        
+        # CRITICAL: Start recovery for ALL servers in ONE API call
+        response = drs_client.start_recovery(
+            sourceServers=source_servers,
+            isDrill=is_drill,
+            tags={
+                'ExecutionId': execution_id,
+                'ExecutionType': execution_type,
+                'ManagedBy': 'DRS-Orchestration'
+            }
+        )
+        
+        job = response.get('job', {})
+        job_id = job.get('jobID', 'unknown')
+        
+        print(f"Started recovery job {job_id} for wave with {len(server_ids)} servers")
+        
+        # Build server results array (all servers share same job ID)
+        server_results = []
+        for server_id in server_ids:
+            server_results.append({
+                'SourceServerId': server_id,
+                'RecoveryJobId': job_id,  # Same job ID for all servers
+                'Status': 'LAUNCHING',
+                'InstanceId': None,
+                'LaunchTime': int(time.time()),
+                'Error': None
+            })
+        
+        return {
+            'JobId': job_id,  # Wave-level Job ID
+            'Servers': server_results
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Failed to start recovery for wave: {error_msg}")
+        
+        # Return failed results for all servers
+        server_results = []
+        for server_id in server_ids:
+            server_results.append({
+                'SourceServerId': server_id,
+                'Status': 'FAILED',
+                'Error': error_msg,
+                'LaunchTime': int(time.time())
+            })
+        
+        return {
+            'JobId': None,
+            'Servers': server_results
         }
 
 
