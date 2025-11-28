@@ -257,6 +257,36 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # IAM Role for Execution Finder Lambda
+  ExecutionFinderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBQueryAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/StatusIndex'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # API Handler Lambda Function
   ApiHandlerFunction:
     Type: AWS::Lambda::Function
@@ -338,6 +368,29 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # Execution Finder Lambda Function
+  ExecutionFinderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-execution-finder-${Environment}'
+      Description: 'Queries StatusIndex GSI for executions in POLLING status'
+      Runtime: python3.12
+      Handler: execution_finder.lambda_handler
+      Role: !GetAtt ExecutionFinderRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/execution-finder.zip'
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # Log Groups with retention
   ApiHandlerLogGroup:
     Type: AWS::Logs::LogGroup
@@ -355,6 +408,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/${FrontendBuilderFunction}'
+      RetentionInDays: 7
+
+  ExecutionFinderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ExecutionFinderFunction}'
       RetentionInDays: 7
 
 Outputs:
@@ -387,3 +446,15 @@ Outputs:
     Value: !GetAtt FrontendBuilderFunction.Arn
     Export:
       Name: !Sub '${AWS::StackName}-FrontendBuilderArn'
+
+  ExecutionFinderFunctionArn:
+    Description: 'Execution Finder Lambda Function ARN'
+    Value: !GetAtt ExecutionFinderFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionFinderArn'
+
+  ExecutionFinderFunctionName:
+    Description: 'Execution Finder Lambda Function Name'
+    Value: !Ref ExecutionFinderFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionFinderName'
