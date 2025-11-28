@@ -7,8 +7,11 @@ set -e  # Exit on error
 
 # Auto-load AWS credentials if helper script exists
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/set-aws-credentials.sh" ]; then
-    source "$SCRIPT_DIR/set-aws-credentials.sh" > /dev/null 2>&1
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Auto-load credentials from .env.deployment if exists
+if [ -f "$PROJECT_ROOT/.env.deployment" ]; then
+    export $(cat "$PROJECT_ROOT/.env.deployment" | xargs)
 fi
 
 # Configuration

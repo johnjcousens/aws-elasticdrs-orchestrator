@@ -15,6 +15,14 @@ echo "Project: AWS DRS Orchestration"
 echo "Root: $PROJECT_ROOT"
 echo ""
 
+# Auto-load credentials from .env.deployment if exists
+if [ -f "$PROJECT_ROOT/.env.deployment" ]; then
+    echo "🔑 Loading credentials from .env.deployment..."
+    export $(cat "$PROJECT_ROOT/.env.deployment" | xargs)
+    echo "✅ Credentials loaded"
+    echo ""
+fi
+
 # Verify AWS credentials
 echo "🔐 Verifying AWS credentials..."
 if ! aws sts get-caller-identity --region us-east-1 >/dev/null 2>&1; then
@@ -56,9 +64,41 @@ echo "=========================================="
 echo "Step 2: Deploy Frontend to CloudFront"
 echo "=========================================="
 
-FRONTEND_BUCKET="drs-orchestration-fe-***REMOVED***-test"
-DISTRIBUTION_ID="E3EHO8EL65JUV4"
+# Get stack outputs from CloudFormation
+STACK_NAME="drs-orchestration-test"
 REGION="us-east-1"
+
+echo "🔍 Querying CloudFormation stack: $STACK_NAME"
+FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+    --stack-name $STACK_NAME \
+    --region $REGION \
+    --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
+    --output text)
+
+DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+    --stack-name $STACK_NAME \
+    --region $REGION \
+    --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+    --output text)
+
+CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+    --stack-name $STACK_NAME \
+    --region $REGION \
+    --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+    --output text)
+
+if [ -z "$FRONTEND_BUCKET" ] || [ -z "$DISTRIBUTION_ID" ] || [ -z "$CLOUDFRONT_URL" ]; then
+    echo "❌ ERROR: Failed to get CloudFormation stack outputs"
+    echo "   Stack: $STACK_NAME"
+    echo "   Region: $REGION"
+    exit 1
+fi
+
+echo "✅ Stack outputs retrieved:"
+echo "   Bucket: $FRONTEND_BUCKET"
+echo "   Distribution: $DISTRIBUTION_ID"
+echo "   URL: $CLOUDFRONT_URL"
+echo ""
 
 echo "📦 Syncing frontend to S3..."
 aws s3 sync frontend/dist/ s3://$FRONTEND_BUCKET/ \
@@ -203,7 +243,7 @@ echo "✅ Deployment & Sync Complete!"
 echo "=========================================="
 echo ""
 echo "Frontend Deployment:"
-echo "  🌐 CloudFront URL: https://d2bxv9p27f38od.cloudfront.net"
+echo "  🌐 CloudFront URL: $CLOUDFRONT_URL"
 echo "  📦 S3 Bucket: s3://$FRONTEND_BUCKET"
 echo "  🔄 Invalidation: $INVALIDATION_ID"
 echo ""
@@ -221,7 +261,7 @@ echo "  ✅ SSM documents (ssm-documents/)"
 echo "  ✅ Documentation (docs/)"
 echo ""
 echo "Next Steps:"
-echo "  1. Test frontend: https://d2bxv9p27f38od.cloudfront.net"
+echo "  1. Test frontend: $CLOUDFRONT_URL"
 echo "  2. Verify CloudFront cache clear (5-10 minutes)"
 echo "  3. Deployment from S3: aws s3 sync s3://$DEPLOYMENT_BUCKET/ ./deploy/"
 echo ""
