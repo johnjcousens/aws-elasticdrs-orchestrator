@@ -281,6 +281,60 @@ Resources:
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/StatusIndex'
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-execution-poller-${Environment}'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Execution Poller Lambda
+  ExecutionPollerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
+        - PolicyName: DRSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeJobs
+                Resource: '*'
+        - PolicyName: CloudWatchMetricsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -385,11 +439,57 @@ Resources:
       Environment:
         Variables:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          POLLER_FUNCTION_NAME: !Sub '${ProjectName}-execution-poller-${Environment}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+
+  # Execution Poller Lambda Function
+  ExecutionPollerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-execution-poller-${Environment}'
+      Description: 'Polls DRS job status and updates execution wave states'
+      Runtime: python3.12
+      Handler: execution_poller.lambda_handler
+      Role: !GetAtt ExecutionPollerRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/execution-poller.zip'
+      Timeout: 120
+      MemorySize: 256
+      Environment:
+        Variables:
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TIMEOUT_THRESHOLD_SECONDS: '1800'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # EventBridge Rule for Execution Finder (1 minute minimum)
+  ExecutionFinderScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-execution-finder-schedule-${Environment}'
+      Description: 'Triggers Execution Finder Lambda every 1 minute'
+      ScheduleExpression: 'rate(1 minute)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ExecutionFinderFunction.Arn
+          Id: ExecutionFinderTarget
+
+  # Permission for EventBridge to invoke Execution Finder
+  ExecutionFinderSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExecutionFinderFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExecutionFinderScheduleRule.Arn
 
   # Log Groups with retention
   ApiHandlerLogGroup:
@@ -422,6 +522,14 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: !Sub '/aws/lambda/${ExecutionFinderFunction}'
+      RetentionInDays: 7
+
+  ExecutionPollerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ExecutionPollerFunction}'
       RetentionInDays: 7
 
 Outputs:
@@ -466,3 +574,21 @@ Outputs:
     Value: !Ref ExecutionFinderFunction
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionFinderName'
+
+  ExecutionPollerFunctionArn:
+    Description: 'Execution Poller Lambda Function ARN'
+    Value: !GetAtt ExecutionPollerFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionPollerArn'
+
+  ExecutionPollerFunctionName:
+    Description: 'Execution Poller Lambda Function Name'
+    Value: !Ref ExecutionPollerFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionPollerName'
+
+  ExecutionFinderScheduleRuleArn:
+    Description: 'EventBridge Schedule Rule ARN'
+    Value: !GetAtt ExecutionFinderScheduleRule.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ScheduleRuleArn'
