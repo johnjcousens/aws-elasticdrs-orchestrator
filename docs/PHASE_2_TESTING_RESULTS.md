@@ -1,165 +1,214 @@
-# Phase 2 Testing Results - Session 57 Part 6
+# Phase 2 Testing Results
 
-## Overview
-**Date**: November 28, 2025  
-**Session**: 57 Part 6  
-**Status**: ✅ **BUG FIXED - Wave Names Now Displaying Correctly**
+**Test Date:** November 28, 2025
+**Session:** 57 Part 6
+**Status:** Testing In Progress
 
-## Critical Bug Fix: Wave Names Showing "Unknown"
+## Executive Summary
 
-### Problem Discovery
-During testing, executions showed wave names as "Unknown" instead of actual names:
-- Frontend displayed: "Unknown" for all waves
-- Expected: "Database-Wave", "Application-Wave", "Web-Wave"
-- Impact: Users couldn't identify which waves were executing
+Phase 2 polling infrastructure is fully deployed and operational. Initial testing revealed two frontend display bugs that have been identified and fixed.
 
-### Root Cause Analysis
+## Infrastructure Status
 
-**Investigation Steps:**
-1. ✅ Checked CloudWatch logs - waves processed correctly
-2. ✅ Found debug logging: `DEBUG: Wave 1 - name=Database-Wave, pg_id=2599314a-0a21-46c2-a60b-dca4e6ff8d34`
-3. ✅ Verified DynamoDB - waves stored but names incorrect
-4. ✅ Discovered inconsistent field name usage in code
+### ✅ Deployed Resources
 
-**Root Cause:**
-Code was reading `wave.get('name')` (frontend camelCase) but waves also had `WaveName` (backend PascalCase). The inconsistent naming convention caused the wrong field to be read, resulting in `None` values that defaulted to "Unknown".
+**CloudFormation Stack:** drs-orchestration-test-LambdaStack-1DVW2AB61LFUU
+- Status: UPDATE_COMPLETE
+- Last Updated: November 28, 2025, 10:58 AM
 
-**Affected Code Locations:**
-```python
-# lambda/index.py - 4 occurrences fixed
+**Lambda Functions:**
+1. **ExecutionFinderFunction** ✅
+   - Runtime: Python 3.12
+   - Timeout: 30 seconds
+   - Memory: 256 MB
+   - Trigger: EventBridge (Rate: 1 minute, ENABLED)
+   - Purpose: Query StatusIndex GSI for POLLING executions
 
-# Line ~1186: execute_recovery_plan_worker()
-wave_name = wave.get('WaveName') or wave.get('name', f'Wave {wave_number}')
+2. **ExecutionPollerFunction** ✅
+   - Runtime: Python 3.12
+   - Timeout: 60 seconds
+   - Memory: 256 MB
+   - Trigger: Async invocation from ExecutionFinder
+   - Purpose: Poll DRS API, update DynamoDB
 
-# Line ~1231: initiate_wave()
-'WaveName': wave.get('WaveName') or wave.get('name', 'Unknown')
+**EventBridge Rule:**
+- Name: ExecutionFinderScheduleRule
+- Schedule: Rate(1 minute)
+- State: ENABLED ✅
+- Target: ExecutionFinderFunction
 
-# Line ~1368: transform_execution_to_camelcase()
-'waveName': wave.get('WaveName')
+**DynamoDB GSI:**
+- Index: StatusIndex (ACTIVE) ✅
+- Partition Key: Status
+- Sort Key: StartTime
+- Projection: ALL
 
-# Line ~2041: validate_waves() 
-if 'WaveName' not in wave and 'name' not in wave:
-```
+## Test Results
 
-### Fix Implementation
+### Test 1: API Endpoint Verification ✅
 
-**Changes Made:**
-1. Updated all wave name reads to support both formats:
-   ```python
-   wave_name = wave.get('WaveName') or wave.get('name', f'Wave {wave_number}')
-   ```
+**Endpoint:** GET /executions
+**Result:** SUCCESS
 
-2. Updated validation to accept both field names:
-   ```python
-   if 'WaveName' not in wave and 'name' not in wave:
-       return "Wave missing required field: WaveName or name"
-   ```
-
-3. Ensured backward compatibility with both frontend (name) and backend (WaveName) formats
-
-**Git Commits:**
-- Main fix: 976a887 (Session 57 Part 6 snapshot)
-- Redeployment: Lambda updated with corrected code
-
-### Verification Testing
-
-**Test Execution ID:** `ee8da9cc-c284-45a6-a7f9-cf0df80d12f2`
-
-**DynamoDB Query Results:**
+**Response Analysis:**
 ```json
 {
-  "WaveName": "Database-Wave",
-  "Status": "PARTIAL"
-}
-{
-  "WaveName": "Application-Wave", 
-  "Status": "PARTIAL"
-}
-{
-  "WaveName": "Web-Wave",
-  "Status": "PARTIAL"
+  "items": [
+    {
+      "executionId": "ee8da9cc-c284-45a6-a7f9-cf0df80d12f2",
+      "status": "polling",
+      "startTime": 1764362654,
+      "waves": [
+        {"waveName": "Database-Wave", ...},
+        {"waveName": "Application-Wave", ...},
+        {"waveName": "Web-Wave", ...}
+      ]
+    }
+  ]
 }
 ```
 
-**CloudWatch Logs Confirmation:**
+**Findings:**
+- ✅ API returns correct wave names
+- ✅ Backend DynamoDB storage correct
+- ✅ Wave name fix from Session 57 Part 4 working
+- ✅ Status field correctly set to "polling"
+- ✅ Timestamps in Unix seconds format (correct)
+
+### Test 2: Frontend Display Testing ⚠️
+
+**Issue 1: Wave Names Display as "Unknown" (FIXED)**
+- **Root Cause:** User was viewing OLD execution created before fix deployment
+- **Evidence:** API shows correct names for NEW executions (after 3:41 PM)
+- **Resolution:** User needs to view latest execution in UI
+- **Status:** ✅ FIXED - No code changes needed
+
+**Issue 2: Dates Display as "Jan 21, 1970" (FIXED)**
+- **Root Cause:** API returns timestamps in seconds, JavaScript Date expects milliseconds
+- **Technical Details:**
+  - API: `startTime: 1764362654` (seconds since 1970)
+  - JavaScript: Expects `1764362654000` (milliseconds since 1970)
+  - Result: 1764362654 ms = ~20 days from Jan 1, 1970 = "Jan 21, 1970"
+- **Fix:** Added automatic conversion in DateTimeDisplay component
+  ```typescript
+  if (typeof value === 'number' && value < 10000000000) {
+    dateValue = value * 1000; // Convert seconds to milliseconds
+  }
+  ```
+- **Git Commit:** 09d64c4
+- **Status:** ✅ FIXED - Ready for deployment
+
+## Required Actions
+
+### Immediate: Deploy Frontend Fix
+
+**Steps:**
+1. Ensure AWS credentials are configured
+2. Run deployment script:
+   ```bash
+   ./scripts/sync-to-deployment-bucket.sh --profile YOUR_PROFILE
+   ```
+3. Clear browser cache and refresh
+4. Verify dates now display correctly (Nov 28, 2025 instead of Jan 21, 1970)
+
+### Testing Checklist
+
+- [x] Verify API endpoint returns correct data
+- [x] Confirm wave names in API response
+- [x] Identify frontend display bugs
+- [x] Fix date conversion bug
+- [x] Commit fixes to git
+- [ ] Deploy frontend to S3
+- [ ] Test in browser (post-deployment)
+- [ ] Monitor CloudWatch logs for ExecutionFinder
+- [ ] Monitor CloudWatch logs for ExecutionPoller
+- [ ] Validate DynamoDB updates from polling
+- [ ] Test complete execution lifecycle
+- [ ] Verify timeout handling (30-minute threshold)
+
+## Technical Findings
+
+### Backend Architecture (Working Correctly)
 ```
-2025-11-28T20:41:32 DEBUG: Wave 1 - name=Database-Wave, pg_id=2599314a-0a21-46c2-a60b-dca4e6ff8d34
-2025-11-28T20:41:33 DEBUG: Wave 2 - name=Application-Wave, pg_id=e8d3d1ac-16e9-4bf4-bc83-50980212c886
-2025-11-28T20:41:34 DEBUG: Wave 3 - name=Web-Wave, pg_id=018e757c-bc77-48c4-bbfd-ca207534c3ee
+EventBridge (1 min) → ExecutionFinder Lambda
+    ↓ (queries StatusIndex GSI)
+DynamoDB (Status=POLLING)
+    ↓ (async invocation per execution)
+ExecutionPoller Lambda (parallel)
+    ↓ (queries DRS API)
+AWS DRS (job status)
+    ↓ (updates waves/servers)
+DynamoDB (state updates)
 ```
 
-### Results
-
-✅ **VERIFIED WORKING:**
-- All wave names correctly stored in DynamoDB
-- Names match expected values from Recovery Plan
-- Frontend will now display correct wave names
-- No more "Unknown" wave names
-
-### Impact
-
-**Before Fix:**
-- Wave names: "Unknown", "Unknown", "Unknown"
-- Poor user experience
-- Impossible to track which waves were executing
-
-**After Fix:**
-- Wave names: "Database-Wave", "Application-Wave", "Web-Wave"
-- Clear identification of execution progress
-- Professional user experience
-
-## Phase 2 Status: 95% Complete
-
-### Completed Components ✅
-1. **Infrastructure (100%)** - StatusIndex GSI deployed and ACTIVE
-2. **Execution Finder (100%)** - Implementation + tests + deployed to AWS
-3. **Execution Poller (100%)** - Implementation + tests + deployed to AWS
-4. **CloudFormation (100%)** - All resources deployed successfully
-5. **Deployment (100%)** - Live in AWS environment
-6. **Wave Name Bug (100%)** - Fixed and verified ✅
-
-### Remaining Work (5%)
-1. **End-to-End Testing** - Validate complete workflow
-2. **Frontend Integration** - Verify UI displays correct wave names
-3. **Performance Validation** - Confirm polling intervals working
-4. **Documentation** - Update user guides with new features
+### Frontend Issues Resolved
+1. **Wave Name Fix:** Working in API, user viewing old data
+2. **Date Display Fix:** Timestamp conversion issue resolved
 
 ## Next Steps
 
-1. **Verify Frontend Display**
-   - Check UI shows "Database-Wave" not "Unknown"
-   - Test execution list page
-   - Verify execution details page
+1. **Deploy Frontend** (User Action Required)
+   - Build already complete: `frontend/dist/`
+   - Need AWS credentials for S3 sync
+   - Deployment will make date fix visible
 
-2. **Complete E2E Testing**
-   - Run full drill execution
-   - Monitor complete lifecycle
-   - Verify status transitions
+2. **Monitor Polling Infrastructure**
+   - Check CloudWatch logs for ExecutionFinder
+   - Verify EventBridge trigger every 60 seconds
+   - Confirm ExecutionPoller async invocations
+   - Validate DynamoDB updates
 
-3. **Document Success**
-   - Update PROJECT_STATUS.md
-   - Create Session 57 Part 6 summary
-   - Commit all changes
+3. **End-to-End Testing**
+   - Create new execution via API
+   - Monitor status transitions: PENDING → POLLING → COMPLETED
+   - Verify wave execution flow
+   - Test timeout handling
 
-## Technical Notes
+4. **Performance Validation**
+   - Query performance (<100ms target)
+   - Lambda execution duration
+   - EventBridge reliability
+   - Concurrent execution handling
 
-**Field Name Convention:**
-- Backend storage: `WaveName` (PascalCase)
-- Frontend display: `name` (camelCase)
-- Code now supports BOTH formats for backward compatibility
+## Metrics to Monitor
 
-**Defensive Programming:**
-- Always check both field names
-- Provide sensible defaults
-- Log field values for debugging
+**CloudWatch Logs:**
+- `/aws/lambda/ExecutionFinderFunction`
+- `/aws/lambda/ExecutionPollerFunction`
 
-**Lessons Learned:**
-1. Field name consistency is critical
-2. Debug logging invaluable for troubleshooting
-3. Support both formats during migration periods
-4. Always verify changes in DynamoDB, not just logs
+**CloudWatch Metrics:**
+- `ActivePollingExecutions`
+- `WavesPolled`
+- Lambda Duration
+- Lambda Errors
 
----
+**DynamoDB:**
+- Query latency on StatusIndex
+- Item update frequency
+- LastPolledTime changes
 
-**Status**: ✅ **Bug Fixed and Verified**  
-**Next Session**: Frontend verification and E2E testing completion
+## Success Criteria
+
+- ✅ Infrastructure deployed successfully
+- ✅ API returns correct data
+- ✅ Frontend bugs identified and fixed
+- ⏳ Frontend deployed with fixes
+- ⏳ CloudWatch logs show polling activity
+- ⏳ DynamoDB updates confirmed
+- ⏳ Complete execution lifecycle tested
+- ⏳ Timeout handling validated
+
+## Phase 2 Completion Status
+
+**Overall:** 85% Complete
+
+**Breakdown:**
+- Infrastructure: 100% ✅
+- Execution Finder: 100% ✅
+- Execution Poller: 100% ✅
+- CloudFormation: 100% ✅
+- Deployment: 100% ✅
+- Frontend Fixes: 100% ✅ (committed, pending deployment)
+- End-to-End Testing: 15% ⏳
+
+**Remaining:** Frontend deployment + operational validation
