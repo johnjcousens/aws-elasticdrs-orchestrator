@@ -47,6 +47,7 @@ export const RecoveryPlansPage: React.FC = () => {
   const [executeDialogOpen, setExecuteDialogOpen] = useState(false);
   const [planToExecute, setPlanToExecute] = useState<RecoveryPlan | null>(null);
   const [executionType, setExecutionType] = useState<'DRILL' | 'RECOVERY'>('DRILL');
+  const [executing, setExecuting] = useState(false);
 
   // Fetch recovery plans on mount
   useEffect(() => {
@@ -126,8 +127,9 @@ export const RecoveryPlansPage: React.FC = () => {
   };
 
   const confirmExecute = async () => {
-    if (!planToExecute) return;
+    if (!planToExecute || executing) return;
 
+    setExecuting(true);
     try {
       // Execute recovery plan with selected type
       const execution = await apiClient.executeRecoveryPlan({
@@ -146,11 +148,14 @@ export const RecoveryPlansPage: React.FC = () => {
       const errorMessage = err.message || 'Failed to execute recovery plan';
       toast.error(errorMessage);
       console.error('Execution error:', err);
+    } finally {
+      setExecuting(false);
       setExecuteDialogOpen(false);
     }
   };
 
   const cancelExecute = () => {
+    if (executing) return; // Prevent closing during execution
     setExecuteDialogOpen(false);
     setPlanToExecute(null);
     setExecutionType('DRILL');
@@ -265,7 +270,7 @@ export const RecoveryPlansPage: React.FC = () => {
           icon={<PlayArrowIcon />}
           label="Execute"
           onClick={() => handleExecuteClick(params.row as RecoveryPlan)}
-          disabled={params.row.status === 'archived'}
+          disabled={params.row.status === 'archived' || executing}
           showInMenu={false}
         />,
         <GridActionsCellItem
@@ -348,14 +353,16 @@ export const RecoveryPlansPage: React.FC = () => {
         open={executeDialogOpen}
         title={`Execute ${planToExecute?.name || 'Recovery Plan'}`}
         message={
-          executionType === 'DRILL'
+          executing
+            ? '⏳ Execution in progress... This may take several minutes.'
+            : executionType === 'DRILL'
             ? '🔵 DRILL Mode: Launches recovery instances for testing. ' +
               'Servers remain available in DRS for future drills and actual recovery.'
             : '⚠️ RECOVERY Mode: Performs actual failover. ' +
               'This will mark servers as recovered in DRS and they cannot be re-used for drills. ' +
               'Only use this for real disaster recovery scenarios!'
         }
-        confirmLabel={`Start ${executionType}`}
+        confirmLabel={executing ? 'Executing...' : `Start ${executionType}`}
         confirmColor={executionType === 'DRILL' ? 'primary' : 'warning'}
         onConfirm={confirmExecute}
         onCancel={cancelExecute}
