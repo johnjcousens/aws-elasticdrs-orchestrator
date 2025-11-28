@@ -439,7 +439,7 @@ Resources:
       Environment:
         Variables:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          POLLER_FUNCTION_NAME: !Sub '${ProjectName}-execution-poller-${Environment}'
+          EXECUTION_POLLER_FUNCTION: !Sub '${ProjectName}-execution-poller-${Environment}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
