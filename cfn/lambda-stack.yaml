@@ -102,6 +102,7 @@ Resources:
                   - drs:DescribeJobs
                   - drs:DescribeRecoverySnapshots
                   - drs:TerminateRecoveryInstances
+                  - drs:TagResource
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -268,7 +269,7 @@ Resources:
       Code:
         S3Bucket: !Ref SourceBucket
         S3Key: 'lambda/api-handler.zip'
-      Timeout: 900
+      Timeout: 120
       MemorySize: 512
       Environment:
         Variables:
