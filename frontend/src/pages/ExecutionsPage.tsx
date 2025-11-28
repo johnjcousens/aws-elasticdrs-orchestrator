@@ -21,12 +21,15 @@ import {
   Alert,
   IconButton,
   Tooltip,
+  Chip,
 } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { GridActionsCellItem } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import toast from 'react-hot-toast';
+import { formatDistanceToNow } from 'date-fns';
 import { DataGridWrapper } from '../components/DataGridWrapper';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
@@ -64,13 +67,15 @@ export const ExecutionsPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0); // 0 = Active, 1 = History
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
 
   // Fetch executions on mount
   useEffect(() => {
     fetchExecutions();
   }, []);
 
-  // Real-time polling for active executions
+  // Real-time polling for active executions (faster 3s polling)
   useEffect(() => {
     const hasActiveExecutions = executions.some(
       e => e.status === 'in_progress' || e.status === 'pending'
@@ -80,7 +85,7 @@ export const ExecutionsPage: React.FC = () => {
 
     const interval = setInterval(() => {
       fetchExecutions();
-    }, 5000); // Poll every 5 seconds
+    }, 3000); // Poll every 3 seconds (faster updates)
 
     return () => clearInterval(interval);
   }, [executions]);
@@ -92,12 +97,14 @@ export const ExecutionsPage: React.FC = () => {
       }
       const response = await apiClient.listExecutions();
       setExecutions(response.items);
+      setLastRefresh(new Date());
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to load executions';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -116,7 +123,7 @@ export const ExecutionsPage: React.FC = () => {
   };
 
   const handleRefresh = () => {
-    setLoading(true);
+    setRefreshing(true);
     fetchExecutions();
   };
 
@@ -255,11 +262,37 @@ export const ExecutionsPage: React.FC = () => {
             Real-time monitoring of DRS recovery executions
           </Typography>
         </Box>
-        <Tooltip title="Refresh">
-          <IconButton onClick={handleRefresh} disabled={loading}>
-            <RefreshIcon />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row" spacing={2} alignItems="center">
+          {activeExecutions.length > 0 && (
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Chip
+                icon={
+                  <AutorenewIcon 
+                    sx={{ 
+                      animation: 'spin 2s linear infinite',
+                      '@keyframes spin': {
+                        '0%': { transform: 'rotate(0deg)' },
+                        '100%': { transform: 'rotate(360deg)' },
+                      },
+                    }} 
+                  />
+                }
+                label="Live Updates"
+                size="small"
+                color="success"
+                variant="outlined"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Updated {formatDistanceToNow(lastRefresh, { addSuffix: true })}
+              </Typography>
+            </Stack>
+          )}
+          <Tooltip title="Refresh">
+            <IconButton onClick={handleRefresh} disabled={refreshing}>
+              <RefreshIcon className={refreshing ? 'rotating' : ''} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Stack>
 
       {/* Error Alert */}

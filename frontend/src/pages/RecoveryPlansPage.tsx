@@ -13,6 +13,11 @@ import {
   Typography,
   Chip,
   Stack,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Tooltip,
 } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { GridActionsCellItem } from '@mui/x-data-grid';
@@ -20,6 +25,8 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import WarningIcon from '@mui/icons-material/Warning';
+import ScienceIcon from '@mui/icons-material/Science';
 import toast from 'react-hot-toast';
 import { DataGridWrapper } from '../components/DataGridWrapper';
 import { PageTransition } from '../components/PageTransition';
@@ -44,15 +51,60 @@ export const RecoveryPlansPage: React.FC = () => {
   const [planToDelete, setPlanToDelete] = useState<RecoveryPlan | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RecoveryPlan | null>(null);
-  const [executeDialogOpen, setExecuteDialogOpen] = useState(false);
-  const [planToExecute, setPlanToExecute] = useState<RecoveryPlan | null>(null);
-  const [executionType, setExecutionType] = useState<'DRILL' | 'RECOVERY'>('DRILL');
   const [executing, setExecuting] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedPlanForExecution, setSelectedPlanForExecution] = useState<RecoveryPlan | null>(null);
+  const [plansWithInProgressExecution, setPlansWithInProgressExecution] = useState<Set<string>>(() => {
+    // Initialize from sessionStorage to persist across navigation
+    const stored = sessionStorage.getItem('plansWithInProgressExecution');
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  });
 
   // Fetch recovery plans on mount
   useEffect(() => {
     fetchPlans();
+    checkInProgressExecutions();
+    
+    // Poll for in-progress executions every 5 seconds (faster polling)
+    const interval = setInterval(() => {
+      checkInProgressExecutions();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
+  
+  // Re-check when page becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkInProgressExecutions();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+  
+  // Persist to sessionStorage when state changes
+  useEffect(() => {
+    sessionStorage.setItem('plansWithInProgressExecution', JSON.stringify([...plansWithInProgressExecution]));
+  }, [plansWithInProgressExecution]);
+  
+  // Check for in-progress executions
+  const checkInProgressExecutions = async () => {
+    try {
+      const response = await apiClient.listExecutions();
+      const inProgressStatuses = ['IN_PROGRESS', 'PENDING'];
+      const plansWithActiveExecution = new Set<string>(
+        response.items
+          .filter((exec) => inProgressStatuses.includes(exec.status))
+          .map((exec) => exec.recoveryPlanId)
+      );
+      setPlansWithInProgressExecution(plansWithActiveExecution);
+    } catch (err) {
+      console.error('Failed to check in-progress executions:', err);
+    }
+  };
 
   const fetchPlans = async () => {
     try {
@@ -120,45 +172,120 @@ export const RecoveryPlansPage: React.FC = () => {
     setEditingPlan(null);
   };
 
-  const handleExecuteClick = (plan: RecoveryPlan) => {
-    setPlanToExecute(plan);
-    setExecutionType('DRILL'); // Default to DRILL for MVP
-    setExecuteDialogOpen(true);
+  // Handle execution menu
+  const handleExecuteMenuClick = (event: React.MouseEvent<HTMLElement>, plan: RecoveryPlan) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedPlanForExecution(plan);
   };
 
-  const confirmExecute = async () => {
-    if (!planToExecute || executing) return;
+  const handleExecuteMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedPlanForExecution(null);
+  };
 
+  // Direct execution handlers
+  const handleExecuteDrill = async () => {
+    console.log('🔵 handleExecuteDrill called', {
+      selectedPlan: selectedPlanForExecution?.id,
+      executing,
+      hasSelection: !!selectedPlanForExecution
+    });
+    
+    if (!selectedPlanForExecution) {
+      console.error('❌ No plan selected for execution');
+      toast.error('No plan selected');
+      return;
+    }
+    
+    if (executing) {
+      console.warn('⚠️ Already executing, skipping');
+      return;
+    }
+
+    handleExecuteMenuClose();
     setExecuting(true);
+
     try {
-      // Execute recovery plan with selected type
+      console.log('🚀 Starting DRILL execution for plan:', selectedPlanForExecution.id);
+      
       const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: planToExecute.id,
+        recoveryPlanId: selectedPlanForExecution.id,
+        executionType: 'DRILL',
         dryRun: false,
         executedBy: 'demo-user' // TODO: Get from auth context
-        // Note: executionType will be added to backend in future iteration
       });
       
-      toast.success(`${executionType} execution started`);
-      setExecuteDialogOpen(false);
+      console.log('✅ Execution created:', execution);
+      toast.success('🔵 DRILL execution started');
       
-      // Navigate to execution details page
+      // Mark this plan as having an in-progress execution immediately
+      const updatedSet = new Set(plansWithInProgressExecution);
+      updatedSet.add(selectedPlanForExecution.id);
+      setPlansWithInProgressExecution(updatedSet);
+      
+      // Refresh in-progress executions after a short delay
+      setTimeout(() => checkInProgressExecutions(), 1000);
+      
       navigate(`/executions/${execution.executionId}`);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to execute recovery plan';
+      console.error('❌ Execution error:', err);
       toast.error(errorMessage);
-      console.error('Execution error:', err);
     } finally {
       setExecuting(false);
-      setExecuteDialogOpen(false);
     }
   };
 
-  const cancelExecute = () => {
-    if (executing) return; // Prevent closing during execution
-    setExecuteDialogOpen(false);
-    setPlanToExecute(null);
-    setExecutionType('DRILL');
+  const handleExecuteRecovery = async () => {
+    console.log('⚠️ handleExecuteRecovery called', {
+      selectedPlan: selectedPlanForExecution?.id,
+      executing,
+      hasSelection: !!selectedPlanForExecution
+    });
+    
+    if (!selectedPlanForExecution) {
+      console.error('❌ No plan selected for execution');
+      toast.error('No plan selected');
+      return;
+    }
+    
+    if (executing) {
+      console.warn('⚠️ Already executing, skipping');
+      return;
+    }
+
+    handleExecuteMenuClose();
+    setExecuting(true);
+
+    try {
+      console.log('🚀 Starting RECOVERY execution for plan:', selectedPlanForExecution.id);
+      
+      const execution = await apiClient.executeRecoveryPlan({
+        recoveryPlanId: selectedPlanForExecution.id,
+        executionType: 'RECOVERY',
+        dryRun: false,
+        executedBy: 'demo-user' // TODO: Get from auth context
+      });
+      
+      console.log('✅ Execution created:', execution);
+      toast.success('⚠️ RECOVERY execution started');
+      
+      // Mark this plan as having an in-progress execution immediately
+      const updatedSet = new Set(plansWithInProgressExecution);
+      updatedSet.add(selectedPlanForExecution.id);
+      setPlansWithInProgressExecution(updatedSet);
+      
+      // Refresh in-progress executions after a short delay
+      setTimeout(() => checkInProgressExecutions(), 1000);
+      
+      navigate(`/executions/${execution.executionId}`);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to execute recovery plan';
+      console.error('❌ Execution error:', err);
+      toast.error(errorMessage);
+    } finally {
+      setExecuting(false);
+    }
   };
 
   // DataGrid columns configuration
@@ -265,29 +392,46 @@ export const RecoveryPlansPage: React.FC = () => {
       type: 'actions',
       headerName: 'Actions',
       width: 140,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<PlayArrowIcon />}
-          label="Execute"
-          onClick={() => handleExecuteClick(params.row as RecoveryPlan)}
-          disabled={params.row.status === 'archived' || executing}
-          showInMenu={false}
-        />,
-        <GridActionsCellItem
-          icon={<EditIcon />}
-          label="Edit"
-          onClick={() => handleEdit(params.row as RecoveryPlan)}
-          showInMenu={false}
-        />,
-        <GridActionsCellItem
-          icon={<DeleteIcon />}
-          label="Delete"
-          onClick={() => handleDelete(params.row as RecoveryPlan)}
-          showInMenu={false}
-        />,
-      ],
+      getActions: (params) => {
+        const plan = params.row as RecoveryPlan;
+        const hasInProgressExecution = plansWithInProgressExecution.has(plan.id);
+        const isDisabled = plan.status === 'archived' || executing || hasInProgressExecution;
+        
+        const executeButton = (
+          <GridActionsCellItem
+            icon={<PlayArrowIcon />}
+            label="Execute"
+            onClick={(event) => handleExecuteMenuClick(event, plan)}
+            disabled={isDisabled}
+            showInMenu={false}
+          />
+        );
+        
+        // Wrap with tooltip if disabled due to in-progress execution
+        const executeAction = hasInProgressExecution ? (
+          <Tooltip title="Execution already in progress for this plan" arrow>
+            <span>{executeButton}</span>
+          </Tooltip>
+        ) : executeButton;
+        
+        return [
+          executeAction,
+          <GridActionsCellItem
+            icon={<EditIcon />}
+            label="Edit"
+            onClick={() => handleEdit(plan)}
+            showInMenu={false}
+          />,
+          <GridActionsCellItem
+            icon={<DeleteIcon />}
+            label="Delete"
+            onClick={() => handleDelete(plan)}
+            showInMenu={false}
+          />,
+        ];
+      },
     },
-  ], []);
+  ], [executing, plansWithInProgressExecution]);
 
   // Transform data for DataGrid (requires 'id' field) - plans already have id
   const rows = useMemo(() => plans, [plans]);
@@ -297,76 +441,88 @@ export const RecoveryPlansPage: React.FC = () => {
       <Box>
         {/* Header */}
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Recovery Plans
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Define recovery strategies with wave-based orchestration
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreate}
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              Recovery Plans
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Define recovery strategies with wave-based orchestration
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreate}
+          >
+            Create Plan
+          </Button>
+        </Stack>
+
+        {/* Recovery Plans DataGrid */}
+        <DataGridWrapper
+          rows={rows}
+          columns={columns}
+          loading={loading}
+          error={error}
+          onRetry={fetchPlans}
+          emptyMessage="No recovery plans found. Click 'Create Plan' above to get started."
+          height={600}
+        />
+
+        {/* Execution Type Menu */}
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={handleExecuteMenuClose}
         >
-          Create Plan
-        </Button>
-      </Stack>
+          <MenuItem 
+            onClick={handleExecuteDrill} 
+            disabled={executing || (selectedPlanForExecution ? plansWithInProgressExecution.has(selectedPlanForExecution.id) : false)}
+          >
+            <ListItemIcon>
+              <ScienceIcon fontSize="small" color="primary" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Run Drill"
+              secondary="Test recovery without failover"
+            />
+          </MenuItem>
+          <MenuItem 
+            onClick={handleExecuteRecovery} 
+            disabled={executing || (selectedPlanForExecution ? plansWithInProgressExecution.has(selectedPlanForExecution.id) : false)}
+          >
+            <ListItemIcon>
+              <WarningIcon fontSize="small" color="warning" />
+            </ListItemIcon>
+            <ListItemText
+              primary="Run Recovery"
+              secondary="Actual failover operation"
+            />
+          </MenuItem>
+        </Menu>
 
-      {/* Recovery Plans DataGrid */}
-      <DataGridWrapper
-        rows={rows}
-        columns={columns}
-        loading={loading}
-        error={error}
-        onRetry={fetchPlans}
-        emptyMessage="No recovery plans found. Click 'Create Plan' above to get started."
-        height={600}
-      />
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          title="Delete Recovery Plan"
+          message={
+            planToDelete
+              ? `Are you sure you want to delete "${planToDelete.name}"? This action cannot be undone.`
+              : ''
+          }
+          confirmLabel="Delete"
+          confirmColor="error"
+          onConfirm={confirmDelete}
+          onCancel={cancelDelete}
+        />
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        title="Delete Recovery Plan"
-        message={
-          planToDelete
-            ? `Are you sure you want to delete "${planToDelete.name}"? This action cannot be undone.`
-            : ''
-        }
-        confirmLabel="Delete"
-        confirmColor="error"
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
-      />
-
-      {/* Create/Edit Dialog */}
-      <RecoveryPlanDialog
-        open={dialogOpen}
-        plan={editingPlan}
-        onClose={handleDialogClose}
-        onSave={handleDialogSave}
-      />
-
-      {/* Execution Type Dialog */}
-      <ConfirmDialog
-        open={executeDialogOpen}
-        title={`Execute ${planToExecute?.name || 'Recovery Plan'}`}
-        message={
-          executing
-            ? '⏳ Execution in progress... This may take several minutes.'
-            : executionType === 'DRILL'
-            ? '🔵 DRILL Mode: Launches recovery instances for testing. ' +
-              'Servers remain available in DRS for future drills and actual recovery.'
-            : '⚠️ RECOVERY Mode: Performs actual failover. ' +
-              'This will mark servers as recovered in DRS and they cannot be re-used for drills. ' +
-              'Only use this for real disaster recovery scenarios!'
-        }
-        confirmLabel={executing ? 'Executing...' : `Start ${executionType}`}
-        confirmColor={executionType === 'DRILL' ? 'primary' : 'warning'}
-        onConfirm={confirmExecute}
-        onCancel={cancelExecute}
-      />
+        {/* Create/Edit Dialog */}
+        <RecoveryPlanDialog
+          open={dialogOpen}
+          plan={editingPlan}
+          onClose={handleDialogClose}
+          onSave={handleDialogSave}
+        />
       </Box>
     </PageTransition>
   );

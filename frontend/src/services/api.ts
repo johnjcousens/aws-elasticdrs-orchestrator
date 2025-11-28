@@ -249,7 +249,7 @@ class ApiClient {
     // Transform frontend request to backend format
     const backendRequest = {
       PlanId: data.recoveryPlanId,
-      ExecutionType: 'DRILL', // Always DRILL for POC demo
+      ExecutionType: data.executionType,  // DRILL or RECOVERY from user selection
       InitiatedBy: data.executedBy || 'demo-user',
       DryRun: data.dryRun || false,
       TopicArn: data.topicArn || ''

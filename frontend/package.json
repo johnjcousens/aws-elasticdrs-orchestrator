@@ -19,6 +19,7 @@
     "@mui/x-data-grid": "^8.17.0",
     "aws-amplify": "^6.15.8",
     "axios": "^1.13.2",
+    "date-fns": "^4.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hot-toast": "^2.6.0",

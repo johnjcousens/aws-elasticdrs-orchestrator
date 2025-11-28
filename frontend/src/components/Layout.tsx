@@ -31,7 +31,6 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import SecurityIcon from '@mui/icons-material/Security';
 import MapIcon from '@mui/icons-material/Map';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import HistoryIcon from '@mui/icons-material/History';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 interface LayoutProps {
@@ -52,7 +51,6 @@ const navigationItems: NavItem[] = [
   { text: 'Protection Groups', icon: <SecurityIcon />, path: '/protection-groups' },
   { text: 'Recovery Plans', icon: <MapIcon />, path: '/recovery-plans' },
   { text: 'Executions', icon: <PlayArrowIcon />, path: '/executions' },
-  { text: 'History', icon: <HistoryIcon />, path: '/history' },
 ];
 
 /**
