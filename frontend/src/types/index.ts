@@ -203,6 +203,7 @@ export interface ExecutionError {
 
 export interface ExecuteRecoveryPlanRequest {
   recoveryPlanId: string;
+  executionType: 'DRILL' | 'RECOVERY';  // Required - DRILL or RECOVERY only
   dryRun?: boolean;
   skipHealthChecks?: boolean;
   startFromWave?: number;

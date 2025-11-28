@@ -78,9 +78,20 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         if http_method == 'OPTIONS':
             return response(200, {'message': 'OK'})
         
+        # DEBUG: Log routing info
+        print(f"ROUTE DEBUG - path: {path}, method: {http_method}, path_params: {path_parameters}")
+        
         # Route to appropriate handler
         if path.startswith('/protection-groups'):
             return handle_protection_groups(http_method, path_parameters, body)
+        elif '/execute' in path and path.startswith('/recovery-plans'):
+            # Handle /recovery-plans/{planId}/execute endpoint
+            print(f"DEBUG: Execute route matched!")
+            plan_id = path_parameters.get('id')
+            body['PlanId'] = plan_id
+            if 'InitiatedBy' not in body:
+                body['InitiatedBy'] = 'system'
+            return execute_recovery_plan(body)
         elif path.startswith('/recovery-plans'):
             return handle_recovery_plans(http_method, path_parameters, body)
         elif path.startswith('/executions'):
@@ -394,7 +405,17 @@ def delete_protection_group(group_id: str) -> Dict:
 def handle_recovery_plans(method: str, path_params: Dict, body: Dict) -> Dict:
     """Route Recovery Plans requests"""
     plan_id = path_params.get('id')
+    path = path_params.get('proxy', '')
     
+    # Handle /recovery-plans/{planId}/execute endpoint
+    if method == 'POST' and plan_id and 'execute' in path:
+        # Transform body for execute_recovery_plan
+        body['PlanId'] = plan_id
+        # Get InitiatedBy from Cognito if not provided
+        if 'InitiatedBy' not in body:
+            body['InitiatedBy'] = 'system'  # Will be replaced by Cognito user
+        return execute_recovery_plan(body)
+
     if method == 'POST':
         return create_recovery_plan(body)
     elif method == 'GET' and not plan_id:

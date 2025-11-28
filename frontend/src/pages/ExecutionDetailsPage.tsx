@@ -85,9 +85,22 @@ export const ExecutionDetailsPage: React.FC = () => {
       setExecution(data as unknown as ExecutionDetails);
       setError(null);
       
-      // Disable polling if execution is complete
+      // Disable polling only when all waves AND servers reach terminal states
       const typedData = data as unknown as ExecutionDetails;
-      if (typedData.status !== 'in_progress') {
+      const hasInProgressWaves = (typedData.waves || []).some(w => 
+        w.status === 'in_progress' || w.status === 'launching'
+      );
+      const hasLaunchingServers = (typedData.waves || []).some(w =>
+        (w.servers || []).some(s => s.status === 'LAUNCHING')
+      );
+      
+      // Continue polling if:
+      // 1. Execution is in progress, OR
+      // 2. Any wave is in progress/launching, OR  
+      // 3. Any server is still launching
+      if (typedData.status === 'in_progress' || hasInProgressWaves || hasLaunchingServers) {
+        setPollingEnabled(true);
+      } else {
         setPollingEnabled(false);
       }
     } catch (err: any) {
@@ -171,7 +184,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   // Helper: Calculate wave progress
-  const calculateProgress = (waves: WaveExecution[]): number => {
+  const calculateProgress = (waves: WaveExecution[] | undefined): number => {
     if (!waves || waves.length === 0) return 0;
     const completedWaves = waves.filter(w => w.status === 'completed').length;
     return (completedWaves / waves.length) * 100;
@@ -224,7 +237,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   }
 
   const progress = calculateProgress(execution.waves);
-  const completedWaves = execution.waves.filter(w => w.status === 'completed').length;
+  const completedWaves = (execution.waves || []).filter(w => w.status === 'completed').length;
 
   return (
     <PageTransition>
@@ -283,7 +296,7 @@ export const ExecutionDetailsPage: React.FC = () => {
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Wave Progress: {completedWaves} of {execution.waves.length} complete
+              Wave Progress: {completedWaves} of {(execution.waves || []).length} complete
             </Typography>
             <LinearProgress
               variant="determinate"
@@ -297,7 +310,7 @@ export const ExecutionDetailsPage: React.FC = () => {
         </Card>
 
         {/* Waves */}
-        {execution.waves.map((wave, index) => (
+        {(execution.waves || []).map((wave, index) => (
           <Accordion key={index} defaultExpanded={wave.status === 'in_progress'}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Box display="flex" alignItems="center" gap={2} width="100%">

@@ -183,7 +183,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({ waves, currentWave }
 
   return (
     <Stepper orientation="vertical" activeStep={currentWave ? currentWave - 1 : -1}>
-      {waves.map((wave) => {
+      {(waves || []).map((wave) => {
         const isCurrent = currentWave === wave.waveNumber;
         const isExpanded = expandedWaves.has(wave.waveNumber);
         const hasServers = wave.serverExecutions && wave.serverExecutions.length > 0;
