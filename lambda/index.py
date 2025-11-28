@@ -1856,18 +1856,44 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
 
 def transform_execution_to_camelcase(execution: Dict) -> Dict:
     """Transform Execution from DynamoDB PascalCase to frontend camelCase"""
+    
+    # Transform waves array to camelCase
+    waves = []
+    for wave in execution.get('Waves', []):
+        # Transform servers array to camelCase
+        servers = []
+        for server in wave.get('Servers', []):
+            servers.append({
+                'sourceServerId': server.get('SourceServerId'),
+                'recoveryJobId': server.get('RecoveryJobId'),
+                'instanceId': server.get('InstanceId'),
+                'status': server.get('Status', 'UNKNOWN'),  # Keep uppercase for now
+                'launchTime': server.get('LaunchTime'),
+                'error': server.get('Error')
+            })
+        
+        waves.append({
+            'waveName': wave.get('WaveName'),
+            'protectionGroupId': wave.get('ProtectionGroupId'),
+            'region': wave.get('Region'),
+            'status': wave.get('Status', 'unknown').lower(),  # Lowercase for consistency
+            'servers': servers,
+            'startTime': wave.get('StartTime'),
+            'endTime': wave.get('EndTime')
+        })
+    
     return {
         'executionId': execution.get('ExecutionId'),
         'recoveryPlanId': execution.get('PlanId'),
         'recoveryPlanName': execution.get('RecoveryPlanName', 'Unknown'),
         'executionType': execution.get('ExecutionType'),
-        'status': execution.get('Status', '').lower(),  # Convert to lowercase for frontend
+        'status': execution.get('Status', 'unknown').lower(),  # Convert to lowercase for frontend
         'startTime': execution.get('StartTime'),  # Unix timestamp in seconds
         'endTime': execution.get('EndTime'),  # Unix timestamp in seconds
         'initiatedBy': execution.get('InitiatedBy'),
-        'waves': execution.get('Waves', []),
-        'currentWave': len([w for w in execution.get('Waves', []) if w.get('Status') == 'IN_PROGRESS']),
-        'totalWaves': len(execution.get('Waves', [])),
+        'waves': waves,  # Now properly transformed
+        'currentWave': len([w for w in waves if w.get('status') == 'in_progress']),
+        'totalWaves': len(waves),
         'errorMessage': execution.get('ErrorMessage')
     }
 
