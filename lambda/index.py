@@ -813,15 +813,23 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         
         # Initiate waves immediately (NO DELAYS)
         wave_results = []
-        for wave_index, wave in enumerate(plan['Waves']):
+        waves_list = plan.get('Waves', [])
+        print(f"DEBUG: Processing {len(waves_list)} waves from plan")
+        
+        for wave_index, wave in enumerate(waves_list):
             wave_number = wave_index + 1
-            wave_name = wave.get('WaveName', f'Wave {wave_number}')
-            pg_id = wave.get('ProtectionGroupId')
+            print(f"DEBUG: Wave {wave_number} raw data: {wave}")
             
+            # Support both PascalCase and camelCase for backward compatibility
+            wave_name = wave.get('WaveName') or wave.get('name', f'Wave {wave_number}')
+            pg_id = wave.get('ProtectionGroupId') or wave.get('protectionGroupId')
+
+            print(f"DEBUG: Wave {wave_number} - name={wave_name}, pg_id={pg_id}")
+
             if not pg_id:
                 print(f"Wave {wave_number} has no Protection Group, skipping")
                 continue
-            
+
             print(f"Initiating Wave {wave_number}: {wave_name}")
             
             # Initiate wave and get job IDs (no waiting)
@@ -868,7 +876,7 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         pg_result = protection_groups_table.get_item(Key={'GroupId': protection_group_id})
         if 'Item' not in pg_result:
             return {
-                'WaveName': wave.get('WaveName', 'Unknown'),
+                'WaveName': wave.get('name', 'Unknown'),
                 'ProtectionGroupId': protection_group_id,
                 'Status': 'FAILED',
                 'Error': 'Protection Group not found',
@@ -896,7 +904,7 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         
         if not server_ids:
             return {
-                'WaveName': wave.get('WaveName', 'Unknown'),
+                'WaveName': wave.get('name', 'Unknown'),
                 'ProtectionGroupId': protection_group_id,
                 'Status': 'INITIATED',
                 'Servers': [],
@@ -926,7 +934,7 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         wave_status = 'PARTIAL' if has_failures else 'INITIATED'
         
         return {
-            'WaveName': wave.get('WaveName', 'Unknown'),
+            'WaveName': wave.get('name', 'Unknown'),
             'ProtectionGroupId': protection_group_id,
             'Region': region,
             'Status': wave_status,
@@ -939,7 +947,7 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         import traceback
         traceback.print_exc()
         return {
-            'WaveName': wave.get('WaveName', 'Unknown'),
+            'WaveName': wave.get('name', 'Unknown'),
             'ProtectionGroupId': protection_group_id,
             'Status': 'FAILED',
             'Error': str(e),
