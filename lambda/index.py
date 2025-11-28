@@ -1210,10 +1210,9 @@ def get_execution_details(execution_id: str) -> Dict:
             except Exception as e:
                 print(f"Error getting Step Functions status: {str(e)}")
         
-        # Transform to camelCase for frontend
-        transformed_execution = transform_execution_to_camelcase(execution)
-        
-        return response(200, transformed_execution)
+        # NOTE: ExecutionDetailsPage expects PascalCase from backend, so NO transformation here
+        # Only list_executions() transforms to camelCase for the Executions list page
+        return response(200, execution)
         
     except Exception as e:
         print(f"Error getting execution details: {str(e)}")
