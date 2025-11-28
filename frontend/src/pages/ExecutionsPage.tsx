@@ -128,13 +128,23 @@ export const ExecutionsPage: React.FC = () => {
   };
 
   // Filter executions by active/history
+  // Active: PENDING, POLLING, LAUNCHING, or any status that's not complete/failed
   const activeExecutions = executions.filter(
-    e => e.status === 'in_progress' || e.status === 'pending' || e.status === 'paused'
+    e => {
+      const status = e.status.toUpperCase();
+      return status === 'PENDING' || status === 'POLLING' || 
+             status === 'LAUNCHING' || status === 'IN_PROGRESS' || 
+             status === 'PAUSED';
+    }
   );
   
+  // History: COMPLETED, FAILED, CANCELLED, ROLLED_BACK
   const historyExecutions = executions.filter(
-    e => e.status === 'completed' || e.status === 'failed' || 
-         e.status === 'cancelled' || e.status === 'rolled_back'
+    e => {
+      const status = e.status.toUpperCase();
+      return status === 'COMPLETED' || status === 'FAILED' || 
+             status === 'CANCELLED' || status === 'ROLLED_BACK';
+    }
   );
 
   // Calculate progress percentage for in-progress executions
