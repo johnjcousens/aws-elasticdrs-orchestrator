@@ -20,6 +20,7 @@ REGION="us-east-1"
 BUILD_FRONTEND=false
 DRY_RUN=false
 CLEAN_ORPHANS=false
+AWS_PROFILE=""
 
 # Approved top-level directories (directories synced by this script)
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
@@ -27,6 +28,10 @@ APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --profile)
+            AWS_PROFILE="$2"
+            shift 2
+            ;;
         --build-frontend)
             BUILD_FRONTEND=true
             shift
@@ -41,7 +46,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--build-frontend] [--dry-run] [--clean-orphans]"
+            echo "Usage: $0 [--profile PROFILE_NAME] [--build-frontend] [--dry-run] [--clean-orphans]"
             exit 1
             ;;
     esac
@@ -56,6 +61,12 @@ else
     GIT_SHORT="unknown"
 fi
 SYNC_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# Build profile flag if specified
+PROFILE_FLAG=""
+if [ -n "$AWS_PROFILE" ]; then
+    PROFILE_FLAG="--profile $AWS_PROFILE"
+fi
 
 # Build sync/cp flags with metadata
 SYNC_FLAGS="--region $REGION --metadata git-commit=$GIT_COMMIT,git-short=$GIT_SHORT,sync-time=$SYNC_TIME"
@@ -72,14 +83,21 @@ echo "Bucket: s3://$BUCKET"
 echo "Region: $REGION"
 echo "Build Frontend: $BUILD_FRONTEND"
 echo "Dry Run: $DRY_RUN"
+if [ -n "$AWS_PROFILE" ]; then
+    echo "AWS Profile: $AWS_PROFILE"
+fi
 echo "Git Commit: $GIT_SHORT ($GIT_COMMIT)"
 echo "Sync Time: $SYNC_TIME"
 echo ""
 
 # Verify AWS credentials
-if ! aws sts get-caller-identity --region $REGION >/dev/null 2>&1; then
+if ! aws sts get-caller-identity $PROFILE_FLAG --region $REGION >/dev/null 2>&1; then
     echo "❌ ERROR: AWS credentials not configured"
-    echo "Please set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN"
+    echo ""
+    echo "Try one of these:"
+    echo "  1. Use --profile: $0 --profile PROFILE_NAME"
+    echo "  2. Set environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY"
+    echo "  3. Create .env.deployment file with credentials"
     exit 1
 fi
 
@@ -92,7 +110,7 @@ if [ "$CLEAN_ORPHANS" = true ]; then
     echo ""
     
     # Get all top-level directories from S3
-    S3_DIRS=$(aws s3 ls s3://$BUCKET/ --region $REGION | grep PRE | awk '{print $2}' | sed 's/\///')
+    S3_DIRS=$(aws s3 ls s3://$BUCKET/ $PROFILE_FLAG --region $REGION | grep PRE | awk '{print $2}' | sed 's/\///')
     
     # Find orphaned directories
     ORPHANED_DIRS=()
@@ -113,7 +131,7 @@ if [ "$CLEAN_ORPHANS" = true ]; then
     done
     
     # Check for orphaned files at root level (excluding approved files)
-    S3_FILES=$(aws s3 ls s3://$BUCKET/ --region $REGION | grep -v PRE | awk '{print $4}')
+    S3_FILES=$(aws s3 ls s3://$BUCKET/ $PROFILE_FLAG --region $REGION | grep -v PRE | awk '{print $4}')
     APPROVED_FILES=("README.md" ".gitignore" "Makefile")
     
     for file in $S3_FILES; do
@@ -165,13 +183,13 @@ if [ "$CLEAN_ORPHANS" = true ]; then
                 # Delete orphaned directories
                 for dir in "${ORPHANED_DIRS[@]}"; do
                     echo "  🗑️  Deleting $dir/..."
-                    aws s3 rm s3://$BUCKET/$dir/ --recursive --region $REGION
+                    aws s3 rm s3://$BUCKET/$dir/ $PROFILE_FLAG --recursive --region $REGION
                 done
                 
                 # Delete orphaned files
                 for file in "${ORPHANED_FILES[@]}"; do
                     echo "  🗑️  Deleting $file..."
-                    aws s3 rm s3://$BUCKET/$file --region $REGION
+                    aws s3 rm s3://$BUCKET/$file $PROFILE_FLAG --region $REGION
                 done
                 
                 echo ""
@@ -207,6 +225,7 @@ echo ""
 # Sync CloudFormation templates
 echo "  📁 Syncing cfn/ templates..."
 aws s3 sync cfn/ s3://$BUCKET/cfn/ \
+    $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
     --exclude "*.swp" \
@@ -215,6 +234,7 @@ aws s3 sync cfn/ s3://$BUCKET/cfn/ \
 # Sync Lambda functions
 echo "  📁 Syncing lambda/ functions..."
 aws s3 sync lambda/ s3://$BUCKET/lambda/ \
+    $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
     --exclude "*.pyc" \
@@ -226,6 +246,7 @@ aws s3 sync lambda/ s3://$BUCKET/lambda/ \
 echo "  📁 Syncing frontend..."
 if [ -d "frontend/dist" ]; then
     aws s3 sync frontend/dist/ s3://$BUCKET/frontend/dist/ \
+        $PROFILE_FLAG \
         --delete \
         $SYNC_FLAGS \
         --exclude ".DS_Store"
@@ -235,6 +256,7 @@ else
 fi
 
 aws s3 sync frontend/src/ s3://$BUCKET/frontend/src/ \
+    $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
     --exclude "*.swp" \
@@ -242,15 +264,16 @@ aws s3 sync frontend/src/ s3://$BUCKET/frontend/src/ \
 echo "    ✅ frontend/src/ synced"
 
 # Sync frontend config files
-aws s3 cp frontend/package.json s3://$BUCKET/frontend/package.json $SYNC_FLAGS
-aws s3 cp frontend/package-lock.json s3://$BUCKET/frontend/package-lock.json $SYNC_FLAGS
-aws s3 cp frontend/tsconfig.json s3://$BUCKET/frontend/tsconfig.json $SYNC_FLAGS
-aws s3 cp frontend/vite.config.ts s3://$BUCKET/frontend/vite.config.ts $SYNC_FLAGS
+aws s3 cp frontend/package.json s3://$BUCKET/frontend/package.json $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp frontend/package-lock.json s3://$BUCKET/frontend/package-lock.json $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp frontend/tsconfig.json s3://$BUCKET/frontend/tsconfig.json $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp frontend/vite.config.ts s3://$BUCKET/frontend/vite.config.ts $PROFILE_FLAG $SYNC_FLAGS
 echo "    ✅ frontend config files synced"
 
 # Sync scripts
 echo "  📁 Syncing scripts/..."
 aws s3 sync scripts/ s3://$BUCKET/scripts/ \
+    $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
     --exclude ".DS_Store"
@@ -258,6 +281,7 @@ aws s3 sync scripts/ s3://$BUCKET/scripts/ \
 # Sync SSM documents
 echo "  📁 Syncing ssm-documents/..."
 aws s3 sync ssm-documents/ s3://$BUCKET/ssm-documents/ \
+    $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
     --exclude ".DS_Store"
@@ -265,6 +289,7 @@ aws s3 sync ssm-documents/ s3://$BUCKET/ssm-documents/ \
 # Sync documentation
 echo "  📁 Syncing docs/..."
 aws s3 sync docs/ s3://$BUCKET/docs/ \
+    $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
     --exclude ".DS_Store" \
@@ -272,9 +297,9 @@ aws s3 sync docs/ s3://$BUCKET/docs/ \
 
 # Sync root files
 echo "  📄 Syncing root files..."
-aws s3 cp README.md s3://$BUCKET/README.md $SYNC_FLAGS
-aws s3 cp .gitignore s3://$BUCKET/.gitignore $SYNC_FLAGS
-aws s3 cp Makefile s3://$BUCKET/Makefile $SYNC_FLAGS
+aws s3 cp README.md s3://$BUCKET/README.md $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp .gitignore s3://$BUCKET/.gitignore $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp Makefile s3://$BUCKET/Makefile $PROFILE_FLAG $SYNC_FLAGS
 
 echo ""
 echo "======================================"
