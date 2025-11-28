@@ -296,7 +296,7 @@ Resources:
       Code:
         S3Bucket: !Ref SourceBucket
         S3Key: 'lambda/orchestration.zip'
-      Timeout: 900
+      Timeout: 120
       MemorySize: 512
       Environment:
         Variables:
