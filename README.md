@@ -366,31 +366,90 @@ aws cloudformation describe-stacks \
 
 **Modular Templates**: All 6 CloudFormation templates are in `cfn/` directory, ready to deploy.
 
-### Updating Lambda Code
+### Lambda Deployment Automation 🚀 NEW!
 
-If you modify Lambda source code:
+**Automated Lambda deployment script with multiple deployment strategies:**
 
+The solution now includes `lambda/deploy_lambda.py` - a comprehensive deployment automation tool that makes Lambda deployments simple and reproducible.
+
+#### Deployment Modes
+
+**1. Direct Deployment (Fastest - Development)**
 ```bash
-# Recreate api-handler and orchestration .zip files
-cd lambda/api-handler && zip -r ../api-handler.zip . && cd ../..
-cd lambda/orchestration && zip -r ../orchestration.zip . && cd ../..
-
-# Rebuild frontend-builder with bundled React source
-bash scripts/package-frontend-builder.sh
-
-# Re-upload to S3
-aws s3 sync lambda/ s3://my-drs-solution-bucket/AWS-DRS-Orchestration/lambda/ \
-  --exclude "*/" --include "*.zip" \
-  --region us-east-1
-
-# Update CloudFormation stack to trigger redeployment
-aws cloudformation update-stack \
-  --stack-name drs-orchestration \
-  --use-previous-template \
-  --parameters UsePreviousValue=true \
-  --capabilities CAPABILITY_NAMED_IAM \
+cd lambda
+python3 deploy_lambda.py --direct \
+  --function-name drs-orchestration-api-handler-test \
   --region us-east-1
 ```
+- ✅ Updates Lambda immediately (~10 seconds)
+- ✅ Perfect for testing code changes
+- ⚠️ Not tracked by CloudFormation
+
+**2. S3 Upload (CloudFormation Preparation)**
+```bash
+cd lambda
+python3 deploy_lambda.py --s3-only \
+  --bucket aws-drs-orchestration \
+  --region us-east-1
+```
+- ✅ Makes code available for CloudFormation
+- ✅ Versions Lambda code in S3
+- ✅ CI/CD pipeline ready
+
+**3. CloudFormation Update (Production Standard)**
+```bash
+cd lambda
+python3 deploy_lambda.py --cfn \
+  --bucket aws-drs-orchestration \
+  --stack-name drs-orchestration-test \
+  --region us-east-1
+```
+- ✅ Full CloudFormation integration
+- ✅ Rollback capability
+- ✅ Production-ready
+
+**4. Full Deployment (S3 + Direct)**
+```bash
+cd lambda
+python3 deploy_lambda.py --full \
+  --bucket aws-drs-orchestration \
+  --function-name drs-orchestration-api-handler-test \
+  --region us-east-1
+```
+- ✅ Uploads to S3 AND updates Lambda
+- ✅ Best for development with S3 backup
+
+#### What Gets Deployed
+
+The script automatically packages:
+- ✅ `lambda/index.py` - Main handler code
+- ✅ `lambda/package/*` - All Python dependencies (1,833 files)
+- ✅ Creates `api-handler.zip` (~11 MB)
+
+#### Full Deployment Workflow
+
+For complete reproducibility from S3:
+
+```bash
+# 1. Deploy Lambda code to S3
+cd lambda
+python3 deploy_lambda.py --s3-only --bucket aws-drs-orchestration
+
+# 2. Deploy/Update CloudFormation stack
+aws cloudformation update-stack \
+  --stack-name drs-orchestration-test \
+  --template-url https://s3.amazonaws.com/aws-drs-orchestration/cfn/master-template.yaml \
+  --parameters file://deployment-params.json \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+  --region us-east-1
+```
+
+**📚 Complete Documentation**: See [docs/LAMBDA_DEPLOYMENT_GUIDE.md](docs/LAMBDA_DEPLOYMENT_GUIDE.md) for:
+- Detailed deployment workflows
+- Environment-specific examples
+- Troubleshooting guide
+- CI/CD integration patterns
+- Verification procedures
 
 ### Detailed Deployment Instructions
 
