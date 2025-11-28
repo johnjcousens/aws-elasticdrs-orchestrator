@@ -68,6 +68,8 @@ Resources:
           AttributeType: S
         - AttributeName: StartTime
           AttributeType: N
+        - AttributeName: Status
+          AttributeType: S
       KeySchema:
         - AttributeName: ExecutionId
           KeyType: HASH
@@ -77,6 +79,14 @@ Resources:
         - IndexName: PlanIdIndex
           KeySchema:
             - AttributeName: PlanId
+              KeyType: HASH
+            - AttributeName: StartTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: Status
               KeyType: HASH
             - AttributeName: StartTime
               KeyType: RANGE
