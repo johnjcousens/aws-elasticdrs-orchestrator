@@ -1110,7 +1110,8 @@ def list_executions(query_params: Dict) -> Dict:
         # Sort by StartTime descending (most recent first)
         executions.sort(key=lambda x: x.get('StartTime', 0), reverse=True)
         
-        # Enrich with recovery plan names
+        # Enrich with recovery plan names and transform to camelCase
+        transformed_executions = []
         for execution in executions:
             try:
                 plan_id = execution.get('PlanId')
@@ -1123,11 +1124,14 @@ def list_executions(query_params: Dict) -> Dict:
             except Exception as e:
                 print(f"Error enriching execution {execution.get('ExecutionId')}: {str(e)}")
                 execution['RecoveryPlanName'] = 'Unknown'
+            
+            # Transform to camelCase for frontend
+            transformed_executions.append(transform_execution_to_camelcase(execution))
         
         # Build response with pagination
         response_data = {
-            'items': executions,
-            'count': len(executions)
+            'items': transformed_executions,
+            'count': len(transformed_executions)
         }
         
         if 'LastEvaluatedKey' in result:
@@ -1844,6 +1848,24 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'lastStartTime': last_start_time,  # NEW: Unix timestamp (seconds) - no conversion needed
         'lastEndTime': last_end_time,  # NEW: Unix timestamp (seconds) - no conversion needed
         'waveCount': len(waves)
+    }
+
+
+def transform_execution_to_camelcase(execution: Dict) -> Dict:
+    """Transform Execution from DynamoDB PascalCase to frontend camelCase"""
+    return {
+        'executionId': execution.get('ExecutionId'),
+        'recoveryPlanId': execution.get('PlanId'),
+        'recoveryPlanName': execution.get('RecoveryPlanName', 'Unknown'),
+        'executionType': execution.get('ExecutionType'),
+        'status': execution.get('Status', '').lower(),  # Convert to lowercase for frontend
+        'startTime': execution.get('StartTime'),  # Unix timestamp in seconds
+        'endTime': execution.get('EndTime'),  # Unix timestamp in seconds
+        'initiatedBy': execution.get('InitiatedBy'),
+        'waves': execution.get('Waves', []),
+        'currentWave': len([w for w in execution.get('Waves', []) if w.get('Status') == 'IN_PROGRESS']),
+        'totalWaves': len(execution.get('Waves', [])),
+        'errorMessage': execution.get('ErrorMessage')
     }
 
 
