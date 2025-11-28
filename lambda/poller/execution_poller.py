@@ -545,10 +545,10 @@ def format_wave_for_dynamodb(wave: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in wave.items():
         if isinstance(value, str):
             formatted['M'][key] = {'S': value}
+        elif isinstance(value, bool):  # Check bool BEFORE int (bool is subclass of int)
+            formatted['M'][key] = {'BOOL': value}
         elif isinstance(value, (int, float)):
             formatted['M'][key] = {'N': str(value)}
-        elif isinstance(value, bool):
-            formatted['M'][key] = {'BOOL': value}
         elif isinstance(value, list):
             formatted['M'][key] = {'L': [format_value_for_dynamodb(v) for v in value]}
         elif isinstance(value, dict):
@@ -560,10 +560,10 @@ def format_value_for_dynamodb(value: Any) -> Dict[str, Any]:
     """Format a value for DynamoDB."""
     if isinstance(value, str):
         return {'S': value}
+    elif isinstance(value, bool):  # Check bool BEFORE int (bool is subclass of int)
+        return {'BOOL': value}
     elif isinstance(value, (int, float)):
         return {'N': str(value)}
-    elif isinstance(value, bool):
-        return {'BOOL': value}
     elif isinstance(value, dict):
         return format_wave_for_dynamodb(value)
     elif isinstance(value, list):
