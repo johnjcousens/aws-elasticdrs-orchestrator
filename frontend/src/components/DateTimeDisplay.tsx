@@ -30,7 +30,16 @@ export const DateTimeDisplay: React.FC<DateTimeDisplayProps> = ({
   ...props
 }) => {
   const formatDateTime = (value: string | number | Date): string => {
-    const date = value instanceof Date ? value : new Date(value);
+    // Convert Unix timestamp (seconds) to milliseconds
+    // API returns timestamps in seconds, but JavaScript Date expects milliseconds
+    let dateValue = value;
+    if (typeof value === 'number' && value < 10000000000) {
+      // If timestamp is less than 10 billion, it's in seconds (not milliseconds)
+      // Multiply by 1000 to convert to milliseconds
+      dateValue = value * 1000;
+    }
+    
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
     
     if (isNaN(date.getTime())) {
       return 'Invalid date';
