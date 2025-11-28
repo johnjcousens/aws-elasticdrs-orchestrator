@@ -1,0 +1,572 @@
+"""
+Execution Poller Lambda
+Polls DRS job status for a single execution.
+Updates DynamoDB with wave/server status.
+Handles timeouts and detects completion.
+"""
+import json
+import os
+import boto3
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
+import logging
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Initialize AWS clients
+dynamodb = boto3.client('dynamodb')
+drs = boto3.client('drs')
+cloudwatch = boto3.client('cloudwatch')
+
+# Environment variables (with defaults for testing)
+EXECUTION_HISTORY_TABLE = os.environ.get('EXECUTION_HISTORY_TABLE', 'test-execution-table')
+TIMEOUT_THRESHOLD_SECONDS = int(os.environ.get('TIMEOUT_THRESHOLD_SECONDS', '1800'))  # 30 minutes
+
+# Execution completion statuses
+COMPLETED_STATUSES = {'COMPLETED', 'FAILED', 'TERMINATED', 'TIMEOUT'}
+
+# DRS job statuses that indicate completion
+DRS_COMPLETED_STATUSES = {'COMPLETED', 'FAILED'}
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """
+    Main Lambda handler for Execution Poller.
+    
+    Invoked by Execution Finder for each execution in POLLING status.
+    Polls DRS job status and updates DynamoDB.
+    
+    Args:
+        event: Payload from Execution Finder
+            - ExecutionId: Unique execution identifier
+            - PlanId: Recovery plan ID
+            - ExecutionType: DRILL or RECOVERY
+            - StartTime: Execution start timestamp
+        context: Lambda context object
+        
+    Returns:
+        Dict containing polling results
+    """
+    try:
+        execution_id = event['ExecutionId']
+        plan_id = event['PlanId']
+        execution_type = event.get('ExecutionType', 'DRILL')
+        start_time = event.get('StartTime')
+        
+        logger.info(f"Polling execution: {execution_id} (Type: {execution_type})")
+        
+        # Get current execution state from DynamoDB
+        execution = get_execution_from_dynamodb(execution_id, plan_id)
+        
+        if not execution:
+            logger.error(f"Execution not found: {execution_id}")
+            return {
+                'statusCode': 404,
+                'body': json.dumps({
+                    'error': 'Execution not found',
+                    'ExecutionId': execution_id
+                })
+            }
+        
+        # Check if execution has timed out
+        if has_execution_timed_out(execution, start_time):
+            logger.warning(f"Execution {execution_id} has timed out (>{TIMEOUT_THRESHOLD_SECONDS}s)")
+            handle_timeout(execution_id, plan_id, execution)
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'ExecutionId': execution_id,
+                    'Status': 'TIMEOUT',
+                    'message': 'Execution timed out'
+                })
+            }
+        
+        # Poll wave status from DRS
+        waves = execution.get('Waves', [])
+        updated_waves = []
+        all_waves_complete = True
+        
+        for wave in waves:
+            updated_wave = poll_wave_status(wave, execution_type)
+            updated_waves.append(updated_wave)
+            
+            # Check if wave is complete
+            if updated_wave.get('Status') not in COMPLETED_STATUSES:
+                all_waves_complete = False
+        
+        # Update execution in DynamoDB
+        update_execution_waves(execution_id, plan_id, updated_waves)
+        
+        # Update LastPolledTime for adaptive polling
+        update_last_polled_time(execution_id, plan_id)
+        
+        # Check if execution is complete
+        if all_waves_complete:
+            logger.info(f"All waves complete for execution {execution_id}")
+            finalize_execution(execution_id, plan_id, updated_waves)
+            
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'ExecutionId': execution_id,
+                    'Status': 'COMPLETED',
+                    'message': 'Execution completed successfully'
+                })
+            }
+        
+        # Record polling metrics
+        record_poller_metrics(execution_id, execution_type, updated_waves)
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'ExecutionId': execution_id,
+                'Status': 'POLLING',
+                'WavesPolled': len(updated_waves),
+                'message': 'Polling in progress'
+            })
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in Execution Poller: {str(e)}", exc_info=True)
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'error': str(e),
+                'message': 'Failed to poll execution'
+            })
+        }
+
+def get_execution_from_dynamodb(execution_id: str, plan_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get execution record from DynamoDB.
+    
+    Args:
+        execution_id: Execution ID
+        plan_id: Plan ID
+        
+    Returns:
+        Execution record or None if not found
+    """
+    try:
+        response = dynamodb.get_item(
+            TableName=EXECUTION_HISTORY_TABLE,
+            Key={
+                'ExecutionId': {'S': execution_id},
+                'PlanId': {'S': plan_id}
+            }
+        )
+        
+        if 'Item' not in response:
+            return None
+        
+        return parse_dynamodb_item(response['Item'])
+        
+    except Exception as e:
+        logger.error(f"Error getting execution from DynamoDB: {str(e)}", exc_info=True)
+        raise
+
+def parse_dynamodb_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Parse DynamoDB item format to Python dict.
+    
+    Args:
+        item: DynamoDB item in typed format
+        
+    Returns:
+        Parsed Python dictionary
+    """
+    result = {}
+    
+    for key, value in item.items():
+        if 'S' in value:
+            result[key] = value['S']
+        elif 'N' in value:
+            result[key] = int(value['N']) if '.' not in value['N'] else float(value['N'])
+        elif 'L' in value:
+            result[key] = [parse_dynamodb_value(v) for v in value['L']]
+        elif 'M' in value:
+            result[key] = parse_dynamodb_item(value['M'])
+        elif 'BOOL' in value:
+            result[key] = value['BOOL']
+        elif 'NULL' in value:
+            result[key] = None
+    
+    return result
+
+def parse_dynamodb_value(value: Dict[str, Any]) -> Any:
+    """Parse a single DynamoDB value."""
+    if 'S' in value:
+        return value['S']
+    elif 'N' in value:
+        return int(value['N']) if '.' not in value['N'] else float(value['N'])
+    elif 'L' in value:
+        return [parse_dynamodb_value(v) for v in value['L']]
+    elif 'M' in value:
+        return parse_dynamodb_item(value['M'])
+    elif 'BOOL' in value:
+        return value['BOOL']
+    elif 'NULL' in value:
+        return None
+    else:
+        return value
+
+def has_execution_timed_out(execution: Dict[str, Any], start_time: Optional[int]) -> bool:
+    """
+    Check if execution has exceeded timeout threshold.
+    
+    Args:
+        execution: Execution record
+        start_time: Execution start timestamp
+        
+    Returns:
+        True if execution has timed out
+    """
+    if not start_time:
+        start_time = execution.get('StartTime', 0)
+    
+    current_time = datetime.now(timezone.utc).timestamp()
+    elapsed_time = current_time - start_time
+    
+    return elapsed_time > TIMEOUT_THRESHOLD_SECONDS
+
+def handle_timeout(execution_id: str, plan_id: str, execution: Dict[str, Any]) -> None:
+    """
+    Handle execution timeout.
+    
+    After 30 minutes, query DRS for final status rather than arbitrarily failing.
+    DRS is source of truth for job status.
+    
+    Args:
+        execution_id: Execution ID
+        plan_id: Plan ID
+        execution: Execution record
+    """
+    try:
+        logger.info(f"Handling timeout for execution {execution_id}")
+        
+        # Query DRS for final status
+        waves = execution.get('Waves', [])
+        final_waves = []
+        
+        for wave in waves:
+            # Get final status from DRS
+            job_id = wave.get('JobId')
+            if job_id:
+                try:
+                    job_status = query_drs_job_status(job_id)
+                    wave['Status'] = job_status.get('Status', 'TIMEOUT')
+                    wave['StatusMessage'] = job_status.get('StatusMessage', 'Execution timed out')
+                except Exception as e:
+                    logger.error(f"Error querying DRS for job {job_id}: {str(e)}")
+                    wave['Status'] = 'TIMEOUT'
+                    wave['StatusMessage'] = f'Timeout after {TIMEOUT_THRESHOLD_SECONDS}s'
+            else:
+                wave['Status'] = 'TIMEOUT'
+                wave['StatusMessage'] = f'Timeout after {TIMEOUT_THRESHOLD_SECONDS}s'
+            
+            final_waves.append(wave)
+        
+        # Update execution with timeout status
+        dynamodb.update_item(
+            TableName=EXECUTION_HISTORY_TABLE,
+            Key={
+                'ExecutionId': {'S': execution_id},
+                'PlanId': {'S': plan_id}
+            },
+            UpdateExpression='SET #status = :status, Waves = :waves, EndTime = :end_time',
+            ExpressionAttributeNames={
+                '#status': 'Status'
+            },
+            ExpressionAttributeValues={
+                ':status': {'S': 'TIMEOUT'},
+                ':waves': {'L': [format_wave_for_dynamodb(w) for w in final_waves]},
+                ':end_time': {'N': str(int(datetime.now(timezone.utc).timestamp()))}
+            }
+        )
+        
+        logger.info(f"Execution {execution_id} marked as TIMEOUT")
+        
+    except Exception as e:
+        logger.error(f"Error handling timeout: {str(e)}", exc_info=True)
+        raise
+
+def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any]:
+    """
+    Poll DRS job status for a wave.
+    
+    Args:
+        wave: Wave record with job information
+        execution_type: DRILL or RECOVERY
+        
+    Returns:
+        Updated wave record with current status
+    """
+    try:
+        job_id = wave.get('JobId')
+        
+        if not job_id:
+            logger.warning(f"Wave {wave.get('WaveId')} has no JobId")
+            return wave
+        
+        # Query DRS for job status
+        job_status = query_drs_job_status(job_id)
+        
+        # Update wave with DRS job status
+        wave['Status'] = job_status.get('Status', wave.get('Status', 'UNKNOWN'))
+        wave['StatusMessage'] = job_status.get('StatusMessage', '')
+        
+        # Update server statuses if available
+        if 'ParticipatingServers' in job_status:
+            updated_servers = []
+            for server in job_status['ParticipatingServers']:
+                updated_servers.append({
+                    'SourceServerID': server.get('SourceServerID'),
+                    'Status': server.get('LaunchStatus', 'UNKNOWN'),
+                    'HostName': server.get('HostName', ''),
+                    'LaunchTime': server.get('LaunchTime', 0)
+                })
+            wave['Servers'] = updated_servers
+        
+        # Check completion based on execution type
+        if execution_type == 'DRILL':
+            # DRILL complete when all servers LAUNCHED
+            if all(s.get('Status') == 'LAUNCHED' for s in wave.get('Servers', [])):
+                wave['Status'] = 'COMPLETED'
+        else:  # RECOVERY
+            # RECOVERY complete when all servers LAUNCHED + post-launch complete
+            servers_launched = all(s.get('Status') == 'LAUNCHED' for s in wave.get('Servers', []))
+            post_launch_complete = job_status.get('PostLaunchActionsStatus') == 'COMPLETED'
+            
+            if servers_launched and post_launch_complete:
+                wave['Status'] = 'COMPLETED'
+        
+        return wave
+        
+    except Exception as e:
+        logger.error(f"Error polling wave status: {str(e)}", exc_info=True)
+        wave['Status'] = 'ERROR'
+        wave['StatusMessage'] = f'Polling error: {str(e)}'
+        return wave
+
+def query_drs_job_status(job_id: str) -> Dict[str, Any]:
+    """
+    Query DRS API for job status.
+    
+    Args:
+        job_id: DRS job ID
+        
+    Returns:
+        Job status information
+    """
+    try:
+        response = drs.describe_jobs(
+            filters={
+                'jobIDs': [job_id]
+            }
+        )
+        
+        if not response.get('items'):
+            logger.warning(f"No job found for ID {job_id}")
+            return {'Status': 'UNKNOWN', 'StatusMessage': 'Job not found'}
+        
+        job = response['items'][0]
+        
+        return {
+            'Status': job.get('status', 'UNKNOWN'),
+            'StatusMessage': job.get('statusMessage', ''),
+            'ParticipatingServers': job.get('participatingServers', []),
+            'PostLaunchActionsStatus': job.get('postLaunchActionsStatus', 'NOT_STARTED')
+        }
+        
+    except Exception as e:
+        logger.error(f"Error querying DRS job {job_id}: {str(e)}", exc_info=True)
+        raise
+
+def update_execution_waves(execution_id: str, plan_id: str, waves: List[Dict[str, Any]]) -> None:
+    """
+    Update execution waves in DynamoDB.
+    
+    Args:
+        execution_id: Execution ID
+        plan_id: Plan ID
+        waves: Updated wave records
+    """
+    try:
+        dynamodb.update_item(
+            TableName=EXECUTION_HISTORY_TABLE,
+            Key={
+                'ExecutionId': {'S': execution_id},
+                'PlanId': {'S': plan_id}
+            },
+            UpdateExpression='SET Waves = :waves',
+            ExpressionAttributeValues={
+                ':waves': {'L': [format_wave_for_dynamodb(w) for w in waves]}
+            }
+        )
+        
+        logger.info(f"Updated {len(waves)} waves for execution {execution_id}")
+        
+    except Exception as e:
+        logger.error(f"Error updating execution waves: {str(e)}", exc_info=True)
+        raise
+
+def update_last_polled_time(execution_id: str, plan_id: str) -> None:
+    """
+    Update LastPolledTime for adaptive polling intervals.
+    
+    Args:
+        execution_id: Execution ID
+        plan_id: Plan ID
+    """
+    try:
+        current_time = int(datetime.now(timezone.utc).timestamp())
+        
+        dynamodb.update_item(
+            TableName=EXECUTION_HISTORY_TABLE,
+            Key={
+                'ExecutionId': {'S': execution_id},
+                'PlanId': {'S': plan_id}
+            },
+            UpdateExpression='SET LastPolledTime = :time',
+            ExpressionAttributeValues={
+                ':time': {'N': str(current_time)}
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error updating last polled time: {str(e)}", exc_info=True)
+        # Non-critical error, don't raise
+
+def finalize_execution(execution_id: str, plan_id: str, waves: List[Dict[str, Any]]) -> None:
+    """
+    Mark execution as complete.
+    
+    Determines overall execution status based on wave statuses.
+    Updates Status, EndTime, and removes from POLLING.
+    
+    Args:
+        execution_id: Execution ID
+        plan_id: Plan ID
+        waves: Final wave records
+    """
+    try:
+        # Determine overall status
+        if all(w.get('Status') == 'COMPLETED' for w in waves):
+            final_status = 'COMPLETED'
+        elif any(w.get('Status') == 'FAILED' for w in waves):
+            final_status = 'FAILED'
+        else:
+            final_status = 'COMPLETED_WITH_WARNINGS'
+        
+        end_time = int(datetime.now(timezone.utc).timestamp())
+        
+        # Update execution with final status
+        dynamodb.update_item(
+            TableName=EXECUTION_HISTORY_TABLE,
+            Key={
+                'ExecutionId': {'S': execution_id},
+                'PlanId': {'S': plan_id}
+            },
+            UpdateExpression='SET #status = :status, EndTime = :end_time, Waves = :waves',
+            ExpressionAttributeNames={
+                '#status': 'Status'
+            },
+            ExpressionAttributeValues={
+                ':status': {'S': final_status},
+                ':end_time': {'N': str(end_time)},
+                ':waves': {'L': [format_wave_for_dynamodb(w) for w in waves]}
+            }
+        )
+        
+        logger.info(f"Execution {execution_id} finalized with status {final_status}")
+        
+    except Exception as e:
+        logger.error(f"Error finalizing execution: {str(e)}", exc_info=True)
+        raise
+
+def record_poller_metrics(execution_id: str, execution_type: str, waves: List[Dict[str, Any]]) -> None:
+    """
+    Record custom CloudWatch metrics for monitoring.
+    
+    Args:
+        execution_id: Execution ID
+        execution_type: DRILL or RECOVERY
+        waves: Wave records
+    """
+    try:
+        # Count servers by status
+        server_statuses = {}
+        for wave in waves:
+            for server in wave.get('Servers', []):
+                status = server.get('Status', 'UNKNOWN')
+                server_statuses[status] = server_statuses.get(status, 0) + 1
+        
+        # Put metrics
+        cloudwatch.put_metric_data(
+            Namespace='AWS-DRS-Orchestration',
+            MetricData=[
+                {
+                    'MetricName': 'ActivePollingExecutions',
+                    'Value': 1,
+                    'Unit': 'Count',
+                    'Dimensions': [
+                        {'Name': 'ExecutionType', 'Value': execution_type}
+                    ]
+                },
+                {
+                    'MetricName': 'WavesPolled',
+                    'Value': len(waves),
+                    'Unit': 'Count',
+                    'Dimensions': [
+                        {'Name': 'ExecutionId', 'Value': execution_id}
+                    ]
+                }
+            ]
+        )
+        
+    except Exception as e:
+        logger.error(f"Error recording metrics: {str(e)}", exc_info=True)
+        # Non-critical error, don't raise
+
+def format_wave_for_dynamodb(wave: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Format wave record for DynamoDB.
+    
+    Args:
+        wave: Wave record
+        
+    Returns:
+        DynamoDB formatted wave
+    """
+    formatted = {'M': {}}
+    
+    for key, value in wave.items():
+        if isinstance(value, str):
+            formatted['M'][key] = {'S': value}
+        elif isinstance(value, (int, float)):
+            formatted['M'][key] = {'N': str(value)}
+        elif isinstance(value, bool):
+            formatted['M'][key] = {'BOOL': value}
+        elif isinstance(value, list):
+            formatted['M'][key] = {'L': [format_value_for_dynamodb(v) for v in value]}
+        elif isinstance(value, dict):
+            formatted['M'][key] = format_wave_for_dynamodb(value)
+    
+    return formatted
+
+def format_value_for_dynamodb(value: Any) -> Dict[str, Any]:
+    """Format a value for DynamoDB."""
+    if isinstance(value, str):
+        return {'S': value}
+    elif isinstance(value, (int, float)):
+        return {'N': str(value)}
+    elif isinstance(value, bool):
+        return {'BOOL': value}
+    elif isinstance(value, dict):
+        return format_wave_for_dynamodb(value)
+    elif isinstance(value, list):
+        return {'L': [format_value_for_dynamodb(v) for v in value]}
+    else:
+        return {'S': str(value)}
