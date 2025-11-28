@@ -313,8 +313,8 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
         # Query DRS for job status
         job_status = query_drs_job_status(job_id)
         
-        # Update wave with DRS job status
-        wave['Status'] = job_status.get('Status', wave.get('Status', 'UNKNOWN'))
+        # Get DRS job status and message
+        drs_status = job_status.get('Status', 'UNKNOWN')
         wave['StatusMessage'] = job_status.get('StatusMessage', '')
         
         # Update server statuses if available
@@ -329,18 +329,51 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
                 })
             wave['Servers'] = updated_servers
         
-        # Check completion based on execution type
+        # Determine wave status based on server launch results
+        servers = wave.get('Servers', [])
+        
         if execution_type == 'DRILL':
-            # DRILL complete when all servers LAUNCHED
-            if all(s.get('Status') == 'LAUNCHED' for s in wave.get('Servers', [])):
-                wave['Status'] = 'COMPLETED'
+            if servers:
+                # Check if ALL servers launched successfully
+                all_launched = all(s.get('Status') == 'LAUNCHED' for s in servers)
+                # Check if ANY servers failed to launch
+                any_failed = any(s.get('Status') in ['LAUNCH_FAILED', 'FAILED', 'TERMINATED'] for s in servers)
+                
+                if all_launched:
+                    wave['Status'] = 'COMPLETED'
+                    logger.info(f"Wave {wave.get('WaveId')} completed - all servers LAUNCHED")
+                elif any_failed:
+                    wave['Status'] = 'FAILED'
+                    failed_servers = [s.get('SourceServerID') for s in servers 
+                                     if s.get('Status') in ['LAUNCH_FAILED', 'FAILED', 'TERMINATED']]
+                    logger.warning(f"Wave {wave.get('WaveId')} failed - servers {failed_servers} failed to launch")
+                elif drs_status in ['PENDING', 'STARTED']:
+                    wave['Status'] = 'LAUNCHING'
+                else:
+                    # Fallback to DRS status if no clear success/failure
+                    wave['Status'] = drs_status
+            else:
+                # No servers yet, use DRS job status
+                wave['Status'] = drs_status
         else:  # RECOVERY
             # RECOVERY complete when all servers LAUNCHED + post-launch complete
-            servers_launched = all(s.get('Status') == 'LAUNCHED' for s in wave.get('Servers', []))
-            post_launch_complete = job_status.get('PostLaunchActionsStatus') == 'COMPLETED'
-            
-            if servers_launched and post_launch_complete:
-                wave['Status'] = 'COMPLETED'
+            if servers:
+                all_launched = all(s.get('Status') == 'LAUNCHED' for s in servers)
+                any_failed = any(s.get('Status') in ['LAUNCH_FAILED', 'FAILED', 'TERMINATED'] for s in servers)
+                post_launch_complete = job_status.get('PostLaunchActionsStatus') == 'COMPLETED'
+                
+                if all_launched and post_launch_complete:
+                    wave['Status'] = 'COMPLETED'
+                    logger.info(f"Wave {wave.get('WaveId')} recovery completed")
+                elif any_failed:
+                    wave['Status'] = 'FAILED'
+                    logger.warning(f"Wave {wave.get('WaveId')} recovery failed")
+                elif drs_status in ['PENDING', 'STARTED']:
+                    wave['Status'] = 'LAUNCHING'
+                else:
+                    wave['Status'] = drs_status
+            else:
+                wave['Status'] = drs_status
         
         return wave
         
