@@ -166,17 +166,37 @@ export const ExecutionsPage: React.FC = () => {
 
   // Calculate duration
   const calculateDuration = (execution: ExecutionListItem): string => {
+    // Handle missing or invalid start time
+    if (!execution.startTime) {
+      return '-';
+    }
+    
     const start = new Date(execution.startTime);
+    
+    // Validate start time
+    if (isNaN(start.getTime())) {
+      return '-';
+    }
+    
     const end = execution.endTime ? new Date(execution.endTime) : new Date();
     const durationMs = end.getTime() - start.getTime();
     
+    // Handle negative duration (invalid data)
+    if (durationMs < 0) {
+      return '-';
+    }
+    
     const hours = Math.floor(durationMs / (1000 * 60 * 60));
     const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);
     
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
     }
-    return `${minutes}m`;
   };
 
   // DataGrid columns configuration for History tab
@@ -199,21 +219,24 @@ export const ExecutionsPage: React.FC = () => {
       headerName: 'Waves',
       width: 100,
       sortable: true,
-      renderCell: (params) => `${params.value} waves`,
+      renderCell: (params) => {
+        const waves = params.value || 0;
+        return waves > 0 ? `${waves} waves` : '-';
+      },
     },
     {
       field: 'startTime',
       headerName: 'Started',
       width: 180,
       sortable: true,
-      renderCell: (params) => <DateTimeDisplay value={params.value} format="relative" />,
+      renderCell: (params) => <DateTimeDisplay value={params.value} format="full" />,
     },
     {
       field: 'endTime',
       headerName: 'Completed',
       width: 180,
       sortable: true,
-      renderCell: (params) => params.value ? <DateTimeDisplay value={params.value} format="relative" /> : '-',
+      renderCell: (params) => params.value ? <DateTimeDisplay value={params.value} format="full" /> : '-',
     },
     {
       field: 'duration',
@@ -376,7 +399,7 @@ export const ExecutionsPage: React.FC = () => {
                           </Typography>
                         )}
                         
-                        <DateTimeDisplay value={execution.startTime} format="relative" />
+                        <DateTimeDisplay value={execution.startTime} format="full" />
                         
                         <Typography variant="body2" color="text.secondary">
                           Duration: {calculateDuration(execution)}
