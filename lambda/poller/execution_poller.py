@@ -317,16 +317,41 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
         drs_status = job_status.get('Status', 'UNKNOWN')
         wave['StatusMessage'] = job_status.get('StatusMessage', '')
         
-        # Update server statuses if available
+        # Update server statuses from DRS participating servers
         if 'ParticipatingServers' in job_status:
+            wave_region = wave.get('Region', 'us-east-1')
             updated_servers = []
-            for server in job_status['ParticipatingServers']:
-                updated_servers.append({
-                    'SourceServerID': server.get('SourceServerID'),
-                    'Status': server.get('LaunchStatus', 'UNKNOWN'),
-                    'HostName': server.get('HostName', ''),
-                    'LaunchTime': server.get('LaunchTime', 0)
-                })
+            
+            for drs_server in job_status['ParticipatingServers']:
+                server_data = {
+                    'SourceServerId': drs_server.get('sourceServerID', ''),
+                    'Status': drs_server.get('launchStatus', 'UNKNOWN'),
+                    'HostName': '',
+                    'LaunchTime': 0,
+                    'InstanceId': '',
+                    'PrivateIpAddress': ''
+                }
+                
+                # Set LaunchTime when server starts launching
+                if server_data['Status'] in ['PENDING', 'IN_PROGRESS', 'LAUNCHED']:
+                    server_data['LaunchTime'] = int(datetime.now(timezone.utc).timestamp())
+                
+                # Get EC2 instance details if recoveryInstanceID exists
+                recovery_instance_id = drs_server.get('recoveryInstanceID')
+                if recovery_instance_id:
+                    server_data['InstanceId'] = recovery_instance_id
+                    
+                    # Enrich with EC2 data
+                    try:
+                        ec2_data = get_ec2_instance_details(recovery_instance_id, wave_region)
+                        if ec2_data:
+                            server_data['HostName'] = ec2_data.get('HostName', '')
+                            server_data['PrivateIpAddress'] = ec2_data.get('PrivateIpAddress', '')
+                    except Exception as e:
+                        logger.warning(f"Could not fetch EC2 details for {recovery_instance_id}: {str(e)}")
+                
+                updated_servers.append(server_data)
+            
             wave['Servers'] = updated_servers
         
         # Determine wave status based on server launch results
@@ -416,6 +441,45 @@ def query_drs_job_status(job_id: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error querying DRS job {job_id}: {str(e)}", exc_info=True)
         raise
+
+def get_ec2_instance_details(instance_id: str, region: str) -> Optional[Dict[str, Any]]:
+    """
+    Get EC2 instance details to enrich server data.
+    
+    Args:
+        instance_id: EC2 instance ID
+        region: AWS region
+        
+    Returns:
+        Dict with HostName and PrivateIpAddress or None
+    """
+    try:
+        ec2 = boto3.client('ec2', region_name=region)
+        
+        response = ec2.describe_instances(InstanceIds=[instance_id])
+        
+        if not response.get('Reservations'):
+            logger.warning(f"No instance found for {instance_id}")
+            return None
+        
+        instance = response['Reservations'][0]['Instances'][0]
+        
+        # Try to get hostname from Name tag
+        tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+        hostname = tags.get('Name', '')
+        
+        # Fallback to private DNS name if no Name tag
+        if not hostname:
+            hostname = instance.get('PrivateDnsName', '')
+        
+        return {
+            'HostName': hostname,
+            'PrivateIpAddress': instance.get('PrivateIpAddress', '')
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting EC2 details for {instance_id}: {str(e)}", exc_info=True)
+        return None
 
 def update_execution_waves(execution_id: str, plan_id: str, waves: List[Dict[str, Any]]) -> None:
     """
