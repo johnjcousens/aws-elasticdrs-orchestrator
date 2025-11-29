@@ -1,7 +1,9 @@
 # Test Scenario 1.1 - UI Display Bugs Discovered
 
 **Date**: November 28, 2025, 4:52 PM EST  
-**Screenshot**: test-screenshots/08-ui-display-bugs-discovered.png
+**Update**: November 28, 2025, 8:10 PM EST - Deferred to next session  
+**Screenshot**: test-screenshots/08-ui-display-bugs-discovered.png  
+**Status**: 📋 **DOCUMENTED - DEFERRED** (Non-critical display issues)
 
 ## UI Bugs Found
 
