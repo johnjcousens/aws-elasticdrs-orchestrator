@@ -970,6 +970,65 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         }
 
 
+def get_server_launch_configurations(region: str, server_ids: List[str]) -> Dict[str, Dict]:
+    """
+    Fetch launch configurations for all servers in wave from DRS
+    
+    Args:
+        region: AWS region
+        server_ids: List of DRS source server IDs
+    
+    Returns:
+        Dictionary mapping server_id to launch configuration
+        
+    Example:
+        {
+            's-111': {
+                'targetInstanceTypeRightSizingMethod': 'BASIC',
+                'copyPrivateIp': False,
+                'copyTags': True
+            },
+            's-222': {
+                'targetInstanceTypeRightSizingMethod': 'NONE',
+                'copyPrivateIp': True,
+                'copyTags': True
+            }
+        }
+    """
+    drs_client = boto3.client('drs', region_name=region)
+    configs = {}
+    
+    for server_id in server_ids:
+        try:
+            response = drs_client.get_launch_configuration(
+                sourceServerID=server_id
+            )
+            
+            configs[server_id] = {
+                'targetInstanceTypeRightSizingMethod': response.get('targetInstanceTypeRightSizingMethod', 'BASIC'),
+                'copyPrivateIp': response.get('copyPrivateIp', False),
+                'copyTags': response.get('copyTags', True),
+                'launchDisposition': response.get('launchDisposition', 'STARTED'),
+                'bootMode': response.get('bootMode', 'USE_DEFAULT')
+            }
+            
+            print(f"[Launch Config] {server_id}: rightSizing={configs[server_id]['targetInstanceTypeRightSizingMethod']}")
+            
+        except Exception as e:
+            print(f"[Launch Config] ERROR for {server_id}: {str(e)}")
+            # FALLBACK: Use safe defaults if config query fails
+            configs[server_id] = {
+                'targetInstanceTypeRightSizingMethod': 'BASIC',
+                'copyPrivateIp': False,
+                'copyTags': True,
+                'launchDisposition': 'STARTED',
+                'bootMode': 'USE_DEFAULT'
+            }
+            print(f"[Launch Config] {server_id}: Using fallback defaults")
+    
+    return configs
+
+
 def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bool, execution_id: str, execution_type: str = 'DRILL') -> Dict:
     """
     Launch DRS recovery for all servers in a wave with ONE API call
@@ -1015,16 +1074,40 @@ def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bo
         print(f"[DRS API] Region: {region}, Servers: {len(server_ids)}")
         print(f"[DRS API] Server IDs: {server_ids}")
         
-        # Build sourceServers array for DRS API
-        source_servers = [{'sourceServerID': sid} for sid in server_ids]
+        # STEP 1: Fetch per-server launch configurations from DRS
+        print(f"[DRS API] Fetching launch configurations for {len(server_ids)} servers...")
+        launch_configs = get_server_launch_configurations(region, server_ids)
         
-        # CRITICAL: Start recovery for ALL servers in ONE API call
+        # STEP 2: Build sourceServers array with per-server configurations
+        source_servers = []
+        for server_id in server_ids:
+            config = launch_configs[server_id]
+            
+            source_servers.append({
+                'sourceServerID': server_id,
+                'recoveryInstanceProperties': {
+                    'targetInstanceTypeRightSizingMethod': config['targetInstanceTypeRightSizingMethod']
+                }
+            })
+            print(f"[DRS API]   {server_id}: rightSizing={config['targetInstanceTypeRightSizingMethod']}")
+        
+        # STEP 3: Build tags for job tracking
+        job_tags = {
+            'ExecutionId': execution_id,
+            'ExecutionType': execution_type,
+            'ManagedBy': 'DRS-Orchestration',
+            'ServerCount': str(len(server_ids))
+        }
+        
+        # STEP 4: Start recovery for ALL servers in ONE API call
         # This pattern matches DRS API design and what ExecutionPoller expects
-        print(f"[DRS API] Calling start_recovery() for {len(source_servers)} servers...")
+        print(f"[DRS API] Calling start_recovery() with per-server configurations...")
+        print(f"[DRS API]   Tags: {job_tags}")
         
         response = drs_client.start_recovery(
             sourceServers=source_servers,
-            isDrill=is_drill
+            isDrill=is_drill,
+            tags=job_tags
         )
         
         # Validate response structure (defensive programming)
@@ -2003,16 +2086,22 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         
         status_upper = status.upper()
         
-        # Map status for frontend display
+        # Map status for frontend display - PRESERVES DRS TERMINOLOGY
         status_mapping = {
+            # Orchestration states
             'PENDING': 'pending',
-            'POLLING': 'polling',  # BUG FIX: Add explicit POLLING mapping
-            'INITIATED': 'in_progress',  # BUG FIX: Map INITIATED to in_progress
-            'LAUNCHING': 'in_progress',  # BUG FIX: Add LAUNCHING state
+            'POLLING': 'polling',
+            'INITIATED': 'initiated',  # FIXED: Preserve DRS status name
+            'LAUNCHING': 'launching',  # FIXED: Preserve DRS status name
+            
+            # DRS job states
+            'STARTED': 'started',  # NEW: DRS job active status
             'IN_PROGRESS': 'in_progress',
-            'RUNNING': 'in_progress',
+            'RUNNING': 'running',
+            
+            # Terminal states
             'COMPLETED': 'completed',
-            'PARTIAL': 'failed',  # CRITICAL FIX: PARTIAL means some servers failed
+            'PARTIAL': 'partial',  # Some servers failed
             'FAILED': 'failed',
             'CANCELLED': 'cancelled',
             'PAUSED': 'paused'
