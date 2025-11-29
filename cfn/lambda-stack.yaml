@@ -98,6 +98,7 @@ Resources:
                   - drs:DescribeSourceServers
                   - drs:DescribeReplicationConfigurationTemplates
                   - drs:GetReplicationConfiguration
+                  - drs:GetLaunchConfiguration
                   - drs:StartRecovery
                   - drs:DescribeJobs
                   - drs:DescribeRecoverySnapshots
