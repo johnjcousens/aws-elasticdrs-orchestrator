@@ -1078,18 +1078,16 @@ def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bo
         print(f"[DRS API] Fetching launch configurations for {len(server_ids)} servers...")
         launch_configs = get_server_launch_configurations(region, server_ids)
         
-        # STEP 2: Build sourceServers array with per-server configurations
+        # STEP 2: Build sourceServers array (minimal parameters only)
+        # DRS automatically applies pre-configured launch settings per server
+        # No need to pass launch configurations at recovery time
         source_servers = []
         for server_id in server_ids:
-            config = launch_configs[server_id]
-            
             source_servers.append({
-                'sourceServerID': server_id,
-                'recoveryInstanceProperties': {
-                    'targetInstanceTypeRightSizingMethod': config['targetInstanceTypeRightSizingMethod']
-                }
+                'sourceServerID': server_id
+                # DRS will use stored launch configuration automatically
             })
-            print(f"[DRS API]   {server_id}: rightSizing={config['targetInstanceTypeRightSizingMethod']}")
+            print(f"[DRS API]   {server_id}: Will use pre-configured DRS launch settings")
         
         # STEP 3: Build tags for job tracking
         job_tags = {
