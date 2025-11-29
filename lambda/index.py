@@ -1082,23 +1082,16 @@ def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bo
         source_servers = [{'sourceServerID': sid} for sid in server_ids]
         print(f"[DRS API] Built sourceServers array for {len(server_ids)} servers")
 
-        # STEP 3: Build tags for job tracking
-        job_tags = {
-            'ExecutionId': execution_id,
-            'ExecutionType': execution_type,
-            'ManagedBy': 'DRS-Orchestration',
-            'ServerCount': str(len(server_ids))
-        }
-        
-        # STEP 4: Start recovery for ALL servers in ONE API call
-        # This pattern matches DRS API design and what ExecutionPoller expects
-        print(f"[DRS API] Calling start_recovery() with per-server configurations...")
-        print(f"[DRS API]   Tags: {job_tags}")
+        # STEP 3: Start recovery for ALL servers in ONE API call
+        # CRITICAL FIX: Do NOT pass tags parameter - causes launch failures
+        # DRS API only accepts: sourceServers, isDrill, (optional) recoverySnapshotID
+        print(f"[DRS API] Calling start_recovery() WITHOUT tags...")
+        print(f"[DRS API]   sourceServers: {len(source_servers)} servers")
+        print(f"[DRS API]   isDrill: {is_drill}")
         
         response = drs_client.start_recovery(
             sourceServers=source_servers,
-            isDrill=is_drill,
-            tags=job_tags
+            isDrill=is_drill
         )
         
         # Validate response structure (defensive programming)
