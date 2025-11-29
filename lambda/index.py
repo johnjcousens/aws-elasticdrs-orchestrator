@@ -1078,16 +1078,41 @@ def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bo
         print(f"[DRS API] Fetching launch configurations for {len(server_ids)} servers...")
         launch_configs = get_server_launch_configurations(region, server_ids)
         
-        # STEP 2: Build sourceServers array (minimal parameters only)
-        # DRS automatically applies pre-configured launch settings per server
-        # No need to pass launch configurations at recovery time
+        # STEP 2: Build sourceServers array WITH recovery snapshots
+        # CRITICAL FIX (Bug 9): Must include recoverySnapshotID for successful launch
         source_servers = []
         for server_id in server_ids:
-            source_servers.append({
-                'sourceServerID': server_id
-                # DRS will use stored launch configuration automatically
-            })
-            print(f"[DRS API]   {server_id}: Will use pre-configured DRS launch settings")
+            try:
+                # Get recovery snapshots for this server
+                snapshots_response = drs_client.describe_recovery_snapshots(
+                    sourceServerID=server_id
+                )
+                
+                # Sort by timestamp (most recent first)
+                snapshots = sorted(
+                    snapshots_response.get('items', []),
+                    key=lambda x: x['timestamp'],
+                    reverse=True
+                )
+                
+                # Build source server config
+                server_config = {'sourceServerID': server_id}
+                
+                if snapshots:
+                    # Use most recent snapshot
+                    snapshot_id = snapshots[0]['snapshotID']
+                    server_config['recoverySnapshotID'] = snapshot_id
+                    print(f"[DRS API]   {server_id}: Using snapshot {snapshot_id}")
+                else:
+                    # No snapshots - DRS will create on-demand snapshot
+                    print(f"[DRS API]   {server_id}: No snapshots found, using latest data")
+                
+                source_servers.append(server_config)
+                
+            except Exception as e:
+                print(f"[DRS API]   ERROR getting snapshots for {server_id}: {str(e)}")
+                # Fallback: add server without snapshot (may fail at launch)
+                source_servers.append({'sourceServerID': server_id})
         
         # STEP 3: Build tags for job tracking
         job_tags = {
