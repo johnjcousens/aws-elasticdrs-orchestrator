@@ -815,11 +815,11 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         wave_results = []
         waves_list = plan.get('Waves', [])
         print(f"DEBUG: Processing {len(waves_list)} waves from plan")
-        
+
         for wave_index, wave in enumerate(waves_list):
             wave_number = wave_index + 1
             print(f"DEBUG: Wave {wave_number} raw data: {wave}")
-            
+
             # Support both PascalCase and camelCase for backward compatibility
             wave_name = wave.get('WaveName') or wave.get('name', f'Wave {wave_number}')
             pg_id = wave.get('ProtectionGroupId') or wave.get('protectionGroupId')
@@ -830,8 +830,41 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
                 print(f"Wave {wave_number} has no Protection Group, skipping")
                 continue
 
+            # Check wave dependencies before initiating
+            dependencies = wave.get('Dependencies', [])
+            if dependencies:
+                print(f"Wave {wave_number} has {len(dependencies)} dependencies: {dependencies}")
+                
+                # Check if all dependencies are COMPLETED
+                dependencies_met = True
+                for dep_wave_num in dependencies:
+                    # Find dependency wave in results (1-indexed to 0-indexed)
+                    dep_index = dep_wave_num - 1
+                    if dep_index < len(wave_results):
+                        dep_status = wave_results[dep_index].get('Status', '')
+                        if dep_status != 'COMPLETED':
+                            print(f"Dependency Wave {dep_wave_num} not COMPLETED (status: {dep_status}), skipping Wave {wave_number}")
+                            dependencies_met = False
+                            break
+                    else:
+                        print(f"Dependency Wave {dep_wave_num} not yet initiated, skipping Wave {wave_number}")
+                        dependencies_met = False
+                        break
+                
+                if not dependencies_met:
+                    # Add placeholder for wave (will be initiated later when dependencies complete)
+                    wave_results.append({
+                        'WaveName': wave_name,
+                        'WaveId': wave.get('WaveId') or wave_number,
+                        'Status': 'PENDING',
+                        'StatusMessage': f'Waiting for dependencies: {dependencies}',
+                        'Servers': [],
+                        'Dependencies': dependencies
+                    })
+                    continue
+
             print(f"Initiating Wave {wave_number}: {wave_name}")
-            
+
             # Initiate wave and get job IDs (no waiting)
             wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
             wave_results.append(wave_result)
