@@ -30,6 +30,11 @@ export const DateTimeDisplay: React.FC<DateTimeDisplayProps> = ({
   ...props
 }) => {
   const formatDateTime = (value: string | number | Date): string => {
+    // Handle null, undefined, or epoch 0 (uninitialized timestamp)
+    if (!value || value === 0 || value === '0') {
+      return '-';
+    }
+    
     // Convert Unix timestamp (seconds) to milliseconds
     // API returns timestamps in seconds, but JavaScript Date expects milliseconds
     let dateValue = value;
