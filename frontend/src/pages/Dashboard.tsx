@@ -139,11 +139,11 @@ export const Dashboard: React.FC = () => {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <PlayArrowIcon sx={{ fontSize: { xs: 32, sm: 40 }, color: 'primary.main', mr: 2 }} />
                 <Typography variant="h5" component="div">
-                  Executions
+                  History
                 </Typography>
               </Box>
               <Typography variant="body2" color="text.secondary" paragraph>
-                Monitor and manage active and historical recovery executions.
+                View active recoveries and historical execution records.
               </Typography>
               <Button
                 variant="outlined"
