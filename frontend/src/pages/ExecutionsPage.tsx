@@ -128,22 +128,31 @@ export const ExecutionsPage: React.FC = () => {
   };
 
   // Filter executions by active/history
-  // Active: PENDING, POLLING, LAUNCHING, or any status that's not complete/failed
+  // Active: All in-progress states (orchestration + DRS job states)
   const activeExecutions = executions.filter(
     e => {
       const status = e.status.toUpperCase();
+      // Orchestration states
       return status === 'PENDING' || status === 'POLLING' || 
-             status === 'LAUNCHING' || status === 'IN_PROGRESS' || 
+             status === 'INITIATED' ||  // FIXED: Added DRS state
+             status === 'LAUNCHING' ||   // FIXED: Added DRS state
+             // DRS job states
+             status === 'STARTED' ||     // FIXED: Added DRS job state
+             status === 'IN_PROGRESS' || 
+             status === 'RUNNING' ||     // Added for completeness
              status === 'PAUSED';
     }
   );
   
-  // History: COMPLETED, FAILED, CANCELLED, ROLLED_BACK
+  // History: Terminal states (completed, failed, etc.)
   const historyExecutions = executions.filter(
     e => {
       const status = e.status.toUpperCase();
-      return status === 'COMPLETED' || status === 'FAILED' || 
-             status === 'CANCELLED' || status === 'ROLLED_BACK';
+      return status === 'COMPLETED' || 
+             status === 'PARTIAL' ||     // FIXED: Added partial failure state
+             status === 'FAILED' || 
+             status === 'CANCELLED' || 
+             status === 'ROLLED_BACK';
     }
   );
 
