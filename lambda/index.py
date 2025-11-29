@@ -703,6 +703,9 @@ def handle_executions(method: str, path_params: Dict, query_params: Dict, body: 
     elif method == 'GET':
         # List all executions with optional pagination
         return list_executions(query_params)
+    elif method == 'DELETE' and not execution_id:
+        # Delete completed executions only (bulk operation)
+        return delete_completed_executions()
     else:
         return response(405, {'error': 'Method Not Allowed'})
 
@@ -1546,6 +1549,100 @@ def resume_execution(execution_id: str) -> Dict:
     except Exception as e:
         print(f"Error resuming execution: {str(e)}")
         return response(500, {'error': str(e)})
+
+
+def delete_completed_executions() -> Dict:
+    """
+    Delete all completed executions (terminal states only)
+    
+    Safe operation that only removes:
+    - COMPLETED executions
+    - PARTIAL executions (some servers failed)
+    - FAILED executions
+    - CANCELLED executions
+    
+    Active executions (PENDING, POLLING, INITIATED, LAUNCHING, IN_PROGRESS, RUNNING) are preserved.
+    """
+    try:
+        print("Starting bulk delete of completed executions")
+        
+        # Define terminal states that are safe to delete
+        terminal_states = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED']
+        
+        # Scan for all executions
+        scan_result = execution_history_table.scan()
+        all_executions = scan_result.get('Items', [])
+        
+        # Handle pagination if there are more results
+        while 'LastEvaluatedKey' in scan_result:
+            scan_result = execution_history_table.scan(
+                ExclusiveStartKey=scan_result['LastEvaluatedKey']
+            )
+            all_executions.extend(scan_result.get('Items', []))
+        
+        print(f"Found {len(all_executions)} total executions")
+        
+        # Filter to only completed executions
+        completed_executions = [
+            ex for ex in all_executions 
+            if ex.get('Status', '').upper() in terminal_states
+        ]
+        
+        print(f"Found {len(completed_executions)} completed executions to delete")
+        
+        # Delete completed executions (DynamoDB requires ExecutionId + PlanId for delete)
+        deleted_count = 0
+        failed_deletes = []
+        
+        for execution in completed_executions:
+            execution_id = execution.get('ExecutionId')
+            plan_id = execution.get('PlanId')
+            
+            if not execution_id or not plan_id:
+                print(f"Skipping execution with missing keys: {execution}")
+                continue
+            
+            try:
+                execution_history_table.delete_item(
+                    Key={
+                        'ExecutionId': execution_id,
+                        'PlanId': plan_id
+                    }
+                )
+                deleted_count += 1
+                print(f"Deleted execution: {execution_id}")
+            except Exception as delete_error:
+                error_msg = str(delete_error)
+                print(f"Failed to delete execution {execution_id}: {error_msg}")
+                failed_deletes.append({
+                    'executionId': execution_id,
+                    'error': error_msg
+                })
+        
+        # Build response
+        result = {
+            'message': 'Completed executions cleared successfully',
+            'deletedCount': deleted_count,
+            'totalScanned': len(all_executions),
+            'completedFound': len(completed_executions),
+            'activePreserved': len(all_executions) - len(completed_executions)
+        }
+        
+        if failed_deletes:
+            result['failedDeletes'] = failed_deletes
+            result['warning'] = f'{len(failed_deletes)} execution(s) failed to delete'
+        
+        print(f"Bulk delete completed: {deleted_count} deleted, {len(failed_deletes)} failed")
+        return response(200, result)
+        
+    except Exception as e:
+        print(f"Error deleting completed executions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'DELETE_FAILED',
+            'message': f'Failed to delete completed executions: {str(e)}'
+        })
 
 
 # ============================================================================

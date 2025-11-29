@@ -50,7 +50,7 @@ const navigationItems: NavItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Protection Groups', icon: <SecurityIcon />, path: '/protection-groups' },
   { text: 'Recovery Plans', icon: <MapIcon />, path: '/recovery-plans' },
-  { text: 'Executions', icon: <PlayArrowIcon />, path: '/executions' },
+  { text: 'History', icon: <PlayArrowIcon />, path: '/executions' },
 ];
 
 /**
