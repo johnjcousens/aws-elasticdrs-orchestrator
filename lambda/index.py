@@ -2006,7 +2006,10 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         # Map status for frontend display
         status_mapping = {
             'PENDING': 'pending',
-            'IN_PROGRESS': 'in_progress', 
+            'POLLING': 'polling',  # BUG FIX: Add explicit POLLING mapping
+            'INITIATED': 'in_progress',  # BUG FIX: Map INITIATED to in_progress
+            'LAUNCHING': 'in_progress',  # BUG FIX: Add LAUNCHING state
+            'IN_PROGRESS': 'in_progress',
             'RUNNING': 'in_progress',
             'COMPLETED': 'completed',
             'PARTIAL': 'failed',  # CRITICAL FIX: PARTIAL means some servers failed
@@ -2014,7 +2017,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
             'CANCELLED': 'cancelled',
             'PAUSED': 'paused'
         }
-        
+
         return status_mapping.get(status_upper, status.lower())
     
     # Transform waves array to camelCase
