@@ -1,67 +1,130 @@
-# Temporary files
-.cfn_upload_manifest.json
-*.backup
+# =============================================================================
+# AWS DRS Orchestration - CRITICAL FILES ONLY
+# =============================================================================
 
-# macOS files
-tests/.DS_Store
-lambda/.DS_Store
-frontend/.DS_Store
-.DS_Store
+# -------------------------
+# EXCLUDE EVERYTHING BY DEFAULT
+# -------------------------
+*
 
-# Exclude conversation exports with potential secrets
-.cline_memory/
+# -------------------------
+# INCLUDE ONLY CRITICAL PROJECT FILES
+# -------------------------
 
-# Screenshots and test files
-*.png
-test-*.html
-test-results/
-playwright-report/
+# Root configuration
+!.gitignore
+!README.md
+!LICENSE
+!Makefile
+!package.json
+!requirements.txt
+!.cfnlintrc.yaml
 
-# Q developer cache
-.amazonq/
+# CloudFormation templates (ESSENTIAL)
+!cfn/
+!cfn/**
 
-# Kiro IDE
-.kiro/
-
-# Lambda build artifacts
-*.zip
+# Lambda source code (ESSENTIAL)
+!lambda/
+!lambda/index.py
+!lambda/poller/
+!lambda/poller/**
+# Exclude Lambda build artifacts
 lambda/*.zip
 lambda/__pycache__/
 lambda/package/
 
-# Python artifacts
+# Frontend source (ESSENTIAL)
+!frontend/
+!frontend/src/
+!frontend/src/**
+!frontend/public/
+!frontend/public/**
+!frontend/package.json
+!frontend/tsconfig.json
+!frontend/vite.config.ts
+!frontend/index.html
+# Exclude frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# Scripts (ESSENTIAL)
+!scripts/
+!scripts/*.sh
+!scripts/*.py
+
+# Core documentation (CURRENT ONLY)
+!docs/
+!docs/CORE/
+!docs/CORE/**
+!docs/requirements/
+!docs/requirements/**
+!docs/architecture/
+!docs/architecture/**
+!docs/guides/
+!docs/guides/**
+!docs/competitive-analysis/
+!docs/competitive-analysis/**
+!docs/presentations/
+!docs/presentations/**
+
+# Essential root docs
+!docs/PROJECT_STATUS.md
+!docs/MASTER_IMPLEMENTATION_ROADMAP.md
+!docs/MVP_COMPLETION_PLAN.md
+!docs/LAMBDA_DEPLOYMENT_GUIDE.md
+!docs/AWS_DRS_ORCHESTRATION_TCO_ANALYSIS_FIXED.md
+!docs/CLOUDFORMATION_QUALITY_FIX_PLAN.md
+!docs/STEP_FUNCTIONS_DESIGN_PLAN.md
+!docs/JOB_LOG_EVENT_TRACKING_ROADMAP.md
+!docs/DRS_EXECUTION_FIX_IMPLEMENTATION_PLAN.md
+!docs/API_GATEWAY_AUTH_INVESTIGATION.md
+!docs/DRS_DRILL_LEARNING_SESSION.md
+!docs/SNAPSHOT_DEPLOYMENT_WORKFLOW.md
+!docs/dtr-tools-links.txt
+
+# Archive structure (but exclude content)
+!docs/archive/
+!docs/archive/README.md
+# Exclude all archive content
+docs/archive/sessions/
+docs/archive/bugs/
+docs/archive/legacy/
+docs/archive/research/
+docs/archive/archive_20251112_195507/
+
+# -------------------------
+# EXCLUDE NON-CRITICAL FILES
+# -------------------------
+
+# Development artifacts
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-
-# Testing artifacts
-.coverage
-coverage.xml
-htmlcov/
-.tox/
-.pytest_cache/
-.hypothesis/
-
-# Virtual environments
+node_modules/
+.venv/
 venv/
-ENV/
 env/
-.venv
 
-# IDE
+# IDE files
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
+.DS_Store
+.amazonq/
 
-# Node modules (if any frontend dependencies)
-node_modules/
+# Build artifacts
+*.zip
+*.log
+*.tmp
+dist/
+build/
 
-# Lambda deployment artifacts (use lambda/*.zip instead)
-/*.zip
-scripts/set-aws-credentials.sh
-.env.deployment
-history/conversations/
+# Security
+.env
+.env.*
+.cline_memory/
+history/
+
+# Git disabled
+.git_disabled/
