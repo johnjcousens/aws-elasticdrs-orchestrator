@@ -5,22 +5,18 @@
 
 set -e  # Exit on error
 
-# Auto-load AWS credentials if helper script exists
+# Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Auto-load credentials from .env.deployment if exists
-if [ -f "$PROJECT_ROOT/.env.deployment" ]; then
-    export $(cat "$PROJECT_ROOT/.env.deployment" | xargs)
-fi
-
-# Configuration
 BUCKET="aws-drs-orchestration"
 REGION="us-east-1"
 BUILD_FRONTEND=false
 DRY_RUN=false
 CLEAN_ORPHANS=false
-AWS_PROFILE=""
+# Default to standard AWS credentials profile
+AWS_PROFILE="***REMOVED***_AdministratorAccess"
+LIST_PROFILES=false
 
 # Approved top-level directories (directories synced by this script)
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
@@ -44,13 +40,51 @@ while [[ $# -gt 0 ]]; do
             CLEAN_ORPHANS=true
             shift
             ;;
+        --list-profiles)
+            LIST_PROFILES=true
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --profile PROFILE        AWS credentials profile (default: ***REMOVED***_AdministratorAccess)"
+            echo "  --build-frontend         Build frontend before syncing"
+            echo "  --dry-run                Show what would be synced without making changes"
+            echo "  --clean-orphans          Remove orphaned directories from S3"
+            echo "  --list-profiles          List available AWS profiles and exit"
+            echo "  --help                   Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0                                    # Use default profile"
+            echo "  $0 --build-frontend                   # Build frontend and sync"
+            echo "  $0 --profile MyProfile                # Use specific profile"
+            echo "  $0 --dry-run --clean-orphans          # Preview cleanup"
+            exit 0
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--profile PROFILE_NAME] [--build-frontend] [--dry-run] [--clean-orphans]"
+            echo "Run '$0 --help' for usage information"
             exit 1
             ;;
     esac
 done
+
+# List profiles if requested
+if [ "$LIST_PROFILES" = true ]; then
+    echo "Available AWS Profiles:"
+    echo "======================="
+    if [ -f ~/.aws/credentials ]; then
+        grep '^\[' ~/.aws/credentials | sed 's/\[//g' | sed 's/\]//g' | while read profile; do
+            echo "  - $profile"
+        done
+    else
+        echo "No AWS credentials file found at ~/.aws/credentials"
+    fi
+    echo ""
+    echo "Current default: $AWS_PROFILE"
+    exit 0
+fi
 
 # Auto-detect git commit for tagging
 if git rev-parse --git-dir > /dev/null 2>&1; then
@@ -83,21 +117,29 @@ echo "Bucket: s3://$BUCKET"
 echo "Region: $REGION"
 echo "Build Frontend: $BUILD_FRONTEND"
 echo "Dry Run: $DRY_RUN"
-if [ -n "$AWS_PROFILE" ]; then
-    echo "AWS Profile: $AWS_PROFILE"
-fi
+echo "AWS Profile: $AWS_PROFILE"
 echo "Git Commit: $GIT_SHORT ($GIT_COMMIT)"
 echo "Sync Time: $SYNC_TIME"
 echo ""
 
 # Verify AWS credentials
+echo "🔐 Verifying AWS credentials..."
 if ! aws sts get-caller-identity $PROFILE_FLAG --region $REGION >/dev/null 2>&1; then
-    echo "❌ ERROR: AWS credentials not configured"
+    echo "❌ ERROR: AWS credentials not configured or profile not found"
     echo ""
-    echo "Try one of these:"
-    echo "  1. Use --profile: $0 --profile PROFILE_NAME"
-    echo "  2. Set environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY"
-    echo "  3. Create .env.deployment file with credentials"
+    echo "Current profile: $AWS_PROFILE"
+    echo ""
+    echo "Solutions:"
+    echo "  1. Check ~/.aws/credentials file exists and contains [$AWS_PROFILE]"
+    echo "  2. Use different profile: $0 --profile PROFILE_NAME"
+    echo "  3. List available profiles: $0 --list-profiles"
+    echo ""
+    echo "Expected credentials file format:"
+    echo "  ~/.aws/credentials should contain:"
+    echo "  [$AWS_PROFILE]"
+    echo "  aws_access_key_id = YOUR_KEY"
+    echo "  aws_secret_access_key = YOUR_SECRET"
+    echo "  aws_session_token = YOUR_TOKEN (if using temporary credentials)"
     exit 1
 fi
 
