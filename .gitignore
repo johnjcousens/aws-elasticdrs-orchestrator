@@ -64,3 +64,4 @@ node_modules/
 /*.zip
 scripts/set-aws-credentials.sh
 .env.deployment
+history/conversations/
