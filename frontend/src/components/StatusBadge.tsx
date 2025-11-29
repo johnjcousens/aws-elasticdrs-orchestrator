@@ -14,6 +14,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import CancelIcon from '@mui/icons-material/Cancel';
 import UndoIcon from '@mui/icons-material/Undo';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
 import type { ExecutionStatus } from '../types';
 
 export interface StatusBadgeProps {
@@ -104,6 +105,31 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           label: 'Active',
           color: 'success' as const,
           icon: <CheckCircleIcon />,
+        };
+      
+      // DRS-specific states
+      case 'initiated':
+      case 'launching':
+      case 'started':
+        return {
+          label: normalizedStatus.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          color: 'primary' as const,
+          icon: <PlayArrowIcon />,
+        };
+      
+      case 'polling':
+        return {
+          label: 'Polling',
+          color: 'info' as const,
+          icon: <AutorenewIcon />,
+        };
+      
+      case 'partial':
+      case 'partial failure':
+        return {
+          label: 'Partial',
+          color: 'warning' as const,
+          icon: <ErrorIcon />,
         };
       
       default:
