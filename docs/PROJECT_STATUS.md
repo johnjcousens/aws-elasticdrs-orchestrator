@@ -1,15 +1,88 @@
 # AWS DRS Orchestration - Project Status
 
-**Last Updated**: November 28, 2025 - 4:56 PM EST
-**Version**: 1.0.0-beta-working  
-**Phase 1 Status**: ⚠️ CRITICAL BUG FIXED - Ready for Deployment
+**Last Updated**: November 28, 2025 - 9:15 PM EST
+**Version**: 1.0.0-beta-BROKEN  
+**Phase 1 Status**: 🚨 CRITICAL BUG - All Recovery Operations Broken
 **Phase 2 Status**: ✅ 100% COMPLETE - Polling Infrastructure Deployed & Validated
-**MVP Phase 1 Status**: ⚠️ Backend Fix Required - Frontend Has 5 Non-Critical Display Bugs
-**Overall MVP Progress**: 99% - Phase 1 Fix Complete, Testing In Progress
+**MVP Phase 1 Status**: 🚨 PRODUCTION BLOCKER - Bug 9 breaks all DRS job creation
+**Overall MVP Progress**: 95% - Bug 9 discovered, requires immediate fix
 
 ---
 
 ## 📜 Session Checkpoints
+
+**Session 57 Part 15: Bug 9 Critical Discovery - Production Blocker** (November 28, 2025 - 9:09 PM - 9:15 PM EST)
+- **Checkpoint**: `history/checkpoints/checkpoint_session_20251128_211507_f17dca_2025-11-28_21-15-07.md`
+- **Conversation**: `history/conversations/conversation_session_20251128_211507_f17dca_2025-11-28_21-15-07_task_1764382212565.md`
+- **Git Commit**: N/A (investigation only, no code changes)
+- **Summary**: 🚨 **CRITICAL PRODUCTION BUG DISCOVERED** - Bug 8 implementation broke DRS API compatibility, blocking all recovery operations
+- **User Test Execution**:
+  - **Plan**: Full-Stack-DR-Drill
+  - **Execution ID**: 65071ffc-1920-47df-8f50-9d23f645ae6f
+  - **Status**: POLLING (JobId = null)
+  - **Wave Status**: PARTIAL
+  - **Server Status**: FAILED
+- **Root Cause Discovered**:
+  ```
+  ParamValidationError: Unknown parameter in sourceServers[0]: "recoveryInstanceProperties"
+  must be one of: recoverySnapshotID, sourceServerID
+  ```
+- **Bug 9 Analysis**:
+  - **What Broke**: Bug 8 added `recoveryInstanceProperties` parameter to `start_recovery()` call
+  - **Why It Broke**: This parameter does NOT exist in DRS API specification
+  - **Impact**: **ALL recovery operations fail** with parameter validation error
+  - **Severity**: CRITICAL - Production blocker, no DRS jobs can be created
+  - **Affected Code**: `lambda/index.py` lines 1050-1080 (Bug 8 implementation)
+- **What Still Works**:
+  - ✅ Bugs 1-7 fixes (all correct)
+  - ✅ UI display and polling infrastructure  
+  - ✅ Wave dependency logic
+  - ✅ Database operations
+  - ✅ EventBridge triggers
+- **What's Broken**:
+  - ❌ Starting any DRS recovery job
+  - ❌ Starting any DRS drill
+  - ❌ Bug 8 launch configuration enhancement
+  - ❌ **ALL recovery operations**
+- **Investigation Process**:
+  1. ✅ User reported: "Polling" status but "nothing in DRS"
+  2. ✅ Checked DynamoDB: JobId = null, Wave status = PARTIAL
+  3. ✅ Found server error: Parameter validation failed
+  4. ✅ Identified root cause: Invalid `recoveryInstanceProperties` parameter
+  5. ✅ Documented Bug 9 as CRITICAL production blocker
+- **The Mistake**:
+  - Bug 8 was implemented based on logical assumptions about how API "should" work
+  - Never validated parameters against actual AWS DRS API documentation
+  - Assumed `recoveryInstanceProperties` existed (it doesn't)
+  - DRS API only accepts: `recoverySnapshotID`, `sourceServerID`
+- **Correct Approach** (requires research):
+  - Launch configurations must be set BEFORE `start_recovery()` call
+  - Likely use `update_launch_configuration()` per server before recovery
+  - Then `start_recovery()` uses pre-configured settings
+  - Need to validate against official AWS DRS API docs
+- **Session Outcome**:
+  - **Discovered**: Critical production-blocking bug in 6 minutes of testing
+  - **Status**: System completely broken for all recovery operations
+  - **Action**: Emergency context preservation at 80% tokens
+  - **Impact**: Bug 8 "enhancement" actually broke core functionality
+- **Token Management**:
+  - Started at 74% (147K/200K)
+  - Emergency preservation at 80% (160K/200K)
+  - Checkpoint created successfully
+- **Documentation Created**:
+  - `docs/SESSION_57_PART_15_BUG_9_CRITICAL.md` - Complete bug analysis
+  - Investigation timeline and root cause analysis
+  - Impact assessment and recovery plan
+  - Next steps for Bug 9 fix
+- **Critical Learning**: Always validate API parameters against actual documentation before implementation
+- **Result**: 🚨 **BUG 9 DISCOVERED - IMMEDIATE FIX REQUIRED**
+- **Next Steps** (New Session):
+  1. Revert Bug 8 implementation (remove `recoveryInstanceProperties`)
+  2. Research correct DRS API usage for launch configurations
+  3. Implement proper solution (likely pre-configure via `update_launch_configuration()`)
+  4. Test thoroughly with actual DRS job creation
+  5. Deploy fixed version immediately
+  6. Validate recovery operations work again
 
 **Session 57 Part 14: Bug 8 DRS Launch Configuration Enhancement - Deployed** (November 28, 2025 - 8:46 PM - 9:04 PM EST)
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251128_210743_5ee05a_2025-11-28_21-07-43.md`
