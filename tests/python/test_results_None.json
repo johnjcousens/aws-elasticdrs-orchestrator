@@ -1,0 +1,14 @@
+{
+  "test_start_time": "2025-11-28T23:34:37.322431+00:00",
+  "test_end_time": "2025-11-28T23:34:37.542844+00:00",
+  "execution_id": null,
+  "execution_status": null,
+  "waves": [],
+  "drs_jobs": [],
+  "ec2_instances": [],
+  "success": false,
+  "errors": [
+    "Test exception: 403 Client Error: Forbidden for url: https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/api/recovery-plans/ba8b28e2-7568-4c03-bff0-9f289262c1a6/execute"
+  ],
+  "warnings": []
+}
