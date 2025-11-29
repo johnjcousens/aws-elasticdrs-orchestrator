@@ -350,6 +350,32 @@ class ApiClient {
     return this.post<void>(`/executions/${executionId}/resume`);
   }
 
+  /**
+   * Delete all completed executions (bulk operation)
+   * 
+   * Safely removes only terminal state executions:
+   * - COMPLETED, PARTIAL, FAILED, CANCELLED
+   * 
+   * Active executions (PENDING, POLLING, IN_PROGRESS, etc.) are preserved.
+   * 
+   * @returns Summary of deletion operation including counts
+   */
+  public async deleteCompletedExecutions(): Promise<{
+    message: string;
+    deletedCount: number;
+    totalScanned: number;
+    completedFound: number;
+    activePreserved: number;
+  }> {
+    return this.delete<{
+      message: string;
+      deletedCount: number;
+      totalScanned: number;
+      completedFound: number;
+      activePreserved: number;
+    }>('/executions');
+  }
+
   // ============================================================================
   // DRS Source Servers API
   // ============================================================================
@@ -412,5 +438,6 @@ export const {
   cancelExecution,
   pauseExecution,
   resumeExecution,
+  deleteCompletedExecutions,
   healthCheck,
 } = apiClient;

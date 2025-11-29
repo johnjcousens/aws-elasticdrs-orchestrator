@@ -22,12 +22,18 @@ import {
   IconButton,
   Tooltip,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import type { GridColDef } from '@mui/x-data-grid';
 import { GridActionsCellItem } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { DataGridWrapper } from '../components/DataGridWrapper';
@@ -69,6 +75,8 @@ export const ExecutionsPage: React.FC = () => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   // Fetch executions on mount
   useEffect(() => {
@@ -125,6 +133,30 @@ export const ExecutionsPage: React.FC = () => {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchExecutions();
+  };
+
+  const handleClearHistory = () => {
+    setClearDialogOpen(true);
+  };
+
+  const handleConfirmClear = async () => {
+    setClearing(true);
+    try {
+      const result = await apiClient.deleteCompletedExecutions();
+      toast.success(`Cleared ${result.deletedCount} completed executions`);
+      setClearDialogOpen(false);
+      // Refresh to show updated list
+      await fetchExecutions();
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to clear history';
+      toast.error(errorMessage);
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleCancelClear = () => {
+    setClearDialogOpen(false);
   };
 
   // Filter executions by active/history
@@ -292,19 +324,18 @@ export const ExecutionsPage: React.FC = () => {
   }
 
   return (
-    <PageTransition in={!loading && !error}>
+    <PageTransition>
       <Box>
-        {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Execution Dashboard
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Real-time monitoring of DRS recovery executions
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={2} alignItems="center">
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
+          <Box>
+            <Typography variant="h4" gutterBottom fontWeight={600}>
+              History Dashboard
+            </Typography>
+            <Typography variant="body1" color="text.secondary" paragraph>
+              Real-time monitoring and historical records of DRS recoveries
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={2} alignItems="center">
           {activeExecutions.length > 0 && (
             <Stack direction="row" spacing={1} alignItems="center">
               <Chip
@@ -445,6 +476,22 @@ export const ExecutionsPage: React.FC = () => {
 
       {/* History Tab */}
       <TabPanel value={tabValue} index={1}>
+        {/* Clear History Button */}
+        {historyExecutions.length > 0 && (
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<DeleteSweepIcon />}
+              onClick={handleClearHistory}
+              disabled={clearing}
+            >
+              Clear Completed History
+            </Button>
+          </Box>
+        )}
+        
         <DataGridWrapper
           rows={historyRows}
           columns={historyColumns}
@@ -463,6 +510,40 @@ export const ExecutionsPage: React.FC = () => {
         onClose={handleCloseDetails}
         onRefresh={fetchExecutions}
       />
+
+      {/* Clear History Confirmation Dialog */}
+      <Dialog
+        open={clearDialogOpen}
+        onClose={handleCancelClear}
+        aria-labelledby="clear-dialog-title"
+        aria-describedby="clear-dialog-description"
+      >
+        <DialogTitle id="clear-dialog-title">
+          Clear Completed History?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="clear-dialog-description">
+            This will permanently delete all completed execution records ({historyExecutions.length} items).
+            Active executions will not be affected.
+            <br /><br />
+            <strong>This action cannot be undone.</strong>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelClear} disabled={clearing}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmClear} 
+            color="error" 
+            variant="contained"
+            disabled={clearing}
+            autoFocus
+          >
+            {clearing ? 'Clearing...' : 'Clear History'}
+          </Button>
+        </DialogActions>
+      </Dialog>
       </Box>
     </PageTransition>
   );
