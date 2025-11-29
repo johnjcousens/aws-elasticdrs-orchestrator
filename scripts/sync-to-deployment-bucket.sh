@@ -14,9 +14,16 @@ REGION="us-east-1"
 BUILD_FRONTEND=false
 DRY_RUN=false
 CLEAN_ORPHANS=false
+DEPLOY_CFN=false
 # Default to standard AWS credentials profile
 AWS_PROFILE="***REMOVED***_AdministratorAccess"
 LIST_PROFILES=false
+
+# CloudFormation stack configuration
+PROJECT_NAME="drs-orchestration"
+ENVIRONMENT="test"
+LAMBDA_STACK_NAME="${PROJECT_NAME}-lambda-${ENVIRONMENT}"
+FRONTEND_STACK_NAME="${PROJECT_NAME}-frontend-${ENVIRONMENT}"
 
 # Approved top-level directories (directories synced by this script)
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
@@ -40,6 +47,10 @@ while [[ $# -gt 0 ]]; do
             CLEAN_ORPHANS=true
             shift
             ;;
+        --deploy-cfn)
+            DEPLOY_CFN=true
+            shift
+            ;;
         --list-profiles)
             LIST_PROFILES=true
             shift
@@ -50,6 +61,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --profile PROFILE        AWS credentials profile (default: ***REMOVED***_AdministratorAccess)"
             echo "  --build-frontend         Build frontend before syncing"
+            echo "  --deploy-cfn             Deploy Lambda + Frontend via CloudFormation after sync"
             echo "  --dry-run                Show what would be synced without making changes"
             echo "  --clean-orphans          Remove orphaned directories from S3"
             echo "  --list-profiles          List available AWS profiles and exit"
@@ -58,6 +70,8 @@ while [[ $# -gt 0 ]]; do
             echo "Examples:"
             echo "  $0                                    # Use default profile"
             echo "  $0 --build-frontend                   # Build frontend and sync"
+            echo "  $0 --deploy-cfn                       # Sync + deploy to CloudFormation"
+            echo "  $0 --build-frontend --deploy-cfn      # Build + sync + deploy"
             echo "  $0 --profile MyProfile                # Use specific profile"
             echo "  $0 --dry-run --clean-orphans          # Preview cleanup"
             exit 0
@@ -348,10 +362,157 @@ echo "======================================"
 echo "✅ S3 Deployment Repository Synced!"
 echo "======================================"
 echo ""
+
+# Deploy to CloudFormation if requested
+if [ "$DEPLOY_CFN" = true ]; then
+    if [ "$DRY_RUN" = true ]; then
+        echo "ℹ️  DRY RUN: Would deploy to CloudFormation"
+        echo ""
+    else
+        echo "======================================"
+        echo "🚀 Deploying to AWS via CloudFormation"
+        echo "======================================"
+        echo ""
+        
+        DEPLOY_START=$(date +%s)
+        
+        # Package Lambda function
+        echo "📦 Packaging Lambda function..."
+        cd "$PROJECT_ROOT/lambda"
+        
+        # Create deployment package
+        PACKAGE_FILE="deployment-package.zip"
+        rm -f "$PACKAGE_FILE"
+        
+        # Install dependencies to package directory
+        if [ -f requirements.txt ]; then
+            pip install -r requirements.txt -t package/ --quiet
+        fi
+        
+        # Create zip with dependencies
+        cd package
+        zip -r ../"$PACKAGE_FILE" . > /dev/null
+        cd ..
+        
+        # Add Lambda code to zip
+        zip -g "$PACKAGE_FILE" index.py > /dev/null
+        if [ -d "poller" ]; then
+            zip -rg "$PACKAGE_FILE" poller/ > /dev/null
+        fi
+        
+        # Upload Lambda package to S3
+        echo "  ☁️  Uploading Lambda package to S3..."
+        aws s3 cp "$PACKAGE_FILE" "s3://$BUCKET/lambda/$PACKAGE_FILE" \
+            $PROFILE_FLAG \
+            --region $REGION \
+            --metadata "git-commit=$GIT_COMMIT,sync-time=$SYNC_TIME"
+        
+        cd "$PROJECT_ROOT"
+        echo "  ✅ Lambda package uploaded"
+        echo ""
+        
+        # Update Lambda stack
+        echo "🔄 Updating Lambda stack ($LAMBDA_STACK_NAME)..."
+        
+        LAMBDA_UPDATE_OUTPUT=$(aws cloudformation update-stack \
+            --stack-name "$LAMBDA_STACK_NAME" \
+            --template-body file://cfn/lambda-stack.yaml \
+            --parameters \
+                ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME" \
+                ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
+                ParameterKey=DeploymentBucket,ParameterValue="$BUCKET" \
+                ParameterKey=LambdaCodeKey,ParameterValue="lambda/deployment-package.zip" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            $PROFILE_FLAG \
+            --region $REGION \
+            2>&1) || LAMBDA_UPDATE_FAILED=true
+        
+        if [ "$LAMBDA_UPDATE_FAILED" = true ]; then
+            if echo "$LAMBDA_UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
+                echo "  ℹ️  Lambda stack already up-to-date"
+                LAMBDA_UPDATED=false
+            else
+                echo "  ❌ Lambda stack update failed:"
+                echo "$LAMBDA_UPDATE_OUTPUT"
+                exit 1
+            fi
+        else
+            echo "  ⏳ Waiting for Lambda stack update..."
+            aws cloudformation wait stack-update-complete \
+                --stack-name "$LAMBDA_STACK_NAME" \
+                $PROFILE_FLAG \
+                --region $REGION
+            echo "  ✅ Lambda stack updated"
+            LAMBDA_UPDATED=true
+        fi
+        echo ""
+        
+        # Update Frontend stack
+        echo "🔄 Updating Frontend stack ($FRONTEND_STACK_NAME)..."
+        
+        FRONTEND_UPDATE_OUTPUT=$(aws cloudformation update-stack \
+            --stack-name "$FRONTEND_STACK_NAME" \
+            --template-body file://cfn/frontend-stack.yaml \
+            --parameters \
+                ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME" \
+                ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
+                ParameterKey=DeploymentBucket,ParameterValue="$BUCKET" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            $PROFILE_FLAG \
+            --region $REGION \
+            2>&1) || FRONTEND_UPDATE_FAILED=true
+        
+        if [ "$FRONTEND_UPDATE_FAILED" = true ]; then
+            if echo "$FRONTEND_UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
+                echo "  ℹ️  Frontend stack already up-to-date"
+                FRONTEND_UPDATED=false
+            else
+                echo "  ❌ Frontend stack update failed:"
+                echo "$FRONTEND_UPDATE_OUTPUT"
+                exit 1
+            fi
+        else
+            echo "  ⏳ Waiting for Frontend stack update..."
+            aws cloudformation wait stack-update-complete \
+                --stack-name "$FRONTEND_STACK_NAME" \
+                $PROFILE_FLAG \
+                --region $REGION
+            echo "  ✅ Frontend stack updated"
+            FRONTEND_UPDATED=true
+        fi
+        echo ""
+        
+        DEPLOY_END=$(date +%s)
+        DEPLOY_DURATION=$((DEPLOY_END - DEPLOY_START))
+        
+        echo "======================================"
+        echo "✅ CloudFormation Deployment Complete!"
+        echo "======================================"
+        echo ""
+        echo "Deployment Duration: ${DEPLOY_DURATION}s"
+        echo ""
+        if [ "$LAMBDA_UPDATED" = true ]; then
+            echo "  ✅ Lambda stack: UPDATE_COMPLETE"
+        else
+            echo "  ℹ️  Lambda stack: No changes"
+        fi
+        if [ "$FRONTEND_UPDATED" = true ]; then
+            echo "  ✅ Frontend stack: UPDATE_COMPLETE"
+        else
+            echo "  ℹ️  Frontend stack: No changes"
+        fi
+        echo ""
+    fi
+fi
+
+echo "======================================"
+echo "📊 Summary"
+echo "======================================"
 echo "S3 Bucket: s3://$BUCKET"
 echo "Region: $REGION"
+echo "Git Commit: $GIT_SHORT"
 echo ""
-echo "Deployment-ready repository now contains:"
+echo "Synced Components:"
 echo "  ✅ CloudFormation templates (cfn/)"
 echo "  ✅ Lambda functions (lambda/)"
 echo "  ✅ Frontend source + dist (frontend/)"
@@ -359,8 +520,17 @@ echo "  ✅ Automation scripts (scripts/)"
 echo "  ✅ SSM documents (ssm-documents/)"
 echo "  ✅ Documentation (docs/)"
 echo ""
-echo "To deploy from S3:"
-echo "  1. Download: aws s3 sync s3://$BUCKET/ ./deploy-temp/"
-echo "  2. Deploy CloudFormation stacks from cfn/"
-echo "  3. Deploy frontend from frontend/dist/"
-echo ""
+if [ "$DEPLOY_CFN" = true ] && [ "$DRY_RUN" = false ]; then
+    echo "Deployed Stacks:"
+    if [ "$LAMBDA_UPDATED" = true ]; then
+        echo "  ✅ $LAMBDA_STACK_NAME"
+    else
+        echo "  ℹ️  $LAMBDA_STACK_NAME (no changes)"
+    fi
+    if [ "$FRONTEND_UPDATED" = true ]; then
+        echo "  ✅ $FRONTEND_STACK_NAME"
+    else
+        echo "  ℹ️  $FRONTEND_STACK_NAME (no changes)"
+    fi
+    echo ""
+fi
