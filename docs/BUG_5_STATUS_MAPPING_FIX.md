@@ -164,3 +164,87 @@ Both are related to active executions visibility but different issues.
 2. **Full stack debugging**: Check frontend, API, and backend in sequence
 3. **Defense in depth**: Multiple layers of validation catch more bugs
 4. **Fast iteration**: Small focused fixes can be deployed quickly
+
+---
+
+## CORRECTION: Bug #5 Fix Was Incorrect (November 28, 2025, 8:30 PM EST)
+
+### Problem with Original Fix
+
+The original fix **mapped DRS states to generic states**, which was wrong:
+
+```python
+# INCORRECT (Original Fix):
+'INITIATED': 'in_progress',  # Lost DRS terminology
+'LAUNCHING': 'in_progress',  # Lost DRS terminology
+```
+
+**Impact**: 
+- DRS-specific states (INITIATED, LAUNCHING, STARTED) were hidden
+- Frontend filter couldn't match them (looking for exact uppercase states)
+- Active executions disappeared from UI
+
+### Root Cause of Error
+
+**Misunderstanding of status flow**: Assumed we should normalize to generic states, but system actually preserves DRS job state names for transparency and debugging.
+
+### Corrected Fix (Commit: 4ea5a41)
+
+**Backend** (`lambda/index.py`):
+```python
+# CORRECT: Preserve DRS job state names
+status_mapping = {
+    'PENDING': 'PENDING',
+    'POLLING': 'POLLING',
+    'INITIATED': 'INITIATED',  # CORRECTED: Preserve DRS state
+    'LAUNCHING': 'LAUNCHING',  # CORRECTED: Preserve DRS state
+    'STARTED': 'STARTED',      # ADDED: DRS job state
+    'IN_PROGRESS': 'IN_PROGRESS',
+    'RUNNING': 'RUNNING',
+    'COMPLETED': 'COMPLETED',
+    'PARTIAL': 'PARTIAL',
+    'FAILED': 'FAILED',
+    'CANCELLED': 'CANCELLED',
+    'PAUSED': 'PAUSED'
+}
+```
+
+**Frontend** (`frontend/src/pages/ExecutionsPage.tsx`):
+```typescript
+// CORRECTED: Include all DRS states in active filter
+const activeExecutions = executions.filter(e => {
+  const status = e.status.toUpperCase();
+  return status === 'PENDING' || status === 'POLLING' || 
+         status === 'INITIATED' ||  // ADDED
+         status === 'LAUNCHING' ||   // ADDED
+         status === 'STARTED' ||     // ADDED
+         status === 'IN_PROGRESS' || 
+         status === 'RUNNING' ||
+         status === 'PAUSED';
+});
+```
+
+### Why Correction Was Needed
+
+1. **Status Transparency**: Users need to see actual DRS job states for debugging
+2. **API Consistency**: StatusBadge component expects exact DRS state names
+3. **Filter Logic**: Frontend filter must match preserved state names exactly
+
+### Corrected Deployment
+
+**Backend**:
+- **Commit**: 8638e6d (original) → 4ea5a41 (corrected)
+- **Deployed**: November 28, 2025, 8:32 PM EST
+- **Lambda Version**: 2025-11-29T01:32:25.000+0000
+
+**Frontend**:
+- **Commit**: 4ea5a41
+- **Status**: Committed, requires rebuild/deploy
+
+### Lesson Learned from Correction
+
+**Preserve domain terminology**: When integrating with external APIs (like DRS), preserve their state names rather than normalizing to generic terms. This provides:
+- Better debugging (see actual DRS states)
+- Clearer operational visibility
+- Easier correlation with DRS console/logs
+- More accurate status reporting
