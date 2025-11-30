@@ -7,6 +7,7 @@ import json
 import os
 import uuid
 import time
+from datetime import datetime
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from decimal import Decimal
@@ -28,6 +29,21 @@ STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN', '')
 protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
 execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
+
+
+def get_cognito_user_from_event(event: Dict) -> Dict:
+    """Extract Cognito user info from API Gateway authorizer"""
+    try:
+        authorizer = event.get('requestContext', {}).get('authorizer', {})
+        claims = authorizer.get('claims', {})
+        return {
+            'email': claims.get('email', 'system'),
+            'userId': claims.get('sub', 'system'),
+            'username': claims.get('cognito:username', 'system')
+        }
+    except Exception as e:
+        print(f"Error extracting Cognito user: {e}")
+        return {'email': 'system', 'userId': 'system', 'username': 'system'}
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -710,9 +726,12 @@ def handle_executions(method: str, path_params: Dict, query_params: Dict, body: 
         return response(405, {'error': 'Method Not Allowed'})
 
 
-def execute_recovery_plan(body: Dict) -> Dict:
+def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
     """Execute a Recovery Plan - Async pattern to avoid API Gateway timeout"""
     try:
+        # Extract Cognito user if event provided
+        cognito_user = get_cognito_user_from_event(event) if event else {'email': 'system', 'userId': 'system'}
+        
         # Validate required fields
         required_fields = ['PlanId', 'ExecutionType', 'InitiatedBy']
         for field in required_fields:
@@ -768,7 +787,8 @@ def execute_recovery_plan(body: Dict) -> Dict:
             'planId': plan_id,
             'executionType': execution_type,
             'isDrill': execution_type == 'DRILL',
-            'plan': plan
+            'plan': plan,
+            'cognitoUser': cognito_user  # Pass Cognito user info to worker
         }
         
         # Invoke async (Event invocation type = fire and forget)
@@ -803,8 +823,11 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         execution_type = payload['executionType']
         is_drill = payload['isDrill']
         plan = payload['plan']
+        cognito_user = payload.get('cognitoUser', {'email': 'system', 'userId': 'system'})  # STEP 4: Extract user
+        plan_name = plan.get('PlanName', 'Unknown')  # STEP 8: Extract plan name
         
         print(f"Worker initiating execution {execution_id} (type: {execution_type})")
+        print(f"Initiated by: {cognito_user.get('email')}")
         
         # Update status to POLLING (not IN_PROGRESS)
         execution_history_table.update_item(
@@ -855,7 +878,14 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
             else:
                 # Wave has NO dependencies - initiate immediately
                 print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
-                wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
+                # STEP 5: Pass user and metadata to initiate_wave
+                wave_result = initiate_wave(
+                    wave, pg_id, execution_id, is_drill, execution_type,
+                    plan_name=plan_name,
+                    wave_name=wave_name,
+                    wave_number=wave_number,
+                    cognito_user=cognito_user
+                )
                 wave_results.append(wave_result)
             
             # Update progress in DynamoDB after each wave
@@ -891,7 +921,17 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
             print(f"Failed to update error status: {str(update_error)}")
 
 
-def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_drill: bool, execution_type: str = 'DRILL') -> Dict:
+def initiate_wave(
+    wave: Dict, 
+    protection_group_id: str, 
+    execution_id: str, 
+    is_drill: bool, 
+    execution_type: str = 'DRILL',
+    plan_name: str = None,  # STEP 6: Add metadata parameters
+    wave_name: str = None,
+    wave_number: int = None,
+    cognito_user: Dict = None
+) -> Dict:
     """Initiate DRS recovery jobs for a wave without waiting for completion"""
     try:
         # Get Protection Group
@@ -937,7 +977,14 @@ def initiate_wave(wave: Dict, protection_group_id: str, execution_id: str, is_dr
         
         # CRITICAL FIX: Launch ALL servers in wave with ONE DRS API call
         # This gives us ONE job ID per wave (which poller expects)
-        wave_job_result = start_drs_recovery_for_wave(server_ids, region, is_drill, execution_id, execution_type)
+        # STEP 6: Pass metadata to start_drs_recovery_for_wave
+        wave_job_result = start_drs_recovery_for_wave(
+            server_ids, region, is_drill, execution_id, execution_type,
+            plan_name=plan_name,
+            wave_name=wave_name,
+            wave_number=wave_number,
+            cognito_user=cognito_user
+        )
         
         # Extract job ID and server results
         wave_job_id = wave_job_result.get('JobId')
@@ -1032,7 +1079,17 @@ def get_server_launch_configurations(region: str, server_ids: List[str]) -> Dict
     return configs
 
 
-def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bool, execution_id: str, execution_type: str = 'DRILL') -> Dict:
+def start_drs_recovery_for_wave(
+    server_ids: List[str], 
+    region: str, 
+    is_drill: bool, 
+    execution_id: str, 
+    execution_type: str = 'DRILL',
+    plan_name: str = None,  # STEP 7: Add metadata parameters
+    wave_name: str = None,
+    wave_number: int = None,
+    cognito_user: Dict = None
+) -> Dict:
     """
     Launch DRS recovery for all servers in a wave with ONE API call
     
@@ -1081,20 +1138,34 @@ def start_drs_recovery_for_wave(server_ids: List[str], region: str, is_drill: bo
         print(f"[DRS API] Fetching launch configurations for {len(server_ids)} servers...")
         launch_configs = get_server_launch_configurations(region, server_ids)
 
-        # STEP 2: Build sourceServers array (simplified - DRS uses latest snapshot automatically)
+        # STEP 3: Build sourceServers array (simplified - DRS uses latest snapshot automatically)
         source_servers = [{'sourceServerID': sid} for sid in server_ids]
         print(f"[DRS API] Built sourceServers array for {len(server_ids)} servers")
 
-        # STEP 3: Start recovery for ALL servers in ONE API call
-        # CRITICAL FIX: Do NOT pass tags parameter - causes launch failures
-        # DRS API only accepts: sourceServers, isDrill, (optional) recoverySnapshotID
-        print(f"[DRS API] Calling start_recovery() WITHOUT tags...")
+        # STEP 4: Build 9-tag dictionary for drill tracking
+        tags = {
+            'DRS:ExecutionId': execution_id,
+            'DRS:ExecutionType': execution_type,
+            'DRS:PlanName': plan_name or 'Unknown',
+            'DRS:WaveName': wave_name or 'Unknown',
+            'DRS:WaveNumber': str(wave_number) if wave_number else '0',
+            'DRS:InitiatedBy': cognito_user.get('email', 'system') if cognito_user else 'system',
+            'DRS:UserId': cognito_user.get('userId', 'unknown') if cognito_user else 'unknown',
+            'DRS:DrillId': execution_id if is_drill else 'N/A',
+            'DRS:Timestamp': datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        }
+        print(f"[DRS API] Built custom tags: {tags}")
+
+        # STEP 5: Start recovery for ALL servers in ONE API call WITH TAGS
+        print(f"[DRS API] Calling start_recovery() with custom tags...")
         print(f"[DRS API]   sourceServers: {len(source_servers)} servers")
         print(f"[DRS API]   isDrill: {is_drill}")
+        print(f"[DRS API]   tags: {len(tags)} custom tags")
         
         response = drs_client.start_recovery(
             sourceServers=source_servers,
-            isDrill=is_drill
+            isDrill=is_drill,
+            tags=tags  # STEP 7: Pass tags to DRS API
         )
         
         # Validate response structure (defensive programming)
