@@ -262,13 +262,20 @@ fi
 # Build frontend if requested
 if [ "$BUILD_FRONTEND" = true ]; then
     echo "🏗️  Building frontend..."
-    if [ -f "../.env.test" ]; then
+    if [ -f ".env.test" ]; then
         cd frontend
-        ../frontend/build.sh
+        ./build.sh
         cd ..
         echo "✅ Frontend build complete"
     else
-        echo "⚠️  WARNING: .env.test not found, skipping frontend build"
+        echo "⚠️  WARNING: .env.test not found in project root"
+        echo "   .env.test is required for frontend build - it contains:"
+        echo "   - Cognito User Pool ID and Client ID"
+        echo "   - API Gateway Endpoint URL"
+        echo "   - AWS Region"
+        echo "   Create .env.test from .env.test.template and populate with your values"
+        echo ""
+        echo "   Skipping frontend build..."
     fi
     echo ""
 fi

@@ -19,6 +19,7 @@
 !package.json
 !requirements.txt
 !.cfnlintrc.yaml
+!.env.test.template
 
 # CloudFormation templates (ESSENTIAL)
 !cfn/
