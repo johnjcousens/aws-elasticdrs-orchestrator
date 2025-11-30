@@ -408,7 +408,7 @@ get_lambda_function_name() {
 
 # Helper function to package Lambda
 package_lambda() {
-    echo "📦 Packaging Lambda function..."
+    echo "📦 Packaging Lambda function..." >&2
     cd "$PROJECT_ROOT/lambda"
     
     # Create deployment package
