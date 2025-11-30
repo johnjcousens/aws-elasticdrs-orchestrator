@@ -105,6 +105,10 @@ Resources:
                   - drs:TerminateRecoveryInstances
                   - drs:TagResource
                   - drs:StopReplication
+                  - drs:DisconnectRecoveryInstance
+                  - drs:ReverseReplication
+                  - drs:UpdateLaunchConfiguration
+                  - drs:StartReplication
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -197,6 +201,12 @@ Resources:
                   - drs:StartRecovery
                   - drs:GetReplicationConfiguration
                   - drs:GetLaunchConfiguration
+                  - drs:TerminateRecoveryInstances
+                  - drs:DisconnectRecoveryInstance
+                  - drs:TagResource
+                  - drs:ReverseReplication
+                  - drs:StopReplication
+                  - drs:StartReplication
                 Resource: '*'
         - PolicyName: EC2Access
           PolicyDocument:
@@ -207,7 +217,17 @@ Resources:
                   - ec2:DescribeInstances
                   - ec2:DescribeInstanceStatus
                   - ec2:DescribeTags
+                  - ec2:TerminateInstances
+                  - ec2:StopInstances
+                  - ec2:CreateTags
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:DeleteVolume
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    ec2:ResourceTag/AWSElasticDisasterRecoveryManaged: 'true'
         - PolicyName: SSMAccess
           PolicyDocument:
             Version: '2012-10-17'
