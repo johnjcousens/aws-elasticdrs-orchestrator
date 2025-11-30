@@ -22,8 +22,7 @@ LIST_PROFILES=false
 # CloudFormation stack configuration
 PROJECT_NAME="drs-orchestration"
 ENVIRONMENT="test"
-LAMBDA_STACK_NAME="${PROJECT_NAME}-lambda-${ENVIRONMENT}"
-FRONTEND_STACK_NAME="${PROJECT_NAME}-frontend-${ENVIRONMENT}"
+PARENT_STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}"
 
 # Approved top-level directories (directories synced by this script)
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
@@ -411,74 +410,50 @@ if [ "$DEPLOY_CFN" = true ]; then
         echo "  ✅ Lambda package uploaded"
         echo ""
         
-        # Update Lambda stack
-        echo "🔄 Updating Lambda stack ($LAMBDA_STACK_NAME)..."
-        
-        LAMBDA_UPDATE_OUTPUT=$(aws cloudformation update-stack \
-            --stack-name "$LAMBDA_STACK_NAME" \
-            --template-body file://cfn/lambda-stack.yaml \
-            --parameters \
-                ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME" \
-                ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-                ParameterKey=DeploymentBucket,ParameterValue="$BUCKET" \
-                ParameterKey=LambdaCodeKey,ParameterValue="lambda/deployment-package.zip" \
-            --capabilities CAPABILITY_NAMED_IAM \
-            $PROFILE_FLAG \
-            --region $REGION \
-            2>&1) || LAMBDA_UPDATE_FAILED=true
-        
-        if [ "$LAMBDA_UPDATE_FAILED" = true ]; then
-            if echo "$LAMBDA_UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
-                echo "  ℹ️  Lambda stack already up-to-date"
-                LAMBDA_UPDATED=false
-            else
-                echo "  ❌ Lambda stack update failed:"
-                echo "$LAMBDA_UPDATE_OUTPUT"
-                exit 1
-            fi
-        else
-            echo "  ⏳ Waiting for Lambda stack update..."
-            aws cloudformation wait stack-update-complete \
-                --stack-name "$LAMBDA_STACK_NAME" \
-                $PROFILE_FLAG \
-                --region $REGION
-            echo "  ✅ Lambda stack updated"
-            LAMBDA_UPDATED=true
-        fi
+        # Update parent stack (will automatically propagate to nested stacks)
+        echo "🔄 Updating parent stack ($PARENT_STACK_NAME)..."
+        echo "   This will update all nested stacks (Database, Lambda, API, Frontend)"
         echo ""
         
-        # Update Frontend stack
-        echo "🔄 Updating Frontend stack ($FRONTEND_STACK_NAME)..."
-        
-        FRONTEND_UPDATE_OUTPUT=$(aws cloudformation update-stack \
-            --stack-name "$FRONTEND_STACK_NAME" \
-            --template-body file://cfn/frontend-stack.yaml \
+        STACK_UPDATE_OUTPUT=$(aws cloudformation update-stack \
+            --stack-name "$PARENT_STACK_NAME" \
+            --template-url "https://s3.amazonaws.com/$BUCKET/cfn/master-template.yaml" \
             --parameters \
-                ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME" \
-                ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-                ParameterKey=DeploymentBucket,ParameterValue="$BUCKET" \
+                ParameterKey=ProjectName,UsePreviousValue=true \
+                ParameterKey=Environment,UsePreviousValue=true \
+                ParameterKey=SourceBucket,ParameterValue="$BUCKET" \
+                ParameterKey=AdminEmail,UsePreviousValue=true \
+                ParameterKey=CognitoDomainPrefix,UsePreviousValue=true \
+                ParameterKey=NotificationEmail,UsePreviousValue=true \
+                ParameterKey=EnableWAF,UsePreviousValue=true \
+                ParameterKey=EnableCloudTrail,UsePreviousValue=true \
+                ParameterKey=EnableSecretsManager,UsePreviousValue=true \
             --capabilities CAPABILITY_NAMED_IAM \
             $PROFILE_FLAG \
             --region $REGION \
-            2>&1) || FRONTEND_UPDATE_FAILED=true
+            2>&1) || STACK_UPDATE_FAILED=true
         
-        if [ "$FRONTEND_UPDATE_FAILED" = true ]; then
-            if echo "$FRONTEND_UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
-                echo "  ℹ️  Frontend stack already up-to-date"
-                FRONTEND_UPDATED=false
+        if [ "$STACK_UPDATE_FAILED" = true ]; then
+            if echo "$STACK_UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
+                echo "  ℹ️  Stack already up-to-date (no changes needed)"
+                STACK_UPDATED=false
             else
-                echo "  ❌ Frontend stack update failed:"
-                echo "$FRONTEND_UPDATE_OUTPUT"
+                echo "  ❌ Stack update failed:"
+                echo ""
+                echo "$STACK_UPDATE_OUTPUT"
+                echo ""
                 exit 1
             fi
         else
-            echo "  ⏳ Waiting for Frontend stack update..."
+            echo "  ⏳ Waiting for stack update to complete..."
+            echo "     (This may take 5-10 minutes as nested stacks update)"
             aws cloudformation wait stack-update-complete \
-                --stack-name "$FRONTEND_STACK_NAME" \
+                --stack-name "$PARENT_STACK_NAME" \
                 $PROFILE_FLAG \
                 --region $REGION
-            echo "  ✅ Frontend stack updated"
-            FRONTEND_UPDATED=true
+            echo "  ✅ Parent stack updated successfully"
+            echo "     All nested stacks (Database, Lambda, API, Frontend) are now up-to-date"
+            STACK_UPDATED=true
         fi
         echo ""
         
@@ -491,15 +466,12 @@ if [ "$DEPLOY_CFN" = true ]; then
         echo ""
         echo "Deployment Duration: ${DEPLOY_DURATION}s"
         echo ""
-        if [ "$LAMBDA_UPDATED" = true ]; then
-            echo "  ✅ Lambda stack: UPDATE_COMPLETE"
+        if [ "$STACK_UPDATED" = true ]; then
+            echo "  ✅ Parent stack: UPDATE_COMPLETE"
+            echo "     └─ All nested stacks updated (Database, Lambda, API, Frontend)"
         else
-            echo "  ℹ️  Lambda stack: No changes"
-        fi
-        if [ "$FRONTEND_UPDATED" = true ]; then
-            echo "  ✅ Frontend stack: UPDATE_COMPLETE"
-        else
-            echo "  ℹ️  Frontend stack: No changes"
+            echo "  ℹ️  Parent stack: No changes needed"
+            echo "     └─ All nested stacks already up-to-date"
         fi
         echo ""
     fi
@@ -522,15 +494,12 @@ echo "  ✅ Documentation (docs/)"
 echo ""
 if [ "$DEPLOY_CFN" = true ] && [ "$DRY_RUN" = false ]; then
     echo "Deployed Stacks:"
-    if [ "$LAMBDA_UPDATED" = true ]; then
-        echo "  ✅ $LAMBDA_STACK_NAME"
+    if [ "$STACK_UPDATED" = true ]; then
+        echo "  ✅ $PARENT_STACK_NAME (parent)"
+        echo "     └─ All nested stacks updated"
     else
-        echo "  ℹ️  $LAMBDA_STACK_NAME (no changes)"
-    fi
-    if [ "$FRONTEND_UPDATED" = true ]; then
-        echo "  ✅ $FRONTEND_STACK_NAME"
-    else
-        echo "  ℹ️  $FRONTEND_STACK_NAME (no changes)"
+        echo "  ℹ️  $PARENT_STACK_NAME (no changes)"
+        echo "     └─ All nested stacks up-to-date"
     fi
     echo ""
 fi
