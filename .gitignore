@@ -91,6 +91,8 @@ frontend/build/
 # Exclude all archive content
 docs/archive/sessions/
 docs/archive/bugs/
+docs/archive/investigations/
+docs/archive/deprecated/
 docs/archive/legacy/
 docs/archive/research/
 docs/archive/archive_20251112_195507/
