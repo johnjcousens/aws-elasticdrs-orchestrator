@@ -902,6 +902,13 @@ For typical usage (10 executions/month):
 - [ ] Validate end-to-end workflow with REAL DRS recovery
 - [ ] Fix authentication issues blocking API Gateway calls
 
+**Drill Lifecycle Management** 🔄 NEW (Session 62)
+- [ ] Implement drill termination feature (see [`docs/DRILL_LIFECYCLE_MANAGEMENT_PLAN.md`](docs/DRILL_LIFECYCLE_MANAGEMENT_PLAN.md))
+- [ ] Fix drills not launching EC2 instances after conversion
+- [ ] Add "Terminate Drill" button to UI
+- [ ] Block new drills when previous drill active
+- [ ] Enable extended drill testing (hours/days)
+
 **Status**: All backend bugs fixed and deployed, but **NO successful DRS drill completion yet**
 
 ### 🔧 Known Blockers
