@@ -139,11 +139,30 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
 
   // Calculate execution duration
   const calculateDuration = (): string => {
-    if (!execution) return '0m';
+    if (!execution || !execution.startTime) return '-';
     
-    const start = new Date(execution.startTime);
-    const end = execution.endTime ? new Date(execution.endTime) : new Date();
+    // Convert Unix timestamp (seconds) to milliseconds
+    // API returns timestamps in seconds, JavaScript Date expects milliseconds
+    let startTimeMs: number | string = execution.startTime;
+    if (typeof execution.startTime === 'number' && execution.startTime < 10000000000) {
+      startTimeMs = execution.startTime * 1000;
+    }
+    
+    let endTimeMs: number | string | undefined = execution.endTime;
+    if (execution.endTime) {
+      if (typeof execution.endTime === 'number' && execution.endTime < 10000000000) {
+        endTimeMs = execution.endTime * 1000;
+      }
+    }
+    
+    const start = new Date(startTimeMs);
+    const end = endTimeMs ? new Date(endTimeMs) : new Date();
     const durationMs = end.getTime() - start.getTime();
+    
+    // Validate duration (not negative, not > 1 year)
+    if (durationMs < 0 || durationMs > 365 * 24 * 60 * 60 * 1000) {
+      return 'Invalid';
+    }
     
     const hours = Math.floor(durationMs / (1000 * 60 * 60));
     const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
