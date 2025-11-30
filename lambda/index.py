@@ -2219,6 +2219,23 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
     start_time = safe_timestamp_to_int(execution.get('StartTime'))
     end_time = safe_timestamp_to_int(execution.get('EndTime'))
     
+    # Calculate current wave progress
+    total_waves = len(waves)
+    current_wave = 0
+    
+    # Find the first wave that's not completed
+    for i, wave in enumerate(waves, 1):
+        wave_status = wave.get('status', '').lower()
+        if wave_status in ['polling', 'initiated', 'launching', 'in_progress', 'started', 'pending']:
+            current_wave = i
+            break
+        elif wave_status == 'completed':
+            current_wave = i  # Last completed wave
+    
+    # If all completed or no waves, current = total
+    if current_wave == 0:
+        current_wave = total_waves
+    
     return {
         'executionId': execution.get('ExecutionId'),
         'recoveryPlanId': execution.get('PlanId'),
@@ -2229,8 +2246,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         'endTime': end_time,  # Now properly converted to int
         'initiatedBy': execution.get('InitiatedBy'),
         'waves': waves,  # Now properly transformed with fixed timestamps and status
-        'currentWave': len([w for w in waves if w.get('status') == 'in_progress']),
-        'totalWaves': len(waves),
+        'currentWave': current_wave,  # FIXED: Proper wave progress calculation
+        'totalWaves': total_waves,
         'errorMessage': execution.get('ErrorMessage')
     }
 
