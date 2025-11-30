@@ -2,6 +2,9 @@
 # Frontend Build Script with AWS Config Injection
 # Builds React app and injects AWS configuration from .env.test
 
+# Ensure Homebrew's Node.js is used (v25.2.1)
+export PATH="/opt/homebrew/bin:$PATH"
+
 set -e  # Exit on error
 
 echo "======================================"
