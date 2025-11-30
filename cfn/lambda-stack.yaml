@@ -104,11 +104,13 @@ Resources:
                   - drs:DescribeRecoverySnapshots
                   - drs:TerminateRecoveryInstances
                   - drs:TagResource
+                  - drs:StopReplication
                 Resource: '*'
               - Effect: Allow
                 Action:
                   - ec2:DescribeInstances
                   - ec2:DescribeInstanceStatus
+                  - ec2:TerminateInstances
                 Resource: '*'
               # EC2 permissions for DRS instance launching during conversion
               - Effect: Allow
@@ -128,6 +130,18 @@ Resources:
                   - ec2:DescribeVpcs
                   - iam:PassRole
                 Resource: '*'
+              # EC2 Snapshot/AMI permissions for drill conversion
+              - Effect: Allow
+                Action:
+                  - ec2:CreateSnapshot
+                  - ec2:DeleteSnapshot
+                  - ec2:CreateImage
+                  - ec2:DeregisterImage
+                  - ec2:CopyImage
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    ec2:ResourceTag/AWSElasticDisasterRecovery: 'true'
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
             Version: '2012-10-17'
