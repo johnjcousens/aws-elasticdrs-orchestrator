@@ -11,6 +11,15 @@ echo "======================================"
 echo "Frontend Build with Config Injection"
 echo "======================================"
 
+# Verify Node.js version
+NODE_VERSION=$(node --version)
+echo "Using Node.js: $NODE_VERSION"
+if [[ ! "$NODE_VERSION" =~ ^v(2[0-9]|[3-9][0-9]) ]]; then
+    echo "❌ ERROR: Node.js version $NODE_VERSION is too old"
+    echo "   Required: v20.19+ or v22.12+"
+    exit 1
+fi
+
 # Load environment variables from .env.test
 if [ -f "../.env.test" ]; then
     echo "✅ Loading configuration from .env.test..."
