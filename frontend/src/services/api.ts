@@ -250,7 +250,7 @@ class ApiClient {
     const backendRequest = {
       PlanId: data.recoveryPlanId,
       ExecutionType: data.executionType,  // DRILL or RECOVERY from user selection
-      InitiatedBy: data.executedBy || 'demo-user',
+      InitiatedBy: data.executedBy || 'unknown',
       DryRun: data.dryRun || false,
       TopicArn: data.topicArn || ''
     };

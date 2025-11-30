@@ -34,6 +34,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { StatusBadge } from '../components/StatusBadge';
 import { RecoveryPlanDialog } from '../components/RecoveryPlanDialog';
+import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
 import type { RecoveryPlan } from '../types';
 
@@ -44,6 +45,7 @@ import type { RecoveryPlan } from '../types';
  */
 export const RecoveryPlansPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [plans, setPlans] = useState<RecoveryPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +214,7 @@ export const RecoveryPlansPage: React.FC = () => {
         recoveryPlanId: selectedPlanForExecution.id,
         executionType: 'DRILL',
         dryRun: false,
-        executedBy: 'demo-user' // TODO: Get from auth context
+        executedBy: user?.username || 'unknown' // TODO: Get from auth context
       });
       
       console.log('✅ Execution created:', execution);
@@ -264,7 +266,7 @@ export const RecoveryPlansPage: React.FC = () => {
         recoveryPlanId: selectedPlanForExecution.id,
         executionType: 'RECOVERY',
         dryRun: false,
-        executedBy: 'demo-user' // TODO: Get from auth context
+        executedBy: user?.username || 'unknown' // TODO: Get from auth context
       });
       
       console.log('✅ Execution created:', execution);
