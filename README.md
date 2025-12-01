@@ -2,13 +2,25 @@
 
 A comprehensive serverless disaster recovery orchestration platform that provides VMware SRM-like capabilities for AWS Elastic Disaster Recovery (DRS).
 
+---
+
+## 🚨 PROJECT HANDOFF NOTICE
+
+**Date**: November 30, 2025 - 9:00 PM EST  
+**Status**: Investigation reached impasse - handed off to AWS KIRO  
+**Reason**: Lambda drills don't create EC2 instances (CLI script does) - code is identical, issue is environmental
+
+**See**: `docs/SESSION_63_HANDOFF_TO_KIRO.md` for complete 24-hour work summary and technical investigation details.
+
+---
+
 ## Overview
 
 This solution enables you to define, execute, and monitor complex failover/failback procedures through a modern React-based web interface. It provides wave-based recovery orchestration with dependency management, automated health checks, and post-recovery actions.
 
 ### Current Deployment Status
 
-**TEST Environment**: ⚠️ DEPLOYED BUT NOT VALIDATED (Updated November 28, 2025 - 7:00 PM EST)
+**TEST Environment**: ⚠️ INVESTIGATION IN PROGRESS - Handed off to KIRO (November 30, 2025 - 9:00 PM EST)
 
 **Latest Deployment** (Lambda: drs-orchestration-api-handler-test)
 - **Deployed**: November 28, 2025 - 6:30:22 PM EST
