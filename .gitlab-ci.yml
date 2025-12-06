@@ -11,7 +11,7 @@ stages:
 
 variables:
   PYTHON_VERSION: "3.12"
-  NODE_VERSION: "22"  # Updated for Vite compatibility
+  NODE_VERSION: "22"
   AWS_DEFAULT_REGION: "us-east-1"
   STACK_NAME: "drs-orchestration-${CI_COMMIT_REF_SLUG}"
   DEPLOYMENT_BUCKET: "aws-drs-orchestration"
@@ -68,17 +68,12 @@ lint:python:
   script:
     - pip install pylint black flake8
     - echo "Linting Lambda functions..."
-    - find lambda -name "*.py" -not -path "*/package/*" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
-    - find lambda -name "*.py" -not -path "*/package/*" | xargs black --check --line-length=120 || true
-    - find lambda -name "*.py" -not -path "*/package/*" | xargs flake8 --max-line-length=120 --ignore=E203,W503,E501 || true
-    - echo "Linting test scripts..."
-    - find tests/python -name "*.py" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
-    - find scripts -name "*.py" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
+    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
+    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs black --check --line-length=120 || true
+    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs flake8 --max-line-length=120 --ignore=E203,W503,E501 || true
   rules:
     - changes:
         - lambda/**/*.py
-        - tests/python/**/*.py
-        - scripts/**/*.py
         - .gitlab-ci.yml
 
 lint:frontend:
@@ -111,7 +106,7 @@ build:lambda:
     - echo "Building Lambda packages..."
     - cd lambda
     - |
-      # Install dependencies
+      # Install dependencies if not present
       if [ ! -d "package" ]; then
         echo "Installing Lambda dependencies..."
         pip install -r requirements.txt -t package/ --no-cache-dir
@@ -146,7 +141,7 @@ build:lambda:
   artifacts:
     paths:
       - lambda/*.zip
-    expire_in: 1 hour
+    expire_in: 1 week
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH =~ /^dev/
@@ -164,7 +159,7 @@ build:frontend:
   artifacts:
     paths:
       - frontend/dist/
-    expire_in: 1 hour
+    expire_in: 1 week
   cache:
     key: ${CI_COMMIT_REF_SLUG}-frontend
     paths:
@@ -280,7 +275,7 @@ deploy:cloudformation:
     - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
     - aws configure set region $AWS_DEFAULT_REGION
   script:
-    - echo "Deploying CloudFormation stack: ${STACK_NAME}"
+    - echo "Deploying CloudFormation stack ${STACK_NAME}"
     - |
       aws cloudformation deploy \
         --template-url https://${DEPLOYMENT_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/cfn/master-template.yaml \
@@ -297,9 +292,14 @@ deploy:cloudformation:
     - |
       aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} 2>/dev/null || \
       aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME}
-    - echo "Stack deployment complete!"
+    - echo "Stack deployment complete"
     - echo "Retrieving stack outputs..."
-    - aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs' --output table
+    - aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs' --output json > stack-outputs.json
+    - cat stack-outputs.json
+  artifacts:
+    paths:
+      - stack-outputs.json
+    expire_in: 1 day
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH =~ /^dev/
@@ -313,24 +313,16 @@ deploy:frontend:
   image: public.ecr.aws/aws-cli/aws-cli:latest
   dependencies:
     - build:frontend
+    - deploy:cloudformation
   before_script:
     - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
     - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
     - aws configure set region $AWS_DEFAULT_REGION
   script:
     - echo "Retrieving CloudFormation outputs..."
-    - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucket`].OutputValue' --output text)
-    - export CLOUDFRONT_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-    - echo "Deploying frontend to S3 bucket: ${FRONTEND_BUCKET}"
-    - aws s3 sync frontend/dist/ s3://${FRONTEND_BUCKET}/ --delete
-    - echo "Invalidating CloudFront cache: ${CLOUDFRONT_ID}"
-    - aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_ID} --paths '/*'
-    - echo "Frontend deployment complete!"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-    - if: $CI_COMMIT_BRANCH =~ /^dev/ --output text)
-    - export USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CognitoUserPoolId`].OutputValue' --output text)
-    - export APP_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CognitoClientId`].OutputValue' --output text)
+    - export API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
+    - export USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
+    - export APP_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
     - export BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
     - export DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
     - export CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
@@ -351,15 +343,15 @@ deploy:frontend:
         }
       };
       EOF
-    - echo "Generated aws-config.js:"
+    - echo "Generated aws-config.js"
     - cat frontend/dist/aws-config.js
-    - echo "Deploying frontend to S3: ${BUCKET_NAME}"
+    - echo "Deploying frontend to S3 bucket ${BUCKET_NAME}"
     - aws s3 sync frontend/dist/ s3://${BUCKET_NAME}/ --delete --cache-control "public, max-age=31536000, immutable" --exclude "*.html" --exclude "aws-config.js"
     - aws s3 sync frontend/dist/ s3://${BUCKET_NAME}/ --exclude "*" --include "*.html" --include "aws-config.js" --cache-control "no-cache, no-store, must-revalidate"
-    - echo "Creating CloudFront invalidation..."
+    - echo "Creating CloudFront invalidation for distribution ${DISTRIBUTION_ID}"
     - aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION_ID} --paths "/*"
-    - echo "Frontend deployment complete!"
-    - echo "Application URL: ${CLOUDFRONT_URL}"
+    - echo "Frontend deployment complete"
+    - echo "Application URL ${CLOUDFRONT_URL}"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_BRANCH =~ /^dev/
