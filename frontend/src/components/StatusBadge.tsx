@@ -6,15 +6,7 @@
  */
 
 import React from 'react';
-import { Chip } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
-import CancelIcon from '@mui/icons-material/Cancel';
-import UndoIcon from '@mui/icons-material/Undo';
-import AutorenewIcon from '@mui/icons-material/Autorenew';
+import { Badge } from '@cloudscape-design/components';
 import type { ExecutionStatus } from '../types';
 
 export interface StatusBadgeProps {
@@ -26,11 +18,11 @@ export interface StatusBadgeProps {
  * Status Badge Component
  * 
  * @param status - Status string
- * @param size - Badge size (small or medium)
+ * @param size - Badge size (small or medium) - Note: CloudScape badges don't have size variants
  */
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
-  size = 'small',
+  size = 'small', // Kept for API compatibility but not used in CloudScape
 }) => {
   const getStatusConfig = (status: string) => {
     const normalizedStatus = status.toLowerCase().replace(/_/g, ' ');
@@ -40,16 +32,14 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'success':
         return {
           label: 'Completed',
-          color: 'success' as const,
-          icon: <CheckCircleIcon />,
+          color: 'green' as const,
         };
       
       case 'failed':
       case 'error':
         return {
           label: 'Failed',
-          color: 'error' as const,
-          icon: <ErrorIcon />,
+          color: 'red' as const,
         };
       
       case 'in progress':
@@ -57,31 +47,27 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'running':
         return {
           label: 'In Progress',
-          color: 'primary' as const,
-          icon: <PlayArrowIcon />,
+          color: 'blue' as const,
         };
       
       case 'pending':
       case 'queued':
         return {
           label: 'Pending',
-          color: 'default' as const,
-          icon: <HourglassEmptyIcon />,
+          color: 'grey' as const,
         };
       
       case 'paused':
         return {
           label: 'Paused',
-          color: 'warning' as const,
-          icon: <PauseIcon />,
+          color: 'grey' as const,
         };
       
       case 'cancelled':
       case 'canceled':
         return {
           label: 'Cancelled',
-          color: 'default' as const,
-          icon: <CancelIcon />,
+          color: 'grey' as const,
         };
       
       case 'rolled back':
@@ -89,22 +75,19 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'rollback':
         return {
           label: 'Rolled Back',
-          color: 'warning' as const,
-          icon: <UndoIcon />,
+          color: 'grey' as const,
         };
       
       case 'draft':
         return {
           label: 'Draft',
-          color: 'default' as const,
-          icon: undefined,
+          color: 'grey' as const,
         };
       
       case 'active':
         return {
           label: 'Active',
-          color: 'success' as const,
-          icon: <CheckCircleIcon />,
+          color: 'green' as const,
         };
       
       // DRS-specific states
@@ -113,30 +96,26 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'started':
         return {
           label: normalizedStatus.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-          color: 'primary' as const,
-          icon: <PlayArrowIcon />,
+          color: 'blue' as const,
         };
       
       case 'polling':
         return {
           label: 'Polling',
-          color: 'info' as const,
-          icon: <AutorenewIcon />,
+          color: 'blue' as const,
         };
       
       case 'partial':
       case 'partial failure':
         return {
           label: 'Partial',
-          color: 'warning' as const,
-          icon: <ErrorIcon />,
+          color: 'red' as const,
         };
       
       default:
         return {
           label: status.charAt(0).toUpperCase() + status.slice(1),
-          color: 'default' as const,
-          icon: undefined,
+          color: 'grey' as const,
         };
     }
   };
@@ -144,17 +123,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   const config = getStatusConfig(status);
 
   return (
-    <Chip
-      label={config.label}
-      color={config.color}
-      size={size}
-      icon={config.icon}
-      sx={{
-        fontWeight: 500,
-        '& .MuiChip-icon': {
-          fontSize: size === 'small' ? 16 : 20,
-        },
-      }}
-    />
+    <Badge color={config.color}>
+      {config.label}
+    </Badge>
   );
 };

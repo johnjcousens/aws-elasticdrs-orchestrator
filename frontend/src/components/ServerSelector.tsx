@@ -8,17 +8,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  FormControl,
-  FormGroup,
-  FormControlLabel,
+  Container,
+  SpaceBetween,
+  Input,
   Checkbox,
-  TextField,
-  Typography,
-  Paper,
-  Stack,
-  Chip,
+  Button,
   Alert,
-} from '@mui/material';
+  Badge,
+} from '@cloudscape-design/components';
 import { LoadingState } from './LoadingState';
 import { ErrorState } from './ErrorState';
 import apiClient from '../services/api';
@@ -161,97 +158,86 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
 
   if (servers.length === 0) {
     return (
-      <Alert severity="info">
+      <Alert type="info">
         No servers found in this protection group. Servers will be automatically discovered when they match the group's tag filters.
       </Alert>
     );
   }
 
   return (
-    <Box>
+    <SpaceBetween size="m">
       {/* Header with selection info */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="body2" color="text.secondary">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: '14px', color: '#5f6b7a' }}>
           {safeSelectedServerIds.length} of {servers.length} servers selected
-        </Typography>
+        </span>
         {!readonly && (
-          <Stack direction="row" spacing={1}>
-            <Chip
-              label="Select All"
-              size="small"
+          <SpaceBetween direction="horizontal" size="xs">
+            <Button
               onClick={handleSelectAll}
-              clickable
               disabled={safeSelectedServerIds.length === filteredServers.length}
-            />
-            <Chip
-              label="Deselect All"
-              size="small"
+            >
+              Select All
+            </Button>
+            <Button
               onClick={handleDeselectAll}
-              clickable
               disabled={safeSelectedServerIds.length === 0}
-            />
-          </Stack>
+            >
+              Deselect All
+            </Button>
+          </SpaceBetween>
         )}
-      </Stack>
+      </div>
 
       {/* Search field */}
       {!readonly && servers.length > 5 && (
-        <TextField
-          fullWidth
-          size="small"
+        <Input
+          type="search"
           placeholder="Search servers by hostname, ID, or tags..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ mb: 2 }}
+          onChange={({ detail }) => setSearchTerm(detail.value)}
         />
       )}
 
       {/* Server list */}
-      <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto', p: 2 }}>
-        {filteredServers.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            No servers match your search
-          </Typography>
-        ) : (
-          <FormControl component="fieldset" fullWidth>
-            <FormGroup>
+      <Container>
+        <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+          {filteredServers.length === 0 ? (
+            <Box textAlign="center" padding="l">
+              <span style={{ fontSize: '14px', color: '#5f6b7a' }}>
+                No servers match your search
+              </span>
+            </Box>
+          ) : (
+            <SpaceBetween size="s">
               {filteredServers.map((server) => (
-                <FormControlLabel
-                  key={server.id}
-                  control={
-                    <Checkbox
-                      checked={safeSelectedServerIds.includes(server.id)}
-                      onChange={() => handleToggle(server.id)}
-                      disabled={readonly}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="body2">
+                <div key={server.id} style={{ padding: '8px 0' }}>
+                  <Checkbox
+                    checked={safeSelectedServerIds.includes(server.id)}
+                    onChange={() => handleToggle(server.id)}
+                    disabled={readonly}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 500, marginBottom: '4px' }}>
                         {server.hostname || server.id}
-                      </Typography>
+                      </div>
                       {server.tags && Object.keys(server.tags).length > 0 && (
-                        <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }} flexWrap="wrap">
+                        <SpaceBetween direction="horizontal" size="xs">
                           {Object.entries(server.tags).map(([key, value]) => (
-                            <Chip
-                              key={key}
-                              label={`${key}: ${value}`}
-                              size="small"
-                              variant="outlined"
-                              sx={{ mb: 0.5 }}
-                            />
+                            <Badge key={key} color="blue">
+                              {key}: {value}
+                            </Badge>
                           ))}
-                        </Stack>
+                        </SpaceBetween>
                       )}
-                    </Box>
-                  }
-                  sx={{ mb: 1 }}
-                />
+                    </div>
+                  </Checkbox>
+                </div>
               ))}
-            </FormGroup>
-          </FormControl>
-        )}
-      </Paper>
-    </Box>
+            </SpaceBetween>
+          )}
+        </div>
+      </Container>
+    </SpaceBetween>
   );
 };

@@ -881,6 +881,120 @@ For typical usage (10 executions/month):
 4. Use Step Functions Express workflows for high-volume scenarios
 5. Clean up old execution history records
 
+## CloudScape Migration 🎨 NEW!
+
+**Status**: Specification Complete - Ready to Start  
+**Timeline**: 22-34 hours estimated  
+**Goal**: Migrate from Material-UI to AWS CloudScape Design System
+
+### Why CloudScape?
+
+CloudScape is AWS's official design system, providing:
+- ✅ **AWS Console Experience** - Familiar look and feel for AWS users
+- ✅ **Accessibility Built-In** - WCAG 2.1 AA compliant by default
+- ✅ **AWS Branding** - Official AWS visual identity
+- ✅ **Better Performance** - Optimized for AWS applications
+- ✅ **Comprehensive Components** - 50+ production-ready components
+
+### Migration Plan
+
+**Phase 1: Setup & Infrastructure** (2-4 hours)
+- Install CloudScape dependencies
+- Remove Material-UI dependencies
+- Create theme configuration
+- Update global styles
+- Create layout wrappers (AppLayout, ContentLayout)
+
+**Phase 2: Core Components** (8-12 hours)
+- Migrate 12 shared components (dialogs, selectors, displays)
+- StatusBadge, ConfirmDialog, ProtectionGroupDialog
+- RegionSelector, ServerSelector, WaveProgress
+- All utility and display components
+
+**Phase 3: Pages** (8-12 hours)
+- Migrate 5 page components
+- LoginPage, Dashboard, ProtectionGroupsPage
+- RecoveryPlansPage, ExecutionsPage
+- Complex table migrations with collection hooks
+
+**Phase 4: Testing & Refinement** (4-6 hours)
+- Visual regression testing
+- Functionality testing (all CRUD operations)
+- Accessibility testing (keyboard, screen reader)
+- Performance testing (bundle size, load time)
+
+### Key Migration Patterns
+
+**Dialog → Modal**
+```typescript
+// Material-UI (OLD)
+<Dialog open={open} onClose={onClose}>
+  <DialogTitle>Title</DialogTitle>
+  <DialogContent>Content</DialogContent>
+</Dialog>
+
+// CloudScape (NEW)
+<Modal visible={visible} onDismiss={onDismiss} header="Title">
+  Content
+</Modal>
+```
+
+**TextField → FormField + Input**
+```typescript
+// Material-UI (OLD)
+<TextField label="Name" value={value} onChange={onChange} />
+
+// CloudScape (NEW)
+<FormField label="Name">
+  <Input value={value} onChange={({ detail }) => setValue(detail.value)} />
+</FormField>
+```
+
+**DataGrid → Table + Collection Hooks**
+```typescript
+// Material-UI (OLD)
+<DataGrid rows={rows} columns={columns} />
+
+// CloudScape (NEW)
+import { useCollection } from '@cloudscape-design/collection-hooks';
+
+const { items, collectionProps } = useCollection(rows, {
+  filtering: {},
+  pagination: { pageSize: 25 },
+  sorting: {},
+});
+
+<Table {...collectionProps} items={items} columnDefinitions={columns} />
+```
+
+### Documentation
+
+Complete migration documentation available:
+- **[Implementation Plan](/.kiro/specs/cloudscape-migration/implementation-plan.md)** - Detailed phase breakdown with code examples
+- **[Task Breakdown](/.kiro/specs/cloudscape-migration/tasks.md)** - 29 specific tasks with acceptance criteria
+- **[Migration Guide](/.kiro/steering/cloudscape-migration.md)** - Component patterns and workflow
+- **[Best Practices](/.kiro/steering/cloudscape-best-practices.md)** - CloudScape usage guidelines
+- **[Component Reference](/.kiro/steering/cloudscape-component-reference.md)** - Quick API reference
+
+### Success Criteria
+
+- [ ] Zero Material-UI dependencies in package.json
+- [ ] All 23 components migrated to CloudScape
+- [ ] All functionality preserved (CRUD, search, filter, sort)
+- [ ] WCAG 2.1 AA compliance maintained
+- [ ] Bundle size <3MB
+- [ ] No console errors or warnings
+- [ ] All TypeScript types correct
+- [ ] Build succeeds without errors
+
+### Current Status
+
+**Not Started** - Migration will begin after DRS validation is complete.
+
+The migration is fully specified and ready to execute. All patterns documented, all components mapped, all risks identified and mitigated.
+
+---
+
 ## Roadmap
 
 ### ✅ Recently Completed (Sessions 46-57)

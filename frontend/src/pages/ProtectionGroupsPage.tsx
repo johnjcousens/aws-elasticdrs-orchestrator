@@ -5,26 +5,28 @@
  * Displays list of groups with CRUD operations.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
+import type { ProtectionGroup } from '../types';
 import {
   Box,
+  SpaceBetween,
   Button,
-  Typography,
-  Stack,
-} from '@mui/material';
-import type { GridColDef } from '@mui/x-data-grid';
-import { GridActionsCellItem } from '@mui/x-data-grid';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+  Header,
+  Table,
+  ButtonDropdown,
+  Pagination,
+  TextFilter,
+} from '@cloudscape-design/components';
+import { useCollection } from '@cloudscape-design/collection-hooks';
 import toast from 'react-hot-toast';
-import { DataGridWrapper } from '../components/DataGridWrapper';
+import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { ProtectionGroupDialog } from '../components/ProtectionGroupDialog';
+import { LoadingState } from '../components/LoadingState';
+import { ErrorState } from '../components/ErrorState';
 import apiClient from '../services/api';
-import type { ProtectionGroup } from '../types';
 
 /**
  * Protection Groups Page Component
@@ -111,128 +113,144 @@ export const ProtectionGroupsPage: React.FC = () => {
     setEditingGroup(null);
   };
 
-  // DataGrid columns configuration
-  const columns: GridColDef[] = useMemo(() => [
+  // CloudScape collection hooks for table state management
+  const { items, actions, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
+    groups,
     {
-      field: 'name',
-      headerName: 'Name',
-      width: 200,
-      sortable: true,
-    },
-    {
-      field: 'description',
-      headerName: 'Description',
-      flex: 1,
-      sortable: true,
-      renderCell: (params) => params.value || '-',
-    },
-    {
-      field: 'region',
-      headerName: 'Region',
-      width: 150,
-      sortable: true,
-    },
-    {
-      field: 'sourceServerIds',
-      headerName: 'Servers',
-      width: 100,
-      sortable: true,
-      renderCell: (params) => {
-        const serverIds = params.value as string[] || [];
-        return <Typography variant="body2">{serverIds.length}</Typography>;
+      filtering: {
+        empty: 'No protection groups found',
+        noMatch: 'No protection groups match the filter',
       },
-    },
-    {
-      field: 'createdAt',
-      headerName: 'Created',
-      width: 180,
-      sortable: true,
-      renderCell: (params) => <DateTimeDisplay value={params.value} format="relative" />,
-    },
-    {
-      field: 'actions',
-      type: 'actions',
-      headerName: 'Actions',
-      width: 120,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<EditIcon />}
-          label="Edit"
-          onClick={() => handleEdit(params.row as ProtectionGroup)}
-          showInMenu={false}
-        />,
-        <GridActionsCellItem
-          icon={<DeleteIcon color="error" />}
-          label="Delete"
-          onClick={() => handleDelete(params.row as ProtectionGroup)}
-          showInMenu={false}
-        />,
-      ],
-    },
-  ], []);
+      pagination: { pageSize: 10 },
+      sorting: {},
+    }
+  );
 
-  // Transform data for DataGrid - use protectionGroupId as id
-  const rows = useMemo(() => groups.map((group) => ({
-    ...group,
-    id: group.protectionGroupId,
-  })), [groups]);
+  if (loading) {
+    return <LoadingState message="Loading protection groups..." />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={fetchGroups} />;
+  }
 
   return (
-    <PageTransition in={!loading && !error}>
-      <Box>
-        {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
+    <PageTransition>
+      <ContentLayout
+        header={
+          <Header
+            variant="h1"
+            description="Define groups of servers to protect together"
+            actions={
+              <Button variant="primary" onClick={handleCreate}>
+                Create Group
+              </Button>
+            }
+          >
             Protection Groups
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Define groups of servers to protect together based on tags
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreate}
-        >
-          Create Group
-        </Button>
-      </Stack>
-
-      {/* Protection Groups DataGrid */}
-      <DataGridWrapper
-        rows={rows}
-        columns={columns}
-        loading={loading}
-        error={error}
-        onRetry={fetchGroups}
-        emptyMessage="No protection groups found. Click 'Create Group' above to get started."
-        height={600}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        title="Delete Protection Group"
-        message={
-          groupToDelete
-            ? `Are you sure you want to delete "${groupToDelete.name}"? This action cannot be undone.`
-            : ''
+          </Header>
         }
-        confirmLabel="Delete"
-        confirmColor="error"
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
-      />
+      >
+        <Table
+          {...collectionProps}
+          columnDefinitions={[
+            {
+              id: 'name',
+              header: 'Name',
+              cell: (item) => item.name,
+              sortingField: 'name',
+            },
+            {
+              id: 'description',
+              header: 'Description',
+              cell: (item) => item.description || '-',
+              sortingField: 'description',
+            },
+            {
+              id: 'region',
+              header: 'Region',
+              cell: (item) => item.region,
+              sortingField: 'region',
+            },
+            {
+              id: 'servers',
+              header: 'Servers',
+              cell: (item) => (item.sourceServerIds || []).length,
+              sortingField: 'sourceServerIds',
+            },
+            {
+              id: 'createdAt',
+              header: 'Created',
+              cell: (item) => <DateTimeDisplay value={item.createdAt} format="relative" />,
+              sortingField: 'createdAt',
+            },
+            {
+              id: 'actions',
+              header: 'Actions',
+              cell: (item) => (
+                <ButtonDropdown
+                  items={[
+                    { id: 'edit', text: 'Edit' },
+                    { id: 'delete', text: 'Delete' },
+                  ]}
+                  onItemClick={({ detail }) => {
+                    if (detail.id === 'edit') {
+                      handleEdit(item);
+                    } else if (detail.id === 'delete') {
+                      handleDelete(item);
+                    }
+                  }}
+                >
+                  Actions
+                </ButtonDropdown>
+              ),
+            },
+          ]}
+          items={items}
+          loading={loading}
+          loadingText="Loading protection groups"
+          empty={
+            <Box textAlign="center" color="inherit">
+              <b>No protection groups</b>
+              <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                No protection groups found. Click 'Create Group' above to get started.
+              </Box>
+            </Box>
+          }
+          filter={
+            <TextFilter
+              {...filterProps}
+              filteringPlaceholder="Find protection groups"
+              countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`}
+            />
+          }
+          pagination={<Pagination {...paginationProps} />}
+          variant="full-page"
+          stickyHeader
+        />
 
-      {/* Create/Edit Dialog */}
-      <ProtectionGroupDialog
-        open={dialogOpen}
-        group={editingGroup}
-        onClose={handleDialogClose}
-        onSave={handleDialogSave}
-      />
-      </Box>
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          visible={deleteDialogOpen}
+          title="Delete Protection Group"
+          message={
+            groupToDelete
+              ? `Are you sure you want to delete "${groupToDelete.name}"? This action cannot be undone.`
+              : ''
+          }
+          confirmLabel="Delete"
+          onConfirm={confirmDelete}
+          onDismiss={cancelDelete}
+        />
+
+        {/* Create/Edit Dialog */}
+        <ProtectionGroupDialog
+          open={dialogOpen}
+          group={editingGroup}
+          onClose={handleDialogClose}
+          onSave={handleDialogSave}
+        />
+      </ContentLayout>
     </PageTransition>
   );
 };

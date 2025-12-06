@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Box, CircularProgress, Skeleton, Stack, Typography } from '@mui/material';
+import { Spinner, Box } from '@cloudscape-design/components';
 
 export interface LoadingStateProps {
   variant?: 'spinner' | 'skeleton' | 'inline';
@@ -20,8 +20,8 @@ export interface LoadingStateProps {
  * 
  * @param variant - Loading display type (spinner, skeleton, or inline)
  * @param message - Optional loading message
- * @param rows - Number of skeleton rows to display (default: 5)
- * @param height - Height of each skeleton row (default: 60)
+ * @param rows - Number of skeleton rows to display (default: 5) - Note: skeleton not implemented in CloudScape
+ * @param height - Height of each skeleton row (default: 60) - Note: skeleton not implemented in CloudScape
  */
 export const LoadingState: React.FC<LoadingStateProps> = ({
   variant = 'spinner',
@@ -31,47 +31,47 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 }) => {
   if (variant === 'inline') {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
-        <CircularProgress size={20} />
-        <Typography variant="body2" color="text.secondary">
-          {message}
-        </Typography>
+      <Box padding={{ vertical: 's', horizontal: 'm' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Spinner size="normal" />
+          <span style={{ fontSize: '14px', color: '#5f6b7a' }}>
+            {message}
+          </span>
+        </div>
       </Box>
     );
   }
 
   if (variant === 'skeleton') {
+    // CloudScape doesn't have skeleton components, fall back to spinner
     return (
-      <Stack spacing={2} sx={{ p: 3 }}>
-        {Array.from({ length: rows }).map((_, index) => (
-          <Skeleton
-            key={index}
-            variant="rectangular"
-            height={height}
-            animation="wave"
-            sx={{ borderRadius: 1 }}
-          />
-        ))}
-      </Stack>
+      <Box padding="l">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+          <Spinner size="large" />
+          <span style={{ fontSize: '14px', color: '#5f6b7a' }}>
+            {message}
+          </span>
+        </div>
+      </Box>
     );
   }
 
   // Default: centered spinner
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 400,
-        gap: 2,
+        minHeight: '400px',
+        gap: '16px',
       }}
     >
-      <CircularProgress size={48} />
-      <Typography variant="body1" color="text.secondary">
+      <Spinner size="large" />
+      <span style={{ fontSize: '14px', color: '#5f6b7a' }}>
         {message}
-      </Typography>
-    </Box>
+      </span>
+    </div>
   );
 };

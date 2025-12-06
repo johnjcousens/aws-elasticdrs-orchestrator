@@ -5,38 +5,32 @@
  * Displays list of plans with CRUD operations and wave configuration.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
+import type { RecoveryPlan } from '../types';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
+  SpaceBetween,
   Button,
-  Typography,
-  Chip,
-  Stack,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
-  Tooltip,
-} from '@mui/material';
-import type { GridColDef } from '@mui/x-data-grid';
-import { GridActionsCellItem } from '@mui/x-data-grid';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import WarningIcon from '@mui/icons-material/Warning';
-import ScienceIcon from '@mui/icons-material/Science';
+  Header,
+  Table,
+  ButtonDropdown,
+  Badge,
+  Pagination,
+  TextFilter,
+} from '@cloudscape-design/components';
+import { useCollection } from '@cloudscape-design/collection-hooks';
 import toast from 'react-hot-toast';
-import { DataGridWrapper } from '../components/DataGridWrapper';
+import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { StatusBadge } from '../components/StatusBadge';
 import { RecoveryPlanDialog } from '../components/RecoveryPlanDialog';
+import { LoadingState } from '../components/LoadingState';
+import { ErrorState } from '../components/ErrorState';
 import { useAuth } from '../contexts/AuthContext';
 import apiClient from '../services/api';
-import type { RecoveryPlan } from '../types';
 
 /**
  * Recovery Plans Page Component
@@ -54,20 +48,28 @@ export const RecoveryPlansPage: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RecoveryPlan | null>(null);
   const [executing, setExecuting] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [selectedPlanForExecution, setSelectedPlanForExecution] = useState<RecoveryPlan | null>(null);
   const [plansWithInProgressExecution, setPlansWithInProgressExecution] = useState<Set<string>>(() => {
-    // Initialize from sessionStorage to persist across navigation
     const stored = sessionStorage.getItem('plansWithInProgressExecution');
     return stored ? new Set(JSON.parse(stored)) : new Set();
   });
 
-  // Fetch recovery plans on mount
+  // CloudScape collection hooks
+  const { items, actions, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
+    plans,
+    {
+      filtering: {
+        empty: 'No recovery plans found',
+        noMatch: 'No recovery plans match the filter',
+      },
+      pagination: { pageSize: 10 },
+      sorting: {},
+    }
+  );
+
   useEffect(() => {
     fetchPlans();
     checkInProgressExecutions();
     
-    // Poll for in-progress executions every 5 seconds (faster polling)
     const interval = setInterval(() => {
       checkInProgressExecutions();
     }, 5000);
@@ -75,7 +77,6 @@ export const RecoveryPlansPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
   
-  // Re-check when page becomes visible (user navigates back)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -87,12 +88,10 @@ export const RecoveryPlansPage: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
   
-  // Persist to sessionStorage when state changes
   useEffect(() => {
     sessionStorage.setItem('plansWithInProgressExecution', JSON.stringify([...plansWithInProgressExecution]));
   }, [plansWithInProgressExecution]);
   
-  // Check for in-progress executions
   const checkInProgressExecutions = async () => {
     try {
       const response = await apiClient.listExecutions();
@@ -161,11 +160,8 @@ export const RecoveryPlansPage: React.FC = () => {
   };
 
   const handleDialogSave = (savedPlan: RecoveryPlan) => {
-    // Show success toast
     const action = editingPlan ? 'updated' : 'created';
     toast.success(`Recovery plan "${savedPlan.name}" ${action} successfully`);
-    
-    // Refresh the plans list after save
     fetchPlans();
   };
 
@@ -174,338 +170,196 @@ export const RecoveryPlansPage: React.FC = () => {
     setEditingPlan(null);
   };
 
-  // Handle execution menu
-  const handleExecuteMenuClick = (event: React.MouseEvent<HTMLElement>, plan: RecoveryPlan) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedPlanForExecution(plan);
-  };
+  const handleExecute = async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
+    if (executing) return;
 
-  const handleExecuteMenuClose = () => {
-    setAnchorEl(null);
-    setSelectedPlanForExecution(null);
-  };
-
-  // Direct execution handlers
-  const handleExecuteDrill = async () => {
-    console.log('🔵 handleExecuteDrill called', {
-      selectedPlan: selectedPlanForExecution?.id,
-      executing,
-      hasSelection: !!selectedPlanForExecution
-    });
-    
-    if (!selectedPlanForExecution) {
-      console.error('❌ No plan selected for execution');
-      toast.error('No plan selected');
-      return;
-    }
-    
-    if (executing) {
-      console.warn('⚠️ Already executing, skipping');
-      return;
-    }
-
-    handleExecuteMenuClose();
     setExecuting(true);
 
     try {
-      console.log('🚀 Starting DRILL execution for plan:', selectedPlanForExecution.id);
-      
       const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: selectedPlanForExecution.id,
-        executionType: 'DRILL',
+        recoveryPlanId: plan.id,
+        executionType,
         dryRun: false,
-        executedBy: user?.username || 'unknown' // TODO: Get from auth context
+        executedBy: user?.username || 'unknown'
       });
       
-      console.log('✅ Execution created:', execution);
-      toast.success('🔵 DRILL execution started');
+      toast.success(`${executionType === 'DRILL' ? '🔵 DRILL' : '⚠️ RECOVERY'} execution started`);
       
-      // Mark this plan as having an in-progress execution immediately
       const updatedSet = new Set(plansWithInProgressExecution);
-      updatedSet.add(selectedPlanForExecution.id);
+      updatedSet.add(plan.id);
       setPlansWithInProgressExecution(updatedSet);
       
-      // Refresh in-progress executions after a short delay
       setTimeout(() => checkInProgressExecutions(), 1000);
       
       navigate(`/executions/${execution.executionId}`);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to execute recovery plan';
-      console.error('❌ Execution error:', err);
       toast.error(errorMessage);
     } finally {
       setExecuting(false);
     }
   };
 
-  const handleExecuteRecovery = async () => {
-    console.log('⚠️ handleExecuteRecovery called', {
-      selectedPlan: selectedPlanForExecution?.id,
-      executing,
-      hasSelection: !!selectedPlanForExecution
-    });
-    
-    if (!selectedPlanForExecution) {
-      console.error('❌ No plan selected for execution');
-      toast.error('No plan selected');
-      return;
-    }
-    
-    if (executing) {
-      console.warn('⚠️ Already executing, skipping');
-      return;
-    }
+  if (loading) {
+    return <LoadingState message="Loading recovery plans..." />;
+  }
 
-    handleExecuteMenuClose();
-    setExecuting(true);
-
-    try {
-      console.log('🚀 Starting RECOVERY execution for plan:', selectedPlanForExecution.id);
-      
-      const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: selectedPlanForExecution.id,
-        executionType: 'RECOVERY',
-        dryRun: false,
-        executedBy: user?.username || 'unknown' // TODO: Get from auth context
-      });
-      
-      console.log('✅ Execution created:', execution);
-      toast.success('⚠️ RECOVERY execution started');
-      
-      // Mark this plan as having an in-progress execution immediately
-      const updatedSet = new Set(plansWithInProgressExecution);
-      updatedSet.add(selectedPlanForExecution.id);
-      setPlansWithInProgressExecution(updatedSet);
-      
-      // Refresh in-progress executions after a short delay
-      setTimeout(() => checkInProgressExecutions(), 1000);
-      
-      navigate(`/executions/${execution.executionId}`);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to execute recovery plan';
-      console.error('❌ Execution error:', err);
-      toast.error(errorMessage);
-    } finally {
-      setExecuting(false);
-    }
-  };
-
-  // DataGrid columns configuration
-  const columns: GridColDef<RecoveryPlan>[] = useMemo(() => [
-    {
-      field: 'name',
-      headerName: 'Plan Name',
-      width: 200,
-      sortable: true,
-      renderCell: (params) => (
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            {params.value}
-          </Typography>
-          {params.row.description && (
-            <Typography variant="caption" color="text.secondary" display="block">
-              {params.row.description}
-            </Typography>
-          )}
-        </Box>
-      ),
-    },
-    {
-      field: 'waves',
-      headerName: 'Waves',
-      width: 100,
-      sortable: true,
-      renderCell: (params) => (
-        <Chip
-          label={`${params.value.length} wave${params.value.length !== 1 ? 's' : ''}`}
-          size="small"
-          color="primary"
-          variant="outlined"
-        />
-      ),
-    },
-    {
-      field: 'lastExecutionStatus',
-      headerName: 'Status',
-      width: 130,
-      sortable: true,
-      renderCell: (params) => {
-        if (!params.value) {
-          return (
-            <Chip label="Not Run" size="small" variant="outlined" />
-          );
-        }
-        return <StatusBadge status={params.value} />;
-      },
-    },
-    {
-      field: 'lastStartTime',
-      headerName: 'Last Start',
-      width: 180,
-      sortable: true,
-      renderCell: (params) => {
-        if (!params.value) {
-          return (
-            <Typography variant="body2" color="text.secondary">
-              Never
-            </Typography>
-          );
-        }
-        // lastStartTime comes as Unix timestamp in seconds, convert to milliseconds
-        return <DateTimeDisplay value={params.value * 1000} format="full" />;
-      },
-    },
-    {
-      field: 'lastEndTime',
-      headerName: 'Last End',
-      width: 180,
-      sortable: true,
-      renderCell: (params) => {
-        if (!params.value) {
-          return (
-            <Typography variant="body2" color="text.secondary">
-              Never
-            </Typography>
-          );
-        }
-        // lastEndTime comes as Unix timestamp in seconds, convert to milliseconds
-        return <DateTimeDisplay value={params.value * 1000} format="full" />;
-      },
-    },
-    {
-      field: 'createdAt',
-      headerName: 'Created',
-      width: 150,
-      sortable: true,
-      renderCell: (params) => {
-        // Defensive: Check for null, undefined, 0, or invalid timestamps
-        if (!params.value || params.value === 0) {
-          return (
-            <Typography variant="body2" color="text.secondary">
-              Unknown
-            </Typography>
-          );
-        }
-        return <DateTimeDisplay value={params.value} format="full" />;
-      },
-    },
-    {
-      field: 'actions',
-      type: 'actions',
-      headerName: 'Actions',
-      width: 140,
-      getActions: (params) => {
-        const plan = params.row as RecoveryPlan;
-        const hasInProgressExecution = plansWithInProgressExecution.has(plan.id);
-        const isDisabled = plan.status === 'archived' || executing || hasInProgressExecution;
-        
-        const executeButton = (
-          <GridActionsCellItem
-            icon={<PlayArrowIcon />}
-            label="Execute"
-            onClick={(event) => handleExecuteMenuClick(event, plan)}
-            disabled={isDisabled}
-            showInMenu={false}
-          />
-        );
-        
-        // Wrap with tooltip if disabled due to in-progress execution
-        const executeAction = hasInProgressExecution ? (
-          <Tooltip title="Execution already in progress for this plan" arrow>
-            <span>{executeButton}</span>
-          </Tooltip>
-        ) : executeButton;
-        
-        return [
-          executeAction,
-          <GridActionsCellItem
-            icon={<EditIcon />}
-            label="Edit"
-            onClick={() => handleEdit(plan)}
-            showInMenu={false}
-          />,
-          <GridActionsCellItem
-            icon={<DeleteIcon />}
-            label="Delete"
-            onClick={() => handleDelete(plan)}
-            showInMenu={false}
-          />,
-        ];
-      },
-    },
-  ], [executing, plansWithInProgressExecution]);
-
-  // Transform data for DataGrid (requires 'id' field) - plans already have id
-  const rows = useMemo(() => plans, [plans]);
+  if (error) {
+    return <ErrorState message={error} onRetry={fetchPlans} />;
+  }
 
   return (
-    <PageTransition in={!loading && !error}>
-      <Box>
-        {/* Header */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-          <Box>
-            <Typography variant="h4" gutterBottom>
-              Recovery Plans
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Define recovery strategies with wave-based orchestration
-            </Typography>
-          </Box>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreate}
+    <PageTransition>
+      <ContentLayout
+        header={
+          <Header
+            variant="h1"
+            description="Define recovery strategies with wave-based orchestration"
+            actions={
+              <Button variant="primary" onClick={handleCreate}>
+                Create Plan
+              </Button>
+            }
           >
-            Create Plan
-          </Button>
-        </Stack>
-
-        {/* Recovery Plans DataGrid */}
-        <DataGridWrapper
-          rows={rows}
-          columns={columns}
+            Recovery Plans
+          </Header>
+        }
+      >
+        <Table
+          {...collectionProps}
+          columnDefinitions={[
+            {
+              id: 'name',
+              header: 'Plan Name',
+              cell: (item) => (
+                <div>
+                  <div style={{ fontWeight: 500 }}>{item.name}</div>
+                  {item.description && (
+                    <div style={{ fontSize: '12px', color: '#5f6b7a' }}>{item.description}</div>
+                  )}
+                </div>
+              ),
+              sortingField: 'name',
+            },
+            {
+              id: 'waves',
+              header: 'Waves',
+              cell: (item) => (
+                <Badge color="blue">
+                  {item.waves.length} wave{item.waves.length !== 1 ? 's' : ''}
+                </Badge>
+              ),
+            },
+            {
+              id: 'status',
+              header: 'Status',
+              cell: (item) => {
+                if (!item.lastExecutionStatus) {
+                  return <Badge>Not Run</Badge>;
+                }
+                return <StatusBadge status={item.lastExecutionStatus} />;
+              },
+            },
+            {
+              id: 'lastStart',
+              header: 'Last Start',
+              cell: (item) => {
+                if (!item.lastStartTime) {
+                  return <span style={{ color: '#5f6b7a' }}>Never</span>;
+                }
+                return <DateTimeDisplay value={item.lastStartTime * 1000} format="full" />;
+              },
+            },
+            {
+              id: 'lastEnd',
+              header: 'Last End',
+              cell: (item) => {
+                if (!item.lastEndTime) {
+                  return <span style={{ color: '#5f6b7a' }}>Never</span>;
+                }
+                return <DateTimeDisplay value={item.lastEndTime * 1000} format="full" />;
+              },
+            },
+            {
+              id: 'created',
+              header: 'Created',
+              cell: (item) => {
+                if (!item.createdAt || item.createdAt === 0) {
+                  return <span style={{ color: '#5f6b7a' }}>Unknown</span>;
+                }
+                return <DateTimeDisplay value={item.createdAt} format="full" />;
+              },
+            },
+            {
+              id: 'actions',
+              header: 'Actions',
+              cell: (item) => {
+                const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
+                const isDisabled = item.status === 'archived' || executing || hasInProgressExecution;
+                
+                return (
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <ButtonDropdown
+                      items={[
+                        { id: 'drill', text: '🔵 Run Drill', description: 'Test recovery without failover' },
+                        { id: 'recovery', text: '⚠️ Run Recovery', description: 'Actual failover operation' },
+                      ]}
+                      onItemClick={({ detail }) => {
+                        if (detail.id === 'drill') {
+                          handleExecute(item, 'DRILL');
+                        } else if (detail.id === 'recovery') {
+                          handleExecute(item, 'RECOVERY');
+                        }
+                      }}
+                      disabled={isDisabled}
+                    >
+                      Execute
+                    </ButtonDropdown>
+                    <ButtonDropdown
+                      items={[
+                        { id: 'edit', text: 'Edit' },
+                        { id: 'delete', text: 'Delete' },
+                      ]}
+                      onItemClick={({ detail }) => {
+                        if (detail.id === 'edit') {
+                          handleEdit(item);
+                        } else if (detail.id === 'delete') {
+                          handleDelete(item);
+                        }
+                      }}
+                    >
+                      Actions
+                    </ButtonDropdown>
+                  </SpaceBetween>
+                );
+              },
+            },
+          ]}
+          items={items}
           loading={loading}
-          error={error}
-          onRetry={fetchPlans}
-          emptyMessage="No recovery plans found. Click 'Create Plan' above to get started."
-          height={600}
+          loadingText="Loading recovery plans"
+          empty={
+            <Box textAlign="center" color="inherit">
+              <b>No recovery plans</b>
+              <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                No recovery plans found. Click 'Create Plan' above to get started.
+              </Box>
+            </Box>
+          }
+          filter={
+            <TextFilter
+              {...filterProps}
+              filteringPlaceholder="Find recovery plans"
+              countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`}
+            />
+          }
+          pagination={<Pagination {...paginationProps} />}
+          variant="full-page"
+          stickyHeader
         />
 
-        {/* Execution Type Menu */}
-        <Menu
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={handleExecuteMenuClose}
-        >
-          <MenuItem 
-            onClick={handleExecuteDrill} 
-            disabled={executing || (selectedPlanForExecution ? plansWithInProgressExecution.has(selectedPlanForExecution.id) : false)}
-          >
-            <ListItemIcon>
-              <ScienceIcon fontSize="small" color="primary" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Run Drill"
-              secondary="Test recovery without failover"
-            />
-          </MenuItem>
-          <MenuItem 
-            onClick={handleExecuteRecovery} 
-            disabled={executing || (selectedPlanForExecution ? plansWithInProgressExecution.has(selectedPlanForExecution.id) : false)}
-          >
-            <ListItemIcon>
-              <WarningIcon fontSize="small" color="warning" />
-            </ListItemIcon>
-            <ListItemText
-              primary="Run Recovery"
-              secondary="Actual failover operation"
-            />
-          </MenuItem>
-        </Menu>
-
-        {/* Delete Confirmation Dialog */}
         <ConfirmDialog
-          open={deleteDialogOpen}
+          visible={deleteDialogOpen}
           title="Delete Recovery Plan"
           message={
             planToDelete
@@ -513,19 +367,17 @@ export const RecoveryPlansPage: React.FC = () => {
               : ''
           }
           confirmLabel="Delete"
-          confirmColor="error"
           onConfirm={confirmDelete}
-          onCancel={cancelDelete}
+          onDismiss={cancelDelete}
         />
 
-        {/* Create/Edit Dialog */}
         <RecoveryPlanDialog
           open={dialogOpen}
           plan={editingPlan}
           onClose={handleDialogClose}
           onSave={handleDialogSave}
         />
-      </Box>
+      </ContentLayout>
     </PageTransition>
   );
 };
