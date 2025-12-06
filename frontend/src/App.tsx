@@ -6,20 +6,17 @@
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { Layout } from './components/Layout';
+import { AppLayout } from './components/cloudscape/AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { ProtectionGroupsPage } from './pages/ProtectionGroupsPage';
 import { ExecutionsPage } from './pages/ExecutionsPage';
 import { ExecutionDetailsPage } from './pages/ExecutionDetailsPage';
 import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
-import { theme } from './theme';
 
 /**
  * Main App Component
@@ -29,8 +26,7 @@ import { theme } from './theme';
  */
 function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -60,17 +56,17 @@ function App() {
         <BrowserRouter>
           <ErrorBoundary>
             <Routes>
-            {/* Public routes */}
+            {/* Public routes - no AppLayout wrapper */}
             <Route path="/login" element={<LoginPage />} />
             
-            {/* Protected routes */}
+            {/* Protected routes - wrapped with AppLayout */}
             <Route
               path="/"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <AppLayout>
                     <Dashboard />
-                  </Layout>
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -80,9 +76,9 @@ function App() {
               path="/protection-groups"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <AppLayout>
                     <ProtectionGroupsPage />
-                  </Layout>
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -91,9 +87,9 @@ function App() {
               path="/protection-groups/new"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <AppLayout>
                     <ProtectionGroupsPage />
-                  </Layout>
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -102,9 +98,9 @@ function App() {
               path="/recovery-plans"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <AppLayout>
                     <RecoveryPlansPage />
-                  </Layout>
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -113,9 +109,9 @@ function App() {
               path="/recovery-plans/new"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <AppLayout>
                     <RecoveryPlansPage />
-                  </Layout>
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -124,9 +120,9 @@ function App() {
               path="/executions/:executionId"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <AppLayout>
                     <ExecutionDetailsPage />
-                  </Layout>
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -135,9 +131,9 @@ function App() {
               path="/executions"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <AppLayout>
                     <ExecutionsPage />
-                  </Layout>
+                  </AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -148,7 +144,7 @@ function App() {
           </ErrorBoundary>
         </BrowserRouter>
       </AuthProvider>
-    </ThemeProvider>
+    </>
   );
 }
 

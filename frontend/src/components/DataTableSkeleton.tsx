@@ -1,12 +1,12 @@
 /**
- * DataTableSkeleton - Skeleton loader for data tables
+ * DataTableSkeleton - Loading placeholder for data tables
  * 
- * Provides a skeleton placeholder that matches the structure of Material-UI DataGrid.
- * Shows header row and configurable number of content rows.
+ * Provides a loading placeholder for data tables.
+ * CloudScape doesn't have skeleton components, so this uses Spinner.
  */
 
 import type { ReactElement } from 'react';
-import { Box, Paper, Skeleton, Stack } from '@mui/material';
+import { Spinner } from '@cloudscape-design/components';
 
 interface DataTableSkeletonProps {
   rows?: number;
@@ -16,10 +16,10 @@ interface DataTableSkeletonProps {
 /**
  * DataTableSkeleton Component
  * 
- * Displays a skeleton loader that mimics the structure of a data table.
- * Used during initial data fetching to improve perceived performance.
+ * Displays a loading spinner for data tables.
+ * CloudScape doesn't have skeleton components, so this uses a centered spinner.
  * 
- * @param rows - Number of skeleton rows to display (default: 5)
+ * @param rows - Number of skeleton rows to display (default: 5) - Not used in CloudScape version
  * @param height - Total height of the skeleton container (default: 600)
  * 
  * @example
@@ -27,7 +27,7 @@ interface DataTableSkeletonProps {
  * {loading ? (
  *   <DataTableSkeleton rows={10} height={600} />
  * ) : (
- *   <DataGrid rows={data} columns={columns} />
+ *   <Table items={data} columnDefinitions={columns} />
  * )}
  * ```
  */
@@ -36,92 +36,20 @@ export const DataTableSkeleton = ({
   height = 600,
 }: DataTableSkeletonProps): ReactElement => {
   return (
-    <Paper
-      sx={{
-        height,
-        width: '100%',
-        overflow: 'hidden',
+    <div
+      style={{
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: `${height}px`,
+        width: '100%',
       }}
     >
-      {/* Table Header */}
-      <Box
-        sx={{
-          backgroundColor: 'primary.main',
-          p: 1.5,
-          display: 'flex',
-          gap: 2,
-        }}
-      >
-        <Skeleton
-          variant="rectangular"
-          width="20%"
-          height={24}
-          sx={{ bgcolor: 'primary.light' }}
-        />
-        <Skeleton
-          variant="rectangular"
-          width="25%"
-          height={24}
-          sx={{ bgcolor: 'primary.light' }}
-        />
-        <Skeleton
-          variant="rectangular"
-          width="20%"
-          height={24}
-          sx={{ bgcolor: 'primary.light' }}
-        />
-        <Skeleton
-          variant="rectangular"
-          width="15%"
-          height={24}
-          sx={{ bgcolor: 'primary.light' }}
-        />
-        <Skeleton
-          variant="rectangular"
-          width="20%"
-          height={24}
-          sx={{ bgcolor: 'primary.light' }}
-        />
-      </Box>
-
-      {/* Table Rows */}
-      <Stack spacing={0} sx={{ flex: 1, p: 2 }}>
-        {Array.from({ length: rows }).map((_, index) => (
-          <Box
-            key={index}
-            sx={{
-              display: 'flex',
-              gap: 2,
-              py: 1.5,
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-            }}
-          >
-            <Skeleton variant="text" width="20%" height={32} />
-            <Skeleton variant="text" width="25%" height={32} />
-            <Skeleton variant="text" width="20%" height={32} />
-            <Skeleton variant="text" width="15%" height={32} />
-            <Skeleton variant="text" width="20%" height={32} />
-          </Box>
-        ))}
-      </Stack>
-
-      {/* Table Footer (Pagination area) */}
-      <Box
-        sx={{
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          p: 2,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <Skeleton variant="text" width={120} height={24} />
-        <Skeleton variant="text" width={200} height={24} />
-      </Box>
-    </Paper>
+      <Spinner size="large" />
+      <span style={{ fontSize: '14px', color: '#5f6b7a', marginTop: '16px' }}>
+        Loading table data...
+      </span>
+    </div>
   );
 };

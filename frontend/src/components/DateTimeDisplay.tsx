@@ -6,13 +6,12 @@
  */
 
 import React from 'react';
-import { Typography } from '@mui/material';
-import type { TypographyProps } from '@mui/material';
 
-export interface DateTimeDisplayProps extends Omit<TypographyProps, 'children'> {
+export interface DateTimeDisplayProps {
   value: string | number | Date;
   format?: 'full' | 'date' | 'time' | 'relative';
   showSeconds?: boolean;
+  className?: string;
 }
 
 /**
@@ -21,13 +20,13 @@ export interface DateTimeDisplayProps extends Omit<TypographyProps, 'children'> 
  * @param value - Date/time value (ISO string, timestamp, or Date object)
  * @param format - Display format (full, date, time, or relative)
  * @param showSeconds - Whether to show seconds (default: false)
- * @param props - Additional Typography props
+ * @param className - Optional CSS class name
  */
 export const DateTimeDisplay: React.FC<DateTimeDisplayProps> = ({
   value,
   format = 'full',
   showSeconds = false,
-  ...props
+  className,
 }) => {
   const formatDateTime = (value: string | number | Date): string => {
     // Handle null, undefined, or epoch 0 (uninitialized timestamp)
@@ -104,8 +103,8 @@ export const DateTimeDisplay: React.FC<DateTimeDisplayProps> = ({
   };
 
   return (
-    <Typography variant="body2" {...props}>
+    <span className={className}>
       {formatDateTime(value)}
-    </Typography>
+    </span>
   );
 };

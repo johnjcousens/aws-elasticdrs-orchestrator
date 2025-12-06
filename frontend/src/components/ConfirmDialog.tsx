@@ -5,9 +5,8 @@
  * Used for delete confirmations and other destructive actions.
  */
 
-import React from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
+import { Modal, Box, SpaceBetween, Button } from '@cloudscape-design/components';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -28,7 +27,7 @@ export interface ConfirmDialogProps {
  * @param message - Confirmation message (string or ReactNode)
  * @param confirmLabel - Label for confirm button (default: "Confirm")
  * @param cancelLabel - Label for cancel button (default: "Cancel")
- * @param confirmColor - Color of confirm button (default: "primary")
+ * @param confirmColor - Color of confirm button (default: "primary") - Note: CloudScape uses variant instead
  * @param onConfirm - Callback when user confirms
  * @param onCancel - Callback when user cancels
  */
@@ -42,29 +41,38 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  // Map Material-UI colors to CloudScape button variants
+  const getButtonVariant = (color: string): 'primary' | 'normal' | 'link' | 'icon' => {
+    if (color === 'error') return 'primary'; // CloudScape doesn't have error variant, use primary for destructive actions
+    return 'primary';
+  };
+
   return (
-    <Dialog
-      open={open}
-      onClose={onCancel}
-      aria-labelledby="confirm-dialog-title"
-      aria-describedby="confirm-dialog-description"
+    <Modal
+      visible={open}
+      onDismiss={onCancel}
+      header={title}
+      footer={
+        <Box float="right">
+          <SpaceBetween direction="horizontal" size="xs">
+            <Button onClick={onCancel}>
+              {cancelLabel}
+            </Button>
+            <Button 
+              variant={getButtonVariant(confirmColor)} 
+              onClick={onConfirm}
+            >
+              {confirmLabel}
+            </Button>
+          </SpaceBetween>
+        </Box>
+      }
     >
-      <DialogTitle id="confirm-dialog-title">{title}</DialogTitle>
-      <DialogContent>
-        {typeof message === 'string' ? (
-          <DialogContentText id="confirm-dialog-description">{message}</DialogContentText>
-        ) : (
-          message
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onCancel} color="inherit">
-          {cancelLabel}
-        </Button>
-        <Button onClick={onConfirm} color={confirmColor} variant="contained" autoFocus>
-          {confirmLabel}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      {typeof message === 'string' ? (
+        <Box variant="p">{message}</Box>
+      ) : (
+        message
+      )}
+    </Modal>
   );
 };

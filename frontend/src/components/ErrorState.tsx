@@ -6,9 +6,7 @@
  */
 
 import React from 'react';
-import { Box, Typography, Button, Alert, AlertTitle } from '@mui/material';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import { Box, Button, Alert } from '@cloudscape-design/components';
 
 export interface ErrorStateProps {
   error: string | Error;
@@ -35,72 +33,63 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
 
   if (variant === 'alert') {
     return (
-      <Alert severity="error" sx={{ mb: 2 }}>
-        <AlertTitle>{title}</AlertTitle>
+      <Alert
+        type="error"
+        header={title}
+        action={
+          onRetry ? (
+            <Button onClick={onRetry} iconName="refresh">
+              Retry
+            </Button>
+          ) : undefined
+        }
+      >
         {errorMessage}
-        {onRetry && (
-          <Button
-            size="small"
-            startIcon={<RefreshIcon />}
-            onClick={onRetry}
-            sx={{ mt: 1 }}
-          >
-            Retry
-          </Button>
-        )}
       </Alert>
     );
   }
 
   if (variant === 'inline') {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
-        <ErrorOutlineIcon color="error" />
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="body2" color="error">
+      <Box padding={{ vertical: 's', horizontal: 'm' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ flex: 1, color: '#d13212' }}>
             {errorMessage}
-          </Typography>
-        </Box>
-        {onRetry && (
-          <Button size="small" startIcon={<RefreshIcon />} onClick={onRetry}>
-            Retry
-          </Button>
-        )}
+          </div>
+          {onRetry && (
+            <Button onClick={onRetry} iconName="refresh">
+              Retry
+            </Button>
+          )}
+        </div>
       </Box>
     );
   }
 
   // Default: full page error
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 400,
-        gap: 2,
+        minHeight: '400px',
+        gap: '16px',
         textAlign: 'center',
-        p: 3,
+        padding: '24px',
       }}
     >
-      <ErrorOutlineIcon sx={{ fontSize: 64, color: 'error.main' }} />
-      <Typography variant="h5" color="error">
-        {title}
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 600 }}>
+      <div style={{ fontSize: '48px', color: '#d13212' }}>⚠️</div>
+      <h2 style={{ color: '#d13212', margin: 0 }}>{title}</h2>
+      <p style={{ color: '#5f6b7a', maxWidth: '600px', margin: 0 }}>
         {errorMessage}
-      </Typography>
+      </p>
       {onRetry && (
-        <Button
-          variant="contained"
-          startIcon={<RefreshIcon />}
-          onClick={onRetry}
-          sx={{ mt: 2 }}
-        >
+        <Button variant="primary" onClick={onRetry} iconName="refresh">
           Try Again
         </Button>
       )}
-    </Box>
+    </div>
   );
 };

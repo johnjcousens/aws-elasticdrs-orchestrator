@@ -10,17 +10,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Box,
-  Card,
-  CardContent,
-  TextField,
+  SpaceBetween,
   Button,
-  Typography,
+  FormField,
+  Input,
   Alert,
   Container,
-  CircularProgress,
-} from '@mui/material';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import type { Theme } from '@mui/material/styles';
+  Header,
+} from '@cloudscape-design/components';
 
 /**
  * Login Page
@@ -66,107 +63,98 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: (theme: Theme) => theme.palette.grey[100],
-        backgroundImage: 'linear-gradient(135deg, #232F3E 0%, #FF9900 100%)',
+        background: 'linear-gradient(135deg, #232F3E 0%, #FF9900 100%)',
       }}
     >
-      <Container maxWidth="sm">
-        <Card
-          elevation={8}
-          sx={{
-            p: 4,
-            borderRadius: 2,
+      <Container>
+        <div
+          style={{
+            maxWidth: '400px',
+            margin: '0 auto',
+            padding: '2rem',
             backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           }}
         >
-          <CardContent>
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                mb: 3,
-              }}
-            >
-              <Box
-                sx={{
-                  backgroundColor: 'primary.main',
+          <SpaceBetween size="l">
+            {/* Header */}
+            <div style={{ textAlign: 'center' }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '64px',
+                  height: '64px',
                   borderRadius: '50%',
-                  p: 2,
-                  mb: 2,
+                  backgroundColor: '#232F3E',
+                  marginBottom: '1rem',
                 }}
               >
-                <LockOutlinedIcon sx={{ color: 'white', fontSize: 32 }} />
-              </Box>
-              <Typography variant="h4" component="h1" gutterBottom fontWeight={600}>
-                AWS DRS Orchestration
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+                <span style={{ fontSize: '32px' }}>🔒</span>
+              </div>
+              <Header variant="h1">AWS DRS Orchestration</Header>
+              <p style={{ color: '#5f6b7a', marginTop: '0.5rem' }}>
                 Sign in to access the platform
-              </Typography>
-            </Box>
+              </p>
+            </div>
 
+            {/* Error Alert */}
             {error && (
-              <Alert severity="error" sx={{ mb: 3 }}>
+              <Alert type="error">
                 {error}
               </Alert>
             )}
 
+            {/* Login Form */}
             <form onSubmit={handleSubmit}>
-              <TextField
-                fullWidth
-                label="Username"
-                name="username"
-                variant="outlined"
-                margin="normal"
-                required
-                autoFocus
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={loading}
-              />
-              <TextField
-                fullWidth
-                label="Password"
-                name="password"
-                type="password"
-                variant="outlined"
-                margin="normal"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
-              <Button
-                type="submit"
-                fullWidth
-                variant="contained"
-                size="large"
-                disabled={loading}
-                sx={{ mt: 3, mb: 2, py: 1.5 }}
-              >
-                {loading ? (
-                  <CircularProgress size={24} color="inherit" />
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
+              <SpaceBetween size="l">
+                <FormField label="Username">
+                  <Input
+                    value={username}
+                    onChange={({ detail }) => setUsername(detail.value)}
+                    placeholder="Enter your username"
+                    disabled={loading}
+                    autoFocus
+                  />
+                </FormField>
+
+                <FormField label="Password">
+                  <Input
+                    value={password}
+                    onChange={({ detail }) => setPassword(detail.value)}
+                    type="password"
+                    placeholder="Enter your password"
+                    disabled={loading}
+                  />
+                </FormField>
+
+                <Button
+                  variant="primary"
+                  formAction="submit"
+                  fullWidth
+                  disabled={loading}
+                  loading={loading}
+                >
+                  Sign In
+                </Button>
+              </SpaceBetween>
             </form>
 
-            <Box sx={{ mt: 3, textAlign: 'center' }}>
-              <Typography variant="caption" color="text.secondary">
-                Powered by AWS Cognito
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
+            {/* Footer */}
+            <div style={{ textAlign: 'center', fontSize: '12px', color: '#5f6b7a' }}>
+              Powered by AWS Cognito
+            </div>
+          </SpaceBetween>
+        </div>
       </Container>
-    </Box>
+    </div>
   );
 };
