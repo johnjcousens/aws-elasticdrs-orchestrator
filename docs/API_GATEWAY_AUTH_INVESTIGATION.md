@@ -1,274 +1,209 @@
-# API Gateway Authentication Investigation Results
+# API Gateway Authentication Investigation
 
-**Date**: November 28, 2025  
-**Status**: ✅ **RESOLVED** - Authentication working correctly  
-**Result**: HTTP 200 with valid execution data
-
-## Executive Summary
-
-API Gateway authentication with Cognito is functioning correctly. The 401 errors were caused by missing or invalid tokens, not infrastructure issues.
-
-## Investigation Steps Performed
-
-### 1. AWS CLI Authentication ✅
-```bash
-aws sts get-caller-identity
-```
-**Result**: Authenticated as `jocousen@amazon.com` in account `777788889999`
-
-### 2. Cognito User Pool Configuration ✅
-```bash
-aws cognito-idp describe-user-pool --user-pool-id us-east-1_wfyuacMBX
-```
-**Result**: User pool correctly configured with:
-- Email as username
-- Password authentication enabled
-- Auto-verified email
-- 1 user registered
-
-### 3. App Client Configuration ✅
-```bash
-aws cognito-idp describe-user-pool-client --user-pool-id us-east-1_wfyuacMBX --client-id 48fk7bjefk88aejr1rc7dvmbv0
-```
-**Result**: App client properly configured with:
-- `ALLOW_USER_PASSWORD_AUTH` enabled
-- `ALLOW_USER_SRP_AUTH` enabled
-- `ALLOW_REFRESH_TOKEN_AUTH` enabled
-- 60-minute token validity
-
-### 4. API Gateway Authorizer Configuration ✅
-```bash
-aws apigateway get-authorizers --rest-api-id 9cowuz4azi
-```
-**Result**: Authorizer correctly configured:
-- Type: `COGNITO_USER_POOLS`
-- Provider ARN: Correct user pool
-- Identity Source: `method.request.header.Authorization`
-
-### 5. Authentication Flow Test ✅
-```bash
-aws cognito-idp initiate-auth \
-  --auth-flow USER_PASSWORD_AUTH \
-  --client-id 48fk7bjefk88aejr1rc7dvmbv0 \
-  --auth-parameters USERNAME=testuser@example.com,PASSWORD='IiG2b1o+D$'
-```
-**Result**: Successfully obtained tokens:
-- ✅ AccessToken (expires in 60 minutes)
-- ✅ IdToken (expires in 60 minutes)
-- ✅ RefreshToken (expires in 30 days)
-
-### 6. API Gateway Request with Valid Token ✅
-```bash
-curl -X GET "https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/executions" \
-  -H "Authorization: [IdToken]"
-```
-**Result**: 
-- ✅ HTTP 200 OK
-- ✅ Returned 11 execution records
-- ✅ Response time: ~1.8 seconds
-- ✅ Proper CORS headers present
-
-## Root Cause Analysis
-
-The 401 Unauthorized errors were NOT infrastructure issues. They were caused by:
-
-### Primary Causes:
-1. **No token provided** - Frontend not sending Authorization header
-2. **Expired token** - Tokens valid for only 60 minutes
-3. **Wrong token type** - Using AccessToken instead of IdToken
-4. **Missing "Bearer" prefix** - Some implementations require `Bearer <token>`
-
-### Infrastructure Status:
-- ✅ Cognito User Pool: Working correctly
-- ✅ App Client: Properly configured
-- ✅ API Gateway: Correctly routing requests
-- ✅ Lambda Authorizer: Validating tokens properly
-- ✅ Lambda Function: Processing requests correctly
-
-## Test Credentials
-
-**Username**: testuser@example.com  
-**Password**: IiG2b1o+D$  
-**User Pool ID**: us-east-1_wfyuacMBX  
-**App Client ID**: 48fk7bjefk88aejr1rc7dvmbv0
-
-## Working cURL Example
-
-```bash
-# Step 1: Get IdToken
-TOKEN_RESPONSE=$(aws cognito-idp initiate-auth \
-  --auth-flow USER_PASSWORD_AUTH \
-  --client-id 48fk7bjefk88aejr1rc7dvmbv0 \
-  --auth-parameters USERNAME=testuser@example.com,PASSWORD='IiG2b1o+D$' \
-  --region us-east-1)
-
-ID_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.AuthenticationResult.IdToken')
-
-# Step 2: Call API
-curl -X GET "https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/executions" \
-  -H "Authorization: $ID_TOKEN" \
-  -H "Content-Type: application/json"
-```
-
-## Frontend Integration Requirements
-
-### 1. Login Flow
-```typescript
-import { CognitoIdentityProviderClient, InitiateAuthCommand } from "@aws-sdk/client-cognito-identity-provider";
-
-const client = new CognitoIdentityProviderClient({ region: "us-east-1" });
-
-const command = new InitiateAuthCommand({
-  AuthFlow: "USER_PASSWORD_AUTH",
-  ClientId: "48fk7bjefk88aejr1rc7dvmbv0",
-  AuthParameters: {
-    USERNAME: "testuser@example.com",
-    PASSWORD: "IiG2b1o+D$"
-  }
-});
-
-const response = await client.send(command);
-const idToken = response.AuthenticationResult.IdToken;
-
-// Store token for API calls
-localStorage.setItem('idToken', idToken);
-```
-
-### 2. API Calls
-```typescript
-const idToken = localStorage.getItem('idToken');
-
-const response = await fetch(
-  'https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/executions',
-  {
-    method: 'GET',
-    headers: {
-      'Authorization': idToken,  // IdToken, not AccessToken
-      'Content-Type': 'application/json'
-    }
-  }
-);
-```
-
-### 3. Token Refresh
-```typescript
-// Tokens expire after 60 minutes - implement refresh logic
-if (tokenExpired()) {
-  const refreshCommand = new InitiateAuthCommand({
-    AuthFlow: "REFRESH_TOKEN_AUTH",
-    ClientId: "48fk7bjefk88aejr1rc7dvmbv0",
-    AuthParameters: {
-      REFRESH_TOKEN: storedRefreshToken
-    }
-  });
-  
-  const newTokens = await client.send(refreshCommand);
-  localStorage.setItem('idToken', newTokens.AuthenticationResult.IdToken);
-}
-```
-
-## Key Findings
-
-### ✅ What's Working:
-1. Cognito authentication with username/password
-2. Token generation (Access, ID, Refresh)
-3. API Gateway authorizer validation
-4. Lambda function execution
-5. CORS configuration
-6. Data retrieval from DynamoDB
-
-### 🔍 Frontend Requirements:
-1. Implement Cognito authentication UI
-2. Store IdToken in localStorage/sessionStorage
-3. Include IdToken in Authorization header for all API calls
-4. Implement token refresh before expiration
-5. Handle 401 errors with re-authentication flow
-
-## API Endpoints Tested
-
-### GET /executions ✅
-- **URL**: `https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/executions`
-- **Auth**: Required (IdToken)
-- **Response**: List of execution records
-- **Status**: Working correctly
-
-## Token Information
-
-### IdToken Structure:
-```json
-{
-  "sub": "745804c8-c0e1-70f0-889f-b843cdc39545",
-  "email_verified": true,
-  "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_wfyuacMBX",
-  "cognito:username": "745804c8-c0e1-70f0-889f-b843cdc39545",
-  "aud": "48fk7bjefk88aejr1rc7dvmbv0",
-  "token_use": "id",
-  "email": "testuser@example.com"
-}
-```
-
-### Token Validity:
-- **IdToken**: 60 minutes
-- **AccessToken**: 60 minutes
-- **RefreshToken**: 30 days
-
-## Recommendations
-
-### Immediate Actions:
-1. ✅ **Confirmed**: Infrastructure is working - no changes needed
-2. 🔧 **TODO**: Update frontend to use Cognito authentication
-3. 🔧 **TODO**: Implement token storage and management
-4. 🔧 **TODO**: Add token refresh logic
-5. 🔧 **TODO**: Handle authentication errors gracefully
-
-### Frontend Authentication Checklist:
-- [ ] Add Amplify or AWS SDK for Cognito
-- [ ] Create login page/component
-- [ ] Implement token storage
-- [ ] Add Authorization header to all API calls
-- [ ] Implement token refresh before expiration
-- [ ] Add logout functionality
-- [ ] Handle 401 errors with re-authentication
-
-### Security Considerations:
-- ✅ HTTPS enforced on API Gateway
-- ✅ Token validation working correctly
-- ✅ User pool properly configured
-- ⚠️ Consider adding MFA for production
-- ⚠️ Implement rate limiting for auth endpoints
-- ⚠️ Add CloudWatch logging for auth failures
-
-## Sample Response Data
-
-The API successfully returned execution data:
-```json
-{
-  "items": [
-    {
-      "executionId": "f4affa8a-cf97-499d-ad89-9528e50a9c31",
-      "recoveryPlanId": "ba8b28e2-7568-4c03-bff0-9f289262c1a6",
-      "recoveryPlanName": "Full-Stack-DR-Drill",
-      "status": "completed",
-      ...
-    }
-  ],
-  "count": 11,
-  "nextToken": null
-}
-```
-
-## Conclusion
-
-**The API Gateway + Cognito authentication infrastructure is fully functional and working correctly.**
-
-The 401 errors experienced were due to missing/invalid tokens in requests, not infrastructure issues. The frontend needs to be updated to:
-1. Authenticate users via Cognito
-2. Obtain and store IdToken
-3. Include IdToken in Authorization header for all API requests
-
-No infrastructure changes are required.
+**Date**: December 6, 2024  
+**Status**: ✅ RESOLVED - Authentication Working
 
 ---
 
-**Investigation Completed**: November 28, 2025  
-**Next Steps**: Frontend authentication implementation
+## Issue Summary
+
+**Initial Problem**: API Gateway returning 401 Unauthorized  
+**Root Cause**: Testing without proper JWT token from Cognito  
+**Resolution**: Implemented correct USER_PASSWORD_AUTH flow  
+**Result**: ✅ Authentication fully operational
+
+---
+
+## Working Authentication Flow
+
+### Step 1: Obtain JWT Token from Cognito
+
+```bash
+TOKEN=$(aws cognito-idp initiate-auth \
+  --auth-flow USER_PASSWORD_AUTH \
+  --client-id 48fk7bjefk88aejr1rc7dvmbv0 \
+  --auth-parameters USERNAME=testuser@example.com,PASSWORD='IiG2b1o+D$' \
+  --region us-east-1 \
+  --query 'AuthenticationResult.IdToken' \
+  --output text)
+```
+
+**Token Details**:
+- Type: JWT ID Token
+- Issuer: Cognito User Pool us-east-1_wfyuacMBX
+- Expiration: 1 hour (3600 seconds)
+- Claims: sub, email, cognito:username, token_use=id
+
+### Step 2: Call API with Bearer Token
+
+```bash
+curl -X GET \
+  "https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/drs/source-servers?region=us-east-1" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+**Response**: HTTP 200 with full server list
+
+---
+
+## Test Results
+
+### ✅ Successful API Call
+
+**Endpoint**: GET /drs/source-servers?region=us-east-1  
+**Status Code**: 200  
+**Response Time**: <500ms  
+
+**Response Data**:
+```json
+{
+  "region": "us-east-1",
+  "initialized": true,
+  "servers": [
+    {
+      "sourceServerID": "s-3c1730a9e0771ea14",
+      "hostname": "EC2AMAZ-4IMB9PN",
+      "state": "READY_FOR_RECOVERY",
+      "replicationState": "CONTINUOUS",
+      "lagDuration": "P0D",
+      "lastSeen": "2025-12-06T19:40:28.422993+00:00",
+      "assignedToProtectionGroup": null,
+      "selectable": true
+    }
+    // ... 5 more servers
+  ],
+  "totalCount": 6,
+  "availableCount": 6,
+  "assignedCount": 0
+}
+```
+
+---
+
+## Configuration Details
+
+### Cognito User Pool
+- **Pool ID**: us-east-1_wfyuacMBX
+- **Region**: us-east-1
+- **Client ID**: 48fk7bjefk88aejr1rc7dvmbv0
+- **Client Name**: drs-orchestration-client
+- **Auth Flow**: USER_PASSWORD_AUTH
+- **MFA**: Disabled
+
+### API Gateway
+- **API ID**: 9cowuz4azi
+- **API Name**: drs-orchestration-api-test
+- **Stage**: test
+- **Authorizer**: Cognito User Pool Authorizer
+- **Authorization**: Bearer token in Authorization header
+
+### Test User
+- **Username**: testuser@example.com
+- **Password**: IiG2b1o+D$
+- **Status**: CONFIRMED
+- **Email Verified**: true
+
+---
+
+## Frontend Integration
+
+The frontend uses AWS Amplify for Cognito authentication:
+
+**Configuration** (`frontend/public/aws-config.js`):
+```javascript
+window.AWS_CONFIG = {
+  region: 'us-east-1',
+  userPoolId: 'us-east-1_wfyuacMBX',
+  userPoolWebClientId: '48fk7bjefk88aejr1rc7dvmbv0',
+  apiEndpoint: 'https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test'
+};
+```
+
+**Authentication Flow**:
+1. User enters credentials on LoginPage
+2. Amplify calls Cognito InitiateAuth
+3. Cognito returns JWT tokens (IdToken, AccessToken, RefreshToken)
+4. Frontend stores tokens in AuthContext
+5. API client includes IdToken in Authorization header
+6. API Gateway validates token with Cognito
+
+---
+
+## Key Learnings
+
+### What Worked
+✅ USER_PASSWORD_AUTH flow for programmatic access  
+✅ Bearer token in Authorization header  
+✅ Cognito User Pool Authorizer on API Gateway  
+✅ JWT ID Token (not Access Token) for API calls  
+
+### Common Pitfalls Avoided
+❌ Using Access Token instead of ID Token  
+❌ Missing "Bearer " prefix in Authorization header  
+❌ Expired tokens (1 hour expiration)  
+❌ Wrong User Pool or Client ID  
+
+---
+
+## Testing Commands
+
+### Quick Test Script
+```bash
+#!/bin/bash
+# test-api-auth.sh
+
+# Get token
+TOKEN=$(aws cognito-idp initiate-auth \
+  --auth-flow USER_PASSWORD_AUTH \
+  --client-id 48fk7bjefk88aejr1rc7dvmbv0 \
+  --auth-parameters USERNAME=testuser@example.com,PASSWORD='IiG2b1o+D$' \
+  --region us-east-1 \
+  --query 'AuthenticationResult.IdToken' \
+  --output text)
+
+# Test API endpoints
+echo "Testing /drs/source-servers..."
+curl -s -X GET \
+  "https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/drs/source-servers?region=us-east-1" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  | jq '.totalCount'
+
+echo "Testing /protection-groups..."
+curl -s -X GET \
+  "https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/protection-groups" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  | jq 'length'
+
+echo "Testing /recovery-plans..."
+curl -s -X GET \
+  "https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test/recovery-plans" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  | jq 'length'
+```
+
+---
+
+## Next Steps
+
+### ✅ Authentication Resolved - Proceed with Testing
+
+**Phase 4C**: Create test data (Protection Groups, Recovery Plans)  
+**Phase 4D**: Run automated E2E test  
+**Phase 4E**: Manual UI testing  
+**Phase 4F**: Playwright E2E tests  
+
+---
+
+## Conclusion
+
+**Status**: ✅ RESOLVED  
+**Impact**: Unblocks all Phase 4 testing  
+**Confidence**: HIGH - Authentication working as designed  
+
+The authentication system is fully operational. The initial 401 errors were due to testing without proper JWT tokens. Once the correct Cognito authentication flow was implemented, all API calls succeeded.
+
+**Ready to proceed with comprehensive E2E testing.**
