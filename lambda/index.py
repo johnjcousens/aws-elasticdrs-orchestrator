@@ -815,6 +815,67 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         return response(500, {'error': str(e)})
 
 
+def execute_with_step_functions(execution_id: str, plan_id: str, plan: Dict, is_drill: bool, state_machine_arn: str) -> None:
+    """
+    Execute recovery plan using Step Functions
+    This properly waits for EC2 instances to launch by checking participatingServers[].launchStatus
+    """
+    try:
+        print(f"Starting Step Functions execution for {execution_id}")
+        
+        # Prepare Step Functions input
+        sfn_input = {
+            'Execution': {'Id': execution_id},
+            'Plans': [{
+                'PlanId': plan_id,
+                'PlanName': plan.get('PlanName', 'Unknown'),
+                'Waves': plan.get('Waves', [])
+            }],
+            'IsDrill': is_drill
+        }
+        
+        # Start Step Functions execution
+        sfn_response = stepfunctions.start_execution(
+            stateMachineArn=state_machine_arn,
+            name=execution_id,
+            input=json.dumps(sfn_input, cls=DecimalEncoder)
+        )
+        
+        print(f"Step Functions execution started: {sfn_response['executionArn']}")
+        
+        # Update DynamoDB with Step Functions execution ARN
+        execution_history_table.update_item(
+            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+            UpdateExpression='SET StateMachineArn = :arn, #status = :status',
+            ExpressionAttributeNames={'#status': 'Status'},
+            ExpressionAttributeValues={
+                ':arn': sfn_response['executionArn'],
+                ':status': 'RUNNING'
+            }
+        )
+        
+        print(f"✅ Step Functions execution initiated successfully")
+        
+    except Exception as e:
+        print(f"❌ Error starting Step Functions execution: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Update execution as failed
+        try:
+            execution_history_table.update_item(
+                Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+                UpdateExpression='SET #status = :status, ErrorMessage = :error',
+                ExpressionAttributeNames={'#status': 'Status'},
+                ExpressionAttributeValues={
+                    ':status': 'FAILED',
+                    ':error': str(e)
+                }
+            )
+        except Exception as update_error:
+            print(f"Error updating execution failure: {update_error}")
+
+
 def execute_recovery_plan_worker(payload: Dict) -> None:
     """Background worker - initiates DRS jobs without waiting (async invocation)"""
     try:
@@ -823,11 +884,22 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         execution_type = payload['executionType']
         is_drill = payload['isDrill']
         plan = payload['plan']
-        cognito_user = payload.get('cognitoUser', {'email': 'system', 'userId': 'system'})  # STEP 4: Extract user
-        plan_name = plan.get('PlanName', 'Unknown')  # STEP 8: Extract plan name
+        cognito_user = payload.get('cognitoUser', {'email': 'system', 'userId': 'system'})
+        plan_name = plan.get('PlanName', 'Unknown')
         
         print(f"Worker initiating execution {execution_id} (type: {execution_type})")
         print(f"Initiated by: {cognito_user.get('email')}")
+        
+        # Check if Step Functions is enabled
+        state_machine_arn = os.environ.get('STATE_MACHINE_ARN')
+        use_step_functions = os.environ.get('USE_STEP_FUNCTIONS', 'false').lower() == 'true'
+        
+        if use_step_functions and state_machine_arn:
+            print(f"Using Step Functions for execution {execution_id}")
+            return execute_with_step_functions(execution_id, plan_id, plan, is_drill, state_machine_arn)
+        
+        # Fall back to async Lambda polling (current implementation)
+        print(f"Using async Lambda polling for execution {execution_id}")
         
         # Update status to POLLING (not IN_PROGRESS)
         execution_history_table.update_item(
