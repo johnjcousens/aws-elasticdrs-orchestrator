@@ -38,11 +38,18 @@ class AutomatedE2ETest:
         self.drs = boto3.client('drs', region_name=region)
         self.ec2 = boto3.client('ec2', region_name=region)
         self.dynamodb = boto3.client('dynamodb', region_name=region)
+        self.cognito = boto3.client('cognito-idp', region_name=region)
         
         # Test configuration
         self.execution_table = 'drs-orchestration-execution-history-test'
         self.max_wait_time = 1800  # 30 minutes
         self.poll_interval = 15  # 15 seconds
+        
+        # Cognito configuration
+        self.user_pool_client_id = '48fk7bjefk88aejr1rc7dvmbv0'
+        self.username = 'testuser@example.com'
+        self.password = 'IiG2b1o+D$'
+        self.auth_token = None
         
         # Test results
         self.results = {
@@ -75,6 +82,11 @@ class AutomatedE2ETest:
             logger.info(f"Plan ID: {self.plan_id}")
             logger.info(f"Execution Type: {'DRILL' if is_drill else 'RECOVERY'}")
             logger.info("=" * 80)
+            
+            # Phase 0: Authenticate
+            logger.info("\n[PHASE 0] Authenticating with Cognito...")
+            self._authenticate()
+            logger.info(f"✅ Authentication successful")
             
             # Phase 1: Trigger Execution
             logger.info("\n[PHASE 1] Triggering execution via API...")
@@ -129,6 +141,23 @@ class AutomatedE2ETest:
             self.results['test_end_time'] = datetime.now(timezone.utc).isoformat()
             return self.results
     
+    def _authenticate(self) -> None:
+        """Authenticate with Cognito and get JWT token."""
+        try:
+            response = self.cognito.initiate_auth(
+                ClientId=self.user_pool_client_id,
+                AuthFlow='USER_PASSWORD_AUTH',
+                AuthParameters={
+                    'USERNAME': self.username,
+                    'PASSWORD': self.password
+                }
+            )
+            self.auth_token = response['AuthenticationResult']['IdToken']
+            logger.info(f"  Token obtained (length: {len(self.auth_token)})")
+        except Exception as e:
+            logger.error(f"Failed to authenticate: {str(e)}")
+            raise
+    
     def _trigger_execution(self, is_drill: bool) -> str:
         """
         Trigger execution via API Gateway.
@@ -140,22 +169,28 @@ class AutomatedE2ETest:
             Execution ID
         """
         try:
-            url = f"{self.api_endpoint}/api/recovery-plans/{self.plan_id}/execute"
+            url = f"{self.api_endpoint}/executions"
             payload = {
-                'isDrill': is_drill
+                'PlanId': self.plan_id,
+                'ExecutionType': 'DRILL' if is_drill else 'RECOVERY',
+                'InitiatedBy': self.username
+            }
+            headers = {
+                'Authorization': f'Bearer {self.auth_token}',
+                'Content-Type': 'application/json'
             }
             
             logger.info(f"POST {url}")
             logger.info(f"Payload: {json.dumps(payload, indent=2)}")
             
-            response = requests.post(url, json=payload, timeout=30)
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
             response.raise_for_status()
             
             result = response.json()
-            execution_id = result.get('ExecutionId')
+            execution_id = result.get('executionId')
             
             if not execution_id:
-                raise ValueError(f"No ExecutionId in response: {result}")
+                raise ValueError(f"No executionId in response: {result}")
             
             logger.info(f"Response: {json.dumps(result, indent=2)}")
             return execution_id
