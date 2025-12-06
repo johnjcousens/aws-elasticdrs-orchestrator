@@ -48,13 +48,15 @@ export interface RecoveryPlan {
   protectionGroupId: string;
   protectionGroupName?: string;
   waves: Wave[];
-  createdAt: string;
+  createdAt: string | number;
   updatedAt: string;
   createdBy?: string;
   status?: 'draft' | 'active' | 'archived';
   lastExecutionId?: string;
   lastExecutionStatus?: ExecutionStatus;
   lastExecutedAt?: string;
+  lastStartTime?: number; // Unix timestamp
+  lastEndTime?: number; // Unix timestamp
 }
 
 export interface Wave {

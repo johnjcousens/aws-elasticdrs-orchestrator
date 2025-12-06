@@ -9,27 +9,18 @@ import React, { useState } from 'react';
 import {
   Box,
   Button,
-  TextField,
+  Input,
+  FormField,
   Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Stack,
-  IconButton,
-  Chip,
-  Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  SpaceBetween,
+  Badge,
+  ExpandableSection,
   Alert,
-  Divider,
-  Autocomplete,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+  Header,
+  Container,
+  Multiselect,
+  Textarea,
+} from '@cloudscape-design/components';
 import { ServerSelector } from './ServerSelector';
 import type { Wave, ProtectionGroup } from '../types';
 
@@ -181,265 +172,219 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   };
 
   return (
-    <Box>
+    <div>
       {/* Header */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h6">Wave Configuration</Typography>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <Header variant="h3">Wave Configuration</Header>
         {!readonly && (
           <Button
-            variant="outlined"
-            size="small"
-            startIcon={<AddIcon />}
+            variant="primary"
+            iconName="add-plus"
             onClick={handleAddWave}
           >
             Add Wave
           </Button>
         )}
-      </Stack>
+      </div>
 
       {/* Waves list */}
       {safeWaves.length === 0 ? (
-        <Alert severity="info">
+        <Alert type="info">
           No waves configured. Add at least one wave to define the recovery sequence.
         </Alert>
       ) : (
-        <Stack spacing={2}>
+        <SpaceBetween size="m">
           {safeWaves.map((wave) => (
-            <Accordion
+            <ExpandableSection
               key={wave.waveNumber}
               expanded={expandedWave === wave.waveNumber}
-              onChange={() => setExpandedWave(expandedWave === wave.waveNumber ? null : wave.waveNumber)}
-            >
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%', pr: 2 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 500, minWidth: 100 }}>
+              onChange={({ detail }) => setExpandedWave(detail.expanded ? wave.waveNumber : null)}
+              headerText={
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                  <span style={{ fontWeight: 600, minWidth: '100px' }}>
                     {wave.name}
-                  </Typography>
-                  <Chip
-                    label={`${(wave.protectionGroupIds || []).length} PG${(wave.protectionGroupIds || []).length !== 1 ? 's' : ''}`}
-                    size="small"
-                    color="secondary"
-                    variant="outlined"
-                  />
-                  <Chip
-                    label={`${(wave.serverIds || []).length} server${(wave.serverIds || []).length !== 1 ? 's' : ''}`}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                  />
+                  </span>
+                  <Badge color="blue">
+                    {(wave.protectionGroupIds || []).length} PG{(wave.protectionGroupIds || []).length !== 1 ? 's' : ''}
+                  </Badge>
+                  <Badge>
+                    {(wave.serverIds || []).length} server{(wave.serverIds || []).length !== 1 ? 's' : ''}
+                  </Badge>
                   {!readonly && (
-                    <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveWave(wave.waveNumber, 'up');
-                        }}
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
+                      <Button
+                        variant="icon"
+                        iconName="angle-up"
+                        onClick={() => handleMoveWave(wave.waveNumber, 'up')}
                         disabled={wave.waveNumber === 0}
-                      >
-                        <ArrowUpwardIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveWave(wave.waveNumber, 'down');
-                        }}
-                        disabled={wave.waveNumber === safeWaves.length - 1}
-                      >
-                        <ArrowDownwardIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveWave(wave.waveNumber);
-                        }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  )}
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack spacing={3}>
-                  {/* Basic Information */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Basic Information
-                    </Typography>
-                    <Stack spacing={2}>
-                      <TextField
-                        fullWidth
-                        label="Wave Name"
-                        value={wave.name}
-                        onChange={(e) => handleUpdateWave(wave.waveNumber, 'name', e.target.value)}
-                        disabled={readonly}
-                        required
                       />
-                      <TextField
-                        fullWidth
-                        label="Description"
-                        value={wave.description || ''}
-                        onChange={(e) => handleUpdateWave(wave.waveNumber, 'description', e.target.value)}
+                      <Button
+                        variant="icon"
+                        iconName="angle-down"
+                        onClick={() => handleMoveWave(wave.waveNumber, 'down')}
+                        disabled={wave.waveNumber === safeWaves.length - 1}
+                      />
+                      <Button
+                        variant="icon"
+                        iconName="remove"
+                        onClick={() => handleRemoveWave(wave.waveNumber)}
+                      />
+                    </div>
+                  )}
+                </div>
+              }
+            >
+              <SpaceBetween size="l">
+                {/* Basic Information */}
+                <Container header={<Header variant="h3">Basic Information</Header>}>
+                  <SpaceBetween size="m">
+                    <FormField label="Wave Name" constraintText="Required">
+                      <Input
+                        value={wave.name}
+                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'name', detail.value)}
                         disabled={readonly}
-                        multiline
+                      />
+                    </FormField>
+                    <FormField label="Description">
+                      <Textarea
+                        value={wave.description || ''}
+                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'description', detail.value)}
+                        disabled={readonly}
                         rows={2}
                       />
-                    </Stack>
-                  </Box>
+                    </FormField>
+                  </SpaceBetween>
+                </Container>
 
-                  <Divider />
+                {/* Execution Configuration */}
+                <Container header={<Header variant="h3">Execution Configuration</Header>}>
+                  <SpaceBetween size="m">
+                    <Alert type="info">
+                      All servers within a wave launch in parallel with DRS-safe delays (15s between servers).
+                      Use wave dependencies for sequential operations.
+                    </Alert>
 
-                  {/* Execution Configuration */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Execution Configuration
-                    </Typography>
-                    <Stack spacing={2}>
-                      <Alert severity="info" sx={{ mb: 1 }}>
-                        All servers within a wave launch in parallel with DRS-safe delays (15s between servers).
-                        Use wave dependencies for sequential operations.
-                      </Alert>
-
-                      {getAvailableDependencies(wave.waveNumber).length > 0 && (
-                        <FormControl fullWidth disabled={readonly}>
-                          <InputLabel>Depends On Waves</InputLabel>
-                          <Select
-                            multiple
-                            value={wave.dependsOnWaves || []}
-                            label="Depends On Waves"
-                            onChange={(e) => handleUpdateWave(wave.waveNumber, 'dependsOnWaves', e.target.value)}
-                            renderValue={(selected) => (
-                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                {(selected as number[]).map((value) => (
-                                  <Chip key={value} label={`Wave ${value + 1}`} size="small" />
-                                ))}
-                              </Box>
-                            )}
-                          >
-                            {getAvailableDependencies(wave.waveNumber).map((waveNum) => (
-                              <MenuItem key={waveNum} value={waveNum}>
-                                Wave {waveNum + 1} - {safeWaves[waveNum].name}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      )}
-                    </Stack>
-                  </Box>
-
-                  <Divider />
-
-                  {/* Protection Group Selection - Multi-Select Support */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Protection Groups
-                    </Typography>
-                    <Autocomplete
-                      multiple
-                      value={(protectionGroups || []).filter(pg => 
-                        (wave.protectionGroupIds || []).includes(pg.protectionGroupId)
-                      )}
-                      options={protectionGroups || []}
-                      getOptionLabel={(pg) => {
-                        const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
-                        const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
-                        const availableCount = availableInfo?.availableServerCount || 0;
-                        const totalCount = pg.sourceServerIds?.length || 0;
-                        return `${pg.name} (${availableCount}/${totalCount} available)`;
-                      }}
-                      isOptionEqualToValue={(option, value) => 
-                        option.protectionGroupId === value.protectionGroupId
-                      }
-                      onChange={(_, newValue) => {
-                        const pgIds = newValue.map(pg => pg.protectionGroupId);
-                        console.log('🔵 onChange fired!', { newValue, pgIds });
-                        // Batch all updates in ONE call to prevent stale state
-                        const updatedWaves = safeWaves.map(w =>
-                          w.waveNumber === wave.waveNumber 
-                            ? { ...w, protectionGroupIds: pgIds, protectionGroupId: pgIds[0] || '', serverIds: [] } 
-                            : w
-                        );
-                        onChange(updatedWaves);
-                      }}
-                      renderInput={(params) => (
-                        <TextField 
-                          {...params} 
-                          label="Protection Groups" 
-                          placeholder="Select one or more Protection Groups"
-                          required
-                          helperText="Multiple Protection Groups can be selected per wave"
+                    {getAvailableDependencies(wave.waveNumber).length > 0 && (
+                      <FormField label="Depends On Waves">
+                        <Multiselect
+                          selectedOptions={
+                            (wave.dependsOnWaves || []).map(waveNum => ({
+                              label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
+                              value: String(waveNum)
+                            }))
+                          }
+                          onChange={({ detail }) =>
+                            handleUpdateWave(
+                              wave.waveNumber,
+                              'dependsOnWaves',
+                              detail.selectedOptions.map(opt => Number(opt.value))
+                            )
+                          }
+                          options={
+                            getAvailableDependencies(wave.waveNumber).map(waveNum => ({
+                              label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
+                              value: String(waveNum)
+                            }))
+                          }
+                          disabled={readonly}
+                          placeholder="Select waves this wave depends on"
                         />
-                      )}
-                      renderTags={(value, getTagProps) =>
-                        value.map((pg, index) => {
-                          const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
-                          const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
-                          const availableCount = availableInfo?.availableServerCount || 0;
-                          const totalCount = pg.sourceServerIds?.length || 0;
-                          return (
-                            <Chip
-                              label={`${pg.name} (${availableCount}/${totalCount})`}
-                              {...getTagProps({ index })}
-                              color={availableCount > 0 ? "primary" : "default"}
-                              size="small"
-                            />
+                      </FormField>
+                    )}
+                  </SpaceBetween>
+                </Container>
+
+                {/* Protection Group Selection - Multi-Select Support */}
+                <Container header={<Header variant="h3">Protection Groups</Header>}>
+                  <SpaceBetween size="m">
+                    <FormField
+                      label="Protection Groups"
+                      constraintText="Required - Multiple Protection Groups can be selected per wave"
+                    >
+                      <Multiselect
+                        selectedOptions={
+                          (protectionGroups || [])
+                            .filter(pg => (wave.protectionGroupIds || []).includes(pg.protectionGroupId))
+                            .map(pg => {
+                              const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
+                              const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
+                              const availableCount = availableInfo?.availableServerCount || 0;
+                              const totalCount = pg.sourceServerIds?.length || 0;
+                              return {
+                                label: `${pg.name} (${availableCount}/${totalCount} available)`,
+                                value: pg.protectionGroupId,
+                                tags: availableCount > 0 ? ['available'] : ['unavailable']
+                              };
+                            })
+                        }
+                        onChange={({ detail }) => {
+                          const pgIds = detail.selectedOptions.map(opt => opt.value || '');
+                          const updatedWaves = safeWaves.map(w =>
+                            w.waveNumber === wave.waveNumber 
+                              ? { ...w, protectionGroupIds: pgIds, protectionGroupId: pgIds[0] || '', serverIds: [] } 
+                              : w
                           );
-                        })
-                      }
-                      disabled={readonly}
-                      fullWidth
-                    />
+                          onChange(updatedWaves);
+                        }}
+                        options={
+                          (protectionGroups || []).map(pg => {
+                            const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
+                            const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
+                            const availableCount = availableInfo?.availableServerCount || 0;
+                            const totalCount = pg.sourceServerIds?.length || 0;
+                            return {
+                              label: `${pg.name} (${availableCount}/${totalCount} available)`,
+                              value: pg.protectionGroupId,
+                              tags: availableCount > 0 ? ['available'] : ['unavailable']
+                            };
+                          })
+                        }
+                        disabled={readonly}
+                        placeholder="Select one or more Protection Groups"
+                      />
+                    </FormField>
                     {(wave.protectionGroupIds || []).length === 0 && (
-                      <Alert severity="warning" sx={{ mt: 1 }}>
+                      <Alert type="warning">
                         Please select at least one Protection Group for this wave
                       </Alert>
                     )}
                     {(wave.protectionGroupIds || []).length > 1 && (
-                      <Alert severity="info" sx={{ mt: 1 }}>
+                      <Alert type="info">
                         Multiple Protection Groups selected. Servers from all selected Protection Groups will be available for this wave.
                       </Alert>
                     )}
-                  </Box>
+                  </SpaceBetween>
+                </Container>
 
-                  <Divider />
-
-                  {/* Server Selection */}
-                  <Box>
-                    <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
-                      Server Selection
-                    </Typography>
-                    {(wave.protectionGroupIds || []).length > 0 ? (
-                      <ServerSelector
-                        key={(wave.protectionGroupIds || []).join(',')}
-                        protectionGroupIds={wave.protectionGroupIds || []}
-                        protectionGroupId={wave.protectionGroupId || wave.protectionGroupIds?.[0] || ''}
-                        selectedServerIds={wave.serverIds}
-                        onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
-                        readonly={readonly}
-                      />
-                    ) : (
-                      <Alert severity="info">
-                        Select one or more Protection Groups above to choose servers for this wave
-                      </Alert>
-                    )}
-                  </Box>
-                </Stack>
-              </AccordionDetails>
-            </Accordion>
+                {/* Server Selection */}
+                <Container header={<Header variant="h3">Server Selection</Header>}>
+                  {(wave.protectionGroupIds || []).length > 0 ? (
+                    <ServerSelector
+                      key={(wave.protectionGroupIds || []).join(',')}
+                      protectionGroupIds={wave.protectionGroupIds || []}
+                      protectionGroupId={wave.protectionGroupId || wave.protectionGroupIds?.[0] || ''}
+                      selectedServerIds={wave.serverIds}
+                      onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
+                      readonly={readonly}
+                    />
+                  ) : (
+                    <Alert type="info">
+                      Select one or more Protection Groups above to choose servers for this wave
+                    </Alert>
+                  )}
+                </Container>
+              </SpaceBetween>
+            </ExpandableSection>
           ))}
-        </Stack>
+        </SpaceBetween>
       )}
 
       {/* Validation Messages */}
       {safeWaves.length > 0 && safeWaves.some(w => (w.serverIds || []).length === 0) && (
-        <Alert severity="warning" sx={{ mt: 2 }}>
+        <Alert type="warning" dismissible>
           Some waves have no servers selected. Each wave must include at least one server.
         </Alert>
       )}
-    </Box>
+    </div>
   );
 };

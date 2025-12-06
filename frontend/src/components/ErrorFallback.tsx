@@ -3,20 +3,11 @@ import type { ErrorInfo } from 'react';
 import {
   Box,
   Button,
-  Container,
-  Paper,
-  Typography,
-  Stack,
   Alert,
-  Collapse,
-  IconButton,
-} from '@mui/material';
-import {
-  ErrorOutline as ErrorIcon,
-  Refresh as RefreshIcon,
-  ExpandMore as ExpandMoreIcon,
-  Home as HomeIcon,
-} from '@mui/icons-material';
+  SpaceBetween,
+  Container,
+  ExpandableSection,
+} from '@cloudscape-design/components';
 import { useNavigate } from 'react-router-dom';
 
 interface ErrorFallbackProps {
@@ -40,7 +31,6 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   onReset,
 }) => {
   const navigate = useNavigate();
-  const [showDetails, setShowDetails] = React.useState(false);
 
   const handleRetry = () => {
     if (onReset) {
@@ -59,181 +49,156 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   };
 
   return (
-    <Container maxWidth="md">
-      <Box
-        sx={{
+    <Container>
+      <div
+        style={{
           minHeight: '100vh',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          py: 4,
+          padding: '24px',
         }}
       >
-        <Paper
-          elevation={3}
-          sx={{
-            p: 4,
+        <div
+          style={{
+            maxWidth: '800px',
             width: '100%',
             textAlign: 'center',
           }}
         >
-          <Stack spacing={3} alignItems="center">
+          <SpaceBetween size="l">
             {/* Error Icon */}
-            <Box
-              sx={{
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                bgcolor: 'error.light',
+            <div
+              style={{
                 display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <ErrorIcon sx={{ fontSize: 48, color: 'error.dark' }} />
-            </Box>
+              <div
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  backgroundColor: '#fef2f2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '48px',
+                }}
+              >
+                ⚠️
+              </div>
+            </div>
 
             {/* Error Message */}
-            <Box>
-              <Typography variant="h4" gutterBottom color="error">
+            <Box textAlign="center">
+              <h1 style={{ color: '#d13212', marginBottom: '8px' }}>
                 Something went wrong
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
+              </h1>
+              <p style={{ color: '#5f6b7a', fontSize: '16px' }}>
                 We're sorry for the inconvenience. The application encountered an unexpected error.
-              </Typography>
+              </p>
             </Box>
 
             {/* Action Buttons */}
-            <Stack direction="row" spacing={2}>
-              <Button
-                variant="contained"
-                startIcon={<RefreshIcon />}
-                onClick={handleRetry}
-                size="large"
-              >
-                Try Again
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<HomeIcon />}
-                onClick={handleGoHome}
-                size="large"
-              >
-                Go to Home
-              </Button>
-            </Stack>
-
-            {/* Technical Details (Collapsible) */}
-            {(error || errorInfo) && (
-              <Box sx={{ width: '100%', mt: 2 }}>
+            <Box textAlign="center">
+              <SpaceBetween direction="horizontal" size="s">
                 <Button
-                  onClick={() => setShowDetails(!showDetails)}
-                  endIcon={
-                    <ExpandMoreIcon
-                      sx={{
-                        transform: showDetails ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.3s',
-                      }}
-                    />
-                  }
-                  size="small"
-                  color="inherit"
+                  variant="primary"
+                  iconName="refresh"
+                  onClick={handleRetry}
                 >
-                  {showDetails ? 'Hide' : 'Show'} Technical Details
+                  Try Again
                 </Button>
+                <Button
+                  onClick={handleGoHome}
+                >
+                  Go to Home
+                </Button>
+              </SpaceBetween>
+            </Box>
 
-                <Collapse in={showDetails}>
-                  <Alert
-                    severity="error"
-                    sx={{
-                      mt: 2,
-                      textAlign: 'left',
-                      '& .MuiAlert-message': {
-                        width: '100%',
-                      },
-                    }}
-                  >
-                    {error && (
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" gutterBottom>
-                          Error Message:
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          component="pre"
-                          sx={{
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            fontFamily: 'monospace',
-                            fontSize: '0.875rem',
-                          }}
-                        >
-                          {error.toString()}
-                        </Typography>
-                      </Box>
-                    )}
+            {/* Technical Details (Expandable) */}
+            {(error || errorInfo) && (
+              <Box>
+                <ExpandableSection headerText="Technical Details" variant="footer">
+                  <Alert type="error">
+                    <SpaceBetween size="m">
+                      {error && (
+                        <div>
+                          <strong>Error Message:</strong>
+                          <pre
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              fontFamily: 'monospace',
+                              fontSize: '14px',
+                              marginTop: '8px',
+                            }}
+                          >
+                            {error.toString()}
+                          </pre>
+                        </div>
+                      )}
 
-                    {error?.stack && (
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" gutterBottom>
-                          Stack Trace:
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          component="pre"
-                          sx={{
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            fontFamily: 'monospace',
-                            fontSize: '0.75rem',
-                            maxHeight: '200px',
-                            overflow: 'auto',
-                            bgcolor: 'action.hover',
-                            p: 1,
-                            borderRadius: 1,
-                          }}
-                        >
-                          {error.stack}
-                        </Typography>
-                      </Box>
-                    )}
+                      {error?.stack && (
+                        <div>
+                          <strong>Stack Trace:</strong>
+                          <pre
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              fontFamily: 'monospace',
+                              fontSize: '12px',
+                              maxHeight: '200px',
+                              overflow: 'auto',
+                              backgroundColor: '#f5f5f5',
+                              padding: '8px',
+                              borderRadius: '4px',
+                              marginTop: '8px',
+                            }}
+                          >
+                            {error.stack}
+                          </pre>
+                        </div>
+                      )}
 
-                    {errorInfo?.componentStack && (
-                      <Box>
-                        <Typography variant="subtitle2" gutterBottom>
-                          Component Stack:
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          component="pre"
-                          sx={{
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                            fontFamily: 'monospace',
-                            fontSize: '0.75rem',
-                            maxHeight: '200px',
-                            overflow: 'auto',
-                            bgcolor: 'action.hover',
-                            p: 1,
-                            borderRadius: 1,
-                          }}
-                        >
-                          {errorInfo.componentStack}
-                        </Typography>
-                      </Box>
-                    )}
+                      {errorInfo?.componentStack && (
+                        <div>
+                          <strong>Component Stack:</strong>
+                          <pre
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              fontFamily: 'monospace',
+                              fontSize: '12px',
+                              maxHeight: '200px',
+                              overflow: 'auto',
+                              backgroundColor: '#f5f5f5',
+                              padding: '8px',
+                              borderRadius: '4px',
+                              marginTop: '8px',
+                            }}
+                          >
+                            {errorInfo.componentStack}
+                          </pre>
+                        </div>
+                      )}
+                    </SpaceBetween>
                   </Alert>
-                </Collapse>
+                </ExpandableSection>
               </Box>
             )}
 
             {/* Help Text */}
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
-              If this problem persists, please contact support with the technical details above.
-            </Typography>
-          </Stack>
-        </Paper>
-      </Box>
+            <Box textAlign="center">
+              <p style={{ color: '#5f6b7a', fontSize: '12px', marginTop: '16px' }}>
+                If this problem persists, please contact support with the technical details above.
+              </p>
+            </Box>
+          </SpaceBetween>
+        </div>
+      </div>
     </Container>
   );
 };
