@@ -7,15 +7,15 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
+  Modal,
   Box,
+  SpaceBetween,
+  Button,
+  FormField,
+  Input,
+  Textarea,
   Alert,
-} from '@mui/material';
+} from '@cloudscape-design/components';
 import { RegionSelector } from './RegionSelector';
 import { ServerDiscoveryPanel } from './ServerDiscoveryPanel';
 import apiClient from '../services/api';
@@ -155,100 +155,94 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   };
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={handleCancel}
-      maxWidth="md"
-      fullWidth
+    <Modal
+      visible={open}
+      onDismiss={handleCancel}
+      header={isEditMode ? 'Edit Protection Group' : 'Create Protection Group'}
+      size="large"
+      footer={
+        <Box float="right">
+          <SpaceBetween direction="horizontal" size="xs">
+            <Button onClick={handleCancel} disabled={loading}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              variant="primary"
+              disabled={loading || !region}
+              loading={loading}
+            >
+              {isEditMode ? 'Save Changes' : 'Create Group'}
+            </Button>
+          </SpaceBetween>
+        </Box>
+      }
     >
-      <DialogTitle>
-        {isEditMode ? 'Edit Protection Group' : 'Create Protection Group'}
-      </DialogTitle>
+      <SpaceBetween size="l">
+        {error && (
+          <Alert type="error">
+            {error}
+          </Alert>
+        )}
 
-      <DialogContent>
-        <Box sx={{ pt: 2 }}>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          {/* Name Field */}
-          <TextField
-            fullWidth
-            label="Name"
-            placeholder="e.g., Production Servers"
+        {/* Name Field */}
+        <FormField
+          label="Name"
+          description="A globally unique name for this protection group"
+          errorText={validationErrors.name}
+        >
+          <Input
             value={name}
-            onChange={(e) => setName(e.target.value)}
-            error={Boolean(validationErrors.name)}
-            helperText={validationErrors.name || 'A globally unique name for this protection group'}
+            onChange={({ detail }) => setName(detail.value)}
+            placeholder="e.g., Production Servers"
             disabled={loading}
-            sx={{ mb: 2 }}
           />
+        </FormField>
 
-          {/* Description Field */}
-          <TextField
-            fullWidth
-            label="Description"
-            placeholder="e.g., All production servers in us-east-1"
+        {/* Description Field */}
+        <FormField
+          label="Description"
+          description="Optional description of this protection group"
+        >
+          <Textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            multiline
+            onChange={({ detail }) => setDescription(detail.value)}
+            placeholder="e.g., All production servers in us-east-1"
             rows={2}
             disabled={loading}
-            helperText="Optional description of this protection group"
-            sx={{ mb: 3 }}
           />
+        </FormField>
 
-          {/* Region Selector */}
-          <Box sx={{ mb: 3 }}>
-            <RegionSelector
-              value={region}
-              onChange={setRegion}
-              disabled={loading || isEditMode} // Disable region change in edit mode
-              error={Boolean(validationErrors.region)}
-              helperText={
-                isEditMode 
-                  ? 'Region cannot be changed after creation'
-                  : validationErrors.region || 'Select the AWS region where servers are located'
-              }
+        {/* Region Selector */}
+        <RegionSelector
+          value={region}
+          onChange={setRegion}
+          disabled={loading || isEditMode}
+          error={Boolean(validationErrors.region)}
+          helperText={
+            isEditMode
+              ? 'Region cannot be changed after creation'
+              : validationErrors.region || 'Select the AWS region where servers are located'
+          }
+        />
+
+        {/* Server Discovery Panel */}
+        {region && (
+          <>
+            {validationErrors.servers && (
+              <Alert type="error">
+                {validationErrors.servers}
+              </Alert>
+            )}
+            <ServerDiscoveryPanel
+              region={region}
+              selectedServerIds={selectedServerIds}
+              onSelectionChange={setSelectedServerIds}
+              currentProtectionGroupId={group?.protectionGroupId}
             />
-          </Box>
-
-          {/* Server Discovery Panel */}
-          {region && (
-            <Box>
-              {validationErrors.servers && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {validationErrors.servers}
-                </Alert>
-              )}
-          <ServerDiscoveryPanel
-            region={region}
-            selectedServerIds={selectedServerIds}
-            onSelectionChange={setSelectedServerIds}
-            currentProtectionGroupId={group?.protectionGroupId}
-          />
-            </Box>
-          )}
-        </Box>
-      </DialogContent>
-
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button 
-          onClick={handleCancel}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          variant="contained"
-          disabled={loading || !region}
-        >
-          {loading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Group'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+          </>
+        )}
+      </SpaceBetween>
+    </Modal>
   );
 };

@@ -1,12 +1,14 @@
 /**
- * CardSkeleton - Skeleton loader for card layouts
+ * CardSkeleton - Loading placeholder for card layouts
  * 
- * Provides a skeleton placeholder for card-based content displays.
+ * Provides a loading placeholder for card-based content displays.
  * Used for execution cards and other card layouts during loading.
+ * 
+ * Note: CloudScape doesn't have skeleton components, so this uses Spinner instead.
  */
 
 import type { ReactElement } from 'react';
-import { Card, CardContent, CardActions, Skeleton, Stack, Box } from '@mui/material';
+import { Spinner, SpaceBetween } from '@cloudscape-design/components';
 
 interface CardSkeletonProps {
   /** Number of skeleton cards to display */
@@ -20,21 +22,21 @@ interface CardSkeletonProps {
 /**
  * CardSkeleton Component
  * 
- * Displays skeleton loaders that mimic the structure of Card components.
- * Used during initial data fetching for card-based layouts.
+ * Displays loading spinner for card-based layouts.
+ * CloudScape doesn't have skeleton components, so this uses a centered spinner.
  * 
- * @param count - Number of skeleton cards to display (default: 3)
- * @param showActions - Show action buttons skeleton area (default: true)
- * @param showProgress - Show progress bar skeleton (default: false)
+ * @param count - Number of skeleton cards to display (default: 3) - Not used in CloudScape version
+ * @param showActions - Show action buttons skeleton area (default: true) - Not used in CloudScape version
+ * @param showProgress - Show progress bar skeleton (default: false) - Not used in CloudScape version
  * 
  * @example
  * ```tsx
  * {loading ? (
  *   <CardSkeleton count={5} showProgress={true} />
  * ) : (
- *   <Stack spacing={2}>
- *     {items.map(item => <Card>...</Card>)}
- *   </Stack>
+ *   <SpaceBetween size="m">
+ *     {items.map(item => <Container>...</Container>)}
+ *   </SpaceBetween>
  * )}
  * ```
  */
@@ -43,45 +45,22 @@ export const CardSkeleton = ({
   showActions = true,
   showProgress = false,
 }: CardSkeletonProps): ReactElement => {
+  // CloudScape doesn't have skeleton components, use spinner instead
   return (
-    <Stack spacing={2}>
-      {Array.from({ length: count }).map((_, index) => (
-        <Card key={index}>
-          <CardContent>
-            {/* Title skeleton */}
-            <Skeleton variant="text" width="60%" height={32} sx={{ mb: 2 }} />
-            
-            {/* Status badges and metadata row */}
-            <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-              <Skeleton variant="rounded" width={80} height={24} />
-              <Skeleton variant="text" width={120} height={24} />
-              <Skeleton variant="text" width={100} height={24} />
-            </Stack>
-
-            {/* Progress bar (conditional) */}
-            {showProgress && (
-              <Box sx={{ mb: 2 }}>
-                <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                  <Skeleton variant="text" width={60} height={20} />
-                  <Skeleton variant="text" width={40} height={20} />
-                </Stack>
-                <Skeleton variant="rectangular" width="100%" height={8} sx={{ borderRadius: 1 }} />
-              </Box>
-            )}
-
-            {/* Additional content lines */}
-            <Skeleton variant="text" width="90%" height={20} />
-            <Skeleton variant="text" width="75%" height={20} />
-          </CardContent>
-
-          {/* Action buttons skeleton (conditional) */}
-          {showActions && (
-            <CardActions>
-              <Skeleton variant="rectangular" width={120} height={36} sx={{ borderRadius: 1 }} />
-            </CardActions>
-          )}
-        </Card>
-      ))}
-    </Stack>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '200px',
+        gap: '16px',
+      }}
+    >
+      <Spinner size="large" />
+      <span style={{ fontSize: '14px', color: '#5f6b7a' }}>
+        Loading...
+      </span>
+    </div>
   );
 };

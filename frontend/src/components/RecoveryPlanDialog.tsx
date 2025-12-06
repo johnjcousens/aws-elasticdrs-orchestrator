@@ -6,30 +6,22 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import type { RecoveryPlan, ProtectionGroup, Wave } from '../types';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Stack,
-  Alert,
+  Modal,
   Box,
-  Typography,
-  Divider,
-  Autocomplete,
-  Chip,
-} from '@mui/material';
+  SpaceBetween,
+  Button,
+  FormField,
+  Input,
+  Textarea,
+  Alert,
+  Header,
+  Container,
+} from '@cloudscape-design/components';
 import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
-import { ConfirmDialog } from './ConfirmDialog';
 import apiClient from '../services/api';
-import type { RecoveryPlan, ProtectionGroup, Wave } from '../types';
 
 interface RecoveryPlanDialogProps {
   open: boolean;
@@ -200,62 +192,78 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: { height: '90vh' }
-      }}
+    <Modal
+      visible={open}
+      onDismiss={handleClose}
+      header={plan ? 'Edit Recovery Plan' : 'Create Recovery Plan'}
+      size="large"
+      footer={
+        <Box float="right">
+          <SpaceBetween direction="horizontal" size="xs">
+            <Button onClick={handleClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              variant="primary"
+              disabled={loading || loadingGroups}
+              loading={loading}
+            >
+              {plan ? 'Update Plan' : 'Create Plan'}
+            </Button>
+          </SpaceBetween>
+        </Box>
+      }
     >
-      <DialogTitle>
-        {plan ? 'Edit Recovery Plan' : 'Create Recovery Plan'}
-      </DialogTitle>
+      {loadingGroups ? (
+        <LoadingState message="Loading protection groups..." />
+      ) : (
+        <SpaceBetween size="l">
+          {/* Error Alert */}
+          {error && (
+            <Alert
+              type="error"
+              dismissible
+              onDismiss={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
 
-      <DialogContent dividers>
-        {loadingGroups ? (
-          <LoadingState message="Loading protection groups..." />
-        ) : (
-          <Stack spacing={3}>
-            {/* Error Alert */}
-            {error && (
-              <Alert severity="error" onClose={() => setError(null)}>
-                {error}
-              </Alert>
-            )}
-
-            {/* Basic Information Section */}
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                Basic Information
-              </Typography>
-              <Stack spacing={2}>
-                <TextField
-                  fullWidth
-                  label="Plan Name"
+          {/* Basic Information Section */}
+          <Container header={<Header variant="h2">Basic Information</Header>}>
+            <SpaceBetween size="l">
+              <FormField
+                label="Plan Name"
+                errorText={errors.name}
+              >
+                <Input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  error={!!errors.name}
-                  helperText={errors.name}
-                  required
+                  onChange={({ detail }) => setName(detail.value)}
+                  placeholder="e.g., Production Recovery Plan"
+                  disabled={loading}
                   autoFocus
                 />
-                <TextField
-                  fullWidth
-                  label="Description"
+              </FormField>
+
+              <FormField
+                label="Description"
+                description="Optional description of this recovery plan"
+              >
+                <Textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  multiline
+                  onChange={({ detail }) => setDescription(detail.value)}
+                  placeholder="e.g., Recovery plan for all production servers"
                   rows={2}
+                  disabled={loading}
                 />
-              </Stack>
-            </Box>
+              </FormField>
+            </SpaceBetween>
+          </Container>
 
-            <Divider />
-
-            {/* Wave Configuration */}
-            <Box>
+          {/* Wave Configuration */}
+          <Container header={<Header variant="h2">Wave Configuration</Header>}>
+            <SpaceBetween size="l">
               <WaveConfigEditor
                 waves={waves}
                 protectionGroupId=""
@@ -263,27 +271,14 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                 onChange={setWaves}
               />
               {errors.waves && (
-                <Alert severity="error" sx={{ mt: 2 }}>
+                <Alert type="error">
                   {errors.waves}
                 </Alert>
               )}
-            </Box>
-          </Stack>
-        )}
-      </DialogContent>
-
-      <DialogActions>
-        <Button onClick={handleClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={loading || loadingGroups}
-        >
-          {loading ? 'Saving...' : plan ? 'Update Plan' : 'Create Plan'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+            </SpaceBetween>
+          </Container>
+        </SpaceBetween>
+      )}
+    </Modal>
   );
 };

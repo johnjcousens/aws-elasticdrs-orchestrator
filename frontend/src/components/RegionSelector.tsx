@@ -1,5 +1,5 @@
 import React from 'react';
-import { FormControl, InputLabel, Select, MenuItem, FormHelperText } from '@mui/material';
+import { FormField, Select, type SelectProps } from '@cloudscape-design/components';
 
 interface RegionSelectorProps {
   value: string;
@@ -32,25 +32,26 @@ export const RegionSelector: React.FC<RegionSelectorProps> = ({
   error = false,
   helperText
 }) => {
+  const selectedOption = AWS_REGIONS.find(r => r.value === value) || null;
+
   return (
-    <FormControl fullWidth error={error} disabled={disabled}>
-      <InputLabel id="region-select-label">AWS Region *</InputLabel>
+    <FormField
+      label="AWS Region"
+      constraintText={helperText}
+      errorText={error ? helperText : undefined}
+    >
       <Select
-        labelId="region-select-label"
-        id="region-select"
-        value={value}
-        label="AWS Region *"
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {AWS_REGIONS.map((region) => (
-          <MenuItem key={region.value} value={region.value}>
-            {region.label}
-          </MenuItem>
-        ))}
-      </Select>
-      {helperText && (
-        <FormHelperText>{helperText}</FormHelperText>
-      )}
-    </FormControl>
+        selectedOption={selectedOption}
+        onChange={({ detail }) => {
+          if (detail.selectedOption) {
+            onChange(detail.selectedOption.value || '');
+          }
+        }}
+        options={AWS_REGIONS}
+        disabled={disabled}
+        placeholder="Select a region"
+        selectedAriaLabel="Selected"
+      />
+    </FormField>
   );
 };
