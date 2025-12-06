@@ -284,7 +284,7 @@ export const RecoveryPlansPage: React.FC = () => {
               id: 'created',
               header: 'Created',
               cell: (item) => {
-                if (!item.createdAt || item.createdAt === 0) {
+                if (!item.createdAt || (typeof item.createdAt === 'number' && item.createdAt === 0)) {
                   return <span style={{ color: '#5f6b7a' }}>Unknown</span>;
                 }
                 return <DateTimeDisplay value={item.createdAt} format="full" />;

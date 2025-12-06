@@ -3,10 +3,13 @@
  * 
  * Provides smooth fade-in animation when page content loads.
  * Enhances perceived performance and creates polished UX.
+ * 
+ * Note: CloudScape doesn't have built-in transitions like Material-UI's Fade.
+ * This component now uses CSS transitions for similar effect.
  */
 
 import type { ReactElement, ReactNode } from 'react';
-import { Box, Fade } from '@mui/material';
+import { Box } from '@cloudscape-design/components';
 
 interface PageTransitionProps {
   /** Content to animate */
@@ -30,9 +33,9 @@ interface PageTransitionProps {
  * @example
  * ```tsx
  * <PageTransition in={!loading && !error}>
- *   <Stack spacing={2}>
- *     {items.map(item => <Card key={item.id}>...</Card>)}
- *   </Stack>
+ *   <SpaceBetween size="l">
+ *     {items.map(item => <Container key={item.id}>...</Container>)}
+ *   </SpaceBetween>
  * </PageTransition>
  * ```
  */
@@ -42,8 +45,15 @@ export const PageTransition = ({
   timeout = 300,
 }: PageTransitionProps): ReactElement => {
   return (
-    <Fade in={inProp} timeout={timeout}>
-      <Box>{children}</Box>
-    </Fade>
+    <Box>
+      <div
+        style={{
+          opacity: inProp ? 1 : 0,
+          transition: `opacity ${timeout}ms ease-in-out`,
+        }}
+      >
+        {children}
+      </div>
+    </Box>
   );
 };

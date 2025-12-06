@@ -1,0 +1,1 @@
+/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/Cline/Rules/direct-mcp-usage.md
