@@ -20,6 +20,7 @@
 !requirements.txt
 !.cfnlintrc.yaml
 !.env.test.template
+!.gitlab-ci.yml
 
 # CloudFormation templates (ESSENTIAL)
 !cfn/
@@ -79,6 +80,7 @@ frontend/build/
 !docs/MASTER_IMPLEMENTATION_ROADMAP.md
 !docs/MVP_COMPLETION_PLAN.md
 !docs/LAMBDA_DEPLOYMENT_GUIDE.md
+!docs/CICD_PIPELINE_GUIDE.md
 !docs/AWS_DRS_ORCHESTRATION_TCO_ANALYSIS_FIXED.md
 !docs/CLOUDFORMATION_QUALITY_FIX_PLAN.md
 !docs/STEP_FUNCTIONS_DESIGN_PLAN.md
