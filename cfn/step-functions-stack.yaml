@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Step Functions State Machine for DRS Orchestration - Fixes EC2 Launch Issue'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+  
+  OrchestrationLambdaArn:
+    Type: String
+    Description: 'ARN of the orchestration Lambda function'
+
+Resources:
+  DRSOrchestrationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub '${ProjectName}-state-machine-${Environment}'
+      RoleArn: !GetAtt StateMachineRole.Arn
+      Definition:
+        Comment: 'DRS Recovery Plan Orchestration - Waits for EC2 instances to launch'
+        StartAt: 'StartDRSPlan'
+        States:
+          StartDRSPlan:
+            Type: Map
+            ItemsPath: '$.Plans'
+            MaxConcurrency: 1
+            Iterator:
+              StartAt: 'InitiateWavePlan'
+              States:
+                InitiateWavePlan:
+                  Type: Task
+                  Resource: 'arn:aws:states:::lambda:invoke'
+                  Parameters:
+                    FunctionName: !Ref OrchestrationLambdaArn
+                    Payload:
+                      action: 'begin'
+                      execution.$: '$.Execution.Id'
+                      plan.$: '$'
+                      isDrill.$: '$.IsDrill'
+                  ResultPath: '$.application'
+                  OutputPath: '$.application.Payload'
+                  Next: 'DetermineWavePlanState'
+                  Retry:
+                    - ErrorEquals:
+                        - 'Lambda.ServiceException'
+                        - 'Lambda.AWSLambdaException'
+                        - 'Lambda.SdkClientException'
+                      IntervalSeconds: 2
+                      MaxAttempts: 6
+                      BackoffRate: 2
+                
+                DetermineWavePlanState:
+                  Type: Choice
+                  Choices:
+                    - Variable: '$.status'
+                      StringEquals: 'failed'
+                      Next: 'PlanFailed'
+                    - Variable: '$.all_waves_completed'
+                      BooleanEquals: true
+                      Next: 'PlanCompleted'
+                    - Variable: '$.all_waves_completed'
+                      BooleanEquals: false
+                      Next: 'DetermineWaveState'
+                  Default: 'PlanFailed'
+                
+                DetermineWaveState:
+                  Type: Choice
+                  Choices:
+                    - Variable: '$.status'
+                      StringEquals: 'failed'
+                      Next: 'PlanFailed'
+                    - Variable: '$.wave_completed'
+                      BooleanEquals: false
+                      Next: 'WaitForWaveUpdate'
+                    - Variable: '$.wave_completed'
+                      BooleanEquals: true
+                      Next: 'DetermineWavePlanState'
+                  Default: 'PlanFailed'
+                
+                WaitForWaveUpdate:
+                  Type: Wait
+                  SecondsPath: '$.current_wave_update_time'
+                  Next: 'UpdateWaveStatus'
+                
+                UpdateWaveStatus:
+                  Type: Task
+                  Resource: 'arn:aws:states:::lambda:invoke'
+                  Parameters:
+                    FunctionName: !Ref OrchestrationLambdaArn
+                    Payload:
+                      action: 'update_wave_status'
+                      application.$: '$'
+                  ResultPath: '$.application'
+                  OutputPath: '$.application.Payload'
+                  Next: 'DetermineWaveState'
+                  Retry:
+                    - ErrorEquals:
+                        - 'Lambda.ServiceException'
+                        - 'Lambda.AWSLambdaException'
+                        - 'Lambda.SdkClientException'
+                      IntervalSeconds: 2
+                      MaxAttempts: 6
+                      BackoffRate: 2
+                
+                PlanCompleted:
+                  Type: Succeed
+                
+                PlanFailed:
+                  Type: Fail
+                  Error: 'PlanExecutionFailed'
+                  Cause: 'DRS recovery plan execution failed'
+            End: true
+  
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-statemachine-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-statemachine-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: !Ref OrchestrationLambdaArn
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogDelivery'
+                  - 'logs:GetLogDelivery'
+                  - 'logs:UpdateLogDelivery'
+                  - 'logs:DeleteLogDelivery'
+                  - 'logs:ListLogDeliveries'
+                  - 'logs:PutResourcePolicy'
+                  - 'logs:DescribeResourcePolicies'
+                  - 'logs:DescribeLogGroups'
+                Resource: '*'
+
+Outputs:
+  StateMachineArn:
+    Description: 'ARN of the DRS Orchestration State Machine'
+    Value: !Ref DRSOrchestrationStateMachine
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-arn-${Environment}'
+  
+  StateMachineName:
+    Description: 'Name of the DRS Orchestration State Machine'
+    Value: !GetAtt DRSOrchestrationStateMachine.Name
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-name-${Environment}'

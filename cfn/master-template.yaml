@@ -133,6 +133,27 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 30
 
+  # Step Functions Stack - State Machine for DRS Orchestration
+  StepFunctionsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - DatabaseStack
+      - LambdaStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/step-functions-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
   # API Stack - Cognito, API Gateway, Step Functions
   ApiStack:
     Type: AWS::CloudFormation::Stack
