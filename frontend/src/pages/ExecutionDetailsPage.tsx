@@ -3,33 +3,20 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
-  Card,
-  CardContent,
-  Chip,
-  Typography,
-  CircularProgress,
+  Container,
+  Header,
+  SpaceBetween,
+  Badge,
+  Spinner,
   Alert,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  ExpandableSection,
   Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Link,
-  LinearProgress,
-} from '@mui/material';
-import {
-  ExpandMore as ExpandMoreIcon,
-  ArrowBack as ArrowBackIcon,
-  Refresh as RefreshIcon,
-  CheckCircle as CheckCircleIcon,
-  Error as ErrorIcon,
-  Schedule as ScheduleIcon,
-} from '@mui/icons-material';
+  ProgressBar,
+  ColumnLayout,
+  StatusIndicator,
+} from '@cloudscape-design/components';
+import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import apiClient from '../services/api';
 import { PageTransition } from '../components/PageTransition';
 
@@ -135,37 +122,21 @@ export const ExecutionDetailsPage: React.FC = () => {
     return () => clearInterval(timer);
   }, [pollingEnabled, execution?.status]);
 
-  // Helper: Get status color
-  const getStatusColor = (status: string): 'success' | 'error' | 'warning' | 'info' => {
-    switch (status) {
-      case 'COMPLETED':
-      case 'LAUNCHED':
+  // Helper: Get status type for StatusIndicator
+  const getStatusType = (status: string): 'success' | 'error' | 'warning' | 'info' | 'stopped' | 'pending' | 'in-progress' | 'loading' => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+      case 'launched':
         return 'success';
-      case 'FAILED':
+      case 'failed':
         return 'error';
-      case 'IN_PROGRESS':
-      case 'LAUNCHING':
+      case 'in_progress':
+      case 'launching':
+        return 'in-progress';
+      case 'partial':
         return 'warning';
-      case 'PARTIAL':
-        return 'info';
       default:
-        return 'info';
-    }
-  };
-
-  // Helper: Get status icon
-  const getStatusIcon = (status: string): React.ReactElement | undefined => {
-    switch (status) {
-      case 'COMPLETED':
-      case 'LAUNCHED':
-        return <CheckCircleIcon fontSize="small" />;
-      case 'FAILED':
-        return <ErrorIcon fontSize="small" />;
-      case 'IN_PROGRESS':
-      case 'LAUNCHING':
-        return <ScheduleIcon fontSize="small" />;
-      default:
-        return undefined;
+        return 'pending';
     }
   };
 
@@ -198,9 +169,11 @@ export const ExecutionDetailsPage: React.FC = () => {
   if (loading) {
     return (
       <PageTransition>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress />
-        </Box>
+        <ContentLayout header={<Header variant="h1">Execution Details</Header>}>
+          <Box textAlign="center" padding={{ vertical: 'xxl' }}>
+            <Spinner size="large" />
+          </Box>
+        </ContentLayout>
       </PageTransition>
     );
   }
@@ -208,22 +181,23 @@ export const ExecutionDetailsPage: React.FC = () => {
   if (error) {
     return (
       <PageTransition>
-        <Box>
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/recovery-plans')}
-            sx={{ mb: 2 }}
-          >
-            Back to Recovery Plans
-          </Button>
-          <Alert severity="error" action={
-            <Button color="inherit" size="small" onClick={fetchExecution}>
-              Retry
+        <ContentLayout header={<Header variant="h1">Execution Details</Header>}>
+          <SpaceBetween size="m">
+            <Button onClick={() => navigate('/recovery-plans')} iconName="arrow-left">
+              Back to Recovery Plans
             </Button>
-          }>
-            {error}
-          </Alert>
-        </Box>
+            <Alert
+              type="error"
+              action={
+                <Button onClick={fetchExecution}>
+                  Retry
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
+          </SpaceBetween>
+        </ContentLayout>
       </PageTransition>
     );
   }
@@ -231,7 +205,9 @@ export const ExecutionDetailsPage: React.FC = () => {
   if (!execution) {
     return (
       <PageTransition>
-        <Alert severity="warning">Execution not found</Alert>
+        <ContentLayout header={<Header variant="h1">Execution Details</Header>}>
+          <Alert type="warning">Execution not found</Alert>
+        </ContentLayout>
       </PageTransition>
     );
   }
@@ -241,179 +217,182 @@ export const ExecutionDetailsPage: React.FC = () => {
 
   return (
     <PageTransition>
-      <Box>
-        {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/recovery-plans')}
+      <ContentLayout
+        header={
+          <Header
+            variant="h1"
+            actions={
+              <SpaceBetween direction="horizontal" size="xs">
+                <Button onClick={() => navigate('/recovery-plans')} iconName="arrow-left">
+                  Back to Recovery Plans
+                </Button>
+                <Button
+                  iconName="refresh"
+                  onClick={fetchExecution}
+                  disabled={loading}
+                >
+                  Refresh
+                </Button>
+              </SpaceBetween>
+            }
           >
-            Back to Recovery Plans
-          </Button>
-          <Button
-            startIcon={<RefreshIcon />}
-            onClick={fetchExecution}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
-        </Box>
+            {execution.recoveryPlanName || 'Recovery Plan'} - {execution.executionType} Execution
+          </Header>
+        }
+      >
+        <SpaceBetween size="l">
+          {/* Execution Overview */}
+          <Container>
+            <SpaceBetween size="m">
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <StatusIndicator type={getStatusType(execution.status)}>
+                  {execution.status}
+                </StatusIndicator>
+                {execution.status === 'in_progress' && (
+                  <span style={{ fontSize: '14px', color: '#5f6b7a' }}>
+                    Refreshing in {countdown}s...
+                  </span>
+                )}
+              </div>
 
-        {/* Execution Overview */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h5" gutterBottom>
-              {execution.recoveryPlanName || 'Recovery Plan'} - {execution.executionType} Execution
-            </Typography>
-            
-            <Box display="flex" gap={2} alignItems="center" mb={2}>
-              <Chip
-                icon={getStatusIcon(execution.status)}
-                label={execution.status}
-                color={getStatusColor(execution.status)}
-                size="medium"
+              <ColumnLayout columns={3} variant="text-grid">
+                <div>
+                  <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
+                    Execution ID
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontSize: '14px' }}>
+                    {execution.executionId}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
+                    Started
+                  </div>
+                  <div>{formatTimestamp(execution.startTime)} by {execution.initiatedBy}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
+                    Duration
+                  </div>
+                  <div>{calculateDuration(execution.startTime, execution.endTime)}</div>
+                </div>
+              </ColumnLayout>
+            </SpaceBetween>
+          </Container>
+
+          {/* Wave Progress */}
+          <Container
+            header={
+              <Header variant="h2">
+                Wave Progress: {completedWaves} of {(execution.waves || []).length} complete
+              </Header>
+            }
+          >
+            <SpaceBetween size="s">
+              <ProgressBar
+                value={progress}
+                variant="standalone"
+                label={`${Math.round(progress)}%`}
               />
-              {execution.status === 'in_progress' && (
-                <Typography variant="body2" color="text.secondary">
-                  Refreshing in {countdown}s...
-                </Typography>
-              )}
-            </Box>
+            </SpaceBetween>
+          </Container>
 
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              <strong>Execution ID:</strong> {execution.executionId}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              <strong>Started:</strong> {formatTimestamp(execution.startTime)} by {execution.initiatedBy}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              <strong>Duration:</strong> {calculateDuration(execution.startTime, execution.endTime)}
-            </Typography>
-          </CardContent>
-        </Card>
-
-        {/* Wave Progress */}
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Wave Progress: {completedWaves} of {(execution.waves || []).length} complete
-            </Typography>
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-              sx={{ height: 10, borderRadius: 5 }}
-            />
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              {Math.round(progress)}%
-            </Typography>
-          </CardContent>
-        </Card>
-
-        {/* Waves */}
-        {(execution.waves || []).map((wave, index) => (
-          <Accordion key={index} defaultExpanded={wave.status === 'in_progress'}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box display="flex" alignItems="center" gap={2} width="100%">
-                <Chip
-                  icon={getStatusIcon(wave.status)}
-                  label={wave.status}
-                  color={getStatusColor(wave.status)}
-                  size="small"
+          {/* Waves */}
+          {(execution.waves || []).map((wave, index) => (
+            <ExpandableSection
+              key={index}
+              defaultExpanded={wave.status === 'in_progress'}
+              headerText={
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                  <StatusIndicator type={getStatusType(wave.status)}>
+                    {wave.status}
+                  </StatusIndicator>
+                  <span style={{ fontWeight: 600, fontSize: '16px' }}>
+                    Wave {index + 1}: {wave.waveName}
+                  </span>
+                  <span style={{ marginLeft: 'auto', fontSize: '14px', color: '#5f6b7a' }}>
+                    Region: {wave.region}
+                  </span>
+                </div>
+              }
+            >
+              <SpaceBetween size="m">
+                <Table
+                  columnDefinitions={[
+                    {
+                      id: 'serverId',
+                      header: 'Server ID',
+                      cell: (server: ServerExecution) => (
+                        <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>
+                          {server.sourceServerId}
+                        </span>
+                      ),
+                    },
+                    {
+                      id: 'status',
+                      header: 'Status',
+                      cell: (server: ServerExecution) => (
+                        <StatusIndicator type={getStatusType(server.status)}>
+                          {server.status}
+                        </StatusIndicator>
+                      ),
+                    },
+                    {
+                      id: 'instanceId',
+                      header: 'Instance ID',
+                      cell: (server: ServerExecution) =>
+                        server.instanceId ? (
+                          <Link
+                            href={getConsoleLink(server.instanceId, wave.region)}
+                            external
+                          >
+                            {server.instanceId}
+                          </Link>
+                        ) : (
+                          <span style={{ color: '#5f6b7a' }}>
+                            {server.status === 'LAUNCHING' ? 'Launching...' : '-'}
+                          </span>
+                        ),
+                    },
+                    {
+                      id: 'recoveryJobId',
+                      header: 'Recovery Job ID',
+                      cell: (server: ServerExecution) => (
+                        <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>
+                          {server.recoveryJobId || '-'}
+                        </span>
+                      ),
+                    },
+                    {
+                      id: 'launchTime',
+                      header: 'Launch Time',
+                      cell: (server: ServerExecution) => formatTimestamp(server.launchTime),
+                    },
+                  ]}
+                  items={wave.servers}
+                  empty={
+                    <Box textAlign="center" color="inherit">
+                      <div style={{ color: '#5f6b7a' }}>No servers in this wave</div>
+                    </Box>
+                  }
+                  variant="embedded"
                 />
-                <Typography variant="h6">
-                  Wave {index + 1}: {wave.waveName}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-                  Region: {wave.region}
-                </Typography>
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Server ID</strong></TableCell>
-                      <TableCell><strong>Status</strong></TableCell>
-                      <TableCell><strong>Instance ID</strong></TableCell>
-                      <TableCell><strong>Recovery Job ID</strong></TableCell>
-                      <TableCell><strong>Launch Time</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {wave.servers.map((server, serverIndex) => (
-                      <TableRow key={serverIndex}>
-                        <TableCell>
-                          <Typography variant="body2" fontFamily="monospace">
-                            {server.sourceServerId}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            icon={getStatusIcon(server.status)}
-                            label={server.status}
-                            color={getStatusColor(server.status)}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {server.instanceId ? (
-                            <Link
-                              href={getConsoleLink(server.instanceId, wave.region)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                            >
-                              <Typography variant="body2" fontFamily="monospace">
-                                {server.instanceId}
-                              </Typography>
-                              🔗
-                            </Link>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">
-                              {server.status === 'LAUNCHING' ? 'Launching...' : '-'}
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontFamily="monospace">
-                            {server.recoveryJobId || '-'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">
-                            {formatTimestamp(server.launchTime)}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {wave.servers.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center">
-                          <Typography variant="body2" color="text.secondary">
-                            No servers in this wave
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
 
-              {/* Show errors if any */}
-              {wave.servers.some(s => s.error) && (
-                <Box mt={2}>
-                  {wave.servers.filter(s => s.error).map((server, idx) => (
-                    <Alert severity="error" key={idx} sx={{ mb: 1 }}>
-                      <strong>{server.sourceServerId}:</strong> {server.error}
-                    </Alert>
-                  ))}
-                </Box>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        ))}
-      </Box>
+                {/* Show errors if any */}
+                {wave.servers.some(s => s.error) && (
+                  <SpaceBetween size="xs">
+                    {wave.servers.filter(s => s.error).map((server, idx) => (
+                      <Alert type="error" key={idx}>
+                        <strong>{server.sourceServerId}:</strong> {server.error}
+                      </Alert>
+                    ))}
+                  </SpaceBetween>
+                )}
+              </SpaceBetween>
+            </ExpandableSection>
+          ))}
+        </SpaceBetween>
+      </ContentLayout>
     </PageTransition>
   );
 };

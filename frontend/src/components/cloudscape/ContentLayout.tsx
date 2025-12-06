@@ -14,7 +14,7 @@ import {
 
 interface ContentLayoutProps {
   children: ReactNode;
-  header?: string;
+  header?: string | ReactNode;
   description?: string;
   actions?: ReactNode;
   disableOverlap?: boolean;
@@ -40,13 +40,17 @@ export const ContentLayout: React.FC<ContentLayoutProps> = ({
     <CloudScapeContentLayout
       header={
         header ? (
-          <Header
-            variant="h1"
-            description={description}
-            actions={actions}
-          >
-            {header}
-          </Header>
+          typeof header === 'string' ? (
+            <Header
+              variant="h1"
+              description={description}
+              actions={actions}
+            >
+              {header}
+            </Header>
+          ) : (
+            header
+          )
         ) : undefined
       }
       disableOverlap={disableOverlap}

@@ -22,17 +22,14 @@ export default defineConfig({
           // Core vendor libraries
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           
-          // Material-UI core
-          'vendor-mui-core': ['@mui/material', '@emotion/react', '@emotion/styled'],
-          
-          // Material-UI icons and data grid (loaded on demand)
-          'vendor-mui-extended': ['@mui/icons-material', '@mui/x-data-grid'],
+          // CloudScape Design System
+          'vendor-cloudscape': ['@cloudscape-design/components', '@cloudscape-design/collection-hooks'],
           
           // AWS Amplify
           'vendor-aws': ['aws-amplify', '@aws-amplify/ui-react'],
           
-          // HTTP client
-          'vendor-http': ['axios'],
+          // HTTP client and utilities
+          'vendor-http': ['axios', 'react-hot-toast', 'date-fns'],
         },
       },
     },

@@ -1,20 +1,5 @@
 import React from 'react';
-import {
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Checkbox,
-  Chip,
-  Box,
-  Typography
-} from '@mui/material';
-import {
-  CheckCircle as ReadyIcon,
-  Sync as SyncingIcon,
-  Error as ErrorIcon,
-  HelpOutline as UnknownIcon
-} from '@mui/icons-material';
+import { Box, Checkbox, StatusIndicator } from '@cloudscape-design/components';
 
 interface DRSServer {
   sourceServerID: string;
@@ -35,33 +20,18 @@ interface ServerListItemProps {
   onToggle: () => void;
 }
 
-const getStateColor = (state: string): 'success' | 'info' | 'error' | 'default' => {
+const getStateStatus = (state: string): 'success' | 'info' | 'error' | 'warning' | 'stopped' | 'pending' | 'in-progress' | 'loading' => {
   switch (state) {
     case 'READY_FOR_RECOVERY':
       return 'success';
     case 'SYNCING':
     case 'INITIATED':
-      return 'info';
+      return 'in-progress';
     case 'DISCONNECTED':
     case 'STOPPED':
       return 'error';
     default:
-      return 'default';
-  }
-};
-
-const getStateIcon = (state: string) => {
-  switch (state) {
-    case 'READY_FOR_RECOVERY':
-      return <ReadyIcon fontSize="small" />;
-    case 'SYNCING':
-    case 'INITIATED':
-      return <SyncingIcon fontSize="small" />;
-    case 'DISCONNECTED':
-    case 'STOPPED':
-      return <ErrorIcon fontSize="small" />;
-    default:
-      return <UnknownIcon fontSize="small" />;
+      return 'pending';
   }
 };
 
@@ -73,56 +43,48 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
   const { sourceServerID, hostname, state, assignedToProtectionGroup, selectable } = server;
   
   return (
-    <ListItem
-      disablePadding
-      sx={{
+    <div
+      style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid #e9ebed',
         opacity: selectable ? 1 : 0.6,
-        backgroundColor: selectable ? 'inherit' : 'action.disabledBackground'
+        backgroundColor: selectable ? 'transparent' : '#f2f3f3',
+        cursor: selectable ? 'pointer' : 'not-allowed',
       }}
+      onClick={selectable ? onToggle : undefined}
     >
-      <ListItemButton onClick={onToggle} disabled={!selectable} dense>
-        <ListItemIcon>
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        <div style={{ marginRight: '12px', paddingTop: '2px' }}>
           <Checkbox
-            edge="start"
             checked={selected}
             disabled={!selectable}
-            tabIndex={-1}
-            disableRipple
+            onChange={onToggle}
           />
-        </ListItemIcon>
-        <ListItemText
-          primary={
-            <Box display="flex" alignItems="center" gap={1}>
-              <Typography variant="body1">
-                {hostname}
-              </Typography>
-              <Chip
-                size="small"
-                label={state}
-                color={getStateColor(state)}
-                icon={getStateIcon(state)}
-              />
-            </Box>
-          }
-          secondary={
-            <Box>
-              <Typography variant="body2" color="text.secondary">
-                {sourceServerID}
-              </Typography>
-              {assignedToProtectionGroup && (
-                <Typography variant="body2" color="warning.main">
-                  Already assigned to: {assignedToProtectionGroup.protectionGroupName}
-                </Typography>
-              )}
-              {selectable && (
-                <Typography variant="body2" color="success.main">
-                  Available
-                </Typography>
-              )}
-            </Box>
-          }
-        />
-      </ListItemButton>
-    </ListItem>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontWeight: 600, marginRight: '8px' }}>
+              {hostname}
+            </span>
+            <StatusIndicator type={getStateStatus(state)}>
+              {state}
+            </StatusIndicator>
+          </div>
+          <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
+            {sourceServerID}
+          </div>
+          {assignedToProtectionGroup && (
+            <div style={{ fontSize: '12px', color: '#d13212', marginTop: '4px' }}>
+              Already assigned to: {assignedToProtectionGroup.protectionGroupName}
+            </div>
+          )}
+          {selectable && (
+            <div style={{ fontSize: '12px', color: '#037f0c', marginTop: '4px' }}>
+              Available
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
