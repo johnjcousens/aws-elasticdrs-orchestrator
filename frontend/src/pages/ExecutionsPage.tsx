@@ -5,38 +5,27 @@
  * Provides real-time visibility into active and historical executions.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
+import type { ExecutionListItem } from '../types';
 import {
   Box,
+  SpaceBetween,
   Button,
-  Paper,
-  Typography,
+  Header,
+  Table,
   Tabs,
-  Tab,
-  Stack,
-  Card,
-  CardContent,
-  CardActions,
-  LinearProgress,
+  Container,
+  ProgressBar,
+  Badge,
+  Pagination,
+  TextFilter,
   Alert,
-  IconButton,
-  Tooltip,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-} from '@mui/material';
-import type { GridColDef } from '@mui/x-data-grid';
-import { GridActionsCellItem } from '@mui/x-data-grid';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import AutorenewIcon from '@mui/icons-material/Autorenew';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+  Modal,
+} from '@cloudscape-design/components';
+import { useCollection } from '@cloudscape-design/collection-hooks';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { DataGridWrapper } from '../components/DataGridWrapper';
+import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { CardSkeleton } from '../components/CardSkeleton';
@@ -45,21 +34,6 @@ import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { ExecutionDetails } from '../components/ExecutionDetails';
 import apiClient from '../services/api';
-import type { ExecutionListItem } from '../types';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
-    </div>
-  );
-};
 
 /**
  * Executions Page Component
@@ -70,7 +44,7 @@ export const ExecutionsPage: React.FC = () => {
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tabValue, setTabValue] = useState(0); // 0 = Active, 1 = History
+  const [activeTabId, setActiveTabId] = useState('active');
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -78,12 +52,11 @@ export const ExecutionsPage: React.FC = () => {
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
 
-  // Fetch executions on mount
   useEffect(() => {
     fetchExecutions();
   }, []);
 
-  // Real-time polling for active executions (faster 3s polling)
+  // Real-time polling for active executions
   useEffect(() => {
     const hasActiveExecutions = executions.some(
       e => e.status === 'in_progress' || e.status === 'pending'
@@ -93,7 +66,7 @@ export const ExecutionsPage: React.FC = () => {
 
     const interval = setInterval(() => {
       fetchExecutions();
-    }, 3000); // Poll every 3 seconds (faster updates)
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [executions]);
@@ -114,10 +87,6 @@ export const ExecutionsPage: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
   };
 
   const handleViewDetails = (execution: ExecutionListItem) => {
@@ -145,7 +114,6 @@ export const ExecutionsPage: React.FC = () => {
       const result = await apiClient.deleteCompletedExecutions();
       toast.success(`Cleared ${result.deletedCount} completed executions`);
       setClearDialogOpen(false);
-      // Refresh to show updated list
       await fetchExecutions();
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to clear history';
@@ -155,40 +123,26 @@ export const ExecutionsPage: React.FC = () => {
     }
   };
 
-  const handleCancelClear = () => {
-    setClearDialogOpen(false);
-  };
-
-  // Filter executions by active/history
-  // Active: All in-progress states (orchestration + DRS job states)
+  // Filter executions
   const activeExecutions = executions.filter(
     e => {
       const status = e.status.toUpperCase();
-      // Orchestration states
       return status === 'PENDING' || status === 'POLLING' || 
-             status === 'INITIATED' ||  // FIXED: Added DRS state
-             status === 'LAUNCHING' ||   // FIXED: Added DRS state
-             // DRS job states
-             status === 'STARTED' ||     // FIXED: Added DRS job state
-             status === 'IN_PROGRESS' || 
-             status === 'RUNNING' ||     // Added for completeness
-             status === 'PAUSED';
+             status === 'INITIATED' || status === 'LAUNCHING' ||
+             status === 'STARTED' || status === 'IN_PROGRESS' || 
+             status === 'RUNNING' || status === 'PAUSED';
     }
   );
   
-  // History: Terminal states (completed, failed, etc.)
   const historyExecutions = executions.filter(
     e => {
       const status = e.status.toUpperCase();
-      return status === 'COMPLETED' || 
-             status === 'PARTIAL' ||     // FIXED: Added partial failure state
-             status === 'FAILED' || 
-             status === 'CANCELLED' || 
+      return status === 'COMPLETED' || status === 'PARTIAL' ||
+             status === 'FAILED' || status === 'CANCELLED' || 
              status === 'ROLLED_BACK';
     }
   );
 
-  // Calculate progress percentage for in-progress executions
   const calculateProgress = (execution: ExecutionListItem): number => {
     if (execution.status !== 'in_progress' || !execution.currentWave) {
       return 0;
@@ -196,27 +150,16 @@ export const ExecutionsPage: React.FC = () => {
     return (execution.currentWave / execution.totalWaves) * 100;
   };
 
-  // Calculate duration
   const calculateDuration = (execution: ExecutionListItem): string => {
-    // Handle missing or invalid start time
-    if (!execution.startTime) {
-      return '-';
-    }
+    if (!execution.startTime) return '-';
     
     const start = new Date(execution.startTime);
-    
-    // Validate start time
-    if (isNaN(start.getTime())) {
-      return '-';
-    }
+    if (isNaN(start.getTime())) return '-';
     
     const end = execution.endTime ? new Date(execution.endTime) : new Date();
     const durationMs = end.getTime() - start.getTime();
     
-    // Handle negative duration (invalid data)
-    if (durationMs < 0) {
-      return '-';
-    }
+    if (durationMs < 0) return '-';
     
     const hours = Math.floor(durationMs / (1000 * 60 * 60));
     const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -231,320 +174,279 @@ export const ExecutionsPage: React.FC = () => {
     }
   };
 
-  // DataGrid columns configuration for History tab
-  const historyColumns: GridColDef[] = useMemo(() => [
+  // Collection hooks for history table
+  const { items, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
+    historyExecutions,
     {
-      field: 'recoveryPlanName',
-      headerName: 'Plan Name',
-      width: 200,
-      sortable: true,
-    },
-    {
-      field: 'status',
-      headerName: 'Status',
-      width: 140,
-      sortable: true,
-      renderCell: (params) => <StatusBadge status={params.value} />,
-    },
-    {
-      field: 'totalWaves',
-      headerName: 'Waves',
-      width: 100,
-      sortable: true,
-      renderCell: (params) => {
-        const waves = params.value || 0;
-        return waves > 0 ? `${waves} waves` : '-';
+      filtering: {
+        empty: 'No execution history',
+        noMatch: 'No executions match the filter',
       },
-    },
-    {
-      field: 'startTime',
-      headerName: 'Started',
-      width: 180,
-      sortable: true,
-      renderCell: (params) => <DateTimeDisplay value={params.value} format="full" />,
-    },
-    {
-      field: 'endTime',
-      headerName: 'Completed',
-      width: 180,
-      sortable: true,
-      renderCell: (params) => params.value ? <DateTimeDisplay value={params.value} format="full" /> : '-',
-    },
-    {
-      field: 'duration',
-      headerName: 'Duration',
-      width: 120,
-      sortable: false,
-      valueGetter: (value, row: ExecutionListItem) => calculateDuration(row),
-    },
-    {
-      field: 'actions',
-      type: 'actions',
-      headerName: 'Actions',
-      width: 120,
-      getActions: (params) => [
-        <GridActionsCellItem
-          icon={<VisibilityIcon />}
-          label="View Details"
-          onClick={() => handleViewDetails(params.row as ExecutionListItem)}
-          showInMenu={false}
-        />,
-      ],
-    },
-  ], []);
-
-  // Transform history data for DataGrid
-  const historyRows = useMemo(() => historyExecutions.map((execution) => ({
-    id: execution.executionId,
-    ...execution,
-  })), [historyExecutions]);
-
-  // Get border color based on status
-  const getBorderColor = (status: string): string => {
-    switch (status) {
-      case 'completed':
-        return '#4caf50'; // green
-      case 'in_progress':
-      case 'pending':
-      case 'paused':
-        return '#ff9800'; // orange
-      case 'failed':
-        return '#f44336'; // red
-      default:
-        return '#9e9e9e'; // grey
+      pagination: { pageSize: 10 },
+      sorting: {},
     }
-  };
+  );
 
   if (loading && executions.length === 0) {
     return <LoadingState message="Loading executions..." />;
   }
 
   if (error && executions.length === 0) {
-    return <ErrorState error={error} onRetry={fetchExecutions} />;
+    return <ErrorState message={error} onRetry={fetchExecutions} />;
   }
 
   return (
     <PageTransition>
-      <Box>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
-          <Box>
-            <Typography variant="h4" gutterBottom fontWeight={600}>
-              History Dashboard
-            </Typography>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Real-time monitoring and historical records of DRS recoveries
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={2} alignItems="center">
-          {activeExecutions.length > 0 && (
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Chip
-                icon={
-                  <AutorenewIcon 
-                    sx={{ 
-                      animation: 'spin 2s linear infinite',
-                      '@keyframes spin': {
-                        '0%': { transform: 'rotate(0deg)' },
-                        '100%': { transform: 'rotate(360deg)' },
-                      },
-                    }} 
-                  />
-                }
-                label="Live Updates"
-                size="small"
-                color="success"
-                variant="outlined"
-              />
-              <Typography variant="caption" color="text.secondary">
-                Updated {formatDistanceToNow(lastRefresh, { addSuffix: true })}
-              </Typography>
-            </Stack>
-          )}
-          <Tooltip title="Refresh">
-            <IconButton onClick={handleRefresh} disabled={refreshing}>
-              <RefreshIcon className={refreshing ? 'rotating' : ''} />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      </Stack>
-
-      {/* Error Alert */}
-      {error && executions.length > 0 && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Tabs */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs value={tabValue} onChange={handleTabChange}>
-          <Tab 
-            label={`Active (${activeExecutions.length})`} 
-            sx={{ textTransform: 'none' }}
-          />
-          <Tab 
-            label={`History (${historyExecutions.length})`}
-            sx={{ textTransform: 'none' }}
-          />
-        </Tabs>
-      </Paper>
-
-      {/* Active Executions Tab */}
-      <TabPanel value={tabValue} index={0}>
-        {loading ? (
-          <CardSkeleton count={5} showProgress={true} />
-        ) : error ? (
-          <ErrorState error={error} onRetry={handleRefresh} />
-        ) : activeExecutions.length === 0 ? (
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No Active Executions
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Start a recovery plan execution to monitor progress here
-            </Typography>
-          </Paper>
-        ) : (
-          <Stack spacing={2}>
-            {activeExecutions.map((execution) => (
-              <Card 
-                key={execution.executionId}
-                sx={{ 
-                  borderLeft: 4,
-                  borderColor: getBorderColor(execution.status),
-                }}
-              >
-                <CardContent>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="h6" gutterBottom>
-                        {execution.recoveryPlanName}
-                      </Typography>
-                      
-                      <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                        <StatusBadge status={execution.status} />
-                        
-                        {execution.currentWave && (
-                          <Typography variant="body2" color="text.secondary">
-                            Wave {execution.currentWave} of {execution.totalWaves}
-                          </Typography>
-                        )}
-                        
-                        <DateTimeDisplay value={execution.startTime} format="full" />
-                        
-                        <Typography variant="body2" color="text.secondary">
-                          Duration: {calculateDuration(execution)}
-                        </Typography>
-                      </Stack>
-
-                      {execution.status === 'in_progress' && execution.currentWave && (
-                        <Box sx={{ mb: 1 }}>
-                          <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary">
-                              Progress
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {Math.round(calculateProgress(execution))}%
-                            </Typography>
-                          </Stack>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={calculateProgress(execution)}
-                            sx={{ height: 8, borderRadius: 1 }}
-                          />
-                        </Box>
-                      )}
-
-                    </Box>
-                  </Stack>
-                </CardContent>
-                
-                <CardActions>
-                  <Button
-                    size="small"
-                    startIcon={<VisibilityIcon />}
-                    onClick={() => handleViewDetails(execution)}
-                  >
-                    View Details
-                  </Button>
-                </CardActions>
-              </Card>
-            ))}
-          </Stack>
-        )}
-      </TabPanel>
-
-      {/* History Tab */}
-      <TabPanel value={tabValue} index={1}>
-        {/* Clear History Button */}
-        {historyExecutions.length > 0 && (
-          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
-            <Button
-              variant="outlined"
-              color="error"
-              size="small"
-              startIcon={<DeleteSweepIcon />}
-              onClick={handleClearHistory}
-              disabled={clearing}
-            >
-              Clear Completed History
-            </Button>
-          </Box>
-        )}
-        
-        <DataGridWrapper
-          rows={historyRows}
-          columns={historyColumns}
-          loading={loading && historyExecutions.length === 0}
-          error={error && historyExecutions.length === 0 ? error : null}
-          onRetry={fetchExecutions}
-          emptyMessage="No execution history available. Completed executions will appear here."
-          height={600}
-        />
-      </TabPanel>
-
-      {/* Execution Details Modal */}
-      <ExecutionDetails
-        open={detailsOpen}
-        executionId={selectedExecutionId}
-        onClose={handleCloseDetails}
-        onRefresh={fetchExecutions}
-      />
-
-      {/* Clear History Confirmation Dialog */}
-      <Dialog
-        open={clearDialogOpen}
-        onClose={handleCancelClear}
-        aria-labelledby="clear-dialog-title"
-        aria-describedby="clear-dialog-description"
-      >
-        <DialogTitle id="clear-dialog-title">
-          Clear Completed History?
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText id="clear-dialog-description">
-            This will permanently delete all completed execution records ({historyExecutions.length} items).
-            Active executions will not be affected.
-            <br /><br />
-            <strong>This action cannot be undone.</strong>
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelClear} disabled={clearing}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleConfirmClear} 
-            color="error" 
-            variant="contained"
-            disabled={clearing}
-            autoFocus
+      <ContentLayout
+        header={
+          <Header
+            variant="h1"
+            description="Real-time monitoring and historical records of DRS recoveries"
+            actions={
+              <SpaceBetween direction="horizontal" size="xs">
+                {activeExecutions.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Badge color="green">🔄 Live Updates</Badge>
+                    <span style={{ fontSize: '12px', color: '#5f6b7a' }}>
+                      Updated {formatDistanceToNow(lastRefresh, { addSuffix: true })}
+                    </span>
+                  </div>
+                )}
+                <Button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  iconName="refresh"
+                >
+                  Refresh
+                </Button>
+              </SpaceBetween>
+            }
           >
-            {clearing ? 'Clearing...' : 'Clear History'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-      </Box>
+            Execution History
+          </Header>
+        }
+      >
+        <SpaceBetween size="l">
+          {error && executions.length > 0 && (
+            <Alert
+              type="error"
+              dismissible
+              onDismiss={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
+
+          <Tabs
+            activeTabId={activeTabId}
+            onChange={({ detail }) => setActiveTabId(detail.activeTabId)}
+            tabs={[
+              {
+                id: 'active',
+                label: `Active (${activeExecutions.length})`,
+                content: (
+                  <SpaceBetween size="m">
+                    {loading ? (
+                      <CardSkeleton count={3} />
+                    ) : activeExecutions.length === 0 ? (
+                      <Container>
+                        <Box textAlign="center" padding="xxl">
+                          <b>No Active Executions</b>
+                          <Box padding={{ top: 's' }} color="text-body-secondary">
+                            Start a recovery plan execution to monitor progress here
+                          </Box>
+                        </Box>
+                      </Container>
+                    ) : (
+                      activeExecutions.map((execution) => (
+                        <Container
+                          key={execution.executionId}
+                          header={
+                            <Header variant="h2">
+                              {execution.recoveryPlanName}
+                            </Header>
+                          }
+                        >
+                          <SpaceBetween size="m">
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <StatusBadge status={execution.status} />
+                              
+                              {execution.currentWave && (
+                                <span style={{ color: '#5f6b7a' }}>
+                                  Wave {execution.currentWave} of {execution.totalWaves}
+                                </span>
+                              )}
+                              
+                              <DateTimeDisplay value={execution.startTime} format="full" />
+                              
+                              <span style={{ color: '#5f6b7a' }}>
+                                Duration: {calculateDuration(execution)}
+                              </span>
+                            </div>
+
+                            {execution.status === 'in_progress' && execution.currentWave && (
+                              <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                  <span style={{ fontSize: '12px', color: '#5f6b7a' }}>Progress</span>
+                                  <span style={{ fontSize: '12px', color: '#5f6b7a' }}>
+                                    {Math.round(calculateProgress(execution))}%
+                                  </span>
+                                </div>
+                                <ProgressBar
+                                  value={calculateProgress(execution)}
+                                  variant="standalone"
+                                />
+                              </div>
+                            )}
+
+                            <Button onClick={() => handleViewDetails(execution)}>
+                              View Details
+                            </Button>
+                          </SpaceBetween>
+                        </Container>
+                      ))
+                    )}
+                  </SpaceBetween>
+                ),
+              },
+              {
+                id: 'history',
+                label: `History (${historyExecutions.length})`,
+                content: (
+                  <SpaceBetween size="m">
+                    {historyExecutions.length > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button
+                          variant="normal"
+                          onClick={handleClearHistory}
+                          disabled={clearing}
+                        >
+                          🗑️ Clear Completed History
+                        </Button>
+                      </div>
+                    )}
+                    
+                    <Table
+                      {...collectionProps}
+                      columnDefinitions={[
+                        {
+                          id: 'plan',
+                          header: 'Plan Name',
+                          cell: (item) => item.recoveryPlanName,
+                          sortingField: 'recoveryPlanName',
+                        },
+                        {
+                          id: 'status',
+                          header: 'Status',
+                          cell: (item) => <StatusBadge status={item.status} />,
+                        },
+                        {
+                          id: 'waves',
+                          header: 'Waves',
+                          cell: (item) => {
+                            const waves = item.totalWaves || 0;
+                            return waves > 0 ? `${waves} waves` : '-';
+                          },
+                        },
+                        {
+                          id: 'started',
+                          header: 'Started',
+                          cell: (item) => <DateTimeDisplay value={item.startTime} format="full" />,
+                        },
+                        {
+                          id: 'completed',
+                          header: 'Completed',
+                          cell: (item) => item.endTime ? <DateTimeDisplay value={item.endTime} format="full" /> : '-',
+                        },
+                        {
+                          id: 'duration',
+                          header: 'Duration',
+                          cell: (item) => calculateDuration(item),
+                        },
+                        {
+                          id: 'actions',
+                          header: 'Actions',
+                          cell: (item) => (
+                            <Button
+                              variant="inline-icon"
+                              iconName="view"
+                              onClick={() => handleViewDetails(item)}
+                            >
+                              View
+                            </Button>
+                          ),
+                        },
+                      ]}
+                      items={items}
+                      loading={loading}
+                      loadingText="Loading execution history"
+                      empty={
+                        <Box textAlign="center" color="inherit">
+                          <b>No execution history</b>
+                          <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                            Completed executions will appear here
+                          </Box>
+                        </Box>
+                      }
+                      filter={
+                        <TextFilter
+                          {...filterProps}
+                          filteringPlaceholder="Find executions"
+                          countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`}
+                        />
+                      }
+                      pagination={<Pagination {...paginationProps} />}
+                      variant="full-page"
+                    />
+                  </SpaceBetween>
+                ),
+              },
+            ]}
+          />
+
+          {/* Execution Details Modal */}
+          <ExecutionDetails
+            open={detailsOpen}
+            executionId={selectedExecutionId}
+            onClose={handleCloseDetails}
+            onRefresh={fetchExecutions}
+          />
+
+          {/* Clear History Confirmation */}
+          <Modal
+            visible={clearDialogOpen}
+            onDismiss={() => setClearDialogOpen(false)}
+            header="Clear Completed History?"
+            footer={
+              <Box float="right">
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button onClick={() => setClearDialogOpen(false)} disabled={clearing}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleConfirmClear}
+                    disabled={clearing}
+                    loading={clearing}
+                  >
+                    Clear History
+                  </Button>
+                </SpaceBetween>
+              </Box>
+            }
+          >
+            <SpaceBetween size="m">
+              <div>
+                This will permanently delete all completed execution records ({historyExecutions.length} items).
+                Active executions will not be affected.
+              </div>
+              <Alert type="warning">
+                <strong>This action cannot be undone.</strong>
+              </Alert>
+            </SpaceBetween>
+          </Modal>
+        </SpaceBetween>
+      </ContentLayout>
     </PageTransition>
   );
 };
