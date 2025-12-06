@@ -1,0 +1,401 @@
+# AWS DRS Orchestration CI/CD Pipeline
+# Comprehensive pipeline for CloudFormation, Lambda, and React frontend deployment
+
+stages:
+  - validate
+  - lint
+  - build
+  - test
+  - deploy-infra
+  - deploy-frontend
+
+variables:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"  # Updated for Vite compatibility
+  AWS_DEFAULT_REGION: "us-east-1"
+  STACK_NAME: "drs-orchestration-${CI_COMMIT_REF_SLUG}"
+  DEPLOYMENT_BUCKET: "aws-drs-orchestration"
+  ENVIRONMENT: "test"
+
+# ============================================================================
+# VALIDATION STAGE
+# ============================================================================
+
+validate:cloudformation:
+  stage: validate
+  image: python:${PYTHON_VERSION}
+  script:
+    - echo "Validating CloudFormation templates..."
+    - pip install cfn-lint==1.42.0
+    - cfn-lint cfn/*.yaml --ignore-checks W2001 W3002 W3005 W3037
+    - echo "Validating template syntax with AWS CLI..."
+    - pip install awscli
+    - |
+      for template in cfn/*.yaml; do
+        echo "Validating $template"
+        aws cloudformation validate-template --template-body file://$template --region ${AWS_DEFAULT_REGION} || true
+      done
+  rules:
+    - changes:
+        - cfn/**/*
+        - .gitlab-ci.yml
+
+validate:frontend-types:
+  stage: validate
+  image: node:${NODE_VERSION}-alpine
+  script:
+    - cd frontend
+    - npm ci --prefer-offline
+    - echo "Running TypeScript type checking..."
+    - npx tsc --noEmit
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-frontend
+    paths:
+      - frontend/node_modules/
+  rules:
+    - changes:
+        - frontend/**/*
+        - .gitlab-ci.yml
+
+# ============================================================================
+# LINT STAGE
+# ============================================================================
+
+lint:python:
+  stage: lint
+  image: python:${PYTHON_VERSION}
+  retry: 2
+  script:
+    - pip install pylint black flake8
+    - echo "Linting Lambda functions..."
+    - find lambda -name "*.py" -not -path "*/package/*" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
+    - find lambda -name "*.py" -not -path "*/package/*" | xargs black --check --line-length=120 || true
+    - find lambda -name "*.py" -not -path "*/package/*" | xargs flake8 --max-line-length=120 --ignore=E203,W503,E501 || true
+    - echo "Linting test scripts..."
+    - find tests/python -name "*.py" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
+    - find scripts -name "*.py" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
+  rules:
+    - changes:
+        - lambda/**/*.py
+        - tests/python/**/*.py
+        - scripts/**/*.py
+        - .gitlab-ci.yml
+
+lint:frontend:
+  stage: lint
+  image: node:${NODE_VERSION}-alpine
+  script:
+    - cd frontend
+    - npm ci --prefer-offline
+    - echo "Running ESLint..."
+    - npm run lint || true
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-frontend
+    paths:
+      - frontend/node_modules/
+  rules:
+    - changes:
+        - frontend/**/*
+        - .gitlab-ci.yml
+
+# ============================================================================
+# BUILD STAGE
+# ============================================================================
+
+build:lambda:
+  stage: build
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - apt-get update && apt-get install -y zip
+  script:
+    - echo "Building Lambda packages..."
+    - cd lambda
+    - |
+      # Install dependencies
+      if [ ! -d "package" ]; then
+        echo "Installing Lambda dependencies..."
+        pip install -r requirements.txt -t package/ --no-cache-dir
+      fi
+    - echo "Creating Lambda deployment packages..."
+    - |
+      # Package api-handler (index.py)
+      cd package
+      zip -r ../api-handler.zip . -x "*.pyc" "__pycache__/*"
+      cd ..
+      zip -g api-handler.zip index.py
+      
+      # Package orchestration (drs_orchestrator.py)
+      cd package
+      zip -r ../orchestration.zip . -x "*.pyc" "__pycache__/*"
+      cd ..
+      zip -g orchestration.zip drs_orchestrator.py
+      
+      # Package execution-finder (poller/execution_finder.py)
+      cd package
+      zip -r ../execution-finder.zip . -x "*.pyc" "__pycache__/*"
+      cd ..
+      zip -g execution-finder.zip poller/execution_finder.py
+      
+      # Package execution-poller (poller/execution_poller.py)
+      cd package
+      zip -r ../execution-poller.zip . -x "*.pyc" "__pycache__/*"
+      cd ..
+      zip -g execution-poller.zip poller/execution_poller.py
+    - echo "Lambda packages created successfully"
+    - ls -lh *.zip
+  artifacts:
+    paths:
+      - lambda/*.zip
+    expire_in: 1 hour
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+
+build:frontend:
+  stage: build
+  image: node:${NODE_VERSION}-alpine
+  script:
+    - cd frontend
+    - npm ci --prefer-offline
+    - echo "Building React frontend with Vite..."
+    - npm run build
+    - echo "Build complete. Artifacts:"
+    - ls -lh dist/
+  artifacts:
+    paths:
+      - frontend/dist/
+    expire_in: 1 hour
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-frontend
+    paths:
+      - frontend/node_modules/
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+
+# ============================================================================
+# TEST STAGE
+# ============================================================================
+
+test:python-unit:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - build:lambda
+  before_script:
+    - cd tests/python
+    - pip install -r requirements.txt
+  script:
+    - echo "Running Python unit tests..."
+    - pytest unit/ -v --cov=../../lambda --cov-report=html --cov-report=term
+  artifacts:
+    when: always
+    paths:
+      - tests/python/htmlcov/
+      - tests/python/.coverage
+    expire_in: 7 days
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+
+test:python-integration:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - build:lambda
+  before_script:
+    - cd tests/python
+    - pip install -r requirements.txt
+  script:
+    - echo "Running Python integration tests..."
+    - pytest integration/ -v
+  artifacts:
+    when: always
+    paths:
+      - tests/python/test-results/
+    expire_in: 7 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+      when: manual
+
+test:playwright:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.40.0-focal
+  dependencies:
+    - build:frontend
+  before_script:
+    - cd tests/playwright
+    - npm ci --prefer-offline
+  script:
+    - echo "Running Playwright E2E tests..."
+    - npx playwright test --reporter=html
+  artifacts:
+    when: always
+    paths:
+      - tests/playwright/test-results/
+      - tests/playwright/playwright-report/
+    expire_in: 7 days
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+      when: manual
+
+# ============================================================================
+# DEPLOY INFRASTRUCTURE STAGE
+# ============================================================================
+
+deploy:upload-artifacts:
+  stage: deploy-infra
+  image: public.ecr.aws/aws-cli/aws-cli:latest
+  dependencies:
+    - build:lambda
+  before_script:
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - echo "Uploading CloudFormation templates to S3..."
+    - aws s3 sync cfn/ s3://${DEPLOYMENT_BUCKET}/cfn/ --delete
+    - echo "Uploading Lambda packages to S3..."
+    - aws s3 cp lambda/api-handler.zip s3://${DEPLOYMENT_BUCKET}/lambda/api-handler.zip
+    - aws s3 cp lambda/orchestration.zip s3://${DEPLOYMENT_BUCKET}/lambda/orchestration.zip
+    - aws s3 cp lambda/execution-finder.zip s3://${DEPLOYMENT_BUCKET}/lambda/execution-finder.zip
+    - aws s3 cp lambda/execution-poller.zip s3://${DEPLOYMENT_BUCKET}/lambda/execution-poller.zip
+    - echo "Artifacts uploaded successfully"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+
+deploy:cloudformation:
+  stage: deploy-infra
+  image: public.ecr.aws/aws-cli/aws-cli:latest
+  dependencies:
+    - deploy:upload-artifacts
+  before_script:
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - echo "Deploying CloudFormation stack: ${STACK_NAME}"
+    - |
+      aws cloudformation deploy \
+        --template-url https://${DEPLOYMENT_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/cfn/master-template.yaml \
+        --stack-name ${STACK_NAME} \
+        --parameter-overrides \
+          ProjectName=drs-orchestration \
+          Environment=${ENVIRONMENT} \
+          SourceBucket=${DEPLOYMENT_BUCKET} \
+          AdminEmail=${ADMIN_EMAIL} \
+        --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+        --region ${AWS_DEFAULT_REGION} \
+        --no-fail-on-empty-changeset
+    - echo "Waiting for stack deployment to complete..."
+    - |
+      aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME} 2>/dev/null || \
+      aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME}
+    - echo "Stack deployment complete!"
+    - echo "Retrieving stack outputs..."
+    - aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs' --output table
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+
+# ============================================================================
+# DEPLOY FRONTEND STAGE
+# ============================================================================
+
+deploy:frontend:
+  stage: deploy-frontend
+  image: public.ecr.aws/aws-cli/aws-cli:latest
+  dependencies:
+    - build:frontend
+  before_script:
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - echo "Retrieving CloudFormation outputs..."
+    - export FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucket`].OutputValue' --output text)
+    - export CLOUDFRONT_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+    - echo "Deploying frontend to S3 bucket: ${FRONTEND_BUCKET}"
+    - aws s3 sync frontend/dist/ s3://${FRONTEND_BUCKET}/ --delete
+    - echo "Invalidating CloudFront cache: ${CLOUDFRONT_ID}"
+    - aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_ID} --paths '/*'
+    - echo "Frontend deployment complete!"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^dev/ --output text)
+    - export USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CognitoUserPoolId`].OutputValue' --output text)
+    - export APP_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CognitoClientId`].OutputValue' --output text)
+    - export BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+    - export DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+    - export CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name ${STACK_NAME} --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
+    - |
+      echo "Generating aws-config.js with CloudFormation outputs..."
+      cat > frontend/dist/aws-config.js <<EOF
+      window.AWS_CONFIG = {
+        cognito: {
+          region: '${AWS_DEFAULT_REGION}',
+          userPoolId: '${USER_POOL_ID}',
+          clientId: '${APP_CLIENT_ID}'
+        },
+        api: {
+          endpoint: '${API_ENDPOINT}'
+        },
+        cloudfront: {
+          url: '${CLOUDFRONT_URL}'
+        }
+      };
+      EOF
+    - echo "Generated aws-config.js:"
+    - cat frontend/dist/aws-config.js
+    - echo "Deploying frontend to S3: ${BUCKET_NAME}"
+    - aws s3 sync frontend/dist/ s3://${BUCKET_NAME}/ --delete --cache-control "public, max-age=31536000, immutable" --exclude "*.html" --exclude "aws-config.js"
+    - aws s3 sync frontend/dist/ s3://${BUCKET_NAME}/ --exclude "*" --include "*.html" --include "aws-config.js" --cache-control "no-cache, no-store, must-revalidate"
+    - echo "Creating CloudFront invalidation..."
+    - aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION_ID} --paths "/*"
+    - echo "Frontend deployment complete!"
+    - echo "Application URL: ${CLOUDFRONT_URL}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH =~ /^dev/
+
+# ============================================================================
+# MANUAL DEPLOYMENT JOBS
+# ============================================================================
+
+deploy:production:
+  stage: deploy-infra
+  image: public.ecr.aws/aws-cli/aws-cli:latest
+  variables:
+    ENVIRONMENT: "prod"
+    STACK_NAME: "drs-orchestration-prod"
+  before_script:
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
+  script:
+    - echo "Deploying to PRODUCTION environment..."
+    - echo "This is a manual deployment requiring approval"
+    - |
+      aws cloudformation deploy \
+        --template-url https://${DEPLOYMENT_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/cfn/master-template.yaml \
+        --stack-name ${STACK_NAME} \
+        --parameter-overrides \
+          ProjectName=drs-orchestration \
+          Environment=prod \
+          SourceBucket=${DEPLOYMENT_BUCKET} \
+          AdminEmail=${ADMIN_EMAIL} \
+        --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+        --region ${AWS_DEFAULT_REGION} \
+        --no-fail-on-empty-changeset
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+  environment:
+    name: production
+    url: https://drs-orchestration-prod.example.com
