@@ -70,6 +70,10 @@ frontend/build/
 !docs/presentations/
 !docs/presentations/**
 
+# KIRO specifications and steering docs
+!.kiro/
+!.kiro/**
+
 # Essential root docs
 !docs/PROJECT_STATUS.md
 !docs/MASTER_IMPLEMENTATION_ROADMAP.md

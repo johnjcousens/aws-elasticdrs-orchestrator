@@ -9,7 +9,8 @@ import React from 'react';
 import { Box, Button, Alert } from '@cloudscape-design/components';
 
 export interface ErrorStateProps {
-  error: string | Error;
+  error?: string | Error;
+  message?: string | Error; // Alias for error
   title?: string;
   onRetry?: () => void;
   variant?: 'full' | 'inline' | 'alert';
@@ -25,11 +26,14 @@ export interface ErrorStateProps {
  */
 export const ErrorState: React.FC<ErrorStateProps> = ({
   error,
+  message,
   title = 'Error',
   onRetry,
   variant = 'full',
 }) => {
-  const errorMessage = error instanceof Error ? error.message : error;
+  // Support both 'error' and 'message' props for backwards compatibility
+  const errorValue = message || error || 'An unknown error occurred';
+  const errorMessage = errorValue instanceof Error ? errorValue.message : errorValue;
 
   if (variant === 'alert') {
     return (

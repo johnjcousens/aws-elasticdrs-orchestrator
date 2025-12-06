@@ -9,14 +9,16 @@ import React, { type ReactNode } from 'react';
 import { Modal, Box, SpaceBetween, Button } from '@cloudscape-design/components';
 
 export interface ConfirmDialogProps {
-  open: boolean;
+  open?: boolean; // Material-UI style
+  visible?: boolean; // CloudScape style
   title: string;
   message: string | ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   confirmColor?: 'primary' | 'secondary' | 'error' | 'warning' | 'info' | 'success';
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
+  onDismiss?: () => void; // CloudScape style
 }
 
 /**
@@ -33,6 +35,7 @@ export interface ConfirmDialogProps {
  */
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
+  visible,
   title,
   message,
   confirmLabel = 'Confirm',
@@ -40,7 +43,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmColor = 'primary',
   onConfirm,
   onCancel,
+  onDismiss,
 }) => {
+  // Support both 'open' and 'visible' props for backwards compatibility
+  const isVisible = visible !== undefined ? visible : (open !== undefined ? open : false);
+  const handleDismiss = onDismiss || onCancel || (() => {});
+  
   // Map Material-UI colors to CloudScape button variants
   const getButtonVariant = (color: string): 'primary' | 'normal' | 'link' | 'icon' => {
     if (color === 'error') return 'primary'; // CloudScape doesn't have error variant, use primary for destructive actions
@@ -49,13 +57,13 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return (
     <Modal
-      visible={open}
-      onDismiss={onCancel}
+      visible={isVisible}
+      onDismiss={handleDismiss}
       header={title}
       footer={
         <Box float="right">
           <SpaceBetween direction="horizontal" size="xs">
-            <Button onClick={onCancel}>
+            <Button onClick={handleDismiss}>
               {cancelLabel}
             </Button>
             <Button 

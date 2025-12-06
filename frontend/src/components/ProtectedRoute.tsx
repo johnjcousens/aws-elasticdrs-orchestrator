@@ -9,7 +9,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, Spinner } from '@cloudscape-design/components';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -20,16 +20,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '100vh',
-          backgroundColor: 'background.default',
-        }}
-      >
-        <CircularProgress size={60} />
+      <Box textAlign="center" padding={{ vertical: 'xxxl' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '100vh',
+          }}
+        >
+          <Spinner size="large" />
+        </div>
       </Box>
     );
   }

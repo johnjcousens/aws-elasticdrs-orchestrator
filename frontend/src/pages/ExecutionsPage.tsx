@@ -368,8 +368,8 @@ export const ExecutionsPage: React.FC = () => {
                           header: 'Actions',
                           cell: (item) => (
                             <Button
-                              variant="inline-icon"
-                              iconName="view"
+                              variant="inline-link"
+                              iconName="external"
                               onClick={() => handleViewDetails(item)}
                             >
                               View

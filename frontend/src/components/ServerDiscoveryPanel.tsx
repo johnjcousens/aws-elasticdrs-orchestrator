@@ -1,19 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  TextField,
-  FormControl,
-  InputLabel,
+  Button,
+  FormField,
+  Input,
   Select,
-  MenuItem,
-  Typography,
-  CircularProgress,
+  Spinner,
   Alert,
-  Paper,
-  List,
-  Button
-} from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
+  Container,
+} from '@cloudscape-design/components';
 import { ServerListItem } from './ServerListItem';
 import apiClient from '../services/api';
 
@@ -142,35 +137,25 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
 
   if (loading && servers.length === 0) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
-        <CircularProgress />
-        <Typography ml={2}>Discovering servers in {region}...</Typography>
+      <Box textAlign="center" padding={{ vertical: 'xxl' }}>
+        <Spinner size="large" />
+        <div style={{ marginTop: '16px' }}>Discovering servers in {region}...</div>
       </Box>
     );
   }
 
   if (!drsInitialized) {
     return (
-      <Alert severity="warning">
-        <Typography variant="subtitle1" gutterBottom>
-          DRS Not Initialized
-        </Typography>
-        <Typography variant="body2">
-          {error || `DRS is not initialized in ${region}. Please initialize DRS before creating Protection Groups.`}
-        </Typography>
+      <Alert type="warning" header="DRS Not Initialized">
+        {error || `DRS is not initialized in ${region}. Please initialize DRS before creating Protection Groups.`}
       </Alert>
     );
   }
 
   if (servers.length === 0) {
     return (
-      <Alert severity="info">
-        <Typography variant="subtitle1" gutterBottom>
-          No Servers Found
-        </Typography>
-        <Typography variant="body2">
-          No DRS source servers found in {region}. Add servers to DRS before creating Protection Groups.
-        </Typography>
+      <Alert type="info" header="No Servers Found">
+        No DRS source servers found in {region}. Add servers to DRS before creating Protection Groups.
       </Alert>
     );
   }
@@ -179,59 +164,60 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   const assignedCount = servers.filter(s => !s.selectable).length;
 
   return (
-    <Box>
+    <div>
       {/* Search and Filter */}
-      <Box display="flex" gap={2} mb={2}>
-        <TextField
-          fullWidth
-          placeholder="Search by hostname, server ID, or Protection Group..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
-          }}
-        />
-        <FormControl sx={{ minWidth: 150 }}>
-          <InputLabel>Filter</InputLabel>
-          <Select
-            value={filter}
-            label="Filter"
-            onChange={(e) => setFilter(e.target.value as any)}
-          >
-            <MenuItem value="all">All Servers</MenuItem>
-            <MenuItem value="available">Available</MenuItem>
-            <MenuItem value="assigned">Assigned</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
+      <div style={{ display: 'flex', marginBottom: '16px' }}>
+        <div style={{ flex: 1, marginRight: '16px' }}>
+          <FormField>
+            <Input
+              type="search"
+              placeholder="Search by hostname, server ID, or Protection Group..."
+              value={searchTerm}
+              onChange={({ detail }) => setSearchTerm(detail.value)}
+            />
+          </FormField>
+        </div>
+        <div style={{ minWidth: '150px' }}>
+          <FormField label="Filter">
+            <Select
+              selectedOption={{ label: filter === 'all' ? 'All Servers' : filter === 'available' ? 'Available' : 'Assigned', value: filter }}
+              onChange={({ detail }) => setFilter(detail.selectedOption.value as any)}
+              options={[
+                { label: 'All Servers', value: 'all' },
+                { label: 'Available', value: 'available' },
+                { label: 'Assigned', value: 'assigned' }
+              ]}
+            />
+          </FormField>
+        </div>
+      </div>
 
       {/* Server Count */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="body2" color="text.secondary">
+      <div style={{ display: 'flex', marginBottom: '16px' }}>
+        <div style={{ flex: 1, fontSize: '14px', color: '#5f6b7a' }}>
           Total: {servers.length} | Available: {availableCount} | Assigned: {assignedCount}
-        </Typography>
-        <Box>
+        </div>
+        <div>
           <Button
-            size="small"
+            variant="inline-link"
             onClick={handleSelectAll}
             disabled={availableCount === 0}
           >
             Select All Available
           </Button>
           <Button
-            size="small"
+            variant="inline-link"
             onClick={handleDeselectAll}
             disabled={selectedServerIds.length === 0}
-            sx={{ ml: 1 }}
           >
             Deselect All
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
 
       {/* Server List */}
-      <Paper variant="outlined">
-        <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+      <Container>
+        <div style={{ maxHeight: '400px', overflow: 'auto', border: '1px solid #e9ebed', borderRadius: '8px' }}>
           {filteredServers.map((server) => (
             <ServerListItem
               key={server.sourceServerID}
@@ -240,13 +226,13 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
               onToggle={() => handleToggle(server.sourceServerID)}
             />
           ))}
-        </List>
-      </Paper>
+        </div>
+      </Container>
 
       {/* Selection Count */}
-      <Typography variant="body2" color="text.secondary" mt={1}>
+      <div style={{ fontSize: '14px', color: '#5f6b7a', marginTop: '8px' }}>
         {selectedServerIds.length} of {availableCount} available servers selected
-      </Typography>
-    </Box>
+      </div>
+    </div>
   );
 };

@@ -7,23 +7,17 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
+  Modal,
   Box,
-  Stack,
-  Typography,
+  Button,
   Alert,
-  LinearProgress,
-  Chip,
-  Divider,
-  IconButton,
-} from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import CancelIcon from '@mui/icons-material/Cancel';
+  ProgressBar,
+  SpaceBetween,
+  Header,
+  ColumnLayout,
+  Container,
+  Badge,
+} from '@cloudscape-design/components';
 import { LoadingState } from './LoadingState';
 import { StatusBadge } from './StatusBadge';
 import { DateTimeDisplay } from './DateTimeDisplay';
@@ -191,205 +185,162 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
 
   return (
     <>
-      <Dialog
-        open={open}
-        onClose={handleClose}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: {
-            minHeight: '60vh',
-            maxHeight: '90vh',
-          },
-        }}
-      >
-        {/* Dialog Title */}
-        <DialogTitle>
-          <Stack direction="row" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6">Execution Details</Typography>
-            <Stack direction="row" spacing={1}>
-              <IconButton onClick={handleRefresh} disabled={loading} size="small">
-                <RefreshIcon />
-              </IconButton>
-              <IconButton onClick={handleClose} size="small">
-                <CloseIcon />
-              </IconButton>
-            </Stack>
-          </Stack>
-        </DialogTitle>
-
-        <Divider />
-
-        {/* Dialog Content */}
-        <DialogContent>
-          {loading && !execution ? (
-            <LoadingState message="Loading execution details..." />
-          ) : error ? (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          ) : execution ? (
-            <Stack spacing={3}>
-              {/* Cancel Error Alert */}
-              {cancelError && (
-                <Alert severity="error" onClose={() => setCancelError(null)}>
-                  {cancelError}
-                </Alert>
+      <Modal
+        visible={open}
+        onDismiss={handleClose}
+        size="large"
+        header={
+          <Header
+            variant="h2"
+            actions={
+              <SpaceBetween direction="horizontal" size="xs">
+                <Button
+                  iconName="refresh"
+                  onClick={handleRefresh}
+                  disabled={loading}
+                  variant="icon"
+                />
+              </SpaceBetween>
+            }
+          >
+            Execution Details
+          </Header>
+        }
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button onClick={handleClose} variant="link">
+                Close
+              </Button>
+              {canCancel && (
+                <Button
+                  onClick={() => setCancelDialogOpen(true)}
+                  disabled={cancelling}
+                  iconName="close"
+                >
+                  Cancel Execution
+                </Button>
               )}
+            </SpaceBetween>
+          </Box>
+        }
+      >
+        {loading && !execution ? (
+          <LoadingState message="Loading execution details..." />
+        ) : error ? (
+          <Alert type="error" dismissible onDismiss={() => setError(null)}>
+            {error}
+          </Alert>
+        ) : execution ? (
+          <SpaceBetween size="l">
+            {/* Cancel Error Alert */}
+            {cancelError && (
+              <Alert type="error" dismissible onDismiss={() => setCancelError(null)}>
+                {cancelError}
+              </Alert>
+            )}
 
-              {/* Execution Metadata */}
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Recovery Plan
-                </Typography>
-                <Typography variant="h6" gutterBottom>
-                  {execution.recoveryPlanName}
-                </Typography>
+            {/* Execution Metadata */}
+            <Container header={<Header variant="h3">Recovery Plan</Header>}>
+              <SpaceBetween size="m">
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
+                    {execution.recoveryPlanName}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <StatusBadge status={execution.status} />
+                    {execution.currentWave && (
+                      <Badge color="blue">
+                        Wave {execution.currentWave} of {execution.totalWaves}
+                      </Badge>
+                    )}
+                    {execution.executedBy && (
+                      <Badge>
+                        By: {execution.executedBy}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
 
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                  <StatusBadge status={execution.status} />
-                  
-                  {execution.currentWave && (
-                    <Chip 
-                      label={`Wave ${execution.currentWave} of ${execution.totalWaves}`}
-                      size="small"
-                      color="primary"
-                      variant="outlined"
-                    />
-                  )}
-
-                  {execution.executedBy && (
-                    <Chip 
-                      label={`By: ${execution.executedBy}`}
-                      size="small"
-                      variant="outlined"
-                    />
-                  )}
-                </Stack>
-
-                <Stack direction="row" spacing={4} sx={{ mb: 2 }}>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
+                <ColumnLayout columns={4} variant="text-grid">
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
                       Started
-                    </Typography>
-                    <Typography variant="body2">
-                      <DateTimeDisplay value={execution.startTime} format="full" />
-                    </Typography>
-                  </Box>
+                    </div>
+                    <DateTimeDisplay value={execution.startTime} format="full" />
+                  </div>
 
                   {execution.endTime && (
-                    <Box>
-                      <Typography variant="caption" color="text.secondary">
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
                         Ended
-                      </Typography>
-                      <Typography variant="body2">
-                        <DateTimeDisplay value={execution.endTime} format="full" />
-                      </Typography>
-                    </Box>
+                      </div>
+                      <DateTimeDisplay value={execution.endTime} format="full" />
+                    </div>
                   )}
 
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
                       Duration
-                    </Typography>
-                    <Typography variant="body2">
-                      {calculateDuration()}
-                    </Typography>
-                  </Box>
+                    </div>
+                    <div>{calculateDuration()}</div>
+                  </div>
 
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
                       Execution ID
-                    </Typography>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
-                        fontFamily: 'monospace',
-                        fontSize: '0.875rem',
-                      }}
-                    >
+                    </div>
+                    <div style={{ fontFamily: 'monospace', fontSize: '14px' }}>
                       {execution.executionId}
-                    </Typography>
-                  </Box>
-                </Stack>
+                    </div>
+                  </div>
+                </ColumnLayout>
 
                 {/* Progress Bar for Active Executions */}
                 {execution.status === 'in_progress' && execution.currentWave && (
-                  <Box sx={{ mb: 2 }}>
-                    <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
                         Overall Progress
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
                         {Math.round(calculateProgress())}%
-                      </Typography>
-                    </Stack>
-                    <LinearProgress 
-                      variant="determinate" 
+                      </div>
+                    </div>
+                    <ProgressBar
                       value={calculateProgress()}
-                      sx={{ height: 8, borderRadius: 1 }}
+                      variant="standalone"
                     />
-                  </Box>
+                  </div>
                 )}
-              </Box>
+              </SpaceBetween>
+            </Container>
 
-              <Divider />
+            {/* Error Information */}
+            {execution.error && (
+              <Alert type="error" header={execution.error.code}>
+                <div>{execution.error.message}</div>
+                {execution.error.details && (
+                  <pre style={{ 
+                    marginTop: '8px',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}>
+                    {JSON.stringify(execution.error.details, null, 2)}
+                  </pre>
+                )}
+              </Alert>
+            )}
 
-              {/* Error Information */}
-              {execution.error && (
-                <Alert severity="error">
-                  <Typography variant="subtitle2" gutterBottom>
-                    {execution.error.code}
-                  </Typography>
-                  <Typography variant="body2">
-                    {execution.error.message}
-                  </Typography>
-                  {execution.error.details && (
-                    <Typography 
-                      variant="caption" 
-                      component="pre"
-                      sx={{ 
-                        mt: 1,
-                        fontFamily: 'monospace',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {JSON.stringify(execution.error.details, null, 2)}
-                    </Typography>
-                  )}
-                </Alert>
-              )}
-
-              {/* Wave Progress Timeline */}
-              <Box>
-                <Typography variant="subtitle1" gutterBottom>
-                  Wave Progress
-                </Typography>
-                <WaveProgress waves={execution.waveExecutions || []} />
-              </Box>
-            </Stack>
-          ) : null}
-        </DialogContent>
-
-        {/* Dialog Actions */}
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose}>
-            Close
-          </Button>
-          {canCancel && (
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<CancelIcon />}
-              onClick={() => setCancelDialogOpen(true)}
-              disabled={cancelling}
-            >
-              Cancel Execution
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
+            {/* Wave Progress Timeline */}
+            <Container header={<Header variant="h3">Wave Progress</Header>}>
+              <WaveProgress waves={execution.waveExecutions || []} />
+            </Container>
+          </SpaceBetween>
+        ) : null}
+      </Modal>
 
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog
