@@ -1,9 +1,12 @@
 # Session 70: DeleteVolume IAM Condition Fix
 
-**Date**: December 7, 2024  
+**Date**: December 7, 2025  
 **Issue**: DRS drill Server 2 failed with `ec2:DeleteVolume` permission denied  
 **Root Cause**: IAM condition requiring wrong tag on DRS staging volumes  
-**Status**: ✅ FIXED - Removed blocking IAM condition
+**Status**: ✅ DEPLOYED & VALIDATED (Session 71)
+
+**Validation**: Job drsjob-36ee3447586054f5e - Both servers launched successfully  
+**See**: [Session 71 Validation Report](SESSION_71_SUCCESSFUL_DRILL_VALIDATION.md)
 
 ---
 
@@ -283,16 +286,38 @@ Both servers were identical but had different outcomes.
 
 ---
 
-## Next Steps
+## Session 71 Validation Results
 
-1. ✅ CloudFormation changes committed
-2. ⏳ Deploy CloudFormation update
-3. ⏳ Run clean DRS drill test
-4. ⏳ Verify both servers launch successfully
-5. ⏳ Proceed with Step Functions polling implementation
+✅ **PRODUCTION VALIDATED** (December 7, 2025)
+
+**Test Job**: drsjob-36ee3447586054f5e
+- ✅ EC2AMAZ-8B7IRHJ → i-01fdffb937aa6efec LAUNCHED (11:53:03)
+- ✅ EC2AMAZ-3B0B3UD → i-050bf37d129e94bfc LAUNCHED (11:54:07)
+- ✅ Duration: 23 minutes 56 seconds
+- ✅ Status: COMPLETED
+
+**IAM Policy Verified**:
+- ✅ `ec2:StartInstances` - NO conditions
+- ✅ `ec2:DeleteVolume` - NO conditions
+- ✅ `ec2:DetachVolume` - NO conditions
+
+**Key Finding**: DRS applies `AWSElasticDisasterRecoveryManaged: drs.amazonaws.com` tag to launch templates and instances. Fix confirmed working.
+
+See: [Session 71 Validation Report](SESSION_71_SUCCESSFUL_DRILL_VALIDATION.md)
 
 ---
 
-**Status**: Ready for deployment  
-**Confidence**: VERY HIGH - Root cause identified and fixed  
-**Risk**: LOW - Removing overly restrictive condition
+## Next Steps
+
+1. ✅ CloudFormation changes committed
+2. ✅ Deploy CloudFormation update
+3. ✅ Run clean DRS drill test
+4. ✅ Verify both servers launch successfully
+5. ⏳ Add `describe_job_log_items` polling to ExecutionPoller
+6. ⏳ Test multi-wave recovery plan through orchestration UI
+
+---
+
+**Status**: ✅ PRODUCTION VALIDATED  
+**Confidence**: VERY HIGH - Fix confirmed working in production  
+**Risk**: NONE
