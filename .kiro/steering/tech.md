@@ -22,14 +22,14 @@ The solution uses a **modular nested stack architecture** for better maintainabi
 ## Frontend
 
 - **Framework**: React 18.3 with TypeScript 5.5
-- **UI Library**: Material-UI 6.1.3 (AWS-branded theme)
+- **UI Library**: AWS CloudScape Design System (migrated from Material-UI Dec 2025)
 - **Build Tool**: Vite 5.4
 - **Routing**: React Router 6.26
 - **HTTP Client**: Axios 1.7
 - **Auth**: AWS Amplify (Cognito integration)
 - **Hosting**: S3 + CloudFront
 - **Components**: 23 React components (5 pages + 18 shared components)
-- **Code Size**: 2,847 lines of TypeScript
+- **Code Size**: ~3,000 lines of TypeScript
 
 ### Frontend Structure
 ```
@@ -50,7 +50,7 @@ frontend/src/
 │   └── ExecutionsPage.tsx          # Execution monitoring
 ├── services/       # API client (api.ts)
 ├── contexts/       # AuthContext for authentication
-├── theme/          # Material-UI theme configuration (AWS-branded)
+├── theme/          # CloudScape theme configuration
 └── types/          # TypeScript type definitions
 ```
 
@@ -59,9 +59,9 @@ frontend/src/
 - **VMware SRM-Like Experience**: Visual server selection with assignment status
 - **Real-Time Search**: Filter servers by hostname, Server ID, or Protection Group
 - **Auto-Refresh**: Silent 30-second auto-refresh for server status
-- **Material-UI DataGrid**: Sortable, filterable tables with pagination
+- **CloudScape Table**: Sortable, filterable tables with collection hooks
 - **Responsive Design**: Desktop, tablet, mobile support
-- **Accessibility**: WCAG 2.1 AA compliant
+- **Accessibility**: WCAG 2.1 AA compliant (CloudScape built-in)
 
 ## Backend
 
@@ -323,7 +323,8 @@ EXECUTION_POLLER_FUNCTION_NAME=drs-orchestration-execution-poller-test
 
 ### Frontend
 - React 18.3
-- Material-UI 6.1.3
+- AWS CloudScape Design System (@cloudscape-design/components)
+- @cloudscape-design/collection-hooks (table filtering/sorting)
 - AWS Amplify 6.x (Cognito integration)
 - Axios 1.7 (HTTP client)
 - TypeScript 5.5
@@ -386,8 +387,9 @@ EXECUTION_POLLER_FUNCTION_NAME=drs-orchestration-execution-poller-test
 - ✅ All CloudFormation stacks deployed
 - ✅ Phase 2 polling infrastructure operational
 - ✅ All 3 critical backend bugs fixed
-- ⚠️ Authentication issues blocking API Gateway calls
-- ⚠️ No successful end-to-end DRS drill execution yet
+- ✅ CloudScape migration complete (100%)
+- ✅ Authentication issues resolved (Session 68)
+- ⚠️ DRS drill validation pending (ec2:DetachVolume fix applied)
 
 **Performance Metrics**
 - ExecutionFinder: 20s detection (3x faster than target)

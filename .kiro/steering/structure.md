@@ -32,7 +32,7 @@ AWS-DRS-Orchestration/
 │   │   │   └── ExecutionsPage.tsx          # Execution monitoring
 │   │   ├── services/             # API client (api.ts)
 │   │   ├── contexts/             # AuthContext for authentication
-│   │   ├── theme/                # Material-UI theme (AWS-branded)
+│   │   ├── theme/                # CloudScape theme configuration
 │   │   └── types/                # TypeScript interfaces
 │   ├── public/                   # Static assets
 │   ├── dist/                     # Build output (gitignored)
@@ -132,12 +132,12 @@ All CloudFormation templates using nested stack architecture. Each stack is modu
 - AWS validate-template compliance
 
 ### `/frontend` - React Application
-Single-page application with TypeScript. Components follow Material-UI patterns. API calls centralized in `services/api.ts`.
+Single-page application with TypeScript. Components follow AWS CloudScape Design System patterns. API calls centralized in `services/api.ts`.
 
 **Key Features**:
 - 23 React components (5 pages + 18 shared)
-- 2,847 lines of TypeScript code
-- Material-UI 6 with AWS-branded theme
+- ~3,000 lines of TypeScript code
+- AWS CloudScape Design System (migrated from Material-UI Dec 2025)
 - Automatic server discovery with real-time search
 - VMware SRM-like visual server selection
 - 30-second auto-refresh for server status
@@ -252,7 +252,7 @@ Product requirements, architecture design, deployment guides, and session histor
 
 **Display** (Read-only components)
 - `StatusBadge.tsx`: Status indicators with color coding
-- `WaveProgress.tsx`: Wave execution timeline with Material-UI Stepper
+- `WaveProgress.tsx`: Wave execution timeline with CloudScape Wizard/Stepper
 - `DateTimeDisplay.tsx`: Timestamp formatting with relative time
 
 ### Backend Lambda
@@ -356,7 +356,7 @@ Product requirements, architecture design, deployment guides, and session histor
 7. **Response** → Frontend updates UI
    - ExecutionsPage polls GET /executions/{id} every 5 seconds
    - WaveProgress component shows real-time status
-   - Material-UI Stepper displays wave timeline
+   - CloudScape Wizard/Stepper displays wave timeline
 
 ### Protection Group Creation Flow
 

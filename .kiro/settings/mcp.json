@@ -8,7 +8,9 @@
       "env": {
         "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/Cline/MCP/code-explorer-mcp"
       },
-      "autoApprove": ["*"]
+      "autoApprove": [
+        "*"
+      ]
     },
     "research-documenter-mcp": {
       "command": "/Users/jocousen/.local/share/mise/installs/python/3.12.11/bin/python3.12",
@@ -18,7 +20,9 @@
       "env": {
         "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/Cline/MCP/research-documenter-mcp"
       },
-      "autoApprove": ["*"]
+      "autoApprove": [
+        "*"
+      ]
     },
     "context-historian-mcp": {
       "command": "/Users/jocousen/.local/share/mise/installs/python/3.12.11/bin/python3.12",
@@ -28,7 +32,10 @@
       "env": {
         "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/Cline/MCP/context-historian-mcp"
       },
-      "autoApprove": ["*"]
+      "autoApprove": [
+        "*",
+        "query_memory"
+      ]
     },
     "cfn-linter-automation": {
       "command": "/Users/jocousen/.local/share/mise/installs/python/3.12.11/bin/python3.12",
@@ -38,7 +45,9 @@
       "env": {
         "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/Cline/MCP/cfn-linter-automation"
       },
-      "autoApprove": ["*"]
+      "autoApprove": [
+        "*"
+      ]
     },
     "token-monitor-mcp": {
       "command": "/Users/jocousen/.local/share/mise/installs/python/3.12.11/bin/python3.12",
@@ -50,7 +59,9 @@
         "TOKEN_THRESHOLD": "75",
         "SAFETY_THRESHOLD": "80"
       },
-      "autoApprove": ["*"]
+      "autoApprove": [
+        "*"
+      ]
     }
   }
 }
