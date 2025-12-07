@@ -32,7 +32,7 @@ The AWS DRS Orchestration system is **95% operational** with all core infrastruc
 
 ### Architecture
 - **Framework:** React 18.3 with TypeScript 5.5
-- **UI Library:** Material-UI 6.1.3 (AWS-branded theme)
+- **UI Library:** AWS CloudScape Design System (migrated from Material-UI Dec 2025)
 - **Build Tool:** Vite 5.4
 - **Code Size:** 2,847 lines TypeScript (23 components)
 - **Routing:** React Router 6.26
