@@ -152,6 +152,8 @@ Resources:
                   - ec2:DescribeInstances
                   - ec2:DescribeInstanceStatus
                   - ec2:TerminateInstances
+                  - ec2:DetachVolume
+                  - ec2:DeleteVolume
                 Resource: '*'
               # EC2 permissions for DRS instance launching during conversion
               - Effect: Allow
@@ -294,13 +296,6 @@ Resources:
                   - ec2:StopInstances
                   - ec2:CreateTags
                 Resource: '*'
-              - Effect: Allow
-                Action:
-                  - ec2:DeleteVolume
-                Resource: '*'
-                Condition:
-                  StringEquals:
-                    ec2:ResourceTag/AWSElasticDisasterRecoveryManaged: 'true'
               # EC2 permissions for DRS instance launching during conversion
               - Effect: Allow
                 Action:
@@ -328,12 +323,15 @@ Resources:
                   - ec2:CopyImage
                   - ec2:RegisterImage
                 Resource: '*'
-              # CRITICAL: DRS uses Lambda credentials for DetachVolume during recovery launch
+              # CRITICAL: DRS uses Lambda credentials for volume operations during recovery
               # CloudTrail shows: invokedBy=drs.amazonaws.com, inScopeOf=Lambda function
-              # Without this, DRS recovery fails with UnauthorizedOperation on DetachVolume
+              # DRS staging volumes use tags: drs.amazonaws.com-job, drs.amazonaws.com-source-server
+              # NOT AWSElasticDisasterRecoveryManaged (that's for replication volumes)
+              # Without these permissions, DRS recovery fails during cleanup phase
               - Effect: Allow
                 Action:
                   - ec2:DetachVolume
+                  - ec2:DeleteVolume
                 Resource: '*'
         - PolicyName: SSMAccess
           PolicyDocument:
