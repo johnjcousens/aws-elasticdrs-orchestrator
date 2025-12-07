@@ -13,6 +13,10 @@ docs/SESSION_*.md
 # Archive folder (internal development history)
 docs/archive/
 
+# Competitor comparison docs (internal only)
+docs/guides/DRS_SRM_API_MAPPING.md
+docs/guides/DR_SOLUTIONS_API_COMPARISON.md
+
 # Test files and results
 test_results_*.json
 tests/
@@ -21,11 +25,31 @@ test-screenshots/
 *.spec.ts
 playwright-report/
 playwright.config.ts
+lambda/poller/test_*.py
+lambda/poller/.coverage
 
 # Kiro/IDE configuration (internal)
 .kiro/
 .amazonq/
 .cline_memory/
+
+# Internal scripts (not for customers)
+scripts/check-jsx-corruption.sh
+scripts/check_drill_status.py
+scripts/cleanup_stuck_drs_jobs.py
+scripts/execute_drill.py
+scripts/monitor_drill.py
+scripts/monitor_lambda_drill.py
+scripts/commit-files-individually.sh
+scripts/incremental-commit.sh
+scripts/safe-edit.sh
+scripts/verify-cleanup.sh
+scripts/verify-tsx.sh
+scripts/run-automated-tests.sh
+scripts/run-tests.sh
+
+# Backup files
+*.backup
 
 # -------------------------
 # BUILD ARTIFACTS
