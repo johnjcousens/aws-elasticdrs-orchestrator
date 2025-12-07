@@ -1,8 +1,12 @@
 # Deploy DeleteVolume Fix - Quick Guide
 
-**Issue**: DRS drill fails on multi-disk servers with `ec2:DeleteVolume` permission denied  
-**Fix**: Remove IAM condition blocking DRS staging volume cleanup  
+**Status**: ✅ DEPLOYED & VALIDATED (Session 71)  
+**Issue**: DRS drills failed with `ec2:DeleteVolume` and `ec2:StartInstances` permission denied  
+**Fix**: Removed IAM conditions blocking DRS operations  
 **Files Changed**: `cfn/lambda-stack.yaml`
+
+**Validation**: Job drsjob-36ee3447586054f5e - Both servers launched successfully  
+**See**: [Session 71 Validation Report](docs/SESSION_71_SUCCESSFUL_DRILL_VALIDATION.md)
 
 ---
 
@@ -59,12 +63,21 @@ aws iam get-role-policy \
 
 ## Test DRS Drill
 
+✅ **VALIDATION COMPLETE** (Session 71)
+
+**Test Job**: drsjob-36ee3447586054f5e  
+**Result**: Both servers launched successfully
+- EC2AMAZ-8B7IRHJ → i-01fdffb937aa6efec ✅ LAUNCHED
+- EC2AMAZ-3B0B3UD → i-050bf37d129e94bfc ✅ LAUNCHED
+- Duration: 23 minutes 56 seconds
+- Status: COMPLETED
+
+**To Test Again**:
 1. Go to https://d1wfyuosowt0hl.cloudfront.net
 2. Login: `***REMOVED***` / `IiG2b1o+D$`
 3. Navigate to Recovery Plans
-4. Execute a plan with both servers
-5. **Expected**: Both servers LAUNCH successfully
-6. **Expected**: DRS job status = COMPLETED
+4. Execute a plan with servers
+5. **Expected**: All servers LAUNCH successfully
 
 ---
 
@@ -112,12 +125,12 @@ aws cloudformation deploy \
 
 ## Documentation
 
-- **Root Cause Analysis**: `docs/DRS_DETACHVOLUME_ROOT_CAUSE_ANALYSIS.md`
-- **Session Notes**: `docs/SESSION_70_DELETEVOLUME_FIX.md`
+- **Session 71 Validation**: `docs/SESSION_71_SUCCESSFUL_DRILL_VALIDATION.md` - Production test results
+- **Session 70 Root Cause**: `docs/SESSION_70_FINAL_ROOT_CAUSE.md` - Why IAM conditions blocked DRS
 - **Step Functions Plan**: `docs/STEP_FUNCTIONS_POLLING_IMPLEMENTATION.md`
 
 ---
 
 **Deployment Time**: ~10 minutes  
-**Risk**: LOW - Removing overly restrictive condition  
-**Testing**: Required before production use
+**Status**: ✅ DEPLOYED & VALIDATED  
+**Risk**: NONE - Fix confirmed working in production

@@ -4,33 +4,35 @@ A serverless disaster recovery orchestration platform providing VMware SRM-like 
 
 ---
 
-## 🚨 SESSION 70 - CRITICAL FIX READY FOR DEPLOYMENT
+## ✅ SESSION 70 - IAM FIX & STEP FUNCTIONS ORCHESTRATION
 
-**Issue**: Multi-disk server drills fail with `ec2:DeleteVolume` permission denied  
-**Root Cause**: IAM condition blocking DRS staging volume cleanup  
-**Status**: ✅ FIX READY - CloudFormation updated, awaiting deployment
+**Issue**: DRS drills failed with `ec2:StartInstances` permission denied  
+**Root Cause**: IAM conditions incompatible with DRS tagging behavior  
+**Status**: ✅ IAM FIX DEPLOYED - DRS drills working, Step Functions orchestration in progress
 
-### 📋 Quick Links
-- **[Deploy Fix Now](DEPLOY_DELETEVOLUME_FIX.md)** - 10-minute deployment guide
-- **[Root Cause Analysis](docs/DRS_DETACHVOLUME_ROOT_CAUSE_ANALYSIS.md)** - Why Server 2 failed 10 min after Server 1 succeeded
-- **[Session 70 Notes](docs/SESSION_70_DELETEVOLUME_FIX.md)** - Complete technical details and lessons learned
+### 📋 Session Links
 
-### 🎯 What Changed
+- **[Session 70 Root Cause](docs/SESSION_70_FINAL_ROOT_CAUSE.md)** - Why IAM conditions blocked DRS operations
+- **[Session 70 Final Analysis](docs/SESSION_70_FINAL_ANALYSIS.md)** - Complete analysis
+- **[Deploy Guide](DEPLOY_DELETEVOLUME_FIX.md)** - Deployment instructions (COMPLETED)
 
-**Problem**: IAM policy had `ec2:DeleteVolume` permission BUT with condition requiring `AWSElasticDisasterRecoveryManaged: true` tag. DRS staging volumes use `drs.amazonaws.com-*` tags instead. Both servers are identical (single-disk) but Server 2 failed 10 min after Server 1 succeeded.
+### 🎯 Validation Results
 
-**Fix**: Removed blocking IAM condition from `cfn/lambda-stack.yaml` (OrchestrationRole + ApiHandlerRole)
+**IAM Fix Validated** (Job: drsjob-3949c80becf56a075):
 
-**Deploy**:
-```bash
-aws cloudformation deploy \
-  --template-file cfn/master-template.yaml \
-  --stack-name drs-orchestration-test \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
+- ✅ EC2AMAZ-4IMB9PN (s-3c1730a9e0771ea14) → i-097556fe6481c1d3a LAUNCHED
+- ✅ EC2AMAZ-RLP9U5V (s-3d75cdc0d9a28a725) → i-06ea360aab5e258fd LAUNCHED
+- ✅ Status: COMPLETED - Both servers launched successfully
+
+**IAM Policy Verified**:
+
+```yaml
+ec2:StartInstances - NO condition ✅
+ec2:DeleteVolume - NO condition ✅
+ec2:DetachVolume - NO condition ✅
 ```
 
-**Test**: Both servers should now LAUNCH successfully in DRS drills.
+**Step Functions Bug Fixed**: The orchestration Lambda was incorrectly requiring `recoveryInstanceID` from the job response. DRS doesn't always populate this field in the job response - it populates it on the source server instead. Fixed to trust LAUNCHED status.
 
 ---
 
@@ -123,58 +125,35 @@ def query_drs_job_log_items(job_id: str) -> List[Dict]:
 
 ## 🎯 CURRENT STATUS - December 7, 2025
 
-**Latest Work**: DRS ec2:DeleteVolume IAM Condition Fix (Session 70)  
-**Status**: ✅ FIX READY FOR DEPLOYMENT  
-**Next Step**: Deploy CloudFormation update, then run clean DRS drill test
+**Latest Work**: DRS IAM Fix + Step Functions Bug Fix (Session 70)  
+**Status**: ✅ IAM FIX VALIDATED - Testing multi-wave Step Functions orchestration  
+**Next Step**: Complete 3-wave drill test via UI
 
 ### Session 70 Summary
 
-**Problem**: DRS Job had 2 servers - Server 1 LAUNCHED, Server 2 FAILED 10 minutes later with `ec2:DeleteVolume` permission denied.
+**IAM Fix Validated** (Job: drsjob-3949c80becf56a075):
 
-**Root Cause**: IAM condition required `AWSElasticDisasterRecoveryManaged: true` tag, but DRS staging volumes use `drs.amazonaws.com-*` tags.
+- ✅ EC2AMAZ-4IMB9PN (s-3c1730a9e0771ea14) → LAUNCHED
+- ✅ EC2AMAZ-RLP9U5V (s-3d75cdc0d9a28a725) → LAUNCHED
 
-**Fix Applied**:
-1. ✅ Removed blocking IAM condition from OrchestrationRole in `cfn/lambda-stack.yaml`
-2. ✅ Added `ec2:DetachVolume` + `ec2:DeleteVolume` to ApiHandlerRole
-3. ✅ Git commit ready to push
-4. ⏳ CloudFormation deployment pending
+**Step Functions Bug Fixed**:
+The orchestration Lambda was checking `recoveryInstanceID` from the job response, but DRS doesn't always populate that field there. Fixed to trust LAUNCHED status without requiring the instance ID from the job response.
 
-**See**: [Deploy Fix Guide](DEPLOY_DELETEVOLUME_FIX.md) | [Root Cause Analysis](docs/DRS_DETACHVOLUME_ROOT_CAUSE_ANALYSIS.md) | [Session Notes](docs/SESSION_70_DELETEVOLUME_FIX.md)
+**3-Wave Drill Test In Progress** (3TierTest plan):
 
-### Morning Pickup Checklist
+- Wave 0 (Database): EC2AMAZ-FQTJG64 - ✅ LAUNCHED
+- Wave 1 (App): EC2AMAZ-H0JBE4J - depends on wave-0
+- Wave 2 (Web): EC2AMAZ-4IMB9PN - depends on wave-1
 
-```bash
-# 1. Deploy CloudFormation fix
-aws cloudformation deploy \
-  --template-file cfn/master-template.yaml \
-  --stack-name drs-orchestration-test \
-  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-  --region us-east-1
-
-# 2. Wait for completion
-aws cloudformation wait stack-update-complete \
-  --stack-name drs-orchestration-test \
-  --region us-east-1
-
-# 3. Verify IAM policy (should show DeleteVolume with NO Condition)
-aws iam get-role-policy \
-  --role-name drs-orchestration-test-LambdaStac-OrchestrationRole-LuY7ANIrFtME \
-  --policy-name EC2Access \
-  --region us-east-1 | grep -A 5 "DeleteVolume"
-
-# 4. Run DRS drill test
-# Go to https://d1wfyuosowt0hl.cloudfront.net
-# Login: ***REMOVED*** / IiG2b1o+D$
-# Execute a Recovery Plan - BOTH servers should now LAUNCH successfully
-```
+**See**: [Session 70 Root Cause](docs/SESSION_70_FINAL_ROOT_CAUSE.md) | [Session 70 Final Analysis](docs/SESSION_70_FINAL_ANALYSIS.md)
 
 ### Recent Milestones
 
-- ✅ **ec2:DeleteVolume IAM Condition Fix** - Session 70 (Dec 7, 2025) - [Deploy Guide](DEPLOY_DELETEVOLUME_FIX.md)
+- ✅ **Step Functions Bug Fixed** - Session 70 (Dec 7, 2025) - Trust LAUNCHED status
+- ✅ **IAM Condition Fix Deployed** - Session 70 (Dec 7, 2025) - [Root Cause](docs/SESSION_70_FINAL_ROOT_CAUSE.md)
 - ✅ **ec2:DetachVolume Permission Added** - Session 69 (Dec 7, 2025)
 - ✅ **Authentication Blocker RESOLVED** - Session 68
 - ✅ **CloudScape Migration Complete** - 100% (27/27 tasks)
-- ✅ **GitLab CI/CD Pipeline Created**
 
 ---
 
@@ -330,6 +309,7 @@ See [S3 Sync Automation](docs/S3_SYNC_AUTOMATION.md) for details.
 - [DRS + Step Functions Analysis](docs/DRS_STEP_FUNCTIONS_COORDINATION_ANALYSIS.md)
 - [Gap Analysis](docs/DRS_PLAN_AUTOMATION_GAP_ANALYSIS.md) - 5 missing features
 - [Integration Guide](docs/DRS_TOOLS_COMPLETE_INTEGRATION_GUIDE.md)
+- [DR Orchestration Artifacts Analysis](docs/DR_ORCHESTRATION_ARTIFACTS_ANALYSIS.md) - Enterprise features evaluation
 
 ### Security
 - [Code Review Findings](docs/CODE_REVIEW_FINDINGS.md) - 15+ findings with fixes
@@ -374,35 +354,45 @@ aws dynamodb get-item \
 ## Roadmap
 
 ### Immediate Priority
-- [ ] Validate DRS drill with both servers launching
-- [ ] Add `describe_job_log_items` to ExecutionPoller
 
-### After DRS Validation
+- [x] Validate DRS drill with both servers launching - ✅ COMPLETE (Session 70)
+- [x] Fix Step Functions LAUNCHED status detection - ✅ COMPLETE (Session 70)
+- [ ] Complete 3-wave drill test via UI (in progress)
+- [ ] Add `describe_job_log_items` to ExecutionPoller Lambda
+- [ ] Implement CloudWatch dashboard for failures (2 days)
+- [ ] Add structured logging (3 days)
+
+### Enterprise Features (Phase 2)
+- [ ] Approval workflow (SNS + callback) (5 days)
+- [ ] Parameter resolution (SSM/CloudFormation) (3 days)
+- [ ] Modular resource architecture (10 days)
 - [ ] Fix 5 UI display bugs (non-critical)
-- [ ] Step Functions orchestration migration
 - [ ] SNS notifications
-- [ ] CloudWatch dashboard
 
 ---
 
 ## Version History
 
 **v1.0.4** - December 7, 2025 (Session 70)
-- 🔧 **CRITICAL FIX**: Removed IAM condition blocking `ec2:DeleteVolume` on DRS staging volumes
-- Root cause: Condition required wrong tag (`AWSElasticDisasterRecoveryManaged` vs `drs.amazonaws.com-*`)
-- Fixes multi-disk server drill failures during cleanup phase
-- See: [Deploy Guide](DEPLOY_DELETEVOLUME_FIX.md) | [Root Cause](docs/DRS_DETACHVOLUME_ROOT_CAUSE_ANALYSIS.md)
+
+- ✅ **IAM FIX VALIDATED**: Both servers launched successfully (Job: drsjob-3949c80becf56a075)
+- 🔧 **Step Functions Bug Fixed**: Trust LAUNCHED status without requiring recoveryInstanceID
+- Fixed `ec2:StartInstances` permission by removing IAM conditions
+- Root cause: IAM conditions incompatible with DRS tagging behavior
+- See: [Root Cause Analysis](docs/SESSION_70_FINAL_ROOT_CAUSE.md) | [Deploy Guide](DEPLOY_DELETEVOLUME_FIX.md)
 
 **v1.0.3** - December 7, 2025 (Session 69)
+
 - ec2:DetachVolume permission fix
 - CloudScape migration complete (100%)
 - GitLab CI/CD pipeline
 
 **Best-Known-Config** (Tag: bfa1e9b)
+
 - Validated CloudFormation lifecycle
 - Rollback: `git checkout Best-Known-Config && git push origin main --force`
 
 ---
 
-**Last Updated**: December 7, 2025  
+**Last Updated**: December 7, 2025 (Session 70)  
 **Git Repository**: `git@ssh.code.aws.dev:personal_projects/alias_j/jocousen/AWS-DRS-Orchestration.git`
