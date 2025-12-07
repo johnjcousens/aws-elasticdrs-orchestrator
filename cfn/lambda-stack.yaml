@@ -95,20 +95,57 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  # Core DRS Operations
                   - drs:DescribeSourceServers
-                  - drs:DescribeReplicationConfigurationTemplates
-                  - drs:GetReplicationConfiguration
-                  - drs:GetLaunchConfiguration
-                  - drs:StartRecovery
+                  - drs:DescribeRecoveryInstances
                   - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
                   - drs:DescribeRecoverySnapshots
+                  - drs:DescribeReplicationConfigurationTemplates
+                  - drs:DescribeLaunchConfigurationTemplates
+                  # Recovery Operations
+                  - drs:StartRecovery
                   - drs:TerminateRecoveryInstances
-                  - drs:TagResource
-                  - drs:StopReplication
                   - drs:DisconnectRecoveryInstance
                   - drs:ReverseReplication
-                  - drs:UpdateLaunchConfiguration
+                  - drs:StartFailback
+                  - drs:StopFailback
+                  # Replication Management
                   - drs:StartReplication
+                  - drs:StopReplication
+                  - drs:PauseReplication
+                  - drs:ResumeReplication
+                  - drs:RetryDataReplication
+                  # Configuration Management
+                  - drs:GetReplicationConfiguration
+                  - drs:UpdateReplicationConfiguration
+                  - drs:GetLaunchConfiguration
+                  - drs:UpdateLaunchConfiguration
+                  - drs:CreateReplicationConfigurationTemplate
+                  - drs:UpdateReplicationConfigurationTemplate
+                  - drs:DeleteReplicationConfigurationTemplate
+                  - drs:CreateLaunchConfigurationTemplate
+                  - drs:UpdateLaunchConfigurationTemplate
+                  - drs:DeleteLaunchConfigurationTemplate
+                  # Source Server Management
+                  - drs:CreateSourceServer
+                  - drs:DeleteSourceServer
+                  - drs:MarkAsArchived
+                  - drs:UntagResource
+                  - drs:TagResource
+                  - drs:ListTagsForResource
+                  # Extended Recovery Operations
+                  - drs:CreateExtendedSourceServer
+                  - drs:DeleteJob
+                  - drs:GetFailbackReplicationConfiguration
+                  - drs:UpdateFailbackReplicationConfiguration
+                  # Service Management
+                  - drs:InitializeService
+                  - drs:GetReplicationConfiguration
+                  - drs:DescribeSourceNetworks
+                  - drs:CreateSourceNetwork
+                  - drs:DeleteSourceNetwork
+                  - drs:UpdateSourceNetwork
                 Resource: '*'
               - Effect: Allow
                 Action:
@@ -134,7 +171,7 @@ Resources:
                   - ec2:DescribeVpcs
                   - iam:PassRole
                 Resource: '*'
-              # EC2 Snapshot/AMI permissions for drill conversion
+              # EC2 Snapshot/AMI permissions for drill conversion (no condition - DRS needs full access)
               - Effect: Allow
                 Action:
                   - ec2:CreateSnapshot
@@ -142,10 +179,8 @@ Resources:
                   - ec2:CreateImage
                   - ec2:DeregisterImage
                   - ec2:CopyImage
+                  - ec2:RegisterImage
                 Resource: '*'
-                Condition:
-                  StringEquals:
-                    ec2:ResourceTag/AWSElasticDisasterRecovery: 'true'
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -195,18 +230,56 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  # Core DRS Operations
                   - drs:DescribeSourceServers
                   - drs:DescribeRecoveryInstances
                   - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  - drs:DescribeRecoverySnapshots
+                  - drs:DescribeReplicationConfigurationTemplates
+                  - drs:DescribeLaunchConfigurationTemplates
+                  # Recovery Operations
                   - drs:StartRecovery
-                  - drs:GetReplicationConfiguration
-                  - drs:GetLaunchConfiguration
                   - drs:TerminateRecoveryInstances
                   - drs:DisconnectRecoveryInstance
-                  - drs:TagResource
                   - drs:ReverseReplication
-                  - drs:StopReplication
+                  - drs:StartFailback
+                  - drs:StopFailback
+                  # Replication Management
                   - drs:StartReplication
+                  - drs:StopReplication
+                  - drs:PauseReplication
+                  - drs:ResumeReplication
+                  - drs:RetryDataReplication
+                  # Configuration Management
+                  - drs:GetReplicationConfiguration
+                  - drs:UpdateReplicationConfiguration
+                  - drs:GetLaunchConfiguration
+                  - drs:UpdateLaunchConfiguration
+                  - drs:CreateReplicationConfigurationTemplate
+                  - drs:UpdateReplicationConfigurationTemplate
+                  - drs:DeleteReplicationConfigurationTemplate
+                  - drs:CreateLaunchConfigurationTemplate
+                  - drs:UpdateLaunchConfigurationTemplate
+                  - drs:DeleteLaunchConfigurationTemplate
+                  # Source Server Management
+                  - drs:CreateSourceServer
+                  - drs:DeleteSourceServer
+                  - drs:MarkAsArchived
+                  - drs:UntagResource
+                  - drs:TagResource
+                  - drs:ListTagsForResource
+                  # Extended Recovery Operations
+                  - drs:CreateExtendedSourceServer
+                  - drs:DeleteJob
+                  - drs:GetFailbackReplicationConfiguration
+                  - drs:UpdateFailbackReplicationConfiguration
+                  # Service Management
+                  - drs:InitializeService
+                  - drs:DescribeSourceNetworks
+                  - drs:CreateSourceNetwork
+                  - drs:DeleteSourceNetwork
+                  - drs:UpdateSourceNetwork
                 Resource: '*'
         - PolicyName: EC2Access
           PolicyDocument:
@@ -228,6 +301,33 @@ Resources:
                 Condition:
                   StringEquals:
                     ec2:ResourceTag/AWSElasticDisasterRecoveryManaged: 'true'
+              # EC2 permissions for DRS instance launching during conversion
+              - Effect: Allow
+                Action:
+                  - ec2:RunInstances
+                  - ec2:CreateVolume
+                  - ec2:AttachVolume
+                  - ec2:CreateNetworkInterface
+                  - ec2:AttachNetworkInterface
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:DescribeImages
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - iam:PassRole
+                Resource: '*'
+              # EC2 Snapshot/AMI permissions for drill conversion (no condition - DRS needs full access)
+              - Effect: Allow
+                Action:
+                  - ec2:CreateSnapshot
+                  - ec2:DeleteSnapshot
+                  - ec2:CreateImage
+                  - ec2:DeregisterImage
+                  - ec2:CopyImage
+                  - ec2:RegisterImage
+                Resource: '*'
         - PolicyName: SSMAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -378,7 +478,13 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  # Job Monitoring (Essential for Poller)
                   - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  # Recovery Instance Status
+                  - drs:DescribeRecoveryInstances
+                  # Source Server Status
+                  - drs:DescribeSourceServers
                 Resource: '*'
         - PolicyName: CloudWatchMetricsAccess
           PolicyDocument:
@@ -585,6 +691,39 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/${ExecutionPollerFunction}'
       RetentionInDays: 7
 
+  # Step Functions Orchestration Lambda Function
+  OrchestrationStepFunctionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-orchestration-stepfunctions-${Environment}'
+      Description: 'Step Functions orchestrator for DRS recovery - properly waits for EC2 launch'
+      Runtime: python3.12
+      Handler: orchestration_stepfunctions.handler
+      Role: !GetAtt OrchestrationRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: 'lambda/orchestration-stepfunctions.zip'
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  OrchestrationStepFunctionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${OrchestrationStepFunctionsFunction}'
+      RetentionInDays: 30
+
 Outputs:
   ApiHandlerFunctionArn:
     Description: 'API Handler Lambda Function ARN'
@@ -609,6 +748,18 @@ Outputs:
     Value: !Ref OrchestrationFunction
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationName'
+
+  OrchestrationStepFunctionsFunctionArn:
+    Description: 'Step Functions Orchestration Lambda Function ARN'
+    Value: !GetAtt OrchestrationStepFunctionsFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestrationStepFunctionsArn'
+
+  OrchestrationStepFunctionsFunctionName:
+    Description: 'Step Functions Orchestration Lambda Function Name'
+    Value: !Ref OrchestrationStepFunctionsFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestrationStepFunctionsName'
 
   FrontendBuilderFunctionArn:
     Description: 'Frontend Builder Lambda Function ARN'
