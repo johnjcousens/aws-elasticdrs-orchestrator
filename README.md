@@ -17,7 +17,7 @@ A serverless disaster recovery orchestration platform providing VMware SRM-like 
 
 ### 🎯 What Changed
 
-**Problem**: IAM policy had `ec2:DeleteVolume` permission BUT with condition requiring `AWSElasticDisasterRecoveryManaged: true` tag. DRS staging volumes use `drs.amazonaws.com-*` tags instead.
+**Problem**: IAM policy had `ec2:DeleteVolume` permission BUT with condition requiring `AWSElasticDisasterRecoveryManaged: true` tag. DRS staging volumes use `drs.amazonaws.com-*` tags instead. Both servers are identical (single-disk) but Server 2 failed 10 min after Server 1 succeeded.
 
 **Fix**: Removed blocking IAM condition from `cfn/lambda-stack.yaml` (OrchestrationRole + ApiHandlerRole)
 

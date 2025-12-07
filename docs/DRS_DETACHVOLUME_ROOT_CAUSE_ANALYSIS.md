@@ -78,11 +78,18 @@ Server 2 failed during **Cleanup Phase** when DRS attempted to delete staging vo
 
 ### Why Did Server 1 Succeed?
 
-**Hypothesis 1**: Server 1 had no staging volumes to clean up ✅ LIKELY  
-**Hypothesis 2**: Server 1 volumes had the required tag (unlikely)  
-**Hypothesis 3**: Server 1 and Server 2 have different disk configurations ✅ CONFIRMED
+**FACT**: Both servers are identical - single disk, same size (50GB)
 
-Most likely: **Server 1 is single-disk, Server 2 is multi-disk requiring staging volume cleanup**.
+**Evidence**:
+- Server 1: No staging volumes remain (successfully deleted OR never created)
+- Server 2: Staging volume `vol-0f7b020071835a43c` (1GB) still exists in "available" state
+
+**Possible Explanations**:
+1. **Timing/Race Condition**: Server 1's DeleteVolume happened before IAM policy was fully enforced
+2. **DRS Internal Behavior**: DRS may handle first vs second server differently in same job
+3. **Launch Path Difference**: Server 2 hit a code path requiring staging volume, Server 1 didn't
+
+**Most Likely**: DRS attempted to delete staging volumes for both servers, but Server 1's delete succeeded (possibly before IAM condition took effect) while Server 2's delete was blocked by the IAM condition 10 minutes later.
 
 ### Why 10-Minute Delay?
 
