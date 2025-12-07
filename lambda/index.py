@@ -1918,6 +1918,8 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
         
         # 2. Build server list from DRS response
         servers = []
+        source_instance_ids = []  # Collect instance IDs for EC2 tag lookup
+        
         for item in servers_response.get('items', []):
             server_id = item['sourceServerID']
             
@@ -1925,6 +1927,28 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             source_props = item.get('sourceProperties', {})
             ident_hints = source_props.get('identificationHints', {})
             hostname = ident_hints.get('hostname', 'Unknown')
+            
+            # Extract source instance details
+            source_instance_id = ident_hints.get('awsInstanceID', '')
+            if source_instance_id:
+                source_instance_ids.append(source_instance_id)
+            
+            # Extract source IP from network interfaces
+            network_interfaces = source_props.get('networkInterfaces', [])
+            source_ip = ''
+            if network_interfaces:
+                ips = network_interfaces[0].get('ips', [])
+                if ips:
+                    source_ip = ips[0]
+            
+            # Extract OS info
+            os_info = source_props.get('os', {})
+            os_string = os_info.get('fullString', '')
+            
+            # Extract source region from sourceCloudProperties
+            source_cloud_props = item.get('sourceCloudProperties', {})
+            source_region = source_cloud_props.get('originRegion', '')
+            source_account = source_cloud_props.get('originAccountID', '')
             
             # Extract replication info
             lifecycle = item.get('lifeCycle', {})
@@ -1951,6 +1975,12 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             servers.append({
                 'sourceServerID': server_id,
                 'hostname': hostname,
+                'nameTag': '',  # Will be populated from EC2 below
+                'sourceInstanceId': source_instance_id,
+                'sourceIp': source_ip,
+                'sourceRegion': source_region,
+                'sourceAccount': source_account,
+                'os': os_string,
                 'state': display_state,
                 'replicationState': rep_state,
                 'lagDuration': lag_duration,
@@ -1958,6 +1988,27 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
                 'assignedToProtectionGroup': None,  # Will be populated below
                 'selectable': True  # Will be updated below
             })
+        
+        # 2b. Fetch Name tags from source EC2 instances
+        ec2_name_tags = {}
+        if source_instance_ids:
+            try:
+                ec2_client = boto3.client('ec2', region_name=region)
+                ec2_response = ec2_client.describe_instances(InstanceIds=source_instance_ids)
+                for reservation in ec2_response.get('Reservations', []):
+                    for instance in reservation.get('Instances', []):
+                        instance_id = instance.get('InstanceId', '')
+                        for tag in instance.get('Tags', []):
+                            if tag.get('Key') == 'Name':
+                                ec2_name_tags[instance_id] = tag.get('Value', '')
+                                break
+            except Exception as e:
+                print(f"Warning: Could not fetch EC2 tags: {str(e)}")
+        
+        # Update servers with EC2 Name tags
+        for server in servers:
+            if server['sourceInstanceId'] in ec2_name_tags:
+                server['nameTag'] = ec2_name_tags[server['sourceInstanceId']]
         
         # 3. Query ALL Protection Groups to build assignment map
         # Exclude current PG if editing (allows deselection)

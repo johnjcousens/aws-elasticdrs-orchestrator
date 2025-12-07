@@ -188,7 +188,7 @@ setup-auto-sync: ## Setup automatic S3 sync (creates hook)
 	@echo "🔧 Setting up automatic S3 sync..."
 	@if [ ! -f .git/hooks/post-push ]; then \
 		echo "Creating post-push hook..."; \
-		cat > .git/hooks/post-push << 'EOF'
+		cat > .git/hooks/post-push << 'EOF' ;\
 #!/bin/bash
 # Auto-sync to S3 after successful git push
 echo ""
@@ -206,6 +206,6 @@ else
     exit 1
 fi
 EOF
-	fi
+	; fi
 	@chmod +x .git/hooks/post-push
 	@echo "✅ Auto-sync setup complete"

@@ -4,6 +4,12 @@ import { Box, Checkbox, StatusIndicator } from '@cloudscape-design/components';
 interface DRSServer {
   sourceServerID: string;
   hostname: string;
+  nameTag?: string;
+  sourceInstanceId?: string;
+  sourceIp?: string;
+  sourceRegion?: string;
+  sourceAccount?: string;
+  os?: string;
   state: string;
   replicationState: string;
   lagDuration: string;
@@ -40,7 +46,13 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
   selected,
   onToggle
 }) => {
-  const { sourceServerID, hostname, state, assignedToProtectionGroup, selectable } = server;
+  const { 
+    sourceServerID, hostname, nameTag, sourceInstanceId, sourceIp, 
+    sourceRegion, sourceAccount, state, assignedToProtectionGroup, selectable 
+  } = server;
+  
+  // Display name: prefer Name tag, fall back to hostname
+  const displayName = nameTag || hostname;
   
   return (
     <div
@@ -62,17 +74,45 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
           />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+          {/* Primary: Name tag or hostname with status */}
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontWeight: 600, marginRight: '8px' }}>
-              {hostname}
+              {displayName}
             </span>
             <StatusIndicator type={getStateStatus(state)}>
               {state}
             </StatusIndicator>
           </div>
-          <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
-            {sourceServerID}
+          
+          {/* Secondary: Hostname, Instance ID, IP */}
+          <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '2px' }}>
+            <span style={{ marginRight: '12px' }}>
+              <strong>Hostname:</strong> {hostname || 'N/A'}
+            </span>
+            <span style={{ marginRight: '12px' }}>
+              <strong>Instance:</strong> {sourceInstanceId || 'N/A'}
+            </span>
+            <span>
+              <strong>IP:</strong> {sourceIp || 'N/A'}
+            </span>
           </div>
+          
+          {/* Tertiary: Region/Account info */}
+          <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '2px' }}>
+            <span style={{ marginRight: '12px' }}>
+              <strong>Source Region:</strong> {sourceRegion || 'N/A'}
+            </span>
+            <span>
+              <strong>Account:</strong> {sourceAccount || 'N/A'}
+            </span>
+          </div>
+          
+          {/* DRS Server ID */}
+          <div style={{ fontSize: '11px', color: '#879596', marginBottom: '4px' }}>
+            DRS ID: {sourceServerID}
+          </div>
+          
+          {/* Assignment status */}
           {assignedToProtectionGroup && (
             <div style={{ fontSize: '12px', color: '#d13212', marginTop: '4px' }}>
               Already assigned to: {assignedToProtectionGroup.protectionGroupName}

@@ -51,7 +51,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'Dashboard', href: '/' },
     { type: 'link', text: 'Protection Groups', href: '/protection-groups' },
     { type: 'link', text: 'Recovery Plans', href: '/recovery-plans' },
-    { type: 'link', text: 'Executions', href: '/executions' },
+    { type: 'link', text: 'History', href: '/executions' },
   ];
 
   // Handle navigation
