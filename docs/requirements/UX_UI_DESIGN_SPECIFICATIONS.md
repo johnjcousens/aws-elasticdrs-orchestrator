@@ -1,227 +1,70 @@
 # UX/UI Design Specifications
 # AWS DRS Orchestration System
 
-**Version**: 1.0  
-**Date**: November 12, 2025  
-**Document Owner**: UX/UI Design Team  
-**Target Audience**: Frontend Developers, UX Designers, Product Managers
+**Version**: 2.0  
+**Date**: December 2025  
+**Status**: Production Release
 
 ---
 
 ## Document Purpose
 
-This UX/UI Design Specifications document defines the complete user interface design for the AWS DRS Orchestration system. It specifies user flows, page layouts, component behaviors, interaction patterns, and visual design guidelines to ensure a consistent, intuitive, and accessible user experience.
-
-**Key Objective**: Enable frontend developers and designers to implement, maintain, and extend the UI with consistency and confidence.
+This document defines the user interface design for the AWS DRS Orchestration system, including page layouts, component specifications, user flows, and design guidelines.
 
 ---
 
-## Table of Contents
+## Design System
 
-1. [Executive Summary](#executive-summary)
-2. [Design Philosophy](#design-philosophy)
-3. [User Personas & Scenarios](#user-personas--scenarios)
-4. [Application Structure](#application-structure)
-5. [Page Specifications](#page-specifications)
-6. [Component Library](#component-library)
-7. [User Flows](#user-flows)
-8. [Navigation & Routing](#navigation--routing)
-9. [State Management](#state-management)
-10. [Visual Design System](#visual-design-system)
-11. [Responsive Design](#responsive-design)
-12. [Accessibility](#accessibility)
+### Framework
+- **UI Library**: AWS CloudScape Design System
+- **React Version**: 18.3
+- **TypeScript**: 5.5
+- **Build Tool**: Vite 5.4
 
----
-
-## Executive Summary
-
-### Design Overview
-
-The AWS DRS Orchestration UI is a **single-page application (SPA)** built with React 18.3, Material-UI 6.1.3, and TypeScript 5.5. It provides an AWS Console-like experience for managing disaster recovery orchestration with five main pages and 18 reusable components.
-
-**Pages**:
-1. **Login** - Cognito authentication with username/password
-2. **Dashboard** - Overview metrics and quick actions (placeholder in MVP)
-3. **Protection Groups** - CRUD operations for server grouping
-4. **Recovery Plans** - Wave-based recovery plan management
-5. **Executions** - Recovery execution monitoring and history
-
-**Key Metrics**:
-- 23 React components (5 pages + 18 shared components)
-- 2,847 lines of TypeScript code
-- Material-UI 6 component library (AWS theme)
-- 100% responsive design (desktop, tablet, mobile)
-- WCAG 2.1 AA accessibility target
-
-
-## Design Philosophy
-
-### Core Principles
-
+### Design Principles
 1. **AWS Console Consistency**: Match AWS Console patterns for familiarity
-2. **Progressive Disclosure**: Show simple views by default, reveal complexity on demand
+2. **Progressive Disclosure**: Simple views by default, reveal complexity on demand
 3. **Error Prevention**: Validate inputs proactively, provide clear feedback
-4. **Fail-Safe Operations**: Confirm destructive actions, allow undo where possible
-5. **Performance**: Sub-second page loads, optimistic UI updates
-6. **Accessibility**: Keyboard navigation, screen reader support, high contrast
+4. **Accessibility**: WCAG 2.1 AA compliance, keyboard navigation, screen reader support
 
-### Design Language
-
-**Visual Style**: Clean, professional, AWS-branded
-- **Color Palette**: AWS Orange (#FF9900) for primary actions, grays for neutrals
-- **Typography**: Amazon Ember font family (fallback: system fonts)
-- **Icons**: Material Icons (filled style)
-- **Spacing**: 8px grid system (8, 16, 24, 32, 40px)
-- **Shadows**: Material Design elevation system (0-24dp)
-
-**Interaction Patterns**:
-- **Buttons**: Primary (orange), Secondary (outlined), Text (minimal)
-- **Dialogs**: Modal for forms, Side sheets for details
-- **Feedback**: Snackbar notifications (success: green, error: red, info: blue)
-- **Loading**: Skeleton loaders for initial load, spinners for actions
-
----
-
-## User Personas & Scenarios
-
-### Persona 1: DR Administrator (Primary)
-
-**Name**: Sarah Chen  
-**Role**: Senior DR Administrator  
-**Goals**: 
-- Configure protection groups and recovery plans efficiently
-- Execute drill recoveries monthly for compliance
-- Monitor recovery execution progress in real-time
-- Generate audit reports for management
-
-**Technical Proficiency**: High (AWS certified, 5+ years DR experience)  
-**Frequency**: Daily (configuration), Monthly (drills)
-
-**Key Scenarios**:
-1. Create protection group from DRS servers with tag filtering
-2. Design 3-tier recovery plan with wave dependencies
-3. Execute drill recovery and monitor progress
-4. Review execution history for compliance audit
-
----
-
-### Persona 2: DevOps Engineer (Secondary)
-
-**Name**: Mike Rodriguez  
-**Role**: DevOps Engineer  
-**Goals**:
-- Automate DR operations via API
-- Integrate DR testing into CI/CD pipeline
-- Troubleshoot failed recoveries quickly
-- Minimize manual intervention
-
-**Technical Proficiency**: Very High (scripting, automation, APIs)  
-**Frequency**: Weekly (automation), Ad-hoc (troubleshooting)
-
-**Key Scenarios**:
-1. Use API to create protection groups from Terraform
-2. Schedule automated drill executions via Lambda
-3. Query execution status programmatically
-4. Parse execution history for metrics
-
----
-
-### Persona 3: IT Manager (Tertiary)
-
-**Name**: Jennifer Park  
-**Role**: IT Operations Manager  
-**Goals**:
-- Review DR readiness dashboards
-- Verify compliance with RTO/RPO targets
-- Approve budget for DR testing
-- Report to executive team
-
-**Technical Proficiency**: Medium (understands concepts, delegates execution)  
-**Frequency**: Monthly (reviews), Quarterly (reporting)
-
-**Key Scenarios**:
-1. View dashboard of protection coverage
-2. Review last 90 days of execution history
-3. Export execution metrics to spreadsheet
-4. Verify all critical apps have recovery plans
+### CloudScape Components Used
+- AppLayout (page structure with navigation)
+- Table (data display with sorting, filtering, pagination)
+- Form, FormField, Input, Select (form controls)
+- Modal (dialogs)
+- Button, SpaceBetween, Box (layout)
+- StatusIndicator, Badge (status display)
+- Wizard, Steps (multi-step flows)
+- Alert, Flashbar (notifications)
+- Header, BreadcrumbGroup (navigation)
 
 ---
 
 ## Application Structure
 
-### Page Navigation Map
-
-```mermaid
-graph TD
-    START[Application Start] --> LOGIN[Login Page]
-    LOGIN -->|Authenticate| DASHBOARD[Dashboard]
-    
-    DASHBOARD --> PG[Protection Groups]
-    DASHBOARD --> RP[Recovery Plans]
-    DASHBOARD --> EX[Executions]
-    
-    PG --> PG_LIST[List Protection Groups]
-    PG_LIST --> PG_CREATE[Create PG Dialog]
-    PG_LIST --> PG_EDIT[Edit PG Dialog]
-    PG_LIST --> PG_DELETE[Delete Confirmation]
-    
-    RP --> RP_LIST[List Recovery Plans]
-    RP_LIST --> RP_CREATE[Create RP Dialog]
-    RP_LIST --> RP_EDIT[Edit RP Dialog]
-    RP_LIST --> RP_DELETE[Delete Confirmation]
-    RP_LIST --> RP_EXECUTE[Execute Dialog]
-    
-    EX --> EX_LIST[List Executions]
-    EX_LIST --> EX_DETAIL[Execution Details]
-    EX_DETAIL --> EX_CANCEL[Cancel Confirmation]
-    
-    PG --> DASHBOARD
-    RP --> DASHBOARD
-    EX --> DASHBOARD
-    
-    style LOGIN fill:#FF9900
-    style DASHBOARD fill:#0066CC
-    style PG fill:#0066CC
-    style RP fill:#0066CC
-    style EX fill:#0066CC
+### Navigation
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [Logo] DR Orchestrator    Dashboard | Protection Groups |  │
+│                            Recovery Plans | Executions      │
+│                                              [User Menu ▼]  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│                    [Page Content]                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Component Hierarchy
-
-```
-App.tsx (Root)
-├── Layout.tsx (Shell)
-│   ├── AppBar (Header)
-│   │   ├── Logo
-│   │   ├── Navigation Menu
-│   │   └── User Menu
-│   ├── Drawer (Sidebar - collapsed by default)
-│   └── Main Content Area
-│       └── PageTransition (Animated route wrapper)
-│           ├── LoginPage
-│           ├── Dashboard
-│           ├── ProtectionGroupsPage
-│           │   ├── DataGridWrapper
-│           │   │   └── StatusBadge
-│           │   ├── ProtectionGroupDialog
-│           │   │   ├── RegionSelector
-│           │   │   ├── TagFilterEditor
-│           │   │   └── ServerSelector
-│           │   └── ConfirmDialog
-│           ├── RecoveryPlansPage
-│           │   ├── DataGridWrapper
-│           │   ├── RecoveryPlanDialog
-│           │   │   ├── ServerSelector
-│           │   │   └── WaveConfigEditor
-│           │   └── ConfirmDialog
-│           └── ExecutionsPage
-│               ├── DataGridWrapper
-│               ├── ExecutionDetails
-│               │   └── WaveProgress
-│               └── ConfirmDialog
-├── ErrorBoundary
-└── AuthContext (Provider)
-```
+### Routes
+| Route | Page | Description |
+|-------|------|-------------|
+| `/login` | LoginPage | Cognito authentication |
+| `/` | GettingStartedPage | Onboarding guide |
+| `/dashboard` | Dashboard | Overview metrics |
+| `/protection-groups` | ProtectionGroupsPage | Protection Group management |
+| `/recovery-plans` | RecoveryPlansPage | Recovery Plan management |
+| `/executions` | ExecutionsPage | Execution list |
+| `/executions/:id` | ExecutionDetailsPage | Execution details |
 
 ---
 
@@ -229,14 +72,13 @@ App.tsx (Root)
 
 ### 1. Login Page
 
-**Purpose**: Authenticate users via AWS Cognito  
-**Route**: `/login`  
-**Layout**: Centered card on full-screen background
+**Purpose**: Authenticate users via AWS Cognito
 
-**Visual Design**:
+**Layout**:
 ```
 ┌─────────────────────────────────────────┐
 │                                         │
+│         DR Orchestrator                 │
 │         AWS DRS Orchestration           │
 │                                         │
 │     ┌───────────────────────────┐      │
@@ -246,272 +88,382 @@ App.tsx (Root)
 │     │  Password                 │      │
 │     │  [__________________]     │      │
 │     │                           │      │
-│     │  [x] Remember me          │      │
-│     │                           │      │
-│     │    [Sign In] (orange)     │      │
-│     │                           │      │
-│     │  Forgot password?         │      │
+│     │    [Sign In]              │      │
 │     └───────────────────────────┘      │
 │                                         │
-│     Powered by AWS Cognito             │
 └─────────────────────────────────────────┘
 ```
 
 **Components**:
-- Material-UI Card with elevation=6
-- TextField for username (type=text, required)
-- TextField for password (type=password, required)
-- Checkbox for "Remember me" (optional)
-- Button (variant=contained, color=primary, fullWidth)
-- Link for "Forgot password?" (navigates to Cognito reset flow)
+- CloudScape Container with centered layout
+- CloudScape Input for username/password
+- CloudScape Button (variant="primary")
+- CloudScape Alert for error messages
 
-**Interactions**:
-1. User enters credentials
-2. Click "Sign In" → POST to Cognito
-3. On success: Store JWT tokens → Navigate to Dashboard
-4. On failure: Show error message below form ("Invalid credentials")
-5. Loading state: Disable button, show spinner
+**Behavior**:
+- Submit on Enter key
+- Show loading spinner during authentication
+- Display error message on failure
+- Redirect to Dashboard on success
 
-**Validation**:
-- Username: required, min 3 chars
-- Password: required, min 8 chars
-- Client-side validation on blur
-- Server errors displayed as alert below form
+### 2. Getting Started Page
 
-**Accessibility**:
-- Form labels associated with inputs
-- Error messages announced to screen readers
-- Tab order: username → password → remember me → sign in
-- Enter key submits form
+**Purpose**: Onboarding guide for new users
 
----
-
-### 2. Dashboard Page
-
-**Purpose**: Overview of system status and quick actions  
-**Route**: `/dashboard`  
-
-**Planned Design** (Phase 2):
+**Layout**:
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Dashboard                                      [Refresh]    │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │ 12          │  │ 8           │  │ 3           │         │
-│  │ Protection  │  │ Recovery    │  │ Active      │         │
-│  │ Groups      │  │ Plans       │  │ Executions  │         │
-│  └─────────────┘  └─────────────┘  └─────────────┘         │
-│                                                               │
-│  Recent Executions                                           │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Plan Name        Status      Started        Duration   │ │
-│  │ 3-Tier-App      COMPLETED   2 hours ago    15m 23s    │ │
-│  │ Database-Only   RUNNING     5 minutes ago  --         │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  Quick Actions                                               │
-│  [+ Create Protection Group]  [+ Create Recovery Plan]      │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**MVP Implementation**:
-- Welcome message: "Welcome to AWS DRS Orchestration"
-- Instructions to navigate to Protection Groups or Recovery Plans
-- Placeholder cards for metrics (static content)
-
----
-
-### 3. Protection Groups Page
-
-**Purpose**: Manage Protection Groups (CRUD operations)  
-**Route**: `/protection-groups`  
-**Layout**: Data table with action buttons
-
-**Visual Design**:
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Protection Groups                    [+ Create]    [Refresh]│
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Search [______________]          Filters: [Region ▼]   │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  Name            Region      Servers  Created      Actions   │
-│  ──────────────────────────────────────────────────────────  │
-│  Production-DB   us-east-1   5       2 days ago   [Edit][Del]│
-│  Web-Tier        us-west-2   12      1 week ago   [Edit][Del]│
-│  App-Servers     eu-west-1   8       3 weeks ago  [Edit][Del]│
-│                                                               │
-│  Showing 3 of 3 protection groups                            │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Getting Started                                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Welcome to DR Orchestrator                                 │
+│                                                             │
+│  Step 1: Create Protection Groups                           │
+│  [Description and link to Protection Groups page]           │
+│                                                             │
+│  Step 2: Create Recovery Plans                              │
+│  [Description and link to Recovery Plans page]              │
+│                                                             │
+│  Step 3: Execute Recovery                                   │
+│  [Description and link to Executions page]                  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **Components**:
-- Material-UI DataGrid (from MUI X)
-- Toolbar with search field and filter dropdown
-- Action buttons: Create (primary), Refresh (icon)
-- Row actions: Edit (icon), Delete (icon)
-- StatusBadge for server count (badge with number)
+- CloudScape ContentLayout with Header
+- CloudScape Container for each step
+- CloudScape Link for navigation
+
+### 3. Dashboard Page
+
+**Purpose**: Overview of system status
+
+**Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Dashboard                                                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │ Protection  │  │ Recovery    │  │ Recent      │        │
+│  │ Groups: 12  │  │ Plans: 8    │  │ Executions  │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘        │
+│                                                             │
+│  Quick Actions                                              │
+│  [Create Protection Group]  [Create Recovery Plan]          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Components**:
+- CloudScape Cards for metrics
+- CloudScape Button for quick actions
+
+### 4. Protection Groups Page
+
+**Purpose**: CRUD operations for Protection Groups
+
+**Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Protection Groups                      [Create] [Refresh]  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Name          Region      Servers  Created   Actions │   │
+│  │ ─────────────────────────────────────────────────── │   │
+│  │ Prod-DB       us-east-1   5        2d ago    [E][D] │   │
+│  │ Web-Tier      us-west-2   12       1w ago    [E][D] │   │
+│  │ App-Servers   eu-west-1   8        3w ago    [E][D] │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Components**:
+- CloudScape Table with collection hooks
+- CloudScape Header with action buttons
+- CloudScape Modal for create/edit dialog
+- CloudScape StatusIndicator for server count
 
 **Table Columns**:
-1. **Name** (string, sortable, filterable)
-2. **Region** (string, filterable, width=120px)
-3. **Servers** (number, badge display, width=100px)
-4. **Created** (date, relative time, sortable)
-5. **Actions** (buttons, width=120px, align=right)
+| Column | Type | Sortable | Width |
+|--------|------|----------|-------|
+| Name | Text | Yes | 200px |
+| Region | Text | Yes | 120px |
+| Servers | Badge | Yes | 100px |
+| Created | Date | Yes | 150px |
+| Actions | Buttons | No | 100px |
 
-**Interactions**:
-1. **Create Button** → Opens ProtectionGroupDialog (mode=create)
-2. **Edit Icon** → Opens ProtectionGroupDialog (mode=edit, pre-filled)
-3. **Delete Icon** → Opens ConfirmDialog ("Are you sure?")
-4. **Row Click** → No action (prevents accidental navigation)
-5. **Search** → Filters table client-side (name + description)
-6. **Region Filter** → Filters table by selected region(s)
-7. **Refresh** → Refetches data from API
-
-**Loading States**:
-- Initial load: Skeleton loader (5 rows)
-- Refresh: Progress bar at top
-- Create/Edit/Delete: Button disabled + spinner
-
-**Empty State**:
+**Create/Edit Dialog**:
 ```
-┌────────────────────────────────────────┐
-│                                        │
-│         [📦 Icon]                      │
-│                                        │
-│   No Protection Groups Yet             │
-│                                        │
-│   Protection Groups organize your      │
-│   servers for disaster recovery.       │
-│                                        │
-│   [+ Create Protection Group]          │
-│                                        │
-└────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Create Protection Group                              [X]   │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Name *                                                     │
+│  [__________________________]                               │
+│                                                             │
+│  Region *                                                   │
+│  [us-east-1                              ▼]                │
+│                                                             │
+│  Description                                                │
+│  [__________________________]                               │
+│                                                             │
+│  Select Servers                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ [Search servers...]                                  │   │
+│  │ ☑ db-prod-01 (s-abc123)           Available         │   │
+│  │ ☑ db-prod-02 (s-def456)           Available         │   │
+│  │ ☐ app-prod-01 (s-ghi789)          Assigned: Web-PG  │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│                              [Cancel]  [Create]             │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+**Server Selector Features**:
+- Real-time search by hostname or server ID
+- Visual assignment status (Available/Assigned)
+- Checkbox selection for available servers
+- Disabled selection for assigned servers
+- 30-second auto-refresh
+
+### 5. Recovery Plans Page
+
+**Purpose**: CRUD operations for Recovery Plans
+
+**Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Recovery Plans                         [Create] [Refresh]  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Name          PGs  Waves  Servers  Created  Actions │   │
+│  │ ─────────────────────────────────────────────────── │   │
+│  │ 3-Tier-App    3    3      18       1d ago   [▶][E][D]│   │
+│  │ DB-Only       1    1      4        1w ago   [▶][E][D]│   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Table Columns**:
+| Column | Type | Description |
+|--------|------|-------------|
+| Name | Text | Plan name |
+| PGs | Badge | Protection Group count |
+| Waves | Badge | Wave count |
+| Servers | Badge | Total server count |
+| Created | Date | Creation date |
+| Actions | Buttons | Execute, Edit, Delete |
+
+**Create/Edit Dialog**:
+- Plan name and description fields
+- Protection Group multi-select
+- Wave configuration editor
+- Server assignment per wave
+- Execution type selection (Sequential/Parallel)
+- Wait time configuration
+
+### 6. Executions Page
+
+**Purpose**: List and monitor recovery executions
+
+**Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Executions                                      [Refresh]  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Filters: [Status ▼] [Type ▼]                              │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Plan          Type    Status      Started   Duration │   │
+│  │ ─────────────────────────────────────────────────── │   │
+│  │ 3-Tier-App    DRILL   ● Running   5m ago    --      │   │
+│  │ DB-Only       DRILL   ✓ Complete  2h ago    15m     │   │
+│  │ 3-Tier-App    RECOV   ✗ Failed    1d ago    8m      │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Status Indicators**:
+| Status | Color | Icon |
+|--------|-------|------|
+| PENDING | Gray | Clock |
+| POLLING | Blue | Refresh |
+| LAUNCHING | Blue | Rocket |
+| COMPLETED | Green | Checkmark |
+| FAILED | Red | X |
+| CANCELLED | Gray | Stop |
+
+**Row Click**: Navigate to Execution Details page
+
+### 7. Execution Details Page
+
+**Purpose**: Real-time execution monitoring
+
+**Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ← Back to Executions                                       │
+│                                                             │
+│  Execution: 3-Tier-App                                      │
+│  Type: DRILL  |  Status: ● Running  |  Started: 5 min ago  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Wave Progress                                              │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  ✓ Wave 1: Database        ● Wave 2: App    ○ Wave 3│   │
+│  │    Complete (2/2)            Running (1/3)    Pending│   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  Server Status                                              │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Server          Wave    Status      Instance ID      │   │
+│  │ ─────────────────────────────────────────────────── │   │
+│  │ db-prod-01      1       ✓ Complete  i-abc123        │   │
+│  │ db-prod-02      1       ✓ Complete  i-def456        │   │
+│  │ app-prod-01     2       ● Launching --              │   │
+│  │ app-prod-02     2       ○ Pending   --              │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  [Cancel Execution]                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Components**:
+- CloudScape Steps for wave progress
+- CloudScape Table for server status
+- CloudScape StatusIndicator for status display
+- Auto-refresh every 5 seconds during execution
 
 ---
 
-### 4. Recovery Plans Page
+## Component Library
 
-**Purpose**: Manage Recovery Plans with wave configuration  
-**Route**: `/recovery-plans`  
-**Layout**: Data table with action buttons and execute option
+### Shared Components
 
-**Visual Design**:
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Recovery Plans                       [+ Create]    [Refresh]│
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  Name            PGs  Waves  Servers  Created    Actions     │
-│  ──────────────────────────────────────────────────────────  │
-│  3-Tier-App      3    3      18       1 day ago  [▶][✎][🗑]│
-│  Database-Only   1    1      4        1 week     [▶][✎][🗑]│
-│  Full-Stack      5    5      42       2 weeks    [▶][✎][🗑]│
-│                                                               │
-│  Showing 3 of 3 recovery plans                               │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-```
+| Component | Purpose | Location |
+|-----------|---------|----------|
+| ProtectionGroupDialog | Create/Edit Protection Groups | components/ |
+| RecoveryPlanDialog | Create/Edit Recovery Plans | components/ |
+| ServerSelector | Visual server selection | components/ |
+| RegionSelector | AWS region dropdown | components/ |
+| StatusBadge | Status indicators | components/ |
+| WaveProgress | Wave execution timeline | components/ |
+| WaveConfigEditor | Wave configuration form | components/ |
+| ConfirmDialog | Confirmation dialogs | components/ |
+| DateTimeDisplay | Timestamp formatting | components/ |
+| ErrorBoundary | Error handling wrapper | components/ |
+| LoadingState | Loading indicators | components/ |
+| ErrorState | Error display | components/ |
+| ProtectedRoute | Auth route wrapper | components/ |
 
-**Table Columns**:
-1. **Name** (string, sortable, filterable)
-2. **PGs** (number, badge, tooltip shows PG names)
-3. **Waves** (number, badge)
-4. **Servers** (number, total across all waves)
-5. **Created** (date, relative time, sortable)
-6. **Actions** (3 buttons):
-   - ▶ Execute (primary action, blue)
-   - ✎ Edit (secondary, gray)
-   - 🗑 Delete (danger, red)
+### CloudScape Layout Components
 
-**Interactions**:
-1. **Execute Button** → Opens execute dialog (select DRILL vs RECOVERY)
-2. **Edit Button** → Opens RecoveryPlanDialog (mode=edit)
-3. **Delete Button** → Opens ConfirmDialog
-4. **Create Button** → Opens RecoveryPlanDialog (mode=create)
-5. **Row Click** → Expands row to show wave summary (inline)
-
-**Row Expansion** (on click):
-```
-┌──────────────────────────────────────────────────────────────┐
-│  ▼ 3-Tier-App      3    3      18       1 day ago  [▶][✎][🗑]│
-│                                                               │
-│    Wave 1: Database Tier      (2 servers, SEQUENTIAL)        │
-│    Wave 2: Application Tier   (8 servers, PARALLEL)          │
-│    Wave 3: Web Tier           (8 servers, PARALLEL)          │
-│                                                               │
-│    [View Full Details] [Execute Recovery]                    │
-└──────────────────────────────────────────────────────────────┘
-```
+| Component | Purpose | Location |
+|-----------|---------|----------|
+| AppLayout | Page shell with navigation | components/cloudscape/ |
+| ContentLayout | Page content wrapper | components/cloudscape/ |
 
 ---
 
-### 5. Executions Page
+## User Flows
 
-**Purpose**: Monitor and review recovery executions  
-**Route**: `/executions`  
-**Layout**: Data table with execution details drawer
+### Flow 1: Create Protection Group
+1. Navigate to Protection Groups page
+2. Click "Create" button
+3. Enter name and select region
+4. System discovers DRS servers
+5. Select available servers
+6. Click "Create"
+7. Success notification displayed
+8. Table refreshes with new Protection Group
 
-**Visual Design**:
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Executions                                        [Refresh] │
-├──────────────────────────────────────────────────────────────┤
-│                                                               │
-│  Filters: [Status: All ▼] [Type: All ▼] [Date Range]        │
-│                                                               │
-│  Plan Name       Type    Status      Started       Duration  │
-│  ──────────────────────────────────────────────────────────  │
-│  3-Tier-App      DRILL   COMPLETED   2 hours ago   15m 23s  │
-│  Database-Only   DRILL   RUNNING     5 mins ago    --       │
-│  Full-Stack      RECOV   FAILED      1 day ago     8m 12s   │
-│                                                               │
-│  Showing 3 of 15 executions                                  │
-│                                                               │
-└──────────────────────────────────────────────────────────────┘
-```
+### Flow 2: Create Recovery Plan
+1. Navigate to Recovery Plans page
+2. Click "Create" button
+3. Enter name and select Protection Groups
+4. Configure waves (add servers, set execution type)
+5. Set wait times between waves
+6. Click "Create"
+7. Success notification displayed
 
-**Status Badges**:
-- **RUNNING**: Blue, animated pulse
-- **COMPLETED**: Green, checkmark icon
-- **FAILED**: Red, error icon
-- **CANCELLED**: Gray, x icon
+### Flow 3: Execute Recovery
+1. Navigate to Recovery Plans page
+2. Click Execute button on plan row
+3. Select execution type (DRILL/RECOVERY)
+4. Confirm execution
+5. Redirect to Execution Details page
+6. Monitor wave progress in real-time
+7. View completion status
 
-**Table Columns**:
-1. **Plan Name** (string, clickable → opens details drawer)
-2. **Type** (DRILL/RECOVERY, badge)
-3. **Status** (badge with icon)
-4. **Started** (relative time, tooltip shows absolute)
-5. **Duration** (formatted: "Xm Ys", shows "--" if running)
-6. **Actions** (Cancel button if RUNNING)
+### Flow 4: Monitor Execution
+1. Navigate to Executions page
+2. Click on execution row
+3. View wave progress stepper
+4. View server status table
+5. Auto-refresh updates status
+6. Cancel if needed
 
-**Execution Details Drawer** (slides in from right):
-```
-┌─────────────────────────────────────┐
-│  [←] Execution Details        [✕]  │
-├─────────────────────────────────────┤
-│                                     │
-│  3-Tier-App - DRILL                 │
-│  Status: COMPLETED                  │
-│  Started: Nov 12, 2025 7:30 PM     │
-│  Duration: 15 minutes 23 seconds    │
-│                                     │
-│  Wave Progress:                     │
-│  ┌─────────────────────────────┐   │
-│  │ ✓ Wave 1: Database (2/2)    │   │
-│  │   5m 12s                     │   │
-│  ├─────────────────────────────┤   │
-│  │ ✓ Wave 2: Application (8/8) │   │
-│  │   8m 45s                     │   │
-│  ├─────────────────────────────┤   │
-│  │ ✓ Wave 3: Web (8/8)         │   │
-│  │   1m 26s                     │   │
-│  └─────────────────────────────┘   │
-│                                     │
-│  18 servers[ERROR] Failed to process response: The system encountered an unexpected error during processing. Try your request again.
+---
+
+## Responsive Design
+
+### Breakpoints
+| Size | Width | Layout |
+|------|-------|--------|
+| Desktop | >1200px | Full layout with sidebar |
+| Tablet | 768-1200px | Collapsed sidebar |
+| Mobile | <768px | Stacked layout, hamburger menu |
+
+### Mobile Adaptations
+- Tables scroll horizontally
+- Dialogs become full-screen
+- Navigation collapses to hamburger menu
+- Touch-friendly button sizes (44px minimum)
+
+---
+
+## Accessibility
+
+### WCAG 2.1 AA Compliance
+- Color contrast ratio: 4.5:1 minimum
+- Focus indicators on all interactive elements
+- Keyboard navigation for all functionality
+- Screen reader announcements for status changes
+- Form labels associated with inputs
+- Error messages linked to form fields
+
+### Keyboard Navigation
+| Key | Action |
+|-----|--------|
+| Tab | Move focus forward |
+| Shift+Tab | Move focus backward |
+| Enter | Activate button/link |
+| Space | Toggle checkbox |
+| Escape | Close dialog |
+| Arrow keys | Navigate within components |
+
+---
+
+## State Management
+
+### React Context
+- **AuthContext**: User authentication state, JWT tokens, login/logout functions
+
+### Component State
+- Page-level state for data fetching and UI state
+- Dialog state (open/close, form values)
+- Table state (sorting, filtering, pagination)
+
+### Data Fetching
+- API calls via axios with JWT token
+- Loading states during fetch
+- Error handling with user-friendly messages
+- Optimistic updates where appropriate
