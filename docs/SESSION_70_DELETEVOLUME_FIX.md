@@ -83,10 +83,13 @@ The IAM condition was written for replication volumes, not staging volumes.
 
 ### Why Server 1 Succeeded
 
-**Server 1**: Single-disk server, no staging volumes to clean up  
-**Server 2**: Multi-disk server, requires staging volume cleanup during drill
+**BOTH servers are identical**: Single disk (50GB), Windows, same configuration
 
-DRS cleanup phase (8-12 minutes after launch) only runs for servers with staging volumes.
+**Observation**:
+- Server 1: No staging volumes remain (deleted successfully)
+- Server 2: Staging volume `vol-0f7b020071835a43c` (1GB) still exists in "available" state
+
+**Theory**: DRS attempted DeleteVolume for both servers' staging volumes. Server 1's delete succeeded, Server 2's delete was blocked by IAM condition 10 minutes later. Possible timing/race condition or DRS internal behavior difference.
 
 ---
 
@@ -205,7 +208,7 @@ aws iam get-role-policy \
 
 ## Testing
 
-### Test Case: Multi-Disk Server Drill
+### Test Case: Both Servers Drill
 
 ```bash
 # 1. Run DRS drill via UI
@@ -215,8 +218,8 @@ aws iam get-role-policy \
 # 2. Execute Recovery Plan with both servers
 
 # 3. Expected Results:
-# - Server 1 (single-disk): LAUNCHED ✅
-# - Server 2 (multi-disk): LAUNCHED ✅
+# - Server 1: LAUNCHED ✅
+# - Server 2: LAUNCHED ✅
 # - DRS Job Status: COMPLETED ✅
 # - No DeleteVolume errors ✅
 ```
@@ -256,11 +259,11 @@ Don't assume all resources from a service use the same tags.
 - Replication volumes: `AWSElasticDisasterRecoveryManaged: true`
 - Staging volumes: `drs.amazonaws.com-job`, `drs.amazonaws.com-source-server`
 
-### 3. Partial Success Masks Permission Issues
+### 3. Identical Servers Can Behave Differently
 
-"1 of 2 servers launched" looks like progress but indicates incomplete permissions.
+Both servers were identical but had different outcomes.
 
-**Best Practice**: All servers must succeed for valid test. Investigate any failures immediately.
+**Best Practice**: Don't assume identical configuration means identical behavior. IAM conditions can cause intermittent failures.
 
 ### 4. DRS Has Multiple Phases
 
