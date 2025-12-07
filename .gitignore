@@ -1,141 +1,76 @@
 # =============================================================================
-# AWS DRS Orchestration - CRITICAL FILES ONLY
+# AWS DRS Orchestration - Production Repository
 # =============================================================================
 
 # -------------------------
-# EXCLUDE EVERYTHING BY DEFAULT
-# -------------------------
-*
-
-# -------------------------
-# INCLUDE ONLY CRITICAL PROJECT FILES
+# INTERNAL/DEVELOPMENT FILES (NOT FOR CUSTOMERS)
 # -------------------------
 
-# Root configuration
-!.gitignore
-!README.md
-!LICENSE
-!Makefile
-!package.json
-!requirements.txt
-!.cfnlintrc.yaml
-!.env.test.template
-!.gitlab-ci.yml
+# Project status and session history (internal tracking)
+docs/PROJECT_STATUS.md
+docs/SESSION_*.md
 
-# CloudFormation templates (ESSENTIAL)
-!cfn/
-!cfn/**
+# Archive folder (internal development history)
+docs/archive/
 
-# Lambda source code (ESSENTIAL)
-!lambda/
-!lambda/index.py
-!lambda/poller/
-!lambda/poller/**
-# Exclude Lambda build artifacts
+# Test files and results
+test_results_*.json
+tests/
+*.test.ts
+*.spec.ts
+
+# Kiro/IDE configuration (internal)
+.kiro/
+.amazonq/
+.cline_memory/
+
+# -------------------------
+# BUILD ARTIFACTS
+# -------------------------
+
+# Lambda build artifacts
 lambda/*.zip
 lambda/__pycache__/
 lambda/package/
 
-# Frontend source (ESSENTIAL)
-!frontend/
-!frontend/src/
-!frontend/src/**
-!frontend/public/
-!frontend/public/**
-!frontend/package.json
-!frontend/tsconfig.json
-!frontend/vite.config.ts
-!frontend/index.html
-# Exclude frontend build artifacts
+# Frontend build artifacts
 frontend/node_modules/
 frontend/dist/
 frontend/build/
 
-# Scripts (ESSENTIAL)
-!scripts/
-!scripts/*.sh
-!scripts/*.py
-
-# Core documentation (CURRENT ONLY)
-!docs/
-!docs/CORE/
-!docs/CORE/**
-!docs/requirements/
-!docs/requirements/**
-!docs/architecture/
-!docs/architecture/**
-!docs/guides/
-!docs/guides/**
-!docs/competitive-analysis/
-!docs/competitive-analysis/**
-!docs/presentations/
-!docs/presentations/**
-
-# KIRO specifications and steering docs
-!.kiro/
-!.kiro/**
-
-# Essential root docs
-!docs/PROJECT_STATUS.md
-!docs/MASTER_IMPLEMENTATION_ROADMAP.md
-!docs/MVP_COMPLETION_PLAN.md
-!docs/LAMBDA_DEPLOYMENT_GUIDE.md
-!docs/CICD_PIPELINE_GUIDE.md
-!docs/CICD_PIPELINE_STATUS.md
-!docs/SESSION_*_*.md
-!docs/AWS_DRS_ORCHESTRATION_TCO_ANALYSIS_FIXED.md
-!docs/CLOUDFORMATION_QUALITY_FIX_PLAN.md
-!docs/STEP_FUNCTIONS_DESIGN_PLAN.md
-!docs/JOB_LOG_EVENT_TRACKING_ROADMAP.md
-!docs/DRS_EXECUTION_FIX_IMPLEMENTATION_PLAN.md
-!docs/API_GATEWAY_AUTH_INVESTIGATION.md
-!docs/DRS_DRILL_LEARNING_SESSION.md
-!docs/SNAPSHOT_DEPLOYMENT_WORKFLOW.md
-!docs/dtr-tools-links.txt
-
-# Archive structure (but exclude content)
-!docs/archive/
-!docs/archive/README.md
-# Exclude all archive content
-docs/archive/sessions/
-docs/archive/bugs/
-docs/archive/investigations/
-docs/archive/deprecated/
-docs/archive/legacy/
-docs/archive/research/
-docs/archive/archive_20251112_195507/
-
-# -------------------------
-# EXCLUDE NON-CRITICAL FILES
-# -------------------------
-
-# Development artifacts
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
-node_modules/
 .venv/
 venv/
 env/
+.coverage
 
-# IDE files
+# -------------------------
+# IDE AND SYSTEM FILES
+# -------------------------
+
 .vscode/
 .idea/
 .DS_Store
-.amazonq/
-
-# Build artifacts
-*.zip
 *.log
 *.tmp
-dist/
-build/
 
-# Security
+# -------------------------
+# SECURITY SENSITIVE
+# -------------------------
+
 .env
-.env.*
-.cline_memory/
+.env.test
+.env.qa
+.env.deployment
+.env.local
 history/
 
-# Git disabled
+# -------------------------
+# DISABLED/LEGACY
+# -------------------------
+
 .git_disabled/
+archive/
