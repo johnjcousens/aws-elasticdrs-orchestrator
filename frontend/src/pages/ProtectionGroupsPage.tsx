@@ -41,11 +41,30 @@ export const ProtectionGroupsPage: React.FC = () => {
   const [groupToDelete, setGroupToDelete] = useState<ProtectionGroup | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ProtectionGroup | null>(null);
+  const [groupsInRecoveryPlans, setGroupsInRecoveryPlans] = useState<Set<string>>(new Set());
 
-  // Fetch protection groups on mount
+  // Fetch protection groups and check which are in recovery plans
   useEffect(() => {
     fetchGroups();
+    fetchRecoveryPlansForGroupCheck();
   }, []);
+
+  const fetchRecoveryPlansForGroupCheck = async () => {
+    try {
+      const plans = await apiClient.listRecoveryPlans();
+      const usedGroupIds = new Set<string>();
+      plans.forEach((plan) => {
+        plan.waves?.forEach((wave) => {
+          if (wave.protectionGroupId) {
+            usedGroupIds.add(wave.protectionGroupId);
+          }
+        });
+      });
+      setGroupsInRecoveryPlans(usedGroupIds);
+    } catch (err) {
+      console.error('Failed to check recovery plans:', err);
+    }
+  };
 
   const fetchGroups = async () => {
     try {
@@ -187,23 +206,28 @@ export const ProtectionGroupsPage: React.FC = () => {
             {
               id: 'actions',
               header: 'Actions',
-              cell: (item) => (
-                <ButtonDropdown
-                  items={[
-                    { id: 'edit', text: 'Edit' },
-                    { id: 'delete', text: 'Delete' },
-                  ]}
-                  onItemClick={({ detail }) => {
-                    if (detail.id === 'edit') {
-                      handleEdit(item);
-                    } else if (detail.id === 'delete') {
-                      handleDelete(item);
-                    }
-                  }}
-                >
-                  Actions
-                </ButtonDropdown>
-              ),
+              width: 120,
+              cell: (item) => {
+                const isInRecoveryPlan = groupsInRecoveryPlans.has(item.protectionGroupId);
+                return (
+                  <ButtonDropdown
+                    items={[
+                      { id: 'edit', text: 'Edit' },
+                      { id: 'delete', text: 'Delete', disabled: isInRecoveryPlan, disabledReason: 'Remove from recovery plans first' },
+                    ]}
+                    onItemClick={({ detail }) => {
+                      if (detail.id === 'edit') {
+                        handleEdit(item);
+                      } else if (detail.id === 'delete') {
+                        handleDelete(item);
+                      }
+                    }}
+                    expandToViewport
+                    variant="icon"
+                    ariaLabel="Actions"
+                  />
+                );
+              },
             },
           ]}
           items={items}
