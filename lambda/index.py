@@ -792,13 +792,34 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         }
         
         # Invoke async (Event invocation type = fire and forget)
-        lambda_client.invoke(
-            FunctionName=current_function_name,
-            InvocationType='Event',  # Async invocation
-            Payload=json.dumps(worker_payload, cls=DecimalEncoder)
-        )
-        
-        print(f"Async worker invoked for execution {execution_id}")
+        try:
+            invoke_response = lambda_client.invoke(
+                FunctionName=current_function_name,
+                InvocationType='Event',  # Async invocation
+                Payload=json.dumps(worker_payload, cls=DecimalEncoder)
+            )
+            # Check for invocation errors (StatusCode should be 202 for async)
+            status_code = invoke_response.get('StatusCode', 0)
+            if status_code != 202:
+                raise Exception(f"Async invocation returned unexpected status: {status_code}")
+            print(f"Async worker invoked for execution {execution_id}, StatusCode: {status_code}")
+        except Exception as invoke_error:
+            # If async invocation fails, mark execution as FAILED immediately
+            print(f"ERROR: Failed to invoke async worker: {str(invoke_error)}")
+            execution_history_table.update_item(
+                Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+                UpdateExpression='SET #status = :status, EndTime = :end_time, ErrorMessage = :error',
+                ExpressionAttributeNames={'#status': 'Status'},
+                ExpressionAttributeValues={
+                    ':status': 'FAILED',
+                    ':end_time': timestamp,
+                    ':error': f'Failed to start worker: {str(invoke_error)}'
+                }
+            )
+            return response(500, {
+                'error': f'Failed to start execution worker: {str(invoke_error)}',
+                'executionId': execution_id
+            })
         
         # Return immediately with 202 Accepted
         return response(202, {
@@ -1214,30 +1235,21 @@ def start_drs_recovery_for_wave(
         source_servers = [{'sourceServerID': sid} for sid in server_ids]
         print(f"[DRS API] Built sourceServers array for {len(server_ids)} servers")
 
-        # STEP 4: Build 9-tag dictionary for drill tracking
-        tags = {
-            'DRS:ExecutionId': execution_id,
-            'DRS:ExecutionType': execution_type,
-            'DRS:PlanName': plan_name or 'Unknown',
-            'DRS:WaveName': wave_name or 'Unknown',
-            'DRS:WaveNumber': str(wave_number) if wave_number else '0',
-            'DRS:InitiatedBy': cognito_user.get('email', 'system') if cognito_user else 'system',
-            'DRS:UserId': cognito_user.get('userId', 'unknown') if cognito_user else 'unknown',
-            'DRS:DrillId': execution_id if is_drill else 'N/A',
-            'DRS:Timestamp': datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        }
-        print(f"[DRS API] Built custom tags: {tags}")
-
-        # STEP 5: Start recovery for ALL servers in ONE API call WITH TAGS
-        print(f"[DRS API] Calling start_recovery() with custom tags...")
+        # CRITICAL FIX: Do NOT pass tags to start_recovery()
+        # The reference implementation (drs-plan-automation) does NOT use tags
+        # CLI without tags works, code with tags fails (conversion skipped)
+        # Tags were causing DRS to skip the CONVERSION phase entirely
+        
+        # STEP 4: Start recovery for ALL servers in ONE API call WITHOUT TAGS
+        print(f"[DRS API] Calling start_recovery() WITHOUT tags (reference implementation pattern)")
         print(f"[DRS API]   sourceServers: {len(source_servers)} servers")
         print(f"[DRS API]   isDrill: {is_drill}")
-        print(f"[DRS API]   tags: {len(tags)} custom tags")
+        print(f"[DRS API]   NOTE: Tags removed - they were causing conversion to be skipped!")
         
         response = drs_client.start_recovery(
             sourceServers=source_servers,
-            isDrill=is_drill,
-            tags=tags  # STEP 7: Pass tags to DRS API
+            isDrill=is_drill
+            # NO TAGS - this is the fix!
         )
         
         # Validate response structure (defensive programming)
@@ -1394,10 +1406,13 @@ def get_execution_status(execution_id: str) -> Dict:
         # Get current status from Step Functions if still running
         if execution['Status'] == 'RUNNING':
             try:
-                sf_response = stepfunctions.describe_execution(
-                    executionArn=execution_id
-                )
-                execution['StepFunctionsStatus'] = sf_response['status']
+                # Build proper Step Functions execution ARN from execution ID
+                state_machine_arn = execution.get('StateMachineArn')
+                if state_machine_arn:
+                    sf_response = stepfunctions.describe_execution(
+                        executionArn=state_machine_arn
+                    )
+                    execution['StepFunctionsStatus'] = sf_response['status']
             except Exception as e:
                 print(f"Error getting Step Functions status: {str(e)}")
         
@@ -1502,8 +1517,7 @@ def get_execution_details(execution_id: str) -> Dict:
         
         # Get from DynamoDB using query (table has composite key: ExecutionId + PlanId)
         result = execution_history_table.query(
-            KeyConditionExpression='ExecutionId = :eid',
-            ExpressionAttributeValues={':eid': execution_id},
+            KeyConditionExpression=Key('ExecutionId').eq(execution_id),
             Limit=1
         )
 
@@ -1525,11 +1539,11 @@ def get_execution_details(execution_id: str) -> Dict:
         except Exception as e:
             print(f"Error enriching execution with plan details: {str(e)}")
         
-        # Get current status from Step Functions if still running
-        if execution.get('Status') == 'RUNNING':
+        # Get current status from Step Functions if still running and has StateMachineArn
+        if execution.get('Status') == 'RUNNING' and execution.get('StateMachineArn'):
             try:
                 sf_response = stepfunctions.describe_execution(
-                    executionArn=execution_id
+                    executionArn=execution.get('StateMachineArn')
                 )
                 execution['StepFunctionsStatus'] = sf_response['status']
                 
@@ -1537,7 +1551,7 @@ def get_execution_details(execution_id: str) -> Dict:
                 if sf_response['status'] in ['SUCCEEDED', 'FAILED', 'TIMED_OUT', 'ABORTED']:
                     new_status = 'COMPLETED' if sf_response['status'] == 'SUCCEEDED' else 'FAILED'
                     execution_history_table.update_item(
-                        Key={'ExecutionId': execution_id},
+                        Key={'ExecutionId': execution_id, 'PlanId': execution.get('PlanId')},
                         UpdateExpression='SET #status = :status, EndTime = :endtime',
                         ExpressionAttributeNames={'#status': 'Status'},
                         ExpressionAttributeValues={
@@ -1563,13 +1577,17 @@ def get_execution_details(execution_id: str) -> Dict:
 def cancel_execution(execution_id: str) -> Dict:
     """Cancel a running execution"""
     try:
-        # Check if execution exists
-        result = execution_history_table.get_item(Key={'ExecutionId': execution_id})
+        # FIX: Query by ExecutionId to get PlanId (composite key required)
+        result = execution_history_table.query(
+            KeyConditionExpression=Key('ExecutionId').eq(execution_id),
+            Limit=1
+        )
         
-        if 'Item' not in result:
+        if not result.get('Items'):
             return response(404, {'error': 'Execution not found'})
         
-        execution = result['Item']
+        execution = result['Items'][0]
+        plan_id = execution.get('PlanId')
         
         # Check if execution is still running
         if execution.get('Status') not in ['RUNNING', 'PAUSED']:
@@ -1590,10 +1608,10 @@ def cancel_execution(execution_id: str) -> Dict:
             print(f"Error stopping Step Functions execution: {str(e)}")
             # Continue to update DynamoDB even if Step Functions call fails
         
-        # Update DynamoDB status
+        # Update DynamoDB status (FIX: use composite key)
         timestamp = int(time.time())
         execution_history_table.update_item(
-            Key={'ExecutionId': execution_id},
+            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
             UpdateExpression='SET #status = :status, EndTime = :endtime',
             ExpressionAttributeNames={'#status': 'Status'},
             ExpressionAttributeValues={
@@ -1617,13 +1635,17 @@ def cancel_execution(execution_id: str) -> Dict:
 def pause_execution(execution_id: str) -> Dict:
     """Pause a running execution (Note: Step Functions doesn't support native pause)"""
     try:
-        # Check if execution exists
-        result = execution_history_table.get_item(Key={'ExecutionId': execution_id})
+        # FIX: Query by ExecutionId to get PlanId (composite key required)
+        result = execution_history_table.query(
+            KeyConditionExpression=Key('ExecutionId').eq(execution_id),
+            Limit=1
+        )
         
-        if 'Item' not in result:
+        if not result.get('Items'):
             return response(404, {'error': 'Execution not found'})
         
-        execution = result['Item']
+        execution = result['Items'][0]
+        plan_id = execution.get('PlanId')
         
         # Check if execution is running
         if execution.get('Status') != 'RUNNING':
@@ -1637,7 +1659,7 @@ def pause_execution(execution_id: str) -> Dict:
         # For now, we'll mark it as paused in DynamoDB but the Step Functions execution continues
         
         execution_history_table.update_item(
-            Key={'ExecutionId': execution_id},
+            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
             UpdateExpression='SET #status = :status',
             ExpressionAttributeNames={'#status': 'Status'},
             ExpressionAttributeValues={':status': 'PAUSED'}
@@ -1659,13 +1681,17 @@ def pause_execution(execution_id: str) -> Dict:
 def resume_execution(execution_id: str) -> Dict:
     """Resume a paused execution (Note: Step Functions doesn't support native resume)"""
     try:
-        # Check if execution exists
-        result = execution_history_table.get_item(Key={'ExecutionId': execution_id})
+        # FIX: Query by ExecutionId to get PlanId (composite key required)
+        result = execution_history_table.query(
+            KeyConditionExpression=Key('ExecutionId').eq(execution_id),
+            Limit=1
+        )
         
-        if 'Item' not in result:
+        if not result.get('Items'):
             return response(404, {'error': 'Execution not found'})
         
-        execution = result['Item']
+        execution = result['Items'][0]
+        plan_id = execution.get('PlanId')
         
         # Check if execution is paused
         if execution.get('Status') != 'PAUSED':
@@ -1674,9 +1700,9 @@ def resume_execution(execution_id: str) -> Dict:
                 'currentStatus': execution.get('Status')
             })
         
-        # Update status back to RUNNING
+        # Update status back to RUNNING (FIX: use composite key)
         execution_history_table.update_item(
-            Key={'ExecutionId': execution_id},
+            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
             UpdateExpression='SET #status = :status',
             ExpressionAttributeNames={'#status': 'Status'},
             ExpressionAttributeValues={':status': 'RUNNING'}
