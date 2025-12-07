@@ -294,6 +294,7 @@ Resources:
                   - ec2:DescribeTags
                   - ec2:TerminateInstances
                   - ec2:StopInstances
+                  - ec2:StartInstances
                   - ec2:CreateTags
                 Resource: '*'
               # EC2 permissions for DRS instance launching during conversion
