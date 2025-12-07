@@ -57,6 +57,7 @@ scripts/run-tests.sh
 
 # Lambda build artifacts
 lambda/*.zip
+lambda/poller/*.zip
 lambda/__pycache__/
 lambda/package/
 
