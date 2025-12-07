@@ -284,5 +284,3 @@ aws cloudformation update-stack \
 ## References
 
 - [AWS DRS API Reference](docs/AWS_DRS_API_REFERENCE.md)
-- [VMware SRM REST API Summary](docs/VMware_SRM_REST_API_Summary.md)
-- [Project Status](docs/PROJECT_STATUS.md)

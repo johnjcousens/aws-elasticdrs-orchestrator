@@ -11,7 +11,7 @@
 
 ## Document Purpose
 
-This Architectural Design Document (ADD) provides comprehensive technical specifications for the AWS DRS Orchestration system. It describes the system architecture, component interactions, data flows, integration patterns, and deployment topology required to achieve VMware SRM parity for AWS Elastic Disaster Recovery Service (DRS).
+This Architectural Design Document (ADD) provides comprehensive technical specifications for the AWS DRS Orchestration system. It describes the system architecture, component interactions, data flows, integration patterns, and deployment topology for enterprise disaster recovery orchestration with AWS Elastic Disaster Recovery Service (DRS).
 
 **Key Objective**: Enable engineers to understand, maintain, and extend the system architecture with confidence.
 

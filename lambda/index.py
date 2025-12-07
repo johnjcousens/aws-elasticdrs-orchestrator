@@ -449,7 +449,7 @@ def handle_recovery_plans(method: str, path_params: Dict, body: Dict) -> Dict:
 def create_recovery_plan(body: Dict) -> Dict:
     """Create a new Recovery Plan"""
     try:
-        # Validate required fields (VMware SRM model)
+        # Validate required fields
         if 'PlanName' not in body:
             return response(400, {'error': 'Missing required field: PlanName'})
         
@@ -468,7 +468,7 @@ def create_recovery_plan(body: Dict) -> Dict:
         # Generate UUID for PlanId
         plan_id = str(uuid.uuid4())
         
-        # Create Recovery Plan item (VMware SRM model - minimal required fields)
+        # Create Recovery Plan item
         timestamp = int(time.time())
         item = {
             'PlanId': plan_id,
