@@ -1,6 +1,6 @@
 # AWS DRS Orchestration Solution
 
-A serverless disaster recovery orchestration platform providing VMware Site Recovery Manager (SRM) capabilities for AWS Elastic Disaster Recovery (DRS).
+A serverless disaster recovery orchestration platform for AWS Elastic Disaster Recovery (DRS) with wave-based execution and enterprise-grade automation.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![AWS](https://img.shields.io/badge/AWS-DRS-orange.svg)](https://aws.amazon.com/disaster-recovery/)
@@ -8,7 +8,7 @@ A serverless disaster recovery orchestration platform providing VMware Site Reco
 
 ## Overview
 
-AWS DRS Orchestration enables enterprise organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks. It provides a familiar VMware SRM-like experience while leveraging AWS-native services.
+AWS DRS Orchestration enables enterprise organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native services.
 
 ### Key Capabilities
 
@@ -154,7 +154,7 @@ Define multi-wave recovery sequences with explicit dependencies.
 | 2 | Application | App Server 1, App Server 2 | Wave 1 |
 | 3 | Web | Web Server 1, Web Server 2 | Wave 2 |
 
-- Unlimited waves (vs VMware SRM's 5 fixed priorities)
+- Unlimited waves with flexible priority ordering
 - Pre/post-wave automation actions via SSM
 - Dependency validation and circular dependency detection
 
@@ -263,6 +263,141 @@ python3 deploy_lambda.py --direct \
 ```bash
 make validate    # AWS validate-template
 make lint        # cfn-lint validation
+```
+
+## Post-Deployment Setup
+
+After CloudFormation deployment completes, follow these steps to configure the application:
+
+### 1. Create Admin User
+
+```bash
+# Get Cognito User Pool ID from stack outputs
+USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+  --output text)
+
+# Create admin user
+aws cognito-idp admin-create-user \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@example.com \
+  --user-attributes Name=email,Value=admin@example.com Name=email_verified,Value=true \
+  --temporary-password "TempPass123!" \
+  --message-action SUPPRESS
+
+# Set permanent password
+aws cognito-idp admin-set-user-password \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@example.com \
+  --password "YourSecurePassword123!" \
+  --permanent
+```
+
+### 2. Configure DRS Source Servers
+
+Ensure your DRS source servers are configured and replicating:
+
+```bash
+# List DRS source servers
+aws drs describe-source-servers --region us-east-1
+
+# Verify replication status (should be "HEALTHY")
+aws drs describe-source-servers \
+  --filters name=lifeCycleState,values=READY_FOR_TEST,READY_FOR_CUTOVER \
+  --region us-east-1
+```
+
+### 3. Access the Application
+
+```bash
+# Get CloudFront URL
+aws cloudformation describe-stacks \
+  --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+  --output text
+```
+
+## GitLab CI/CD Integration
+
+The repository includes a complete GitLab CI/CD pipeline (`.gitlab-ci.yml`) for automated deployment.
+
+### Pipeline Stages
+
+| Stage | Jobs | Description |
+|-------|------|-------------|
+| validate | `validate:cloudformation`, `validate:frontend-types` | Template validation, TypeScript checks |
+| lint | `lint:python`, `lint:frontend` | Code quality checks |
+| build | `build:lambda`, `build:frontend` | Package Lambda, build React app |
+| test | `test:python-unit`, `test:playwright` | Unit and E2E tests |
+| deploy-infra | `deploy:upload-artifacts`, `deploy:cloudformation` | S3 upload, stack deployment |
+| deploy-frontend | `deploy:frontend` | S3 sync, CloudFront invalidation |
+
+### Required CI/CD Variables
+
+Configure these variables in GitLab Settings → CI/CD → Variables:
+
+| Variable | Description | Protected |
+|----------|-------------|-----------|
+| `AWS_ACCESS_KEY_ID` | AWS access key for deployment | Yes |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key for deployment | Yes |
+| `AWS_DEFAULT_REGION` | Target AWS region (e.g., `us-east-1`) | No |
+| `ADMIN_EMAIL` | Admin email for Cognito notifications | No |
+| `DEPLOYMENT_BUCKET` | S3 bucket for artifacts | No |
+
+### Pipeline Triggers
+
+- **Automatic**: Runs on push to `main` or `dev/*` branches
+- **Manual**: Production deployment requires manual approval
+
+### Frontend Development Workflow
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd AWS-DRS-Orchestration
+
+# 2. Install frontend dependencies
+cd frontend
+npm install
+
+# 3. Create local environment config
+cat > .env.local <<EOF
+VITE_API_ENDPOINT=https://your-api-endpoint.execute-api.us-east-1.amazonaws.com/prod
+VITE_COGNITO_REGION=us-east-1
+VITE_COGNITO_USER_POOL_ID=us-east-1_xxxxx
+VITE_COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
+EOF
+
+# 4. Start development server
+npm run dev
+
+# 5. Make changes and commit
+git add .
+git commit -m "feat: Add new feature"
+git push origin main  # Triggers CI/CD pipeline
+```
+
+### Manual Frontend Deployment
+
+If you need to deploy frontend changes without the full pipeline:
+
+```bash
+# Build frontend
+cd frontend
+npm run build
+
+# Get stack outputs
+BUCKET=$(aws cloudformation describe-stacks --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+DIST_ID=$(aws cloudformation describe-stacks --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+
+# Deploy (preserve aws-config.js)
+aws s3 sync dist/ s3://$BUCKET/ --delete --exclude "aws-config.js"
+
+# Invalidate cache
+aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
 ```
 
 ## Documentation
