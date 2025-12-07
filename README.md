@@ -23,25 +23,72 @@ When debugging drill failures:
 
 ---
 
-## 🎯 CURRENT STATUS - December 7, 2024
+## 🎯 CURRENT STATUS - December 7, 2025
 
-**Latest Work**: Authentication & DRS Permissions Fix (Session 68)  
-**Status**: ✅ Complete - Ready for DRS Validation  
-**Next Step**: Execute end-to-end DRS drill from UI
+**Latest Work**: DRS ec2:DetachVolume Permission Fix (Session 69)  
+**Status**: 🔄 CloudFormation Update In Progress  
+**Next Step**: Wait for stack update, then run clean DRS drill test
+
+### Session 69 Summary (December 7, 2025)
+
+**Problem Investigated**: DRS Job `drsjob-307c2b7cd4dff23e6` had 2 servers - one LAUNCHED, one FAILED
+- Server `s-3c1730a9e0771ea14` (EC2AMAZ-4IMB9PN) → `i-0a8ef610f174d15c9` ✅ LAUNCHED
+- Server `s-3d75cdc0d9a28a725` (EC2AMAZ-RLP9U5V) → `i-0b588dc30aaaaf642` ❌ FAILED
+
+**Root Cause Found via CloudTrail**:
+- DRS uses **credential passthrough** - Lambda's credentials for downstream EC2 operations
+- `DetachVolume` for instance 1 at 05:29:20 → **SUCCEEDED**
+- `DetachVolume` for instance 2 at 05:32:49+ → **FAILED** (16+ retries, all `UnauthorizedOperation`)
+- Error: "no identity-based policy allows the ec2:DetachVolume action"
+
+**Fix Applied**:
+1. ✅ Added `ec2:DetachVolume` to OrchestrationRole in `cfn/lambda-stack.yaml` (line ~280)
+2. ✅ Added inline policy `EC2DetachVolumeForDRS` directly to IAM role (immediate effect)
+3. ✅ Git commit `8132665` pushed to origin/main
+4. ✅ Terminated stuck instance `i-0b588dc30aaaaf642`
+5. 🔄 CloudFormation stack update started (synced lambda-stack.yaml to S3)
+
+**Unsolved Mystery** (for reference):
+- Why did DetachVolume succeed for instance 1 but fail for instance 2 with identical credentials?
+- Both used same Lambda role, same job, same time window
+- Only difference: instance 1 had `AWSElasticDisasterRecoveryManaged` tag, instance 2 didn't
+- This may be an AWS internal timing/caching issue - the fix should resolve it
+
+### Morning Pickup Checklist
+
+1. **Check CloudFormation stack update status**:
+   ```bash
+   export AWS_PAGER=""
+   aws cloudformation describe-stacks --stack-name drs-orchestration-test --query 'Stacks[0].StackStatus' --region us-east-1
+   ```
+
+2. **Verify IAM role has ec2:DetachVolume** (should be in EC2Access policy now):
+   ```bash
+   aws iam get-role-policy --role-name drs-orchestration-test-LambdaStac-OrchestrationRole-LuY7ANIrFtME --policy-name EC2Access --region us-east-1
+   ```
+
+3. **Run clean DRS drill test**:
+   - Go to https://d1wfyuosowt0hl.cloudfront.net
+   - Login: ***REMOVED*** / IiG2b1o+D$
+   - Execute a Recovery Plan with both servers
+   - Both should now LAUNCH successfully
+
+4. **If both succeed**: The fix worked! Document and move on.
+5. **If still fails**: Check CloudWatch logs for new error messages.
 
 ### Recent Milestones
-- ✅ **Authentication Blocker RESOLVED** - [Session 68](docs/SESSION_68_AUTHENTICATION_AND_PERMISSIONS_FIX.md) - API Gateway 401 errors fixed
+- ✅ **ec2:DetachVolume Permission Added** - Session 69 (Dec 7, 2025)
+- ✅ **Authentication Blocker RESOLVED** - [Session 68](docs/SESSION_68_AUTHENTICATION_AND_PERMISSIONS_FIX.md)
 - ✅ **Comprehensive DRS Permissions** - All 44 DRS operations now covered in IAM policies
-- ✅ **CloudScape Migration Complete** (100% - 27/27 tasks) - [Details](.kiro/CLOUDSCAPE_MIGRATION_COMPLETE.md)
-- ✅ **GitLab CI/CD Pipeline Created** - [Guide](docs/CICD_PIPELINE_GUIDE.md) | [Handoff](docs/SESSION_64_CICD_PIPELINE_HANDOFF.md)
-- ✅ **DRS Tools Analysis Complete** - [Gap Analysis](docs/DRS_PLAN_AUTOMATION_GAP_ANALYSIS.md) shows 80% coverage
+- ✅ **CloudScape Migration Complete** (100% - 27/27 tasks)
+- ✅ **GitLab CI/CD Pipeline Created** - [Guide](docs/CICD_PIPELINE_GUIDE.md)
 
 ### Quick Start - Resume Work
 
 **Immediate Next Steps**:
-1. **Execute DRS Drill**: Create Recovery Plan and execute from UI
-2. **Monitor Execution**: Verify polling infrastructure tracks job completion
-3. **Validate DRS Integration**: Confirm instances launch and terminate properly
+1. **Verify Stack Update**: Check CloudFormation completed successfully
+2. **Execute DRS Drill**: Run drill with both servers to validate fix
+3. **Monitor Execution**: Verify both servers LAUNCH (not just one)
 4. **Document Results**: Update status based on drill success/failure
 
 **Key Documentation**:
@@ -68,10 +115,10 @@ This solution enables you to define, execute, and monitor complex failover/failb
 **TEST Environment**: ✅ Infrastructure Operational | ⚠️ DRS Integration Pending Validation
 
 **Latest Commits**:
+- **8132665**: Added ec2:DetachVolume permission to OrchestrationRole for DRS recovery (Dec 7, 2025)
 - **1683fc6**: Fixed CloudFormation output key names in CI/CD pipeline (Dec 6, 2024)
 - **5e06334**: Added Session 64 handoff document (Dec 6, 2024)
 - **08aa58e**: GitLab CI/CD pipeline with comprehensive deployment automation (Dec 6, 2024)
-- **c499193**: CloudScape migration complete - all Material-UI removed (Dec 6, 2024)
 
 **Infrastructure Status**:
 - ✅ All CloudFormation stacks deployed (Master, Database, Lambda, API, Frontend)
@@ -89,7 +136,8 @@ This solution enables you to define, execute, and monitor complex failover/failb
 - **Account**: ***REMOVED***
 
 **Known Issues**:
-- ⚠️ No successful end-to-end DRS drill execution yet (authentication blocker resolved)
+- 🔄 CloudFormation stack update in progress (ec2:DetachVolume permission fix)
+- ⚠️ No successful end-to-end DRS drill with BOTH servers yet (one succeeded, one failed - fix applied)
 
 **Phase 2 Performance Metrics** (Validated November 28, 2024)
 - ExecutionFinder: **20s detection** (TARGET: <60s) → **3x FASTER** ✅
