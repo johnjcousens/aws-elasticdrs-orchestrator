@@ -1,6 +1,3 @@
-/**
- * Executions Page - DRS Recovery Execution Monitoring
- */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -30,32 +27,6 @@ import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
-import { type } from 'os';
-import { all } from 'axios';
-import { all } from 'axios';
-import { all } from 'axios';
-import header from '@cloudscape-design/components/header';
-import pagination from '@cloudscape-design/components/pagination';
-import header from '@cloudscape-design/components/header';
-import header from '@cloudscape-design/components/header';
-import { format } from 'path';
-import header from '@cloudscape-design/components/header';
-import { format } from 'path';
-import { format } from 'path';
-import header from '@cloudscape-design/components/header';
-import tabs from '@cloudscape-design/components/tabs';
-import { type } from 'os';
-import header from '@cloudscape-design/components/header';
-import { type } from 'os';
-import header from '@cloudscape-design/components/header';
-import header from '@cloudscape-design/components/header';
-import { format } from 'path';
-import header from '@cloudscape-design/components/header';
-import header from '@cloudscape-design/components/header';
-import { type } from 'os';
-import { type } from 'os';
-import header from '@cloudscape-design/components/header';
-import header from '@cloudscape-design/components/header';
 
 export const ExecutionsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -123,13 +94,11 @@ export const ExecutionsPage: React.FC = () => {
     }
   };
 
-  // Active = in-progress executions (RUNNING is the active state from Step Functions)
   const activeExecutions = executions.filter((e) => {
     const status = e.status.toUpperCase();
     return ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'PAUSED', 'RUNNING'].includes(status);
   });
 
-  // History = completed, failed, or timed out executions
   const historyExecutions = executions.filter((e) => {
     const status = e.status.toUpperCase();
     return ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'ROLLED_BACK', 'TIMEOUT'].includes(status);
@@ -154,6 +123,7 @@ export const ExecutionsPage: React.FC = () => {
     if (minutes > 0) return `${minutes}m ${seconds}s`;
     return `${seconds}s`;
   };
+
 
   const { items, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
     historyExecutions,
