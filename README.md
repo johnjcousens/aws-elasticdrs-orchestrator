@@ -23,6 +23,85 @@ When debugging drill failures:
 
 ---
 
+## 🔍 DRS API & Step Functions Coordination
+
+**How AWS DRS Plan Automation Works** (Reference Implementation Pattern)
+
+### Core Pattern: Lambda Polling with Step Functions Wait States
+
+AWS DRS does NOT provide event-driven notifications. The proven pattern uses **polling**:
+
+```python
+# 1. Start recovery for ALL servers in wave (ONE API call)
+response = drs_client.start_recovery(
+    sourceServers=[{'sourceServerID': sid} for sid in server_ids],
+    isDrill=True
+    # NO tags parameter - causes conversion phase to be skipped!
+)
+job_id = response['job']['jobID']  # ONE job ID for entire wave
+
+# 2. Poll job status in loop (Step Functions Wait state)
+while True:
+    job_status = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
+    
+    # CRITICAL: Also poll per-server launch status
+    log_items = drs_client.describe_job_log_items(jobID=job_id)
+    
+    if job_status['status'] == 'COMPLETED':
+        break
+    
+    time.sleep(30)  # Step Functions Wait state
+```
+
+### DRS Job Status Progression
+
+**Job-Level**: `PENDING → STARTED → COMPLETED`  
+**Per-Server**: `PENDING → IN_PROGRESS → LAUNCHED` (or `FAILED`)
+
+### Critical API Calls
+
+1. **start_recovery()** - Launch recovery for wave
+   - Returns ONE job ID for all servers
+   - Do NOT pass tags parameter
+   
+2. **describe_jobs()** - Check job-level status
+   - Returns overall job state
+   
+3. **describe_job_log_items()** - Check per-server status (WE'RE MISSING THIS)
+   - Returns per-server launch events
+   - Includes EC2 instance IDs
+   - Tracks CONVERSION/SNAPSHOT phases
+
+### Our Implementation Status
+
+✅ **Correct**: ONE API call per wave  
+✅ **Correct**: No tags parameter  
+✅ **Correct**: Wave-level job tracking  
+❌ **Missing**: `describe_job_log_items` polling  
+❌ **Missing**: Per-server launch status extraction  
+❌ **Missing**: EC2 instance ID tracking  
+
+### Next Steps
+
+Add to ExecutionPoller Lambda:
+```python
+# Query per-server launch status
+log_items = []
+paginator = drs_client.get_paginator('describe_job_log_items')
+for page in paginator.paginate(jobID=job_id):
+    log_items += page['items']
+
+# Extract instance IDs
+for item in log_items:
+    if item['event'] == 'LAUNCH_FINISHED':
+        server_id = item['eventData']['sourceServerID']
+        instance_id = item['eventData'].get('ec2InstanceID')
+```
+
+**Reference**: See `archive/drs-tools/drs-plan-automation/` for complete working implementation.
+
+---
+
 ## 🎯 CURRENT STATUS - December 7, 2025
 
 **Latest Work**: DRS ec2:DetachVolume Permission Fix (Session 69)  
@@ -93,8 +172,8 @@ When debugging drill failures:
 
 **Key Documentation**:
 - 🔧 [Session 68 Fix](docs/SESSION_68_AUTHENTICATION_AND_PERMISSIONS_FIX.md) - Authentication & permissions resolution
+- 🔍 [DRS + Step Functions Analysis](docs/DRS_STEP_FUNCTIONS_COORDINATION_ANALYSIS.md) - Reference implementation patterns
 - 📋 [CI/CD Pipeline Guide](docs/CICD_PIPELINE_GUIDE.md) - Complete pipeline documentation
-- 📋 [CloudScape Migration](docs/CLOUDSCAPE_MIGRATION_COMPLETE.md) - UI migration details
 - 📋 [Project Status](docs/PROJECT_STATUS.md) - Historical session tracking
 
 **Next Steps - After DRS Validation**:
@@ -115,17 +194,17 @@ This solution enables you to define, execute, and monitor complex failover/failb
 **TEST Environment**: ✅ Infrastructure Operational | ⚠️ DRS Integration Pending Validation
 
 **Latest Commits**:
+- **0fc0bc7**: DRS + Step Functions coordination analysis from reference implementation (Dec 7, 2025)
 - **8132665**: Added ec2:DetachVolume permission to OrchestrationRole for DRS recovery (Dec 7, 2025)
-- **1683fc6**: Fixed CloudFormation output key names in CI/CD pipeline (Dec 6, 2024)
-- **5e06334**: Added Session 64 handoff document (Dec 6, 2024)
-- **08aa58e**: GitLab CI/CD pipeline with comprehensive deployment automation (Dec 6, 2024)
+- **1683fc6**: Fixed CloudFormation output key names in CI/CD pipeline (Dec 6, 2025)
+- **5e06334**: Added Session 64 handoff document (Dec 6, 2025)
 
 **Infrastructure Status**:
 - ✅ All CloudFormation stacks deployed (Master, Database, Lambda, API, Frontend)
 - ✅ Phase 2 polling infrastructure operational (ExecutionFinder, ExecutionPoller)
 - ✅ CloudScape Design System migration complete (100%)
 - ✅ GitLab CI/CD pipeline ready for deployment
-- ⚠️ **DRS drill validation pending** (blocked by authentication issues)
+- ⚠️ **DRS drill validation pending** (ec2:DetachVolume fix applied, ready for testing)
 
 **Deployment Details**:
 - **Frontend**: https://d1wfyuosowt0hl.cloudfront.net (CloudFront Distribution E46O075T9AHF3)
@@ -139,7 +218,7 @@ This solution enables you to define, execute, and monitor complex failover/failb
 - 🔄 CloudFormation stack update in progress (ec2:DetachVolume permission fix)
 - ⚠️ No successful end-to-end DRS drill with BOTH servers yet (one succeeded, one failed - fix applied)
 
-**Phase 2 Performance Metrics** (Validated November 28, 2024)
+**Phase 2 Performance Metrics** (Validated November 28, 2025)
 - ExecutionFinder: **20s detection** (TARGET: <60s) → **3x FASTER** ✅
 - StatusIndex GSI: **<21ms queries** (TARGET: <100ms) → **4x FASTER** ✅
 - ExecutionPoller: **Every ~15s** (adaptive working perfectly) ✅
@@ -194,7 +273,7 @@ The solution uses a **modular nested stack architecture** for better maintainabi
 
 ### Components
 
-- **Frontend**: React 18.3+ SPA with Material-UI 6+, hosted on S3/CloudFront
+- **Frontend**: React 18.3+ SPA with AWS CloudScape Design System, hosted on S3/CloudFront
 - **API**: API Gateway REST API with Cognito authentication
 - **Backend**: Python 3.12 Lambda functions for API and orchestration
 - **Orchestration**: Step Functions for wave-based recovery execution
@@ -696,7 +775,7 @@ Example trust policy:
 
 The **Execution Dashboard** provides:
 
-- Real-time wave progress with Material-UI Stepper
+- Real-time wave progress with CloudScape Stepper
 - Instance recovery status
 - Action execution results
 - CloudWatch Logs links
