@@ -4,7 +4,26 @@ A comprehensive serverless disaster recovery orchestration platform that provide
 
 ---
 
-## 🎯 CURRENT STATUS - December 6, 2024
+## ⚠️ CRITICAL DEBUGGING RULE
+
+**DO NOT waste time investigating DRS configuration, launch settings, or launch templates.**
+
+The CLI has been proven to work multiple times - drills execute successfully when run directly via AWS CLI. If a drill fails through the Lambda/Step Functions code, **the problem is ALWAYS in the code**, not in DRS configuration.
+
+**Proven working CLI command:**
+```bash
+aws drs start-recovery --source-servers sourceServerID=s-3578f52ef3bdd58b4 --is-drill --region us-east-1
+```
+
+When debugging drill failures:
+1. Check Lambda code for API call differences vs CLI
+2. Check IAM permissions on Lambda execution role
+3. Check Step Functions state machine logic
+4. **NEVER** investigate DRS launch templates, replication settings, or service-linked roles
+
+---
+
+## 🎯 CURRENT STATUS - December 7, 2024
 
 **Latest Work**: Authentication & DRS Permissions Fix (Session 68)  
 **Status**: ✅ Complete - Ready for DRS Validation  
