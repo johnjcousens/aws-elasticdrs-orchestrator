@@ -1,451 +1,335 @@
 # AWS DRS Orchestration Solution
 
-A serverless disaster recovery orchestration platform providing VMware SRM-like capabilities for AWS Elastic Disaster Recovery (DRS).
+A serverless disaster recovery orchestration platform providing VMware Site Recovery Manager (SRM) capabilities for AWS Elastic Disaster Recovery (DRS).
 
----
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![AWS](https://img.shields.io/badge/AWS-DRS-orange.svg)](https://aws.amazon.com/disaster-recovery/)
+[![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-yellow.svg)](cfn/)
 
-## ✅ SESSION 72 - FIRST WORKING PROTOTYPE
+## Overview
 
-**Status**: ✅ PRODUCTION VALIDATED - Complete wave-based DR orchestration with dynamic server discovery  
-**Tag**: `v1.0.0-step-functions-drs-discovery`
+AWS DRS Orchestration enables enterprise organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks. It provides a familiar VMware SRM-like experience while leveraging AWS-native services.
 
-### 🎯 Key Achievements
+### Key Capabilities
 
-- **Dynamic DRS Source Server Discovery** - No tagging required, automatic server detection
-- **Wave-Based Execution** - Step Functions orchestration with proper wave dependencies
-- **Real-Time Execution Monitoring** - Server details with hostname, instance ID, region, replication state
-- **Source Server Enrichment** - Original EC2 instance ID, account ID, Name tag display
-- **Production Safeguards** - Prevent deletion of active plans/groups, preserve active executions
+- **Protection Groups**: Organize DRS source servers into logical groups with automatic discovery
+- **Recovery Plans**: Define wave-based recovery sequences with dependencies
+- **Drill Mode**: Test recovery procedures without impacting production
+- **Real-Time Monitoring**: Track execution progress with detailed status updates
+- **API-First**: Complete REST API for DevOps integration and automation
 
-### 📋 Session 72 Changes
+## Architecture
 
-- Enhanced server details in execution display (hostname, Name tag, source instance ID, account)
-- Fixed wave numbering (1-based display, "Wave 2 of 3" not "Wave 3 of 2")
-- Login page AWS branding with Amazon Ember font
-- Action button dropdown improvements (expandToViewport)
-- Protection Group safeguards (prevent deletion when in recovery plan)
-- Recovery Plan safeguards (disable actions during active execution)
-- Clear history preserves active executions
-
----
-
-## ✅ SESSION 70 - IAM FIX & STEP FUNCTIONS ORCHESTRATION
-
-**Issue**: DRS drills failed with `ec2:StartInstances` permission denied  
-**Root Cause**: IAM conditions incompatible with DRS tagging behavior  
-**Status**: ✅ IAM FIX DEPLOYED - DRS drills working
-
-### 📋 Session Links
-
-- **[Session 70 Root Cause](docs/SESSION_70_FINAL_ROOT_CAUSE.md)** - Why IAM conditions blocked DRS operations
-- **[Session 70 Final Analysis](docs/SESSION_70_FINAL_ANALYSIS.md)** - Complete analysis
-- **[Deploy Guide](DEPLOY_DELETEVOLUME_FIX.md)** - Deployment instructions (COMPLETED)
-
-### 🎯 Validation Results
-
-**IAM Fix Validated** (Job: drsjob-3949c80becf56a075):
-
-- ✅ EC2AMAZ-4IMB9PN (s-3c1730a9e0771ea14) → i-097556fe6481c1d3a LAUNCHED
-- ✅ EC2AMAZ-RLP9U5V (s-3d75cdc0d9a28a725) → i-06ea360aab5e258fd LAUNCHED
-- ✅ Status: COMPLETED - Both servers launched successfully
-
-**IAM Policy Verified**:
-
-```yaml
-ec2:StartInstances - NO condition ✅
-ec2:DeleteVolume - NO condition ✅
-ec2:DetachVolume - NO condition ✅
-```
-
-**Step Functions Bug Fixed**: The orchestration Lambda was incorrectly requiring `recoveryInstanceID` from the job response. DRS doesn't always populate this field in the job response - it populates it on the source server instead. Fixed to trust LAUNCHED status.
-
----
-
-## ⚠️ CRITICAL DEBUGGING RULE
-
-**DO NOT investigate DRS configuration, launch settings, or launch templates.**
-
-The CLI works - drills execute successfully via AWS CLI. If a drill fails through Lambda/Step Functions, **the problem is ALWAYS in the code**, not DRS configuration.
-
-```bash
-# Proven working CLI command:
-aws drs start-recovery --source-servers sourceServerID=s-3578f52ef3bdd58b4 --is-drill --region us-east-1
-```
-
-When debugging: Check Lambda code → IAM permissions → Step Functions logic. **NEVER** investigate DRS launch templates or replication settings.
-
----
-
-## 🔍 DRS API & Step Functions Coordination
-
-### Core Pattern: Lambda Polling with Step Functions Wait States
-
-AWS DRS does NOT provide event-driven notifications. The proven pattern uses **polling**:
-
-```python
-# 1. Start recovery for ALL servers in wave (ONE API call)
-response = drs_client.start_recovery(
-    sourceServers=[{'sourceServerID': sid} for sid in server_ids],
-    isDrill=True
-    # NO tags parameter - causes conversion phase to be skipped!
-)
-job_id = response['job']['jobID']  # ONE job ID for entire wave
-
-# 2. Poll job status (Step Functions Wait state)
-job_status = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
-
-# 3. CRITICAL: Poll per-server launch status (WE NEED TO ADD THIS)
-log_items = drs_client.describe_job_log_items(jobID=job_id)
-```
-
-### DRS Job Status Progression
-
-**Job-Level**: `PENDING → STARTED → COMPLETED`  
-**Per-Server**: `PENDING → IN_PROGRESS → LAUNCHED` (or `FAILED`)
-
-### Our Implementation Status
-
-| Feature | Status | Location |
-|---------|--------|----------|
-| ONE API call per wave | ✅ Correct | `orchestration_stepfunctions.py` |
-| No tags parameter | ✅ Correct | `start_recovery()` call |
-| Wave-level job tracking | ✅ Correct | `execution_poller.py` |
-| `describe_job_log_items` polling | ❌ Missing | Need to add |
-| Per-server launch status extraction | ❌ Missing | Need to add |
-| EC2 instance ID tracking | ⚠️ Partial | Uses `recoveryInstanceID` from `participatingServers` |
-
-### Next Step: Add to ExecutionPoller Lambda
-
-The current `poll_wave_status()` in `lambda/poller/execution_poller.py` uses `describe_jobs()` but should also call `describe_job_log_items()`:
-
-```python
-def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any]:
-    job_id = wave.get('JobId')
+```mermaid
+graph TB
+    subgraph "Frontend"
+        CF[CloudFront CDN]
+        S3[S3 Static Hosting]
+        React[React + CloudScape UI]
+    end
     
-    # EXISTING: Query job status
-    job_status = query_drs_job_status(job_id)
+    subgraph "API Layer"
+        APIGW[API Gateway]
+        Cognito[Cognito User Pool]
+    end
     
-    # ADD THIS: Query per-server launch events
-    log_items = query_drs_job_log_items(job_id)
+    subgraph "Compute"
+        Lambda[API Handler Lambda]
+        Orch[Orchestration Lambda]
+        SF[Step Functions]
+    end
     
-    # Extract EC2 instance IDs from LAUNCH_FINISHED events
-    for item in log_items:
-        if item['event'] == 'LAUNCH_FINISHED':
-            server_id = item['eventData']['sourceServerID']
-            instance_id = item['eventData'].get('ec2InstanceID')
-            # Update server record with instance_id
-
-def query_drs_job_log_items(job_id: str) -> List[Dict]:
-    """Query per-server launch status from DRS."""
-    log_items = []
-    paginator = drs.get_paginator('describe_job_log_items')
-    for page in paginator.paginate(jobID=job_id):
-        log_items += page['items']
-    return log_items
+    subgraph "Data"
+        DDB[(DynamoDB)]
+    end
+    
+    subgraph "AWS DRS"
+        DRS[Elastic Disaster Recovery]
+        EC2[Recovery Instances]
+    end
+    
+    CF --> S3
+    S3 --> React
+    React --> APIGW
+    APIGW --> Cognito
+    APIGW --> Lambda
+    Lambda --> DDB
+    Lambda --> SF
+    SF --> Orch
+    Orch --> DRS
+    DRS --> EC2
 ```
 
-**Reference**: See `archive/drs-tools/drs-plan-automation/` for complete working implementation.
+### Recovery Execution Flow
 
----
-
-## 🎯 CURRENT STATUS - December 7, 2025
-
-**Latest Work**: First Working Prototype (Session 72)  
-**Status**: ✅ PRODUCTION VALIDATED - Complete wave-based DR orchestration  
-**Tag**: `v1.0.0-step-functions-drs-discovery`
-
-### Session 72 Summary - First Working Prototype
-
-**Dynamic Server Discovery**: No tagging required - automatic DRS source server detection by region
-
-**Execution Details Enhanced**:
-- Server hostname and Name tag display
-- Source instance ID (original EC2 being replicated)
-- Source account ID
-- Region and replication state badges
-- DRS job ID per wave
-
-**Production Safeguards**:
-- Cannot delete Protection Group if used in Recovery Plan
-- Cannot execute/edit/delete Recovery Plan during active execution
-- Clear history preserves active executions (RUNNING, POLLING, LAUNCHING)
-
-**3-Wave Drill Test** (3TierTest plan - Execution: 298a5c8f):
-- ✅ Wave 1 (Database): EC2AMAZ-FQTJG64 → LAUNCHED
-- ✅ Wave 2 (App): EC2AMAZ-H0JBE4J → LAUNCHED
-- ✅ Wave 3 (Web): In progress
-- ✅ Wave dependencies: Working correctly
-
-### Recent Milestones
-
-- ✅ **First Working Prototype** - Session 72 (Dec 7, 2025) - Tag: `v1.0.0-step-functions-drs-discovery`
-- ✅ **Server Details Enrichment** - Session 72 (Dec 7, 2025) - Hostname, instance ID, account
-- ✅ **Production Safeguards** - Session 72 (Dec 7, 2025) - Prevent accidental deletions
-- ✅ **3-Wave Drill COMPLETED** - Session 70 (Dec 7, 2025) - Full orchestration validated
-- ✅ **IAM Condition Fix Deployed** - Session 70 (Dec 7, 2025) - [Root Cause](docs/SESSION_70_FINAL_ROOT_CAUSE.md)
-- ✅ **CloudScape Migration Complete** - 100% (27/27 tasks)
-
----
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as React UI
+    participant API as API Gateway
+    participant SF as Step Functions
+    participant DRS as AWS DRS
+    participant EC2 as Recovery EC2
+    
+    User->>UI: Start Recovery Plan
+    UI->>API: POST /executions
+    API->>SF: Start Execution
+    
+    loop Each Wave
+        SF->>DRS: StartRecovery (wave servers)
+        DRS->>EC2: Launch instances
+        SF->>DRS: Poll job status
+        DRS-->>SF: LAUNCHED
+    end
+    
+    SF-->>API: Execution complete
+    API-->>UI: Status update
+    UI-->>User: Recovery complete
+```
 
 ## Quick Start
 
-### Current Deployment (TEST Environment)
+### Prerequisites
 
-| Resource | Value |
-|----------|-------|
-| Frontend | https://d1wfyuosowt0hl.cloudfront.net |
-| API | https://9cowuz4azi.execute-api.us-east-1.amazonaws.com/test |
-| Region | us-east-1 |
-| Account | 438465159935 |
-| Test User | testuser@example.com / IiG2b1o+D$ |
+- AWS Account with DRS configured
+- AWS CLI configured with appropriate permissions
+- Node.js 18+ (for frontend development)
+- Python 3.12+ (for Lambda development)
 
-### Deploy New Stack
+### Deploy with CloudFormation
 
 ```bash
 aws cloudformation deploy \
-  --template-url https://aws-drs-orchestration.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
+  --template-url https://your-bucket.s3.region.amazonaws.com/cfn/master-template.yaml \
   --stack-name drs-orchestration \
   --parameter-overrides \
     ProjectName=drs-orchestration \
     Environment=prod \
-    SourceBucket=aws-drs-orchestration \
-    AdminEmail=your-email@example.com \
+    SourceBucket=your-bucket \
+    AdminEmail=admin@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
 
-**Deployment Time**: ~20-30 minutes
+Deployment takes approximately 20-30 minutes.
 
-For detailed deployment instructions, see [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md).
+### Stack Outputs
 
----
+After deployment, retrieve your endpoints:
 
-## Key Features
+```bash
+aws cloudformation describe-stacks \
+  --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs' \
+  --output table
+```
+
+| Output | Description |
+|--------|-------------|
+| CloudFrontURL | Frontend application URL |
+| ApiEndpoint | REST API endpoint |
+| UserPoolId | Cognito User Pool ID |
+| UserPoolClientId | Cognito App Client ID |
+
+## Features
 
 ### Protection Groups
-- Automatic DRS server discovery by region
+
+Organize your DRS source servers into logical groups for coordinated recovery.
+
+- Automatic server discovery by AWS region
 - Visual server selection with assignment tracking
-- Single server per group constraint
-- Real-time search and 30-second auto-refresh
+- Single server per group constraint (prevents conflicts)
+- Real-time search and filtering
 
 ### Recovery Plans
-- Wave-based orchestration with dependencies
-- Pre/post-wave SSM automation
-- Drill mode for testing without production impact
 
-### Execution Monitoring
-- Real-time wave progress with CloudScape Stepper
-- Complete execution history and audit trail
-- CloudWatch Logs integration
+Define multi-wave recovery sequences with explicit dependencies.
 
----
+```mermaid
+graph LR
+    subgraph "Wave 1 - Database"
+        DB1[SQL Primary]
+        DB2[SQL Secondary]
+    end
+    
+    subgraph "Wave 2 - Application"
+        APP1[App Server 1]
+        APP2[App Server 2]
+    end
+    
+    subgraph "Wave 3 - Web"
+        WEB1[Web Server 1]
+        WEB2[Web Server 2]
+    end
+    
+    DB1 --> APP1
+    DB2 --> APP1
+    APP1 --> WEB1
+    APP2 --> WEB2
+```
 
-## Architecture
+- Unlimited waves (vs VMware SRM's 5 fixed priorities)
+- Pre/post-wave automation actions via SSM
+- Dependency validation and circular dependency detection
 
-### Modular CloudFormation Stacks
+### Execution Types
 
-| Stack | Purpose |
-|-------|---------|
-| master-template.yaml | Root orchestrator |
-| database-stack.yaml | DynamoDB tables (3) |
-| lambda-stack.yaml | Lambda functions (4) + IAM |
-| api-stack.yaml | Cognito + API Gateway + Step Functions |
-| security-stack.yaml | WAF + CloudTrail (optional) |
-| frontend-stack.yaml | S3 + CloudFront |
+| Type | Description | Use Case |
+|------|-------------|----------|
+| **Drill** | Test recovery without production impact | Regular DR testing |
+| **Recovery** | Full disaster recovery execution | Actual DR event |
 
-### Components
+## API Reference
 
-- **Frontend**: React 18.3 with AWS CloudScape Design System
-- **API**: API Gateway REST API with Cognito auth
-- **Backend**: Python 3.12 Lambda functions
-- **Orchestration**: Step Functions for wave execution
-- **Data**: DynamoDB (Protection Groups, Recovery Plans, Execution History)
+### Authentication
 
----
+All API requests require a valid Cognito JWT token:
 
-## Lambda Deployment
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  https://api-endpoint/prod/protection-groups
+```
+
+### Endpoints
+
+#### Protection Groups
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/protection-groups` | List all protection groups |
+| POST | `/protection-groups` | Create protection group |
+| GET | `/protection-groups/{id}` | Get protection group |
+| PUT | `/protection-groups/{id}` | Update protection group |
+| DELETE | `/protection-groups/{id}` | Delete protection group |
+
+#### Recovery Plans
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/recovery-plans` | List all recovery plans |
+| POST | `/recovery-plans` | Create recovery plan |
+| GET | `/recovery-plans/{id}` | Get recovery plan |
+| PUT | `/recovery-plans/{id}` | Update recovery plan |
+| DELETE | `/recovery-plans/{id}` | Delete recovery plan |
+
+#### Executions
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/executions` | List execution history |
+| POST | `/executions` | Start new execution |
+| GET | `/executions/{id}` | Get execution details |
+
+#### DRS Integration
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/drs/source-servers?region={region}` | Discover DRS servers |
+
+## Infrastructure
+
+### CloudFormation Stacks
+
+The solution uses a modular nested stack architecture:
+
+| Stack | Purpose | Resources |
+|-------|---------|-----------|
+| `master-template.yaml` | Root orchestrator | Parameter propagation, outputs |
+| `database-stack.yaml` | Data persistence | 3 DynamoDB tables |
+| `lambda-stack.yaml` | Compute | 4 Lambda functions, IAM roles |
+| `api-stack.yaml` | API & Auth | API Gateway, Cognito, Step Functions |
+| `security-stack.yaml` | Security (optional) | WAF, CloudTrail |
+| `frontend-stack.yaml` | Frontend hosting | S3, CloudFront |
+
+### DynamoDB Tables
+
+| Table | Purpose | Key Schema |
+|-------|---------|------------|
+| `protection-groups-{env}` | Server groupings | `GroupId` (PK) |
+| `recovery-plans-{env}` | Wave configurations | `PlanId` (PK) |
+| `execution-history-{env}` | Audit trail | `ExecutionId` (PK), `PlanId` (SK) |
+
+## Development
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev      # Development server
+npm run build    # Production build
+```
+
+### Lambda
 
 ```bash
 cd lambda
+pip install -r requirements.txt
 
-# Direct deployment (fastest - development)
+# Deploy directly (development)
 python3 deploy_lambda.py --direct \
-  --function-name drs-orchestration-api-handler-test \
-  --region us-east-1
-
-# Full deployment (S3 + Direct)
-python3 deploy_lambda.py --full \
-  --bucket aws-drs-orchestration \
-  --function-name drs-orchestration-api-handler-test \
+  --function-name drs-orchestration-api-handler-prod \
   --region us-east-1
 ```
 
-See [Lambda Deployment Guide](docs/LAMBDA_DEPLOYMENT_GUIDE.md) for all options.
-
----
-
-## Git Defender Exceptions
-
-Add exceptions for AWS DRS tag names that trigger false positives:
+### Validate CloudFormation
 
 ```bash
-# Allow DRS-specific tag names
-git config --add secrets.allowed 'AWSElasticDisasterRecoverySourceServerID'
-git config --add secrets.allowed 'AWSElasticDisasterRecoveryManaged'
-git config --add secrets.allowed 'aws:ec2launchtemplate:id'
-git config --add secrets.allowed 'aws:ec2launchtemplate:version'
+make validate    # AWS validate-template
+make lint        # cfn-lint validation
 ```
-
----
-
-## S3 Repository Sync
-
-Auto-sync enabled by default on every `git push`.
-
-```bash
-make sync-s3           # Manual sync
-make sync-s3-build     # Build frontend and sync
-make sync-s3-dry-run   # Preview changes
-```
-
-See [S3 Sync Automation](docs/S3_SYNC_AUTOMATION.md) for details.
-
----
-
-## API Endpoints
-
-### Protection Groups
-- `GET /protection-groups` - List all
-- `POST /protection-groups` - Create
-- `PUT /protection-groups/{id}` - Update
-- `DELETE /protection-groups/{id}` - Delete
-
-### DRS Server Discovery
-- `GET /drs/source-servers?region={region}` - Discover servers with assignment status
-
-### Recovery Plans
-- `GET /recovery-plans` - List all
-- `POST /recovery-plans` - Create
-- `PUT /recovery-plans/{id}` - Update
-- `DELETE /recovery-plans/{id}` - Delete
-
-### Executions
-- `GET /executions` - List history
-- `POST /executions` - Start execution
-- `GET /executions/{id}` - Get details
-
----
 
 ## Documentation
 
-### Core Docs
-- [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) - Complete deployment instructions
-- [Lambda Deployment Guide](docs/LAMBDA_DEPLOYMENT_GUIDE.md) - Lambda deployment automation
-- [S3 Sync Automation](docs/S3_SYNC_AUTOMATION.md) - Repository sync workflow
-- [Project Status](docs/PROJECT_STATUS.md) - Session history and tracking
-- [Step Functions UI Visualization](docs/STEP_FUNCTIONS_UI_VISUALIZATION.md) - Real-time execution monitoring
+| Document | Description |
+|----------|-------------|
+| [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment instructions |
+| [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture details |
+| [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md) | DRS API integration guide |
+| [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) | Testing procedures |
 
-### Architecture & Design
-- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)
-- [Product Requirements](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md)
-- [DRS Integration Rules](docs/DRS_INTEGRATION_RULES.md) - 25 prescriptive rules
+## Cost Estimate
 
-### DRS Integration
-- [DRS + Step Functions Analysis](docs/DRS_STEP_FUNCTIONS_COORDINATION_ANALYSIS.md)
-- [Gap Analysis](docs/DRS_PLAN_AUTOMATION_GAP_ANALYSIS.md) - 5 missing features
-- [Integration Guide](docs/DRS_TOOLS_COMPLETE_INTEGRATION_GUIDE.md)
-- [DR Orchestration Artifacts Analysis](docs/DR_ORCHESTRATION_ARTIFACTS_ANALYSIS.md) - Enterprise features evaluation
+| Component | Monthly Cost (Est.) |
+|-----------|---------------------|
+| Lambda | $1-5 |
+| API Gateway | $3-10 |
+| DynamoDB | $1-5 |
+| CloudFront | $1-5 |
+| S3 | <$1 |
+| Step Functions | $1-5 |
+| Cognito | Free tier |
+| **Total** | **$10-30/month** |
 
-### Security
-- [Code Review Findings](docs/CODE_REVIEW_FINDINGS.md) - 13 findings (2 fixed, 11 remaining, 2 new recommendations)
+*Costs vary based on usage. DRS replication costs are separate.*
 
----
+## Security
 
-## Troubleshooting
+- All data encrypted at rest (DynamoDB, S3)
+- HTTPS enforced via CloudFront
+- Cognito JWT authentication
+- IAM least-privilege policies
+- Optional WAF protection
+- Optional CloudTrail audit logging
 
-### Common Issues
+## Contributing
 
-**API Gateway 401 Unauthorized**
-- Verify Cognito token is valid and not expired
-- Check API Gateway authorizer configuration
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-**DRS Recovery Fails**
-- Check Lambda IAM permissions (OrchestrationRole)
-- Review CloudTrail for exact API errors
-- **Never** investigate DRS launch templates
+## License
 
-**Frontend Build Fails**
-- Verify Node.js 18+ available
-- Check frontend-builder Lambda logs
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-### Debug Commands
+## Support
 
-```bash
-# Check Lambda errors
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/drs-orchestration-api-handler-test \
-  --filter-pattern "ERROR" \
-  --region us-east-1
-
-# Check execution status
-aws dynamodb get-item \
-  --table-name execution-history-test \
-  --key '{"ExecutionId":{"S":"xxx"},"PlanId":{"S":"yyy"}}' \
-  --region us-east-1
-```
+- [Issues](../../issues) - Report bugs or request features
+- [Discussions](../../discussions) - Ask questions and share ideas
 
 ---
 
-## Roadmap
-
-### Immediate Priority
-
-- [x] Validate DRS drill with both servers launching - ✅ COMPLETE (Session 70)
-- [x] Fix Step Functions LAUNCHED status detection - ✅ COMPLETE (Session 70)
-- [x] Complete 3-wave drill test via UI - ✅ COMPLETE (Session 70)
-- [ ] Add Step Functions visualization to UI (4-6 hours) - [Implementation Plan](docs/STEP_FUNCTIONS_UI_VISUALIZATION.md)
-- [ ] Add `describe_job_log_items` to ExecutionPoller Lambda
-- [ ] Implement CloudWatch dashboard for failures (2 days)
-- [ ] Add structured logging (3 days)
-
-### Enterprise Features (Phase 2)
-- [ ] Approval workflow (SNS + callback) (5 days)
-- [ ] Parameter resolution (SSM/CloudFormation) (3 days)
-- [ ] Modular resource architecture (10 days)
-- [ ] Fix 5 UI display bugs (non-critical)
-- [ ] SNS notifications
-
----
-
-## Version History
-
-**v1.0.0-step-functions-drs-discovery** - December 7, 2025 (Session 72)
-
-- ✅ **FIRST WORKING PROTOTYPE**: Complete wave-based DR orchestration
-- 🎯 **Dynamic Server Discovery**: No tagging required - automatic DRS source server detection
-- 📊 **Server Details Enrichment**: Hostname, Name tag, source instance ID, account, region
-- 🛡️ **Production Safeguards**: Prevent deletion of active plans/groups
-- 🎨 **AWS Branding**: Login page with Amazon Ember font, CloudScape UI
-- 🔧 **Bug Fixes**: Wave numbering, action dropdowns, clear history
-
-**v1.0.4** - December 7, 2025 (Session 70)
-
-- ✅ **IAM FIX VALIDATED**: Both servers launched successfully
-- 🔧 **Step Functions Bug Fixed**: Trust LAUNCHED status without requiring recoveryInstanceID
-- Root cause: IAM conditions incompatible with DRS tagging behavior
-
-**v1.0.3** - December 7, 2025 (Session 69)
-
-- ec2:DetachVolume permission fix
-- CloudScape migration complete (100%)
-- GitLab CI/CD pipeline
-
-**Best-Known-Config** (Tag: bfa1e9b)
-
-- Validated CloudFormation lifecycle
-- Rollback: `git checkout Best-Known-Config && git push origin main --force`
-
----
-
-**Last Updated**: December 7, 2025 (Session 72)  
-**Git Repository**: `git@ssh.code.aws.dev:personal_projects/alias_j/jocousen/AWS-DRS-Orchestration.git`
+Built with ❤️ for AWS Disaster Recovery
