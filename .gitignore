@@ -16,8 +16,11 @@ docs/archive/
 # Test files and results
 test_results_*.json
 tests/
+test-screenshots/
 *.test.ts
 *.spec.ts
+playwright-report/
+playwright.config.ts
 
 # Kiro/IDE configuration (internal)
 .kiro/
@@ -46,6 +49,7 @@ __pycache__/
 venv/
 env/
 .coverage
+.pytest_cache/
 
 # -------------------------
 # IDE AND SYSTEM FILES
@@ -56,16 +60,16 @@ env/
 .DS_Store
 *.log
 *.tmp
+*.swp
+*~
 
 # -------------------------
 # SECURITY SENSITIVE
 # -------------------------
 
 .env
-.env.test
-.env.qa
-.env.deployment
-.env.local
+.env.*
+!.env.test.template
 history/
 
 # -------------------------
@@ -74,3 +78,9 @@ history/
 
 .git_disabled/
 archive/
+
+# -------------------------
+# DIAGRAMS (EMPTY/INTERNAL)
+# -------------------------
+
+diagrams/
