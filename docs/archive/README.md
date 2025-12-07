@@ -1,131 +1,99 @@
-# Documentation Archive
+# AWS DRS Orchestration - Documentation
 
-This directory contains historical project documentation that is preserved locally but excluded from git tracking.
+## Current Active Documentation
 
-## Purpose
+### Core Project Documents
+- **[PROJECT_STATUS.md](PROJECT_STATUS.md)** - Current project status, roadmap, and session history
+- **[MASTER_IMPLEMENTATION_ROADMAP.md](MASTER_IMPLEMENTATION_ROADMAP.md)** - Overall implementation plan
+- **[MVP_COMPLETION_PLAN.md](MVP_COMPLETION_PLAN.md)** - MVP phase completion plan
 
-The archive maintains a complete project history while keeping the git repository clean and focused on current work. All files here remain on your local filesystem but are not pushed to the remote repository.
+### Deployment & Operations
+- **[LAMBDA_DEPLOYMENT_GUIDE.md](LAMBDA_DEPLOYMENT_GUIDE.md)** - Lambda deployment procedures
+- **[AWS_DRS_OPERATIONAL_RULES_AND_CONSTRAINTS.md](AWS_DRS_OPERATIONAL_RULES_AND_CONSTRAINTS.md)** - AWS DRS operational guidelines
+- **[DRS_API_COMPREHENSIVE_ANALYSIS.md](DRS_API_COMPREHENSIVE_ANALYSIS.md)** - DRS API documentation
 
-## Archive Structure
+### Implementation Guides
+- **[CUSTOM_TAGS_IMPLEMENTATION_STATUS.md](CUSTOM_TAGS_IMPLEMENTATION_STATUS.md)** - Custom tags implementation (Session 61)
+- **[IAM_FIX_APPLIED.md](IAM_FIX_APPLIED.md)** - IAM permissions fix documentation
+- **[DRS_EXECUTION_FIX_IMPLEMENTATION_PLAN.md](DRS_EXECUTION_FIX_IMPLEMENTATION_PLAN.md)** - Execution fix plan
 
-### `/sessions/` - Development Sessions
-Historical session documentation tracking major development work:
-- SESSION_55_HANDOFF.md
-- SESSION_57_PART_9 through PART_17 (Frontend UI fixes)
-- SESSION_60_DEPLOYMENT_COMPLETE.md
-- SESSION_61_DEPLOYMENT_VALIDATION.md
-- And other session tracking documents
+### Architecture & Design
+- **[STEP_FUNCTIONS_DESIGN_PLAN.md](STEP_FUNCTIONS_DESIGN_PLAN.md)** - Step Functions integration plan
+- **[JOB_LOG_EVENT_TRACKING_ROADMAP.md](JOB_LOG_EVENT_TRACKING_ROADMAP.md)** - Event tracking roadmap
+- **[PHASE_3_ENTERPRISE_ENHANCEMENTS_GUIDE.md](PHASE_3_ENTERPRISE_ENHANCEMENTS_GUIDE.md)** - Phase 3 enhancements
 
-**Use Case**: Reference past debugging approaches, understand evolution of solutions, track when features were implemented.
+### Analysis & Planning
+- **[AWS_DRS_ORCHESTRATION_TCO_ANALYSIS_FIXED.md](AWS_DRS_ORCHESTRATION_TCO_ANALYSIS_FIXED.md)** - TCO analysis
+- **[API_GATEWAY_AUTH_INVESTIGATION.md](API_GATEWAY_AUTH_INVESTIGATION.md)** - API Gateway auth investigation
 
-### `/bugs/` - Bug Investigations
-Resolved bug analysis and resolution documentation:
-- BUG_2 through BUG_12 investigations
-- Root cause analyses
-- Resolution documentation
-- Implementation plans for fixes
+## Subdirectories
 
-**Use Case**: Understand why certain design decisions were made, reference similar issues, learn from past troubleshooting approaches.
+### `/requirements/`
+Business requirements and specifications
 
-### `/investigations/` - Historical Troubleshooting
-Drill failures, conversion issues, and other technical investigations:
-- DRILL_FAILURE_* files
-- DRILL_SUCCESS_* files
-- DRILL_CONVERSION_* files
-- CRITICAL_FINDING_* files
-- CONVERSION_SERVER_* files
+### `/architecture/`
+System architecture diagrams and documentation
 
-**Use Case**: Reference troubleshooting methodologies, understand system behavior patterns, avoid repeating failed approaches.
+### `/guides/`
+User guides and operational procedures
 
-### `/deprecated/` - Superseded Documentation
-Old implementation plans and documentation replaced by newer versions:
-- ROLLBACK_* files
-- Old implementation plans
-- Superseded analysis documents
-- Deprecated test scenarios
+### `/competitive-analysis/`
+Competitive analysis and market research
 
-**Use Case**: Understand project evolution, see why approaches were changed, reference historical decisions.
+### `/presentations/`
+Project presentations and demos
 
-## Why Local Only?
+## Archive (Local Only - Not in Git)
 
-### Benefits of Archiving
-1. **Clean Repository** - Git repo focuses on current, actionable documentation
-2. **Complete History** - Nothing is lost, everything preserved locally
-3. **Reduced Cognitive Load** - Easier to find current documentation
-4. **Faster Cloning** - New developers get lean, focused repo
-5. **Better Organization** - Clear separation of active vs. historical docs
+Historical documents are preserved locally in `docs/archive/` but excluded from git to keep the repository clean.
 
-### Git Configuration
-These directories are excluded via `.gitignore`:
-```gitignore
-docs/archive/sessions/
-docs/archive/bugs/
-docs/archive/investigations/
-docs/archive/deprecated/
-```
+### Archive Structure
+- **`archive/sessions/`** - Historical development sessions (SESSION_55-61, etc.)
+- **`archive/bugs/`** - Resolved bug investigations (BUG_2 through BUG_12)
+- **`archive/investigations/`** - Historical troubleshooting (DRILL_*, CRITICAL_FINDING_*, etc.)
+- **`archive/deprecated/`** - Superseded implementation plans and old documentation
 
-## Accessing Archived Content
+### Why Archive is Local Only
+- Keeps git repo clean and focused on current work
+- Preserves complete project history locally for reference
+- Reduces cognitive load when browsing project
+- Historical context available when needed without cluttering workspace
 
-All archived files remain in your local workspace at:
-```
-AWS-DRS-Orchestration/docs/archive/
-```
+### Accessing Archive
+All archived documents remain on your local filesystem at `docs/archive/`. They are simply excluded from git tracking via `.gitignore`.
 
-Use standard file system tools to access:
-```bash
-# List all sessions
-ls -la docs/archive/sessions/
+## Documentation Standards
 
-# Search for specific content
-grep -r "keyword" docs/archive/
+### File Naming
+- Use descriptive, uppercase names with underscores
+- Include version/date in filename when appropriate
+- Prefix with category (BUG_, SESSION_, etc.)
 
-# View specific archived file
-code docs/archive/sessions/SESSION_61_DEPLOYMENT_VALIDATION.md
-```
+### Status Indicators
+- ✅ Completed/Working
+- 🚧 In Progress
+- ⏳ Planned
+- ❌ Failed/Deprecated
 
-## When to Archive
+### Updates
+- Always update PROJECT_STATUS.md when completing major milestones
+- Document deployment results and validation
+- Create session summaries for significant work
 
-Archive documentation when:
-- ✅ Bug is resolved and documented in PROJECT_STATUS.md
-- ✅ Session work is complete and summarized
-- ✅ Investigation is concluded with findings documented
-- ✅ Implementation plan is superseded by newer version
-- ✅ File is no longer referenced in active work
+## Quick Links
 
-Keep documentation active when:
-- ❌ Still actively referenced in current work
-- ❌ Contains operational procedures
-- ❌ Part of system architecture documentation
-- ❌ Required for understanding current implementation
+### Most Referenced
+1. [PROJECT_STATUS.md](PROJECT_STATUS.md) - Always start here
+2. [LAMBDA_DEPLOYMENT_GUIDE.md](LAMBDA_DEPLOYMENT_GUIDE.md) - For deployments
+3. [AWS_DRS_OPERATIONAL_RULES_AND_CONSTRAINTS.md](AWS_DRS_OPERATIONAL_RULES_AND_CONSTRAINTS.md) - For DRS operations
 
-## Maintenance
-
-### Periodic Review
-Every few months, review archived content:
-1. Verify old sessions still provide value
-2. Consider consolidating related investigations
-3. Extract lessons learned into permanent guides
-4. Delete truly obsolete content if needed
-
-### Don't Archive
-Never archive these categories:
-- Current project status (PROJECT_STATUS.md)
-- Active implementation guides
-- System architecture documentation
-- Operational procedures and runbooks
-- Deployment guides
-- API documentation
-
-## Questions?
-
-If unsure whether to archive a document:
-1. Is it currently referenced in PROJECT_STATUS.md? → Keep active
-2. Does it describe current system behavior? → Keep active
-3. Is it historical troubleshooting/debugging? → Archive
-4. Is it superseded by a newer version? → Archive
+### Latest Work
+- Session 61: Launch Config Validation + Custom Tags Implementation
+- Session 60: Cognito User Extraction
+- Session 59: Drill Success Resolution
 
 ---
 
-**Archive Created**: November 30, 2025  
-**Total Archived**: 60+ historical documents  
-**Status**: Active - Local filesystem only, excluded from git
+**Last Updated**: November 30, 2025  
+**Repository**: AWS-DRS-Orchestration  
+**Status**: MVP Phase 1-2 Complete, Phase 3 Planning
