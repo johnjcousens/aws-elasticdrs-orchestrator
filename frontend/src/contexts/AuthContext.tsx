@@ -13,6 +13,7 @@ import {
   signOut,
   getCurrentUser,
   fetchAuthSession,
+  fetchUserAttributes,
 } from 'aws-amplify/auth';
 import type { SignInInput, SignInOutput } from 'aws-amplify/auth';
 import { awsConfig } from '../aws-config';
@@ -67,11 +68,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const session = await fetchAuthSession();
       
       if (user && session.tokens) {
+        // Fetch user attributes to get email
+        let email = user.signInDetails?.loginId;
+        try {
+          const attributes = await fetchUserAttributes();
+          email = attributes.email || email;
+        } catch (attrError) {
+          console.warn('Could not fetch user attributes:', attrError);
+        }
+        
         setAuthState({
           isAuthenticated: true,
           user: {
             username: user.username,
-            email: user.signInDetails?.loginId,
+            email: email,
           },
           loading: false,
           error: undefined,
