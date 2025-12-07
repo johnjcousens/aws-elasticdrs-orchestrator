@@ -898,100 +898,24 @@ def execute_with_step_functions(execution_id: str, plan_id: str, plan: Dict, is_
 
 
 def execute_recovery_plan_worker(payload: Dict) -> None:
-    """Background worker - initiates DRS jobs without waiting (async invocation)"""
+    """Background worker - executes recovery via Step Functions"""
     try:
         execution_id = payload['executionId']
         plan_id = payload['planId']
-        execution_type = payload['executionType']
         is_drill = payload['isDrill']
         plan = payload['plan']
         cognito_user = payload.get('cognitoUser', {'email': 'system', 'userId': 'system'})
-        plan_name = plan.get('PlanName', 'Unknown')
         
-        print(f"Worker initiating execution {execution_id} (type: {execution_type})")
+        print(f"Worker initiating execution {execution_id} (isDrill: {is_drill})")
         print(f"Initiated by: {cognito_user.get('email')}")
         
-        # Check if Step Functions is enabled
+        # Always use Step Functions
         state_machine_arn = os.environ.get('STATE_MACHINE_ARN')
-        use_step_functions = os.environ.get('USE_STEP_FUNCTIONS', 'false').lower() == 'true'
+        if not state_machine_arn:
+            raise ValueError("STATE_MACHINE_ARN environment variable not set")
         
-        if use_step_functions and state_machine_arn:
-            print(f"Using Step Functions for execution {execution_id}")
-            return execute_with_step_functions(execution_id, plan_id, plan, is_drill, state_machine_arn)
-        
-        # Fall back to async Lambda polling (current implementation)
-        print(f"Using async Lambda polling for execution {execution_id}")
-        
-        # Update status to POLLING (not IN_PROGRESS)
-        execution_history_table.update_item(
-            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
-            UpdateExpression='SET #status = :status',
-            ExpressionAttributeNames={'#status': 'Status'},
-            ExpressionAttributeValues={':status': 'POLLING'}
-        )
-        
-        # CRITICAL FIX (Session 57): Only initiate waves with NO dependencies
-        # ExecutionPoller will initiate dependent waves when dependencies complete
-        wave_results = []
-        waves_list = plan.get('Waves', [])
-        print(f"Processing {len(waves_list)} waves - initiating only independent waves")
-
-        for wave_index, wave in enumerate(waves_list):
-            wave_number = wave_index + 1
-
-            # Support both PascalCase and camelCase for backward compatibility
-            wave_name = wave.get('WaveName') or wave.get('name', f'Wave {wave_number}')
-            pg_id = wave.get('ProtectionGroupId') or wave.get('protectionGroupId')
-
-            if not pg_id:
-                print(f"Wave {wave_number} has no Protection Group, skipping")
-                wave_results.append({
-                    'WaveName': wave_name,
-                    'WaveId': wave.get('WaveId') or wave_number,
-                    'Status': 'FAILED',
-                    'StatusMessage': 'No Protection Group assigned',
-                    'Servers': []
-                })
-                continue
-
-            # Check wave dependencies
-            dependencies = wave.get('Dependencies', [])
-            if dependencies:
-                # Wave has dependencies - mark as PENDING for poller to initiate later
-                print(f"Wave {wave_number} ({wave_name}) has dependencies: {dependencies} - marking PENDING")
-                wave_results.append({
-                    'WaveName': wave_name,
-                    'WaveId': wave.get('WaveId') or wave_number,
-                    'ProtectionGroupId': pg_id,
-                    'Status': 'PENDING',
-                    'StatusMessage': f'Waiting for dependencies: {dependencies}',
-                    'Servers': [],
-                    'Dependencies': dependencies
-                })
-            else:
-                # Wave has NO dependencies - initiate immediately
-                print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
-                # STEP 5: Pass user and metadata to initiate_wave
-                wave_result = initiate_wave(
-                    wave, pg_id, execution_id, is_drill, execution_type,
-                    plan_name=plan_name,
-                    wave_name=wave_name,
-                    wave_number=wave_number,
-                    cognito_user=cognito_user
-                )
-                wave_results.append(wave_result)
-            
-            # Update progress in DynamoDB after each wave
-            execution_history_table.update_item(
-                Key={'ExecutionId': execution_id, 'PlanId': plan_id},
-                UpdateExpression='SET Waves = :waves',
-                ExpressionAttributeValues={':waves': wave_results}
-            )
-        
-        # Final status is POLLING (not COMPLETED)
-        # External poller will update to COMPLETED when jobs finish
-        print(f"Worker completed initiation for execution {execution_id}")
-        print(f"Status: POLLING - awaiting external poller to track completion")
+        print(f"Using Step Functions for execution {execution_id}")
+        return execute_with_step_functions(execution_id, plan_id, plan, is_drill, state_machine_arn)
         
     except Exception as e:
         print(f"Worker error for execution {execution_id}: {str(e)}")
@@ -1504,6 +1428,116 @@ def list_executions(query_params: Dict) -> Dict:
         return response(500, {'error': str(e)})
 
 
+def get_server_details_map(server_ids: List[str], region: str = 'us-east-1') -> Dict[str, Dict]:
+    """
+    Get DRS source server details for a list of server IDs.
+    Returns a map of serverId -> {hostname, name, region, sourceInstanceId, sourceAccountId, ...}
+    """
+    server_map = {}
+    if not server_ids:
+        return server_map
+    
+    try:
+        # Use regional DRS client if needed
+        drs_client = boto3.client('drs', region_name=region)
+        
+        # Get source servers (DRS API doesn't support filtering by ID list, so get all and filter)
+        paginator = drs_client.get_paginator('describe_source_servers')
+        for page in paginator.paginate():
+            for server in page.get('items', []):
+                source_id = server.get('sourceServerID')
+                if source_id in server_ids:
+                    # Extract hostname and source instance ID from sourceProperties
+                    source_props = server.get('sourceProperties', {})
+                    hostname = source_props.get('identificationHints', {}).get('hostname', '')
+                    
+                    # Get source EC2 instance ID (the original instance being replicated)
+                    source_instance_id = source_props.get('identificationHints', {}).get('awsInstanceID', '')
+                    
+                    # Get Name tag if available
+                    tags = server.get('tags', {})
+                    name_tag = tags.get('Name', '')
+                    
+                    # Get source account ID from staging area info or ARN
+                    source_account_id = ''
+                    staging_area = server.get('stagingArea', {})
+                    if staging_area:
+                        source_account_id = staging_area.get('stagingAccountID', '')
+                    # Fallback: extract from ARN if available
+                    if not source_account_id:
+                        arn = server.get('arn', '')
+                        if arn:
+                            # ARN format: arn:aws:drs:region:account:source-server/id
+                            arn_parts = arn.split(':')
+                            if len(arn_parts) >= 5:
+                                source_account_id = arn_parts[4]
+                    
+                    server_map[source_id] = {
+                        'hostname': hostname,
+                        'nameTag': name_tag or hostname,
+                        'region': region,
+                        'sourceInstanceId': source_instance_id,
+                        'sourceAccountId': source_account_id,
+                        'replicationState': server.get('dataReplicationInfo', {}).get('dataReplicationState', 'UNKNOWN'),
+                        'lastLaunchResult': server.get('lastLaunchResult', 'NOT_STARTED'),
+                    }
+    except Exception as e:
+        print(f"Error getting server details: {e}")
+    
+    return server_map
+
+
+def enrich_execution_with_server_details(execution: Dict) -> Dict:
+    """
+    Enrich execution waves with server details (hostname, name tag, region).
+    """
+    waves = execution.get('Waves', [])
+    if not waves:
+        return execution
+    
+    # Collect all server IDs and regions from waves
+    all_server_ids = set()
+    regions = set()
+    for wave in waves:
+        server_ids = wave.get('ServerIds', [])
+        all_server_ids.update(server_ids)
+        region = wave.get('Region', 'us-east-1')
+        regions.add(region)
+    
+    if not all_server_ids:
+        return execution
+    
+    # Get server details for each region
+    server_details_map = {}
+    for region in regions:
+        region_servers = get_server_details_map(list(all_server_ids), region)
+        server_details_map.update(region_servers)
+    
+    # Enrich waves with server details
+    for wave in waves:
+        server_ids = wave.get('ServerIds', [])
+        region = wave.get('Region', 'us-east-1')
+        
+        # Build enriched server list
+        enriched_servers = []
+        for server_id in server_ids:
+            details = server_details_map.get(server_id, {})
+            enriched_servers.append({
+                'SourceServerId': server_id,
+                'Hostname': details.get('hostname', ''),
+                'NameTag': details.get('nameTag', ''),
+                'Region': region,
+                'SourceInstanceId': details.get('sourceInstanceId', ''),
+                'SourceAccountId': details.get('sourceAccountId', ''),
+                'ReplicationState': details.get('replicationState', 'UNKNOWN'),
+            })
+        
+        # Add enriched servers to wave
+        wave['EnrichedServers'] = enriched_servers
+    
+    return execution
+
+
 def get_execution_details(execution_id: str) -> Dict:
     """Get detailed information about a specific execution"""
     try:
@@ -1538,6 +1572,12 @@ def get_execution_details(execution_id: str) -> Dict:
                     execution['TotalWaves'] = len(plan.get('Waves', []))
         except Exception as e:
             print(f"Error enriching execution with plan details: {str(e)}")
+        
+        # Enrich with server details (hostname, name tag, region)
+        try:
+            execution = enrich_execution_with_server_details(execution)
+        except Exception as e:
+            print(f"Error enriching execution with server details: {str(e)}")
         
         # Get current status from Step Functions if still running and has StateMachineArn
         if execution.get('Status') == 'RUNNING' and execution.get('StateMachineArn'):
@@ -1598,6 +1638,7 @@ def cancel_execution(execution_id: str) -> Dict:
         
         # Stop Step Functions execution
         try:
+            # amazonq-ignore-next-line
             stepfunctions.stop_execution(
                 executionArn=execution_id,
                 error='UserCancelled',
@@ -1736,7 +1777,10 @@ def delete_completed_executions() -> Dict:
         print("Starting bulk delete of completed executions")
         
         # Define terminal states that are safe to delete
-        terminal_states = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED']
+        # Only delete truly completed executions, NOT active ones
+        terminal_states = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'TIMEOUT']
+        # Active states to preserve (never delete)
+        active_states = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED']
         
         # Scan for all executions
         scan_result = execution_history_table.scan()
@@ -2363,16 +2407,79 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
     waves = []
     for wave in execution.get('Waves', []):
         # Transform servers array to camelCase
+        # FIX: DynamoDB stores ServerStatuses (from Step Functions) or ServerIds (legacy)
         servers = []
-        for server in wave.get('Servers', []):
-            servers.append({
-                'sourceServerId': server.get('SourceServerId'),
-                'recoveryJobId': server.get('RecoveryJobId'),
-                'instanceId': server.get('InstanceId'),
-                'status': server.get('Status', 'UNKNOWN'),  # Keep uppercase for consistency
-                'launchTime': safe_timestamp_to_int(server.get('LaunchTime')),
-                'error': server.get('Error')
-            })
+        
+        # Build enriched server lookup map from EnrichedServers (added by enrich_execution_with_server_details)
+        enriched_map = {}
+        for enriched in wave.get('EnrichedServers', []):
+            enriched_map[enriched.get('SourceServerId')] = enriched
+        
+        # First try ServerStatuses (new format from Step Functions orchestration)
+        server_statuses = wave.get('ServerStatuses', [])
+        if server_statuses:
+            for server in server_statuses:
+                server_id = server.get('SourceServerId')
+                enriched = enriched_map.get(server_id, {})
+                servers.append({
+                    'sourceServerId': server_id,
+                    'recoveryJobId': wave.get('JobId'),  # JobId is at wave level
+                    'instanceId': server.get('RecoveryInstanceID'),
+                    'status': server.get('LaunchStatus', 'UNKNOWN'),
+                    'launchTime': safe_timestamp_to_int(wave.get('StartTime')),
+                    'error': server.get('Error'),
+                    # Enriched fields from DRS source server
+                    'hostname': enriched.get('Hostname', ''),
+                    'serverName': enriched.get('NameTag', ''),
+                    'region': enriched.get('Region', wave.get('Region', '')),
+                    'sourceInstanceId': enriched.get('SourceInstanceId', ''),
+                    'sourceAccountId': enriched.get('SourceAccountId', ''),
+                    'replicationState': enriched.get('ReplicationState', ''),
+                })
+        else:
+            # Fallback to ServerIds (legacy format) or Servers array
+            server_ids = wave.get('ServerIds', [])
+            legacy_servers = wave.get('Servers', [])
+            
+            if legacy_servers:
+                # Use legacy Servers array format
+                for server in legacy_servers:
+                    server_id = server.get('SourceServerId')
+                    enriched = enriched_map.get(server_id, {})
+                    servers.append({
+                        'sourceServerId': server_id,
+                        'recoveryJobId': server.get('RecoveryJobId'),
+                        'instanceId': server.get('InstanceId'),
+                        'status': server.get('Status', 'UNKNOWN'),
+                        'launchTime': safe_timestamp_to_int(server.get('LaunchTime')),
+                        'error': server.get('Error'),
+                        # Enriched fields from DRS source server
+                        'hostname': enriched.get('Hostname', ''),
+                        'serverName': enriched.get('NameTag', ''),
+                        'region': enriched.get('Region', wave.get('Region', '')),
+                        'sourceInstanceId': enriched.get('SourceInstanceId', ''),
+                        'sourceAccountId': enriched.get('SourceAccountId', ''),
+                        'replicationState': enriched.get('ReplicationState', ''),
+                    })
+            elif server_ids:
+                # Build servers from ServerIds list (minimal info)
+                for server_id in server_ids:
+                    enriched = enriched_map.get(server_id, {})
+                    servers.append({
+                        'sourceServerId': server_id,
+                        'recoveryJobId': wave.get('JobId'),
+                        'instanceId': None,
+                        'status': wave.get('Status', 'UNKNOWN'),  # Use wave status
+                        'launchTime': safe_timestamp_to_int(wave.get('StartTime')),
+                        'error': None,
+                        # Enriched fields from DRS source server
+                        'hostname': enriched.get('Hostname', ''),
+                        'serverName': enriched.get('NameTag', ''),
+                        'region': enriched.get('Region', wave.get('Region', '')),
+                        'sourceInstanceId': enriched.get('SourceInstanceId', ''),
+                        'sourceAccountId': enriched.get('SourceAccountId', ''),
+                        'replicationState': enriched.get('ReplicationState', ''),
+                    })
         
         waves.append({
             'waveName': wave.get('WaveName'),
@@ -2381,7 +2488,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
             'status': map_execution_status(wave.get('Status')),  # Use status mapping
             'servers': servers,
             'startTime': safe_timestamp_to_int(wave.get('StartTime')),
-            'endTime': safe_timestamp_to_int(wave.get('EndTime'))
+            'endTime': safe_timestamp_to_int(wave.get('EndTime')),
+            'jobId': wave.get('JobId'),  # DRS job ID for display
         })
     
     # CRITICAL FIX: Convert string timestamps to integers for JavaScript Date()

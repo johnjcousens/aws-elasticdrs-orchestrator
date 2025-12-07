@@ -154,9 +154,10 @@ export interface WaveExecution {
   waveNumber: number;
   waveName: string;
   status: ExecutionStatus;
-  startTime?: string;
-  endTime?: string;
+  startTime?: string | number;
+  endTime?: string | number;
   duration?: number;
+  jobId?: string;
   serverExecutions: ServerExecution[];
   preWaveActionsStatus?: ActionStatus[];
   postWaveActionsStatus?: ActionStatus[];
@@ -166,13 +167,20 @@ export interface WaveExecution {
 export interface ServerExecution {
   serverId: string;
   serverName?: string;
-  status: ExecutionStatus;
-  launchStatus?: 'not_started' | 'in_progress' | 'completed' | 'failed';
+  hostname?: string;
+  region?: string;
+  sourceInstanceId?: string;  // Original EC2 instance being replicated
+  sourceAccountId?: string;   // Source AWS account ID
+  status: ExecutionStatus | string;
+  launchStatus?: string;
+  replicationState?: string;  // DRS replication state (CONTINUOUS, etc.)
   healthCheckStatus?: 'not_started' | 'in_progress' | 'passed' | 'failed';
   startTime?: string;
   endTime?: string;
   duration?: number;
   recoveredInstanceId?: string;
+  instanceType?: string;
+  privateIp?: string;
   error?: ExecutionError;
   healthCheckResults?: HealthCheckResult[];
 }
