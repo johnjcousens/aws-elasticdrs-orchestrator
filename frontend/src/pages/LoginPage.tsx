@@ -9,13 +9,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  Box,
   SpaceBetween,
   Button,
   FormField,
   Input,
   Alert,
-  Container,
   Header,
 } from '@cloudscape-design/components';
 
@@ -66,95 +64,101 @@ export const LoginPage: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
+        width: '100vw',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #232F3E 0%, #FF9900 100%)',
+        background: 'linear-gradient(135deg, #232F3E 0%, #1a242f 100%)',
+        fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+        margin: 0,
+        padding: 0,
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
       }}
     >
-      <Container>
-        <div
-          style={{
-            maxWidth: '400px',
-            margin: '0 auto',
-            padding: '2rem',
-            backgroundColor: 'white',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }}
-        >
-          <SpaceBetween size="l">
-            {/* Header */}
-            <div style={{ textAlign: 'center' }}>
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '50%',
-                  backgroundColor: '#232F3E',
-                  marginBottom: '1rem',
-                }}
-              >
-                <span style={{ fontSize: '32px' }}>🔒</span>
-              </div>
-              <Header variant="h1">AWS DRS Orchestration</Header>
-              <p style={{ color: '#5f6b7a', marginTop: '0.5rem' }}>
-                Sign in to access the platform
-              </p>
-            </div>
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          padding: '40px',
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        }}
+      >
+        <SpaceBetween size="l">
+          {/* Header with AWS Logo */}
+          <div style={{ textAlign: 'center' }}>
+            <img 
+              src="https://d0.awsstatic.com/logos/powered-by-aws.png" 
+              alt="Powered by AWS"
+              style={{ height: '40px', marginBottom: '20px' }}
+            />
+            <h1 style={{ 
+              fontSize: '20px', 
+              fontWeight: 700, 
+              color: '#232F3E',
+              margin: '0 0 8px 0',
+              fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+            }}>
+              Elastic Disaster Recovery Orchestrator
+            </h1>
+            <p style={{ 
+              color: '#5f6b7a', 
+              margin: 0, 
+              fontSize: '14px',
+              fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+            }}>
+              Enterprise Disaster Recovery Management
+            </p>
+          </div>
 
-            {/* Error Alert */}
-            {error && (
-              <Alert type="error">
-                {error}
-              </Alert>
-            )}
+          {/* Error Alert */}
+          {error && (
+            <Alert type="error">
+              {error}
+            </Alert>
+          )}
 
-            {/* Login Form */}
-            <form onSubmit={handleSubmit}>
-              <SpaceBetween size="l">
-                <FormField label="Username">
-                  <Input
-                    value={username}
-                    onChange={({ detail }) => setUsername(detail.value)}
-                    placeholder="Enter your username"
-                    disabled={loading}
-                    autoFocus
-                  />
-                </FormField>
-
-                <FormField label="Password">
-                  <Input
-                    value={password}
-                    onChange={({ detail }) => setPassword(detail.value)}
-                    type="password"
-                    placeholder="Enter your password"
-                    disabled={loading}
-                  />
-                </FormField>
-
-                <Button
-                  variant="primary"
-                  formAction="submit"
-                  fullWidth
+          {/* Login Form */}
+          <form onSubmit={handleSubmit}>
+            <SpaceBetween size="l">
+              <FormField label="Username">
+                <Input
+                  value={username}
+                  onChange={({ detail }) => setUsername(detail.value)}
+                  placeholder="Enter your username"
                   disabled={loading}
-                  loading={loading}
-                >
-                  Sign In
-                </Button>
-              </SpaceBetween>
-            </form>
+                  autoFocus
+                />
+              </FormField>
 
-            {/* Footer */}
-            <div style={{ textAlign: 'center', fontSize: '12px', color: '#5f6b7a' }}>
-              Powered by AWS Cognito
-            </div>
-          </SpaceBetween>
-        </div>
-      </Container>
+              <FormField label="Password">
+                <Input
+                  value={password}
+                  onChange={({ detail }) => setPassword(detail.value)}
+                  type="password"
+                  placeholder="Enter your password"
+                  disabled={loading}
+                />
+              </FormField>
+
+              <Button
+                variant="primary"
+                formAction="submit"
+                fullWidth
+                disabled={loading}
+                loading={loading}
+              >
+                Sign In
+              </Button>
+            </SpaceBetween>
+          </form>
+        </SpaceBetween>
+      </div>
     </div>
   );
 };

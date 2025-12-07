@@ -95,10 +95,11 @@ export const RecoveryPlansPage: React.FC = () => {
   const checkInProgressExecutions = async () => {
     try {
       const response = await apiClient.listExecutions();
-      const inProgressStatuses = ['IN_PROGRESS', 'PENDING'];
+      // Include all active statuses
+      const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED'];
       const plansWithActiveExecution = new Set<string>(
         response.items
-          .filter((exec) => inProgressStatuses.includes(exec.status))
+          .filter((exec) => activeStatuses.includes(exec.status.toUpperCase()))
           .map((exec) => exec.recoveryPlanId)
       );
       setPlansWithInProgressExecution(plansWithActiveExecution);
@@ -293,44 +294,35 @@ export const RecoveryPlansPage: React.FC = () => {
             {
               id: 'actions',
               header: 'Actions',
+              width: 150,
               cell: (item) => {
                 const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
                 const isDisabled = item.status === 'archived' || executing || hasInProgressExecution;
                 
                 return (
-                  <SpaceBetween direction="horizontal" size="xs">
-                    <ButtonDropdown
-                      items={[
-                        { id: 'drill', text: '🔵 Run Drill', description: 'Test recovery without failover' },
-                        { id: 'recovery', text: '⚠️ Run Recovery', description: 'Actual failover operation' },
-                      ]}
-                      onItemClick={({ detail }) => {
-                        if (detail.id === 'drill') {
-                          handleExecute(item, 'DRILL');
-                        } else if (detail.id === 'recovery') {
-                          handleExecute(item, 'RECOVERY');
-                        }
-                      }}
-                      disabled={isDisabled}
-                    >
-                      Execute
-                    </ButtonDropdown>
-                    <ButtonDropdown
-                      items={[
-                        { id: 'edit', text: 'Edit' },
-                        { id: 'delete', text: 'Delete' },
-                      ]}
-                      onItemClick={({ detail }) => {
-                        if (detail.id === 'edit') {
-                          handleEdit(item);
-                        } else if (detail.id === 'delete') {
-                          handleDelete(item);
-                        }
-                      }}
-                    >
-                      Actions
-                    </ButtonDropdown>
-                  </SpaceBetween>
+                  <ButtonDropdown
+                    items={[
+                      { id: 'drill', text: '🔵 Run Drill', description: 'Test recovery without failover', disabled: isDisabled },
+                      { id: 'recovery', text: '⚠️ Run Recovery', description: 'Actual failover operation', disabled: isDisabled },
+                      { id: 'divider', text: '-', disabled: true },
+                      { id: 'edit', text: 'Edit', disabled: hasInProgressExecution },
+                      { id: 'delete', text: 'Delete', disabled: hasInProgressExecution },
+                    ]}
+                    onItemClick={({ detail }) => {
+                      if (detail.id === 'drill') {
+                        handleExecute(item, 'DRILL');
+                      } else if (detail.id === 'recovery') {
+                        handleExecute(item, 'RECOVERY');
+                      } else if (detail.id === 'edit') {
+                        handleEdit(item);
+                      } else if (detail.id === 'delete') {
+                        handleDelete(item);
+                      }
+                    }}
+                    expandToViewport
+                    variant="icon"
+                    ariaLabel="Actions"
+                  />
                 );
               },
             },
