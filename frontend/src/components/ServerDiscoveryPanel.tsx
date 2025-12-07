@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  Button,
+  Checkbox,
   FormField,
   Input,
   Select,
@@ -15,6 +15,12 @@ import apiClient from '../services/api';
 interface DRSServer {
   sourceServerID: string;
   hostname: string;
+  nameTag?: string;
+  sourceInstanceId?: string;
+  sourceIp?: string;
+  sourceRegion?: string;
+  sourceAccount?: string;
+  os?: string;
   state: string;
   replicationState: string;
   lagDuration: string;
@@ -43,6 +49,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'available' | 'assigned'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'hostname' | 'ip'>('name');
   const [drsInitialized, setDrsInitialized] = useState(true);
 
   // Fetch servers
@@ -93,24 +100,52 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     return () => clearInterval(interval);
   }, [region, drsInitialized, fetchServers]);
 
-  // Filter and search
-  const filteredServers = servers.filter(server => {
-    // Apply filter
-    if (filter === 'available' && !server.selectable) return false;
-    if (filter === 'assigned' && server.selectable) return false;
-    
-    // Apply search
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        server.hostname.toLowerCase().includes(searchLower) ||
-        server.sourceServerID.toLowerCase().includes(searchLower) ||
-        server.assignedToProtectionGroup?.protectionGroupName.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    return true;
-  });
+  // Filter, search, and sort
+  const filteredServers = servers
+    .filter(server => {
+      // Apply filter
+      if (filter === 'available' && !server.selectable) return false;
+      if (filter === 'assigned' && server.selectable) return false;
+      
+      // Apply search - include all new fields
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          server.hostname.toLowerCase().includes(searchLower) ||
+          server.sourceServerID.toLowerCase().includes(searchLower) ||
+          server.nameTag?.toLowerCase().includes(searchLower) ||
+          server.sourceInstanceId?.toLowerCase().includes(searchLower) ||
+          server.sourceIp?.toLowerCase().includes(searchLower) ||
+          server.sourceRegion?.toLowerCase().includes(searchLower) ||
+          server.sourceAccount?.toLowerCase().includes(searchLower) ||
+          server.assignedToProtectionGroup?.protectionGroupName.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by selected field
+      let aVal = '';
+      let bVal = '';
+      
+      switch (sortBy) {
+        case 'name':
+          aVal = (a.nameTag || a.hostname || '').toLowerCase();
+          bVal = (b.nameTag || b.hostname || '').toLowerCase();
+          break;
+        case 'hostname':
+          aVal = (a.hostname || '').toLowerCase();
+          bVal = (b.hostname || '').toLowerCase();
+          break;
+        case 'ip':
+          aVal = (a.sourceIp || '').toLowerCase();
+          bVal = (b.sourceIp || '').toLowerCase();
+          break;
+      }
+      
+      return aVal.localeCompare(bVal);
+    });
 
   // Handle selection
   const handleToggle = (serverId: string) => {
@@ -165,19 +200,19 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
 
   return (
     <div>
-      {/* Search and Filter */}
-      <div style={{ display: 'flex', marginBottom: '16px' }}>
-        <div style={{ flex: 1, marginRight: '16px' }}>
+      {/* Search, Filter, and Sort */}
+      <div style={{ display: 'flex', marginBottom: '16px', gap: '16px' }}>
+        <div style={{ flex: 1 }}>
           <FormField>
             <Input
               type="search"
-              placeholder="Search by hostname, server ID, or Protection Group..."
+              placeholder="Search by name, hostname, instance ID, IP..."
               value={searchTerm}
               onChange={({ detail }) => setSearchTerm(detail.value)}
             />
           </FormField>
         </div>
-        <div style={{ minWidth: '150px' }}>
+        <div style={{ minWidth: '140px' }}>
           <FormField label="Filter">
             <Select
               selectedOption={{ label: filter === 'all' ? 'All Servers' : filter === 'available' ? 'Available' : 'Assigned', value: filter }}
@@ -190,49 +225,69 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
             />
           </FormField>
         </div>
+        <div style={{ minWidth: '140px' }}>
+          <FormField label="Sort by">
+            <Select
+              selectedOption={{ 
+                label: sortBy === 'name' ? 'Name Tag' : sortBy === 'hostname' ? 'Hostname' : 'IP Address', 
+                value: sortBy 
+              }}
+              onChange={({ detail }) => setSortBy(detail.selectedOption.value as any)}
+              options={[
+                { label: 'Name Tag', value: 'name' },
+                { label: 'Hostname', value: 'hostname' },
+                { label: 'IP Address', value: 'ip' }
+              ]}
+            />
+          </FormField>
+        </div>
       </div>
 
       {/* Server Count */}
-      <div style={{ display: 'flex', marginBottom: '16px' }}>
-        <div style={{ flex: 1, fontSize: '14px', color: '#5f6b7a' }}>
-          Total: {servers.length} | Available: {availableCount} | Assigned: {assignedCount}
-        </div>
-        <div>
-          <Button
-            variant="inline-link"
-            onClick={handleSelectAll}
-            disabled={availableCount === 0}
-          >
-            Select All Available
-          </Button>
-          <Button
-            variant="inline-link"
-            onClick={handleDeselectAll}
-            disabled={selectedServerIds.length === 0}
-          >
-            Deselect All
-          </Button>
-        </div>
+      <div style={{ fontSize: '14px', color: '#5f6b7a', marginBottom: '8px' }}>
+        Total: {servers.length} | Available: {availableCount} | Assigned: {assignedCount}
       </div>
 
       {/* Server List */}
       <Container>
-        <div style={{ maxHeight: '400px', overflow: 'auto', border: '1px solid #e9ebed', borderRadius: '8px' }}>
-          {filteredServers.map((server) => (
-            <ServerListItem
-              key={server.sourceServerID}
-              server={server}
-              selected={selectedServerIds.includes(server.sourceServerID)}
-              onToggle={() => handleToggle(server.sourceServerID)}
-            />
-          ))}
+        <div style={{ border: '1px solid #e9ebed', borderRadius: '8px' }}>
+          {/* Select All Header */}
+          <div style={{ 
+            padding: '12px 16px', 
+            borderBottom: '1px solid #e9ebed',
+            backgroundColor: '#fafafa'
+          }}>
+            <Checkbox
+              checked={selectedServerIds.length > 0 && selectedServerIds.length === filteredServers.filter(s => s.selectable).length}
+              indeterminate={selectedServerIds.length > 0 && selectedServerIds.length < filteredServers.filter(s => s.selectable).length}
+              onChange={({ detail }) => {
+                if (detail.checked) {
+                  handleSelectAll();
+                } else {
+                  handleDeselectAll();
+                }
+              }}
+              disabled={availableCount === 0}
+            >
+              <span style={{ fontWeight: 600 }}>
+                Select All ({selectedServerIds.length} of {availableCount} selected)
+              </span>
+            </Checkbox>
+          </div>
+          
+          {/* Server Items */}
+          <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+            {filteredServers.map((server) => (
+              <ServerListItem
+                key={server.sourceServerID}
+                server={server}
+                selected={selectedServerIds.includes(server.sourceServerID)}
+                onToggle={() => handleToggle(server.sourceServerID)}
+              />
+            ))}
+          </div>
         </div>
       </Container>
-
-      {/* Selection Count */}
-      <div style={{ fontSize: '14px', color: '#5f6b7a', marginTop: '8px' }}>
-        {selectedServerIds.length} of {availableCount} available servers selected
-      </div>
     </div>
   );
 };

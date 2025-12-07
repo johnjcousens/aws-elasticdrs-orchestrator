@@ -173,19 +173,14 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <Header variant="h3">Wave Configuration</Header>
+      {/* Header with Add Wave button */}
+      <Box float="right" margin={{ bottom: 's' }}>
         {!readonly && (
-          <Button
-            variant="primary"
-            iconName="add-plus"
-            onClick={handleAddWave}
-          >
+          <Button iconName="add-plus" onClick={handleAddWave}>
             Add Wave
           </Button>
         )}
-      </div>
+      </Box>
 
       {/* Waves list */}
       {safeWaves.length === 0 ? (
