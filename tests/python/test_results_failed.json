@@ -1,4 +1,0 @@
-{
-  "success": false,
-  "error": "Lambda invocation failed: {'statusCode': 404, 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type,Authorization', 'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'}, 'body': '{\"error\": \"Not Found\", \"path\": \"/api/recovery-plans/ba8b28e2-7568-4c03-bff0-9f289262c1a6/execute\"}'}"
-}
