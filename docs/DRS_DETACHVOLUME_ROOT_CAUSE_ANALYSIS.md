@@ -1,8 +1,11 @@
 # DRS DetachVolume Root Cause Analysis
 
-**Date**: December 7, 2024  
+**Date**: December 7, 2025  
 **DRS Job ID**: drsjob-36fa1a468863ed51b  
-**Status**: ✅ RESOLVED - Missing `ec2:DeleteVolume` permission
+**Status**: ✅ DEPLOYED & VALIDATED (Session 71)
+
+**Validation**: Job drsjob-36ee3447586054f5e - Both servers launched successfully  
+**See**: [Session 71 Validation Report](SESSION_71_SUCCESSFUL_DRILL_VALIDATION.md) | [Session 70 Root Cause](SESSION_70_FINAL_ROOT_CAUSE.md)
 
 ---
 
@@ -241,14 +244,36 @@ IAM (for instance profiles):
 
 ---
 
+## Session 71 Validation Results
+
+✅ **PRODUCTION VALIDATED** (December 7, 2025)
+
+**Test Job**: drsjob-36ee3447586054f5e
+- ✅ EC2AMAZ-8B7IRHJ → i-01fdffb937aa6efec LAUNCHED (11:53:03)
+- ✅ EC2AMAZ-3B0B3UD → i-050bf37d129e94bfc LAUNCHED (11:54:07)
+- ✅ Duration: 23 minutes 56 seconds
+- ✅ Status: COMPLETED
+
+**IAM Policy Verified**:
+- ✅ `ec2:StartInstances` - NO conditions
+- ✅ `ec2:DeleteVolume` - NO conditions
+- ✅ `ec2:DetachVolume` - NO conditions
+
+**Key Finding**: DRS applies `AWSElasticDisasterRecoveryManaged: drs.amazonaws.com` tag to launch templates and instances. Removing IAM conditions allows DRS to complete all phases successfully.
+
+See: [Session 71 Validation Report](SESSION_71_SUCCESSFUL_DRILL_VALIDATION.md)
+
+---
+
 ## Next Steps
 
-1. ✅ CloudFormation stack update (in progress)
-2. ⏳ Wait for UPDATE_COMPLETE
-3. ⏳ Run clean DRS drill with both servers
-4. ⏳ Verify both servers LAUNCH successfully
-5. ⏳ Check DRS job log for JOB_END without errors
-6. ⏳ Proceed with Step Functions polling implementation
+1. ✅ CloudFormation stack update
+2. ✅ Wait for UPDATE_COMPLETE
+3. ✅ Run clean DRS drill with both servers
+4. ✅ Verify both servers LAUNCH successfully
+5. ✅ Check DRS job log for JOB_END without errors
+6. ⏳ Add `describe_job_log_items` polling to ExecutionPoller
+7. ⏳ Test multi-wave recovery plan through orchestration UI
 
 ---
 
@@ -256,10 +281,11 @@ IAM (for instance profiles):
 
 - **Session 68**: Authentication blocker (resolved)
 - **Session 69**: DetachVolume permission (partially resolved)
-- **This Analysis**: DeleteVolume permission (complete resolution)
+- **Session 70**: DeleteVolume IAM condition fix (deployed)
+- **Session 71**: Production validation (complete)
 
 ---
 
-**Status**: Waiting for CloudFormation UPDATE_COMPLETE  
-**Expected Resolution**: Both servers will launch successfully in next drill  
-**Confidence**: HIGH - Error message explicitly states missing permission
+**Status**: ✅ PRODUCTION VALIDATED  
+**Resolution**: Both servers launched successfully - Fix confirmed working  
+**Confidence**: VERY HIGH - Validated in production
