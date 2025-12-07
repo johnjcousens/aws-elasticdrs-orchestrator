@@ -233,12 +233,9 @@ export const RecoveryPlansPage: React.FC = () => {
               id: 'name',
               header: 'Plan Name',
               cell: (item) => (
-                <div>
-                  <div style={{ fontWeight: 500 }}>{item.name}</div>
-                  {item.description && (
-                    <div style={{ fontSize: '12px', color: '#5f6b7a' }}>{item.description}</div>
-                  )}
-                </div>
+                <span title={item.description || ''} style={{ fontWeight: 500 }}>
+                  {item.name}
+                </span>
               ),
               sortingField: 'name',
             },
