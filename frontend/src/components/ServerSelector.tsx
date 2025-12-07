@@ -22,7 +22,7 @@ import apiClient from '../services/api';
 
 interface ServerSelectorProps {
   protectionGroupId: string;  // Backward compatibility - single PG
-  protectionGroupIds?: string[];  // Multi-PG support (VMware SRM parity)
+  protectionGroupIds?: string[];  // Multi-PG support
   selectedServerIds: string[];
   onChange: (serverIds: string[]) => void;
   readonly?: boolean;
