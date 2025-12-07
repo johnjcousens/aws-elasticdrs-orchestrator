@@ -192,8 +192,8 @@ npx tsc --noEmit
 
 ### Frontend Deployment
 ```bash
-# Deploy to S3 (current TEST environment)
-aws s3 sync frontend/dist/ s3://drs-orchestration-fe-438465159935-test/ --delete --region us-east-1
+# Deploy to S3 (exclude aws-config.json to preserve CloudFormation-injected config)
+aws s3 sync frontend/dist/ s3://drs-orchestration-fe-438465159935-test/ --delete --exclude "aws-config.json" --region us-east-1
 
 # Invalidate CloudFront cache
 aws cloudfront create-invalidation --distribution-id E46O075T9AHF3 --paths '/*' --region us-east-1
