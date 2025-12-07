@@ -328,6 +328,13 @@ Resources:
                   - ec2:CopyImage
                   - ec2:RegisterImage
                 Resource: '*'
+              # CRITICAL: DRS uses Lambda credentials for DetachVolume during recovery launch
+              # CloudTrail shows: invokedBy=drs.amazonaws.com, inScopeOf=Lambda function
+              # Without this, DRS recovery fails with UnauthorizedOperation on DetachVolume
+              - Effect: Allow
+                Action:
+                  - ec2:DetachVolume
+                Resource: '*'
         - PolicyName: SSMAccess
           PolicyDocument:
             Version: '2012-10-17'
