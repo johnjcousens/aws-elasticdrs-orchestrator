@@ -158,36 +158,22 @@ graph TB
 
 ### External System Interactions
 
-```mermaid
-C4Context
-    title System Context - AWS DRS Orchestration
+**System Context Diagram:**
 
-    Person(dr_admin, "DR Administrator", "Manages disaster recovery configuration and executes recovery plans")
-    Person(devops, "DevOps Engineer", "Automates DR via API, integrates with CI/CD")
-    Person(manager, "IT Manager", "Reviews execution history and compliance reports")
-    
-    System(orch, "AWS DRS Orchestration", "Provides SRM-like orchestration for AWS DRS")
-    
-    System_Ext(drs, "AWS DRS", "Replicates source servers to AWS, launches recovery instances")
-    System_Ext(cognito, "AWS Cognito", "Authenticates users, issues JWT tokens")
-    System_Ext(iam, "AWS IAM/STS", "Authorizes cross-account access via assumed roles")
-    System_Ext(cloudtrail, "AWS CloudTrail", "Audits all API calls for compliance")
-    System_Ext(cloudwatch, "AWS CloudWatch", "Monitors metrics, logs, triggers alarms")
-    System_Ext(sns, "AWS SNS", "Sends notifications on execution completion")
-    
-    Rel(dr_admin, orch, "Manages Protection Groups and Recovery Plans", "HTTPS/Web UI")
-    Rel(devops, orch, "Automates DR operations", "HTTPS/REST API")
-    Rel(manager, orch, "Reviews execution history", "HTTPS/Web UI")
-    
-    Rel(orch, drs, "Discovers source servers, initiates recovery", "AWS SDK/boto3")
-    Rel(orch, cognito, "Authenticates users", "AWS SDK")
-    Rel(orch, iam, "Assumes cross-account roles", "STS AssumeRole")
-    Rel(orch, cloudtrail, "Logs API calls", "Automatic")
-    Rel(orch, cloudwatch, "Writes logs and metrics", "CloudWatch Logs API")
-    Rel(orch, sns, "Publishes notifications", "SNS Publish API")
-    
-    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")
-```
+| Actor | Interaction | Protocol |
+|-------|-------------|----------|
+| DR Administrator | Manages Protection Groups and Recovery Plans | HTTPS/Web UI |
+| DevOps Engineer | Automates DR operations | HTTPS/REST API |
+| IT Manager | Reviews execution history | HTTPS/Web UI |
+
+| External System | Integration | Purpose |
+|-----------------|-------------|---------|
+| AWS DRS | AWS SDK/boto3 | Source server replication and recovery |
+| AWS Cognito | AWS SDK | User authentication, JWT tokens |
+| AWS IAM/STS | STS AssumeRole | Cross-account access |
+| AWS CloudTrail | Automatic | Audit logging |
+| AWS CloudWatch | CloudWatch Logs API | Metrics and logging |
+| AWS SNS | SNS Publish API | Notifications |
 
 ### External Dependencies
 
@@ -227,50 +213,24 @@ C4Context
 
 ### Container Diagram (C4 Model)
 
-```mermaid
-C4Container
-    title Container Diagram - AWS DRS Orchestration
+**Container Overview:**
 
-    Person(user, "User", "DR Administrator or DevOps Engineer")
-    
-    Container(frontend, "Frontend Application", "React 18.3 SPA", "Responsive web UI for DR management")
-    Container(cdn, "CloudFront", "AWS CDN", "Global content delivery, HTTPS, caching")
-    Container(s3, "Frontend Storage", "S3 Bucket", "Static asset hosting")
-    
-    Container(apigw, "API Gateway", "AWS API Gateway", "REST API with 30+ resources, Cognito authorizer")
-    Container(waf, "WAF", "AWS WAF", "Rate limiting, IP filtering, DDoS protection")
-    Container(cognito, "User Pool", "AWS Cognito", "User authentication, JWT token issuance")
-    
-    Container(api_lambda, "API Handler", "Lambda Python 3.12", "Business logic: CRUD operations, validation")
-    Container(orch_lambda, "Orchestration", "Lambda Python 3.12", "DRS integration: recovery, monitoring")
-    Container(stepfn, "Execution Engine", "Step Functions", "Wave-based orchestration state machine")
-    
-    ContainerDb(db_pg, "Protection Groups", "DynamoDB", "PG metadata: name, region, servers")
-    ContainerDb(db_rp, "Recovery Plans", "DynamoDB", "RP config: waves, dependencies")
-    ContainerDb(db_eh, "Execution History", "DynamoDB", "Audit trail: executions, status, timing")
-    
-    System_Ext(drs, "AWS DRS", "Source server replication and recovery")
-    System_Ext(ec2, "AWS EC2", "Health checks on recovered instances")
-    
-    Rel(user, cdn, "Uses", "HTTPS")
-    Rel(cdn, s3, "Serves from", "HTTPS")
-    Rel(user, apigw, "API calls", "HTTPS/REST")
-    Rel(cdn, frontend, "Delivers")
-    Rel(frontend, cognito, "Authenticates", "AWS Amplify")
-    Rel(frontend, waf, "Protected by")
-    Rel(waf, apigw, "Filters requests")
-    Rel(apigw, api_lambda, "Invokes", "Synchronous")
-    Rel(apigw, cognito, "Validates JWT")
-    Rel(api_lambda, db_pg, "Reads/Writes")
-    Rel(api_lambda, db_rp, "Reads/Writes")
-    Rel(api_lambda, stepfn, "Starts execution")
-    Rel(stepfn, orch_lambda, "Invokes", "Asynchronous")
-    Rel(orch_lambda, drs, "Calls API", "boto3")
-    Rel(orch_lambda, ec2, "Health checks", "boto3")
-    Rel(orch_lambda, db_eh, "Writes history")
-    
-    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="2")
-```
+| Layer | Container | Technology | Purpose |
+|-------|-----------|------------|---------|
+| Frontend | Frontend Application | React 18.3 SPA | Responsive web UI for DR management |
+| Frontend | CloudFront | AWS CDN | Global content delivery, HTTPS, caching |
+| Frontend | Frontend Storage | S3 Bucket | Static asset hosting |
+| API | API Gateway | AWS API Gateway | REST API with 30+ resources, Cognito authorizer |
+| API | WAF | AWS WAF | Rate limiting, IP filtering, DDoS protection |
+| API | User Pool | AWS Cognito | User authentication, JWT token issuance |
+| Compute | API Handler | Lambda Python 3.12 | Business logic: CRUD operations, validation |
+| Compute | Orchestration | Lambda Python 3.12 | DRS integration: recovery, monitoring |
+| Compute | Execution Engine | Step Functions | Wave-based orchestration state machine |
+| Data | Protection Groups | DynamoDB | PG metadata: name, region, servers |
+| Data | Recovery Plans | DynamoDB | RP config: waves, dependencies |
+| Data | Execution History | DynamoDB | Audit trail: executions, status, timing |
+
+**Data Flow:** User → CloudFront → S3 → React App → API Gateway → Lambda → DynamoDB/Step Functions → DRS
 
 ### Component Responsibilities
 
