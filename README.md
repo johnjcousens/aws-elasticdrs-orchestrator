@@ -146,28 +146,13 @@ Organize your DRS source servers into logical groups for coordinated recovery.
 
 Define multi-wave recovery sequences with explicit dependencies.
 
-```mermaid
-graph LR
-    subgraph "Wave 1 - Database"
-        DB1[SQL Primary]
-        DB2[SQL Secondary]
-    end
-    
-    subgraph "Wave 2 - Application"
-        APP1[App Server 1]
-        APP2[App Server 2]
-    end
-    
-    subgraph "Wave 3 - Web"
-        WEB1[Web Server 1]
-        WEB2[Web Server 2]
-    end
-    
-    DB1 --> APP1
-    DB2 --> APP1
-    APP1 --> WEB1
-    APP2 --> WEB2
-```
+**Wave Execution Example:**
+
+| Wave | Tier | Servers | Depends On |
+|------|------|---------|------------|
+| 1 | Database | SQL Primary, SQL Secondary | - |
+| 2 | Application | App Server 1, App Server 2 | Wave 1 |
+| 3 | Web | Web Server 1, Web Server 2 | Wave 2 |
 
 - Unlimited waves (vs VMware SRM's 5 fixed priorities)
 - Pre/post-wave automation actions via SSM
