@@ -2,350 +2,460 @@
 
 ## Overview
 
-This document describes the GitLab CI/CD pipeline for the AWS DRS Orchestration solution. The pipeline automates validation, building, testing, and deployment of both infrastructure and frontend components.
+This guide describes the GitLab CI/CD pipeline for the AWS DRS Orchestration solution. The pipeline automates validation, building, and deployment of CloudFormation infrastructure and React frontend.
+
+## Prerequisites
+
+Before setting up the pipeline, ensure you have:
+
+1. **GitLab Repository** - Code pushed to GitLab (code.amazon.com or gitlab.com)
+2. **AWS Account** - With permissions to deploy CloudFormation, Lambda, S3, CloudFront
+3. **S3 Deployment Bucket** - Pre-created bucket for artifacts (default: `aws-drs-orchestration`)
+4. **IAM Credentials** - Access key with deployment permissions
+
+## Quick Start
+
+### Step 1: Create S3 Deployment Bucket
+
+```bash
+aws s3 mb s3://aws-drs-orchestration --region us-east-1
+aws s3api put-bucket-versioning \
+  --bucket aws-drs-orchestration \
+  --versioning-configuration Status=Enabled
+```
+
+### Step 2: Configure GitLab CI/CD Variables
+
+Navigate to **Settings > CI/CD > Variables** and add:
+
+| Variable | Type | Protected | Masked | Value |
+|----------|------|-----------|--------|-------|
+| `AWS_ACCESS_KEY_ID` | Variable | Yes | Yes | Your AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | Variable | Yes | Yes | Your AWS secret key |
+| `ADMIN_EMAIL` | Variable | Yes | No | Admin email for Cognito |
+
+### Step 3: Push Code and Trigger Pipeline
+
+```bash
+git push origin main
+```
+
+The pipeline will automatically run validation, build, and deployment stages.
 
 ## Pipeline Architecture
 
-```
-┌─────────────┐
-│  VALIDATE   │  CloudFormation templates, TypeScript types
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│    LINT     │  Python (pylint, black, flake8), Frontend (ESLint)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│    BUILD    │  Lambda packages, React frontend
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│    TEST     │  Playwright E2E tests (manual trigger)
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│ DEPLOY-INFRA│  Upload artifacts, Deploy CloudFormation
-└──────┬──────┘
-       │
-┌──────▼──────┐
-│DEPLOY-FRONT │  Inject config, Deploy to S3, Invalidate CloudFront
-└─────────────┘
+```mermaid
+flowchart TB
+    subgraph Validate["VALIDATE Stage"]
+        V1[validate:cloudformation]
+        V2[validate:frontend-types]
+    end
+    
+    subgraph Lint["LINT Stage"]
+        L1[lint:python]
+        L2[lint:frontend]
+    end
+    
+    subgraph Build["BUILD Stage"]
+        B1[build:lambda]
+        B2[build:frontend]
+    end
+    
+    subgraph Deploy["DEPLOY-INFRA Stage"]
+        D1[deploy:upload-artifacts]
+        D2[deploy:cloudformation]
+        D3[deploy:production]
+    end
+    
+    subgraph Frontend["DEPLOY-FRONTEND Stage"]
+        F1[deploy:frontend]
+    end
+    
+    Validate --> Lint
+    Lint --> Build
+    Build --> Deploy
+    D2 --> Frontend
 ```
 
 ## Pipeline Stages
 
 ### 1. Validate Stage
 
-**Purpose**: Ensure code quality and correctness before building
+Ensures code quality before building.
 
 #### validate:cloudformation
-- **Runs on**: Changes to `cfn/**/*` or `.gitlab-ci.yml`
+
+Validates CloudFormation templates with cfn-lint and AWS CLI.
+
+- **Image**: `python:3.12`
+- **Triggers**: Changes to `cfn/**/*`, `.cfnlintrc.yaml`, or `.gitlab-ci.yml`
 - **Actions**:
-  - Validates CloudFormation templates with `cfn-lint`
-  - Validates template syntax with AWS CLI
-- **Ignores**: W2001, W3002, W3005, W3037 (common warnings)
+  - Runs `cfn-lint` with project config
+  - Validates each template with `aws cloudformation validate-template`
 
 #### validate:frontend-types
-- **Runs on**: Changes to `frontend/**/*` or `.gitlab-ci.yml`
+
+Runs TypeScript type checking on the React frontend.
+
+- **Image**: `node:22-alpine`
+- **Triggers**: Changes to `frontend/**/*` or `.gitlab-ci.yml`
 - **Actions**:
-  - Runs TypeScript type checking (`tsc --noEmit`)
-  - Ensures no type errors before build
-- **Cache**: Frontend node_modules for faster subsequent runs
+  - Installs npm dependencies
+  - Runs `tsc --noEmit` for type checking
+- **Cache**: `frontend/node_modules/`
 
 ### 2. Lint Stage
 
-**Purpose**: Enforce code style and best practices
+Enforces code style (non-blocking).
 
 #### lint:python
-- **Runs on**: Changes to `lambda/**/*.py` or `.gitlab-ci.yml`
+
+Lints Lambda Python code.
+
+- **Image**: `python:3.12`
+- **Triggers**: Changes to `lambda/**/*.py` or `.gitlab-ci.yml`
 - **Tools**:
-  - **pylint**: Code quality checks (disabled: C0114, C0115, C0116, R0903, W0613, C0103)
-  - **black**: Code formatting (120 char line length)
-  - **flake8**: Style guide enforcement (ignores: E203, W503, E501)
-- **Note**: All linters run in non-blocking mode (`|| true`)
+  - `pylint` - Code quality (disabled: C0114, C0115, C0116, R0903, W0613, C0103)
+  - `black` - Formatting (120 char line length)
+  - `flake8` - Style guide (ignores: E203, W503, E501)
+- **Note**: All linters run with `|| true` (non-blocking)
 
 #### lint:frontend
-- **Runs on**: Changes to `frontend/**/*` or `.gitlab-ci.yml`
-- **Actions**:
-  - Runs ESLint on TypeScript/React code
-- **Cache**: Frontend node_modules
+
+Lints React/TypeScript code with ESLint.
+
+- **Image**: `node:22-alpine`
+- **Triggers**: Changes to `frontend/**/*` or `.gitlab-ci.yml`
+- **Note**: Non-blocking (`|| true`)
 
 ### 3. Build Stage
 
-**Purpose**: Create deployment artifacts
+Creates deployment artifacts.
 
 #### build:lambda
-- **Runs on**: `main` branch or `dev/*` branches
-- **Actions**:
-  1. Install Python dependencies to `package/` directory
-  2. Create 4 Lambda deployment packages:
-     - `api-handler.zip` (main API logic)
-     - `orchestration.zip` (DRS recovery orchestration)
-     - `execution-finder.zip` (discover PENDING executions)
-     - `execution-poller.zip` (poll DRS job status)
-  3. Exclude `.pyc` files and `__pycache__` directories
-- **Artifacts**: Lambda zip files (1 hour expiration)
+
+Packages Lambda functions with dependencies.
+
+- **Image**: `python:3.12`
+- **Triggers**: `main` branch or `dev/*` branches
+- **Creates**:
+  - `api-handler.zip` - Main API handler (`index.py`)
+  - `orchestration.zip` - Legacy DRS orchestration (`drs_orchestrator.py`)
+  - `execution-finder.zip` - Execution finder (`poller/execution_finder.py`)
+  - `execution-poller.zip` - Execution poller (`poller/execution_poller.py`)
+- **Not Built** (manual packaging required):
+  - `orchestration-stepfunctions.zip` - Step Functions orchestration (`orchestration_stepfunctions.py`)
+  - `frontend-builder.zip` - CloudFormation custom resource (`build_and_deploy.py`)
+- **Artifacts**: Expire in 1 week
 
 #### build:frontend
-- **Runs on**: `main` branch or `dev/*` branches
-- **Actions**:
-  1. Install npm dependencies
-  2. Build React frontend with Vite
-  3. Output to `frontend/dist/`
-- **Artifacts**: Frontend build directory (1 hour expiration)
-- **Cache**: Frontend node_modules
 
-### 4. Test Stage
+Builds React frontend with Vite.
 
-**Purpose**: Run automated tests
+- **Image**: `node:22-alpine`
+- **Triggers**: `main` branch or `dev/*` branches
+- **Output**: `frontend/dist/`
+- **Artifacts**: Expire in 1 week
 
-#### test:playwright
-- **Runs on**: Manual trigger only
-- **Image**: `mcr.microsoft.com/playwright:v1.40.0-focal`
-- **Actions**:
-  - Runs Playwright E2E tests
-  - Generates HTML report
-- **Artifacts**: Test results and reports (7 days expiration)
-- **Note**: Manual trigger to avoid blocking deployments
+### 4. Test Stage (Currently Disabled)
+
+Test jobs are disabled because `tests/` directory is gitignored. To enable:
+
+1. Remove `tests/` from `.gitignore`
+2. Uncomment test jobs in `.gitlab-ci.yml`
+3. Push test files to repository
 
 ### 5. Deploy Infrastructure Stage
 
-**Purpose**: Deploy AWS infrastructure
+Deploys AWS resources.
 
 #### deploy:upload-artifacts
-- **Runs on**: `main` branch or `dev/*` branches
-- **Actions**:
-  1. Upload CloudFormation templates to S3
-  2. Upload Lambda packages to S3
-- **S3 Bucket**: `aws-drs-orchestration`
-- **Structure**:
-  ```
-  s3://aws-drs-orchestration/
-  ├── cfn/
-  │   ├── master-template.yaml
-  │   ├── database-stack.yaml
-  │   ├── lambda-stack.yaml
-  │   ├── api-stack.yaml
-  │   ├── security-stack.yaml
-  │   └── frontend-stack.yaml
-  └── lambda/
-      ├── api-handler.zip
-      ├── orchestration.zip
-      ├── execution-finder.zip
-      └── execution-poller.zip
-  ```
+
+Uploads artifacts to S3 deployment bucket.
+
+- **Image**: `public.ecr.aws/aws-cli/aws-cli:latest`
+- **Triggers**: `main` branch or `dev/*` branches
+- **Uploads**:
+
+```text
+s3://aws-drs-orchestration/
+├── cfn/                        # CloudFormation templates
+│   ├── master-template.yaml
+│   ├── database-stack.yaml
+│   ├── lambda-stack.yaml
+│   ├── api-stack.yaml
+│   ├── security-stack.yaml
+│   ├── step-functions-stack.yaml
+│   └── frontend-stack.yaml
+└── lambda/                     # Lambda packages
+    ├── api-handler.zip
+    ├── orchestration.zip
+    ├── execution-finder.zip
+    └── execution-poller.zip
+```
+
+> **Note**: The `orchestration-stepfunctions.zip` package is not currently built by CI. If Step Functions orchestration is needed, add it to the `build:lambda` job.
 
 #### deploy:cloudformation
-- **Runs on**: `main` branch or `dev/*` branches
-- **Actions**:
-  1. Deploy CloudFormation master template
-  2. Wait for stack creation/update to complete
-  3. Display stack outputs
+
+Deploys CloudFormation nested stack.
+
+- **Image**: `public.ecr.aws/aws-cli/aws-cli:latest`
+- **Triggers**: `main` branch or `dev/*` branches
+- **Stack Name**: `drs-orchestration-{branch-slug}`
 - **Parameters**:
   - `ProjectName`: drs-orchestration
-  - `Environment`: test (or dev)
+  - `Environment`: test
   - `SourceBucket`: aws-drs-orchestration
   - `AdminEmail`: From CI/CD variable
 - **Capabilities**: CAPABILITY_IAM, CAPABILITY_NAMED_IAM
 
+#### deploy:production
+
+Manual production deployment.
+
+- **Triggers**: Manual only on `main` branch
+- **Stack Name**: `drs-orchestration-prod`
+- **Environment**: prod
+
 ### 6. Deploy Frontend Stage
 
-**Purpose**: Deploy React frontend to S3/CloudFront
-
 #### deploy:frontend
-- **Runs on**: `main` branch or `dev/*` branches
+
+Deploys React app to S3 and invalidates CloudFront.
+
+- **Image**: `public.ecr.aws/aws-cli/aws-cli:latest`
+- **Triggers**: `main` branch or `dev/*` branches
 - **Actions**:
-  1. Retrieve CloudFormation outputs (API endpoint, Cognito details, etc.)
-  2. Generate `aws-config.js` with runtime configuration
-  3. Upload frontend to S3 with cache headers:
+  1. Retrieves CloudFormation outputs (API endpoint, Cognito IDs, etc.)
+  2. Generates `aws-config.js` with runtime configuration
+  3. Uploads to S3 with cache headers:
      - Static assets: `max-age=31536000, immutable`
      - HTML/config: `no-cache, no-store, must-revalidate`
-  4. Create CloudFront invalidation for `/*`
-  5. Display application URL
+  4. Creates CloudFront invalidation
 
-## CI/CD Variables
-
-Configure these in GitLab CI/CD settings:
+## CI/CD Variables Reference
 
 ### Required Variables
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `AWS_ACCESS_KEY_ID` | AWS access key for deployment | `AKIAIOSFODNN7EXAMPLE` |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key for deployment | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `ADMIN_EMAIL` | Email for Cognito admin user | `admin@example.com` |
+| `AWS_ACCESS_KEY_ID` | AWS access key | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key | `wJalrXUtnFEMI/...` |
+| `ADMIN_EMAIL` | Cognito admin email | `admin@example.com` |
 
-### Optional Variables
+### Built-in Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AWS_DEFAULT_REGION` | AWS region for deployment | `us-east-1` |
-| `DEPLOYMENT_BUCKET` | S3 bucket for artifacts | `aws-drs-orchestration` |
-| `ENVIRONMENT` | Deployment environment | `test` |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AWS_DEFAULT_REGION` | `us-east-1` | AWS deployment region |
+| `DEPLOYMENT_BUCKET` | `aws-drs-orchestration` | S3 bucket for artifacts |
+| `ENVIRONMENT` | `test` | Deployment environment |
+| `STACK_NAME` | `drs-orchestration-{branch}` | CloudFormation stack name |
 
 ## Branch Strategy
 
-### Main Branch (`main`)
-- **Triggers**: All stages automatically
-- **Deploys to**: TEST environment
-- **Manual**: Production deployment
+| Branch | Validation | Build | Deploy | Environment |
+|--------|------------|-------|--------|-------------|
+| `main` | Auto | Auto | Auto | test |
+| `dev/*` | Auto | Auto | Auto | dev |
+| Feature | Auto | No | No | - |
+| Production | - | - | Manual | prod |
 
-### Development Branches (`dev/*`)
-- **Triggers**: All stages automatically
-- **Deploys to**: DEV environment (dynamic stack name)
-- **Cleanup**: Manual stack deletion required
+## Troubleshooting
 
-### Feature Branches
-- **Triggers**: Validate and Lint stages only
-- **No deployment**: Build artifacts not created
+### CloudFormation Validation Fails
 
-## Manual Deployments
-
-### Production Deployment
-
-Production deployments require manual approval:
-
-```yaml
-deploy:production:
-  when: manual
-  environment: production
+```text
+Error: Template format error: YAML not well-formed
 ```
 
-**Steps**:
-1. Merge to `main` branch
-2. Pipeline runs automatically for TEST
-3. Navigate to GitLab pipeline
-4. Click "Play" button on `deploy:production` job
-5. Confirm deployment
-
-### Rollback Procedure
-
-To rollback a deployment:
+**Solution**: Check YAML syntax. Run locally:
 
 ```bash
-# Option 1: Redeploy previous version
-git checkout <previous-commit>
-git push origin main --force
+cfn-lint cfn/*.yaml
+aws cloudformation validate-template --template-body file://cfn/template.yaml
+```
+
+### Lambda Build Fails
+
+```text
+Error: Could not install packages
+```
+
+**Solution**: Check `lambda/requirements.txt` for version conflicts.
+
+### Frontend Build Fails
+
+```text
+Error: Cannot find module '@cloudscape-design/components'
+```
+
+**Solution**: Ensure `package-lock.json` is committed:
+
+```bash
+cd frontend
+npm install
+git add package-lock.json
+git commit -m "Update package-lock.json"
+```
+
+### CloudFormation Deployment Fails
+
+```text
+Error: Stack is in UPDATE_ROLLBACK_COMPLETE state
+```
+
+**Solution**: Delete the stack and redeploy:
+
+```bash
+aws cloudformation delete-stack --stack-name drs-orchestration-test
+aws cloudformation wait stack-delete-complete --stack-name drs-orchestration-test
+# Then re-run pipeline
+```
+
+### Frontend Deployment Fails
+
+```text
+Error: NoSuchBucket when calling PutObject
+```
+
+**Solution**: Ensure CloudFormation stack deployed successfully first. The frontend bucket is created by CloudFormation.
+
+## Manual Operations
+
+### Trigger Pipeline Manually
+
+Via GitLab UI: **CI/CD > Pipelines > Run pipeline**
+
+### Rollback Deployment
+
+```bash
+# Option 1: Revert commit and push
+git revert HEAD
+git push origin main
 
 # Option 2: CloudFormation rollback
 aws cloudformation cancel-update-stack --stack-name drs-orchestration-test
 
-# Option 3: Manual rollback via AWS Console
-# Navigate to CloudFormation → Select stack → Actions → Roll back
+# Option 3: Restore previous Lambda version from S3
+aws s3api list-object-versions --bucket aws-drs-orchestration --prefix lambda/api-handler.zip
+aws lambda update-function-code \
+  --function-name drs-orchestration-api-handler-test \
+  --s3-bucket aws-drs-orchestration \
+  --s3-key lambda/api-handler.zip \
+  --s3-object-version <previous-version-id>
 ```
 
-## Troubleshooting
+### Clear GitLab CI Cache
 
-### Pipeline Failures
+Navigate to **CI/CD > Pipelines > Clear runner caches**
 
-#### CloudFormation Validation Fails
+## IAM Permissions Required
+
+The CI/CD IAM user needs these permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3DeploymentBucket",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": ["arn:aws:s3:::aws-drs-orchestration", "arn:aws:s3:::aws-drs-orchestration/*"]
+    },
+    {
+      "Sid": "S3FrontendBucket",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket", "s3:CreateBucket", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:PutBucketWebsite", "s3:PutBucketPublicAccessBlock"],
+      "Resource": ["arn:aws:s3:::drs-orchestration-*", "arn:aws:s3:::drs-orchestration-*/*"]
+    },
+    {
+      "Sid": "CloudFormation",
+      "Effect": "Allow",
+      "Action": ["cloudformation:*"],
+      "Resource": "arn:aws:cloudformation:*:*:stack/drs-orchestration-*/*"
+    },
+    {
+      "Sid": "CloudFormationValidate",
+      "Effect": "Allow",
+      "Action": ["cloudformation:ValidateTemplate", "cloudformation:DescribeStacks", "cloudformation:ListStacks"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMRoles",
+      "Effect": "Allow",
+      "Action": ["iam:CreateRole", "iam:DeleteRole", "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRole", "iam:PassRole", "iam:TagRole", "iam:CreatePolicy", "iam:DeletePolicy", "iam:GetPolicy", "iam:GetPolicyVersion"],
+      "Resource": ["arn:aws:iam::*:role/drs-orchestration-*", "arn:aws:iam::*:policy/drs-orchestration-*"]
+    },
+    {
+      "Sid": "Lambda",
+      "Effect": "Allow",
+      "Action": ["lambda:*"],
+      "Resource": "arn:aws:lambda:*:*:function:drs-orchestration-*"
+    },
+    {
+      "Sid": "DynamoDB",
+      "Effect": "Allow",
+      "Action": ["dynamodb:*"],
+      "Resource": "arn:aws:dynamodb:*:*:table/drs-orchestration-*"
+    },
+    {
+      "Sid": "Cognito",
+      "Effect": "Allow",
+      "Action": ["cognito-idp:*", "cognito-identity:*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "APIGateway",
+      "Effect": "Allow",
+      "Action": ["apigateway:*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudFront",
+      "Effect": "Allow",
+      "Action": ["cloudfront:*"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "StepFunctions",
+      "Effect": "Allow",
+      "Action": ["states:*"],
+      "Resource": "arn:aws:states:*:*:stateMachine:drs-orchestration-*"
+    },
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy", "logs:DescribeLogGroups"],
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/lambda/drs-orchestration-*"
+    },
+    {
+      "Sid": "EventBridge",
+      "Effect": "Allow",
+      "Action": ["events:*"],
+      "Resource": "arn:aws:events:*:*:rule/drs-orchestration-*"
+    }
+  ]
+}
 ```
-Error: Template format error: YAML not well-formed
-```
-**Solution**: Check YAML syntax in CloudFormation templates
 
-#### Lambda Build Fails
-```
-Error: Could not install packages due to an EnvironmentError
-```
-**Solution**: Check `lambda/requirements.txt` for incompatible versions
+## Pipeline Outputs
 
-#### Frontend Build Fails
-```
-Error: Cannot find module '@cloudscape-design/components'
-```
-**Solution**: Run `npm install` locally and commit `package-lock.json`
+After successful deployment, the pipeline outputs:
 
-#### CloudFormation Deployment Fails
-```
-Error: Stack is in UPDATE_ROLLBACK_COMPLETE state
-```
-**Solution**: Delete stack and redeploy, or fix the issue and update again
+| Output | Description |
+|--------|-------------|
+| `CloudFrontUrl` | Frontend application URL |
+| `ApiEndpoint` | API Gateway endpoint |
+| `UserPoolId` | Cognito User Pool ID |
+| `UserPoolClientId` | Cognito App Client ID |
 
-#### Frontend Deployment Fails
-```
-Error: An error occurred (NoSuchBucket) when calling the PutObject operation
-```
-**Solution**: Ensure CloudFormation stack deployed successfully first
-
-### Common Issues
-
-#### Cache Issues
-Clear GitLab CI cache:
-```bash
-# In GitLab UI: CI/CD → Pipelines → Clear runner caches
-```
-
-#### Artifact Expiration
-Artifacts expire after 1 hour. If deployment fails, rebuild:
-```bash
-# Retry the build:lambda or build:frontend job
-```
-
-#### CloudFront Invalidation Slow
-CloudFront invalidations take 5-15 minutes. Check status:
-```bash
-aws cloudfront get-invalidation \
-  --distribution-id E46O075T9AHF3 \
-  --id <invalidation-id>
-```
-
-## Performance Optimization
-
-### Cache Strategy
-- **Frontend node_modules**: Cached per branch
-- **Lambda dependencies**: Rebuilt only when `requirements.txt` changes
-
-### Parallel Execution
-- Validation jobs run in parallel
-- Lint jobs run in parallel
-- Build jobs run in parallel
-
-### Artifact Management
-- Lambda packages: 1 hour expiration
-- Frontend build: 1 hour expiration
-- Test results: 7 days expiration
-
-## Security Best Practices
-
-### Secrets Management
-- Store AWS credentials in GitLab CI/CD variables (masked)
-- Never commit credentials to repository
-- Use IAM roles with least privilege
-
-### Access Control
-- Limit who can trigger manual deployments
-- Require approval for production deployments
-- Use protected branches for `main`
-
-### Audit Trail
-- All deployments logged in GitLab
-- CloudFormation change sets provide audit trail
-- CloudTrail logs all AWS API calls
-
-## Monitoring
-
-### Pipeline Metrics
-- **Success Rate**: Track in GitLab Analytics
-- **Duration**: Monitor average pipeline duration
-- **Failure Patterns**: Identify common failure points
-
-### Deployment Monitoring
-- **CloudFormation Events**: Monitor stack events during deployment
-- **Lambda Logs**: Check CloudWatch Logs for errors
-- **Frontend Errors**: Monitor CloudFront access logs
-
-## Next Steps
-
-1. **Setup GitLab Repository**: Push code to GitLab
-2. **Configure CI/CD Variables**: Add AWS credentials and admin email
-3. **Test Pipeline**: Trigger first pipeline run
-4. **Monitor Deployment**: Verify all stages complete successfully
-5. **Access Application**: Navigate to CloudFront URL
+Access in GitLab: **CI/CD > Jobs > deploy:cloudformation > Artifacts > stack-outputs.json**
 
 ## References
 
 - [GitLab CI/CD Documentation](https://docs.gitlab.com/ee/ci/)
 - [AWS CloudFormation Best Practices](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/best-practices.html)
-- [CloudScape Design System](https://cloudscape.design/)
-- [Project README](../README.md)
+- [Project README](../../README.md)
