@@ -75,8 +75,13 @@ window.AWS_CONFIG = {
       }
     }
   }
-}
+};
 ```
+
+> **Important**: The structure must match exactly. Common mistakes:
+> - Using `cognito` instead of `Auth.Cognito`
+> - Using `clientId` instead of `userPoolClientId`
+> - Missing `loginWith.email` property
 
 ### 5. Complete Redeployment Process
 
@@ -140,7 +145,7 @@ USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name drs-orchestration
 CLIENT_ID=$(aws cloudformation describe-stacks --stack-name drs-orchestration-dev \
   --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
 
-# Create aws-config.js
+# Create aws-config.js (must match structure in frontend/src/aws-config.ts)
 cat > aws-config.js <<EOF
 window.AWS_CONFIG = {
   Auth: {
@@ -161,7 +166,7 @@ window.AWS_CONFIG = {
       }
     }
   }
-}
+};
 EOF
 
 # Deploy frontend
@@ -236,14 +241,26 @@ aws drs describe-source-servers --region us-east-1
 
 The GitLab pipeline automatically handles this process:
 
-1. **Build Stage**: Creates Lambda ZIP files
-2. **Deploy Infrastructure**: Uploads artifacts and deploys CloudFormation
-3. **Deploy Frontend**: Generates correct `aws-config.js` and deploys
+1. **Validate Stage**: CloudFormation validation, TypeScript type checking
+2. **Lint Stage**: Python (pylint, black, flake8), Frontend (ESLint)
+3. **Build Stage**: Creates Lambda ZIP files and builds React frontend
+4. **Deploy Infrastructure**: Uploads artifacts to S3 and deploys CloudFormation
+5. **Deploy Frontend**: Generates `aws-config.js` from CloudFormation outputs and deploys to S3/CloudFront
 
-**Key Variables**:
+**Required CI/CD Variables** (Settings > CI/CD > Variables):
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_ACCESS_KEY_ID` | AWS access key (masked) |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key (masked) |
+| `ADMIN_EMAIL` | Admin email for Cognito |
+
+**Built-in Variables**:
 - `DEPLOYMENT_BUCKET`: `aws-drs-orchestration`
-- `ADMIN_EMAIL`: Admin email for Cognito
 - `AWS_DEFAULT_REGION`: `us-east-1`
+- `ENVIRONMENT`: `test`
+
+See [CICD_PIPELINE_GUIDE.md](./CICD_PIPELINE_GUIDE.md) for complete CI/CD documentation.
 
 ### 9. Critical Files to Preserve
 
