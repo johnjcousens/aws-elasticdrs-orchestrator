@@ -52,7 +52,7 @@ The deployment repository is maintained at `s3://aws-drs-orchestration` with aut
 
 | Option | Description |
 |--------|-------------|
-| `--profile PROFILE` | AWS credentials profile (default: `***REMOVED***_AdministratorAccess`) |
+| `--profile PROFILE` | AWS credentials profile (uses script default if not specified) |
 | `--build-frontend` | Build frontend before syncing |
 | `--dry-run` | Preview changes without executing |
 | `--clean-orphans` | Remove orphaned directories from S3 |
@@ -138,16 +138,21 @@ s3://aws-drs-orchestration/
 │   ├── security-stack.yaml
 │   ├── step-functions-stack.yaml
 │   └── frontend-stack.yaml
-├── lambda/                       # Lambda source code and packages
-│   ├── index.py
-│   ├── drs_orchestrator.py
+├── lambda/                       # Lambda source code (synced as files)
+│   ├── index.py                  # Main API handler
+│   ├── drs_orchestrator.py       # Legacy orchestrator
 │   ├── orchestration_stepfunctions.py
-│   ├── poller/
-│   └── deployment-package.zip
+│   ├── build_and_deploy.py
+│   ├── poller/                   # Poller functions
+│   │   ├── execution_finder.py
+│   │   └── execution_poller.py
+│   └── deployment-package.zip    # Created by --deploy-cfn or --deploy-lambda
 ├── frontend/                     # Frontend application
 │   ├── dist/                     # Built frontend (if --build-frontend used)
 │   ├── src/                      # Source code
 │   ├── package.json
+│   ├── package-lock.json
+│   ├── tsconfig.json
 │   └── vite.config.ts
 ├── scripts/                      # Automation scripts
 ├── ssm-documents/                # SSM automation documents
@@ -156,6 +161,8 @@ s3://aws-drs-orchestration/
 ├── .gitignore
 └── Makefile
 ```
+
+> **Note**: The `deployment-package.zip` is only created when using `--deploy-cfn` or `--deploy-lambda` options. Basic sync uploads Lambda source files directly without packaging.
 
 ## Makefile Targets
 
@@ -216,18 +223,20 @@ aws s3api copy-object \
 ### Option 3: Lambda Rollback
 
 ```bash
-# List Lambda versions in S3
+# List Lambda package versions in S3
 AWS_PAGER="" aws s3api list-object-versions \
   --bucket aws-drs-orchestration \
   --prefix lambda/deployment-package.zip
 
-# Update Lambda with previous version
+# Update Lambda with previous version from S3
 aws lambda update-function-code \
   --function-name drs-orchestration-api-handler-dev \
   --s3-bucket aws-drs-orchestration \
   --s3-key lambda/deployment-package.zip \
   --s3-object-version <previous-version-id>
 ```
+
+> **Note**: This only works if you previously deployed using `--deploy-cfn` or `--deploy-lambda`, which creates the `deployment-package.zip` in S3.
 
 ## Cleanup Orphaned Files
 
