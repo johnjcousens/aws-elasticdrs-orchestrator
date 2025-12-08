@@ -452,46 +452,36 @@ job_status = response['items'][0]['status']
 **State Machine Definition**: 35+ states across 6 stages
 
 **State Machine Flow**:
-```
-StartExecution (Choice)
-├─ ValidateRecoveryPlan (Lambda)
-│  └─ [Success] → InitializeExecution
-│  └─ [Fail] → ExecutionFailed
-│
-├─ InitializeExecution (Lambda)
-│  └─ Creates execution history record
-│  └─ → ProcessWaves
-│
-├─ ProcessWaves (Map - iterates over waves)
-│  ├─ ValidateWaveDependencies (Lambda)
-│  │  └─ Checks previous waves completed
-│  │
-│  ├─ LaunchRecoveryJobs (Lambda)
-│  │  └─ Calls DRS StartRecovery for all servers in wave
-│  │  └─ Returns job IDs
-│  │
-│  ├─ MonitorJobCompletion (Wait + Lambda loop)
-│  │  └─ Polls DRS DescribeJobs every 30 seconds
-│  │  └─ Exits when all jobs COMPLETED or FAILED
-│  │
-│  ├─ PerformHealthChecks (Lambda)
-│  │  └─ Checks EC2 instance status for all recovered servers
-│  │  └─ Verifies "running" state
-│  │
-│  ├─ UpdateWaveStatus (Lambda)
-│  │  └─ Writes wave completion to execution history
-│  │
-│  └─ WaitBeforeNextWave (Wait state)
-│     └─ Configurable delay (default 60 seconds)
-│
-├─ FinalizeExecution (Lambda)
-│  └─ Marks execution COMPLETED
-│  └─ Sends SNS notification
-│  └─ → ExecutionComplete
-│
-└─ ExecutionFailed (Fail state)
-   └─ Records failure reason
-   └─ Sends SNS notification
+```mermaid
+flowchart TD
+    Start([StartExecution]) --> Validate[ValidateRecoveryPlan<br/>Lambda]
+    Validate -->|Success| Init[InitializeExecution<br/>Lambda]
+    Validate -->|Fail| Failed([ExecutionFailed])
+    
+    Init -->|Creates execution<br/>history record| Process[ProcessWaves<br/>Map - iterates over waves]
+    
+    subgraph WaveProcessing["Wave Processing (per wave)"]
+        ValidateDeps[ValidateWaveDependencies<br/>Lambda] -->|Checks previous<br/>waves completed| Launch[LaunchRecoveryJobs<br/>Lambda]
+        Launch -->|Calls DRS StartRecovery<br/>Returns job IDs| Monitor[MonitorJobCompletion<br/>Wait + Lambda loop]
+        Monitor -->|Polls DescribeJobs<br/>every 30 seconds| Health[PerformHealthChecks<br/>Lambda]
+        Health -->|Checks EC2 status<br/>Verifies running state| Update[UpdateWaveStatus<br/>Lambda]
+        Update -->|Writes wave completion| Wait[WaitBeforeNextWave<br/>Wait state]
+    end
+    
+    Process --> ValidateDeps
+    Wait -->|More waves| ValidateDeps
+    Wait -->|All waves done| Finalize[FinalizeExecution<br/>Lambda]
+    
+    Finalize -->|Marks COMPLETED<br/>Sends SNS notification| Complete([ExecutionComplete])
+    
+    Monitor -->|Jobs FAILED| Failed
+    Health -->|Health check failed| Failed
+    Failed -->|Records failure reason<br/>Sends SNS notification| FailEnd([End])
+    
+    style Start fill:#4CAF50
+    style Complete fill:#4CAF50
+    style Failed fill:#f44336
+    style FailEnd fill:#f44336
 ```
 
 **Error Handling**:

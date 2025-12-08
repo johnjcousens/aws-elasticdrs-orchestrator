@@ -10,15 +10,13 @@ This document provides a detailed walkthrough of every AWS DRS API call that occ
 
 ## Drill Execution Lifecycle
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 1: Pre-Drill Validation (Optional but Recommended)       │
-│ Phase 2: Drill Initiation                                      │
-│ Phase 3: Job Monitoring                                        │
-│ Phase 4: Instance Launch Monitoring                            │
-│ Phase 5: Post-Launch Validation                                │
-│ Phase 6: Drill Termination                                     │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    P1[Phase 1<br/>Pre-Drill Validation] --> P2[Phase 2<br/>Drill Initiation]
+    P2 --> P3[Phase 3<br/>Job Monitoring]
+    P3 --> P4[Phase 4<br/>Instance Launch Monitoring]
+    P4 --> P5[Phase 5<br/>Post-Launch Validation]
+    P5 --> P6[Phase 6<br/>Drill Termination]
 ```
 
 ---
@@ -326,20 +324,35 @@ T+40m   | DescribeJobs (termination)  | Termination COMPLETED
 ## Status Marker Reference
 
 ### Job Status Progression
-```
-PENDING → STARTED → COMPLETED
-                 ↘ FAILED
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> STARTED
+    STARTED --> COMPLETED
+    STARTED --> FAILED
+    COMPLETED --> [*]
+    FAILED --> [*]
 ```
 
 ### Launch Status Progression (Per Server)
-```
-PENDING → IN_PROGRESS → LAUNCHED
-                      ↘ FAILED
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> IN_PROGRESS
+    IN_PROGRESS --> LAUNCHED
+    IN_PROGRESS --> FAILED
+    LAUNCHED --> [*]
+    FAILED --> [*]
 ```
 
 ### EC2 Instance State Progression
-```
-pending → running → stopping → terminated
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> running
+    running --> stopping
+    stopping --> terminated
+    terminated --> [*]
 ```
 
 ---

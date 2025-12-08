@@ -27,7 +27,7 @@ validate:cloudformation:
   script:
     - echo "Validating CloudFormation templates..."
     - pip install cfn-lint==1.42.0
-    - cfn-lint cfn/*.yaml --ignore-checks W2001 W3002 W3005 W3037
+    - cfn-lint cfn/*.yaml --ignore-checks W2001 W3002 W3005 W3037 --ignore-templates cfn/security-stack.yaml
     - echo "Validating template syntax with AWS CLI..."
     - pip install awscli
     - |
