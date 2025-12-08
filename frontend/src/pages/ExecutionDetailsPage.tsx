@@ -387,7 +387,7 @@ export const ExecutionDetailsPage: React.FC = () => {
 
           {/* Wave Progress Timeline */}
           <Container header={<Header variant="h3">Wave Progress</Header>}>
-            <WaveProgress waves={mapWavesToWaveExecutions(execution)} />
+            <WaveProgress waves={mapWavesToWaveExecutions(execution)} totalWaves={execution.totalWaves} />
           </Container>
         </SpaceBetween>
       </ContentLayout>

@@ -22,6 +22,7 @@ import type { WaveExecution, ServerExecution } from '../types';
 interface WaveProgressProps {
   waves: WaveExecution[];
   currentWave?: number;
+  totalWaves?: number;  // Total waves from recovery plan (not just executed waves)
 }
 
 /**
@@ -272,10 +273,11 @@ const ServerStatusRow: React.FC<{ server: ServerExecution }> = ({ server }) => {
 /**
  * Calculate overall progress percentage
  */
-const calculateOverallProgress = (waves: WaveExecution[]): { percentage: number; completedWaves: number; totalWaves: number } => {
-  if (!waves || waves.length === 0) return { percentage: 0, completedWaves: 0, totalWaves: 0 };
+const calculateOverallProgress = (waves: WaveExecution[], planTotalWaves?: number): { percentage: number; completedWaves: number; totalWaves: number } => {
+  if (!waves || waves.length === 0) return { percentage: 0, completedWaves: 0, totalWaves: planTotalWaves || 0 };
   
-  const totalWaves = waves.length;
+  // Use planTotalWaves from recovery plan if provided, otherwise fall back to waves array length
+  const totalWaves = planTotalWaves || waves.length;
   const completedWaves = waves.filter(w => 
     ['completed', 'COMPLETED'].includes(w.status)
   ).length;
@@ -296,8 +298,8 @@ const calculateOverallProgress = (waves: WaveExecution[]): { percentage: number;
  * 
  * Visualizes execution progress through waves with expandable server details.
  */
-export const WaveProgress: React.FC<WaveProgressProps> = ({ waves, currentWave }) => {
-  const progress = calculateOverallProgress(waves);
+export const WaveProgress: React.FC<WaveProgressProps> = ({ waves, currentWave, totalWaves: planTotalWaves }) => {
+  const progress = calculateOverallProgress(waves, planTotalWaves);
   const hasWaves = waves && waves.length > 0;
   
   return (
