@@ -98,18 +98,22 @@ sequenceDiagram
 
 ### Deploy with CloudFormation
 
+**⚠️ CRITICAL**: CloudFormation uses pre-built artifacts from S3, not source code. See [Deployment Recovery Guide](DEPLOYMENT_RECOVERY_GUIDE.md) for complete process.
+
 ```bash
 aws cloudformation deploy \
-  --template-url https://your-bucket.s3.region.amazonaws.com/cfn/master-template.yaml \
-  --stack-name drs-orchestration \
+  --template-url https://aws-drs-orchestration.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
+  --stack-name drs-orchestration-dev \
   --parameter-overrides \
     ProjectName=drs-orchestration \
-    Environment=prod \
-    SourceBucket=your-bucket \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration \
     AdminEmail=admin@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
+
+**Deployment Bucket**: `aws-drs-orchestration` (contains all CloudFormation templates and Lambda ZIP files)
 
 Deployment takes approximately 20-30 minutes.
 
@@ -404,6 +408,9 @@ aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
 
 | Document | Description |
 |----------|-------------|
+| [Deployment Recovery Guide](DEPLOYMENT_RECOVERY_GUIDE.md) | **CRITICAL**: Complete redeployment from scratch |
+| [Deployment Success Summary](DEPLOYMENT_SUCCESS_SUMMARY.md) | Latest deployment verification and test results |
+| [DRS IAM Analysis](DRS_COMPLETE_IAM_ANALYSIS.md) | Complete DRS permission requirements |
 | [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment instructions |
 | [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture details |
 | [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md) | DRS API integration guide |
@@ -423,6 +430,143 @@ aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
 | **Total** | **$10-30/month** |
 
 *Costs vary based on usage. DRS replication costs are separate.*
+
+## Troubleshooting
+
+### DRS Recovery Failures
+
+#### Issue: UnauthorizedOperation on EC2 Actions
+
+**Symptom**: DRS recovery jobs fail with `UnauthorizedOperation` errors like:
+```
+UnauthorizedOperation when calling CreateLaunchTemplateVersion operation
+AccessDeniedException when calling CreateRecoveryInstanceForDrs operation
+```
+
+**Root Cause**: When Lambda calls `drs:StartRecovery`, DRS uses the **calling role's IAM permissions** (not its service-linked role) to perform EC2 and DRS operations. This is a critical discovery - the DRS service-linked role has all permissions, but DRS delegates EC2 operations to the caller's role.
+
+**Required Permissions**: The OrchestrationRole must have comprehensive EC2 AND DRS permissions:
+
+```yaml
+# EC2Access Policy
+EC2Access:
+  Effect: Allow
+  Action:
+    # Read permissions (all required by DRS)
+    - ec2:DescribeInstances
+    - ec2:DescribeInstanceStatus
+    - ec2:DescribeInstanceTypeOfferings
+    - ec2:DescribeInstanceTypes
+    - ec2:DescribeInstanceAttribute
+    - ec2:DescribeAccountAttributes
+    - ec2:DescribeLaunchTemplates
+    - ec2:DescribeLaunchTemplateVersions
+    - ec2:DescribeAvailabilityZones
+    - ec2:DescribeNetworkInterfaces
+    - ec2:DescribeVolumeAttribute
+    - ec2:GetEbsDefaultKmsKeyId
+    - ec2:GetEbsEncryptionByDefault
+    
+    # Launch template operations (CRITICAL for conversion)
+    - ec2:CreateLaunchTemplate
+    - ec2:CreateLaunchTemplateVersion
+    - ec2:ModifyLaunchTemplate
+    - ec2:DeleteLaunchTemplate
+    - ec2:DeleteLaunchTemplateVersions
+    
+    # Instance operations
+    - ec2:RunInstances
+    - ec2:StartInstances
+    - ec2:StopInstances
+    - ec2:TerminateInstances
+    
+    # Volume operations
+    - ec2:CreateVolume
+    - ec2:AttachVolume
+    - ec2:DetachVolume
+    - ec2:DeleteVolume
+    - ec2:ModifyVolume
+    
+    # Network operations
+    - ec2:CreateNetworkInterface
+    - ec2:DeleteNetworkInterface
+    - ec2:ModifyNetworkInterfaceAttribute
+    - ec2:CreateSecurityGroup
+  Resource: '*'
+
+# DRSAccess Policy - CRITICAL addition
+DRSAccess:
+  Effect: Allow
+  Action:
+    # ... other DRS permissions ...
+    - drs:CreateRecoveryInstanceForDrs  # CRITICAL - registers EC2 as recovery instance
+  Resource: '*'
+```
+
+**Verification**:
+```bash
+# Check EC2 permissions
+aws iam get-role-policy \
+  --role-name <OrchestrationRoleName> \
+  --policy-name EC2Access \
+  --query 'PolicyDocument.Statement[0].Action'
+
+# Check DRS permissions (must include CreateRecoveryInstanceForDrs)
+aws iam get-role-policy \
+  --role-name <OrchestrationRoleName> \
+  --policy-name DRSAccess \
+  --query 'PolicyDocument.Statement[0].Action' | grep CreateRecoveryInstanceForDrs
+```
+
+**Reference**: See [DRS_COMPLETE_IAM_ANALYSIS.md](DRS_COMPLETE_IAM_ANALYSIS.md) for complete analysis.
+
+#### Issue: Recovery Instances Not Launching (LAUNCH_FAILED)
+
+**Symptom**: DRS job shows LAUNCH_START but then LAUNCH_FAILED with no recovery instances created.
+
+**Most Common Cause**: Missing `drs:CreateRecoveryInstanceForDrs` permission. This permission is required for DRS to register the launched EC2 instance as a recovery instance.
+
+**Error in Job Logs**:
+```
+AccessDeniedException when calling CreateRecoveryInstanceForDrs operation: 
+User: arn:aws:sts::ACCOUNT:assumed-role/OrchestrationRole/... is not authorized 
+to perform: drs:CreateRecoveryInstanceForDrs
+```
+
+**Solution**: Add `drs:CreateRecoveryInstanceForDrs` to the OrchestrationRole's DRSAccess policy.
+
+**Other Causes**:
+1. Missing EC2 permissions (see above)
+2. Invalid launch template configuration
+3. Insufficient subnet capacity
+4. Security group restrictions
+
+**Debug Steps**:
+```bash
+# Check job status and logs - look for LAUNCH_FAILED
+AWS_PAGER="" aws drs describe-jobs --filters jobIDs=<job-id>
+AWS_PAGER="" aws drs describe-job-log-items --job-id <job-id>
+
+# Look for the specific error in job logs
+AWS_PAGER="" aws drs describe-job-log-items --job-id <job-id> \
+  --query 'items[?event==`LAUNCH_FAILED`].eventData'
+
+# Verify conversion servers launched (should exist)
+AWS_PAGER="" aws ec2 describe-instances \
+  --filters "Name=tag:AWSElasticDisasterRecoveryManaged,Values=drs.amazonaws.com"
+
+# Check recovery instances (will be empty if LAUNCH_FAILED)
+AWS_PAGER="" aws drs describe-recovery-instances
+```
+
+### Common Error Codes
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `PG_NAME_EXISTS` | Protection group name already exists | Use unique name |
+| `INVALID_SERVER_IDS` | Server IDs not found in DRS | Verify server IDs with `describe-source-servers` |
+| `CIRCULAR_DEPENDENCY` | Wave dependencies form a loop | Review wave dependency chain |
+| `EXECUTION_IN_PROGRESS` | Plan already executing | Wait for completion or cancel existing execution |
 
 ## Security
 
