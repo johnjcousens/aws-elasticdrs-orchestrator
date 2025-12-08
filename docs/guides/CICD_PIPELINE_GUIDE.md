@@ -13,6 +13,8 @@ Before setting up the pipeline, ensure you have:
 3. **S3 Deployment Bucket** - Pre-created bucket for artifacts (default: `aws-drs-orchestration`)
 4. **IAM Credentials** - Access key with deployment permissions
 
+> **Note**: This pipeline uses Amazon ECR Public images (`public.ecr.aws/docker/library/...`) instead of Docker Hub to avoid rate limiting issues. Docker Hub enforces pull rate limits for unauthenticated requests (100 pulls/6 hours), which can cause CI failures in shared GitLab runners.
+
 ## Quick Start
 
 ### Step 1: Create S3 Deployment Bucket
@@ -87,7 +89,7 @@ Ensures code quality before building.
 
 Validates CloudFormation templates with cfn-lint and AWS CLI.
 
-- **Image**: `python:3.12`
+- **Image**: `public.ecr.aws/docker/library/python:3.12`
 - **Triggers**: Changes to `cfn/**/*`, `.cfnlintrc.yaml`, or `.gitlab-ci.yml`
 - **Actions**:
   - Runs `cfn-lint` with project config
@@ -97,7 +99,7 @@ Validates CloudFormation templates with cfn-lint and AWS CLI.
 
 Runs TypeScript type checking on the React frontend.
 
-- **Image**: `node:22-alpine`
+- **Image**: `public.ecr.aws/docker/library/node:22-alpine`
 - **Triggers**: Changes to `frontend/**/*` or `.gitlab-ci.yml`
 - **Actions**:
   - Installs npm dependencies
@@ -112,7 +114,7 @@ Enforces code style (non-blocking).
 
 Lints Lambda Python code.
 
-- **Image**: `python:3.12`
+- **Image**: `public.ecr.aws/docker/library/python:3.12`
 - **Triggers**: Changes to `lambda/**/*.py` or `.gitlab-ci.yml`
 - **Tools**:
   - `pylint` - Code quality (disabled: C0114, C0115, C0116, R0903, W0613, C0103)
@@ -124,7 +126,7 @@ Lints Lambda Python code.
 
 Lints React/TypeScript code with ESLint.
 
-- **Image**: `node:22-alpine`
+- **Image**: `public.ecr.aws/docker/library/node:22-alpine`
 - **Triggers**: Changes to `frontend/**/*` or `.gitlab-ci.yml`
 - **Note**: Non-blocking (`|| true`)
 
@@ -136,7 +138,7 @@ Creates deployment artifacts.
 
 Packages Lambda functions with dependencies.
 
-- **Image**: `python:3.12`
+- **Image**: `public.ecr.aws/docker/library/python:3.12`
 - **Triggers**: `main` branch or `dev/*` branches
 - **Creates**:
   - `api-handler.zip` - Main API handler (`index.py`)
@@ -152,7 +154,7 @@ Packages Lambda functions with dependencies.
 
 Builds React frontend with Vite.
 
-- **Image**: `node:22-alpine`
+- **Image**: `public.ecr.aws/docker/library/node:22-alpine`
 - **Triggers**: `main` branch or `dev/*` branches
 - **Output**: `frontend/dist/`
 - **Artifacts**: Expire in 1 week
