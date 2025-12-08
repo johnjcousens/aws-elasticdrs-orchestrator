@@ -44,9 +44,10 @@ export const ExecutionsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const hasActiveExecutions = executions.some(
-      (e) => e.status === 'in_progress' || e.status === 'pending'
-    );
+    const hasActiveExecutions = executions.some((e) => {
+      const status = e.status.toLowerCase();
+      return ['in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated'].includes(status);
+    });
     if (!hasActiveExecutions) return;
     const interval = setInterval(() => fetchExecutions(), 3000);
     return () => clearInterval(interval);

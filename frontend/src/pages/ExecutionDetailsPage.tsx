@@ -72,16 +72,22 @@ export const ExecutionDetailsPage: React.FC = () => {
       execution.status === 'in_progress' || 
       execution.status === 'pending' ||
       execution.status === 'paused' ||
+      execution.status === 'running' ||
+      execution.status === 'started' ||
+      execution.status === 'polling' ||
+      execution.status === 'launching' ||
+      execution.status === 'initiated' ||
       (execution.status as string) === 'RUNNING' ||
       (execution.status as string) === 'STARTED' ||
       (execution.status as string) === 'POLLING' ||
-      (execution.status as string) === 'LAUNCHING';
+      (execution.status as string) === 'LAUNCHING' ||
+      (execution.status as string) === 'INITIATED';
 
     if (!isActive) return;
 
     const interval = setInterval(() => {
       fetchExecution(true); // Silent refresh
-    }, 5000); // Poll every 5 seconds
+    }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
   }, [execution]);
@@ -150,7 +156,13 @@ export const ExecutionDetailsPage: React.FC = () => {
     execution.status === 'in_progress' || 
     execution.status === 'pending' ||
     execution.status === 'paused' ||
-    (execution.status as string) === 'running'
+    execution.status === 'running' ||
+    execution.status === 'started' ||
+    execution.status === 'polling' ||
+    execution.status === 'launching' ||
+    execution.status === 'initiated' ||
+    (execution.status as string) === 'RUNNING' ||
+    (execution.status as string) === 'STARTED'
   );
 
   // Map API response (waves/servers) to frontend types (waveExecutions/serverExecutions)
@@ -184,6 +196,8 @@ export const ExecutionDetailsPage: React.FC = () => {
             region: typeof server === 'object' ? (server.region || waveRegion) : waveRegion,
             sourceInstanceId: typeof server === 'object' ? server.sourceInstanceId : undefined,
             sourceAccountId: typeof server === 'object' ? server.sourceAccountId : undefined,
+            sourceIp: typeof server === 'object' ? server.sourceIp : undefined,
+            sourceRegion: typeof server === 'object' ? server.sourceRegion : undefined,
             replicationState: typeof server === 'object' ? server.replicationState : undefined,
             error: typeof server === 'object' ? server.error : undefined,
           };

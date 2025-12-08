@@ -182,10 +182,19 @@ const ServerStatusRow: React.FC<{ server: ServerExecution }> = ({ server }) => {
       </SpaceBetween>
       
       {/* Source Server Details */}
-      {(server.sourceInstanceId || server.sourceAccountId) && (
+      {(server.sourceInstanceId || server.sourceAccountId || server.sourceIp || server.sourceRegion) && (
         <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fafafa', borderRadius: '4px', fontSize: '12px' }}>
           <div style={{ color: '#5f6b7a', marginBottom: '4px' }}>Source Server</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+            {server.serverName && (
+              <span><strong>Name:</strong> {server.serverName}</span>
+            )}
+            {server.sourceIp && (
+              <span><strong>IP:</strong> <code style={{ fontSize: '11px' }}>{server.sourceIp}</code></span>
+            )}
+            {server.sourceRegion && (
+              <span><strong>Region:</strong> <code style={{ fontSize: '11px' }}>{server.sourceRegion}</code></span>
+            )}
             {server.sourceInstanceId && (
               <span><strong>Instance:</strong> <code style={{ fontSize: '11px' }}>{server.sourceInstanceId}</code></span>
             )}
