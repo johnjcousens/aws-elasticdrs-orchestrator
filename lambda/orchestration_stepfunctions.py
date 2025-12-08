@@ -74,6 +74,9 @@ def handler(event, context):
     Actions:
     - begin: Initialize wave plan execution
     - update_wave_status: Poll DRS job and check server launch status
+    - initialize: (api-stack.yaml) Initialize execution
+    - processWave: (api-stack.yaml) Process single wave
+    - finalize: (api-stack.yaml) Finalize execution
     """
     print(f"Event: {json.dumps(event, cls=DecimalEncoder)}")
     
@@ -83,6 +86,12 @@ def handler(event, context):
         return begin_wave_plan(event)
     elif action == 'update_wave_status':
         return update_wave_status(event)
+    elif action == 'initialize':
+        return initialize_execution(event)
+    elif action == 'processWave':
+        return process_wave(event)
+    elif action == 'finalize':
+        return finalize_execution(event)
     else:
         raise ValueError(f"Unknown action: {action}")
 
@@ -520,3 +529,180 @@ def update_wave_in_dynamodb(execution_id: str, plan_id: str, wave_number: int,
             )
     except Exception as e:
         print(f"Error updating wave in DynamoDB: {e}")
+
+
+# API Stack handlers (for api-stack.yaml state machine)
+def initialize_execution(event: Dict) -> Dict:
+    """
+    Initialize execution (api-stack.yaml action)
+    Maps to begin_wave_plan but returns format expected by api-stack
+    """
+    execution_id = event.get('executionId')
+    input_data = event.get('input', {})
+    plan_id = input_data.get('planId')
+    is_drill = input_data.get('isDrill', True)
+    
+    print(f"[API-STACK] Initialize execution {execution_id} for plan {plan_id}")
+    
+    # Get recovery plan
+    try:
+        plan_response = get_recovery_plans_table().get_item(Key={'PlanId': plan_id})
+        if 'Item' not in plan_response:
+            raise ValueError(f"Recovery plan {plan_id} not found")
+        
+        plan = plan_response['Item']
+        waves = plan.get('Waves', [])
+        
+        # Create execution record
+        get_execution_history_table().put_item(
+            Item={
+                'ExecutionId': execution_id,
+                'PlanId': plan_id,
+                'Status': 'RUNNING',
+                'StartTime': int(time.time()),
+                'IsDrill': is_drill,
+                'Waves': []
+            }
+        )
+        
+        return {
+            'executionId': execution_id,
+            'planId': plan_id,
+            'isDrill': is_drill,
+            'waves': waves
+        }
+    except Exception as e:
+        print(f"Error initializing execution: {e}")
+        raise
+
+
+def process_wave(event: Dict) -> Dict:
+    """
+    Process single wave (api-stack.yaml action)
+    This is called by the Map state for each wave
+    """
+    wave = event.get('wave', event)
+    execution_id = event.get('executionId')
+    
+    wave_number = wave.get('WaveNumber', 0)
+    wave_name = wave.get('WaveName', f'Wave {wave_number + 1}')
+    protection_group_id = wave.get('ProtectionGroupId')
+    
+    print(f"[API-STACK] Processing wave {wave_number} ({wave_name}) for execution {execution_id}")
+    
+    # Get Protection Group
+    try:
+        pg_response = get_protection_groups_table().get_item(Key={'GroupId': protection_group_id})
+        if 'Item' not in pg_response:
+            raise ValueError(f"Protection Group {protection_group_id} not found")
+        
+        pg = pg_response['Item']
+        server_ids = wave.get('ServerIds', pg.get('SourceServerIds', []))
+        region = pg.get('Region', 'us-east-1')
+        is_drill = event.get('isDrill', True)
+        
+        if not server_ids:
+            print(f"Wave {wave_number} has no servers, skipping")
+            return {'status': 'SKIPPED', 'waveNumber': wave_number}
+        
+        # Start DRS recovery
+        drs_client = boto3.client('drs', region_name=region)
+        source_servers = [{'sourceServerID': sid} for sid in server_ids]
+        
+        print(f"[DRS API] Starting recovery for wave {wave_number}")
+        print(f"[DRS API]   Region: {region}, Servers: {server_ids}, isDrill: {is_drill}")
+        
+        response = drs_client.start_recovery(
+            isDrill=is_drill,
+            sourceServers=source_servers
+        )
+        
+        job_id = response['job']['jobID']
+        print(f"[DRS API] ✅ Job created: {job_id}")
+        
+        # Poll until complete
+        max_wait = 1800  # 30 minutes
+        poll_interval = 30
+        total_wait = 0
+        
+        while total_wait < max_wait:
+            time.sleep(poll_interval)
+            total_wait += poll_interval
+            
+            job_response = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
+            if not job_response.get('items'):
+                raise ValueError(f"Job {job_id} not found")
+            
+            job = job_response['items'][0]
+            participating_servers = job.get('participatingServers', [])
+            
+            if not participating_servers:
+                continue
+            
+            launched_count = 0
+            failed_count = 0
+            
+            for server in participating_servers:
+                server_id = server.get('sourceServerID')
+                launch_status = server.get('launchStatus', 'PENDING')
+                
+                if launch_status in DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES:
+                    launched_count += 1
+                    print(f"✅ Server {server_id} LAUNCHED")
+                elif launch_status in DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES:
+                    failed_count += 1
+                    print(f"❌ Server {server_id} FAILED")
+            
+            if failed_count > 0:
+                raise ValueError(f"{failed_count} servers failed to launch")
+            
+            if launched_count == len(participating_servers):
+                print(f"✅ Wave {wave_number} COMPLETE - all {launched_count} servers launched")
+                return {
+                    'status': 'COMPLETED',
+                    'waveNumber': wave_number,
+                    'jobId': job_id,
+                    'launchedCount': launched_count
+                }
+        
+        raise ValueError(f"Wave {wave_number} timed out after {total_wait}s")
+        
+    except Exception as e:
+        print(f"Error processing wave {wave_number}: {e}")
+        raise
+
+
+def finalize_execution(event: Dict) -> Dict:
+    """
+    Finalize execution (api-stack.yaml action)
+    """
+    execution_id = event.get('executionId')
+    results = event.get('results', [])
+    
+    print(f"[API-STACK] Finalizing execution {execution_id}")
+    print(f"Wave results: {json.dumps(results, cls=DecimalEncoder)}")
+    
+    # Update execution status
+    try:
+        # Determine overall status
+        all_completed = all(r.get('status') == 'COMPLETED' for r in results if r.get('status') != 'SKIPPED')
+        final_status = 'COMPLETED' if all_completed else 'FAILED'
+        
+        get_execution_history_table().update_item(
+            Key={'ExecutionId': execution_id, 'PlanId': event.get('planId', 'unknown')},
+            UpdateExpression='SET #status = :status, EndTime = :end',
+            ExpressionAttributeNames={'#status': 'Status'},
+            ExpressionAttributeValues={
+                ':status': final_status,
+                ':end': int(time.time())
+            }
+        )
+        
+        return {
+            'executionId': execution_id,
+            'status': final_status,
+            'results': results
+        }
+    except Exception as e:
+        print(f"Error finalizing execution: {e}")
+        raise

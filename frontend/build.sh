@@ -1,6 +1,6 @@
 #!/bin/bash
 # Frontend Build Script with AWS Config Injection
-# Builds React app and injects AWS configuration from .env.test
+# Builds React app and injects AWS configuration from .env.dev
 
 # Ensure Homebrew's Node.js is used (v25.2.1)
 export PATH="/opt/homebrew/bin:$PATH"
@@ -20,12 +20,12 @@ if [[ ! "$NODE_VERSION" =~ ^v(2[0-9]|[3-9][0-9]) ]]; then
     exit 1
 fi
 
-# Load environment variables from .env.test
-if [ -f "../.env.test" ]; then
-    echo "✅ Loading configuration from .env.test..."
-    export $(grep -v '^#' ../.env.test | xargs)
+# Load environment variables from .env.dev
+if [ -f "../.env.dev" ]; then
+    echo "✅ Loading configuration from .env.dev..."
+    export $(grep -v '^#' ../.env.dev | xargs)
 else
-    echo "❌ ERROR: .env.test not found in parent directory"
+    echo "❌ ERROR: .env.dev not found in parent directory"
     exit 1
 fi
 
@@ -79,8 +79,8 @@ echo "✅ Build Complete!"
 echo "======================================"
 echo ""
 echo "To deploy to S3:"
-echo "  aws s3 sync dist/ s3://drs-orchestration-fe-***REMOVED***-test/ --delete --region us-east-1"
+echo "  aws s3 sync dist/ s3://drs-orchestration-fe-***REMOVED***-dev/ --delete --region us-east-1"
 echo ""
 echo "To invalidate CloudFront:"
-echo "  aws cloudfront create-invalidation --distribution-id E3EHO8EL65JUV4 --paths '/*' --region us-east-1"
+echo "  aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths '/*' --region us-east-1"
 echo ""
