@@ -23,16 +23,14 @@ This document details every AWS DRS API call during a **production recovery** op
 
 ## Recovery Execution Lifecycle
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Phase 1: Pre-Recovery Validation                               │
-│ Phase 2: Recovery Initiation                                   │
-│ Phase 3: Job Monitoring                                        │
-│ Phase 4: Instance Launch Monitoring                            │
-│ Phase 5: Post-Launch Actions (SSM)                             │
-│ Phase 6: Production Cutover Validation                         │
-│ Phase 7: Source Server Management (Optional)                   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    P1[Phase 1<br/>Pre-Recovery Validation] --> P2[Phase 2<br/>Recovery Initiation]
+    P2 --> P3[Phase 3<br/>Job Monitoring]
+    P3 --> P4[Phase 4<br/>Instance Launch Monitoring]
+    P4 --> P5[Phase 5<br/>Post-Launch Actions SSM]
+    P5 --> P6[Phase 6<br/>Production Cutover Validation]
+    P6 --> P7[Phase 7<br/>Source Server Management]
 ```
 
 ---
@@ -387,15 +385,25 @@ T+30m   | DisconnectSourceServer        | Stop source replication (optional)
 ## Status Marker Reference
 
 ### Job Status Progression
-```
-PENDING → STARTED → COMPLETED
-                 ↘ FAILED
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> STARTED
+    STARTED --> COMPLETED
+    STARTED --> FAILED
+    COMPLETED --> [*]
+    FAILED --> [*]
 ```
 
 ### Post-Launch Actions Status
-```
-NOT_STARTED → IN_PROGRESS → COMPLETED
-                          ↘ FAILED
+```mermaid
+stateDiagram-v2
+    [*] --> NOT_STARTED
+    NOT_STARTED --> IN_PROGRESS
+    IN_PROGRESS --> COMPLETED
+    IN_PROGRESS --> FAILED
+    COMPLETED --> [*]
+    FAILED --> [*]
 ```
 
 ---

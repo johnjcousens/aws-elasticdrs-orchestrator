@@ -1,8 +1,49 @@
-# AWS DRS Orchestration - Phase 2: Security Hardening Additions
-# This file contains security resources to be integrated into master-template.yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - Security Stack (WAF, CloudTrail, Secrets Manager)'
 
-# Add to Parameters section:
 Parameters:
+  # Required parameters passed from master template
+  ProjectName:
+    Type: String
+    Description: 'Project name used for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+
+  # Optional: API Gateway references for WAF association
+  RestApiId:
+    Type: String
+    Default: ''
+    Description: 'API Gateway REST API ID for WAF association'
+
+  ApiStageName:
+    Type: String
+    Default: ''
+    Description: 'API Gateway stage name for WAF association'
+
+  # Optional: DynamoDB table ARNs for CloudTrail data events
+  ProtectionGroupsTableArn:
+    Type: String
+    Default: ''
+    Description: 'Protection Groups DynamoDB table ARN'
+
+  RecoveryPlansTableArn:
+    Type: String
+    Default: ''
+    Description: 'Recovery Plans DynamoDB table ARN'
+
+  ExecutionHistoryTableArn:
+    Type: String
+    Default: ''
+    Description: 'Execution History DynamoDB table ARN'
+
+  # Optional: S3 bucket ARN for CloudTrail data events
+  FrontendBucketArn:
+    Type: String
+    Default: ''
+    Description: 'Frontend S3 bucket ARN'
+
   CrossAccountRoleArns:
     Type: CommaDelimitedList
     Default: ''
@@ -29,11 +70,14 @@ Parameters:
     Default: '0.0.0.0/0'
     Description: 'Comma-separated list of allowed IP ranges for API access (CIDR notation)'
 
-# Add to Conditions section:
 Conditions:
   HasCrossAccountRoles: !Not [!Equals [!Select [0, !Ref CrossAccountRoleArns], '']]
   EnableWAFCondition: !Equals [!Ref EnableWAF, 'true']
   EnableCloudTrailCondition: !Equals [!Ref EnableCloudTrail, 'true']
+  HasRestApi: !Not [!Equals [!Ref RestApiId, '']]
+  EnableWAFWithApi: !And [!Condition EnableWAFCondition, !Condition HasRestApi]
+  HasDynamoDBTables: !Not [!Equals [!Ref ProtectionGroupsTableArn, '']]
+  HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketArn, '']]
 
 # Security Resources to Add:
 
@@ -228,13 +272,12 @@ Resources:
         - Key: Project
           Value: !Ref ProjectName
 
-  # Associate WAF with API Gateway
+  # Associate WAF with API Gateway (only if API Gateway ID is provided)
   WAFAssociation:
     Type: AWS::WAFv2::WebACLAssociation
-    Condition: EnableWAFCondition
-    DependsOn: ApiStage
+    Condition: EnableWAFWithApi
     Properties:
-      ResourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApi}/stages/${ApiStage}'
+      ResourceArn: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/stages/${ApiStageName}'
       WebACLArn: !GetAtt WAFWebACL.Arn
 
   # WAF Logging Configuration
@@ -322,21 +365,9 @@ Resources:
       IsMultiRegionTrail: true
       EnableLogFileValidation: true
       EventSelectors:
-        # Data events for DynamoDB tables
+        # Management events
         - IncludeManagementEvents: true
           ReadWriteType: All
-          DataResources:
-            - Type: AWS::DynamoDB::Table
-              Values:
-                - !GetAtt ProtectionGroupsTable.Arn
-                - !GetAtt RecoveryPlansTable.Arn
-                - !GetAtt ExecutionHistoryTable.Arn
-        # Data events for S3 bucket
-        - ReadWriteType: All
-          DataResources:
-            - Type: AWS::S3::Object
-              Values:
-                - !Sub '${FrontendBucket.Arn}/*'
         # Lambda invocations
         - ReadWriteType: All
           DataResources:
@@ -386,13 +417,15 @@ Resources:
 
   # ============================================================================
   # API GATEWAY REQUEST MODELS - Input Validation
+  # Note: These models require RestApiId to be provided
   # ============================================================================
   
   # Model: Protection Group Create/Update
   ProtectionGroupModel:
     Type: AWS::ApiGateway::Model
+    Condition: HasRestApi
     Properties:
-      RestApiId: !Ref RestApi
+      RestApiId: !Ref RestApiId
       Name: ProtectionGroup
       ContentType: application/json
       Schema:
@@ -438,8 +471,9 @@ Resources:
   # Model: Recovery Plan Create/Update
   RecoveryPlanModel:
     Type: AWS::ApiGateway::Model
+    Condition: HasRestApi
     Properties:
-      RestApiId: !Ref RestApi
+      RestApiId: !Ref RestApiId
       Name: RecoveryPlan
       ContentType: application/json
       Schema:
@@ -515,8 +549,9 @@ Resources:
   # Model: Execution Request
   ExecutionRequestModel:
     Type: AWS::ApiGateway::Model
+    Condition: HasRestApi
     Properties:
-      RestApiId: !Ref RestApi
+      RestApiId: !Ref RestApiId
       Name: ExecutionRequest
       ContentType: application/json
       Schema:
