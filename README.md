@@ -385,7 +385,7 @@ See [Appendix: Complete Documentation Index](#appendix-complete-documentation-in
 | [Product Overview](.kiro/steering/product.md) | **Core reference** - Business problem, solution overview, features, and success metrics |
 | [Project Structure](.kiro/steering/structure.md) | **Core reference** - Repository organization, component architecture, and data flows |
 | [Technology Stack](.kiro/steering/tech.md) | **Core reference** - Complete technology stack, AWS services, and development commands |
-| [Development Guidelines](.amazonq/rules/memory-bank/guidelines.md) | Code quality standards, architectural patterns, and best practices |
+| [Development Guidelines](docs/guides/DEVELOPMENT_GUIDELINES.md) | Code quality standards, architectural patterns, and best practices |
 
 ### Deployment & Operations
 
