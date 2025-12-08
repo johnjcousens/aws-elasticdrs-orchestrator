@@ -34,19 +34,28 @@ lambda/poller/.coverage
 .cline_memory/
 
 # Internal scripts (not for customers)
+# Keep only: sync-to-deployment-bucket.sh, validate-templates.sh, create-test-user.sh, package-frontend-builder.sh
 scripts/check-jsx-corruption.sh
 scripts/check_drill_status.py
+scripts/check_job_completion.sh
 scripts/cleanup_stuck_drs_jobs.py
+scripts/commit-files-individually.sh
+scripts/deploy-and-sync-all.sh
 scripts/execute_drill.py
+scripts/incremental-commit.sh
+scripts/monitor_active_job.sh
 scripts/monitor_drill.py
 scripts/monitor_lambda_drill.py
-scripts/commit-files-individually.sh
-scripts/incremental-commit.sh
-scripts/safe-edit.sh
-scripts/verify-cleanup.sh
-scripts/verify-tsx.sh
 scripts/run-automated-tests.sh
 scripts/run-tests.sh
+scripts/safe-edit.sh
+scripts/setup-gitlab-cicd.sh
+scripts/test_drs_drill_trace.py
+scripts/test-drill.sh
+scripts/validate-deployment.sh
+scripts/verify-cleanup.sh
+scripts/verify-tsx.sh
+scripts/wait_for_completion.sh
 
 # Backup files
 *.backup
