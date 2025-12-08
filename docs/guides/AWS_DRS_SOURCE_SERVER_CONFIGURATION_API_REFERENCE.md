@@ -12,15 +12,13 @@ This document covers every AWS DRS API for configuring source servers including 
 
 ## Configuration Categories
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. Server Information (Read-Only)                              │
-│ 2. Launch Configuration                                        │
-│ 3. Replication Configuration                                   │
-│ 4. Tags & Metadata                                             │
-│ 5. Post-Launch Actions                                         │
-│ 6. EC2 Launch Templates                                        │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    C1[1. Server Information<br/>Read-Only] --> C2[2. Launch<br/>Configuration]
+    C2 --> C3[3. Replication<br/>Configuration]
+    C3 --> C4[4. Tags &<br/>Metadata]
+    C4 --> C5[5. Post-Launch<br/>Actions]
+    C5 --> C6[6. EC2 Launch<br/>Templates]
 ```
 
 ---
