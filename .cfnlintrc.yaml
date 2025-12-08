@@ -13,9 +13,20 @@ ignore_checks:
   - I3011  # DeletionPolicy/UpdateReplacePolicy not set - using defaults intentionally
   - I3042  # Hardcoded partition in ARN - acceptable for standard AWS partition
 
+templates:
+  - cfn/*.yaml
+
 ignore_templates:
   - cfn/security-stack.yaml  # Optional stack, may have conditional resources
 
 regions:
   - us-east-1
   - us-west-2
+
+# Configure output format
+configure_rules:
+  # Allow informational messages without failing
+  I3011:
+    enabled: false
+  I3042:
+    enabled: false
