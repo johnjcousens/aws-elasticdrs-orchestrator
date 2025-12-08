@@ -234,6 +234,35 @@ Deploys React app to S3 and invalidates CloudFront.
      - HTML/config: `no-cache, no-store, must-revalidate`
   4. Creates CloudFront invalidation
 
+**Generated aws-config.js Structure**:
+
+The pipeline generates `aws-config.js` that must match the structure expected by `frontend/src/aws-config.ts`:
+
+```javascript
+window.AWS_CONFIG = {
+  Auth: {
+    Cognito: {
+      region: 'us-east-1',
+      userPoolId: 'us-east-1_XXXXXXX',
+      userPoolClientId: 'XXXXXXXXXXXXXXXXXXXXXXXXXX',
+      loginWith: {
+        email: true
+      }
+    }
+  },
+  API: {
+    REST: {
+      DRSOrchestration: {
+        endpoint: 'https://xxx.execute-api.us-east-1.amazonaws.com/prod',
+        region: 'us-east-1'
+      }
+    }
+  }
+};
+```
+
+> **Important**: The structure must match exactly. Using incorrect property names (e.g., `cognito` instead of `Auth.Cognito`, or `clientId` instead of `userPoolClientId`) will cause authentication failures.
+
 ## CI/CD Variables Reference
 
 ### Required Variables
@@ -321,6 +350,21 @@ Error: NoSuchBucket when calling PutObject
 ```
 
 **Solution**: Ensure CloudFormation stack deployed successfully first. The frontend bucket is created by CloudFormation.
+
+### Frontend Authentication Fails After Deployment
+
+```text
+Error: User pool does not exist / Invalid UserPoolId
+```
+
+**Solution**: The `aws-config.js` structure may be incorrect. Verify the generated config:
+
+```bash
+# Check the deployed config
+curl -s https://YOUR_CLOUDFRONT_URL/aws-config.js
+```
+
+The structure must use `Auth.Cognito.userPoolClientId` (not `cognito.clientId`). See the "Generated aws-config.js Structure" section above.
 
 ## Manual Operations
 
