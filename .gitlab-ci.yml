@@ -338,16 +338,23 @@ deploy:frontend:
       echo "Generating aws-config.js with CloudFormation outputs..."
       cat > frontend/dist/aws-config.js <<EOF
       window.AWS_CONFIG = {
-        cognito: {
-          region: '${AWS_DEFAULT_REGION}',
-          userPoolId: '${USER_POOL_ID}',
-          clientId: '${APP_CLIENT_ID}'
+        Auth: {
+          Cognito: {
+            region: '${AWS_DEFAULT_REGION}',
+            userPoolId: '${USER_POOL_ID}',
+            userPoolClientId: '${APP_CLIENT_ID}',
+            loginWith: {
+              email: true
+            }
+          }
         },
-        api: {
-          endpoint: '${API_ENDPOINT}'
-        },
-        cloudfront: {
-          url: '${CLOUDFRONT_URL}'
+        API: {
+          REST: {
+            DRSOrchestration: {
+              endpoint: '${API_ENDPOINT}',
+              region: '${AWS_DEFAULT_REGION}'
+            }
+          }
         }
       };
       EOF
