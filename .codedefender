@@ -1,0 +1,13 @@
+# Code Defender Exceptions
+# Documentation files contain example/placeholder ARNs for API reference purposes
+# These are not real AWS resources - they use fake account ID 123456789012
+
+[exceptions]
+# Documentation with example ARNs
+docs/guides/AWS_DRS_API_REFERENCE.md
+docs/reference/AZURE_SITE_RECOVERY_RESEARCH_AND_API_ANALYSIS.md
+docs/reference/VMware_SRM_REST_API_Summary.md
+docs/reference/ZERTO_RESEARCH_AND_API_ANALYSIS.md
+docs/guides/DRS_RECOVERY_AND_FAILBACK_COMPLETE_GUIDE.md
+docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_PERMISSIONS.md
+docs/troubleshooting/CLOUDFORMATION_DEPLOYMENT_ISSUES.md
