@@ -336,7 +336,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
 
             {/* Wave Progress Timeline */}
             <Container header={<Header variant="h3">Wave Progress</Header>}>
-              <WaveProgress waves={execution.waveExecutions || []} />
+              <WaveProgress waves={execution.waveExecutions || []} totalWaves={execution.totalWaves} />
             </Container>
           </SpaceBetween>
         ) : null}
