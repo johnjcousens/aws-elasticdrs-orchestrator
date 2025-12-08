@@ -1,6 +1,6 @@
 # AWS DRS Orchestration Solution
 
-Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, automated health checks, and VMware SRM-like capabilities.
+Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
@@ -9,7 +9,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 
 ## Overview
 
-AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks—delivering VMware Site Recovery Manager (SRM) parity using AWS-native serverless services.
+AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services.
 
 ### Key Capabilities
 
@@ -22,7 +22,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 ## Key Features
 
 ### Protection Groups
-- **Automatic Server Discovery**: Real-time DRS source server discovery across 13 AWS regions
+- **Automatic Server Discovery**: Real-time DRS source server discovery across all AWS DRS-supported regions
 - **Visual Server Selection**: Intuitive interface with assignment status indicators
 - **Conflict Prevention**: Single server per group constraint prevents recovery conflicts
 - **Real-Time Search**: Filter servers by hostname, Server ID, or Protection Group name
@@ -86,6 +86,16 @@ graph TB
 | Database | Amazon DynamoDB (3 tables with GSI) |
 | Hosting | Amazon S3, Amazon CloudFront |
 | DR Service | AWS Elastic Disaster Recovery (DRS) |
+
+## AWS DRS Regional Availability
+
+The solution orchestrates disaster recovery in all AWS regions where Elastic Disaster Recovery (DRS) is available:
+
+**Americas (5 regions)**: US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central)  
+**Europe (6 regions)**: Ireland, London, Frankfurt, Paris, Stockholm, Milan  
+**Asia Pacific (3 regions)**: Tokyo, Sydney, Singapore  
+
+*Regional availability is determined by AWS DRS service, not the orchestration solution. As AWS expands DRS to additional regions, the solution automatically supports them without code changes.*
 
 ## Quick Start
 
@@ -375,6 +385,7 @@ See [Appendix: Complete Documentation Index](#appendix-complete-documentation-in
 | [Product Overview](.kiro/steering/product.md) | **Core reference** - Business problem, solution overview, features, and success metrics |
 | [Project Structure](.kiro/steering/structure.md) | **Core reference** - Repository organization, component architecture, and data flows |
 | [Technology Stack](.kiro/steering/tech.md) | **Core reference** - Complete technology stack, AWS services, and development commands |
+| [Development Guidelines](.amazonq/rules/memory-bank/guidelines.md) | Code quality standards, architectural patterns, and best practices |
 
 ### Deployment & Operations
 

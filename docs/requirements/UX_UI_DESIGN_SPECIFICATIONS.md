@@ -8,6 +8,343 @@
 
 ---
 
+## UI Design Diagrams
+
+### Application Layout Structure
+
+```mermaid
+graph LR
+    TopNav["Top Navigation Bar<br/>AWS DRS Orchestrator<br/>User Menu & Sign Out"]
+    
+    Nav1["Dashboard"]
+    Nav2["Getting Started"]
+    Nav3["Protection Groups"]
+    Nav4["Recovery Plans"]
+    Nav5["History"]
+    
+    Header["Page Header<br/>Title & Breadcrumbs<br/>Action Buttons"]
+    Content["Page Content<br/>Tables & Forms<br/>Cards & Dialogs"]
+    
+    TopNav --> Header
+    Nav1 -.-> Content
+    Nav2 -.-> Content
+    Nav3 -.-> Content
+    Nav4 -.-> Content
+    Nav5 -.-> Content
+    Header --> Content
+    
+    style TopNav fill:#232F3E,color:#fff
+    style Nav1 fill:#3B48CC,color:#fff
+    style Nav2 fill:#569A31,color:#fff
+    style Nav3 fill:#FF9900,color:#000
+    style Nav4 fill:#E7157B,color:#fff
+    style Nav5 fill:#527FFF,color:#fff
+    style Header fill:#6B7280,color:#fff
+    style Content fill:#F3F4F6,color:#000
+```
+
+### Page Flow Diagram
+
+```mermaid
+flowchart LR
+    Login["Login Page<br/>Cognito Auth"] --> GettingStarted["Getting Started<br/>Onboarding Guide"]
+    
+    subgraph MainPages ["Main Application Pages"]
+        Dashboard["Dashboard<br/>Overview & Metrics"]
+        PG["Protection Groups<br/>Server Organization"]
+        RP["Recovery Plans<br/>Wave Configuration"]
+        History["History<br/>Execution Records"]
+    end
+    
+    subgraph Dialogs ["Dialog Flows"]
+        PGDialog["Protection Group Dialog<br/>Name, Region, Server Selection"]
+        RPDialog["Recovery Plan Dialog<br/>Plan Details, Wave Config"]
+        ExecDialog["Execute Dialog<br/>Drill vs Recovery"]
+    end
+    
+    subgraph Details ["Detail Pages"]
+        ExecDetails["Execution Details<br/>Wave Progress, Real-time Status"]
+    end
+    
+    GettingStarted --> Dashboard
+    GettingStarted --> PG
+    GettingStarted --> RP
+    GettingStarted --> History
+    
+    PG --> PGDialog
+    RP --> RPDialog
+    RP --> ExecDialog
+    ExecDialog --> ExecDetails
+    History --> ExecDetails
+    
+    style Login fill:#E7157B,color:#fff
+    style GettingStarted fill:#569A31,color:#fff
+    style Dashboard fill:#3B48CC,color:#fff
+    style PG fill:#FF9900,color:#000
+    style RP fill:#E7157B,color:#fff
+    style History fill:#527FFF,color:#fff
+    style PGDialog fill:#6B7280,color:#fff
+    style RPDialog fill:#6B7280,color:#fff
+    style ExecDialog fill:#6B7280,color:#fff
+    style ExecDetails fill:#10B981,color:#fff
+```
+
+### Protection Groups Page Wireframe
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Protection Groups                                           [Create Group]  │
+│ Define groups of servers to protect together                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Find protection groups: [________________]                    2 matches      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Name          │ Description │ Region    │ Servers │ Created    │ Actions    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ DB-Primary    │ Database    │ us-east-1 │ 2       │ 2 days ago │ [⋮]        │
+│ App-Servers   │ -           │ us-east-1 │ 3       │ 1 day ago  │ [⋮]        │
+│ Web-Tier      │ Frontend    │ us-west-2 │ 1       │ 3 hours ago│ [⋮]        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                    [1] [2] [3] ... [Next >] │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─── Create Protection Group Dialog ──────────────────────────────────────────┐
+│ Name: [_________________________] *Required                                 │
+│ Region: [us-east-1 ▼]                                                      │
+│ Description: [_________________________________________________]            │
+│                                                                             │
+│ Available Servers:                                                          │
+│ ┌─────────────────────────────────────────────────────────────────────────┐ │
+│ │ ☐ s-1234567890 │ web-server-01    │ 🟢 Available                      │ │
+│ │ ☐ s-2345678901 │ app-server-01    │ 🟢 Available                      │ │
+│ │ ☐ s-3456789012 │ db-server-01     │ 🔴 Assigned to DB-Primary         │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                           [Cancel] [Create] │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Recovery Plans Page Wireframe
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Recovery Plans                                              [Create Plan]    │
+│ Define recovery strategies with wave-based orchestration                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Find recovery plans: [________________]                       3 matches      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Plan Name    │ Waves │ Status      │ Last Start      │ Last End        │ Actions │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3-Tier App   │ 3     │ ✅ COMPLETED │ Dec 15, 2:30 PM │ Dec 15, 2:45 PM │ [⋮]    │
+│ Database Only │ 1     │ 🔵 Not Run   │ Never           │ Never           │ [⋮]    │
+│ Web Failover  │ 2 of 3│ 🟡 RUNNING   │ Dec 15, 3:00 PM │ -               │ [⋮]    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                    [1] [2] [3] ... [Next >] │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─── Recovery Plan Configuration ─────────────────────────────────────────────┐
+│ Plan Name: [3-Tier Application Recovery] *Required                          │
+│ Description: [Complete application stack recovery]                          │
+│                                                                             │
+│ Wave Configuration:                                                         │
+│ ┌─ Wave 1: Database Tier ───────────────────────────────────────────────┐   │
+│ │ Protection Groups: [DB-Primary ▼] [DB-Secondary ▼]                   │   │
+│ │ Dependencies: None                                                    │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
+│ ┌─ Wave 2: Application Tier ────────────────────────────────────────────┐   │
+│ │ Protection Groups: [App-Servers ▼]                                   │   │
+│ │ Dependencies: Wave 1                                                  │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
+│ ┌─ Wave 3: Web Tier ────────────────────────────────────────────────────┐   │
+│ │ Protection Groups: [Web-Tier ▼]                                      │   │
+│ │ Dependencies: Wave 2                                                  │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
+│                                                           [Cancel] [Create] │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Execution Details Page Wireframe
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ [← Back] [Refresh] Execution Details                      [Cancel Execution] │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Recovery Plan                                                               │
+│                                                                             │
+│ 3-Tier Application Recovery                                                 │
+│ 🟡 RUNNING    Wave 2 of 3    By: admin@example.com                        │
+│                                                                             │
+│ Started: Dec 15, 2025 3:00:15 PM    Duration: 5m 23s                      │
+│ Execution ID: exec-abc123def456                                             │
+│                                                                             │
+│ Overall Progress                                                    67%     │
+│ █████████████░░░░░░░                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Wave Progress                                                               │
+│                                                                             │
+│ ✅ Wave 1: Database Tier                                    COMPLETED (2m) │
+│    ████████████████████ 100%                                      │
+│    2 servers launched successfully                                          │
+│                                                                             │
+│ 🟡 Wave 2: Application Tier                              LAUNCHING (3m) │
+│    ██████████░░░░░░░░░░ 50%                                       │
+│    1 of 2 servers launched                                                  │
+│                                                                             │
+│ ⏳ Wave 3: Web Tier                                           PENDING      │
+│    ░░░░░░░░░░░░░░░░░░░░ 0%                                        │
+│    Waiting for Wave 2 to complete                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Component Interaction Diagram
+
+```mermaid
+graph LR
+    %% Left Column - Pages
+    subgraph Pages ["Page Components"]
+        PGPage["ProtectionGroupsPage"]
+        RPPage["RecoveryPlansPage"]
+        ExecPage["ExecutionsPage"]
+        ExecDetails["ExecutionDetailsPage"]
+    end
+    
+    %% Middle Left - Dialogs
+    subgraph Dialogs ["Dialog Components"]
+        PGDialog["ProtectionGroupDialog"]
+        RPDialog["RecoveryPlanDialog"]
+        ConfirmDialog["ConfirmDialog"]
+    end
+    
+    %% Middle - Input Components
+    subgraph Inputs ["Input Components"]
+        ServerSelector["ServerSelector"]
+        RegionSelector["RegionSelector"]
+        WaveConfigEditor["WaveConfigEditor"]
+    end
+    
+    %% Middle Right - Display Components
+    subgraph Display ["Display Components"]
+        StatusBadge["StatusBadge"]
+        WaveProgress["WaveProgress"]
+        DateTimeDisplay["DateTimeDisplay"]
+    end
+    
+    %% Right - State Components
+    subgraph State ["State Components"]
+        ErrorBoundary["ErrorBoundary"]
+        LoadingState["LoadingState"]
+        ErrorState["ErrorState"]
+    end
+    
+    %% Primary Flows - Match Source Component Colors
+    PGPage ==> PGDialog
+    RPPage ==> RPDialog
+    ExecPage ==> ExecDetails
+    
+    %% Dialog to Input Flows - Match Dialog Colors
+    PGDialog --> ServerSelector
+    PGDialog --> RegionSelector
+    RPDialog --> WaveConfigEditor
+    
+    %% Execution Detail Flows - Match ExecDetails Color
+    ExecDetails --> WaveProgress
+    ExecDetails --> StatusBadge
+    
+    %% Shared Display Components - Solid Thin Lines
+    PGPage --> StatusBadge
+    RPPage --> StatusBadge
+    ExecPage --> StatusBadge
+    
+    PGPage --> DateTimeDisplay
+    RPPage --> DateTimeDisplay
+    ExecPage --> DateTimeDisplay
+    
+    %% Shared State Components - Direct Connections
+    PGPage --> LoadingState
+    RPPage --> LoadingState
+    ExecPage --> LoadingState
+    ExecDetails --> LoadingState
+    
+    %% Error Handling
+    ErrorBoundary --> ErrorState
+    
+    %% Color Coding by Component Type
+    style PGPage fill:#FF9900,color:#000
+    style RPPage fill:#E7157B,color:#fff
+    style ExecPage fill:#527FFF,color:#fff
+    style ExecDetails fill:#10B981,color:#fff
+    
+    style PGDialog fill:#3B48CC,color:#fff
+    style RPDialog fill:#3B48CC,color:#fff
+    style ConfirmDialog fill:#3B48CC,color:#fff
+    
+    style ServerSelector fill:#569A31,color:#fff
+    style RegionSelector fill:#569A31,color:#fff
+    style WaveConfigEditor fill:#569A31,color:#fff
+    
+    style StatusBadge fill:#F59E0B,color:#000
+    style WaveProgress fill:#F59E0B,color:#000
+    style DateTimeDisplay fill:#F59E0B,color:#000
+    
+    style LoadingState fill:#6B7280,color:#fff
+    style ErrorState fill:#EF4444,color:#fff
+    style ErrorBoundary fill:#EF4444,color:#fff
+    
+    %% Link Styles - Match Source Component Colors
+    linkStyle 0 stroke:#FF9900,stroke-width:3px
+    linkStyle 1 stroke:#E7157B,stroke-width:3px
+    linkStyle 2 stroke:#527FFF,stroke-width:3px
+    linkStyle 3 stroke:#3B48CC,stroke-width:2px
+    linkStyle 4 stroke:#3B48CC,stroke-width:2px
+    linkStyle 5 stroke:#3B48CC,stroke-width:2px
+    linkStyle 6 stroke:#10B981,stroke-width:2px
+    linkStyle 7 stroke:#10B981,stroke-width:2px
+    linkStyle 8 stroke:#FF9900,stroke-width:1px
+    linkStyle 9 stroke:#E7157B,stroke-width:1px
+    linkStyle 10 stroke:#527FFF,stroke-width:1px
+    linkStyle 11 stroke:#FF9900,stroke-width:1px
+    linkStyle 12 stroke:#E7157B,stroke-width:1px
+    linkStyle 13 stroke:#527FFF,stroke-width:1px
+    linkStyle 14 stroke:#FF9900,stroke-width:1px
+    linkStyle 15 stroke:#E7157B,stroke-width:1px
+    linkStyle 16 stroke:#527FFF,stroke-width:1px
+    linkStyle 17 stroke:#10B981,stroke-width:1px
+    linkStyle 18 stroke:#EF4444,stroke-width:2px
+```
+
+### Status Indicator Design
+
+```mermaid
+graph LR
+    subgraph "Execution Status"
+        PENDING["⏳ PENDING<br/>Gray"]
+        POLLING["🔄 POLLING<br/>Blue"]
+        LAUNCHING["🟡 LAUNCHING<br/>Yellow"]
+        COMPLETED["✅ COMPLETED<br/>Green"]
+        FAILED["❌ FAILED<br/>Red"]
+        CANCELLED["⏹️ CANCELLED<br/>Orange"]
+    end
+    
+    subgraph "Server Status"
+        AVAILABLE["🟢 Available<br/>Green"]
+        ASSIGNED["🔴 Assigned<br/>Red"]
+        LAUNCHED["✅ Launched<br/>Green"]
+        ERROR["❌ Error<br/>Red"]
+    end
+    
+    style PENDING fill:#6B7280,color:#fff
+    style POLLING fill:#3B82F6,color:#fff
+    style LAUNCHING fill:#F59E0B,color:#000
+    style COMPLETED fill:#10B981,color:#fff
+    style FAILED fill:#EF4444,color:#fff
+    style CANCELLED fill:#F97316,color:#fff
+    
+    style AVAILABLE fill:#10B981,color:#fff
+    style ASSIGNED fill:#EF4444,color:#fff
+    style LAUNCHED fill:#10B981,color:#fff
+    style ERROR fill:#EF4444,color:#fff
+```
+
+---
+
 ## Design System
 
 ### Framework

@@ -40,7 +40,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 
 The system shall allow users to create a Protection Group with:
 - Unique name (case-insensitive, 1-128 characters)
-- AWS region (13 supported regions)
+- AWS region (all AWS DRS-supported regions)
 - Optional description (max 512 characters)
 - List of DRS source server IDs
 
@@ -119,9 +119,7 @@ The system shall allow users to create a Recovery Plan with:
 {
   "waveNumber": 1,
   "waveName": "Database Tier",
-  "serverIds": ["s-xxx", "s-yyy"],
-  "executionType": "SEQUENTIAL|PARALLEL",
-  "waitTimeSeconds": 60
+  "serverIds": ["s-xxx", "s-yyy"]
 }
 ```
 
@@ -129,9 +127,7 @@ The system shall allow users to create a Recovery Plan with:
 - All Protection Group IDs must exist
 - At least one wave required
 - Each server assigned to exactly one wave
-- No circular wave dependencies
-- executionType: SEQUENTIAL or PARALLEL
-- waitTimeSeconds: 0-3600
+- Wave numbers must be sequential starting from 1
 
 **API**: `POST /recovery-plans`
 **Response**: 201 Created with Recovery Plan data
@@ -194,49 +190,47 @@ The system shall start a recovery execution with:
 **Priority**: Critical
 
 The system shall execute waves sequentially:
-1. Validate dependencies satisfied
-2. Launch DRS recovery for all servers in wave
-3. Monitor jobs until complete (poll every 30 seconds)
-4. Perform health checks on recovered instances
-5. Wait configured seconds
-6. Proceed to next wave
+1. Launch DRS recovery for all servers in wave (single API call)
+2. Monitor job status via Step Functions polling
+3. Wait for all servers to reach LAUNCHED status
+4. Proceed to next wave
 
-**Execution Types**:
-- SEQUENTIAL: Launch servers one-by-one, wait for each
-- PARALLEL: Launch all servers simultaneously
+**Wave Execution**:
+- All servers in a wave launch simultaneously with one DRS API call
+- Waves execute sequentially (Wave 1, then Wave 2, etc.)
+- Step Functions orchestrates the entire execution flow
 
 #### FR-3.3: DRS Integration
 **Priority**: Critical
 
 The system shall call DRS StartRecovery API:
-- Pass sourceServerID array
+- Pass sourceServers array with sourceServerID
 - Set isDrill=true for DRILL executions
-- Use recoverySnapshotID='LATEST'
-- Tag jobs with ExecutionId, WaveNumber
+- Monitor returned job ID for completion
 
 #### FR-3.4: Job Monitoring
 **Priority**: Critical
 
 The system shall monitor DRS jobs:
-- Poll DescribeJobs every 30 seconds
-- Track status: PENDING → STARTED → COMPLETED/FAILED
-- Timeout after 30 minutes
-- Continue to next wave on completion
+- Poll DescribeJobs via Step Functions orchestration
+- Track participatingServers launchStatus: PENDING → LAUNCHED
+- Timeout after 30 minutes per wave
+- Continue to next wave when all servers LAUNCHED
 
-#### FR-3.5: Health Checks
+#### FR-3.5: Status Monitoring
 **Priority**: High
 
-The system shall verify recovered instances:
-- Check EC2 InstanceState = 'running'
-- Check SystemStatus = 'ok'
-- Wait up to 5 minutes for checks to pass
-- Mark unhealthy but continue execution
+The system shall monitor recovery progress:
+- Track DRS job status via DescribeJobs API
+- Monitor participatingServers launch status
+- Update execution status in DynamoDB
+- Continue to next wave when current wave completes
 
 #### FR-3.6: Get Execution Status
 **Priority**: Critical
 
 The system shall return execution status:
-- Overall status: PENDING, POLLING, LAUNCHING, COMPLETED, FAILED, CANCELLED
+- Overall status: PENDING, POLLING, RUNNING, COMPLETED, FAILED, CANCELLED
 - Per-wave status and progress
 - Server recovery status
 - Duration and timestamps
@@ -311,7 +305,7 @@ The system shall authorize API requests:
 | Page Load Time | <2 seconds |
 | Recovery Initiation | <5 seconds |
 | Concurrent Users | 50+ |
-| DRS Job Polling | Every 30 seconds |
+| DRS Job Polling | Step Functions managed |
 | UI Refresh (active executions) | Every 3 seconds |
 | UI Refresh (dashboard) | Every 30 seconds |
 
@@ -374,10 +368,7 @@ All endpoints require `Authorization: Bearer {jwt-token}` header.
 | GET | /executions | List executions |
 | POST | /executions | Start execution |
 | GET | /executions/{id} | Get execution status |
-| POST | /executions/{id}/cancel | Cancel execution |
-| POST | /executions/{id}/pause | Pause execution |
-| POST | /executions/{id}/resume | Resume execution |
-| DELETE | /executions | Delete all completed executions |
+| DELETE | /executions/{id} | Cancel execution |
 | GET | /drs/source-servers | Discover DRS servers |
 | GET | /health | Health check endpoint |
 
@@ -386,17 +377,17 @@ All endpoints require `Authorization: Bearer {jwt-token}` header.
 **Success**:
 ```json
 {
-  "success": true,
-  "data": { ... }
+  "statusCode": 200,
+  "body": { ... }
 }
 ```
 
 **Error**:
 ```json
 {
-  "success": false,
-  "error": {
-    "message": "Error description",
+  "statusCode": 400,
+  "body": {
+    "error": "Error description",
     "code": "ERROR_CODE"
   }
 }

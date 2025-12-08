@@ -14,7 +14,7 @@ AWS DRS Orchestration is an enterprise-grade, serverless disaster recovery orche
 
 ### Problem Statement
 
-Organizations migrating from VMware to AWS lose VMware Site Recovery Manager (SRM) orchestration capabilities. AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences.
+AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences. Organizations need wave-based execution, dependency management, and automated monitoring capabilities.
 
 ### Solution Overview
 
@@ -24,17 +24,6 @@ AWS DRS Orchestration provides complete orchestration on top of AWS DRS:
 - Step Functions-driven automation
 - React + CloudScape UI with real-time updates
 - Complete REST API for automation
-
-### Business Value
-
-| Metric | Traditional SRM | AWS DRS Orchestration |
-|--------|-----------------|----------------------|
-| Licensing Cost | $10K-50K/year | $12-40/month |
-| Infrastructure | On-premises | Serverless |
-| Wave Flexibility | 5 fixed | Unlimited |
-| Platform Support | VMware only | Any platform |
-| RPO | Minutes | Sub-second |
-| Deployment | Weeks | 20-30 minutes |
 
 ---
 
@@ -53,7 +42,7 @@ AWS DRS Orchestration provides complete orchestration on top of AWS DRS:
 **Infrastructure as Code**:
 - CloudFormation: 7 nested stacks (master, database, lambda, api, step-functions, security, frontend)
 - Single-command deployment
-- Multi-region support (13 DRS regions)
+- Multi-region support (all AWS DRS-supported regions)
 
 ### Data Model
 
@@ -70,7 +59,7 @@ AWS DRS Orchestration provides complete orchestration on top of AWS DRS:
 Logical organization of DRS source servers.
 
 **Capabilities**:
-- Auto-discovery across 13 AWS regions
+- Auto-discovery across all AWS DRS-supported regions
 - Visual server selector with status indicators
 - Single server per group constraint
 - Real-time search and filtering
@@ -89,7 +78,7 @@ Wave-based orchestration with dependencies.
 - Wave dependencies with validation
 - Drill and recovery modes
 
-**UI**: Wave configuration wizard with drag-and-drop
+**UI**: Wave configuration form with Protection Group selection
 
 **API**: `GET/POST/PUT/DELETE /recovery-plans`, `POST /executions`
 
@@ -103,20 +92,21 @@ Step Functions-driven recovery automation.
 3. Update execution history
 4. Move to next wave or complete
 
-**Monitoring**: Real-time status polling every 30 seconds
+**Monitoring**: Real-time status polling every 3 seconds for active executions
 
 **API**: `GET /executions`, `GET /executions/{id}`, `DELETE /executions/{id}`
 
 ### 4. User Interface
 
-React 19 + TypeScript + CloudScape Design System
+React 19.1 + TypeScript + CloudScape Design System
 
 **Pages**:
 - Login (Cognito)
+- Getting Started (onboarding)
 - Dashboard (metrics)
 - Protection Groups (CRUD)
 - Recovery Plans (wave config)
-- Executions (monitoring)
+- History (execution monitoring)
 - Execution Details (wave progress)
 
 **Features**: Real-time updates, responsive design, WCAG 2.1 AA compliant
@@ -131,6 +121,7 @@ React 19 + TypeScript + CloudScape Design System
 - Vite 7.1.7
 - AWS Amplify 6.15.8
 - Axios 1.13.2
+- React Router 7.9.5
 
 ### Backend Stack
 - Python 3.12 Lambda runtime
@@ -260,8 +251,15 @@ aws cloudformation deploy \
 
 ## Appendix
 
-### Supported Regions
-us-east-1, us-east-2, us-west-1, us-west-2, eu-west-1, eu-west-2, eu-west-3, eu-central-1, ap-southeast-1, ap-southeast-2, ap-northeast-1, ap-northeast-2, ap-south-1
+### AWS DRS Regional Availability
+
+The solution supports disaster recovery orchestration in all AWS regions where Elastic Disaster Recovery (DRS) is available:
+
+**Americas (5 regions)**: US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central)  
+**Europe (6 regions)**: Ireland, London, Frankfurt, Paris, Stockholm, Milan  
+**Asia Pacific (3 regions)**: Tokyo, Sydney, Singapore  
+
+*Regional availability is determined by AWS DRS service, not the orchestration solution. As AWS expands DRS to additional regions, the solution automatically supports them.*
 
 ### Cost Breakdown
 - Lambda: $1-5/month
