@@ -31,7 +31,7 @@ validate:cloudformation:
     - aws configure set region $AWS_DEFAULT_REGION
   script:
     - echo "Validating CloudFormation templates with cfn-lint..."
-    - cfn-lint cfn/*.yaml
+    - cfn-lint --config-file .cfnlintrc.yaml cfn/*.yaml
     - echo "Validating template syntax with AWS CLI..."
     - |
       for template in cfn/*.yaml; do
