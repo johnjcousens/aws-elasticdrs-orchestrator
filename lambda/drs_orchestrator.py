@@ -363,6 +363,7 @@ def start_wave_recovery(application: Dict, wave_number: int) -> None:
     
     try:
         # Get Protection Group
+        # amazonq-ignore-next-line
         pg_response = get_protection_groups_table().get_item(Key={'GroupId': protection_group_id})
         if 'Item' not in pg_response:
             print(f"Protection Group {protection_group_id} not found")

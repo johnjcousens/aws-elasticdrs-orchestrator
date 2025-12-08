@@ -30,6 +30,10 @@ lambda/poller/.coverage
 
 # Kiro/IDE configuration (internal)
 .kiro/
+# Exception: Include key steering documents
+!.kiro/steering/product.md
+!.kiro/steering/structure.md
+!.kiro/steering/tech.md
 .amazonq/
 .cline_memory/
 
