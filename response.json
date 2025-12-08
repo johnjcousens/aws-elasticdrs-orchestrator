@@ -1,1 +1,0 @@
-{"plan_id": "test", "execution_id": "test-123", "is_drill": true, "waves": [], "current_wave_number": 0, "all_waves_completed": true, "wave_completed": false, "current_wave_update_time": 30, "current_wave_total_wait_time": 0, "current_wave_max_wait_time": 1800, "status": "completed", "wave_results": [], "job_id": null, "region": null, "server_ids": [], "error": null}
