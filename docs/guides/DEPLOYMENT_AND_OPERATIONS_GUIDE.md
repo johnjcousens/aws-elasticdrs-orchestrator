@@ -1,8 +1,8 @@
 # Deployment and Operations Guide
 # AWS DRS Orchestration System
 
-**Version**: 1.0  
-**Date**: November 12, 2025  
+**Version**: 2.0  
+**Date**: December 8, 2025  
 **Status**: Production Operations Guide  
 **Document Owner**: DevOps & Operations Team  
 **Target Audience**: DevOps Engineers, System Administrators, SREs
@@ -39,15 +39,16 @@ This Deployment and Operations Guide provides comprehensive instructions for dep
 ### Deployment Overview
 
 **Deployment Method**: AWS CloudFormation (Infrastructure as Code)  
-**Deployment Time**: ~15 minutes (first deployment), ~5-10 minutes (updates)  
+**Deployment Time**: ~20-30 minutes (first deployment), ~5-10 minutes (updates)  
 **Deployment Regions**: Any AWS DRS-enabled region (13 regions supported)  
 **Deployment Complexity**: Medium (requires AWS CLI, parameter configuration)
 
 **Stack Structure**:
-- 1 master template (orchestrates 5 nested stacks)
-- 6 CloudFormation templates (2,400+ lines total)
-- 4 Lambda functions (Python 3.12)
-- 3 DynamoDB tables
+- 1 master template (orchestrates 6 nested stacks)
+- 7 CloudFormation templates (3,000+ lines total)
+- 6 Lambda functions (Python 3.12)
+- 3 DynamoDB tables with GSI
+- 1 Step Functions state machine
 - 1 React frontend (S3 + CloudFront)
 
 ### Operations Summary
@@ -148,24 +149,20 @@ cd AWS-DRS-Orchestration
 ls cfn/        # CloudFormation templates
 ls lambda/     # Lambda function code
 ls frontend/   # React application code
+ls scripts/    # Deployment scripts
 
-# Package Lambda code
-cd lambda
-zip -r ../lambda-package.zip . -x "*.pyc" "__pycache__/*"
-cd ..
-
-# Upload Lambda package to S3
-aws s3 mb s3://drs-orchestration-deployment-<account-id>
-aws s3 cp lambda-package.zip s3://drs-orchestration-deployment-<account-id>/lambda-package.zip
+# Use automated sync script to prepare S3 deployment bucket
+./scripts/sync-to-deployment-bucket.sh
 ```
 
-#### Option B: Deploy from Packaged Artifacts
+#### Option B: Manual S3 Setup (Advanced)
 
 ```bash
-# Download pre-packaged artifacts
-aws s3 cp s3://drs-orchestration-releases/v1.0/deployment-package.zip .
-unzip deployment-package.zip
-cd deployment-package
+# Create S3 deployment bucket
+aws s3 mb s3://aws-drs-orchestration --region us-east-1
+
+# Sync all components to S3
+./scripts/sync-to-deployment-bucket.sh --build-frontend
 ```
 
 ---
@@ -212,23 +209,35 @@ Create `parameters.json` file:
 
 ### Step 3: Deploy CloudFormation Stack
 
+#### Option A: Automated Deployment (Recommended)
+
+```bash
+# Sync to S3 and deploy in one command
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+```
+
+#### Option B: Manual CloudFormation Deployment
+
 ```bash
 # Set variables
-STACK_NAME="drs-orchestration-prod"
+STACK_NAME="drs-orchestration-dev"
 REGION="us-east-1"
-TEMPLATE_FILE="cfn/master-template.yaml"
+SOURCE_BUCKET="aws-drs-orchestration"
 
-# Deploy stack
+# Deploy stack from S3 template
 aws cloudformation create-stack \
   --stack-name $STACK_NAME \
-  --template-body file://$TEMPLATE_FILE \
-  --parameters file://parameters.json \
+  --template-url https://s3.amazonaws.com/$SOURCE_BUCKET/cfn/master-template.yaml \
+  --parameters \
+    ParameterKey=ProjectName,ParameterValue=drs-orchestration \
+    ParameterKey=Environment,ParameterValue=dev \
+    ParameterKey=SourceBucket,ParameterValue=$SOURCE_BUCKET \
+    ParameterKey=AdminEmail,ParameterValue=admin@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region $REGION \
   --tags \
     Key=Project,Value=DRS-Orchestration \
-    Key=Environment,Value=prod \
-    Key=Owner,Value=your-team
+    Key=Environment,Value=dev
 
 # Monitor deployment
 aws cloudformation wait stack-create-complete \
