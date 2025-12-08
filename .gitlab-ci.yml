@@ -24,20 +24,25 @@ variables:
 validate:cloudformation:
   stage: validate
   image: python:${PYTHON_VERSION}
+  before_script:
+    - pip install cfn-lint==1.42.0 awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION
   script:
-    - echo "Validating CloudFormation templates..."
-    - pip install cfn-lint==1.42.0
-    - cfn-lint cfn/*.yaml --ignore-checks W2001 W3002 W3005 W3037 --ignore-templates cfn/security-stack.yaml
+    - echo "Validating CloudFormation templates with cfn-lint..."
+    - cfn-lint cfn/*.yaml
     - echo "Validating template syntax with AWS CLI..."
-    - pip install awscli
     - |
       for template in cfn/*.yaml; do
         echo "Validating $template"
-        aws cloudformation validate-template --template-body file://$template --region ${AWS_DEFAULT_REGION} || true
+        aws cloudformation validate-template --template-body file://$template --region ${AWS_DEFAULT_REGION}
       done
+    - echo "CloudFormation validation complete"
   rules:
     - changes:
         - cfn/**/*
+        - .cfnlintrc.yaml
         - .gitlab-ci.yml
 
 validate:frontend-types:
