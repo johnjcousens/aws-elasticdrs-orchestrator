@@ -35,7 +35,7 @@ Resources:
               FunctionName: !Ref OrchestrationLambdaArn
               Payload:
                 action: 'begin'
-                execution.$: '$$.Execution.Id'
+                execution.$: '$.Execution.Id'
                 plan.$: '$.Plan'
                 isDrill.$: '$.IsDrill'
             ResultPath: '$.application'

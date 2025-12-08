@@ -24,7 +24,7 @@ LIST_PROFILES=false
 
 # CloudFormation stack configuration
 PROJECT_NAME="drs-orchestration"
-ENVIRONMENT="test"
+ENVIRONMENT="dev"
 PARENT_STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}"
 
 # Approved top-level directories (directories synced by this script)
@@ -293,18 +293,18 @@ fi
 # Build frontend if requested
 if [ "$BUILD_FRONTEND" = true ]; then
     echo "🏗️  Building frontend..."
-    if [ -f ".env.test" ]; then
+    if [ -f ".env.dev" ]; then
         cd frontend
         ./build.sh
         cd ..
         echo "✅ Frontend build complete"
     else
-        echo "⚠️  WARNING: .env.test not found in project root"
-        echo "   .env.test is required for frontend build - it contains:"
+        echo "⚠️  WARNING: .env.dev not found in project root"
+        echo "   .env.dev is required for frontend build - it contains:"
         echo "   - Cognito User Pool ID and Client ID"
         echo "   - API Gateway Endpoint URL"
         echo "   - AWS Region"
-        echo "   Create .env.test from .env.test.template and populate with your values"
+        echo "   Create .env.dev from .env.test.template and populate with your values"
         echo ""
         echo "   Skipping frontend build..."
     fi

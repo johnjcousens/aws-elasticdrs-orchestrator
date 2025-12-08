@@ -298,7 +298,7 @@ Outputs:
 
   StateMachineArn:
     Description: 'Step Functions State Machine ARN'
-    Value: !GetAtt ApiStack.Outputs.StateMachineArn
+    Value: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
     Export:
       Name: !Sub '${AWS::StackName}-StateMachineArn'
 

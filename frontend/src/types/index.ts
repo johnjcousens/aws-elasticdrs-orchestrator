@@ -126,6 +126,11 @@ export interface UpdateRecoveryPlanRequest {
 export type ExecutionStatus =
   | 'pending'
   | 'in_progress'
+  | 'running'
+  | 'started'
+  | 'polling'
+  | 'launching'
+  | 'initiated'
   | 'completed'
   | 'failed'
   | 'rolled_back'
@@ -171,6 +176,8 @@ export interface ServerExecution {
   region?: string;
   sourceInstanceId?: string;  // Original EC2 instance being replicated
   sourceAccountId?: string;   // Source AWS account ID
+  sourceIp?: string;          // Source server IP address
+  sourceRegion?: string;      // Source region (where server is replicating from)
   status: ExecutionStatus | string;
   launchStatus?: string;
   replicationState?: string;  // DRS replication state (CONTINUOUS, etc.)

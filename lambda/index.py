@@ -845,13 +845,15 @@ def execute_with_step_functions(execution_id: str, plan_id: str, plan: Dict, is_
         print(f"Starting Step Functions execution for {execution_id}")
         
         # Prepare Step Functions input
+        # Step Functions input format for step-functions-stack.yaml state machine
+        # Uses 'Plan' (singular) not 'Plans' (array)
         sfn_input = {
             'Execution': {'Id': execution_id},
-            'Plans': [{
+            'Plan': {
                 'PlanId': plan_id,
                 'PlanName': plan.get('PlanName', 'Unknown'),
                 'Waves': plan.get('Waves', [])
-            }],
+            },
             'IsDrill': is_drill
         }
         
@@ -1472,15 +1474,64 @@ def get_server_details_map(server_ids: List[str], region: str = 'us-east-1') -> 
                             if len(arn_parts) >= 5:
                                 source_account_id = arn_parts[4]
                     
+                    # Extract source IP from network interfaces
+                    network_interfaces = source_props.get('networkInterfaces', [])
+                    source_ip = ''
+                    if network_interfaces:
+                        # Get first private IP from first interface
+                        first_iface = network_interfaces[0]
+                        ips = first_iface.get('ips', [])
+                        if ips:
+                            source_ip = ips[0]
+                    
+                    # Extract source region from replication info
+                    source_region = ''
+                    data_rep_info = server.get('dataReplicationInfo', {})
+                    replicated_disks = data_rep_info.get('replicatedDisks', [])
+                    if replicated_disks:
+                        # Extract region from device name or use staging area region
+                        staging_area = server.get('stagingArea', {})
+                        source_region = staging_area.get('stagingSourceServerArn', '').split(':')[3] if staging_area.get('stagingSourceServerArn') else ''
+                    
+                    # Fallback: get source region from sourceProperties
+                    if not source_region:
+                        source_region = source_props.get('identificationHints', {}).get('awsInstanceID', '').split(':')[3] if ':' in source_props.get('identificationHints', {}).get('awsInstanceID', '') else ''
+                    
                     server_map[source_id] = {
                         'hostname': hostname,
-                        'nameTag': name_tag or hostname,
+                        'nameTag': name_tag,  # Will be updated from EC2 below
                         'region': region,
                         'sourceInstanceId': source_instance_id,
                         'sourceAccountId': source_account_id,
+                        'sourceIp': source_ip,
+                        'sourceRegion': source_region or region,  # Fallback to target region if not found
                         'replicationState': server.get('dataReplicationInfo', {}).get('dataReplicationState', 'UNKNOWN'),
                         'lastLaunchResult': server.get('lastLaunchResult', 'NOT_STARTED'),
                     }
+        
+        # Fetch EC2 Name tags from source instances
+        source_instance_ids = [s['sourceInstanceId'] for s in server_map.values() if s.get('sourceInstanceId')]
+        if source_instance_ids:
+            try:
+                ec2_client = boto3.client('ec2', region_name=region)
+                ec2_response = ec2_client.describe_instances(InstanceIds=source_instance_ids)
+                ec2_name_tags = {}
+                for reservation in ec2_response.get('Reservations', []):
+                    for instance in reservation.get('Instances', []):
+                        instance_id = instance.get('InstanceId', '')
+                        for tag in instance.get('Tags', []):
+                            if tag.get('Key') == 'Name':
+                                ec2_name_tags[instance_id] = tag.get('Value', '')
+                                break
+                
+                # Update server_map with EC2 Name tags
+                for source_id, details in server_map.items():
+                    instance_id = details.get('sourceInstanceId')
+                    if instance_id and instance_id in ec2_name_tags:
+                        details['nameTag'] = ec2_name_tags[instance_id]
+            except Exception as ec2_error:
+                print(f"Error fetching EC2 Name tags: {ec2_error}")
+                
     except Exception as e:
         print(f"Error getting server details: {e}")
     
@@ -1529,6 +1580,8 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
                 'Region': region,
                 'SourceInstanceId': details.get('sourceInstanceId', ''),
                 'SourceAccountId': details.get('sourceAccountId', ''),
+                'SourceIp': details.get('sourceIp', ''),
+                'SourceRegion': details.get('sourceRegion', ''),
                 'ReplicationState': details.get('replicationState', 'UNKNOWN'),
             })
         
@@ -2485,6 +2538,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                     'region': enriched.get('Region', wave.get('Region', '')),
                     'sourceInstanceId': enriched.get('SourceInstanceId', ''),
                     'sourceAccountId': enriched.get('SourceAccountId', ''),
+                    'sourceIp': enriched.get('SourceIp', ''),
+                    'sourceRegion': enriched.get('SourceRegion', ''),
                     'replicationState': enriched.get('ReplicationState', ''),
                 })
         else:
@@ -2510,6 +2565,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                         'region': enriched.get('Region', wave.get('Region', '')),
                         'sourceInstanceId': enriched.get('SourceInstanceId', ''),
                         'sourceAccountId': enriched.get('SourceAccountId', ''),
+                        'sourceIp': enriched.get('SourceIp', ''),
+                        'sourceRegion': enriched.get('SourceRegion', ''),
                         'replicationState': enriched.get('ReplicationState', ''),
                     })
             elif server_ids:
@@ -2529,6 +2586,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                         'region': enriched.get('Region', wave.get('Region', '')),
                         'sourceInstanceId': enriched.get('SourceInstanceId', ''),
                         'sourceAccountId': enriched.get('SourceAccountId', ''),
+                        'sourceIp': enriched.get('SourceIp', ''),
+                        'sourceRegion': enriched.get('SourceRegion', ''),
                         'replicationState': enriched.get('ReplicationState', ''),
                     })
         
