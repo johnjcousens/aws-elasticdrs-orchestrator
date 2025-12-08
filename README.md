@@ -1,125 +1,115 @@
 # AWS DRS Orchestration Solution
 
-A serverless disaster recovery orchestration platform for AWS Elastic Disaster Recovery (DRS) with wave-based execution and enterprise-grade automation.
+Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, automated health checks, and VMware SRM-like capabilities.
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![AWS](https://img.shields.io/badge/AWS-DRS-orange.svg)](https://aws.amazon.com/disaster-recovery/)
-[![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-yellow.svg)](cfn/)
+[![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
+[![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
+[![React](https://img.shields.io/badge/Frontend-React%2018-61DAFB?logo=react)](frontend/)
+[![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 
 ## Overview
 
-AWS DRS Orchestration enables enterprise organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native services.
+AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks—delivering VMware Site Recovery Manager (SRM) parity using AWS-native serverless services.
 
-### Key Capabilities
+### Why This Solution?
 
-- **Protection Groups**: Organize DRS source servers into logical groups with automatic discovery
-- **Recovery Plans**: Define wave-based recovery sequences with dependencies
+| Challenge | Traditional SRM | AWS DRS Orchestration |
+|-----------|-----------------|----------------------|
+| Licensing Cost | $10K-50K/year | $12-40/month |
+| Wave Flexibility | 5 fixed priorities | Unlimited waves |
+| Platform Support | VMware only | Any platform (VMware, physical, cloud) |
+| RPO Capability | Minutes | Sub-second |
+| Infrastructure | On-premises servers | Fully serverless |
+
+## Key Features
+
+### Protection Groups
+- **Automatic Server Discovery**: Real-time DRS source server discovery across 13 AWS regions
+- **Visual Server Selection**: VMware SRM-like interface with assignment status indicators
+- **Conflict Prevention**: Single server per group constraint prevents recovery conflicts
+- **Real-Time Search**: Filter servers by hostname, Server ID, or Protection Group name
+
+### Recovery Plans
+- **Wave-Based Orchestration**: Define multi-wave recovery sequences with unlimited flexibility
+- **Dependency Management**: Automatic wave dependency handling with circular dependency detection
+- **Automation Actions**: Pre-wave and post-wave SSM automation for health checks
 - **Drill Mode**: Test recovery procedures without impacting production
-- **Real-Time Monitoring**: Track execution progress with detailed status updates
-- **API-First**: Complete REST API for DevOps integration and automation
+
+### Execution Monitoring
+- **Real-Time Dashboard**: Live execution progress with wave-level status tracking
+- **Execution History**: Complete audit trail of all recovery executions
+- **CloudWatch Integration**: Deep-link to CloudWatch Logs for troubleshooting
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph "Frontend"
-        CF[CloudFront CDN]
-        S3[S3 Static Hosting]
-        React[React + CloudScape UI]
-    end
-    
-    subgraph "API Layer"
-        APIGW[API Gateway]
-        Cognito[Cognito User Pool]
-    end
-    
-    subgraph "Compute"
-        Lambda[API Handler Lambda]
-        Orch[Orchestration Lambda]
-        SF[Step Functions]
-    end
-    
-    subgraph "Data"
-        DDB[(DynamoDB)]
-    end
-    
-    subgraph "AWS DRS"
-        DRS[Elastic Disaster Recovery]
-        EC2[Recovery Instances]
-    end
-    
-    CF --> S3
-    S3 --> React
-    React --> APIGW
-    APIGW --> Cognito
-    APIGW --> Lambda
-    Lambda --> DDB
-    Lambda --> SF
-    SF --> Orch
-    Orch --> DRS
-    DRS --> EC2
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              AWS Cloud                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────────────┐  │
+│  │  CloudFront  │───▶│      S3      │    │        Cognito               │  │
+│  │     CDN      │    │   (React)    │    │      User Pool               │  │
+│  └──────────────┘    └──────────────┘    └──────────────────────────────┘  │
+│         │                                              │                     │
+│         ▼                                              ▼                     │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                        API Gateway (REST)                            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│         │                                                                    │
+│         ▼                                                                    │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────────────┐  │
+│  │   Lambda     │───▶│    Step      │───▶│     AWS DRS                  │  │
+│  │ API Handler  │    │  Functions   │    │  (Recovery Jobs)             │  │
+│  └──────────────┘    └──────────────┘    └──────────────────────────────┘  │
+│         │                   │                          │                     │
+│         ▼                   ▼                          ▼                     │
+│  ┌──────────────────────────────────────┐    ┌──────────────────────────┐  │
+│  │           DynamoDB Tables            │    │    Recovery Instances    │  │
+│  │  • Protection Groups                 │    │        (EC2)             │  │
+│  │  • Recovery Plans                    │    └──────────────────────────┘  │
+│  │  • Execution History                 │                                   │
+│  └──────────────────────────────────────┘                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Recovery Execution Flow
+### Technology Stack
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant UI as React UI
-    participant API as API Gateway
-    participant SF as Step Functions
-    participant DRS as AWS DRS
-    participant EC2 as Recovery EC2
-    
-    User->>UI: Start Recovery Plan
-    UI->>API: POST /executions
-    API->>SF: Start Execution
-    
-    loop Each Wave
-        SF->>DRS: StartRecovery (wave servers)
-        DRS->>EC2: Launch instances
-        SF->>DRS: Poll job status
-        DRS-->>SF: LAUNCHED
-    end
-    
-    SF-->>API: Execution complete
-    API-->>UI: Status update
-    UI-->>User: Recovery complete
-```
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18, TypeScript, AWS CloudScape Design System |
+| API | Amazon API Gateway (REST), Amazon Cognito |
+| Compute | AWS Lambda (Python 3.12), AWS Step Functions |
+| Database | Amazon DynamoDB (3 tables with GSI) |
+| Hosting | Amazon S3, Amazon CloudFront |
+| DR Service | AWS Elastic Disaster Recovery (DRS) |
 
 ## Quick Start
 
 ### Prerequisites
 
-- AWS Account with DRS configured
-- AWS CLI configured with appropriate permissions
-- Node.js 18+ (for frontend development)
-- Python 3.12+ (for Lambda development)
+- AWS Account with DRS configured and source servers replicating
+- AWS CLI v2 configured with appropriate permissions
+- S3 bucket for deployment artifacts
 
 ### Deploy with CloudFormation
 
-**⚠️ CRITICAL**: CloudFormation uses pre-built artifacts from S3, not source code. See [Deployment Recovery Guide](DEPLOYMENT_RECOVERY_GUIDE.md) for complete process.
-
 ```bash
+# Deploy the complete solution
 aws cloudformation deploy \
-  --template-url https://aws-drs-orchestration.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
-  --stack-name drs-orchestration-dev \
+  --template-url https://your-bucket.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
+  --stack-name drs-orchestration \
   --parameter-overrides \
     ProjectName=drs-orchestration \
-    Environment=dev \
-    SourceBucket=aws-drs-orchestration \
-    AdminEmail=admin@example.com \
+    Environment=prod \
+    SourceBucket=your-bucket \
+    AdminEmail=admin@yourcompany.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
 
-**Deployment Bucket**: `aws-drs-orchestration` (contains all CloudFormation templates and Lambda ZIP files)
-
 Deployment takes approximately 20-30 minutes.
 
-### Stack Outputs
-
-After deployment, retrieve your endpoints:
+### Get Stack Outputs
 
 ```bash
 aws cloudformation describe-stacks \
@@ -135,39 +125,61 @@ aws cloudformation describe-stacks \
 | UserPoolId | Cognito User Pool ID |
 | UserPoolClientId | Cognito App Client ID |
 
-## Features
+### Create Admin User
 
-### Protection Groups
+```bash
+USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+  --output text)
 
-Organize your DRS source servers into logical groups for coordinated recovery.
+aws cognito-idp admin-create-user \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@yourcompany.com \
+  --user-attributes Name=email,Value=admin@yourcompany.com Name=email_verified,Value=true \
+  --temporary-password "TempPass123!" \
+  --message-action SUPPRESS
 
-- Automatic server discovery by AWS region
-- Visual server selection with assignment tracking
-- Single server per group constraint (prevents conflicts)
-- Real-time search and filtering
+aws cognito-idp admin-set-user-password \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@yourcompany.com \
+  --password "YourSecurePassword123!" \
+  --permanent
+```
 
-### Recovery Plans
+## Usage Guide
 
-Define multi-wave recovery sequences with explicit dependencies.
+### Creating a Protection Group
 
-**Wave Execution Example:**
+1. Navigate to **Protection Groups** in the sidebar
+2. Click **Create Protection Group**
+3. Enter a unique name and select the AWS region
+4. Select source servers from the discovery list (green = available, red = assigned)
+5. Click **Create**
 
-| Wave | Tier | Servers | Depends On |
-|------|------|---------|------------|
-| 1 | Database | SQL Primary, SQL Secondary | - |
-| 2 | Application | App Server 1, App Server 2 | Wave 1 |
-| 3 | Web | Web Server 1, Web Server 2 | Wave 2 |
+### Creating a Recovery Plan
 
-- Unlimited waves with flexible priority ordering
-- Pre/post-wave automation actions via SSM
-- Dependency validation and circular dependency detection
+1. Navigate to **Recovery Plans** in the sidebar
+2. Click **Create Recovery Plan**
+3. Enter plan name and configure waves:
 
-### Execution Types
+| Wave | Tier | Protection Groups | Depends On |
+|------|------|-------------------|------------|
+| 1 | Database | DB-Primary, DB-Secondary | - |
+| 2 | Application | App-Servers | Wave 1 |
+| 3 | Web | Web-Servers | Wave 2 |
 
-| Type | Description | Use Case |
-|------|-------------|----------|
-| **Drill** | Test recovery without production impact | Regular DR testing |
-| **Recovery** | Full disaster recovery execution | Actual DR event |
+4. Configure optional pre/post-wave automation
+5. Click **Create**
+
+### Executing a Recovery
+
+1. Navigate to **Recovery Plans**
+2. Select a plan and click **Execute**
+3. Choose execution type:
+   - **Drill**: Test recovery without production impact
+   - **Recovery**: Full disaster recovery execution
+4. Monitor progress in **Executions** page
 
 ## API Reference
 
@@ -188,7 +200,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 |--------|----------|-------------|
 | GET | `/protection-groups` | List all protection groups |
 | POST | `/protection-groups` | Create protection group |
-| GET | `/protection-groups/{id}` | Get protection group |
+| GET | `/protection-groups/{id}` | Get protection group details |
 | PUT | `/protection-groups/{id}` | Update protection group |
 | DELETE | `/protection-groups/{id}` | Delete protection group |
 
@@ -198,7 +210,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 |--------|----------|-------------|
 | GET | `/recovery-plans` | List all recovery plans |
 | POST | `/recovery-plans` | Create recovery plan |
-| GET | `/recovery-plans/{id}` | Get recovery plan |
+| GET | `/recovery-plans/{id}` | Get recovery plan details |
 | PUT | `/recovery-plans/{id}` | Update recovery plan |
 | DELETE | `/recovery-plans/{id}` | Delete recovery plan |
 
@@ -214,19 +226,19 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/drs/source-servers?region={region}` | Discover DRS servers |
+| GET | `/drs/source-servers?region={region}` | Discover DRS source servers |
 
 ## Infrastructure
 
 ### CloudFormation Stacks
 
-The solution uses a modular nested stack architecture:
+The solution uses a modular nested stack architecture for maintainability:
 
-| Stack | Purpose | Resources |
-|-------|---------|-----------|
+| Stack | Purpose | Key Resources |
+|-------|---------|---------------|
 | `master-template.yaml` | Root orchestrator | Parameter propagation, outputs |
-| `database-stack.yaml` | Data persistence | 3 DynamoDB tables |
-| `lambda-stack.yaml` | Compute | 4 Lambda functions, IAM roles |
+| `database-stack.yaml` | Data persistence | 3 DynamoDB tables with encryption |
+| `lambda-stack.yaml` | Compute layer | 4 Lambda functions, IAM roles |
 | `api-stack.yaml` | API & Auth | API Gateway, Cognito, Step Functions |
 | `security-stack.yaml` | Security (optional) | WAF, CloudTrail |
 | `frontend-stack.yaml` | Frontend hosting | S3, CloudFront |
@@ -239,18 +251,42 @@ The solution uses a modular nested stack architecture:
 | `recovery-plans-{env}` | Wave configurations | `PlanId` (PK) |
 | `execution-history-{env}` | Audit trail | `ExecutionId` (PK), `PlanId` (SK) |
 
+## Cost Estimate
+
+| Component | Monthly Cost (Est.) |
+|-----------|---------------------|
+| Lambda | $1-5 |
+| API Gateway | $3-10 |
+| DynamoDB | $1-5 |
+| CloudFront | $1-5 |
+| S3 | <$1 |
+| Step Functions | $1-5 |
+| Cognito | Free tier |
+| **Total** | **$12-40/month** |
+
+*Costs vary based on usage. DRS replication costs are separate and depend on protected server count.*
+
+## Security
+
+- **Encryption at Rest**: All data encrypted (DynamoDB, S3)
+- **Encryption in Transit**: HTTPS enforced via CloudFront
+- **Authentication**: Cognito JWT token-based authentication
+- **Authorization**: IAM least-privilege policies
+- **Optional**: WAF protection and CloudTrail audit logging
+
 ## Development
 
-### Frontend
+### Frontend Development
 
 ```bash
 cd frontend
 npm install
-npm run dev      # Development server
+npm run dev      # Development server at localhost:5173
 npm run build    # Production build
+npm run lint     # ESLint validation
 ```
 
-### Lambda
+### Lambda Development
 
 ```bash
 cd lambda
@@ -269,313 +305,29 @@ make validate    # AWS validate-template
 make lint        # cfn-lint validation
 ```
 
-## Post-Deployment Setup
+## Troubleshooting
 
-After CloudFormation deployment completes, follow these steps to configure the application:
+### Common Issues
 
-### 1. Create Admin User
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `PG_NAME_EXISTS` | Duplicate protection group name | Use a unique name |
+| `INVALID_SERVER_IDS` | Server IDs not found in DRS | Verify servers with `aws drs describe-source-servers` |
+| `CIRCULAR_DEPENDENCY` | Wave dependencies form a loop | Review and fix dependency chain |
+| `EXECUTION_IN_PROGRESS` | Plan already executing | Wait for completion or cancel |
 
-```bash
-# Get Cognito User Pool ID from stack outputs
-USER_POOL_ID=$(aws cloudformation describe-stacks \
-  --stack-name drs-orchestration \
-  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
-  --output text)
+### DRS Recovery Failures
 
-# Create admin user
-aws cognito-idp admin-create-user \
-  --user-pool-id $USER_POOL_ID \
-  --username admin@example.com \
-  --user-attributes Name=email,Value=admin@example.com Name=email_verified,Value=true \
-  --temporary-password "TempPass123!" \
-  --message-action SUPPRESS
-
-# Set permanent password
-aws cognito-idp admin-set-user-password \
-  --user-pool-id $USER_POOL_ID \
-  --username admin@example.com \
-  --password "YourSecurePassword123!" \
-  --permanent
-```
-
-### 2. Configure DRS Source Servers
-
-Ensure your DRS source servers are configured and replicating:
-
-```bash
-# List DRS source servers
-aws drs describe-source-servers --region us-east-1
-
-# Verify replication status (should be "HEALTHY")
-aws drs describe-source-servers \
-  --filters name=lifeCycleState,values=READY_FOR_TEST,READY_FOR_CUTOVER \
-  --region us-east-1
-```
-
-### 3. Access the Application
-
-```bash
-# Get CloudFront URL
-aws cloudformation describe-stacks \
-  --stack-name drs-orchestration \
-  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
-  --output text
-```
-
-## GitLab CI/CD Integration
-
-The repository includes a complete GitLab CI/CD pipeline (`.gitlab-ci.yml`) for automated deployment.
-
-### Pipeline Stages
-
-| Stage | Jobs | Description |
-|-------|------|-------------|
-| validate | `validate:cloudformation`, `validate:frontend-types` | Template validation, TypeScript checks |
-| lint | `lint:python`, `lint:frontend` | Code quality checks |
-| build | `build:lambda`, `build:frontend` | Package Lambda, build React app |
-| test | `test:python-unit`, `test:playwright` | Unit and E2E tests |
-| deploy-infra | `deploy:upload-artifacts`, `deploy:cloudformation` | S3 upload, stack deployment |
-| deploy-frontend | `deploy:frontend` | S3 sync, CloudFront invalidation |
-
-### Required CI/CD Variables
-
-Configure these variables in GitLab Settings → CI/CD → Variables:
-
-| Variable | Description | Protected |
-|----------|-------------|-----------|
-| `AWS_ACCESS_KEY_ID` | AWS access key for deployment | Yes |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key for deployment | Yes |
-| `AWS_DEFAULT_REGION` | Target AWS region (e.g., `us-east-1`) | No |
-| `ADMIN_EMAIL` | Admin email for Cognito notifications | No |
-| `DEPLOYMENT_BUCKET` | S3 bucket for artifacts | No |
-
-### Pipeline Triggers
-
-- **Automatic**: Runs on push to `main` or `dev/*` branches
-- **Manual**: Production deployment requires manual approval
-
-### Frontend Development Workflow
-
-```bash
-# 1. Clone repository
-git clone <repository-url>
-cd AWS-DRS-Orchestration
-
-# 2. Install frontend dependencies
-cd frontend
-npm install
-
-# 3. Create local environment config
-cat > .env.local <<EOF
-VITE_API_ENDPOINT=https://your-api-endpoint.execute-api.us-east-1.amazonaws.com/prod
-VITE_COGNITO_REGION=us-east-1
-VITE_COGNITO_USER_POOL_ID=us-east-1_xxxxx
-VITE_COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
-EOF
-
-# 4. Start development server
-npm run dev
-
-# 5. Make changes and commit
-git add .
-git commit -m "feat: Add new feature"
-git push origin main  # Triggers CI/CD pipeline
-```
-
-### Manual Frontend Deployment
-
-If you need to deploy frontend changes without the full pipeline:
-
-```bash
-# Build frontend
-cd frontend
-npm run build
-
-# Get stack outputs
-BUCKET=$(aws cloudformation describe-stacks --stack-name drs-orchestration \
-  --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
-DIST_ID=$(aws cloudformation describe-stacks --stack-name drs-orchestration \
-  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-
-# Deploy (preserve aws-config.js)
-aws s3 sync dist/ s3://$BUCKET/ --delete --exclude "aws-config.js"
-
-# Invalidate cache
-aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
-```
+If recovery jobs fail with `UnauthorizedOperation` errors, verify the OrchestrationRole has required EC2 and DRS permissions. See [DRS IAM Analysis](docs/guides/AWS_DRS_API_REFERENCE.md) for complete permission requirements.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Deployment Recovery Guide](DEPLOYMENT_RECOVERY_GUIDE.md) | **CRITICAL**: Complete redeployment from scratch |
-| [Deployment Success Summary](DEPLOYMENT_SUCCESS_SUMMARY.md) | Latest deployment verification and test results |
-| [DRS IAM Analysis](DRS_COMPLETE_IAM_ANALYSIS.md) | Complete DRS permission requirements |
 | [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment instructions |
 | [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture details |
 | [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md) | DRS API integration guide |
 | [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) | Testing procedures |
-
-## Cost Estimate
-
-| Component | Monthly Cost (Est.) |
-|-----------|---------------------|
-| Lambda | $1-5 |
-| API Gateway | $3-10 |
-| DynamoDB | $1-5 |
-| CloudFront | $1-5 |
-| S3 | <$1 |
-| Step Functions | $1-5 |
-| Cognito | Free tier |
-| **Total** | **$10-30/month** |
-
-*Costs vary based on usage. DRS replication costs are separate.*
-
-## Troubleshooting
-
-### DRS Recovery Failures
-
-#### Issue: UnauthorizedOperation on EC2 Actions
-
-**Symptom**: DRS recovery jobs fail with `UnauthorizedOperation` errors like:
-```
-UnauthorizedOperation when calling CreateLaunchTemplateVersion operation
-AccessDeniedException when calling CreateRecoveryInstanceForDrs operation
-```
-
-**Root Cause**: When Lambda calls `drs:StartRecovery`, DRS uses the **calling role's IAM permissions** (not its service-linked role) to perform EC2 and DRS operations. This is a critical discovery - the DRS service-linked role has all permissions, but DRS delegates EC2 operations to the caller's role.
-
-**Required Permissions**: The OrchestrationRole must have comprehensive EC2 AND DRS permissions:
-
-```yaml
-# EC2Access Policy
-EC2Access:
-  Effect: Allow
-  Action:
-    # Read permissions (all required by DRS)
-    - ec2:DescribeInstances
-    - ec2:DescribeInstanceStatus
-    - ec2:DescribeInstanceTypeOfferings
-    - ec2:DescribeInstanceTypes
-    - ec2:DescribeInstanceAttribute
-    - ec2:DescribeAccountAttributes
-    - ec2:DescribeLaunchTemplates
-    - ec2:DescribeLaunchTemplateVersions
-    - ec2:DescribeAvailabilityZones
-    - ec2:DescribeNetworkInterfaces
-    - ec2:DescribeVolumeAttribute
-    - ec2:GetEbsDefaultKmsKeyId
-    - ec2:GetEbsEncryptionByDefault
-    
-    # Launch template operations (CRITICAL for conversion)
-    - ec2:CreateLaunchTemplate
-    - ec2:CreateLaunchTemplateVersion
-    - ec2:ModifyLaunchTemplate
-    - ec2:DeleteLaunchTemplate
-    - ec2:DeleteLaunchTemplateVersions
-    
-    # Instance operations
-    - ec2:RunInstances
-    - ec2:StartInstances
-    - ec2:StopInstances
-    - ec2:TerminateInstances
-    
-    # Volume operations
-    - ec2:CreateVolume
-    - ec2:AttachVolume
-    - ec2:DetachVolume
-    - ec2:DeleteVolume
-    - ec2:ModifyVolume
-    
-    # Network operations
-    - ec2:CreateNetworkInterface
-    - ec2:DeleteNetworkInterface
-    - ec2:ModifyNetworkInterfaceAttribute
-    - ec2:CreateSecurityGroup
-  Resource: '*'
-
-# DRSAccess Policy - CRITICAL addition
-DRSAccess:
-  Effect: Allow
-  Action:
-    # ... other DRS permissions ...
-    - drs:CreateRecoveryInstanceForDrs  # CRITICAL - registers EC2 as recovery instance
-  Resource: '*'
-```
-
-**Verification**:
-```bash
-# Check EC2 permissions
-aws iam get-role-policy \
-  --role-name <OrchestrationRoleName> \
-  --policy-name EC2Access \
-  --query 'PolicyDocument.Statement[0].Action'
-
-# Check DRS permissions (must include CreateRecoveryInstanceForDrs)
-aws iam get-role-policy \
-  --role-name <OrchestrationRoleName> \
-  --policy-name DRSAccess \
-  --query 'PolicyDocument.Statement[0].Action' | grep CreateRecoveryInstanceForDrs
-```
-
-**Reference**: See [DRS_COMPLETE_IAM_ANALYSIS.md](DRS_COMPLETE_IAM_ANALYSIS.md) for complete analysis.
-
-#### Issue: Recovery Instances Not Launching (LAUNCH_FAILED)
-
-**Symptom**: DRS job shows LAUNCH_START but then LAUNCH_FAILED with no recovery instances created.
-
-**Most Common Cause**: Missing `drs:CreateRecoveryInstanceForDrs` permission. This permission is required for DRS to register the launched EC2 instance as a recovery instance.
-
-**Error in Job Logs**:
-```
-AccessDeniedException when calling CreateRecoveryInstanceForDrs operation: 
-User: arn:aws:sts::ACCOUNT:assumed-role/OrchestrationRole/... is not authorized 
-to perform: drs:CreateRecoveryInstanceForDrs
-```
-
-**Solution**: Add `drs:CreateRecoveryInstanceForDrs` to the OrchestrationRole's DRSAccess policy.
-
-**Other Causes**:
-1. Missing EC2 permissions (see above)
-2. Invalid launch template configuration
-3. Insufficient subnet capacity
-4. Security group restrictions
-
-**Debug Steps**:
-```bash
-# Check job status and logs - look for LAUNCH_FAILED
-AWS_PAGER="" aws drs describe-jobs --filters jobIDs=<job-id>
-AWS_PAGER="" aws drs describe-job-log-items --job-id <job-id>
-
-# Look for the specific error in job logs
-AWS_PAGER="" aws drs describe-job-log-items --job-id <job-id> \
-  --query 'items[?event==`LAUNCH_FAILED`].eventData'
-
-# Verify conversion servers launched (should exist)
-AWS_PAGER="" aws ec2 describe-instances \
-  --filters "Name=tag:AWSElasticDisasterRecoveryManaged,Values=drs.amazonaws.com"
-
-# Check recovery instances (will be empty if LAUNCH_FAILED)
-AWS_PAGER="" aws drs describe-recovery-instances
-```
-
-### Common Error Codes
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `PG_NAME_EXISTS` | Protection group name already exists | Use unique name |
-| `INVALID_SERVER_IDS` | Server IDs not found in DRS | Verify server IDs with `describe-source-servers` |
-| `CIRCULAR_DEPENDENCY` | Wave dependencies form a loop | Review wave dependency chain |
-| `EXECUTION_IN_PROGRESS` | Plan already executing | Wait for completion or cancel existing execution |
-
-## Security
-
-- All data encrypted at rest (DynamoDB, S3)
-- HTTPS enforced via CloudFront
-- Cognito JWT authentication
-- IAM least-privilege policies
-- Optional WAF protection
-- Optional CloudTrail audit logging
 
 ## Contributing
 
@@ -589,11 +341,6 @@ AWS_PAGER="" aws drs describe-recovery-instances
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
-
-- [Issues](../../issues) - Report bugs or request features
-- [Discussions](../../discussions) - Ask questions and share ideas
-
 ---
 
-Built with ❤️ for AWS Disaster Recovery
+Built for enterprise disaster recovery on AWS

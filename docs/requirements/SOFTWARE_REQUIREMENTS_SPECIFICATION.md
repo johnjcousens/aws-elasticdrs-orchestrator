@@ -255,9 +255,11 @@ The system shall return execution history with filtering by status.
 
 The system shall cancel a running execution:
 - Stop Step Functions execution
-- Skip pending waves
-- Terminate drill instances (if DRILL mode)
+- Skip pending waves that have not yet been initiated
+- Already-running waves cannot be cancelled (DRS jobs continue to completion)
 - Update status to CANCELLED
+
+**Note**: Cancel only prevents future waves from starting. DRS recovery jobs already in progress will complete normally.
 
 **API**: `DELETE /executions/{id}`
 
@@ -309,6 +311,9 @@ The system shall authorize API requests:
 | Page Load Time | <2 seconds |
 | Recovery Initiation | <5 seconds |
 | Concurrent Users | 50+ |
+| DRS Job Polling | Every 30 seconds |
+| UI Refresh (active executions) | Every 3 seconds |
+| UI Refresh (dashboard) | Every 30 seconds |
 
 ### NFR-2: Availability
 
@@ -369,8 +374,12 @@ All endpoints require `Authorization: Bearer {jwt-token}` header.
 | GET | /executions | List executions |
 | POST | /executions | Start execution |
 | GET | /executions/{id} | Get execution status |
-| DELETE | /executions/{id} | Cancel execution |
+| POST | /executions/{id}/cancel | Cancel execution |
+| POST | /executions/{id}/pause | Pause execution |
+| POST | /executions/{id}/resume | Resume execution |
+| DELETE | /executions | Delete all completed executions |
 | GET | /drs/source-servers | Discover DRS servers |
+| GET | /health | Health check endpoint |
 
 ### Response Format
 
