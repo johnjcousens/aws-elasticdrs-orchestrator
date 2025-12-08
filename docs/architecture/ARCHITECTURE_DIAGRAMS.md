@@ -191,26 +191,26 @@ graph LR
 sequenceDiagram
     participant User
     participant Frontend
-    participant API Gateway
-    participant api-handler
+    participant APIGW as API Gateway
+    participant ApiHandler as api-handler
     participant DRS
     participant DynamoDB
-    
+
     User->>Frontend: Create Protection Group
-    Frontend->>API Gateway: POST /protection-groups
-    API Gateway->>api-handler: Invoke with JWT
-    
-    api-handler->>DRS: describe_source_servers(region)
-    DRS-->>api-handler: Source server list
-    
-    api-handler->>api-handler: Validate server IDs exist
-    api-handler->>api-handler: Check unique PG name
-    
-    api-handler->>DynamoDB: PutItem(protection-groups)
-    DynamoDB-->>api-handler: Success
-    
-    api-handler-->>API Gateway: 201 Created
-    API Gateway-->>Frontend: Protection Group created
+    Frontend->>APIGW: POST /protection-groups
+    APIGW->>ApiHandler: Invoke with JWT
+
+    ApiHandler->>DRS: describe_source_servers(region)
+    DRS-->>ApiHandler: Source server list
+
+    ApiHandler->>ApiHandler: Validate server IDs exist
+    ApiHandler->>ApiHandler: Check unique PG name
+
+    ApiHandler->>DynamoDB: PutItem(protection-groups)
+    DynamoDB-->>ApiHandler: Success
+
+    ApiHandler-->>APIGW: 201 Created
+    APIGW-->>Frontend: Protection Group created
     Frontend-->>User: Success notification
 ```
 
@@ -220,44 +220,44 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant Frontend
-    participant API Gateway
-    participant api-handler
-    participant Step Functions
-    participant orchestration-stepfunctions
+    participant APIGW as API Gateway
+    participant ApiHandler as api-handler
+    participant StepFn as Step Functions
+    participant Orchestrator as orchestration-stepfunctions
     participant DRS
     participant DynamoDB
-    
+
     User->>Frontend: Execute Recovery Plan
-    Frontend->>API Gateway: POST /executions
-    API Gateway->>api-handler: Invoke with plan ID
-    
-    api-handler->>DynamoDB: GetItem(recovery-plans)
-    DynamoDB-->>api-handler: Plan details with waves
-    
-    api-handler->>DynamoDB: PutItem(execution-history)<br/>Status: PENDING
-    api-handler->>Step Functions: StartExecution
-    api-handler-->>Frontend: 202 Accepted<br/>Execution ID
-    
-    Step Functions->>orchestration-stepfunctions: Wave 1 execution
-    orchestration-stepfunctions->>DynamoDB: GetItem(protection-groups)
-    orchestration-stepfunctions->>DRS: start_recovery(server_ids)
-    DRS-->>orchestration-stepfunctions: Job ID
-    
-    orchestration-stepfunctions->>DynamoDB: UpdateItem(execution-history)<br/>Status: RUNNING, JobId
-    orchestration-stepfunctions-->>Step Functions: Wait for completion
-    
-    Step Functions->>orchestration-stepfunctions: Poll job status
-    orchestration-stepfunctions->>DRS: describe_jobs(job_id)
-    DRS-->>orchestration-stepfunctions: Job status: LAUNCHED
-    
-    orchestration-stepfunctions->>DynamoDB: UpdateItem(execution-history)<br/>Wave 1: COMPLETED
-    orchestration-stepfunctions-->>Step Functions: Wave complete
-    
-    Step Functions->>orchestration-stepfunctions: Wave 2 execution
-    Note over Step Functions,orchestration-stepfunctions: Repeat for each wave
-    
-    orchestration-stepfunctions->>DynamoDB: UpdateItem(execution-history)<br/>Status: COMPLETED
-    orchestration-stepfunctions-->>Step Functions: Execution complete
+    Frontend->>APIGW: POST /executions
+    APIGW->>ApiHandler: Invoke with plan ID
+
+    ApiHandler->>DynamoDB: GetItem(recovery-plans)
+    DynamoDB-->>ApiHandler: Plan details with waves
+
+    ApiHandler->>DynamoDB: PutItem(execution-history) Status PENDING
+    ApiHandler->>StepFn: StartExecution
+    ApiHandler-->>Frontend: 202 Accepted Execution ID
+
+    StepFn->>Orchestrator: Wave 1 execution
+    Orchestrator->>DynamoDB: GetItem(protection-groups)
+    Orchestrator->>DRS: start_recovery(server_ids)
+    DRS-->>Orchestrator: Job ID
+
+    Orchestrator->>DynamoDB: UpdateItem Status RUNNING
+    Orchestrator-->>StepFn: Wait for completion
+
+    StepFn->>Orchestrator: Poll job status
+    Orchestrator->>DRS: describe_jobs(job_id)
+    DRS-->>Orchestrator: Job status LAUNCHED
+
+    Orchestrator->>DynamoDB: UpdateItem Wave 1 COMPLETED
+    Orchestrator-->>StepFn: Wave complete
+
+    StepFn->>Orchestrator: Wave 2 execution
+    Note over StepFn,Orchestrator: Repeat for each wave
+
+    Orchestrator->>DynamoDB: UpdateItem Status COMPLETED
+    Orchestrator-->>StepFn: Execution complete
 ```
 
 ### Execution Monitoring Flow
@@ -265,34 +265,34 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant EventBridge
-    participant execution-finder
-    participant execution-poller
+    participant Finder as execution-finder
+    participant Poller as execution-poller
     participant DynamoDB
     participant DRS
     participant CloudWatch
-    
-    EventBridge->>execution-finder: Trigger (every 1 minute)
-    
-    execution-finder->>DynamoDB: Query(StatusIndex)<br/>Status = POLLING
-    DynamoDB-->>execution-finder: List of executions
-    
+
+    EventBridge->>Finder: Trigger every 1 minute
+
+    Finder->>DynamoDB: Query StatusIndex Status=POLLING
+    DynamoDB-->>Finder: List of executions
+
     loop For each execution
-        execution-finder->>execution-poller: Invoke async
-        
-        execution-poller->>DynamoDB: GetItem(execution-history)
-        DynamoDB-->>execution-poller: Execution details with JobIds
-        
-        execution-poller->>DRS: describe_jobs(job_ids)
-        DRS-->>execution-poller: Job statuses
-        
+        Finder->>Poller: Invoke async
+
+        Poller->>DynamoDB: GetItem(execution-history)
+        DynamoDB-->>Poller: Execution details with JobIds
+
+        Poller->>DRS: describe_jobs(job_ids)
+        DRS-->>Poller: Job statuses
+
         alt All jobs LAUNCHED
-            execution-poller->>DynamoDB: UpdateItem<br/>Status: COMPLETED
-            execution-poller->>CloudWatch: PutMetricData<br/>ExecutionSuccess
+            Poller->>DynamoDB: UpdateItem Status COMPLETED
+            Poller->>CloudWatch: PutMetricData ExecutionSuccess
         else Jobs still PENDING
-            execution-poller->>DynamoDB: UpdateItem<br/>Status: POLLING
+            Poller->>DynamoDB: UpdateItem Status POLLING
         else Timeout exceeded
-            execution-poller->>DynamoDB: UpdateItem<br/>Status: FAILED
-            execution-poller->>CloudWatch: PutMetricData<br/>ExecutionFailure
+            Poller->>DynamoDB: UpdateItem Status FAILED
+            Poller->>CloudWatch: PutMetricData ExecutionFailure
         end
     end
 ```
