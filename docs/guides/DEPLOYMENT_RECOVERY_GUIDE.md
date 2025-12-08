@@ -18,25 +18,37 @@ aws-drs-orchestration/
 │   ├── step-functions-stack.yaml
 │   ├── frontend-stack.yaml
 │   └── security-stack.yaml
-└── lambda/                        # Pre-built Lambda packages
-    ├── api-handler.zip           # index.py + dependencies
-    ├── orchestration.zip         # drs_orchestrator.py + dependencies
-    ├── orchestration-stepfunctions.zip  # orchestration_stepfunctions.py
-    ├── execution-finder.zip      # poller/execution_finder.py
-    ├── execution-poller.zip      # poller/execution_poller.py
-    └── frontend-builder.zip      # build_and_deploy.py
+├── lambda/                        # Lambda source code and packages
+│   ├── index.py                  # API handler
+│   ├── orchestration_stepfunctions.py  # Step Functions orchestrator
+│   ├── drs_orchestrator.py       # Legacy orchestrator
+│   ├── build_and_deploy.py       # Frontend builder
+│   ├── poller/
+│   │   ├── execution_finder.py   # Polling scheduler
+│   │   └── execution_poller.py   # Status updates
+│   ├── requirements.txt          # Python dependencies
+│   └── deployment-package.zip    # Built package with all functions
+├── frontend/                      # React application
+│   ├── src/
+│   ├── dist/                     # Built frontend (after npm run build)
+│   └── package.json
+├── scripts/                       # Deployment automation
+│   └── sync-to-deployment-bucket.sh
+└── docs/                         # Documentation
 ```
 
 ### 2. Critical Lambda Function Mapping
 
 | CloudFormation Function | S3 Artifact | Handler | Purpose |
 |-------------------------|-------------|---------|---------|
-| `ApiHandlerFunction` | `api-handler.zip` | `index.lambda_handler` | REST API endpoints |
-| `OrchestrationFunction` | `orchestration.zip` | `drs_orchestrator.lambda_handler` | Legacy orchestrator |
-| `OrchestrationStepFunctionsFunction` | `orchestration-stepfunctions.zip` | `orchestration_stepfunctions.handler` | **ACTIVE Step Functions handler** |
-| `FrontendBuilderFunction` | `frontend-builder.zip` | `build_and_deploy.lambda_handler` | Frontend deployment |
-| `ExecutionFinderFunction` | `execution-finder.zip` | `execution_finder.lambda_handler` | Polling scheduler |
-| `ExecutionPollerFunction` | `execution-poller.zip` | `execution_poller.lambda_handler` | Status updates |
+| `ApiHandlerFunction` | `deployment-package.zip` | `index.lambda_handler` | REST API endpoints |
+| `OrchestrationFunction` | `deployment-package.zip` | `drs_orchestrator.lambda_handler` | Legacy orchestrator |
+| `OrchestrationStepFunctionsFunction` | `deployment-package.zip` | `orchestration_stepfunctions.handler` | **ACTIVE Step Functions handler** |
+| `FrontendBuilderFunction` | `deployment-package.zip` | `build_and_deploy.lambda_handler` | Frontend deployment |
+| `ExecutionFinderFunction` | `deployment-package.zip` | `poller.execution_finder.lambda_handler` | Polling scheduler |
+| `ExecutionPollerFunction` | `deployment-package.zip` | `poller.execution_poller.lambda_handler` | Status updates |
+
+**Note**: All functions now use a single `deployment-package.zip` containing all code and dependencies.
 
 ### 3. Step Functions Configuration
 
@@ -85,36 +97,47 @@ window.AWS_CONFIG = {
 
 ### 5. Complete Redeployment Process
 
-#### Step 1: Prepare Deployment Artifacts
+#### Step 1: Prepare Deployment Artifacts (Automated)
 
+```bash
+# Use automated sync script to prepare all artifacts
+./scripts/sync-to-deployment-bucket.sh --build-frontend
+
+# This automatically:
+# - Packages all Lambda functions with dependencies
+# - Builds frontend with correct configuration
+# - Syncs CloudFormation templates to S3
+# - Uploads all artifacts to aws-drs-orchestration bucket
+```
+
+**Manual Process (if needed)**:
 ```bash
 # 1. Build Lambda packages
 cd lambda
 pip install -r requirements.txt -t package/
 
-# API Handler
-cd package && zip -r ../api-handler.zip . && cd ..
-zip -g api-handler.zip index.py
-
-# Orchestration (Step Functions)
-cd package && zip -r ../orchestration-stepfunctions.zip . && cd ..
-zip -g orchestration-stepfunctions.zip orchestration_stepfunctions.py
-
-# Legacy Orchestration
-cd package && zip -r ../orchestration.zip . && cd ..
-zip -g orchestration.zip drs_orchestrator.py
+# Create deployment package
+cd package && zip -r ../deployment-package.zip . && cd ..
+zip -g deployment-package.zip index.py
+if [ -d "poller" ]; then
+    zip -rg deployment-package.zip poller/
+fi
 
 # Upload to S3
-aws s3 cp api-handler.zip s3://aws-drs-orchestration/lambda/
-aws s3 cp orchestration.zip s3://aws-drs-orchestration/lambda/
-aws s3 cp orchestration-stepfunctions.zip s3://aws-drs-orchestration/lambda/
+aws s3 cp deployment-package.zip s3://aws-drs-orchestration/lambda/
 ```
 
-#### Step 2: Deploy CloudFormation
+#### Step 2: Deploy CloudFormation (Automated)
 
 ```bash
+# Use automated deployment script
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+```
+
+**Manual Process (if needed)**:
+```bash
 aws cloudformation deploy \
-  --template-url https://aws-drs-orchestration.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
+  --template-url https://s3.amazonaws.com/aws-drs-orchestration/cfn/master-template.yaml \
   --stack-name drs-orchestration-dev \
   --parameter-overrides \
     ProjectName=drs-orchestration \
@@ -125,54 +148,23 @@ aws cloudformation deploy \
   --region us-east-1
 ```
 
-#### Step 3: Build and Deploy Frontend
+#### Step 3: Deploy Frontend (Automated)
 
 ```bash
-# Build frontend
+# Frontend is automatically built and deployed by CloudFormation custom resource
+# No manual steps required - configuration is injected at deployment time
+```
+
+**Manual Process (if needed)**:
+```bash
+# Build frontend with environment file
 cd frontend
+cp ../.env.dev .env.local  # Contains API endpoint and Cognito config
 npm install
 npm run build
 
-# Get CloudFormation outputs
-BUCKET=$(aws cloudformation describe-stacks --stack-name drs-orchestration-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
-DIST_ID=$(aws cloudformation describe-stacks --stack-name drs-orchestration-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name drs-orchestration-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
-USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name drs-orchestration-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
-CLIENT_ID=$(aws cloudformation describe-stacks --stack-name drs-orchestration-dev \
-  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
-
-# Create aws-config.js (must match structure in frontend/src/aws-config.ts)
-cat > aws-config.js <<EOF
-window.AWS_CONFIG = {
-  Auth: {
-    Cognito: {
-      region: 'us-east-1',
-      userPoolId: '${USER_POOL_ID}',
-      userPoolClientId: '${CLIENT_ID}',
-      loginWith: {
-        email: true
-      }
-    }
-  },
-  API: {
-    REST: {
-      DRSOrchestration: {
-        endpoint: '${API_ENDPOINT}',
-        region: 'us-east-1'
-      }
-    }
-  }
-};
-EOF
-
-# Deploy frontend
-aws s3 sync dist/ s3://${BUCKET}/ --delete --exclude "aws-config.js"
-aws s3 cp aws-config.js s3://${BUCKET}/aws-config.js
-aws cloudfront create-invalidation --distribution-id ${DIST_ID} --paths "/*"
+# Deploy to S3 (CloudFormation custom resource handles this automatically)
+# Manual deployment only needed for troubleshooting
 ```
 
 #### Step 4: Create Admin User
@@ -279,4 +271,4 @@ If everything is lost, this guide + the Git repository contains everything neede
 3. Frontend configuration matches expected structure
 4. Step Functions calls the correct Lambda function
 
-**Recovery Time**: ~45 minutes for complete redeployment
+**Recovery Time**: ~30 minutes for complete redeployment (using automated scripts)
