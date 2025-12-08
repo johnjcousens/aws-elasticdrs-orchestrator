@@ -91,12 +91,14 @@ Resources:
     Properties:
       Name: !Sub '${ProjectName}/drs-credentials'
       Description: 'Credentials for DRS cross-account operations'
-      SecretString: !Sub |
-        {
-          "cross_account_roles": ${CrossAccountRoleArns},
-          "notification_endpoints": [],
-          "api_keys": {}
-        }
+      SecretString: !If
+        - HasCrossAccountRoles
+        - !Join
+          - ''
+          - - '{"cross_account_roles": ["'
+            - !Join ['","', !Ref CrossAccountRoleArns]
+            - '"],"notification_endpoints": [],"api_keys": {}}'
+        - '{"cross_account_roles": [],"notification_endpoints": [],"api_keys": {}}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
