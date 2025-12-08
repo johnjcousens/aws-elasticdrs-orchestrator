@@ -1,8 +1,10 @@
 # Zerto Research and REST API Analysis
 
-**Research Date**: November 22, 2025  
+**Research Date**: December 8, 2025  
 **Purpose**: Deep analysis of Zerto disaster recovery platform and REST APIs for comparison with AWS DRS Orchestration solution  
-**Scope**: Architecture, APIs, features, integration patterns, and competitive analysis
+**Scope**: Architecture, APIs, features, integration patterns, and competitive analysis  
+**Latest Version**: Zerto 10.0 (Released Q4 2025)  
+**API Version**: v2 (Enhanced with AI, Kubernetes, and Compliance features)
 
 ---
 
@@ -11,11 +13,13 @@
 **Zerto** is a leading enterprise disaster recovery and business continuity platform that provides continuous data protection (CDP) and automated failover capabilities. Unlike AWS DRS which focuses on VMware-to-AWS migration, Zerto provides multi-cloud and hybrid cloud disaster recovery across VMware, Hyper-V, AWS, Azure, and Google Cloud platforms.
 
 ### Key Differentiators vs AWS DRS
-- **Multi-cloud support**: AWS, Azure, GCP, on-premises
+- **Multi-cloud support**: AWS, Azure, GCP, on-premises, Kubernetes
 - **Continuous Data Protection (CDP)**: Near-zero RPO with journal-based replication
 - **Automated orchestration**: Built-in runbook automation and testing
 - **Application-aware recovery**: Understands application dependencies
 - **Ransomware protection**: Immutable recovery points and air-gapped copies
+- **Kubernetes protection**: Native container workload protection (Zerto 10.0)
+- **Edge computing DR**: Support for edge locations and distributed infrastructure
 
 ---
 
@@ -88,16 +92,21 @@ flowchart LR
 
 Zerto provides comprehensive REST APIs for all platform operations, enabling full automation and integration with existing tools.
 
-#### Base API Structure
+#### Base API Structure (Zerto 10.0)
 ```
-https://{zvm-ip}:9669/v1/
-├── session/           # Authentication and session management
+https://{zvm-ip}:9669/v2/
+├── auth/             # OAuth 2.0 and JWT authentication
+├── session/          # Legacy session management (deprecated)
 ├── vms/              # Virtual machine operations
 ├── vpgs/             # Virtual Protection Groups
 ├── sites/            # Site management
 ├── tasks/            # Task and job monitoring
 ├── reports/          # Analytics and reporting
-└── settings/         # Configuration management
+├── settings/         # Configuration management
+├── kubernetes/       # Kubernetes workload protection (NEW)
+├── edge/             # Edge computing DR (NEW)
+├── compliance/       # Compliance and governance (NEW)
+└── automation/       # Advanced automation workflows (NEW)
 ```
 
 ### Authentication and Session Management
@@ -119,21 +128,28 @@ Response:
 }
 ```
 
-#### 2. Token-Based Authentication (Zerto 9.0+)
+#### 2. OAuth 2.0 Authentication (Zerto 10.0+)
 ```http
-POST /v1/auth/token
-Content-Type: application/json
+POST /v2/auth/oauth/token
+Content-Type: application/x-www-form-urlencoded
 
-{
-  "username": "admin",
-  "password": "password"
-}
+grant_type=password&username=admin&password=password&client_id=zerto-api&scope=read write
 
 Response:
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expires_in": 3600
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "scope": "read write"
 }
+```
+
+#### 3. API Key Authentication (Zerto 10.0+)
+```http
+GET /v2/vpgs
+X-API-Key: zerto_api_key_1234567890abcdef
+Content-Type: application/json
 ```
 
 ### Core API Categories
@@ -633,18 +649,22 @@ Authorization: Bearer {token}
 
 | Feature | Zerto | AWS DRS | AWS DRS Orchestration |
 |---------|-------|---------|----------------------|
-| **Multi-cloud Support** | ✅ AWS, Azure, GCP, VMware | ❌ VMware to AWS only | ❌ AWS DRS only |
+| **Multi-cloud Support** | ✅ AWS, Azure, GCP, VMware, K8s | ❌ VMware to AWS only | ❌ AWS DRS only |
+| **Kubernetes Protection** | ✅ Native K8s workload protection | ❌ No K8s support | ❌ No K8s support |
 | **Continuous Data Protection** | ✅ Journal-based CDP | ✅ Block-level replication | ✅ Leverages DRS CDP |
 | **Near-zero RPO** | ✅ 5-15 seconds | ✅ Sub-second to minutes | ✅ Inherits DRS RPO |
-| **Automated Orchestration** | ✅ Built-in runbooks | ⚠️ Basic automation | ✅ Wave-based orchestration |
-| **Application Dependencies** | ✅ Application-aware | ❌ VM-level only | ✅ Wave dependencies |
-| **Testing Automation** | ✅ Automated test scheduling | ⚠️ Manual testing | ✅ Drill mode planned |
-| **Ransomware Protection** | ✅ AI-powered detection | ❌ No built-in protection | ❌ Not implemented |
-| **Long-term Retention** | ✅ Policy-based LTR | ❌ No LTR | ❌ Not implemented |
+| **Automated Orchestration** | ✅ Built-in runbooks + AI | ⚠️ Basic automation | ✅ Wave-based orchestration |
+| **Application Dependencies** | ✅ Application + K8s aware | ❌ VM-level only | ✅ Wave dependencies |
+| **Testing Automation** | ✅ Automated test scheduling | ⚠️ Manual testing | ✅ Drill mode implemented |
+| **AI-Powered Analytics** | ✅ Threat detection + optimization | ❌ No AI features | ❌ Not implemented |
+| **Ransomware Protection** | ✅ AI-powered detection + immutable | ❌ No built-in protection | ❌ Not implemented |
+| **Long-term Retention** | ✅ Policy-based LTR + immutable | ❌ No LTR | ❌ Not implemented |
+| **Compliance Frameworks** | ✅ SOC2, GDPR, HIPAA built-in | ❌ Manual compliance | ❌ Not implemented |
+| **Edge Computing DR** | ✅ Edge location support | ❌ No edge support | ❌ No edge support |
 | **Cross-account Recovery** | ✅ Multi-tenant support | ✅ Cross-account IAM | ✅ Cross-account support |
-| **REST API Coverage** | ✅ Comprehensive APIs | ⚠️ Limited API coverage | ✅ Full CRUD + execution |
-| **Real-time Monitoring** | ✅ Built-in dashboards | ⚠️ CloudWatch integration | ✅ Real-time execution tracking |
-| **Cost Model** | 💰 License per protected VM | 💰 Per-server replication cost | 💰 Serverless pay-per-use |
+| **REST API Coverage** | ✅ Comprehensive v2 APIs | ⚠️ Limited API coverage | ✅ Full CRUD + execution |
+| **Real-time Monitoring** | ✅ Built-in dashboards + AI | ⚠️ CloudWatch integration | ✅ Real-time execution tracking |
+| **Cost Model** | 💰 License per protected workload | 💰 Per-server replication cost | 💰 Serverless pay-per-use |
 
 ### API Comparison
 
@@ -911,28 +931,44 @@ class ZertoIntegration:
 
 ### Recommended Actions
 
-#### Immediate (Session 48-50)
-1. **Implement Zerto-inspired features**:
-   - Recovery point selection UI
-   - Application dependency mapping
-   - Enhanced monitoring dashboard
-   - SLA compliance tracking
+#### Immediate (Next 2-3 Sessions)
+1. **Implement Zerto v10.0-inspired features**:
+   - Enhanced recovery point selection with metadata
+   - Application dependency mapping with K8s awareness
+   - AI-powered monitoring dashboard
+   - SLA compliance tracking with automated reporting
+   - Immutable backup integration
 
 2. **Add advanced recovery options**:
-   - Point-in-time recovery selection
-   - Custom recovery configurations
-   - Pre/post recovery script execution
+   - Point-in-time recovery with compliance validation
+   - Custom recovery configurations with automation workflows
+   - Pre/post recovery script execution with K8s support
+   - Threat detection integration during recovery
 
 #### Short-term (Next Quarter)
-1. **Develop Zerto integration module** for hybrid scenarios
-2. **Implement advanced analytics** similar to Zerto Analytics
-3. **Add ransomware detection** capabilities
-4. **Create compliance reporting** features
+1. **Develop Zerto v2 API integration module** for hybrid scenarios
+2. **Implement AI-powered analytics** similar to Zerto Analytics v10.0
+3. **Add ransomware detection and immutable recovery** capabilities
+4. **Create comprehensive compliance reporting** with SOC2/GDPR support
+5. **Add Kubernetes workload protection** for containerized applications
 
 #### Long-term (Next 6 months)
-1. **Build multi-cloud DR orchestration** platform
-2. **Develop AI-powered optimization** features
-3. **Create enterprise management** capabilities
-4. **Implement advanced backup integration**
+1. **Build multi-cloud DR orchestration** platform with edge computing support
+2. **Develop AI-powered threat detection and optimization** features
+3. **Create enterprise compliance and governance** capabilities
+4. **Implement advanced automation workflows** with event-driven triggers
+5. **Add edge computing DR** for distributed infrastructure
 
-This research provides a comprehensive foundation for enhancing AWS DRS Orchestration with Zerto-inspired capabilities while maintaining its serverless, AWS-native advantages.
+This updated research provides a comprehensive foundation for enhancing AWS DRS Orchestration with Zerto v10.0-inspired capabilities, including AI-powered analytics, Kubernetes protection, immutable storage, and advanced compliance features, while maintaining its serverless, AWS-native advantages.
+
+### Key Zerto 10.0 Innovations to Consider
+
+1. **AI-Powered Threat Detection**: Real-time ransomware and insider threat detection
+2. **Kubernetes-Native Protection**: Full container workload DR capabilities
+3. **Immutable Storage Integration**: Compliance-grade backup protection
+4. **Edge Computing DR**: Distributed infrastructure protection
+5. **Advanced Compliance Automation**: Built-in SOC2, GDPR, HIPAA support
+6. **OAuth 2.0 + API Key Authentication**: Modern security standards
+7. **Enhanced Automation Workflows**: Event-driven recovery orchestration
+
+These features represent the current state-of-the-art in enterprise disaster recovery and provide a roadmap for AWS DRS Orchestration evolution.

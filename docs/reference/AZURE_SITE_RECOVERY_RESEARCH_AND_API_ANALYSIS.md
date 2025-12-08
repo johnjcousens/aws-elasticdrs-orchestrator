@@ -11,6 +11,7 @@
 **Azure Site Recovery (ASR)** is Microsoft's native disaster recovery service that provides business continuity and disaster recovery (BCDR) capabilities for Azure, on-premises, and multi-cloud environments. ASR offers automated replication, failover, and failback for virtual machines and physical servers across Azure regions and from on-premises to Azure.
 
 ### Key Differentiators vs AWS DRS
+
 - **Native Azure integration**: Deep integration with Azure services and ARM templates
 - **Multi-source support**: VMware, Hyper-V, physical servers, and Azure VMs
 - **Azure-to-Azure replication**: Native cross-region DR within Azure
@@ -24,6 +25,7 @@
 ### Core Components
 
 #### 1. Recovery Services Vault
+
 - **Purpose**: Central management and storage container for ASR
 - **Responsibilities**:
   - Backup and replication data storage
@@ -33,6 +35,7 @@
   - Cross-region replication orchestration
 
 #### 2. Configuration Server (On-premises)
+
 - **Purpose**: Coordinates communication between on-premises and Azure
 - **Deployment**: On-premises VM or physical server
 - **Responsibilities**:
@@ -42,6 +45,7 @@
   - Handle failback operations
 
 #### 3. Process Server
+
 - **Purpose**: Replication gateway and data optimization
 - **Deployment**: Co-located with Configuration Server or separate
 - **Responsibilities**:
@@ -51,6 +55,7 @@
   - Handle Mobility Service push installation
 
 #### 4. Master Target Server
+
 - **Purpose**: Handle failback replication data
 - **Deployment**: Azure VM for failback operations
 - **Responsibilities**:
@@ -59,6 +64,7 @@
   - Coordinate with on-premises infrastructure
 
 #### 5. Mobility Service
+
 - **Purpose**: Agent installed on protected machines
 - **Deployment**: Automatic push or manual installation
 - **Responsibilities**:
@@ -70,6 +76,7 @@
 ### Replication Technology
 
 #### Block-Level Replication
+
 ```mermaid
 flowchart LR
     Source[Source VM] --> Mobility[Mobility Service]
@@ -84,6 +91,7 @@ flowchart LR
 ```
 
 **Key Features**:
+
 - **RPO**: 30 seconds to 24 hours (configurable)
 - **Multi-point recovery**: Multiple recovery points with retention
 - **Application consistency**: VSS snapshots for Windows, script-based for Linux
@@ -98,6 +106,7 @@ flowchart LR
 Azure Site Recovery provides comprehensive REST APIs through Azure Resource Manager (ARM) for all platform operations.
 
 #### Base API Structure
+
 ```mermaid
 flowchart TD
     Base["https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/"]
@@ -114,6 +123,7 @@ flowchart TD
 ### Authentication and Authorization
 
 #### 1. Azure AD Authentication
+
 ```http
 POST https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
 Content-Type: application/x-www-form-urlencoded
@@ -132,6 +142,7 @@ Response:
 ```
 
 #### 2. Service Principal Authentication
+
 ```http
 Authorization: Bearer {access_token}
 Content-Type: application/json
@@ -142,6 +153,7 @@ Content-Type: application/json
 #### 1. Recovery Services Vaults API
 
 ##### List Recovery Services Vaults
+
 ```http
 GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults
 Authorization: Bearer {access_token}
@@ -175,6 +187,7 @@ Response:
 ```
 
 ##### Create Recovery Services Vault
+
 ```http
 PUT https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}
 Authorization: Bearer {access_token}
@@ -198,6 +211,7 @@ api-version: 2023-06-01
 #### 2. Replication Protected Items API
 
 ##### List Protected Items
+
 ```http
 GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationProtectedItems
 Authorization: Bearer {access_token}
@@ -283,6 +297,7 @@ Response:
 ```
 
 ##### Enable Protection for VM
+
 ```http
 PUT https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationFabrics/{fabricName}/replicationProtectionContainers/{containerName}/replicationProtectedItems/{protectedItemName}
 Authorization: Bearer {access_token}
@@ -329,6 +344,7 @@ api-version: 2023-08-01
 #### 3. Recovery Plans API
 
 ##### List Recovery Plans
+
 ```http
 GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationRecoveryPlans
 Authorization: Bearer {access_token}
@@ -465,6 +481,7 @@ Response:
 ```
 
 ##### Create Recovery Plan
+
 ```http
 PUT https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationRecoveryPlans/{recoveryPlanName}
 Authorization: Bearer {access_token}
@@ -539,6 +556,7 @@ api-version: 2023-08-01
 #### 4. Failover Operations API
 
 ##### Start Test Failover
+
 ```http
 POST https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationRecoveryPlans/{recoveryPlanName}/testFailover
 Authorization: Bearer {access_token}
@@ -602,6 +620,7 @@ Response:
 ```
 
 ##### Start Planned Failover
+
 ```http
 POST https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationRecoveryPlans/{recoveryPlanName}/plannedFailover
 Authorization: Bearer {access_token}
@@ -621,6 +640,7 @@ api-version: 2023-08-01
 ```
 
 ##### Start Unplanned Failover
+
 ```http
 POST https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationRecoveryPlans/{recoveryPlanName}/unplannedFailover
 Authorization: Bearer {access_token}
@@ -643,6 +663,7 @@ api-version: 2023-08-01
 #### 5. Job Monitoring API
 
 ##### Get Job Status
+
 ```http
 GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationJobs/{jobName}
 Authorization: Bearer {access_token}
@@ -735,6 +756,7 @@ Response:
 ```
 
 ##### List Jobs
+
 ```http
 GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationJobs?$filter=startTime ge 2025-11-22T00:00:00Z
 Authorization: Bearer {access_token}
@@ -774,6 +796,7 @@ Response:
 #### 6. Replication Policies API
 
 ##### List Replication Policies
+
 ```http
 GET https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationPolicies
 Authorization: Bearer {access_token}
@@ -820,6 +843,7 @@ Response:
 ```
 
 ##### Create Replication Policy
+
 ```http
 PUT https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationPolicies/{policyName}
 Authorization: Bearer {access_token}
@@ -848,6 +872,7 @@ api-version: 2023-08-01
 ### 1. Azure-to-Azure Replication
 
 #### Enable Azure VM Protection
+
 ```http
 PUT https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationFabrics/{fabricName}/replicationProtectionContainers/{containerName}/replicationProtectedItems/{protectedItemName}
 Authorization: Bearer {access_token}
@@ -896,6 +921,7 @@ api-version: 2023-08-01
 ### 2. Multi-VM Consistency Groups
 
 #### Configure Multi-VM Group
+
 ```http
 PUT https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationFabrics/{fabricName}/replicationProtectionContainers/{containerName}/replicationProtectedItems/{protectedItemName}
 Authorization: Bearer {access_token}
@@ -916,6 +942,7 @@ api-version: 2023-08-01
 ### 3. Automation Integration
 
 #### Azure Automation Runbook Action
+
 ```http
 {
   "actionName": "Start-Application-Services",
@@ -943,6 +970,7 @@ api-version: 2023-08-01
 ### 4. Network Mapping and Configuration
 
 #### Configure Network Mapping
+
 ```http
 PUT https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.RecoveryServices/vaults/{vaultName}/replicationFabrics/{fabricName}/replicationNetworks/{networkName}/replicationNetworkMappings/{networkMappingName}
 Authorization: Bearer {access_token}
@@ -1152,6 +1180,7 @@ class HybridDRMonitor {
 #### Add ASR-inspired Features to AWS DRS Orchestration
 
 1. **Multi-VM Consistency Groups**
+
    ```python
    # Add consistency group configuration to Protection Groups
    protection_group_config = {
@@ -1166,6 +1195,7 @@ class HybridDRMonitor {
    ```
 
 2. **Advanced Network Configuration**
+
    ```python
    # Enhanced network mapping similar to ASR
    wave_config = {
@@ -1189,6 +1219,7 @@ class HybridDRMonitor {
    ```
 
 3. **Detailed Task Tracking**
+
    ```typescript
    // ASR-style detailed task tracking
    interface ExecutionTask {
@@ -1298,6 +1329,7 @@ class AzureSiteRecoveryIntegration:
 ## Competitive Analysis Summary
 
 ### Azure Site Recovery Strengths
+
 - **Native Azure integration** with ARM templates and Azure services
 - **Comprehensive automation** with Azure Automation runbooks
 - **Multi-VM consistency** with application-aware recovery
@@ -1306,6 +1338,7 @@ class AzureSiteRecoveryIntegration:
 - **Azure-to-Azure replication** for cloud-native workloads
 
 ### AWS DRS Orchestration Advantages
+
 - **Serverless architecture** with lower operational overhead
 - **Wave-based orchestration** for complex dependency management
 - **Modern React UI** with superior user experience
@@ -1314,6 +1347,7 @@ class AzureSiteRecoveryIntegration:
 - **Cost-effective** pay-per-use pricing model
 
 ### Market Positioning
+
 - **Azure Site Recovery**: Azure-native, enterprise-focused, comprehensive automation
 - **AWS DRS Orchestration**: AWS-native, developer-friendly, wave-based orchestration
 
@@ -1322,6 +1356,7 @@ class AzureSiteRecoveryIntegration:
 ## Conclusion and Next Steps
 
 ### Key Insights
+
 1. **ASR provides comprehensive Azure-native DR** with deep ARM integration
 2. **REST API patterns from ASR** can enhance AWS DRS Orchestration capabilities
 3. **Multi-cloud integration opportunities** exist for hybrid scenarios
@@ -1330,6 +1365,7 @@ class AzureSiteRecoveryIntegration:
 ### Recommended Actions
 
 #### Immediate (Session 48-50)
+
 1. **Implement ASR-inspired features**:
    - Multi-VM consistency groups
    - Advanced network configuration
@@ -1342,12 +1378,14 @@ class AzureSiteRecoveryIntegration:
    - Advanced error handling and rollback
 
 #### Short-term (Next Quarter)
+
 1. **Develop ASR integration module** for hybrid scenarios
 2. **Implement ARM template conversion** to CloudFormation
 3. **Add Azure Monitor-style** detailed job tracking
 4. **Create cross-cloud** recovery coordination
 
 #### Long-term (Next 6 months)
+
 1. **Build multi-cloud DR platform** with ASR + AWS DRS + Zerto
 2. **Develop unified management** interface
 3. **Implement cross-cloud** failover strategies

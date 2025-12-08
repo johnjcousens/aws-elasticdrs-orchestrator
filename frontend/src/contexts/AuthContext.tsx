@@ -47,11 +47,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     error: undefined,
   });
 
+  // Auto-logout timer (45 minutes)
+  const AUTO_LOGOUT_TIME = 45 * 60 * 1000; // 45 minutes in milliseconds
+  const [logoutTimer, setLogoutTimer] = useState<NodeJS.Timeout | null>(null);
+
+  /**
+   * Start auto-logout timer
+   */
+  const startLogoutTimer = () => {
+    if (logoutTimer) {
+      clearTimeout(logoutTimer);
+    }
+    
+    const timer = setTimeout(() => {
+      console.log('Auto-logout: Session expired');
+      handleSignOut();
+    }, AUTO_LOGOUT_TIME);
+    
+    setLogoutTimer(timer);
+  };
+
+  /**
+   * Clear auto-logout timer
+   */
+  const clearLogoutTimer = () => {
+    if (logoutTimer) {
+      clearTimeout(logoutTimer);
+      setLogoutTimer(null);
+    }
+  };
+
   /**
    * Check if user is authenticated on mount
    */
   useEffect(() => {
     checkAuth();
+  }, []);
+
+  /**
+   * Clean up timer on unmount
+   */
+  useEffect(() => {
+    return () => {
+      clearLogoutTimer();
+    };
   }, []);
 
   /**
@@ -86,6 +125,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           loading: false,
           error: undefined,
         });
+        
+        // Start auto-logout timer
+        startLogoutTimer();
       } else {
         setAuthState({
           isAuthenticated: false,
@@ -96,6 +138,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      // Clear auto-logout timer on auth failure
+      clearLogoutTimer();
+      
       setAuthState({
         isAuthenticated: false,
         user: null,
@@ -149,6 +194,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       await signOut();
 
+      // Clear auto-logout timer
+      clearLogoutTimer();
+      
       setAuthState({
         isAuthenticated: false,
         user: null,
@@ -157,6 +205,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
     } catch (error: any) {
       console.error('Sign out failed:', error);
+      // Clear timer even if sign out fails
+      clearLogoutTimer();
+      
       setAuthState((prev) => ({
         ...prev,
         loading: false,
