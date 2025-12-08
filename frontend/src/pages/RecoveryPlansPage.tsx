@@ -52,6 +52,7 @@ export const RecoveryPlansPage: React.FC = () => {
     const stored = sessionStorage.getItem('plansWithInProgressExecution');
     return stored ? new Set(JSON.parse(stored)) : new Set();
   });
+  const [executionProgress, setExecutionProgress] = useState<Map<string, { currentWave: number; totalWaves: number }>>(new Map());
 
   // CloudScape collection hooks
   const { items, actions, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
@@ -97,12 +98,19 @@ export const RecoveryPlansPage: React.FC = () => {
       const response = await apiClient.listExecutions();
       // Include all active statuses
       const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED'];
-      const plansWithActiveExecution = new Set<string>(
-        response.items
-          .filter((exec) => activeStatuses.includes(exec.status.toUpperCase()))
-          .map((exec) => exec.recoveryPlanId)
-      );
+      const activeExecutions = response.items.filter((exec) => activeStatuses.includes(exec.status.toUpperCase()));
+      const plansWithActiveExecution = new Set<string>(activeExecutions.map((exec) => exec.recoveryPlanId));
       setPlansWithInProgressExecution(plansWithActiveExecution);
+      
+      // Track wave progress for each plan
+      const progressMap = new Map<string, { currentWave: number; totalWaves: number }>();
+      activeExecutions.forEach((exec) => {
+        progressMap.set(exec.recoveryPlanId, {
+          currentWave: exec.currentWave || 1,
+          totalWaves: exec.totalWaves || 1,
+        });
+      });
+      setExecutionProgress(progressMap);
     } catch (err) {
       console.error('Failed to check in-progress executions:', err);
     }
@@ -242,15 +250,19 @@ export const RecoveryPlansPage: React.FC = () => {
             {
               id: 'waves',
               header: 'Waves',
-              cell: (item) => (
-                <Badge color="blue">
-                  {item.waves.length} wave{item.waves.length !== 1 ? 's' : ''}
-                </Badge>
-              ),
+              width: 90,
+              cell: (item) => {
+                const progress = executionProgress.get(item.id);
+                if (progress) {
+                  return `${progress.currentWave} of ${progress.totalWaves}`;
+                }
+                return `${item.waves.length}`;
+              },
             },
             {
               id: 'status',
               header: 'Status',
+              minWidth: 120,
               cell: (item) => {
                 if (!item.lastExecutionStatus) {
                   return <Badge>Not Run</Badge>;
@@ -261,6 +273,7 @@ export const RecoveryPlansPage: React.FC = () => {
             {
               id: 'lastStart',
               header: 'Last Start',
+              minWidth: 180,
               cell: (item) => {
                 if (!item.lastStartTime) {
                   return <span style={{ color: '#5f6b7a' }}>Never</span>;
@@ -271,6 +284,7 @@ export const RecoveryPlansPage: React.FC = () => {
             {
               id: 'lastEnd',
               header: 'Last End',
+              minWidth: 180,
               cell: (item) => {
                 if (!item.lastEndTime) {
                   return <span style={{ color: '#5f6b7a' }}>Never</span>;
@@ -281,6 +295,7 @@ export const RecoveryPlansPage: React.FC = () => {
             {
               id: 'created',
               header: 'Created',
+              minWidth: 180,
               cell: (item) => {
                 if (!item.createdAt || (typeof item.createdAt === 'number' && item.createdAt === 0)) {
                   return <span style={{ color: '#5f6b7a' }}>Unknown</span>;

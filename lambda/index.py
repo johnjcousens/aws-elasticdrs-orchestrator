@@ -770,7 +770,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             'Status': 'PENDING',
             'StartTime': timestamp,
             'InitiatedBy': body['InitiatedBy'],
-            'Waves': []
+            'Waves': [],
+            'TotalWaves': len(plan.get('Waves', []))  # Store total wave count for UI display
         }
         
         # Store execution history immediately
@@ -2607,7 +2608,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
     end_time = safe_timestamp_to_int(execution.get('EndTime'))
     
     # Calculate current wave progress
-    total_waves = len(waves)
+    # Use stored TotalWaves if available (set at execution creation), otherwise calculate from waves array
+    total_waves = execution.get('TotalWaves') or len(waves) or 1
     current_wave = 0
     
     # Find the first wave that's not completed
@@ -2621,7 +2623,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
     
     # If all completed or no waves, current = total
     if current_wave == 0:
-        current_wave = total_waves
+        current_wave = max(1, len(waves))  # At least 1 if waves exist
     
     return {
         'executionId': execution.get('ExecutionId'),
@@ -2634,7 +2636,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         'initiatedBy': execution.get('InitiatedBy'),
         'waves': waves,  # Now properly transformed with fixed timestamps and status
         'currentWave': current_wave,  # FIXED: Proper wave progress calculation
-        'totalWaves': total_waves,
+        'totalWaves': total_waves,  # Use stored value from execution creation
         'errorMessage': execution.get('ErrorMessage')
     }
 
