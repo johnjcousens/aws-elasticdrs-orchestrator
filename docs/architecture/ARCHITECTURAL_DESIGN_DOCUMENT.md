@@ -1,9 +1,9 @@
 # Architectural Design Document
 # AWS DRS Orchestration System
 
-**Version**: 1.0  
-**Date**: November 12, 2025  
-**Status**: Production Architecture (MVP Complete)  
+**Version**: 2.0  
+**Date**: December 9, 2025  
+**Status**: Production Architecture (Current Deployment)  
 **Document Owner**: Technical Architecture Team  
 **Target Audience**: Software Engineers, DevOps Engineers, Solutions Architects
 
@@ -66,36 +66,45 @@ The AWS DRS Orchestration system follows a **serverless-first, cloud-native** ar
 - **Infrastructure**: 100% AWS CloudFormation (6 nested stacks, 2,400+ lines)
 - **Compute**: 5 Lambda functions (Python 3.12)
 - **Storage**: 3 DynamoDB tables (on-demand)
-- **Frontend**: React 18.3 SPA on S3 + CloudFront
-- **Orchestration**: AWS Step Functions (35+ states)
-- **API**: API Gateway REST API (30+ resources)
-- **Security**: Cognito + WAF + CloudTrail + Secrets Manager
+- **Frontend**: React 19.1 SPA on S3 + CloudFront
+- **Orchestration**: AWS Step Functions with pause/resume capability
+- **API**: API Gateway REST API with execution control endpoints
+- **Security**: Cognito + WAF + CloudTrail + IAM least-privilege
 
 ---
 
 ## Architecture Overview
+
+### Overall System Architecture
+
+![AWS DRS Orchestration Architecture](AWS-DRS-Orchestration-Architecture.png)
+
+*[View/Edit Source Diagram](AWS-DRS-Orchestration-Architecture.drawio)*
 
 ### High-Level Architecture Layers
 
 ```mermaid
 graph TB
     subgraph "Presentation Layer"
-        UI[React Frontend<br/>S3 + CloudFront<br/>Material-UI 6]
+        UI[React Frontend<br/>S3 + CloudFront<br/>CloudScape Design System]
     end
     
     subgraph "API Layer"
         AUTH[Cognito<br/>User Pools<br/>JWT Auth]
-        APIGW[API Gateway<br/>REST API<br/>30+ Resources]
+        APIGW[API Gateway<br/>REST API<br/>Execution Control]
         WAF[AWS WAF<br/>Rate Limiting<br/>IP Filtering]
     end
     
     subgraph "Business Logic Layer"
-        API_LAMBDA[Lambda: API Handler<br/>912 lines Python<br/>CRUD Operations]
-        ORCH_LAMBDA[Lambda: Orchestration<br/>556 lines Python<br/>DRS Integration]
+        API_LAMBDA[Lambda: API Handler<br/>CRUD + Execution Control<br/>Pause/Resume/Cancel]
+        ORCH_LAMBDA[Lambda: Orchestration<br/>Step Functions Handler<br/>DRS Integration]
+        POLLER_LAMBDA[Lambda: Execution Poller<br/>DRS Job Monitoring<br/>Status Updates]
+        FINDER_LAMBDA[Lambda: Execution Finder<br/>EventBridge Scheduled<br/>Active Execution Discovery]
+        BUILDER_LAMBDA[Lambda: Frontend Builder<br/>CloudFormation Custom Resource<br/>Frontend Deployment]
     end
     
     subgraph "Orchestration Layer"
-        STEPFN[Step Functions<br/>Wave-Based<br/>35+ States]
+        STEPFN[Step Functions<br/>Wave-Based Orchestration<br/>Pause/Resume Capability]
     end
     
     subgraph "Data Layer"
@@ -105,7 +114,7 @@ graph TB
     end
     
     subgraph "Integration Layer"
-        DRS[AWS DRS API<br/>StartRecovery<br/>DescribeJobs]
+        DRS[AWS DRS API<br/>StartRecovery<br/>DescribeJobs<br/>TerminateInstances]
         EC2[EC2 API<br/>Health Checks<br/>Instance Status]
         SNS[SNS<br/>Notifications<br/>Email/Webhook]
     end
@@ -126,7 +135,9 @@ graph TB
     ORCH_LAMBDA --> DRS
     ORCH_LAMBDA --> EC2
     ORCH_LAMBDA --> DDB_EH
-    ORCH_LAMBDA --> SNS
+    FINDER_LAMBDA --> DDB_EH
+    POLLER_LAMBDA --> DRS
+    POLLER_LAMBDA --> DDB_EH
     API_LAMBDA --> CW
     ORCH_LAMBDA --> CW
     APIGW --> CT
@@ -217,15 +228,18 @@ graph TB
 
 | Layer | Container | Technology | Purpose |
 |-------|-----------|------------|---------|
-| Frontend | Frontend Application | React 18.3 SPA | Responsive web UI for DR management |
+| Frontend | Frontend Application | React 19.1 SPA | Responsive web UI for DR management |
 | Frontend | CloudFront | AWS CDN | Global content delivery, HTTPS, caching |
 | Frontend | Frontend Storage | S3 Bucket | Static asset hosting |
-| API | API Gateway | AWS API Gateway | REST API with 30+ resources, Cognito authorizer |
+| API | API Gateway | AWS API Gateway | REST API with execution control, Cognito authorizer |
 | API | WAF | AWS WAF | Rate limiting, IP filtering, DDoS protection |
 | API | User Pool | AWS Cognito | User authentication, JWT token issuance |
-| Compute | API Handler | Lambda Python 3.12 | Business logic: CRUD operations, validation |
-| Compute | Orchestration | Lambda Python 3.12 | DRS integration: recovery, monitoring |
-| Compute | Execution Engine | Step Functions | Wave-based orchestration state machine |
+| Compute | API Handler | Lambda Python 3.12 | CRUD operations, execution control (pause/resume/cancel) |
+| Compute | Orchestration | Lambda Python 3.12 | Step Functions handler, DRS integration |
+| Compute | Execution Poller | Lambda Python 3.12 | DRS job monitoring, status updates |
+| Compute | Execution Finder | Lambda Python 3.12 | EventBridge scheduled, active execution discovery |
+| Compute | Frontend Builder | Lambda Python 3.12 | CloudFormation custom resource, frontend deployment |
+| Compute | Execution Engine | Step Functions | Wave-based orchestration with pause/resume |
 | Data | Protection Groups | DynamoDB | PG metadata: name, region, servers |
 | Data | Recovery Plans | DynamoDB | RP config: waves, dependencies |
 | Data | Execution History | DynamoDB | Audit trail: executions, status, timing |
@@ -242,20 +256,20 @@ graph TB
 - Authentication token management (JWT)
 - Real-time UI updates (polling or WebSocket)
 
-**Key Files** (23 components):
+**Key Files** (Current implementation):
 - `App.tsx` - Main application shell with routing
 - `pages/` - 5 page components (Login, Dashboard, Protection Groups, Recovery Plans, Executions)
-- `components/` - 18 reusable components (dialogs, selectors, status displays)
+- `components/` - Reusable components (dialogs, selectors, status displays, execution controls)
 - `services/api.ts` - API client with Axios
-- `aws-config.ts` - AWS Cognito configuration
+- `aws-config.js` - AWS Cognito configuration
 
 **Technologies**:
-- React 18.3 with TypeScript 5.5
-- Material-UI 6.1.3 (AWS-branded theme)
-- Vite 5.4 (build tool)
-- React Router 6.26 (navigation)
-- Axios 1.7 (HTTP client)
-- AWS Amplify (Cognito integration)
+- React 19.1 with TypeScript 5.9
+- CloudScape Design System 3.0 (AWS native components)
+- Vite 7.1 (build tool)
+- React Router 7.9 (navigation)
+- Axios 1.13 (HTTP client)
+- AWS Amplify 6.15 (Cognito integration)
 
 ---
 
@@ -302,7 +316,21 @@ graph TB
   
 /executions/{id}
   GET    - Get execution details
-  DELETE - Cancel execution
+  
+/executions/{id}/pause
+  POST   - Pause execution between waves
+  
+/executions/{id}/resume
+  POST   - Resume paused execution
+  
+/executions/{id}/cancel
+  POST   - Cancel running execution
+  
+/executions/{id}/terminate-instances
+  POST   - Terminate recovery instances
+  
+/executions/{id}/job-logs
+  GET    - Get DRS job event logs
   
 /drs/source-servers
   GET    - Discover DRS source servers (region param)
@@ -313,24 +341,28 @@ graph TB
 #### 3. API Handler Lambda
 **Responsibilities**:
 - Business logic for all CRUD operations
+- Execution control (pause/resume/cancel/terminate instances)
 - Input validation and sanitization
 - DynamoDB table operations (read/write)
-- Step Functions execution initiation
+- Step Functions execution initiation and control
 - Error handling and logging
 - Case transformation (PascalCase ↔ camelCase)
+- Conflict detection for active executions
 
-**Implementation**: `lambda/index.py` (912 lines Python 3.12)
+**Implementation**: `lambda/index.py` (Current Python 3.12)
 
 **Key Functions**:
 - `lambda_handler()` - Main entry point, routes requests
 - `handle_protection_groups()` - PG CRUD operations
 - `handle_recovery_plans()` - RP CRUD operations
-- `handle_executions()` - Execution start/status/cancel
+- `handle_executions()` - Execution start/status/control
+- `pause_execution()` - Pause execution between waves
+- `resume_execution()` - Resume paused execution via Step Functions callback
+- `cancel_execution()` - Cancel running execution
+- `terminate_recovery_instances()` - Terminate DRS recovery instances
 - `handle_drs_source_servers()` - Server discovery via DRS API
-- `transform_pg_to_camelcase()` - Transform PG data for frontend
-- `transform_rp_to_camelcase()` - Transform RP data (includes wave fix)
-- `validate_unique_pg_name()` - Case-insensitive name validation
-- `get_assigned_servers()` - Check server assignments globally
+- `get_active_executions_for_plan()` - Check for execution conflicts
+- `check_server_conflicts()` - Validate servers not in active executions
 
 **DynamoDB Operations**:
 ```python
@@ -368,14 +400,42 @@ eh_table.scan(FilterExpression=...)     # Query by PlanId or Status
 
 #### 4. Orchestration Lambda
 **Responsibilities**:
+- Step Functions state machine handler
 - DRS API integration (StartRecovery, DescribeJobs)
-- Job monitoring and polling
-- EC2 health checks on recovered instances
+- Wave-based execution orchestration
 - Execution history persistence
-- SNS notifications
+- Pause/resume state management
 - Error recovery and retry logic
 
-**Implementation**: `lambda/index.py` (orchestration functions, 556 lines)
+**Implementation**: `lambda/orchestration_stepfunctions.py`
+
+#### 5. Execution Poller Lambda
+**Responsibilities**:
+- DRS job status monitoring
+- Periodic polling of active executions
+- Wave completion detection
+- Status updates to DynamoDB
+- Job event logging
+
+**Implementation**: `lambda/poller/execution_poller.py`
+
+#### 6. Execution Finder Lambda
+**Responsibilities**:
+- EventBridge scheduled execution discovery
+- Query executions in POLLING status
+- Trigger execution poller for active jobs
+- Cleanup stale execution states
+
+**Implementation**: `lambda/poller/execution_finder.py`
+
+#### 7. Frontend Builder Lambda
+**Responsibilities**:
+- CloudFormation custom resource handler
+- Frontend build and deployment
+- AWS configuration injection
+- S3 sync and CloudFront invalidation
+
+**Implementation**: `lambda/build_and_deploy.py`
 
 **Key Functions**:
 - `start_recovery_job()` - Calls DRS StartRecovery API
@@ -440,16 +500,17 @@ job_status = response['items'][0]['status']
 
 ---
 
-#### 5. Step Functions State Machine
+#### 8. Step Functions State Machine
 **Responsibilities**:
 - Wave-based orchestration (sequential execution)
+- Pause/resume capability with callback pattern
 - Dependency validation (Wave 2 depends on Wave 1)
-- Parallel recovery within waves (if configured)
-- Timeout handling (max 30 minutes per wave)
+- Timeout handling (configurable per wave)
 - Error recovery (retry with exponential backoff)
 - Execution state persistence
+- Task token management for pause/resume
 
-**State Machine Definition**: 35+ states across 6 stages
+**State Machine Definition**: Comprehensive orchestration with pause/resume states
 
 **State Machine Flow**:
 ```mermaid
@@ -1116,30 +1177,32 @@ graph TB
 
 ```mermaid
 graph TD
-    MASTER[Master Template<br/>master-template.yaml<br/>1,170 lines]
+    MASTER[Master Template<br/>master-template.yaml<br/>Root Orchestrator]
     
-    MASTER --> DB[Database Stack<br/>database-stack.yaml<br/>130 lines]
-    MASTER --> LAMBDA_STACK[Lambda Stack<br/>lambda-stack.yaml<br/>408 lines]
-    MASTER --> API_STACK[API Stack<br/>api-stack.yaml<br/>696 lines]
-    MASTER --> SECURITY[Security Stack<br/>security-stack.yaml<br/>648 lines]
-    MASTER --> FRONTEND[Frontend Stack<br/>frontend-stack.yaml<br/>361 lines]
+    MASTER --> DB[Database Stack<br/>database-stack.yaml<br/>DynamoDB Tables]
+    MASTER --> LAMBDA_STACK[Lambda Stack<br/>lambda-stack.yaml<br/>5 Lambda Functions]
+    MASTER --> API_STACK[API Stack<br/>api-stack.yaml<br/>API Gateway + Cognito]
+    MASTER --> STEPFN_STACK[Step Functions Stack<br/>step-functions-stack.yaml<br/>Orchestration Engine]
+    MASTER --> SECURITY[Security Stack<br/>security-stack.yaml<br/>WAF + CloudTrail]
+    MASTER --> FRONTEND[Frontend Stack<br/>frontend-stack.yaml<br/>S3 + CloudFront]
     
     DB --> DDB_PG[DynamoDB Table:<br/>Protection Groups]
     DB --> DDB_RP[DynamoDB Table:<br/>Recovery Plans]
     DB --> DDB_EH[DynamoDB Table:<br/>Execution History]
     
-    LAMBDA_STACK --> LAMBDA_API[Lambda: API Handler<br/>912 lines Python]
-    LAMBDA_STACK --> LAMBDA_ORCH[Lambda: Orchestration<br/>556 lines Python]
-    LAMBDA_STACK --> LAMBDA_CLEANUP[Lambda: S3 Cleanup<br/>Custom Resource]
-    LAMBDA_STACK --> LAMBDA_FE[Lambda: Frontend Builder<br/>Custom Resource]
+    LAMBDA_STACK --> LAMBDA_API[Lambda: API Handler<br/>CRUD + Execution Control]
+    LAMBDA_STACK --> LAMBDA_ORCH[Lambda: Orchestration<br/>Step Functions Handler]
+    LAMBDA_STACK --> LAMBDA_POLLER[Lambda: Execution Poller<br/>DRS Job Monitoring]
+    LAMBDA_STACK --> LAMBDA_FINDER[Lambda: Execution Finder<br/>EventBridge Scheduled]
+    LAMBDA_STACK --> LAMBDA_BUILDER[Lambda: Frontend Builder<br/>Custom Resource]
     
     API_STACK --> COGNITO[Cognito User Pool]
     API_STACK --> APIGW[API Gateway REST API]
-    API_STACK --> STEPFN[Step Functions<br/>State Machine]
+    
+    STEPFN_STACK --> STEPFN[Step Functions<br/>Pause/Resume Orchestration]
     
     SECURITY --> WAF[WAF Web ACL]
     SECURITY --> TRAIL[CloudTrail]
-    SECURITY --> SECRETS[Secrets Manager]
     
     FRONTEND --> S3_FE[S3 Bucket: Frontend]
     FRONTEND --> CF[CloudFront Distribution]
@@ -1148,6 +1211,7 @@ graph TD
     style DB fill:#0066CC
     style LAMBDA_STACK fill:#0066CC
     style API_STACK fill:#0066CC
+    style STEPFN_STACK fill:#0066CC
     style SECURITY fill:#0066CC
     style FRONTEND fill:#0066CC
 ```
@@ -1545,18 +1609,14 @@ Content-Type: application/json
 {
   "PlanId": "plan-uuid-456",
   "ExecutionType": "DRILL",  // or "RECOVERY"
-  "AccountId": "123456789012",
-  "Region": "us-east-1"
+  "InitiatedBy": "admin@example.com"
 }
 
 Response: 202 Accepted
 {
-  "success": true,
-  "data": {
-    "ExecutionId": "exec-uuid-789",
-    "Status": "RUNNING",
-    "StartTime": 1699999999
-  }
+  "executionId": "exec-uuid-789",
+  "status": "PENDING",
+  "message": "Execution started"
 }
 ```
 
@@ -1566,26 +1626,62 @@ GET /executions/{id}
 
 Response: 200 OK
 {
-  "success": true,
-  "data": {
-    "ExecutionId": "exec-uuid-789",
-    "Status": "RUNNING",
-    "WaveStatus": [
-      {"WaveNumber": 1, "Status": "COMPLETED"},
-      {"WaveNumber": 2, "Status": "RUNNING"}
-    ]
-  }
+  "executionId": "exec-uuid-789",
+  "status": "running",
+  "currentWave": 2,
+  "totalWaves": 3,
+  "waves": [
+    {"waveName": "Database", "status": "completed"},
+    {"waveName": "Application", "status": "in_progress"}
+  ]
+}
+```
+
+**Pause Execution**:
+```
+POST /executions/{id}/pause
+
+Response: 200 OK
+{
+  "executionId": "exec-uuid-789",
+  "status": "PAUSED",
+  "message": "Execution paused"
+}
+```
+
+**Resume Execution**:
+```
+POST /executions/{id}/resume
+
+Response: 200 OK
+{
+  "executionId": "exec-uuid-789",
+  "status": "RESUMING",
+  "message": "Execution resumed"
 }
 ```
 
 **Cancel Execution**:
 ```
-DELETE /executions/{id}
+POST /executions/{id}/cancel
 
 Response: 200 OK
 {
-  "success": true,
+  "executionId": "exec-uuid-789",
+  "status": "CANCELLED",
   "message": "Execution cancelled"
+}
+```
+
+**Terminate Recovery Instances**:
+```
+POST /executions/{id}/terminate-instances
+
+Response: 200 OK
+{
+  "executionId": "exec-uuid-789",
+  "message": "Initiated termination of recovery instances",
+  "totalTerminated": 5
 }
 ```
 
@@ -1627,50 +1723,49 @@ Response: 200 OK
 
 **State Machine ARN**: `arn:aws:states:{region}:{account}:stateMachine:DRS-Orchestration-{env}`
 
-**Complete State Machine Definition**:
+**Key Capabilities**:
+- Wave-based sequential execution
+- Pause/resume with callback pattern
+- DRS job monitoring and polling
+- Error handling and retry logic
+- Task token management for user control
+
+**Pause/Resume Implementation**:
 ```json
 {
-  "Comment": "AWS DRS Orchestration - Wave-based Recovery Execution",
-  "StartAt": "ValidateRecoveryPlan",
-  "States": {
-    "ValidateRecoveryPlan": {
-      "Type": "Task",
-      "Resource": "arn:aws:lambda:...:function:drs-orchestration-api",
-      "Parameters": {
-        "action": "validate_plan",
-        "PlanId.$": "$.PlanId"
-      },
-      "ResultPath": "$.ValidationResult",
-      "Next": "IsPlanValid",
-      "Catch": [{
-        "ErrorEquals": ["States.ALL"],
-        "ResultPath": "$.Error",
-        "Next": "ExecutionFailed"
-      }]
+  "WaitForResume": {
+    "Type": "Task",
+    "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+    "Parameters": {
+      "FunctionName": "orchestration-stepfunctions",
+      "Payload": {
+        "action": "pause_execution",
+        "TaskToken.$": "$$.Task.Token",
+        "ExecutionId.$": "$.execution_id",
+        "PausedBeforeWave.$": "$.current_wave_number"
+      }
     },
-    
-    "IsPlanValid": {
-      "Type": "Choice",
-      "Choices": [{
-        "Variable": "$.ValidationResult.IsValid",
-        "BooleanEquals": true,
-        "Next": "InitializeExecution"
-      }],
-      "Default": "ExecutionFailed"
+    "Next": "ResumeWavePlan"
+  },
+  
+  "ResumeWavePlan": {
+    "Type": "Task",
+    "Resource": "arn:aws:lambda:...:function:orchestration-stepfunctions",
+    "Parameters": {
+      "action": "resume_wave",
+      "execution_id.$": "$.execution_id",
+      "current_wave_number.$": "$.current_wave_number"
     },
-    
-    "InitializeExecution": {
-      "Type": "Task",
-      "Resource": "arn:aws:lambda:...:function:drs-orchestration-api",
-      "Parameters": {
-        "action": "initialize_execution",
-        "PlanId.$": "$.PlanId",
-        "ExecutionType.$": "$.ExecutionType",
-        "Region.$": "$.Region",
-        "AccountId.$": "$.AccountId"
-      },
-      "ResultPath": "$.ExecutionContext",
-      "Next": "ProcessWaves"
-    },
-    
-    "
+    "Next": "CheckAllWavesCompleted"
+  }
+}
+```
+
+**Execution Flow**:
+1. **Initialize** - Validate plan and create execution record
+2. **Process Waves** - Sequential wave execution with dependencies
+3. **Launch Wave** - Start DRS recovery jobs for wave servers
+4. **Monitor Jobs** - Poll DRS job status until completion
+5. **Check Pause** - Pause between waves if requested
+6. **Wait for Resume** - Use callback pattern for user control
+7. **Complete** - Finalize execution and send notifications

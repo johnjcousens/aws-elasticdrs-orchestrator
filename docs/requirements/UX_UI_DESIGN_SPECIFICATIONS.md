@@ -2,377 +2,33 @@
 
 ## AWS DRS Orchestration System
 
-**Version**: 4.0  
+**Version**: 5.0  
 **Date**: December 2025  
 **Status**: Production Release
 
 ---
 
-## UI Design Diagrams
+## Document Purpose
 
-### Application Layout Structure
-
-```mermaid
-graph LR
-    TopNav["Top Navigation Bar<br/>AWS DRS Orchestrator<br/>User Menu & Sign Out"]
-    
-    Nav1["Dashboard"]
-    Nav2["Getting Started"]
-    Nav3["Protection Groups"]
-    Nav4["Recovery Plans"]
-    Nav5["History"]
-    
-    Header["Page Header<br/>Title & Breadcrumbs<br/>Action Buttons"]
-    Content["Page Content<br/>Tables & Forms<br/>Cards & Dialogs"]
-    
-    TopNav --> Header
-    Nav1 -.-> Content
-    Nav2 -.-> Content
-    Nav3 -.-> Content
-    Nav4 -.-> Content
-    Nav5 -.-> Content
-    Header --> Content
-    
-    style TopNav fill:#232F3E,color:#fff
-    style Nav1 fill:#3B48CC,color:#fff
-    style Nav2 fill:#569A31,color:#fff
-    style Nav3 fill:#FF9900,color:#000
-    style Nav4 fill:#E7157B,color:#fff
-    style Nav5 fill:#527FFF,color:#fff
-    style Header fill:#6B7280,color:#fff
-    style Content fill:#F3F4F6,color:#000
-```
-
-### Page Flow Diagram
-
-```mermaid
-flowchart LR
-    Login["Login Page<br/>Cognito Auth"] --> GettingStarted["Getting Started<br/>Onboarding Guide"]
-    
-    subgraph MainPages ["Main Application Pages"]
-        Dashboard["Dashboard<br/>Overview & Metrics"]
-        PG["Protection Groups<br/>Server Organization"]
-        RP["Recovery Plans<br/>Wave Configuration"]
-        History["History<br/>Execution Records"]
-    end
-    
-    subgraph Dialogs ["Dialog Flows"]
-        PGDialog["Protection Group Dialog<br/>Name, Region, Server Selection"]
-        RPDialog["Recovery Plan Dialog<br/>Plan Details, Wave Config"]
-        ExecDialog["Execute Dialog<br/>Drill vs Recovery"]
-    end
-    
-    subgraph Details ["Detail Pages"]
-        ExecDetails["Execution Details<br/>Wave Progress, Real-time Status"]
-    end
-    
-    GettingStarted --> Dashboard
-    GettingStarted --> PG
-    GettingStarted --> RP
-    GettingStarted --> History
-    
-    PG --> PGDialog
-    RP --> RPDialog
-    RP --> ExecDialog
-    ExecDialog --> ExecDetails
-    History --> ExecDetails
-    
-    style Login fill:#E7157B,color:#fff
-    style GettingStarted fill:#569A31,color:#fff
-    style Dashboard fill:#3B48CC,color:#fff
-    style PG fill:#FF9900,color:#000
-    style RP fill:#E7157B,color:#fff
-    style History fill:#527FFF,color:#fff
-    style PGDialog fill:#6B7280,color:#fff
-    style RPDialog fill:#6B7280,color:#fff
-    style ExecDialog fill:#6B7280,color:#fff
-    style ExecDetails fill:#10B981,color:#fff
-```
-
-### Protection Groups Page Wireframe
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Protection Groups                                           [Create Group]  │
-│ Define groups of servers to protect together                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Find protection groups: [________________]                    2 matches      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Name          │ Description │ Region    │ Servers │ Created    │ Actions    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ DB-Primary    │ Database    │ us-east-1 │ 2       │ 2 days ago │ [⋮]        │
-│ App-Servers   │ -           │ us-east-1 │ 3       │ 1 day ago  │ [⋮]        │
-│ Web-Tier      │ Frontend    │ us-west-2 │ 1       │ 3 hours ago│ [⋮]        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                    [1] [2] [3] ... [Next >] │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─── Create Protection Group Dialog ──────────────────────────────────────────┐
-│ Name: [_________________________] *Required                                 │
-│ Region: [us-east-1 ▼]                                                      │
-│ Description: [_________________________________________________]            │
-│                                                                             │
-│ Available Servers:                                                          │
-│ ┌─────────────────────────────────────────────────────────────────────────┐ │
-│ │ ☐ s-1234567890 │ web-server-01    │ 🟢 Available                      │ │
-│ │ ☐ s-2345678901 │ app-server-01    │ 🟢 Available                      │ │
-│ │ ☐ s-3456789012 │ db-server-01     │ 🔴 Assigned to DB-Primary         │ │
-│ └─────────────────────────────────────────────────────────────────────────┘ │
-│                                                           [Cancel] [Create] │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Recovery Plans Page Wireframe
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Recovery Plans                                              [Create Plan]    │
-│ Define recovery strategies with wave-based orchestration                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Find recovery plans: [________________]                       3 matches      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Plan Name    │ Waves │ Status      │ Last Start      │ Last End        │ Actions │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 3-Tier App   │ 3     │ ✅ COMPLETED │ Dec 15, 2:30 PM │ Dec 15, 2:45 PM │ [⋮]    │
-│ Database Only │ 1     │ 🔵 Not Run   │ Never           │ Never           │ [⋮]    │
-│ Web Failover  │ 2 of 3│ 🟡 RUNNING   │ Dec 15, 3:00 PM │ -               │ [⋮]    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                    [1] [2] [3] ... [Next >] │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─── Recovery Plan Configuration ─────────────────────────────────────────────┐
-│ Plan Name: [3-Tier Application Recovery] *Required                          │
-│ Description: [Complete application stack recovery]                          │
-│                                                                             │
-│ Wave Configuration:                                                         │
-│ ┌─ Wave 1: Database Tier ───────────────────────────────────────────────┐   │
-│ │ Protection Groups: [DB-Primary ▼] [DB-Secondary ▼]                   │   │
-│ │ Dependencies: None                                                    │   │
-│ │ ☐ Pause before wave (disabled for Wave 1)                            │   │
-│ └───────────────────────────────────────────────────────────────────────┘   │
-│ ┌─ Wave 2: Application Tier ────────────────────────────────────────────┐   │
-│ │ Protection Groups: [App-Servers ▼]                                   │   │
-│ │ Dependencies: Wave 1                                                  │   │
-│ │ ☐ Pause execution before starting this wave                          │   │
-│ └───────────────────────────────────────────────────────────────────────┘   │
-│ ┌─ Wave 3: Web Tier ────────────────────────────────────────────────────┐   │
-│ │ Protection Groups: [Web-Tier ▼]                                      │   │
-│ │ Dependencies: Wave 2                                                  │   │
-│ │ ☑ Pause execution before starting this wave                          │   │
-│ └───────────────────────────────────────────────────────────────────────┘   │
-│                                                           [Cancel] [Create] │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Execution Details Page Wireframe
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ [← Back] [Refresh] Execution Details    [Resume] [Cancel] [Terminate]       │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ ┌─ ℹ️ Execution Paused ─────────────────────────────────────────────────┐   │
-│ │ Execution is paused before starting Wave 3. Click Resume to continue. │   │
-│ │                                                        [Resume]       │   │
-│ └───────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│ Recovery Plan                                                               │
-│                                                                             │
-│ 3-Tier Application Recovery                                                 │
-│ ⏸️ PAUSED    Wave 2 of 3    By: admin@example.com                         │
-│                                                                             │
-│ Started: Dec 15, 2025 3:00:15 PM    Duration: 5m 23s                      │
-│ Execution ID: exec-abc123def456                                             │
-│                                                                             │
-│ Overall Progress                                                    67%     │
-│ █████████████░░░░░░░                                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ Wave Progress                                                               │
-│                                                                             │
-│ ✅ Wave 1: Database Tier                                    COMPLETED (2m) │
-│    ████████████████████ 100%                                      │
-│    2 servers launched successfully                                          │
-│    ▼ DRS Job Events (6)                                                    │
-│    ┌────────────────────────────────────────────────────────────────────┐   │
-│    │ ▶ Job Started                              Dec 15, 3:00:15 PM     │   │
-│    │ 📸 Taking Snapshot                         Dec 15, 3:00:20 PM     │   │
-│    │ ✓ Snapshot Complete                        Dec 15, 3:02:15 PM     │   │
-│    │ 🔄 Conversion Started                      Dec 15, 3:02:20 PM     │   │
-│    │ ✓ Conversion Succeeded                     Dec 15, 3:08:45 PM     │   │
-│    │ 🚀 Launching Instance                      Dec 15, 3:08:50 PM     │   │
-│    │ ✓ Instance Launched                        Dec 15, 3:10:15 PM     │   │
-│    └────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│ ✅ Wave 2: Application Tier                                 COMPLETED (4m) │
-│    ████████████████████ 100%                                      │
-│    1 server launched successfully                                           │
-│                                                                             │
-│ ⏸️ Wave 3: Web Tier                                            PAUSED      │
-│    ░░░░░░░░░░░░░░░░░░░░ 0%                                        │
-│    Paused - waiting for manual resume                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Component Interaction Diagram
-
-```mermaid
-graph LR
-    %% Left Column - Pages
-    subgraph Pages ["Page Components"]
-        PGPage["ProtectionGroupsPage"]
-        RPPage["RecoveryPlansPage"]
-        ExecPage["ExecutionsPage"]
-        ExecDetails["ExecutionDetailsPage"]
-    end
-    
-    %% Middle Left - Dialogs
-    subgraph Dialogs ["Dialog Components"]
-        PGDialog["ProtectionGroupDialog"]
-        RPDialog["RecoveryPlanDialog"]
-        ConfirmDialog["ConfirmDialog"]
-    end
-    
-    %% Middle - Input Components
-    subgraph Inputs ["Input Components"]
-        ServerSelector["ServerSelector"]
-        RegionSelector["RegionSelector"]
-        WaveConfigEditor["WaveConfigEditor"]
-    end
-    
-    %% Middle Right - Display Components
-    subgraph Display ["Display Components"]
-        StatusBadge["StatusBadge"]
-        WaveProgress["WaveProgress"]
-        DateTimeDisplay["DateTimeDisplay"]
-    end
-    
-    %% Right - State Components
-    subgraph State ["State Components"]
-        ErrorBoundary["ErrorBoundary"]
-        LoadingState["LoadingState"]
-        ErrorState["ErrorState"]
-    end
-    
-    %% Primary Flows - Match Source Component Colors
-    PGPage ==> PGDialog
-    RPPage ==> RPDialog
-    ExecPage ==> ExecDetails
-    
-    %% Dialog to Input Flows - Match Dialog Colors
-    PGDialog --> ServerSelector
-    PGDialog --> RegionSelector
-    RPDialog --> WaveConfigEditor
-    
-    %% Execution Detail Flows - Match ExecDetails Color
-    ExecDetails --> WaveProgress
-    ExecDetails --> StatusBadge
-    
-    %% Shared Display Components - Solid Thin Lines
-    PGPage --> StatusBadge
-    RPPage --> StatusBadge
-    ExecPage --> StatusBadge
-    
-    PGPage --> DateTimeDisplay
-    RPPage --> DateTimeDisplay
-    ExecPage --> DateTimeDisplay
-    
-    %% Shared State Components - Direct Connections
-    PGPage --> LoadingState
-    RPPage --> LoadingState
-    ExecPage --> LoadingState
-    ExecDetails --> LoadingState
-    
-    %% Error Handling
-    ErrorBoundary --> ErrorState
-    
-    %% Color Coding by Component Type
-    style PGPage fill:#FF9900,color:#000
-    style RPPage fill:#E7157B,color:#fff
-    style ExecPage fill:#527FFF,color:#fff
-    style ExecDetails fill:#10B981,color:#fff
-    
-    style PGDialog fill:#3B48CC,color:#fff
-    style RPDialog fill:#3B48CC,color:#fff
-    style ConfirmDialog fill:#3B48CC,color:#fff
-    
-    style ServerSelector fill:#569A31,color:#fff
-    style RegionSelector fill:#569A31,color:#fff
-    style WaveConfigEditor fill:#569A31,color:#fff
-    
-    style StatusBadge fill:#F59E0B,color:#000
-    style WaveProgress fill:#F59E0B,color:#000
-    style DateTimeDisplay fill:#F59E0B,color:#000
-    
-    style LoadingState fill:#6B7280,color:#fff
-    style ErrorState fill:#EF4444,color:#fff
-    style ErrorBoundary fill:#EF4444,color:#fff
-    
-    %% Link Styles - Match Source Component Colors
-    linkStyle 0 stroke:#FF9900,stroke-width:3px
-    linkStyle 1 stroke:#E7157B,stroke-width:3px
-    linkStyle 2 stroke:#527FFF,stroke-width:3px
-    linkStyle 3 stroke:#3B48CC,stroke-width:2px
-    linkStyle 4 stroke:#3B48CC,stroke-width:2px
-    linkStyle 5 stroke:#3B48CC,stroke-width:2px
-    linkStyle 6 stroke:#10B981,stroke-width:2px
-    linkStyle 7 stroke:#10B981,stroke-width:2px
-    linkStyle 8 stroke:#FF9900,stroke-width:1px
-    linkStyle 9 stroke:#E7157B,stroke-width:1px
-    linkStyle 10 stroke:#527FFF,stroke-width:1px
-    linkStyle 11 stroke:#FF9900,stroke-width:1px
-    linkStyle 12 stroke:#E7157B,stroke-width:1px
-    linkStyle 13 stroke:#527FFF,stroke-width:1px
-    linkStyle 14 stroke:#FF9900,stroke-width:1px
-    linkStyle 15 stroke:#E7157B,stroke-width:1px
-    linkStyle 16 stroke:#527FFF,stroke-width:1px
-    linkStyle 17 stroke:#10B981,stroke-width:1px
-    linkStyle 18 stroke:#EF4444,stroke-width:2px
-```
-
-### Status Indicator Design
-
-```mermaid
-graph LR
-    subgraph "Execution Status"
-        PENDING["⏳ PENDING<br/>Gray"]
-        POLLING["🔄 POLLING<br/>Blue"]
-        LAUNCHING["🟡 LAUNCHING<br/>Yellow"]
-        PAUSED["⏸️ PAUSED<br/>Purple"]
-        COMPLETED["✅ COMPLETED<br/>Green"]
-        FAILED["❌ FAILED<br/>Red"]
-        CANCELLED["⏹️ CANCELLED<br/>Orange"]
-    end
-    
-    subgraph "Server Status"
-        AVAILABLE["🟢 Available<br/>Green"]
-        ASSIGNED["🔴 Assigned<br/>Red"]
-        LAUNCHED["✅ Launched<br/>Green"]
-        ERROR["❌ Error<br/>Red"]
-    end
-    
-    style PENDING fill:#6B7280,color:#fff
-    style POLLING fill:#3B82F6,color:#fff
-    style LAUNCHING fill:#F59E0B,color:#000
-    style PAUSED fill:#8B5CF6,color:#fff
-    style COMPLETED fill:#10B981,color:#fff
-    style FAILED fill:#EF4444,color:#fff
-    style CANCELLED fill:#F97316,color:#fff
-    
-    style AVAILABLE fill:#10B981,color:#fff
-    style ASSIGNED fill:#EF4444,color:#fff
-    style LAUNCHED fill:#10B981,color:#fff
-    style ERROR fill:#EF4444,color:#fff
-```
+This document defines the user experience and interface specifications for the AWS DRS Orchestration system. It serves as a blueprint for implementing the frontend application using React, TypeScript, and AWS CloudScape Design System.
 
 ---
 
 ## Design System
 
-### Framework
+### Technology Stack
 
-- **UI Library**: AWS CloudScape Design System
-- **React Version**: 18.3
-- **TypeScript**: 5.5
-- **Build Tool**: Vite 5.4
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React | 19.1.1 | UI framework with hooks and functional components |
+| TypeScript | 5.9.3 | Type-safe JavaScript |
+| CloudScape Design System | 3.0.1148 | AWS-native UI component library |
+| Vite | 7.1.7 | Build tool and development server |
+| React Router | 7.9.5 | Client-side routing |
+| AWS Amplify | 6.15.8 | Authentication and AWS integration |
+| Axios | 1.13.2 | HTTP client for API communication |
+| react-hot-toast | 2.6.0 | Toast notifications |
+| date-fns | 4.1.0 | Date formatting and manipulation |
 
 ### Design Principles
 
@@ -380,47 +36,71 @@ graph LR
 2. **Progressive Disclosure**: Simple views by default, reveal complexity on demand
 3. **Error Prevention**: Validate inputs proactively, provide clear feedback
 4. **Accessibility**: WCAG 2.1 AA compliance, keyboard navigation, screen reader support
+5. **Real-time Feedback**: Auto-refresh for active operations, immediate status updates
 
-### CloudScape Components Used
-
-- AppLayout (page structure with navigation)
-- Table (data display with sorting, filtering, pagination)
-- Form, FormField, Input, Select (form controls)
-- Modal (dialogs)
-- Button, SpaceBetween, Box (layout)
-- StatusIndicator, Badge (status display)
-- Wizard, Steps (multi-step flows)
-- Alert, Flashbar (notifications)
-- Header, BreadcrumbGroup (navigation)
-- Tabs (content organization)
-- ProgressBar (execution progress)
-- ColumnLayout, Container (content structure)
 
 ---
 
-## Application Structure
+## Application Architecture
 
-### Navigation
+### System Architecture Overview
 
-The application uses CloudScape AppLayout with a top navigation bar:
+![AWS DRS Orchestration Architecture](../architecture/AWS-DRS-Orchestration-Architecture.png)
 
-- Logo and application name (DR Orchestrator)
-- Main navigation links: Dashboard, Protection Groups, Recovery Plans, History
-- User menu with sign out option
+*[View/Edit Source Diagram](../architecture/AWS-DRS-Orchestration-Architecture.drawio)*
 
-### Routes
+### Application Layout
 
-| Route | Page | Description |
-|-------|------|-------------|
+```mermaid
+flowchart TB
+    subgraph AppShell ["Application Shell"]
+        TopNav["Top Navigation Bar<br/>Logo, App Name, User Menu"]
+        SideNav["Side Navigation<br/>Dashboard, Getting Started,<br/>Protection Groups, Recovery Plans, History"]
+        Content["Content Area<br/>Page Components"]
+        Notifications["Flashbar Notifications"]
+    end
+    
+    TopNav --> Content
+    SideNav --> Content
+    Content --> Notifications
+    
+    style TopNav fill:#232F3E,color:#fff
+    style SideNav fill:#3B48CC,color:#fff
+    style Content fill:#F3F4F6,color:#000
+    style Notifications fill:#FF9900,color:#000
+```
+
+### Route Structure
+
+| Route | Component | Description |
+|-------|-----------|-------------|
 | /login | LoginPage | Cognito authentication |
-| / | Dashboard | Overview metrics and quick actions (default landing) |
+| / | Dashboard | Overview metrics and quick actions |
 | /getting-started | GettingStartedPage | Onboarding guide with quick links |
 | /protection-groups | ProtectionGroupsPage | Protection Group management |
-| /protection-groups/new | ProtectionGroupsPage | Create new Protection Group |
 | /recovery-plans | RecoveryPlansPage | Recovery Plan management |
-| /recovery-plans/new | RecoveryPlansPage | Create new Recovery Plan |
-| /executions | ExecutionsPage | Execution list with Active/History tabs |
-| /executions/:executionId | ExecutionDetailsPage | Real-time execution monitoring |
+| /executions | ExecutionsPage | Execution list (Active/History tabs) |
+| /executions/:id | ExecutionDetailsPage | Real-time execution monitoring |
+
+### Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant LoginPage
+    participant AuthContext
+    participant Cognito
+    participant App
+    
+    User->>LoginPage: Enter credentials
+    LoginPage->>AuthContext: signIn(username, password)
+    AuthContext->>Cognito: Amplify.Auth.signIn()
+    Cognito-->>AuthContext: JWT tokens
+    AuthContext-->>LoginPage: isSignedIn: true
+    LoginPage->>App: Navigate to /
+    App->>AuthContext: Check isAuthenticated
+    AuthContext-->>App: true (render protected routes)
+```
 
 ---
 
@@ -430,172 +110,367 @@ The application uses CloudScape AppLayout with a top navigation bar:
 
 **Purpose**: Authenticate users via AWS Cognito
 
-**Components**:
+**Visual Design**:
+- Dark AWS-branded background (#232F3E)
+- Centered white card with form
+- AWS logo and "Elastic Disaster Recovery Orchestrator" title
+- Decorative 3D isometric cubes at bottom
+- Disclaimer footer with AWS Professional Services notice
 
-- CloudScape Container with centered layout
-- CloudScape Input for username/password
-- CloudScape Button (variant primary)
+**Components**:
+- Custom styled input fields (AWS IAM Identity Center style)
+- Orange primary button (#ec7211)
 - CloudScape Alert for error messages
+- CloudScape SpaceBetween for layout
 
 **Behavior**:
-
 - Submit on Enter key
-- Show loading spinner during authentication
+- Show "Signing in..." during authentication
 - Display error message on failure
-- Redirect to Getting Started page on success
+- Redirect to Dashboard on success
+- Auto-redirect if already authenticated
 
-### 2. Getting Started Page
+### 2. Dashboard Page
+
+**Purpose**: Overview of system status and quick actions
+
+**Layout**: Three-column grid with metric cards
+
+**Content**:
+- Protection Groups count with link
+- Recovery Plans count with link
+- Recent Executions summary
+- Quick action buttons
+
+### 3. Getting Started Page
 
 **Purpose**: Onboarding guide for new users
 
 **Layout**: Three-column grid with quick links plus Quick Start Guide
 
-**Components**:
+**Content**:
+- Step 1: Create a Protection Group (link to /protection-groups)
+- Step 2: Design a Recovery Plan (link to /recovery-plans)
+- Step 3: Execute Recovery (link to /executions)
+- Quick Start Guide container with workflow overview
 
+**Components**:
 - CloudScape ContentLayout with Header
 - CloudScape ColumnLayout (3 columns)
 - CloudScape Container for each section
-- Quick Start Guide container with 3-step workflow
-
-**Content**:
-
-- Step 1: Create a Protection Group
-- Step 2: Design a Recovery Plan
-- Step 3: Execute Recovery
-
-### 3. Dashboard Page
-
-**Purpose**: Overview of system status and quick actions
-
-**Components**:
-
-- CloudScape Cards for metrics
-- CloudScape Button for quick actions
-- Recent executions summary
+- CloudScape Link for navigation
 
 ### 4. Protection Groups Page
 
 **Purpose**: CRUD operations for Protection Groups
 
-**Components**:
+**Layout**: Full-width table with header actions
 
-- CloudScape Table with collection hooks
+**Components**:
+- CloudScape Table with useCollection hook
 - CloudScape Header with Create and Refresh buttons
+- CloudScape TextFilter for search
+- CloudScape Pagination
 - CloudScape Modal for create/edit dialog
 
-**Table Columns**: Name, Region, Servers, Created, Actions
+**Table Columns**:
+
+| Column | Width | Sortable | Content |
+|--------|-------|----------|---------|
+| Name | 200px | Yes | Group name (link to edit) |
+| Region | 120px | Yes | AWS region code |
+| Servers | 100px | Yes | Server count |
+| Description | flex | No | Optional description |
+| Created | 150px | Yes | Relative timestamp |
+| Actions | 100px | No | Edit, Delete buttons |
 
 **Create/Edit Dialog**:
-
 - Name input field (required)
 - Region selector dropdown (13 AWS regions)
-- Description field (optional)
-- Server selector with real-time search and assignment status
+- Description textarea (optional)
+- ServerSelector component with real-time search
 
 ### 5. Recovery Plans Page
 
 **Purpose**: CRUD operations for Recovery Plans
 
-**Components**:
+**Layout**: Full-width table with header actions
 
-- CloudScape Table with collection hooks
+**Components**:
+- CloudScape Table with useCollection hook
 - CloudScape Header with Create and Refresh buttons
+- CloudScape TextFilter for search
+- CloudScape Pagination
 - CloudScape Modal for create/edit dialog
 
-**Table Columns**: Name, Protection Groups, Waves, Servers, Created, Actions
+**Table Columns**:
+
+| Column | Width | Sortable | Content |
+|--------|-------|----------|---------|
+| Name | 200px | Yes | Plan name (link to edit) |
+| Waves | 80px | Yes | Wave count |
+| Status | 120px | Yes | Last execution status badge |
+| Last Start | 150px | Yes | Last execution start time |
+| Last End | 150px | Yes | Last execution end time |
+| Actions | 150px | No | Execute, Edit, Delete buttons |
 
 **Create/Edit Dialog**:
-
-- Plan name and description fields
-- Protection Group multi-select
-- Wave configuration editor
+- Plan name input (required)
+- Description textarea (optional)
+- WaveConfigEditor component for wave configuration
 
 ### 6. Executions Page (History)
 
 **Purpose**: List and monitor recovery executions
 
-**Components**:
+**Layout**: Tabbed interface with Active and History views
 
+**Components**:
 - CloudScape Tabs (Active / History)
-- CloudScape Table for history list
 - CloudScape Container cards for active executions
+- CloudScape Table for history list
 - CloudScape ProgressBar for in-progress executions
 - CloudScape Badge for live updates indicator
 
-**Status Indicators**: PENDING, POLLING, LAUNCHING, COMPLETED, FAILED, CANCELLED
+**Active Tab**:
+- Card-based layout for running executions
+- Real-time progress bar
+- Wave status summary
+- Quick action buttons (View Details, Cancel)
+
+**History Tab**:
+- Table with all executions
+- Status badges with color coding
+- Duration calculation
+- Link to execution details
 
 ### 7. Execution Details Page
 
 **Purpose**: Real-time execution monitoring with pause/resume and instance management
 
+**Layout**: Header with actions, summary container, wave progress timeline
+
 **Components**:
-
-- CloudScape Header with back navigation and action buttons
+- CloudScape Header with back navigation
 - CloudScape Container for execution summary
-- WaveProgress component showing wave timeline with DRS job events
-- CloudScape ProgressBar for overall execution progress
-- CloudScape Alert for paused state with resume action
-- CloudScape Button for cancel execution
-- CloudScape Button for resume execution (when paused)
-- CloudScape Button for terminate instances (when completed)
-- ConfirmDialog for destructive actions with loading states
+- CloudScape Alert for paused state notification
+- CloudScape ProgressBar for overall progress
+- WaveProgress component for wave timeline
+- CloudScape Button for actions
+- ConfirmDialog for destructive actions
 
-**Action Buttons**:
+**Header Actions**:
 
-| Button | Condition | Action |
-|--------|-----------|--------|
-| Refresh | Always | Reload execution data |
-| Resume Execution | Status = PAUSED | Resume paused execution |
-| Cancel Execution | Status = RUNNING/POLLING | Cancel execution |
-| Terminate Instances | Status = COMPLETED/FAILED + has jobIds | Terminate recovery EC2 instances |
+| Button | Condition | Variant | Action |
+|--------|-----------|---------|--------|
+| Refresh | Always | Normal | Reload execution data |
+| Resume Execution | Status = PAUSED | Primary | Resume paused execution |
+| Cancel Execution | Status = RUNNING/POLLING | Normal | Cancel execution |
+| Terminate Instances | Terminal + has jobIds | Normal | Terminate EC2 instances |
+
+**Execution Summary**:
+- Plan name and description
+- Status badge with color
+- Current wave / Total waves
+- Initiated by user
+- Start time and duration
+- Execution ID (copyable)
+
+**Paused State Alert**:
+- Info alert with "Execution Paused" message
+- Shows which wave is paused before
+- Resume button in alert
+
+**Wave Progress Timeline**:
+- Visual timeline of all waves
+- Status indicator per wave (✓, ✗, ▶, ○)
+- Duration per wave
+- Expandable server details
+- Expandable DRS Job Events section
+- Auto-refresh every 3 seconds for active executions
 
 **Real-time Updates**:
-
 - Execution status polling: Every 3 seconds for active executions
-- DRS Job Events polling: Every 3 seconds (independent of status polling)
+- DRS Job Events polling: Every 3 seconds (independent)
 - Auto-refresh stops when execution reaches terminal state
 
-**Paused State Display**:
-
-- Alert banner showing "Execution Paused" with wave number
-- Resume button in header and in alert
-- Paused before wave indicator
 
 ---
 
-## Component Library (22 components)
+## Component Library (22 Components)
 
-| Component | Purpose |
-|-----------|---------|
-| ProtectionGroupDialog | Create/Edit Protection Groups modal |
-| RecoveryPlanDialog | Create/Edit Recovery Plans modal |
-| ServerSelector | Visual server selection with assignment status |
-| ServerDiscoveryPanel | DRS server discovery interface |
-| ServerListItem | Individual server display in lists |
-| RegionSelector | AWS region dropdown |
-| StatusBadge | Status indicators with color coding |
-| WaveProgress | Wave execution timeline with DRS job events auto-refresh |
-| WaveConfigEditor | Wave configuration form with pause-before-wave option |
-| ConfirmDialog | Confirmation dialogs with loading state support |
-| DateTimeDisplay | Timestamp formatting |
-| ExecutionDetails | Execution detail display |
-| ErrorBoundary | React error boundary wrapper |
-| ErrorFallback | Error display component |
-| ErrorState | Error state with retry button |
-| LoadingState | Loading spinner with message |
-| CardSkeleton | Loading skeleton for cards |
-| DataTableSkeleton | Loading skeleton for tables |
-| PageTransition | Page transition animations |
-| ProtectedRoute | Auth route wrapper |
-| JobEventsTimeline | DRS job event timeline display |
-| ServerStatusRow | Server status with source/recovery instance details |
+### Dialog Components
 
-### CloudScape Layout Components
+| Component | Purpose | Props |
+|-----------|---------|-------|
+| ProtectionGroupDialog | Create/Edit Protection Groups | open, group, onClose, onSave |
+| RecoveryPlanDialog | Create/Edit Recovery Plans | open, plan, onClose, onSave |
+| ConfirmDialog | Confirmation with loading state | visible, title, message, onConfirm, onCancel, loading |
 
-| Component | Purpose |
-|-----------|---------|
-| AppLayout | Page shell with navigation |
-| ContentLayout | Page content wrapper with header |
+### Input Components
+
+| Component | Purpose | Props |
+|-----------|---------|-------|
+| ServerSelector | Visual server selection with assignment status | region, selectedServers, onChange, currentGroupId |
+| ServerDiscoveryPanel | DRS server discovery interface | region, onServersSelected |
+| ServerListItem | Individual server display | server, selected, onSelect, disabled |
+| RegionSelector | AWS region dropdown | value, onChange, disabled |
+| WaveConfigEditor | Wave configuration form | waves, protectionGroups, onChange |
+
+### Display Components
+
+| Component | Purpose | Props |
+|-----------|---------|-------|
+| StatusBadge | Status indicators with color coding | status, size |
+| WaveProgress | Wave execution timeline with DRS events | waves, currentWave, totalWaves, executionId |
+| DateTimeDisplay | Timestamp formatting | timestamp, format |
+| ExecutionDetails | Execution detail display | execution |
+| JobEventsTimeline | DRS job event timeline | events |
+| ServerStatusRow | Server status with instance details | server |
+
+### State Components
+
+| Component | Purpose | Props |
+|-----------|---------|-------|
+| ErrorBoundary | React error boundary wrapper | children, fallback |
+| ErrorFallback | Error display component | error, resetErrorBoundary |
+| ErrorState | Error state with retry button | message, onRetry |
+| LoadingState | Loading spinner with message | message |
+| CardSkeleton | Loading skeleton for cards | - |
+| DataTableSkeleton | Loading skeleton for tables | columns, rows |
+
+### Layout Components
+
+| Component | Purpose | Props |
+|-----------|---------|-------|
+| PageTransition | Page transition animations | children |
+| ProtectedRoute | Auth route wrapper | children |
+
+---
+
+## Component Specifications
+
+### ServerSelector Component
+
+**Purpose**: Select DRS source servers with real-time discovery and assignment status
+
+**Features**:
+- Real-time server discovery from DRS API
+- Visual indication of server assignment status
+- Search/filter functionality
+- Checkbox selection with conflict prevention
+- Shows hostname, server ID, replication state
+
+**States**:
+- Loading: Spinner while fetching servers
+- Empty: No servers found in region
+- Error: API error with retry option
+- Loaded: Server list with selection
+
+**Server Item Display**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ☐ s-1234567890abcdef0                                       │
+│   web-server-01                                             │
+│   🟢 CONTINUOUS | Ready for Recovery                        │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ ☐ s-0987654321fedcba0  (disabled)                          │
+│   db-server-01                                              │
+│   🔴 Assigned to: Database Servers                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### WaveConfigEditor Component
+
+**Purpose**: Configure waves for Recovery Plans
+
+**Features**:
+- Add/remove waves dynamically
+- Protection Group selection per wave
+- Server selection from Protection Group
+- Pause before wave checkbox (disabled for Wave 1)
+- Wave reordering (drag or buttons)
+- Dependency validation
+
+**Wave Card Layout**:
+```
+┌─ Wave 1: Database Tier ─────────────────────────────────────┐
+│ Protection Group: [DB-Primary ▼]                            │
+│ Servers: [Select servers...] (3 selected)                   │
+│ ☐ Pause execution before starting this wave (disabled)      │
+│                                              [Remove Wave]  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### WaveProgress Component
+
+**Purpose**: Display wave execution timeline with real-time updates
+
+**Features**:
+- Overall progress bar with percentage
+- Per-wave status indicators
+- Expandable server details
+- Expandable DRS Job Events timeline
+- Auto-refresh for active executions (3-second interval)
+- Duration calculation per wave
+
+**Wave Status Indicators**:
+
+| Status | Icon | Color |
+|--------|------|-------|
+| Completed | ✓ | Green (#037f0c) |
+| Failed | ✗ | Red (#d91515) |
+| In Progress | ▶ | Blue (#0972d3) |
+| Pending | ○ | Gray (#5f6b7a) |
+| Paused | ⏸ | Purple (#8B5CF6) |
+
+**DRS Job Events**:
+
+| Event | Icon | Description |
+|-------|------|-------------|
+| JOB_START | ▶ | Job initiated |
+| SNAPSHOT_START | ◉ | Taking snapshot |
+| SNAPSHOT_END | ✓ | Snapshot complete |
+| CONVERSION_START | ↻ | Conversion started |
+| CONVERSION_END | ✓ | Conversion succeeded |
+| LAUNCH_START | ↑ | Launching instance |
+| LAUNCH_END | ✓ | Instance launched |
+
+### StatusBadge Component
+
+**Purpose**: Consistent status display across the application
+
+**Execution Status Colors**:
+
+| Status | CloudScape Type | Color |
+|--------|-----------------|-------|
+| PENDING | pending | Gray |
+| RUNNING | in-progress | Blue |
+| POLLING | in-progress | Blue |
+| LAUNCHING | in-progress | Blue |
+| PAUSED | stopped | Purple |
+| COMPLETED | success | Green |
+| PARTIAL | warning | Yellow |
+| FAILED | error | Red |
+| CANCELLED | stopped | Orange |
+
+### ConfirmDialog Component
+
+**Purpose**: Confirmation dialogs for destructive actions
+
+**Features**:
+- Customizable title and message
+- Loading state during async operations
+- Cancel and Confirm buttons
+- Keyboard support (Escape to cancel)
+
+**Usage Examples**:
+- Delete Protection Group
+- Delete Recovery Plan
+- Cancel Execution
+- Terminate Instances
 
 ---
 
@@ -603,71 +478,141 @@ The application uses CloudScape AppLayout with a top navigation bar:
 
 ### Flow 1: Create Protection Group
 
-1. Navigate to Protection Groups page
-2. Click Create button
-3. Enter name and select region
-4. System discovers DRS servers
-5. Select available servers
-6. Click Create
-7. Success notification displayed
+```mermaid
+sequenceDiagram
+    participant User
+    participant PGPage as Protection Groups Page
+    participant Dialog as PG Dialog
+    participant API
+    participant DRS
+    
+    User->>PGPage: Click "Create"
+    PGPage->>Dialog: Open dialog
+    User->>Dialog: Enter name, select region
+    Dialog->>DRS: Discover servers
+    DRS-->>Dialog: Server list
+    User->>Dialog: Select servers
+    User->>Dialog: Click "Create"
+    Dialog->>API: POST /protection-groups
+    API-->>Dialog: 201 Created
+    Dialog->>PGPage: Close, refresh list
+    PGPage->>User: Show success notification
+```
 
 ### Flow 2: Create Recovery Plan
 
-1. Navigate to Recovery Plans page
-2. Click Create button
-3. Enter name and description
-4. Select Protection Groups
-5. Configure waves
-6. Click Create
+```mermaid
+sequenceDiagram
+    participant User
+    participant RPPage as Recovery Plans Page
+    participant Dialog as RP Dialog
+    participant API
+    
+    User->>RPPage: Click "Create"
+    RPPage->>Dialog: Open dialog
+    Dialog->>API: GET /protection-groups
+    API-->>Dialog: Protection Groups list
+    User->>Dialog: Enter name
+    User->>Dialog: Add Wave 1
+    User->>Dialog: Select Protection Group
+    User->>Dialog: Select servers
+    User->>Dialog: Add Wave 2 (optional pause)
+    User->>Dialog: Click "Create"
+    Dialog->>API: POST /recovery-plans
+    API-->>Dialog: 201 Created
+    Dialog->>RPPage: Close, refresh list
+```
 
-### Flow 3: Execute Recovery
+### Flow 3: Execute Recovery Plan
 
-1. Navigate to Recovery Plans page
-2. Click Execute button on plan row
-3. Select execution type (DRILL or RECOVERY)
-4. Confirm execution
-5. Redirect to Execution Details page
-6. Monitor wave progress
+```mermaid
+sequenceDiagram
+    participant User
+    participant RPPage as Recovery Plans Page
+    participant ExecDialog as Execute Dialog
+    participant API
+    participant StepFn as Step Functions
+    participant ExecPage as Execution Details
+    
+    User->>RPPage: Click "Execute"
+    RPPage->>ExecDialog: Open dialog
+    User->>ExecDialog: Select DRILL or RECOVERY
+    User->>ExecDialog: Click "Execute"
+    ExecDialog->>API: POST /executions
+    API->>StepFn: Start execution
+    API-->>ExecDialog: 202 Accepted
+    ExecDialog->>ExecPage: Navigate to details
+    ExecPage->>API: GET /executions/{id}
+    API-->>ExecPage: Execution status
+    loop Every 3 seconds
+        ExecPage->>API: GET /executions/{id}
+        API-->>ExecPage: Updated status
+    end
+```
 
-### Flow 4: Monitor Execution
+### Flow 4: Resume Paused Execution
 
-1. Navigate to History page
-2. View Active tab for in-progress executions
-3. Click View Details
-4. View wave progress timeline with DRS job events
-5. Auto-refresh updates status every 3 seconds
-6. DRS Job Events section auto-refreshes independently
+```mermaid
+sequenceDiagram
+    participant User
+    participant ExecPage as Execution Details
+    participant API
+    participant StepFn as Step Functions
+    
+    Note over ExecPage: Status = PAUSED
+    ExecPage->>User: Show "Execution Paused" alert
+    User->>ExecPage: Click "Resume"
+    ExecPage->>API: POST /executions/{id}/resume
+    API->>StepFn: SendTaskSuccess(token)
+    StepFn-->>API: Execution resumed
+    API-->>ExecPage: 200 OK
+    ExecPage->>User: Show success notification
+    Note over ExecPage: Status = RUNNING
+```
 
-### Flow 5: Resume Paused Execution
+### Flow 5: Terminate Recovery Instances
 
-1. Execution reaches wave with `pauseBeforeWave: true`
-2. Step Functions enters PAUSED state
-3. UI shows "Execution Paused" alert with wave number
-4. User clicks Resume Execution button
-5. API calls Step Functions SendTaskSuccess
-6. Execution continues with next wave
-7. UI updates to show wave in progress
-
-### Flow 6: Terminate Recovery Instances
-
-1. Execution completes (COMPLETED, FAILED, or CANCELLED)
-2. Terminate Instances button becomes available
-3. User clicks Terminate Instances
-4. Confirmation dialog appears with warning
-5. User confirms termination
-6. API terminates all EC2 recovery instances
-7. Badge shows "Instances Terminated"
-8. Button is hidden (prevents duplicate termination)
+```mermaid
+sequenceDiagram
+    participant User
+    participant ExecPage as Execution Details
+    participant Dialog as Confirm Dialog
+    participant API
+    participant EC2
+    
+    Note over ExecPage: Status = COMPLETED
+    User->>ExecPage: Click "Terminate Instances"
+    ExecPage->>Dialog: Show confirmation
+    User->>Dialog: Click "Confirm"
+    Dialog->>API: POST /executions/{id}/terminate-instances
+    API->>EC2: TerminateInstances
+    EC2-->>API: Terminated
+    API-->>Dialog: 200 OK
+    Dialog->>ExecPage: Close, refresh
+    ExecPage->>User: Show "Instances Terminated" badge
+```
 
 ---
 
 ## Responsive Design
 
-| Size | Width | Layout |
-|------|-------|--------|
+### Breakpoints
+
+| Size | Width | Layout Changes |
+|------|-------|----------------|
 | Desktop | >1200px | Full layout with sidebar |
-| Tablet | 768-1200px | Collapsed sidebar |
+| Tablet | 768-1200px | Collapsed sidebar, full tables |
 | Mobile | <768px | Stacked layout, hamburger menu |
+
+### Component Adaptations
+
+| Component | Desktop | Tablet | Mobile |
+|-----------|---------|--------|--------|
+| Navigation | Side panel | Collapsed | Hamburger |
+| Tables | Full columns | Reduced columns | Card view |
+| Dialogs | Large modal | Medium modal | Full screen |
+| Forms | Multi-column | Single column | Single column |
+
 
 ---
 
@@ -675,10 +620,13 @@ The application uses CloudScape AppLayout with a top navigation bar:
 
 ### WCAG 2.1 AA Compliance
 
-- Color contrast ratio: 4.5:1 minimum
-- Focus indicators on all interactive elements
-- Keyboard navigation for all functionality
-- Screen reader announcements for status changes
+| Requirement | Implementation |
+|-------------|----------------|
+| Color Contrast | 4.5:1 minimum for text |
+| Focus Indicators | Visible focus ring on all interactive elements |
+| Keyboard Navigation | Full functionality via keyboard |
+| Screen Reader | ARIA labels and live regions |
+| Error Identification | Clear error messages with field association |
 
 ### Keyboard Navigation
 
@@ -687,20 +635,331 @@ The application uses CloudScape AppLayout with a top navigation bar:
 | Tab | Move focus forward |
 | Shift+Tab | Move focus backward |
 | Enter | Activate button/link |
-| Space | Toggle checkbox |
-| Escape | Close dialog |
+| Space | Toggle checkbox, activate button |
+| Escape | Close dialog/modal |
+| Arrow Keys | Navigate lists and menus |
+
+### ARIA Implementation
+
+```tsx
+// Button with aria-label
+<Button
+  iconName="edit"
+  ariaLabel="Edit protection group"
+  onClick={handleEdit}
+/>
+
+// Live region for status updates
+<div aria-live="polite" aria-atomic="true">
+  {statusMessage}
+</div>
+
+// Form field with error
+<FormField
+  label="Name"
+  errorText={error}
+  controlId="name-input"
+>
+  <Input
+    value={name}
+    onChange={handleChange}
+    ariaDescribedby={error ? "name-error" : undefined}
+  />
+</FormField>
+```
 
 ---
 
 ## State Management
 
-### React Context
+### AuthContext
 
-- AuthContext: User authentication state, JWT tokens, login/logout functions
+**Purpose**: Manage authentication state across the application
 
-### Data Fetching
+**State**:
+```typescript
+interface AuthState {
+  isAuthenticated: boolean;
+  loading: boolean;
+  user: CognitoUser | null;
+  error: string | null;
+}
+```
 
-- API calls via axios with JWT token
-- Loading states during fetch
-- Error handling with toast notifications
-- Auto-refresh for active executions (3-second interval)
+**Methods**:
+- `signIn(username, password)`: Authenticate user
+- `signOut()`: Sign out and clear tokens
+- `checkAuth()`: Verify current authentication status
+
+**Auto-logout**: 45-minute session timeout with activity tracking
+
+### Data Fetching Pattern
+
+```typescript
+// API service with axios
+const apiClient = {
+  // Protection Groups
+  listProtectionGroups: () => api.get('/protection-groups'),
+  createProtectionGroup: (data) => api.post('/protection-groups', data),
+  updateProtectionGroup: (id, data) => api.put(`/protection-groups/${id}`, data),
+  deleteProtectionGroup: (id) => api.delete(`/protection-groups/${id}`),
+  
+  // Recovery Plans
+  listRecoveryPlans: () => api.get('/recovery-plans'),
+  createRecoveryPlan: (data) => api.post('/recovery-plans', data),
+  updateRecoveryPlan: (id, data) => api.put(`/recovery-plans/${id}`, data),
+  deleteRecoveryPlan: (id) => api.delete(`/recovery-plans/${id}`),
+  
+  // Executions
+  listExecutions: () => api.get('/executions'),
+  getExecution: (id) => api.get(`/executions/${id}`),
+  startExecution: (data) => api.post('/executions', data),
+  resumeExecution: (id) => api.post(`/executions/${id}/resume`),
+  cancelExecution: (id) => api.post(`/executions/${id}/cancel`),
+  terminateInstances: (id) => api.post(`/executions/${id}/terminate-instances`),
+  getJobLogs: (id, jobId) => api.get(`/executions/${id}/job-logs`, { params: { jobId } }),
+  
+  // DRS
+  discoverServers: (region, currentPgId) => 
+    api.get('/drs/source-servers', { params: { region, currentProtectionGroupId: currentPgId } }),
+};
+```
+
+### Loading and Error States
+
+```typescript
+// Standard loading/error pattern
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
+const [data, setData] = useState<T | null>(null);
+
+const fetchData = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const result = await apiClient.getData();
+    setData(result);
+  } catch (err) {
+    setError(err.message || 'An error occurred');
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+---
+
+## Notification System
+
+### Flashbar Notifications
+
+**Types**:
+
+| Type | Use Case | Auto-dismiss |
+|------|----------|--------------|
+| success | Operation completed | 5 seconds |
+| error | Operation failed | Manual |
+| warning | Attention needed | Manual |
+| info | Informational | 10 seconds |
+
+**Implementation**:
+```typescript
+const [notifications, setNotifications] = useState<FlashbarProps.MessageDefinition[]>([]);
+
+const addNotification = (type: 'success' | 'error' | 'warning' | 'info', content: string) => {
+  const id = Date.now().toString();
+  setNotifications(prev => [
+    ...prev,
+    {
+      type,
+      content,
+      dismissible: true,
+      onDismiss: () => removeNotification(id),
+      id,
+    },
+  ]);
+
+  if (type === 'success') {
+    setTimeout(() => removeNotification(id), 5000);
+  }
+};
+```
+
+---
+
+## Error Handling
+
+### Error Types
+
+| Error Code | Display | Action |
+|------------|---------|--------|
+| 400 | Validation error message | Highlight field |
+| 401 | "Session expired" | Redirect to login |
+| 403 | "Access denied" | Show error state |
+| 404 | "Not found" | Show error state |
+| 409 | Conflict message | Show specific error |
+| 500 | "Server error" | Show retry option |
+
+### Conflict Error Handling
+
+```typescript
+// Handle 409 Conflict responses
+if (error.response?.status === 409) {
+  const errorCode = error.response.data.error;
+  
+  switch (errorCode) {
+    case 'PG_NAME_EXISTS':
+      setErrors({ name: 'A Protection Group with this name already exists' });
+      break;
+    case 'SERVER_ASSIGNMENT_CONFLICT':
+      setError('Some servers are already assigned to other Protection Groups');
+      break;
+    case 'PG_IN_ACTIVE_EXECUTION':
+      setError('Cannot modify - Protection Group is part of an active execution');
+      break;
+    case 'PLAN_ALREADY_EXECUTING':
+      setError('This plan already has an execution in progress');
+      break;
+  }
+}
+```
+
+---
+
+## Performance Optimization
+
+### Code Splitting
+
+```typescript
+// Lazy load pages
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ProtectionGroupsPage = lazy(() => import('./pages/ProtectionGroupsPage'));
+const RecoveryPlansPage = lazy(() => import('./pages/RecoveryPlansPage'));
+const ExecutionsPage = lazy(() => import('./pages/ExecutionsPage'));
+const ExecutionDetailsPage = lazy(() => import('./pages/ExecutionDetailsPage'));
+```
+
+### Memoization
+
+```typescript
+// Memoize expensive calculations
+const progress = useMemo(() => {
+  return calculateOverallProgressWithLogs(waves, planTotalWaves, jobLogs);
+}, [waves, planTotalWaves, jobLogs]);
+
+// Memoize callbacks
+const handleSubmit = useCallback(async () => {
+  // submission logic
+}, [dependencies]);
+```
+
+### Polling Optimization
+
+```typescript
+// Stop polling when execution completes
+useEffect(() => {
+  if (!executionId || isTerminalStatus(status)) return;
+  
+  const interval = setInterval(() => {
+    fetchExecutionStatus();
+  }, 3000);
+  
+  return () => clearInterval(interval);
+}, [executionId, status]);
+```
+
+---
+
+## Testing Requirements
+
+### Unit Tests
+
+- Component rendering tests
+- User interaction tests
+- State management tests
+- API service tests
+
+### Integration Tests
+
+- Page navigation flows
+- Form submission flows
+- Error handling flows
+
+### E2E Tests (Playwright)
+
+- Login flow
+- Create Protection Group flow
+- Create Recovery Plan flow
+- Execute and monitor flow
+- Pause/Resume flow
+- Terminate instances flow
+
+---
+
+## Appendix: CloudScape Components Reference
+
+### Layout Components
+
+| Component | Usage |
+|-----------|-------|
+| AppLayout | Main application shell |
+| ContentLayout | Page content wrapper |
+| Container | Content sections |
+| ColumnLayout | Multi-column layouts |
+| SpaceBetween | Consistent spacing |
+| Box | Generic container |
+| Grid | CSS Grid wrapper |
+
+### Navigation Components
+
+| Component | Usage |
+|-----------|-------|
+| SideNavigation | Main navigation |
+| BreadcrumbGroup | Page breadcrumbs |
+| Tabs | Content tabs |
+| Link | Navigation links |
+
+### Form Components
+
+| Component | Usage |
+|-----------|-------|
+| Form | Form container |
+| FormField | Field wrapper with label |
+| Input | Text input |
+| Textarea | Multi-line input |
+| Select | Dropdown select |
+| Multiselect | Multi-select dropdown |
+| Checkbox | Boolean input |
+| RadioGroup | Radio buttons |
+| DatePicker | Date selection |
+
+### Data Display Components
+
+| Component | Usage |
+|-----------|-------|
+| Table | Data tables |
+| Cards | Card layouts |
+| KeyValuePairs | Key-value display |
+| ProgressBar | Progress indication |
+| StatusIndicator | Status display |
+| Badge | Labels and tags |
+| Spinner | Loading indicator |
+
+### Feedback Components
+
+| Component | Usage |
+|-----------|-------|
+| Alert | Inline alerts |
+| Flashbar | Toast notifications |
+| Modal | Dialog windows |
+| Popover | Contextual info |
+| HelpPanel | Help content |
+
+### Action Components
+
+| Component | Usage |
+|-----------|-------|
+| Button | Primary actions |
+| ButtonDropdown | Action menus |
+| Toggle | On/off switches |
+| ExpandableSection | Collapsible content |
