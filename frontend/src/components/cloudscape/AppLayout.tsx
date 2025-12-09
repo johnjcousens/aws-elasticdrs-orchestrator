@@ -85,7 +85,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         <TopNavigation
           identity={{
             href: '/',
-            title: 'DRS Orchestrator',
+            title: 'Elastic Disaster Recovery Orchestrator',
             logo: {
               src: 'https://a0.awsstatic.com/libra-css/images/logos/aws_smile-header-desktop-en-white_59x35.png',
               alt: 'AWS',
