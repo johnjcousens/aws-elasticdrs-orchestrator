@@ -131,11 +131,13 @@ export const LoginPage: React.FC = () => {
             )}
 
             {/* Login Form */}
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} method="post" autoComplete="on">
               <SpaceBetween size="l">
                 <FormField label="Username or email">
                   <input
                     type="text"
+                    name="username"
+                    id="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     disabled={loading}
@@ -165,6 +167,8 @@ export const LoginPage: React.FC = () => {
                 <FormField label="Password">
                   <input
                     type="password"
+                    name="password"
+                    id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={loading}
