@@ -443,6 +443,32 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 
 ---
 
+## Changelog
+
+### December 9, 2025
+
+**Resume Execution Fix**
+- Fixed 400 Bad Request error when resuming paused executions
+- Root cause: Step Functions `WaitForResume` state had `OutputPath: '$.Payload'` but callback outputs from `SendTaskSuccess` are returned directly at root level
+- Solution: Removed `OutputPath` from `WaitForResume` state in `cfn/step-functions-stack.yaml`
+- Updated `resume_execution()` in Lambda to return full application state via `SendTaskSuccess`
+
+**DRS Job Events Auto-Refresh**
+- Fixed DRS Job Events not auto-updating in the execution details UI
+- Separated polling into its own `useEffect` with a ref to prevent interval recreation
+- Reduced polling interval from 5s to 3s for faster updates
+- Made DRS Job Events collapsible via ExpandableSection (expanded by default)
+- Auto-refresh continues regardless of collapsed state
+- Added event count in header: `DRS Job Events (X)`
+
+**Multiple Button Click Prevention**
+- Added `loading` prop to `ConfirmDialog` component that disables both Cancel and Confirm buttons
+- Updated Protection Groups delete dialog with loading state
+- Updated Recovery Plans delete dialog with loading state
+- Updated Cancel Execution dialog with loading state
+- Updated Terminate Instances dialog with loading state
+- Resume button already had proper `disabled={resuming}` and `loading={resuming}` props
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

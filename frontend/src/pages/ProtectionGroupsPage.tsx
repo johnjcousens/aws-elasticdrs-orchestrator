@@ -39,6 +39,7 @@ export const ProtectionGroupsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<ProtectionGroup | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ProtectionGroup | null>(null);
   const [groupsInRecoveryPlans, setGroupsInRecoveryPlans] = useState<Set<string>>(new Set());
@@ -87,8 +88,9 @@ export const ProtectionGroupsPage: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    if (!groupToDelete) return;
+    if (!groupToDelete || deleting) return;
 
+    setDeleting(true);
     try {
       await apiClient.deleteProtectionGroup(groupToDelete.protectionGroupId);
       setGroups(groups.filter(g => g.protectionGroupId !== groupToDelete.protectionGroupId));
@@ -100,6 +102,8 @@ export const ProtectionGroupsPage: React.FC = () => {
       setError(errorMessage);
       toast.error(errorMessage);
       setDeleteDialogOpen(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -265,6 +269,7 @@ export const ProtectionGroupsPage: React.FC = () => {
           confirmLabel="Delete"
           onConfirm={confirmDelete}
           onDismiss={cancelDelete}
+          loading={deleting}
         />
 
         {/* Create/Edit Dialog */}

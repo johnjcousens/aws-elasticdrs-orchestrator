@@ -86,9 +86,13 @@ Resources:
                   - states:StartExecution
                   - states:DescribeExecution
                   - states:ListExecutions
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
                   - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-orchestration-${Environment}:*'
+                  - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-state-machine-${Environment}'
+                  - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-state-machine-${Environment}:*'
         - PolicyName: DRSAccess
           PolicyDocument:
             Version: '2012-10-17'

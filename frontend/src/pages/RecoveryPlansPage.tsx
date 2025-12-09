@@ -45,6 +45,7 @@ export const RecoveryPlansPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<RecoveryPlan | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RecoveryPlan | null>(null);
   const [executing, setExecuting] = useState(false);
@@ -137,8 +138,9 @@ export const RecoveryPlansPage: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    if (!planToDelete) return;
+    if (!planToDelete || deleting) return;
 
+    setDeleting(true);
     try {
       await apiClient.deleteRecoveryPlan(planToDelete.id);
       setPlans(plans.filter(p => p.id !== planToDelete.id));
@@ -150,6 +152,8 @@ export const RecoveryPlansPage: React.FC = () => {
       setError(errorMessage);
       toast.error(errorMessage);
       setDeleteDialogOpen(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -373,6 +377,7 @@ export const RecoveryPlansPage: React.FC = () => {
           confirmLabel="Delete"
           onConfirm={confirmDelete}
           onDismiss={cancelDelete}
+          loading={deleting}
         />
 
         <RecoveryPlanDialog

@@ -174,7 +174,118 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # NOTE: Step Functions State Machine is defined in step-functions-stack.yaml
+  # Step Functions State Machine
+  StepFunctionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/vendedlogs/states/${ProjectName}-orchestration-${Environment}'
+      RetentionInDays: 30
+
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-stepfunctions-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: StepFunctionsExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Ref OrchestrationFunctionArn
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Ref ExecutionHistoryTableArn
+              - !If
+                - HasNotificationEmail
+                - Effect: Allow
+                  Action:
+                    - sns:Publish
+                  Resource: !Ref NotificationTopic
+                - !Ref AWS::NoValue
+
+  OrchestrationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub '${ProjectName}-orchestration-${Environment}'
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+      LoggingConfiguration:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StepFunctionsLogGroup.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "DRS Orchestration State Machine",
+          "StartAt": "InitializeExecution",
+          "States": {
+            "InitializeExecution": {
+              "Type": "Task",
+              "Resource": "${OrchestrationFunctionArn}",
+              "Parameters": {
+                "action": "initialize",
+                "executionId.$": "$$.Execution.Name",
+                "input.$": "$"
+              },
+              "ResultPath": "$.executionContext",
+              "Next": "ProcessWaves"
+            },
+            "ProcessWaves": {
+              "Type": "Map",
+              "ItemsPath": "$.executionContext.waves",
+              "Iterator": {
+                "StartAt": "ProcessWave",
+                "States": {
+                  "ProcessWave": {
+                    "Type": "Task",
+                    "Resource": "${OrchestrationFunctionArn}",
+                    "Parameters": {
+                      "action": "processWave",
+                      "wave.$": "$",
+                      "executionId.$": "$.executionId"
+                    },
+                    "ResultPath": "$.waveResult",
+                    "End": true
+                  }
+                }
+              },
+              "ResultPath": "$.waveResults",
+              "Next": "FinalizeExecution"
+            },
+            "FinalizeExecution": {
+              "Type": "Task",
+              "Resource": "${OrchestrationFunctionArn}",
+              "Parameters": {
+                "action": "finalize",
+                "executionId.$": "$$.Execution.Name",
+                "results.$": "$.waveResults"
+              },
+              "End": true
+            }
+          }
+        }
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # API Gateway REST API
   RestApi:
     Type: AWS::ApiGateway::RestApi
@@ -1155,4 +1266,8 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-NotificationTopicArn'
 
-  # StateMachineArn output removed - state machine is now in step-functions-stack.yaml
+  StateMachineArn:
+    Description: 'Step Functions State Machine ARN'
+    Value: !Ref OrchestrationStateMachine
+    Export:
+      Name: !Sub '${AWS::StackName}-StateMachineArn'
