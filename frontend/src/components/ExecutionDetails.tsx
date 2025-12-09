@@ -336,7 +336,11 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
 
             {/* Wave Progress Timeline */}
             <Container header={<Header variant="h3">Wave Progress</Header>}>
-              <WaveProgress waves={execution.waveExecutions || []} totalWaves={execution.totalWaves} />
+              <WaveProgress 
+                waves={execution.waveExecutions || []} 
+                totalWaves={execution.totalWaves}
+                executionId={execution.executionId}
+              />
             </Container>
           </SpaceBetween>
         ) : null}
@@ -346,7 +350,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
       <ConfirmDialog
         open={cancelDialogOpen}
         title="Cancel Execution"
-        message="Are you sure you want to cancel this execution? This action cannot be undone. Servers that have already been recovered will remain in their current state."
+        message="Are you sure you want to cancel this execution? Completed waves will remain unchanged. The current in-progress wave will continue to completion. Only pending (not yet started) waves will be cancelled."
         confirmLabel="Cancel Execution"
         confirmColor="error"
         onConfirm={handleCancelExecution}

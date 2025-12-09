@@ -351,6 +351,68 @@ class ApiClient {
   }
 
   /**
+   * Terminate all recovery instances from an execution
+   * 
+   * This will terminate all EC2 recovery instances that were launched
+   * as part of this execution's waves.
+   * 
+   * @param executionId - Execution ID to terminate instances for
+   * @returns Summary of terminated instances
+   */
+  public async terminateRecoveryInstances(executionId: string): Promise<{
+    executionId: string;
+    message: string;
+    terminated: Array<{
+      instanceId: string;
+      region: string;
+      previousState: string;
+      currentState: string;
+    }>;
+    failed: Array<{
+      instanceId: string;
+      region: string;
+      error: string;
+    }>;
+    totalFound: number;
+    totalTerminated: number;
+    totalFailed: number;
+    alreadyTerminated?: boolean;
+  }> {
+    return this.post(`/executions/${executionId}/terminate-instances`);
+  }
+
+  /**
+   * Get DRS job log items for an execution
+   * 
+   * Returns detailed progress events like:
+   * - SNAPSHOT_START / SNAPSHOT_END
+   * - CONVERSION_START / CONVERSION_END
+   * - LAUNCH_START / LAUNCH_END
+   * 
+   * @param executionId - Execution ID
+   * @param jobId - Optional specific job ID (if not provided, returns all waves)
+   */
+  public async getJobLogs(executionId: string, jobId?: string): Promise<{
+    executionId: string;
+    jobLogs: Array<{
+      waveNumber: number;
+      jobId: string;
+      events: Array<{
+        event: string;
+        eventData: Record<string, unknown>;
+        logDateTime: string;
+        sourceServerId?: string;
+        error?: string;
+        conversionServerId?: string;
+      }>;
+      error?: string;
+    }>;
+  }> {
+    const params = jobId ? `?jobId=${jobId}` : '';
+    return this.get(`/executions/${executionId}/job-logs${params}`);
+  }
+
+  /**
    * Delete all completed executions (bulk operation)
    * 
    * Safely removes only terminal state executions:

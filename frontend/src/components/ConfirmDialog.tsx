@@ -19,6 +19,7 @@ export interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel?: () => void;
   onDismiss?: () => void; // CloudScape style
+  loading?: boolean; // Disable buttons while action is in progress
 }
 
 /**
@@ -44,6 +45,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
   onDismiss,
+  loading = false,
 }) => {
   // Support both 'open' and 'visible' props for backwards compatibility
   const isVisible = visible !== undefined ? visible : (open !== undefined ? open : false);
@@ -63,12 +65,14 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       footer={
         <Box float="right">
           <SpaceBetween direction="horizontal" size="xs">
-            <Button onClick={handleDismiss}>
+            <Button onClick={handleDismiss} disabled={loading}>
               {cancelLabel}
             </Button>
             <Button 
               variant={getButtonVariant(confirmColor)} 
               onClick={onConfirm}
+              disabled={loading}
+              loading={loading}
             >
               {confirmLabel}
             </Button>
