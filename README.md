@@ -35,46 +35,20 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ### Execution Monitoring
 - **Real-Time Dashboard**: Live execution progress with wave-level status tracking
+- **Pause/Resume Control**: Pause executions between waves for validation and resume when ready
+- **Instance Termination**: Terminate recovery instances after successful testing
+- **DRS Job Events**: Real-time DRS job event monitoring with 3-second auto-refresh and collapsible view
+- **Loading State Management**: Prevents multiple button clicks during operations with visual feedback
 - **Execution History**: Complete audit trail of all recovery executions
 - **CloudWatch Integration**: Deep-link to CloudWatch Logs for troubleshooting
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph Frontend[Frontend Layer]
-        CF[CloudFront CDN]
-        S3[S3 Static Hosting]
-        Cognito[Cognito User Pool]
-    end
-    
-    subgraph API[API Layer]
-        APIGW[API Gateway REST]
-    end
-    
-    subgraph Compute[Compute Layer]
-        Lambda[Lambda Functions]
-        StepFn[Step Functions]
-    end
-    
-    subgraph Data[Data Layer]
-        DDB[(DynamoDB Tables)]
-    end
-    
-    subgraph Integration[Integration Layer]
-        DRS[AWS DRS]
-        EC2[Recovery Instances]
-    end
-    
-    CF --> S3
-    CF --> APIGW
-    Cognito --> APIGW
-    APIGW --> Lambda
-    Lambda --> StepFn
-    Lambda --> DDB
-    StepFn --> DRS
-    DRS --> EC2
-```
+![AWS DRS Orchestration Architecture](docs/architecture/AWS-DRS-Orchestration-Architecture.png)
+
+*[View/Edit Source Diagram](docs/architecture/AWS-DRS-Orchestration-Architecture.drawio)*
+
+The solution follows a serverless, event-driven architecture with clear separation between frontend, API, compute, data, and DRS integration layers. Users access the React frontend via CloudFront, authenticate through Cognito, and interact with the REST API backed by Lambda functions. Step Functions orchestrates wave-based recovery execution, coordinating with AWS DRS to launch recovery instances.
 
 ### Technology Stack
 
@@ -145,20 +119,23 @@ aws cloudformation describe-stacks \
 USER_POOL_ID=$(aws cloudformation describe-stacks \
   --stack-name drs-orchestration \
   --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
-  --output text)
+  --output text \
+  --profile your-aws-profile)
 
 aws cognito-idp admin-create-user \
   --user-pool-id $USER_POOL_ID \
   --username admin@yourcompany.com \
   --user-attributes Name=email,Value=admin@yourcompany.com Name=email_verified,Value=true \
   --temporary-password "TempPass123!" \
-  --message-action SUPPRESS
+  --message-action SUPPRESS \
+  --profile your-aws-profile
 
 aws cognito-idp admin-set-user-password \
   --user-pool-id $USER_POOL_ID \
   --username admin@yourcompany.com \
   --password "YourSecurePassword123!" \
-  --permanent
+  --permanent \
+  --profile your-aws-profile
 ```
 
 ## Usage Guide
@@ -194,6 +171,11 @@ aws cognito-idp admin-set-user-password \
    - **Drill**: Test recovery without production impact
    - **Recovery**: Full disaster recovery execution
 4. Monitor progress in **Executions** page
+5. **Control execution**:
+   - **Pause**: Stop between waves for validation
+   - **Resume**: Continue paused execution
+   - **Cancel**: Stop execution and cleanup
+   - **Terminate Instances**: Remove recovery instances after testing
 
 ## API Reference
 
@@ -203,7 +185,7 @@ All API requests require a valid Cognito JWT token:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  https://api-endpoint/prod/protection-groups
+  https://your-api-endpoint.execute-api.us-east-1.amazonaws.com/prod/protection-groups
 ```
 
 ### Endpoints
@@ -235,6 +217,10 @@ curl -H "Authorization: Bearer $TOKEN" \
 | GET | `/executions` | List execution history |
 | POST | `/executions` | Start new execution |
 | GET | `/executions/{id}` | Get execution details |
+| POST | `/executions/{id}/pause` | Pause execution between waves |
+| POST | `/executions/{id}/resume` | Resume paused execution |
+| POST | `/executions/{id}/cancel` | Cancel running execution |
+| POST | `/executions/{id}/terminate-instances` | Terminate recovery instances |
 
 #### DRS Integration
 
@@ -253,7 +239,8 @@ The solution uses a modular nested stack architecture for maintainability:
 | `master-template.yaml` | Root orchestrator | Parameter propagation, outputs |
 | `database-stack.yaml` | Data persistence | 3 DynamoDB tables with encryption |
 | `lambda-stack.yaml` | Compute layer | 5 Lambda functions, IAM roles |
-| `api-stack.yaml` | API & Auth | API Gateway, Cognito, Step Functions |
+| `api-stack.yaml` | API & Auth | API Gateway, Cognito |
+| `step-functions-stack.yaml` | Orchestration | Step Functions state machine |
 | `security-stack.yaml` | Security (optional) | WAF, CloudTrail |
 | `frontend-stack.yaml` | Frontend hosting | S3, CloudFront |
 
@@ -290,6 +277,29 @@ The solution uses a modular nested stack architecture for maintainability:
 
 ## Development
 
+### Deployment Workflow
+
+**Primary deployment script** for all code changes:
+
+```bash
+# Sync all code to S3 deployment bucket
+./scripts/sync-to-deployment-bucket.sh
+
+# Fast Lambda updates (~5 seconds)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+
+# Full CloudFormation deployment (5-10 minutes)
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+
+# Build and deploy frontend
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+
+# Preview changes without deploying
+./scripts/sync-to-deployment-bucket.sh --dry-run
+```
+
+**CRITICAL**: Always sync to S3 before deployment. The S3 bucket is the source of truth for all deployments.
+
 ### Frontend Development
 
 ```bash
@@ -306,10 +316,8 @@ npm run lint     # ESLint validation
 cd lambda
 pip install -r requirements.txt
 
-# Deploy directly (development)
-python3 deploy_lambda.py --direct \
-  --function-name drs-orchestration-api-handler-prod \
-  --region us-east-1
+# Use sync script for deployment (recommended)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
 ```
 
 ### Validate CloudFormation
@@ -447,6 +455,13 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 
 ### December 9, 2025
 
+**Deployment Workflow Updates**
+- Updated CI/CD documentation to reflect current `./scripts/sync-to-deployment-bucket.sh` process
+- Clarified 5 Lambda functions and 6 nested CloudFormation stacks architecture
+- Added timing information: fast Lambda updates (~5s) vs full deployments (5-10min)
+- Updated deployment verification rules with accurate architecture counts
+- Emphasized S3 bucket as source of truth for all deployments
+
 **Resume Execution Fix**
 - Fixed 400 Bad Request error when resuming paused executions
 - Root cause: Step Functions `WaitForResume` state had `OutputPath: '$.Payload'` but callback outputs from `SendTaskSuccess` are returned directly at root level
@@ -461,13 +476,14 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 - Auto-refresh continues regardless of collapsed state
 - Added event count in header: `DRS Job Events (X)`
 
-**Multiple Button Click Prevention**
+**Loading State Management**
 - Added `loading` prop to `ConfirmDialog` component that disables both Cancel and Confirm buttons
 - Updated Protection Groups delete dialog with loading state
 - Updated Recovery Plans delete dialog with loading state
 - Updated Cancel Execution dialog with loading state
 - Updated Terminate Instances dialog with loading state
 - Resume button already had proper `disabled={resuming}` and `loading={resuming}` props
+- Prevents accidental multiple operations and provides clear visual feedback
 
 ## License
 
