@@ -175,7 +175,7 @@ Resources:
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
         ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
-        OrchestrationFunctionArn: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
+        OrchestrationFunctionArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -255,7 +255,7 @@ Outputs:
 
   OrchestrationFunctionArn:
     Description: 'Orchestration Lambda Function ARN'
-    Value: !GetAtt LambdaStack.Outputs.OrchestrationFunctionArn
+    Value: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationArn'
 

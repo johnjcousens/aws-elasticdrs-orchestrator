@@ -561,32 +561,6 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # Orchestration Lambda Function
-  OrchestrationFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub '${ProjectName}-orchestration-${Environment}'
-      Description: 'Step Functions orchestrator for DRS recovery execution'
-      Runtime: python3.12
-      Handler: drs_orchestrator.lambda_handler
-      Role: !GetAtt OrchestrationRole.Arn
-      Code:
-        S3Bucket: !Ref SourceBucket
-        S3Key: 'lambda/orchestration.zip'
-      Timeout: 120
-      MemorySize: 512
-      Environment:
-        Variables:
-          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
-          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
-          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
   # Frontend Builder Custom Resource Lambda
   FrontendBuilderFunction:
     Type: AWS::Lambda::Function
@@ -693,14 +667,6 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/${ApiHandlerFunction}'
       RetentionInDays: 30
 
-  OrchestrationLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/${OrchestrationFunction}'
-      RetentionInDays: 30
-
   FrontendBuilderLogGroup:
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Retain
@@ -770,18 +736,6 @@ Outputs:
     Value: !Ref ApiHandlerFunction
     Export:
       Name: !Sub '${AWS::StackName}-ApiHandlerName'
-
-  OrchestrationFunctionArn:
-    Description: 'Orchestration Lambda Function ARN'
-    Value: !GetAtt OrchestrationFunction.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-OrchestrationArn'
-
-  OrchestrationFunctionName:
-    Description: 'Orchestration Lambda Function Name'
-    Value: !Ref OrchestrationFunction
-    Export:
-      Name: !Sub '${AWS::StackName}-OrchestrationName'
 
   OrchestrationStepFunctionsFunctionArn:
     Description: 'Step Functions Orchestration Lambda Function ARN'
