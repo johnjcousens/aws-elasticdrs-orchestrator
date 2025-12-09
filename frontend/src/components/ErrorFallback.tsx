@@ -7,6 +7,7 @@ import {
   SpaceBetween,
   Container,
   ExpandableSection,
+  Icon,
 } from '@cloudscape-design/components';
 import { useNavigate } from 'react-router-dom';
 
@@ -83,10 +84,9 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '48px',
                 }}
               >
-                ⚠️
+                <Icon name="status-warning" size="big" variant="error" />
               </div>
             </div>
 

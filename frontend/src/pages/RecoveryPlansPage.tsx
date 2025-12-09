@@ -196,7 +196,7 @@ export const RecoveryPlansPage: React.FC = () => {
         executedBy: user?.username || 'unknown'
       });
       
-      toast.success(`${executionType === 'DRILL' ? '🔵 DRILL' : '⚠️ RECOVERY'} execution started`);
+      toast.success(`${executionType === 'DRILL' ? 'Drill' : 'Recovery'} execution started`);
       
       const updatedSet = new Set(plansWithInProgressExecution);
       updatedSet.add(plan.id);
@@ -318,11 +318,11 @@ export const RecoveryPlansPage: React.FC = () => {
                 return (
                   <ButtonDropdown
                     items={[
-                      { id: 'drill', text: '🔵 Run Drill', description: 'Test recovery without failover', disabled: isDisabled },
-                      { id: 'recovery', text: '⚠️ Run Recovery', description: 'Actual failover operation', disabled: isDisabled },
+                      { id: 'drill', text: 'Run Drill', iconName: 'check', description: 'Test recovery without failover', disabled: isDisabled },
+                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: 'Actual failover operation', disabled: isDisabled },
                       { id: 'divider', text: '-', disabled: true },
-                      { id: 'edit', text: 'Edit', disabled: hasInProgressExecution },
-                      { id: 'delete', text: 'Delete', disabled: hasInProgressExecution },
+                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: hasInProgressExecution },
+                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: hasInProgressExecution },
                     ]}
                     onItemClick={({ detail }) => {
                       if (detail.id === 'drill') {
