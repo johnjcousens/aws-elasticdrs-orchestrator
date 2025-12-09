@@ -1,12 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { injectConfigScript } from './vite-plugin-inject-config'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    injectConfigScript(), // Inject aws-config.js script tag into index.html
+    // Note: aws-config.js injection removed - using aws-config.json fetch in index.html instead
   ],
   
   // Build optimization configuration

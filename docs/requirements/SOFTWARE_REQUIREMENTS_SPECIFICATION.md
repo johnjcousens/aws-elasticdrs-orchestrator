@@ -231,10 +231,18 @@ The system shall start a recovery execution with:
 
 **Behavior**:
 1. Validate plan exists and has valid waves
-2. Check for server conflicts with other active executions
-3. Create execution record with status PENDING
-4. Initiate Step Functions state machine
-5. Return immediately (async execution)
+2. Check for server conflicts with other active executions (including PAUSED)
+3. If conflicts found, return 409 with conflict details
+4. Create execution record with status PENDING
+5. Initiate Step Functions state machine
+6. Return immediately (async execution)
+
+**Server Conflict Detection**:
+- Checks all servers in the plan against servers in active executions
+- Active statuses: PENDING, POLLING, INITIATED, LAUNCHING, STARTED, IN_PROGRESS, RUNNING, PAUSED, CANCELLING
+- For PAUSED executions: looks up original Recovery Plan to get ALL servers (including upcoming waves)
+- Frontend disables Drill/Recovery buttons when conflicts exist (proactive prevention)
+- API returns 409 Conflict if execution attempted despite UI warning
 
 #### FR-3.2: Wave Orchestration
 **Priority**: Critical

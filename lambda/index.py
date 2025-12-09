@@ -186,16 +186,59 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:
     """
     Get all servers currently in active executions.
     Returns dict mapping server_id -> {execution_id, plan_id, wave_name, status}
+    
+    IMPORTANT: For PAUSED executions, we must look up the original Recovery Plan
+    to get ALL servers that will be affected when the execution resumes,
+    not just the waves already recorded in the execution history.
     """
     active_executions = get_all_active_executions()
     servers_in_use = {}
     
+    # Cache for recovery plans to avoid repeated lookups
+    plan_cache = {}
+    
     for execution in active_executions:
         execution_id = execution.get('ExecutionId')
         plan_id = execution.get('PlanId')
-        exec_status = execution.get('Status', '')
+        exec_status = execution.get('Status', '').upper()
         
-        # Get servers from waves
+        # For PAUSED or PENDING executions, get ALL servers from the original Recovery Plan
+        # because they will be affected when the execution resumes
+        if exec_status in ['PAUSED', 'PENDING', 'PAUSE_PENDING']:
+            # Look up the original Recovery Plan
+            if plan_id not in plan_cache:
+                try:
+                    plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
+                    plan_cache[plan_id] = plan_result.get('Item', {})
+                except Exception as e:
+                    print(f"Error fetching plan {plan_id}: {e}")
+                    plan_cache[plan_id] = {}
+            
+            plan = plan_cache.get(plan_id, {})
+            paused_before_wave = execution.get('PausedBeforeWave', 1)
+            
+            # Convert Decimal to int if needed
+            if hasattr(paused_before_wave, '__int__'):
+                paused_before_wave = int(paused_before_wave)
+            
+            # Get all servers from waves that haven't completed yet
+            for idx, wave in enumerate(plan.get('Waves', []), start=1):
+                wave_name = wave.get('WaveName', f'Wave {idx}')
+                
+                # For PAUSED: include servers from paused wave onwards
+                # For PENDING: include all servers
+                if exec_status == 'PENDING' or idx >= paused_before_wave:
+                    for server_id in wave.get('ServerIds', []):
+                        servers_in_use[server_id] = {
+                            'executionId': execution_id,
+                            'planId': plan_id,
+                            'waveName': wave_name,
+                            'waveStatus': 'PENDING (paused)' if exec_status == 'PAUSED' else 'PENDING',
+                            'executionStatus': exec_status
+                        }
+        
+        # For running executions, check the waves in the execution record
+        # Get servers from waves that are active or pending
         for wave in execution.get('Waves', []):
             wave_name = wave.get('WaveName', 'Unknown')
             wave_status = wave.get('Status', '')
@@ -253,6 +296,68 @@ def check_server_conflicts(plan: Dict) -> List[Dict]:
                 })
     
     return conflicts
+
+
+def get_plans_with_conflicts() -> Dict[str, Dict]:
+    """
+    Get all recovery plans that have server conflicts with active executions.
+    Returns dict mapping plan_id -> conflict info for plans that cannot be executed.
+    
+    This is used by the frontend to gray out Drill/Recovery buttons.
+    """
+    servers_in_use = get_servers_in_active_executions()
+    
+    if not servers_in_use:
+        return {}
+    
+    # Get all recovery plans
+    try:
+        result = recovery_plans_table.scan()
+        all_plans = result.get('Items', [])
+        
+        # Handle pagination
+        while 'LastEvaluatedKey' in result:
+            result = recovery_plans_table.scan(
+                ExclusiveStartKey=result['LastEvaluatedKey']
+            )
+            all_plans.extend(result.get('Items', []))
+    except Exception as e:
+        print(f"Error fetching plans for conflict check: {e}")
+        return {}
+    
+    plans_with_conflicts = {}
+    
+    for plan in all_plans:
+        plan_id = plan.get('PlanId')
+        
+        # Check if this plan has any servers in active executions
+        conflicting_servers = []
+        conflicting_execution_id = None
+        conflicting_plan_id = None
+        conflicting_status = None
+        
+        for wave in plan.get('Waves', []):
+            for server_id in wave.get('ServerIds', []):
+                if server_id in servers_in_use:
+                    conflict_info = servers_in_use[server_id]
+                    # Don't count as conflict if it's this plan's own execution
+                    if conflict_info['planId'] != plan_id:
+                        conflicting_servers.append(server_id)
+                        conflicting_execution_id = conflict_info['executionId']
+                        conflicting_plan_id = conflict_info['planId']
+                        conflicting_status = conflict_info.get('executionStatus')
+        
+        if conflicting_servers:
+            plans_with_conflicts[plan_id] = {
+                'hasConflict': True,
+                'conflictingServers': conflicting_servers,
+                'conflictingExecutionId': conflicting_execution_id,
+                'conflictingPlanId': conflicting_plan_id,
+                'conflictingStatus': conflicting_status,
+                'reason': f'{len(conflicting_servers)} server(s) in use by another execution'
+            }
+    
+    return plans_with_conflicts
 
 
 def lambda_handler(event: Dict, context: Any) -> Dict:
@@ -708,14 +813,26 @@ def create_recovery_plan(body: Dict) -> Dict:
 
 
 def get_recovery_plans() -> Dict:
-    """List all Recovery Plans with latest execution history"""
+    """List all Recovery Plans with latest execution history and conflict info"""
     try:
         result = recovery_plans_table.scan()
         plans = result.get('Items', [])
+        
+        # Get conflict info for all plans (for graying out Drill/Recovery buttons)
+        plans_with_conflicts = get_plans_with_conflicts()
 
-        # Enrich each plan with latest execution data
+        # Enrich each plan with latest execution data and conflict info
         for plan in plans:
             plan_id = plan.get('PlanId')
+            
+            # Add conflict info if this plan has conflicts with other active executions
+            if plan_id in plans_with_conflicts:
+                conflict_info = plans_with_conflicts[plan_id]
+                plan['HasServerConflict'] = True
+                plan['ConflictInfo'] = conflict_info
+            else:
+                plan['HasServerConflict'] = False
+                plan['ConflictInfo'] = None
             
             # Query ExecutionHistoryTable for latest execution
             try:
@@ -3379,6 +3496,19 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
     last_start_time = rp.get('LastStartTime')
     last_end_time = rp.get('LastEndTime')
     
+    # Transform conflict info if present
+    conflict_info = rp.get('ConflictInfo')
+    transformed_conflict = None
+    if conflict_info:
+        transformed_conflict = {
+            'hasConflict': conflict_info.get('hasConflict', False),
+            'conflictingServers': conflict_info.get('conflictingServers', []),
+            'conflictingExecutionId': conflict_info.get('conflictingExecutionId'),
+            'conflictingPlanId': conflict_info.get('conflictingPlanId'),
+            'conflictingStatus': conflict_info.get('conflictingStatus'),
+            'reason': conflict_info.get('reason')
+        }
+    
     return {
         'id': rp.get('PlanId'),
         'name': rp.get('PlanName'),
@@ -3396,7 +3526,9 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'lastExecutionStatus': rp.get('LastExecutionStatus'),  # NEW: Execution status
         'lastStartTime': last_start_time,  # NEW: Unix timestamp (seconds) - no conversion needed
         'lastEndTime': last_end_time,  # NEW: Unix timestamp (seconds) - no conversion needed
-        'waveCount': len(waves)
+        'waveCount': len(waves),
+        'hasServerConflict': rp.get('HasServerConflict', False),  # NEW: Server conflict with other executions
+        'conflictInfo': transformed_conflict  # NEW: Details about the conflict
     }
 
 

@@ -57,6 +57,16 @@ export interface RecoveryPlan {
   lastExecutedAt?: string;
   lastStartTime?: number; // Unix timestamp
   lastEndTime?: number; // Unix timestamp
+  // Server conflict detection - prevents starting execution when servers are in use by another plan
+  hasServerConflict?: boolean;
+  conflictInfo?: {
+    hasConflict: boolean;
+    conflictingServers: string[];
+    conflictingExecutionId?: string;
+    conflictingPlanId?: string;
+    conflictingStatus?: string;
+    reason?: string;
+  };
 }
 
 export interface Wave {
