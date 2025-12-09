@@ -1,26 +1,16 @@
 /**
  * Login Page Component
- * 
+ *
  * Authentication page with username/password form.
  * Uses AWS Amplify Cognito for authentication.
- * Styled to match AWS Console login standards.
+ * Styled to match AWS IAM Identity Center login standards.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  SpaceBetween,
-  FormField,
-  Alert,
-} from '@cloudscape-design/components';
+import { SpaceBetween, FormField, Alert, Link } from '@cloudscape-design/components';
 
-/**
- * Login Page
- * 
- * Provides authentication form for users to sign in with Cognito credentials.
- * Styled to match AWS Console login experience.
- */
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +19,6 @@ export const LoginPage: React.FC = () => {
   const { signIn, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect to dashboard if already authenticated
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       navigate('/', { replace: true });
@@ -40,208 +29,202 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
       const result = await signIn(username, password);
-      
       if (result.isSignedIn) {
         navigate('/');
       } else {
         setError('Additional authentication steps required');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Login error:', err);
-      setError(err.message || 'Authentication failed. Please check your credentials.');
+      const message = err instanceof Error ? err.message : 'Authentication failed.';
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 12px',
+    fontSize: '14px',
+    fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+    border: '1px solid #aab7b8',
+    borderRadius: '3px',
+    boxSizing: 'border-box' as const,
+    outline: 'none',
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 16px',
+    fontSize: '14px',
+    fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+    backgroundColor: '#ec7211',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '3px',
+    cursor: loading ? 'not-allowed' : 'pointer',
+    opacity: loading ? 0.6 : 1,
+  };
+
+  // Cube component for cleaner JSX
+  const Cube = ({ color, lightColor, darkColor, sideColor }: { color: string; lightColor: string; darkColor: string; sideColor: string }) => (
+    <svg width="80" height="92" viewBox="0 0 80 92" style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }}>
+      <polygon points="40,0 80,23 80,69 40,92 0,69 0,23" fill={color} />
+      <polygon points="40,0 80,23 40,46 0,23" fill={lightColor} />
+      <polygon points="0,23 40,46 40,92 0,69" fill={darkColor} />
+      <polygon points="80,23 40,46 40,92 80,69" fill={sideColor} />
+    </svg>
+  );
+
+  const cubeColors = [
+    { color: '#FF9900', lightColor: '#FFB84D', darkColor: '#CC7A00', sideColor: '#E68A00' },
+    { color: '#1DC7B4', lightColor: '#4DD9CA', darkColor: '#17A090', sideColor: '#1AB3A2' },
+    { color: '#9469D6', lightColor: '#B08DE6', darkColor: '#7654AB', sideColor: '#855EC0' },
+    { color: '#527FFF', lightColor: '#7A9FFF', darkColor: '#4266CC', sideColor: '#4A72E6' },
+  ];
+
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        width: '100vw',
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: '#232f3e',
+      fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+    }}>
+      {/* Main content area */}
+      <div style={{
+        flex: 1,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#f2f3f3',
-        fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
-        margin: 0,
-        padding: '20px',
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* AWS Logo */}
-      <div style={{ marginBottom: '32px' }}>
-        <svg width="76" height="46" viewBox="0 0 76 46" xmlns="http://www.w3.org/2000/svg">
-          <path d="M21.5 25.5c0 .8.1 1.5.2 2 .2.5.4 1 .7 1.6.1.2.2.3.2.5 0 .2-.1.4-.4.6l-1.2.8c-.2.1-.3.2-.5.2-.2 0-.4-.1-.6-.3-.3-.3-.5-.6-.7-1-.2-.4-.4-.8-.6-1.3-1.5 1.8-3.4 2.7-5.7 2.7-1.6 0-2.9-.5-3.9-1.4-1-.9-1.5-2.2-1.5-3.7 0-1.6.6-3 1.8-3.9 1.2-1 2.8-1.5 4.8-1.5.7 0 1.4 0 2.1.1.7.1 1.5.2 2.3.4v-1.4c0-1.5-.3-2.5-.9-3.1-.6-.6-1.7-.9-3.2-.9-.7 0-1.4.1-2.1.3-.7.2-1.4.4-2.1.7-.3.1-.5.2-.7.3-.2 0-.3.1-.4.1-.3 0-.5-.2-.5-.7v-1c0-.4.1-.6.2-.8.1-.2.4-.3.7-.5.7-.4 1.5-.7 2.5-.9 1-.3 2-.4 3.1-.4 2.4 0 4.1.5 5.2 1.6 1.1 1.1 1.6 2.7 1.6 4.9v6.5h.1zm-7.9 3c.7 0 1.4-.1 2.1-.4.7-.3 1.4-.7 1.9-1.3.3-.4.6-.8.7-1.3.1-.5.2-1.1.2-1.8v-.9c-.6-.1-1.2-.2-1.9-.3-.7-.1-1.3-.1-2-.1-1.3 0-2.3.3-2.9.8-.6.5-1 1.3-1 2.3 0 .9.2 1.6.7 2.1.5.6 1.2.9 2.2.9zm15.6 2.1c-.4 0-.7-.1-.9-.2-.2-.2-.4-.5-.5-.9l-5.7-18.8c-.1-.4-.2-.7-.2-.9 0-.4.2-.6.6-.6h1.9c.4 0 .7.1.9.2.2.2.3.5.4.9l4.1 16.1 3.8-16.1c.1-.5.2-.7.4-.9.2-.2.5-.2.9-.2h1.5c.4 0 .7.1.9.2.2.2.4.5.4.9l3.8 16.3 4.2-16.3c.1-.5.2-.7.4-.9.2-.2.5-.2.9-.2h1.8c.4 0 .6.2.6.6 0 .1 0 .3-.1.4 0 .2-.1.3-.2.6l-5.8 18.8c-.1.5-.3.7-.5.9-.2.2-.5.2-.9.2h-1.7c-.4 0-.7-.1-.9-.2-.2-.2-.4-.5-.4-.9l-3.7-15.7-3.7 15.6c-.1.5-.2.7-.4.9-.2.2-.5.2-.9.2h-1.7zm25 .5c-1 0-2-.1-3-.4-1-.3-1.7-.5-2.2-.9-.3-.2-.5-.4-.6-.6-.1-.2-.1-.4-.1-.6v-1c0-.5.2-.7.5-.7.1 0 .3 0 .4.1.1.1.3.1.5.2.7.3 1.4.6 2.2.7.8.2 1.6.3 2.4.3 1.3 0 2.2-.2 2.9-.7.7-.5 1-1.1 1-1.9 0-.6-.2-1-.5-1.4-.4-.4-1-.7-1.9-1l-2.8-.9c-1.4-.4-2.4-1.1-3-2-.6-.8-.9-1.8-.9-2.8 0-.8.2-1.5.5-2.2.4-.6.8-1.2 1.4-1.6.6-.5 1.3-.8 2.1-1 .8-.2 1.7-.3 2.6-.3.5 0 .9 0 1.4.1.5.1.9.2 1.4.3.4.1.8.3 1.2.4.4.2.7.3.9.5.3.2.5.4.6.6.1.2.2.5.2.8v.9c0 .5-.2.7-.5.7-.2 0-.5-.1-.9-.3-1.3-.6-2.8-.9-4.4-.9-1.1 0-2 .2-2.6.6-.6.4-.9 1-.9 1.8 0 .6.2 1.1.6 1.4.4.4 1.1.7 2.1 1.1l2.7.9c1.4.4 2.3 1.1 2.9 1.9.6.8.8 1.7.8 2.7 0 .8-.2 1.6-.5 2.2-.4.7-.8 1.2-1.5 1.7-.6.5-1.4.8-2.2 1-.9.3-1.8.4-2.8.4z" fill="#252F3E"/>
-          <path d="M43.6 35.5c-5.3 3.9-13 6-19.6 6-9.3 0-17.6-3.4-23.9-9.1-.5-.5-.1-1.1.5-.7 6.8 4 15.2 6.3 23.9 6.3 5.9 0 12.3-1.2 18.2-3.7.9-.4 1.6.6.9 1.2z" fill="#FF9900"/>
-          <path d="M45.9 32.8c-.7-.9-4.4-.4-6.1-.2-.5.1-.6-.4-.1-.7 3-2.1 7.9-1.5 8.4-.8.6.7-.2 5.7-2.9 8.1-.4.4-.8.2-.6-.3.6-1.5 2-4.8 1.3-6.1z" fill="#FF9900"/>
-        </svg>
-      </div>
+        padding: '40px 20px',
+      }}>
+        <div style={{ width: '100%', maxWidth: '400px' }}>
+          {/* AWS Logo and Title */}
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <img
+              src="https://a0.awsstatic.com/libra-css/images/logos/aws_smile-header-desktop-en-white_59x35@2x.png"
+              alt="AWS"
+              style={{ height: '50px', marginBottom: '16px' }}
+            />
+            <div style={{
+              color: '#ffffff',
+              fontSize: '20px',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+            }}>
+              Elastic Disaster Recovery Orchestrator
+            </div>
+          </div>
 
-      {/* Login Card */}
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '350px',
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)',
-          border: '1px solid #d5dbdb',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Card Header */}
-        <div
-          style={{
-            padding: '24px 24px 0 24px',
-            borderBottom: 'none',
-          }}
-        >
-          <h1 style={{ 
-            fontSize: '28px', 
-            fontWeight: 400, 
-            color: '#16191f',
-            margin: '0 0 8px 0',
-            fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+          {/* Login Card */}
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            padding: '32px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
           }}>
-            Sign in
-          </h1>
-          <p style={{ 
-            color: '#545b64', 
-            margin: 0, 
-            fontSize: '14px',
-            fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
-          }}>
-            Elastic Disaster Recovery Orchestrator
-          </p>
-        </div>
+            <h1 style={{
+              fontSize: '24px',
+              fontWeight: 700,
+              color: '#16191f',
+              margin: '0 0 24px 0',
+              textAlign: 'center',
+            }}>
+              Sign in
+            </h1>
 
-        {/* Card Body */}
-        <div style={{ padding: '24px' }}>
-          <SpaceBetween size="l">
-            {/* Error Alert */}
-            {error && (
-              <Alert type="error">
-                {error}
-              </Alert>
-            )}
+            <form onSubmit={handleSubmit}>
+              <SpaceBetween direction="vertical" size="l">
+                {error && (
+                  <Alert type="error" dismissible onDismiss={() => setError(null)}>
+                    {error}
+                  </Alert>
+                )}
 
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} method="post" autoComplete="on">
-              <SpaceBetween size="l">
                 <FormField label="Username or email">
                   <input
                     type="text"
-                    name="username"
-                    id="username"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    disabled={loading}
-                    autoFocus
+                    style={inputStyle}
+                    placeholder="Enter your username"
+                    required
                     autoComplete="username"
-                    style={{
-                      width: '100%',
-                      padding: '8px 36px 8px 12px',
-                      fontSize: '14px',
-                      fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
-                      border: '1px solid #aab7b8',
-                      borderRadius: '3px',
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#0073bb';
-                      e.currentTarget.style.boxShadow = '0 0 0 1px #0073bb';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#aab7b8';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
+                    autoFocus
                   />
                 </FormField>
 
                 <FormField label="Password">
                   <input
                     type="password"
-                    name="password"
-                    id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
+                    style={inputStyle}
+                    placeholder="Enter your password"
+                    required
                     autoComplete="current-password"
-                    style={{
-                      width: '100%',
-                      padding: '8px 36px 8px 12px',
-                      fontSize: '14px',
-                      fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
-                      border: '1px solid #aab7b8',
-                      borderRadius: '3px',
-                      boxSizing: 'border-box',
-                      outline: 'none',
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = '#0073bb';
-                      e.currentTarget.style.boxShadow = '0 0 0 1px #0073bb';
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = '#aab7b8';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
                   />
                 </FormField>
 
-                {/* AWS Orange Sign In Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: '8px 20px',
-                    fontSize: '14px',
-                    fontWeight: 700,
-                    fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
-                    color: '#16191f',
-                    backgroundColor: loading ? '#f2a64d' : '#ff9900',
-                    border: '1px solid #a88734',
-                    borderRadius: '3px',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4)',
-                    transition: 'background-color 0.1s ease',
-                  }}
-                  onMouseOver={(e) => {
-                    if (!loading) {
-                      e.currentTarget.style.backgroundColor = '#ec8b00';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (!loading) {
-                      e.currentTarget.style.backgroundColor = '#ff9900';
-                    }
-                  }}
-                >
+                <button type="submit" style={buttonStyle} disabled={loading}>
                   {loading ? 'Signing in...' : 'Sign in'}
                 </button>
               </SpaceBetween>
             </form>
-          </SpaceBetween>
+          </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ marginTop: '24px', textAlign: 'center' }}>
-        <p style={{ 
-          color: '#545b64', 
-          fontSize: '12px',
-          fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
-          margin: 0,
+      {/* 3D Isometric Cubes */}
+      <div style={{
+        height: '120px',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        gap: '20px',
+        paddingBottom: '20px',
+      }}>
+        {[...Array(12)].map((_, i) => (
+          <Cube key={i} {...cubeColors[i % 4]} />
+        ))}
+      </div>
+
+      {/* Disclaimer Footer - Compact */}
+      <div style={{
+        backgroundColor: '#1a242f',
+        padding: '12px 40px',
+        borderTop: '1px solid #3d4f5f',
+      }}>
+        <div style={{
+          maxWidth: '1100px',
+          margin: '0 auto',
+          color: '#8d9ba8',
+          fontSize: '10px',
+          lineHeight: '1.5',
         }}>
-          © 2024, Amazon Web Services, Inc. or its affiliates.
-        </p>
+          <span style={{ fontWeight: 600, color: '#aab7b8' }}>Disclaimer: </span>
+          This AWS Elastic Disaster Recovery Orchestrator is a sample implementation provided by AWS Professional Services as a reference architecture. 
+          <strong> This tool is provided "AS IS" without warranty of any kind.</strong> Amazon Web Services is not responsible for any damages, data loss, or service disruptions arising from its use. 
+          This is not an official AWS product and is not covered by AWS Support plans. By using this tool, you acknowledge that you are responsible for testing, validating, and maintaining it within your environment. 
+          For continued development, we recommend{' '}
+          <Link
+            href="https://aws.amazon.com/q/developer/"
+            external
+            variant="secondary"
+            fontSize="inherit"
+          >
+            Amazon Q Developer
+          </Link>.
+        </div>
       </div>
     </div>
   );
 };
+
+export default LoginPage;

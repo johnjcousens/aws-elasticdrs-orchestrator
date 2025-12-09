@@ -2,6 +2,14 @@
 
 Complete visual reference for AWS DRS Orchestration architecture, data flows, and component interactions.
 
+## Overall Architecture
+
+![AWS DRS Orchestration Architecture](AWS-DRS-Orchestration-Architecture.png)
+
+*[View/Edit Source Diagram](AWS-DRS-Orchestration-Architecture.drawio)*
+
+---
+
 ## Table of Contents
 
 1. [High-Level Architecture](#high-level-architecture)
@@ -9,7 +17,8 @@ Complete visual reference for AWS DRS Orchestration architecture, data flows, an
 3. [Data Flow Diagrams](#data-flow-diagrams)
 4. [DRS Integration Flow](#drs-integration-flow)
 5. [Step Functions Orchestration](#step-functions-orchestration)
-6. [Deployment Architecture](#deployment-architecture)
+6. [Pause/Resume Flow](#pauseresume-flow)
+7. [Deployment Architecture](#deployment-architecture)
 
 ---
 
@@ -24,7 +33,7 @@ graph TB
     end
     
     subgraph "Authentication"
-        Cognito[Cognito User Pool]
+        Cognito[Cognito User Pool<br/>45-min session timeout]
     end
     
     subgraph "API Layer"
@@ -35,24 +44,23 @@ graph TB
     subgraph "Compute Layer - Lambda Functions"
         APIHandler[api-handler<br/>index.py]
         OrchSF[orchestration-stepfunctions<br/>orchestration_stepfunctions.py]
-        OrchLegacy[orchestration<br/>drs_orchestrator.py]
         ExecFinder[execution-finder<br/>execution_finder.py]
         ExecPoller[execution-poller<br/>execution_poller.py]
         FEBuilder[frontend-builder<br/>build_and_deploy.py]
     end
     
     subgraph "Orchestration"
-        StepFn[Step Functions<br/>State Machine]
+        StepFn[Step Functions<br/>State Machine<br/>waitForTaskToken]
     end
     
     subgraph "Scheduling"
         EventBridge[EventBridge Rule<br/>1 minute schedule]
     end
-    
+
     subgraph "Data Layer"
         DDBProtection[(protection-groups)]
         DDBPlans[(recovery-plans)]
-        DDBHistory[(execution-history)]
+        DDBHistory[(execution-history<br/>StatusIndex GSI)]
     end
     
     subgraph "AWS DRS Integration"
@@ -77,6 +85,7 @@ graph TB
     APIHandler --> DDBPlans
     APIHandler --> DDBHistory
     APIHandler --> StepFn
+    APIHandler --> EC2Recovery
     
     StepFn --> OrchSF
     OrchSF --> DRS
@@ -104,10 +113,12 @@ graph TB
 ```
 
 **Key Components:**
+
 - **5 Lambda Functions**: API handler, orchestration-stepfunctions, execution finder, execution poller, frontend builder
-- **3 DynamoDB Tables**: Protection groups, recovery plans, execution history
-- **1 Step Functions State Machine**: Wave-based orchestration engine
+- **3 DynamoDB Tables**: Protection groups, recovery plans, execution history (with StatusIndex GSI)
+- **1 Step Functions State Machine**: Wave-based orchestration with `waitForTaskToken` for pause/resume
 - **1 EventBridge Rule**: Triggers execution finder every 1 minute
+- **Cognito User Pool**: JWT authentication with 45-minute session timeout
 
 ---
 
@@ -120,9 +131,8 @@ graph LR
         APIRole[ApiHandlerRole]
     end
     
-    subgraph "Orchestration Lambdas"
+    subgraph "Orchestration Lambda"
         OrchSF[orchestration-stepfunctions<br/>120s timeout<br/>512 MB]
-        OrchLegacy[orchestration<br/>120s timeout<br/>512 MB]
         OrchRole[OrchestrationRole]
     end
     
@@ -140,7 +150,6 @@ graph LR
     
     API --> APIRole
     OrchSF --> OrchRole
-    OrchLegacy --> OrchRole
     Finder --> FinderRole
     Poller --> PollerRole
     Builder --> BuilderRole
@@ -148,10 +157,11 @@ graph LR
     APIRole -.->|DynamoDB| Tables[(3 Tables)]
     APIRole -.->|DRS| DRSService[AWS DRS]
     APIRole -.->|Step Functions| SF[State Machine]
+    APIRole -.->|EC2 Terminate| EC2[EC2 API]
     
     OrchRole -.->|DynamoDB| Tables
     OrchRole -.->|DRS| DRSService
-    OrchRole -.->|EC2| EC2[EC2 API]
+    OrchRole -.->|EC2| EC2
     
     FinderRole -.->|DynamoDB Query| Tables
     FinderRole -.->|Invoke| Poller
@@ -170,486 +180,412 @@ graph LR
     style Builder fill:#FF9900
 ```
 
-**Lambda Function Details:**
+### Lambda Function Details
 
-| Function | Handler | Timeout | Memory | Role | Purpose |
-|----------|---------|---------|--------|------|---------|
-| api-handler | index.lambda_handler | 120s | 512 MB | ApiHandlerRole | REST API endpoints |
-| orchestration-stepfunctions | orchestration_stepfunctions.handler | 120s | 512 MB | OrchestrationRole | Step Functions orchestration |
-| orchestration | drs_orchestrator.lambda_handler | 120s | 512 MB | OrchestrationRole | Legacy orchestrator |
-| execution-finder | execution_finder.lambda_handler | 60s | 256 MB | ExecutionFinderRole | Find POLLING executions |
-| execution-poller | execution_poller.lambda_handler | 120s | 256 MB | ExecutionPollerRole | Poll DRS job status |
-| frontend-builder | build_and_deploy.lambda_handler | 900s | 2048 MB | CustomResourceRole | Deploy frontend |
+| Function | File | Timeout | Memory | Purpose |
+|----------|------|---------|--------|---------|
+| api-handler | index.py | 120s | 512 MB | REST API endpoints, DRS integration, EC2 terminate |
+| orchestration-stepfunctions | orchestration_stepfunctions.py | 120s | 512 MB | Step Functions orchestration, wave execution, pause/resume |
+| execution-finder | poller/execution_finder.py | 60s | 256 MB | Query StatusIndex GSI, invoke poller |
+| execution-poller | poller/execution_poller.py | 120s | 256 MB | Poll DRS job status, update execution records |
+| frontend-builder | build_and_deploy.py | 900s | 2048 MB | CloudFormation custom resource for frontend deployment |
 
 ---
 
 ## Data Flow Diagrams
 
-### Protection Group Creation Flow
+### User Request Flow
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Frontend
-    participant APIGW as API Gateway
-    participant ApiHandler as api-handler
-    participant DRS
+    participant CloudFront
+    participant S3
+    participant APIGateway
+    participant Cognito
+    participant Lambda
     participant DynamoDB
-
-    User->>Frontend: Create Protection Group
-    Frontend->>APIGW: POST /protection-groups
-    APIGW->>ApiHandler: Invoke with JWT
-
-    ApiHandler->>DRS: describe_source_servers(region)
-    DRS-->>ApiHandler: Source server list
-
-    ApiHandler->>ApiHandler: Validate server IDs exist
-    ApiHandler->>ApiHandler: Check unique PG name
-
-    ApiHandler->>DynamoDB: PutItem(protection-groups)
-    DynamoDB-->>ApiHandler: Success
-
-    ApiHandler-->>APIGW: 201 Created
-    APIGW-->>Frontend: Protection Group created
-    Frontend-->>User: Success notification
+    
+    User->>CloudFront: HTTPS Request
+    CloudFront->>S3: Fetch Static Assets
+    S3-->>CloudFront: HTML/JS/CSS
+    CloudFront-->>User: Frontend App
+    
+    User->>Cognito: Authenticate
+    Cognito-->>User: JWT Token
+    
+    User->>APIGateway: API Request + JWT
+    APIGateway->>Cognito: Validate Token
+    Cognito-->>APIGateway: Token Valid
+    APIGateway->>Lambda: Invoke Handler
+    Lambda->>DynamoDB: Query/Update
+    DynamoDB-->>Lambda: Data
+    Lambda-->>APIGateway: Response
+    APIGateway-->>User: JSON Response
 ```
 
-### Recovery Plan Execution Flow
+### Execution Start Flow
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Frontend
-    participant APIGW as API Gateway
-    participant ApiHandler as api-handler
-    participant StepFn as Step Functions
-    participant Orchestrator as orchestration-stepfunctions
-    participant DRS
-    participant DynamoDB
-
-    User->>Frontend: Execute Recovery Plan
-    Frontend->>APIGW: POST /executions
-    APIGW->>ApiHandler: Invoke with plan ID
-
-    ApiHandler->>DynamoDB: GetItem(recovery-plans)
-    DynamoDB-->>ApiHandler: Plan details with waves
-
-    ApiHandler->>DynamoDB: PutItem(execution-history) Status PENDING
-    ApiHandler->>StepFn: StartExecution
-    ApiHandler-->>Frontend: 202 Accepted Execution ID
-
-    StepFn->>Orchestrator: Wave 1 execution
-    Orchestrator->>DynamoDB: GetItem(protection-groups)
-    Orchestrator->>DRS: start_recovery(server_ids)
-    DRS-->>Orchestrator: Job ID
-
-    Orchestrator->>DynamoDB: UpdateItem Status RUNNING
-    Orchestrator-->>StepFn: Wait for completion
-
-    StepFn->>Orchestrator: Poll job status
-    Orchestrator->>DRS: describe_jobs(job_id)
-    DRS-->>Orchestrator: Job status LAUNCHED
-
-    Orchestrator->>DynamoDB: UpdateItem Wave 1 COMPLETED
-    Orchestrator-->>StepFn: Wave complete
-
-    StepFn->>Orchestrator: Wave 2 execution
-    Note over StepFn,Orchestrator: Repeat for each wave
-
-    Orchestrator->>DynamoDB: UpdateItem Status COMPLETED
-    Orchestrator-->>StepFn: Execution complete
-```
-
-### Execution Monitoring Flow
-
-```mermaid
-sequenceDiagram
-    participant EventBridge
-    participant Finder as execution-finder
-    participant Poller as execution-poller
-    participant DynamoDB
-    participant DRS
-    participant CloudWatch
-
-    EventBridge->>Finder: Trigger every 1 minute
-
-    Finder->>DynamoDB: Query StatusIndex Status=POLLING
-    DynamoDB-->>Finder: List of executions
-
-    loop For each execution
-        Finder->>Poller: Invoke async
-
-        Poller->>DynamoDB: GetItem(execution-history)
-        DynamoDB-->>Poller: Execution details with JobIds
-
-        Poller->>DRS: describe_jobs(job_ids)
-        DRS-->>Poller: Job statuses
-
-        alt All jobs LAUNCHED
-            Poller->>DynamoDB: UpdateItem Status COMPLETED
-            Poller->>CloudWatch: PutMetricData ExecutionSuccess
-        else Jobs still PENDING
-            Poller->>DynamoDB: UpdateItem Status POLLING
-        else Timeout exceeded
-            Poller->>DynamoDB: UpdateItem Status FAILED
-            Poller->>CloudWatch: PutMetricData ExecutionFailure
-        end
-    end
+    participant API as api-handler
+    participant DDB as DynamoDB
+    participant SF as Step Functions
+    participant Orch as orchestration-stepfunctions
+    participant DRS as AWS DRS
+    
+    User->>API: POST /executions
+    API->>DDB: Validate Plan Exists
+    DDB-->>API: Plan Data
+    API->>DDB: Create Execution Record (PENDING)
+    API->>SF: StartExecution
+    SF-->>API: ExecutionArn
+    API-->>User: ExecutionId
+    
+    SF->>Orch: Execute Wave 1
+    Orch->>DDB: Update Status (INITIATED)
+    Orch->>DRS: StartRecovery
+    DRS-->>Orch: JobId
+    Orch->>DDB: Store JobId, Update Status (POLLING)
 ```
 
 ---
 
 ## DRS Integration Flow
 
-### DRS Recovery Job Lifecycle
+### Recovery Job Lifecycle
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING: start_recovery() called
-    
-    PENDING --> SNAPSHOT: DRS creates EBS snapshots
-    SNAPSHOT --> CONVERSION: Snapshots complete
-    
-    CONVERSION --> LAUNCH_TEMPLATE: DRS launches conversion server
-    LAUNCH_TEMPLATE --> LAUNCHING: Creates launch template
-    
-    LAUNCHING --> LAUNCHED: EC2 instances launched
-    LAUNCHED --> [*]: Recovery complete
-    
-    PENDING --> FAILED: Error during snapshot
-    CONVERSION --> FAILED: Conversion server error
-    LAUNCHING --> FAILED: EC2 launch error
-    
-
+    [*] --> PENDING: StartRecovery Called
+    PENDING --> STARTED: Job Created
+    STARTED --> LAUNCH_START: Conversion Begins
+    LAUNCH_START --> LAUNCHING: Instance Launching
+    LAUNCHING --> LAUNCHED: Recovery Complete
+    LAUNCHING --> LAUNCH_FAILED: Error
+    LAUNCH_FAILED --> [*]
+    LAUNCHED --> [*]
 ```
 
-### IAM Permission Flow for DRS Operations
+### DRS API Integration
 
 ```mermaid
-graph TB
-    subgraph "Lambda Execution"
-        Lambda[orchestration-stepfunctions]
-        LambdaRole[OrchestrationRole]
+sequenceDiagram
+    participant Lambda as orchestration-stepfunctions
+    participant DRS as AWS DRS
+    participant EC2 as EC2 Service
+    
+    Lambda->>DRS: StartRecovery(sourceServerIds)
+    DRS->>EC2: Create Conversion Server
+    EC2-->>DRS: Conversion Server Ready
+    DRS->>EC2: CreateLaunchTemplate
+    EC2-->>DRS: Template Created
+    DRS->>EC2: RunInstances (Recovery)
+    EC2-->>DRS: Instance Launched
+    DRS-->>Lambda: JobId
+    
+    loop Poll Until Complete
+        Lambda->>DRS: DescribeJobs(jobId)
+        DRS-->>Lambda: Job Status
     end
-    
-    subgraph "DRS Service"
-        DRSCall[drs:StartRecovery]
-        DRSService[DRS Backend]
-    end
-    
-    subgraph "EC2 Operations"
-        Snapshot[ec2:CreateSnapshot]
-        RunInstance[ec2:RunInstances]
-        CreateLT[ec2:CreateLaunchTemplate]
-        CreateLTV[ec2:CreateLaunchTemplateVersion]
-        ModifyLT[ec2:ModifyLaunchTemplate]
-    end
-    
-    Lambda -->|Assumes| LambdaRole
-    Lambda -->|Calls| DRSCall
-    
-    DRSCall -->|Uses Lambda Role| DRSService
-    
-    DRSService -->|Phase 1| Snapshot
-    DRSService -->|Phase 2| RunInstance
-    DRSService -->|Phase 3| CreateLT
-    DRSService -->|Phase 3| CreateLTV
-    DRSService -->|Phase 3| ModifyLT
-    
-    LambdaRole -.->|Must have| Snapshot
-    LambdaRole -.->|Must have| RunInstance
-    LambdaRole -.->|Must have| CreateLT
-    LambdaRole -.->|Must have| CreateLTV
-    LambdaRole -.->|Must have| ModifyLT
-    
-    style DRSService fill:#527FFF
-    style LambdaRole fill:#DD344C
 ```
 
-**Key Insight**: When Lambda calls `drs:StartRecovery`, DRS performs EC2 operations using the **Lambda role's IAM permissions**, not the DRS service-linked role. This is why OrchestrationRole needs comprehensive EC2 permissions.
+**Critical IAM Note**: DRS uses the calling Lambda role's IAM permissions for all EC2 operations. The Lambda execution role must include:
 
-**DRS Recovery Phases:**
-
-| Phase | Description | Required Permissions |
-|-------|-------------|---------------------|
-| 1. Snapshot | EBS snapshots of source volumes | `ec2:CreateSnapshot` |
-| 2. Conversion | Temporary EC2 instance converts snapshots to AMI | `ec2:RunInstances` |
-| 3. Launch Template | Creates EC2 launch template for recovery | `ec2:CreateLaunchTemplate`, `ec2:CreateLaunchTemplateVersion`, `ec2:ModifyLaunchTemplate` |
-| 4. Recovery | Final EC2 instances launched | `ec2:RunInstances`, `drs:CreateRecoveryInstanceForDrs` |
+- `drs:CreateRecoveryInstanceForDrs` (often missing)
+- `ec2:CreateLaunchTemplate`, `ec2:CreateLaunchTemplateVersion`
+- `ec2:RunInstances`, `ec2:TerminateInstances`
+- Full list in [PRD Technical Specifications](../requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md#drs-integration)
 
 ---
 
 ## Step Functions Orchestration
 
-### State Machine Flow
+### State Machine Definition
 
 ```mermaid
 stateDiagram-v2
-    [*] --> InitializeExecution
+    [*] --> ValidatePlan
+    ValidatePlan --> InitializeExecution
+    InitializeExecution --> ProcessWave
     
-    InitializeExecution --> ValidatePlan: Load plan details
-    ValidatePlan --> ExecuteWave1: Plan valid
-    ValidatePlan --> Failed: Invalid plan
+    state ProcessWave {
+        [*] --> CheckPauseConfig
+        CheckPauseConfig --> WaitForResume: pauseBeforeWave=true
+        CheckPauseConfig --> StartDRSRecovery: pauseBeforeWave=false
+        WaitForResume --> StartDRSRecovery: Resume Signal
+        StartDRSRecovery --> PollJobStatus
+        PollJobStatus --> CheckJobComplete
+        CheckJobComplete --> PollJobStatus: Not Complete
+        CheckJobComplete --> WaveComplete: All LAUNCHED
+        CheckJobComplete --> WaveFailed: Any FAILED
+    }
     
-    ExecuteWave1 --> WaitWave1: DRS job started
-    WaitWave1 --> PollWave1Status: Wait 30s
+    ProcessWave --> NextWave: More Waves
+    NextWave --> ProcessWave
+    ProcessWave --> ExecutionComplete: No More Waves
+    ProcessWave --> ExecutionFailed: Wave Failed
     
-    PollWave1Status --> CheckWave1Complete: Check job status
-    CheckWave1Complete --> ExecuteWave2: All servers LAUNCHED
-    CheckWave1Complete --> WaitWave1: Still PENDING
-    CheckWave1Complete --> Failed: Timeout or error
-    
-    ExecuteWave2 --> WaitWave2: DRS job started
-    WaitWave2 --> PollWave2Status: Wait 30s
-    
-    PollWave2Status --> CheckWave2Complete: Check job status
-    CheckWave2Complete --> ExecuteWaveN: All servers LAUNCHED
-    CheckWave2Complete --> WaitWave2: Still PENDING
-    CheckWave2Complete --> Failed: Timeout or error
-    
-    ExecuteWaveN --> FinalizeExecution: All waves complete
-    FinalizeExecution --> [*]: Success
-    
-    Failed --> [*]: Execution failed
-    
-
+    ExecutionComplete --> [*]
+    ExecutionFailed --> [*]
 ```
 
-### Wave Execution Pattern
+### Execution Status Transitions
 
 ```mermaid
-graph TB
-    subgraph "Wave 1: Database Tier"
-        W1PG1[Protection Group: DB-Primary]
-        W1PG2[Protection Group: DB-Secondary]
-        W1Job[DRS Job ID: job-abc123]
-        W1Server1[Server: s-111]
-        W1Server2[Server: s-222]
-        W1Server3[Server: s-333]
-    end
+stateDiagram-v2
+    [*] --> PENDING: Execution Created
+    PENDING --> INITIATED: Step Functions Started
+    INITIATED --> POLLING: DRS Job Started
+    POLLING --> LAUNCHING: Servers Launching
+    POLLING --> PAUSED: Pause Before Wave
+    PAUSED --> POLLING: User Resumes
+    LAUNCHING --> COMPLETED: All Waves Done
+    LAUNCHING --> PARTIAL: Some Waves Failed
+    LAUNCHING --> FAILED: Critical Failure
+    POLLING --> CANCELLED: User Cancels
+    PAUSED --> CANCELLED: User Cancels
     
-    subgraph "Wave 2: Application Tier"
-        W2PG1[Protection Group: App-Servers]
-        W2Job[DRS Job ID: job-def456]
-        W2Server1[Server: s-444]
-        W2Server2[Server: s-555]
-    end
-    
-    subgraph "Wave 3: Web Tier"
-        W3PG1[Protection Group: Web-Servers]
-        W3Job[DRS Job ID: job-ghi789]
-        W3Server1[Server: s-666]
-    end
-    
-    W1PG1 --> W1Server1
-    W1PG1 --> W1Server2
-    W1PG2 --> W1Server3
-    
-    W1Server1 --> W1Job
-    W1Server2 --> W1Job
-    W1Server3 --> W1Job
-    
-    W1Job -->|Wait for LAUNCHED| W2PG1
-    
-    W2PG1 --> W2Server1
-    W2PG1 --> W2Server2
-    
-    W2Server1 --> W2Job
-    W2Server2 --> W2Job
-    
-    W2Job -->|Wait for LAUNCHED| W3PG1
-    
-    W3PG1 --> W3Server1
-    W3Server1 --> W3Job
-    
-    style W1Job fill:#E7157B
-    style W2Job fill:#E7157B
-    style W3Job fill:#E7157B
+    COMPLETED --> [*]
+    PARTIAL --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
 ```
 
-**Wave Execution Rules:**
+---
 
-1. **One DRS job per wave** - All servers in a wave launched with single `start_recovery()` call
-2. **Sequential execution** - Wave N+1 starts only after Wave N completes
-3. **LAUNCHED status** - Trust DRS job status without requiring `recoveryInstanceID`
-4. **Dependency validation** - Circular dependencies detected at plan creation
+## Pause/Resume Flow
 
-**Wave Execution Steps:**
+The pause/resume mechanism uses Step Functions `waitForTaskToken` callback pattern, allowing executions to pause indefinitely (up to 1 year) until user intervention.
 
-For each wave:
-1. Get protection groups assigned to wave
-2. Collect all server IDs from protection groups
-3. Call `drs:StartRecovery` with server IDs
-4. Store DRS job ID in execution history
-5. Poll `drs:DescribeJobs` until all servers show `launchStatus: LAUNCHED`
+### Pause/Resume Sequence
+
+```mermaid
+sequenceDiagram
+    participant SF as Step Functions
+    participant Orch as orchestration-stepfunctions
+    participant DDB as DynamoDB
+    participant API as api-handler
+    participant User
+    
+    Note over SF,Orch: Wave configured with pauseBeforeWave=true
+    
+    SF->>Orch: Execute Wave (with taskToken)
+    Orch->>DDB: Store taskToken in execution record
+    Orch->>DDB: Update status = PAUSED
+    Orch-->>SF: (Lambda returns, SF waits for callback)
+    
+    Note over SF: Step Functions waiting for SendTaskSuccess
+    Note over SF: Max wait: 1 year (31536000 seconds)
+    
+    User->>API: POST /executions/{id}/resume
+    API->>DDB: Get execution record
+    DDB-->>API: taskToken
+    API->>SF: SendTaskSuccess(taskToken)
+    SF->>Orch: Continue wave execution
+    Orch->>DDB: Update status = POLLING
+```
+
+### Task Token Storage
+
+```mermaid
+flowchart LR
+    subgraph "Step Functions"
+        SF[State Machine]
+        Token[taskToken generated]
+    end
+    
+    subgraph "Lambda"
+        Orch[orchestration-stepfunctions]
+    end
+    
+    subgraph "DynamoDB"
+        Exec[(execution-history)]
+    end
+    
+    SF -->|"Invoke with taskToken"| Orch
+    Orch -->|"Store taskToken"| Exec
+    Orch -->|"Return (no callback yet)"| SF
+    
+    style Token fill:#E7157B
+```
+
+**Key Implementation Details**:
+
+- Task token passed to Lambda via Step Functions context
+- Token stored in DynamoDB `execution-history` table
+- Maximum pause duration: 1 year (31536000 seconds)
+- Resume triggers `SendTaskSuccess` with stored token
+- Cancel triggers `SendTaskFailure` with stored token
+
+---
+
+## Terminate Instances Flow
+
+After drill completion, users can terminate recovery EC2 instances to manage costs.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as api-handler
+    participant DDB as DynamoDB
+    participant EC2 as EC2 Service
+    
+    User->>API: POST /executions/{id}/terminate-instances
+    API->>DDB: Get execution record
+    DDB-->>API: Execution (status, instanceIds)
+    
+    alt Status not terminal
+        API-->>User: 400 Bad Request
+    else Already terminated
+        API-->>User: 400 Already Terminated
+    else Valid request
+        API->>EC2: TerminateInstances(instanceIds)
+        EC2-->>API: Termination Initiated
+        API->>DDB: Update instancesTerminated=true
+        API-->>User: 200 Success
+    end
+```
+
+**Constraints**:
+
+- Only available for terminal states: COMPLETED, FAILED, CANCELLED
+- Prevents duplicate termination attempts
+- Updates execution record with `instancesTerminated: true`
 
 ---
 
 ## Deployment Architecture
 
-### CloudFormation Nested Stacks
-
-```mermaid
-graph TB
-    Master[master-template.yaml]
-    
-    Database[database-stack.yaml]
-    Lambda[lambda-stack.yaml]
-    API[api-stack.yaml]
-    Frontend[frontend-stack.yaml]
-    Security[security-stack.yaml]
-    StepFn[step-functions-stack.yaml]
-    
-    Master --> Database
-    Master --> Lambda
-    Master --> API
-    Master --> Frontend
-    Master --> Security
-    Master --> StepFn
-    
-    subgraph "Database Stack"
-        DDB1[(protection-groups)]
-        DDB2[(recovery-plans)]
-        DDB3[(execution-history)]
-        GSI[StatusIndex GSI]
-    end
-    
-    subgraph "Lambda Stack"
-        L1[api-handler]
-        L2[orchestration-stepfunctions]
-        L3[orchestration]
-        L4[execution-finder]
-        L5[execution-poller]
-        L6[frontend-builder]
-        R1[ApiHandlerRole]
-        R2[OrchestrationRole]
-        R3[ExecutionFinderRole]
-        R4[ExecutionPollerRole]
-        R5[CustomResourceRole]
-    end
-    
-    subgraph "API Stack"
-        APIGW[API Gateway]
-        Cognito[Cognito User Pool]
-        CognitoClient[App Client]
-        Authorizer[Cognito Authorizer]
-    end
-    
-    subgraph "Frontend Stack"
-        S3[S3 Bucket]
-        CF[CloudFront Distribution]
-        OAI[Origin Access Identity]
-    end
-    
-    subgraph "Step Functions Stack"
-        SM[State Machine]
-        SMRole[State Machine Role]
-    end
-    
-    Database --> DDB1
-    Database --> DDB2
-    Database --> DDB3
-    DDB3 --> GSI
-    
-    Lambda --> L1
-    Lambda --> L2
-    Lambda --> L3
-    Lambda --> L4
-    Lambda --> L5
-    Lambda --> L6
-    L1 --> R1
-    L2 --> R2
-    L3 --> R2
-    L4 --> R3
-    L5 --> R4
-    L6 --> R5
-    
-    API --> APIGW
-    API --> Cognito
-    Cognito --> CognitoClient
-    APIGW --> Authorizer
-    
-    Frontend --> S3
-    Frontend --> CF
-    CF --> OAI
-    
-    StepFn --> SM
-    SM --> SMRole
-    
-    style Master fill:#232F3E
-    style Database fill:#3B48CC
-    style Lambda fill:#FF9900
-    style API fill:#FF4F8B
-    style Frontend fill:#569A31
-    style StepFn fill:#E7157B
-```
-
 ### S3 Deployment Bucket Structure
 
 ```text
-s3://aws-drs-orchestration/
-├── cfn/                                   # CloudFormation templates
+s3://{deployment-bucket}/
+├── cfn/                              # CloudFormation templates
 │   ├── master-template.yaml
 │   ├── database-stack.yaml
 │   ├── lambda-stack.yaml
 │   ├── api-stack.yaml
-│   ├── frontend-stack.yaml
+│   ├── step-functions-stack.yaml
 │   ├── security-stack.yaml
-│   └── step-functions-stack.yaml
-├── lambda/                                # Lambda deployment packages (from CI/CD)
-│   ├── api-handler.zip                    # index.py
-│   ├── orchestration.zip                  # drs_orchestrator.py
-│   ├── execution-finder.zip               # poller/execution_finder.py
-│   └── execution-poller.zip               # poller/execution_poller.py
-└── frontend/
+│   └── frontend-stack.yaml
+├── lambda/                           # Function deployment packages
+│   ├── api-handler.zip
+│   ├── orchestration-stepfunctions.zip
+│   ├── execution-finder.zip
+│   ├── execution-poller.zip
+│   └── frontend-builder.zip
+└── frontend/                         # Frontend build artifacts
     ├── index.html
     ├── assets/
-    │   ├── index-[hash].js
-    │   └── index-[hash].css
-    └── aws-config.js                      # Generated by CI/CD with Cognito/API config
+    └── aws-config.json
 ```
 
-> **Note**: The `orchestration-stepfunctions.zip` and `frontend-builder.zip` packages are not currently built by CI/CD. They require manual packaging if needed.
+### Nested Stack Architecture
 
-### Technology Stack Versions
+```mermaid
+graph TB
+    subgraph "CloudFormation Deployment"
+        Master[master-template.yaml]
+        
+        subgraph "Nested Stacks"
+            DB[database-stack]
+            LambdaStk[lambda-stack]
+            API[api-stack]
+            SF[step-functions-stack]
+            Sec[security-stack]
+            FE[frontend-stack]
+        end
+    end
+    
+    Master --> DB
+    Master --> LambdaStk
+    Master --> API
+    Master --> SF
+    Master --> Sec
+    Master --> FE
+    
+    DB -.->|TableNames| LambdaStk
+    LambdaStk -.->|FunctionArns| API
+    LambdaStk -.->|FunctionArns| SF
+    API -.->|UserPoolId| FE
+    
+    style Master fill:#E7157B
+    style DB fill:#C925D1
+    style LambdaStk fill:#ED7100
+    style API fill:#E7157B
+    style SF fill:#E7157B
+    style FE fill:#8C4FFF
+```
 
-| Component | Technology | Version |
-|-----------|------------|---------|
-| **Frontend** | React | 19.1.1 |
-| | TypeScript | 5.9.3 |
-| | Vite | 7.1.7 |
-| | CloudScape Design System | 3.0.1148 |
-| | AWS Amplify | 6.15.8 |
-| | React Router | 7.9.5 |
-| | Axios | 1.13.2 |
-| **Backend** | Python | 3.12 |
-| | boto3 | (Lambda runtime) |
-| | crhelper | 2.0.11 |
-| **Infrastructure** | CloudFormation | 2010-09-09 |
-| | DynamoDB | On-demand |
-| | API Gateway | REST |
-| | Step Functions | Standard |
+**Stack Dependencies**:
+
+1. **database-stack**: Creates DynamoDB tables (no dependencies)
+2. **lambda-stack**: Creates Lambda functions (depends on database-stack outputs)
+3. **api-stack**: Creates API Gateway + Cognito (depends on lambda-stack outputs)
+4. **step-functions-stack**: Creates state machine (depends on lambda-stack outputs)
+5. **security-stack**: Creates WAF + CloudTrail (optional, no dependencies)
+6. **frontend-stack**: Creates S3 + CloudFront (depends on api-stack outputs)
+
+---
+
+## Technology Stack Versions
+
+### Frontend Technologies
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React | 19.1.1 | UI framework with hooks |
+| TypeScript | 5.9.3 | Type safety |
+| CloudScape Design System | 3.0.1148 | AWS-native UI components |
+| Vite | 7.1.7 | Build tool and dev server |
+| AWS Amplify | 6.15.8 | Cognito authentication |
+| Axios | 1.13.2 | HTTP client |
+| React Router | 7.9.5 | Client-side routing |
+| react-hot-toast | 2.6.0 | Toast notifications |
+| date-fns | 4.1.0 | Date formatting |
+| ESLint | 9.36.0 | Code quality |
+
+### Backend Technologies
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Python | 3.12 | Lambda runtime |
+| boto3 | (runtime) | AWS SDK |
+| crhelper | 2.0.11 | CloudFormation custom resources |
+
+### AWS Services
+
+| Service | Purpose |
+|---------|---------|
+| API Gateway | REST API with Cognito authorizer |
+| Cognito | User authentication (45-minute session timeout) |
+| Step Functions | Orchestration with waitForTaskToken |
+| DynamoDB | NoSQL database (3 tables + GSI) |
+| S3 | Static hosting + deployment artifacts |
+| CloudFront | CDN for frontend distribution |
+| CloudFormation | Infrastructure as Code (7 nested stacks) |
+| Lambda | Serverless compute (5 functions) |
+| EventBridge | Scheduled polling (1-minute intervals) |
+| CloudWatch | Logging and metrics |
+| IAM | Least-privilege access control |
+| AWS DRS | Elastic Disaster Recovery integration |
 
 ---
 
 ## Component Interaction Matrix
 
-| Component | Interacts With | Purpose |
-|-----------|----------------|---------|
-| **api-handler** | DynamoDB (all 3 tables) | CRUD operations |
-| | AWS DRS | Server discovery |
-| | Step Functions | Start executions |
-| | Lambda (self) | Async invocation |
-| **orchestration-stepfunctions** | DynamoDB (all 3 tables) | Read plans, update execution |
-| | AWS DRS | start_recovery, describe_jobs |
-| | EC2 | Launch template operations |
-| **execution-finder** | DynamoDB (execution-history) | Query StatusIndex GSI |
-| | Lambda (execution-poller) | Invoke for each execution |
-| **execution-poller** | DynamoDB (execution-history) | Update execution status |
-| | AWS DRS | describe_jobs |
-| | CloudWatch | Put metrics |
-| **frontend-builder** | S3 | Upload frontend artifacts |
-| | CloudFront | Create invalidation |
+| Component | Reads From | Writes To | Invokes |
+|-----------|------------|-----------|---------|
+| api-handler | DynamoDB (all 3 tables), DRS | DynamoDB, CloudWatch Logs | Step Functions, EC2 |
+| orchestration-stepfunctions | DynamoDB, DRS | DynamoDB, CloudWatch Logs | DRS StartRecovery |
+| execution-finder | DynamoDB (StatusIndex GSI) | CloudWatch Logs | execution-poller |
+| execution-poller | DynamoDB, DRS | DynamoDB, CloudWatch Metrics | - |
+| frontend-builder | S3 (deployment bucket) | S3 (frontend bucket), CloudFront | - |
+| Step Functions | - | CloudWatch Logs | orchestration-stepfunctions |
+| EventBridge | - | - | execution-finder |
+| Frontend | API Gateway | - | Cognito Auth |
 
 ---
 
@@ -657,17 +593,17 @@ s3://aws-drs-orchestration/
 
 This architecture provides:
 
-- **5 Lambda functions** for API, orchestration, and monitoring
-- **3 DynamoDB tables** for data persistence with GSI for efficient queries
-- **1 Step Functions state machine** for wave-based orchestration
-- **1 EventBridge rule** for scheduled execution monitoring
-- **Modular CloudFormation** with 6 nested stacks for maintainability
-- **Serverless design** with pay-per-use pricing (~$12-40/month)
-- **Enterprise-grade** with encryption, authentication, and audit trails
+- **Serverless**: No servers to manage, pay-per-use pricing
+- **Scalable**: Handles multiple concurrent executions
+- **Resilient**: Built-in retry logic, error handling
+- **Secure**: Cognito JWT auth, IAM least-privilege, encryption at rest
+- **Observable**: CloudWatch logs and metrics for all components
+- **Maintainable**: Modular nested stacks, Infrastructure as Code
 
-**Critical Architectural Decisions:**
-1. **DRS uses calling role permissions** - OrchestrationRole needs EC2 permissions
-2. **One DRS job per wave** - All servers launched together for efficiency
-3. **LAUNCHED status is reliable** - No need to wait for recoveryInstanceID
-4. **EventBridge polling** - 1-minute schedule for execution monitoring
-5. **Step Functions orchestration** - Replaces legacy Lambda-based orchestrator
+**Key Patterns**:
+
+- `waitForTaskToken` for pause/resume capability
+- StatusIndex GSI for efficient execution polling
+- EventBridge scheduled triggers for background processing
+- CloudFront + S3 for global frontend distribution
+- API Gateway + Cognito for secure API access
