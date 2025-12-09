@@ -116,7 +116,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   const handleResumeExecution = async () => {
-    if (!executionId) return;
+    if (!executionId || resuming) return;
 
     setResuming(true);
     setResumeError(null);
