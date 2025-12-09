@@ -2,7 +2,7 @@
 
 ## AWS DRS Orchestration System
 
-**Version**: 2.0  
+**Version**: 4.0  
 **Date**: December 2025  
 **Status**: Production Release
 
@@ -148,14 +148,17 @@ flowchart LR
 │ ┌─ Wave 1: Database Tier ───────────────────────────────────────────────┐   │
 │ │ Protection Groups: [DB-Primary ▼] [DB-Secondary ▼]                   │   │
 │ │ Dependencies: None                                                    │   │
+│ │ ☐ Pause before wave (disabled for Wave 1)                            │   │
 │ └───────────────────────────────────────────────────────────────────────┘   │
 │ ┌─ Wave 2: Application Tier ────────────────────────────────────────────┐   │
 │ │ Protection Groups: [App-Servers ▼]                                   │   │
 │ │ Dependencies: Wave 1                                                  │   │
+│ │ ☐ Pause execution before starting this wave                          │   │
 │ └───────────────────────────────────────────────────────────────────────┘   │
 │ ┌─ Wave 3: Web Tier ────────────────────────────────────────────────────┐   │
 │ │ Protection Groups: [Web-Tier ▼]                                      │   │
 │ │ Dependencies: Wave 2                                                  │   │
+│ │ ☑ Pause execution before starting this wave                          │   │
 │ └───────────────────────────────────────────────────────────────────────┘   │
 │                                                           [Cancel] [Create] │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -165,12 +168,17 @@ flowchart LR
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ [← Back] [Refresh] Execution Details                      [Cancel Execution] │
+│ [← Back] [Refresh] Execution Details    [Resume] [Cancel] [Terminate]       │
 ├─────────────────────────────────────────────────────────────────────────────┤
+│ ┌─ ℹ️ Execution Paused ─────────────────────────────────────────────────┐   │
+│ │ Execution is paused before starting Wave 3. Click Resume to continue. │   │
+│ │                                                        [Resume]       │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
 │ Recovery Plan                                                               │
 │                                                                             │
 │ 3-Tier Application Recovery                                                 │
-│ 🟡 RUNNING    Wave 2 of 3    By: admin@example.com                        │
+│ ⏸️ PAUSED    Wave 2 of 3    By: admin@example.com                         │
 │                                                                             │
 │ Started: Dec 15, 2025 3:00:15 PM    Duration: 5m 23s                      │
 │ Execution ID: exec-abc123def456                                             │
@@ -183,14 +191,24 @@ flowchart LR
 │ ✅ Wave 1: Database Tier                                    COMPLETED (2m) │
 │    ████████████████████ 100%                                      │
 │    2 servers launched successfully                                          │
+│    ▼ DRS Job Events (6)                                                    │
+│    ┌────────────────────────────────────────────────────────────────────┐   │
+│    │ ▶ Job Started                              Dec 15, 3:00:15 PM     │   │
+│    │ 📸 Taking Snapshot                         Dec 15, 3:00:20 PM     │   │
+│    │ ✓ Snapshot Complete                        Dec 15, 3:02:15 PM     │   │
+│    │ 🔄 Conversion Started                      Dec 15, 3:02:20 PM     │   │
+│    │ ✓ Conversion Succeeded                     Dec 15, 3:08:45 PM     │   │
+│    │ 🚀 Launching Instance                      Dec 15, 3:08:50 PM     │   │
+│    │ ✓ Instance Launched                        Dec 15, 3:10:15 PM     │   │
+│    └────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
-│ 🟡 Wave 2: Application Tier                              LAUNCHING (3m) │
-│    ██████████░░░░░░░░░░ 50%                                       │
-│    1 of 2 servers launched                                                  │
+│ ✅ Wave 2: Application Tier                                 COMPLETED (4m) │
+│    ████████████████████ 100%                                      │
+│    1 server launched successfully                                           │
 │                                                                             │
-│ ⏳ Wave 3: Web Tier                                           PENDING      │
+│ ⏸️ Wave 3: Web Tier                                            PAUSED      │
 │    ░░░░░░░░░░░░░░░░░░░░ 0%                                        │
-│    Waiting for Wave 2 to complete                                          │
+│    Paused - waiting for manual resume                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -318,6 +336,7 @@ graph LR
         PENDING["⏳ PENDING<br/>Gray"]
         POLLING["🔄 POLLING<br/>Blue"]
         LAUNCHING["🟡 LAUNCHING<br/>Yellow"]
+        PAUSED["⏸️ PAUSED<br/>Purple"]
         COMPLETED["✅ COMPLETED<br/>Green"]
         FAILED["❌ FAILED<br/>Red"]
         CANCELLED["⏹️ CANCELLED<br/>Orange"]
@@ -333,6 +352,7 @@ graph LR
     style PENDING fill:#6B7280,color:#fff
     style POLLING fill:#3B82F6,color:#fff
     style LAUNCHING fill:#F59E0B,color:#000
+    style PAUSED fill:#8B5CF6,color:#fff
     style COMPLETED fill:#10B981,color:#fff
     style FAILED fill:#EF4444,color:#fff
     style CANCELLED fill:#F97316,color:#fff
@@ -506,19 +526,44 @@ The application uses CloudScape AppLayout with a top navigation bar:
 
 ### 7. Execution Details Page
 
-**Purpose**: Real-time execution monitoring
+**Purpose**: Real-time execution monitoring with pause/resume and instance management
 
 **Components**:
 
-- CloudScape Header with back navigation
+- CloudScape Header with back navigation and action buttons
 - CloudScape Container for execution summary
-- WaveProgress component showing wave timeline
-- CloudScape Table for server status
+- WaveProgress component showing wave timeline with DRS job events
+- CloudScape ProgressBar for overall execution progress
+- CloudScape Alert for paused state with resume action
 - CloudScape Button for cancel execution
+- CloudScape Button for resume execution (when paused)
+- CloudScape Button for terminate instances (when completed)
+- ConfirmDialog for destructive actions with loading states
+
+**Action Buttons**:
+
+| Button | Condition | Action |
+|--------|-----------|--------|
+| Refresh | Always | Reload execution data |
+| Resume Execution | Status = PAUSED | Resume paused execution |
+| Cancel Execution | Status = RUNNING/POLLING | Cancel execution |
+| Terminate Instances | Status = COMPLETED/FAILED + has jobIds | Terminate recovery EC2 instances |
+
+**Real-time Updates**:
+
+- Execution status polling: Every 3 seconds for active executions
+- DRS Job Events polling: Every 3 seconds (independent of status polling)
+- Auto-refresh stops when execution reaches terminal state
+
+**Paused State Display**:
+
+- Alert banner showing "Execution Paused" with wave number
+- Resume button in header and in alert
+- Paused before wave indicator
 
 ---
 
-## Component Library (20 components)
+## Component Library (22 components)
 
 | Component | Purpose |
 |-----------|---------|
@@ -529,9 +574,9 @@ The application uses CloudScape AppLayout with a top navigation bar:
 | ServerListItem | Individual server display in lists |
 | RegionSelector | AWS region dropdown |
 | StatusBadge | Status indicators with color coding |
-| WaveProgress | Wave execution timeline visualization |
-| WaveConfigEditor | Wave configuration form |
-| ConfirmDialog | Confirmation dialogs |
+| WaveProgress | Wave execution timeline with DRS job events auto-refresh |
+| WaveConfigEditor | Wave configuration form with pause-before-wave option |
+| ConfirmDialog | Confirmation dialogs with loading state support |
 | DateTimeDisplay | Timestamp formatting |
 | ExecutionDetails | Execution detail display |
 | ErrorBoundary | React error boundary wrapper |
@@ -542,6 +587,8 @@ The application uses CloudScape AppLayout with a top navigation bar:
 | DataTableSkeleton | Loading skeleton for tables |
 | PageTransition | Page transition animations |
 | ProtectedRoute | Auth route wrapper |
+| JobEventsTimeline | DRS job event timeline display |
+| ServerStatusRow | Server status with source/recovery instance details |
 
 ### CloudScape Layout Components
 
@@ -587,8 +634,30 @@ The application uses CloudScape AppLayout with a top navigation bar:
 1. Navigate to History page
 2. View Active tab for in-progress executions
 3. Click View Details
-4. View wave progress timeline
+4. View wave progress timeline with DRS job events
 5. Auto-refresh updates status every 3 seconds
+6. DRS Job Events section auto-refreshes independently
+
+### Flow 5: Resume Paused Execution
+
+1. Execution reaches wave with `pauseBeforeWave: true`
+2. Step Functions enters PAUSED state
+3. UI shows "Execution Paused" alert with wave number
+4. User clicks Resume Execution button
+5. API calls Step Functions SendTaskSuccess
+6. Execution continues with next wave
+7. UI updates to show wave in progress
+
+### Flow 6: Terminate Recovery Instances
+
+1. Execution completes (COMPLETED, FAILED, or CANCELLED)
+2. Terminate Instances button becomes available
+3. User clicks Terminate Instances
+4. Confirmation dialog appears with warning
+5. User confirms termination
+6. API terminates all EC2 recovery instances
+7. Badge shows "Instances Terminated"
+8. Button is hidden (prevents duplicate termination)
 
 ---
 
