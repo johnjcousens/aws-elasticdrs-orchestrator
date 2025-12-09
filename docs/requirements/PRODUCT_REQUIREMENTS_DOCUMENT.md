@@ -84,17 +84,35 @@ Wave-based orchestration with dependencies.
 
 ### 3. Execution Engine
 
-Step Functions-driven recovery automation.
+Step Functions-driven recovery automation with pause/resume capability.
 
 **Flow**:
 1. Validate plan and servers
-2. For each wave: Start DRS recovery, poll job status, health checks
-3. Update execution history
+2. For each wave:
+   - Check for pause-before-wave configuration
+   - If paused: Wait for manual resume (up to 1 year timeout)
+   - Start DRS recovery via StartRecovery API
+   - Poll job status via Step Functions orchestration
+   - Wait for all servers to reach LAUNCHED status
+3. Update execution history in DynamoDB
 4. Move to next wave or complete
+
+**Pause/Resume**:
+- Waves can be configured with `pauseBeforeWave: true`
+- Step Functions uses `waitForTaskToken` callback pattern
+- Task token stored in DynamoDB for resume
+- Maximum pause duration: 1 year (31536000 seconds)
+- Resume via API triggers `SendTaskSuccess`
 
 **Monitoring**: Real-time status polling every 3 seconds for active executions
 
-**API**: `GET /executions`, `GET /executions/{id}`, `DELETE /executions/{id}`
+**API**: 
+- `GET /executions` - List executions
+- `GET /executions/{id}` - Get execution status
+- `DELETE /executions/{id}` - Cancel execution
+- `POST /executions/{id}/resume` - Resume paused execution
+- `POST /executions/{id}/terminate-instances` - Terminate recovery instances
+- `GET /executions/{id}/job-logs` - Get DRS job event logs
 
 ### 4. User Interface
 
@@ -105,11 +123,18 @@ React 19.1 + TypeScript + CloudScape Design System
 - Getting Started (onboarding)
 - Dashboard (metrics)
 - Protection Groups (CRUD)
-- Recovery Plans (wave config)
-- History (execution monitoring)
-- Execution Details (wave progress)
+- Recovery Plans (wave config with pause-before-wave option)
+- History (execution monitoring with Active/History tabs)
+- Execution Details (wave progress, DRS job events, pause/resume controls)
 
-**Features**: Real-time updates, responsive design, WCAG 2.1 AA compliant
+**Key UI Features**:
+- Real-time updates (3-second polling for active executions)
+- DRS Job Events timeline with auto-refresh
+- Pause/Resume execution controls
+- Terminate recovery instances button
+- Loading states on all action buttons (prevents double-clicks)
+- Responsive design, WCAG 2.1 AA compliant
+- Auto-logout after 45 minutes of inactivity
 
 ---
 

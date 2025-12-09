@@ -1,7 +1,7 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 2.0  
+**Version**: 4.0  
 **Date**: December 2025  
 **Status**: Production Release
 
@@ -257,6 +257,44 @@ The system shall cancel a running execution:
 
 **API**: `DELETE /executions/{id}`
 
+#### FR-3.9: Pause Before Wave
+**Priority**: High
+
+The system shall support pausing execution before specific waves:
+- Recovery Plans can configure `pauseBeforeWave: true` on any wave after Wave 1
+- When enabled, execution pauses before starting that wave
+- Step Functions uses `waitForTaskToken` callback pattern
+- Execution remains in PAUSED status until manually resumed
+- Maximum pause duration: 1 year (31536000 seconds)
+
+**UI**: Checkbox in Wave Configuration Editor for waves 2+
+
+#### FR-3.10: Resume Execution
+**Priority**: High
+
+The system shall resume paused executions:
+- Accept resume request via API
+- Retrieve stored task token from DynamoDB
+- Call Step Functions `SendTaskSuccess` with task token
+- Continue execution with next wave
+
+**API**: `POST /executions/{id}/resume`
+**Response**: 200 OK with execution status
+**Errors**: 400 (not paused), 404 (not found)
+
+#### FR-3.11: Terminate Recovery Instances
+**Priority**: Medium
+
+The system shall terminate recovery instances after execution completes:
+- Only available for terminal states (COMPLETED, FAILED, CANCELLED)
+- Terminates all EC2 instances launched during recovery
+- Updates execution record with `instancesTerminated: true`
+- Prevents duplicate termination attempts
+
+**API**: `POST /executions/{id}/terminate-instances`
+**Response**: 200 OK with termination results
+**Errors**: 400 (execution still running), 404 (not found)
+
 ---
 
 ### FR-4: Server Discovery
@@ -369,6 +407,9 @@ All endpoints require `Authorization: Bearer {jwt-token}` header.
 | POST | /executions | Start execution |
 | GET | /executions/{id} | Get execution status |
 | DELETE | /executions/{id} | Cancel execution |
+| POST | /executions/{id}/resume | Resume paused execution |
+| POST | /executions/{id}/terminate-instances | Terminate recovery instances |
+| GET | /executions/{id}/job-logs | Get DRS job event logs |
 | GET | /drs/source-servers | Discover DRS servers |
 | GET | /health | Health check endpoint |
 
