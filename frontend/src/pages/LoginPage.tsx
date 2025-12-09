@@ -12,7 +12,6 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   SpaceBetween,
   FormField,
-  Input,
   Alert,
 } from '@cloudscape-design/components';
 
@@ -135,22 +134,59 @@ export const LoginPage: React.FC = () => {
             <form onSubmit={handleSubmit}>
               <SpaceBetween size="l">
                 <FormField label="Username or email">
-                  <Input
+                  <input
+                    type="text"
                     value={username}
-                    onChange={({ detail }) => setUsername(detail.value)}
-                    placeholder=""
+                    onChange={(e) => setUsername(e.target.value)}
                     disabled={loading}
                     autoFocus
+                    autoComplete="username"
+                    style={{
+                      width: '100%',
+                      padding: '8px 36px 8px 12px',
+                      fontSize: '14px',
+                      fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+                      border: '1px solid #aab7b8',
+                      borderRadius: '3px',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#0073bb';
+                      e.currentTarget.style.boxShadow = '0 0 0 1px #0073bb';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#aab7b8';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
                   />
                 </FormField>
 
                 <FormField label="Password">
-                  <Input
-                    value={password}
-                    onChange={({ detail }) => setPassword(detail.value)}
+                  <input
                     type="password"
-                    placeholder=""
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     disabled={loading}
+                    autoComplete="current-password"
+                    style={{
+                      width: '100%',
+                      padding: '8px 36px 8px 12px',
+                      fontSize: '14px',
+                      fontFamily: '"Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif',
+                      border: '1px solid #aab7b8',
+                      borderRadius: '3px',
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#0073bb';
+                      e.currentTarget.style.boxShadow = '0 0 0 1px #0073bb';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#aab7b8';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
                   />
                 </FormField>
 
