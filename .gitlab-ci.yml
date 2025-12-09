@@ -124,11 +124,11 @@ build:lambda:
       cd ..
       zip -g api-handler.zip index.py
       
-      # Package orchestration (drs_orchestrator.py)
+      # Package orchestration-stepfunctions (orchestration_stepfunctions.py)
       cd package
-      zip -r ../orchestration.zip . -x "*.pyc" "__pycache__/*"
+      zip -r ../orchestration-stepfunctions.zip . -x "*.pyc" "__pycache__/*"
       cd ..
-      zip -g orchestration.zip drs_orchestrator.py
+      zip -g orchestration-stepfunctions.zip orchestration_stepfunctions.py
       
       # Package execution-finder (poller/execution_finder.py)
       cd package
@@ -265,7 +265,7 @@ deploy:upload-artifacts:
     - aws s3 sync cfn/ s3://${DEPLOYMENT_BUCKET}/cfn/ --delete
     - echo "Uploading Lambda packages to S3..."
     - aws s3 cp lambda/api-handler.zip s3://${DEPLOYMENT_BUCKET}/lambda/api-handler.zip
-    - aws s3 cp lambda/orchestration.zip s3://${DEPLOYMENT_BUCKET}/lambda/orchestration.zip
+    - aws s3 cp lambda/orchestration-stepfunctions.zip s3://${DEPLOYMENT_BUCKET}/lambda/orchestration-stepfunctions.zip
     - aws s3 cp lambda/execution-finder.zip s3://${DEPLOYMENT_BUCKET}/lambda/execution-finder.zip
     - aws s3 cp lambda/execution-poller.zip s3://${DEPLOYMENT_BUCKET}/lambda/execution-poller.zip
     - echo "Artifacts uploaded successfully"

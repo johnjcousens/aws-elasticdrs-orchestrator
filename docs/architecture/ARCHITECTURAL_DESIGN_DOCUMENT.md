@@ -64,7 +64,7 @@ The AWS DRS Orchestration system follows a **serverless-first, cloud-native** ar
 ### Deployment Summary
 
 - **Infrastructure**: 100% AWS CloudFormation (6 nested stacks, 2,400+ lines)
-- **Compute**: 4 Lambda functions (Python 3.12)
+- **Compute**: 5 Lambda functions (Python 3.12)
 - **Storage**: 3 DynamoDB tables (on-demand)
 - **Frontend**: React 18.3 SPA on S3 + CloudFront
 - **Orchestration**: AWS Step Functions (35+ states)

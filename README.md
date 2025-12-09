@@ -252,7 +252,7 @@ The solution uses a modular nested stack architecture for maintainability:
 |-------|---------|---------------|
 | `master-template.yaml` | Root orchestrator | Parameter propagation, outputs |
 | `database-stack.yaml` | Data persistence | 3 DynamoDB tables with encryption |
-| `lambda-stack.yaml` | Compute layer | 6 Lambda functions, IAM roles |
+| `lambda-stack.yaml` | Compute layer | 5 Lambda functions, IAM roles |
 | `api-stack.yaml` | API & Auth | API Gateway, Cognito, Step Functions |
 | `security-stack.yaml` | Security (optional) | WAF, CloudTrail |
 | `frontend-stack.yaml` | Frontend hosting | S3, CloudFront |

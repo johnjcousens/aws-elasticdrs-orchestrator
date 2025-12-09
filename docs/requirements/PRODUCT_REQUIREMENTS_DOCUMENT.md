@@ -33,7 +33,7 @@ AWS DRS Orchestration provides complete orchestration on top of AWS DRS:
 
 **Core**:
 - DynamoDB: 3 tables (protection-groups, recovery-plans, execution-history)
-- Lambda: 6 functions (API handler, orchestration, orchestration-stepfunctions, execution-finder, execution-poller, frontend-builder)
+- Lambda: 5 functions (API handler, orchestration-stepfunctions, execution-finder, execution-poller, frontend-builder)
 - Step Functions: Workflow orchestration
 - API Gateway: REST API with Cognito auth
 - S3 + CloudFront: Static hosting

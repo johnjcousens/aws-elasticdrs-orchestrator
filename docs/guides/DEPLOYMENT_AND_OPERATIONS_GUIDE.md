@@ -46,7 +46,7 @@ This Deployment and Operations Guide provides comprehensive instructions for dep
 **Stack Structure**:
 - 1 master template (orchestrates 6 nested stacks)
 - 7 CloudFormation templates (3,000+ lines total)
-- 6 Lambda functions (Python 3.12)
+- 5 Lambda functions (Python 3.12)
 - 3 DynamoDB tables with GSI
 - 1 Step Functions state machine
 - 1 React frontend (S3 + CloudFront)
