@@ -80,26 +80,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
   return (
     <>
-      {/* Top Navigation Bar - AWS Orange Branding */}
+      {/* Top Navigation Bar - AWS Console Style */}
       <div id="top-nav" style={{ position: 'sticky', top: 0, zIndex: 1002 }}>
-        <style>
-          {`
-            #top-nav [class*="awsui_identity"] {
-              font-family: "Amazon Ember", "Helvetica Neue", Roboto, Arial, sans-serif !important;
-            }
-            #top-nav header[class*="awsui_header"] {
-              background: linear-gradient(90deg, #232F3E 0%, #FF9900 100%) !important;
-            }
-          `}
-        </style>
         <TopNavigation
           identity={{
             href: '/',
-            title: 'Amazon Web Services Elastic Disaster Recovery Orchestrator',
-            logo: {
-              src: 'https://d0.awsstatic.com/logos/powered-by-aws-white.png',
-              alt: 'Powered by AWS',
-            },
+            title: 'DRS Orchestrator',
             onFollow: (e) => {
               e.preventDefault();
               navigate('/');
@@ -107,11 +93,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           }}
           utilities={[
             {
+              type: 'button',
+              iconName: 'notification',
+              ariaLabel: 'Notifications',
+              badge: false,
+              disableUtilityCollapse: false,
+            },
+            {
+              type: 'button',
+              iconName: 'settings',
+              ariaLabel: 'Settings',
+              disableUtilityCollapse: false,
+            },
+            {
               type: 'menu-dropdown',
               text: user?.email || user?.username || 'User',
               iconName: 'user-profile',
               items: [
                 { id: 'profile', text: 'Profile', disabled: true },
+                { id: 'preferences', text: 'Preferences', disabled: true },
                 { id: 'signout', text: 'Sign out' },
               ],
               onItemClick: ({ detail }) => {

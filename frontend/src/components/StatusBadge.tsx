@@ -70,6 +70,12 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           color: 'grey' as const,
         };
       
+      case 'cancelling':
+        return {
+          label: 'Cancelling',
+          color: 'grey' as const,
+        };
+      
       case 'rolled back':
       case 'rolled_back':
       case 'rollback':
