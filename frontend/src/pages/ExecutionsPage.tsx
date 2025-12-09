@@ -112,11 +112,31 @@ export const ExecutionsPage: React.FC = () => {
 
   const calculateDuration = (execution: ExecutionListItem): string => {
     if (!execution.startTime) return '-';
-    const start = new Date(execution.startTime);
+    
+    // Handle Unix timestamps (seconds) vs JavaScript timestamps (milliseconds)
+    let startTimeMs: number | string = execution.startTime;
+    if (typeof startTimeMs === 'number' && startTimeMs < 10000000000) {
+      startTimeMs = startTimeMs * 1000; // Convert seconds to milliseconds
+    }
+    
+    let endTimeMs: number | string | undefined = execution.endTime;
+    if (endTimeMs && typeof endTimeMs === 'number' && endTimeMs < 10000000000) {
+      endTimeMs = endTimeMs * 1000; // Convert seconds to milliseconds
+    }
+    
+    const start = new Date(startTimeMs);
     if (isNaN(start.getTime())) return '-';
-    const end = execution.endTime ? new Date(execution.endTime) : new Date();
+    
+    // For failed/completed executions without endTime, show '-' instead of calculating from now
+    const isTerminal = ['completed', 'failed', 'cancelled', 'partial', 'COMPLETED', 'FAILED', 'CANCELLED', 'PARTIAL'].includes(execution.status as string);
+    if (isTerminal && !endTimeMs) return '-';
+    
+    const end = endTimeMs ? new Date(endTimeMs) : new Date();
     const durationMs = end.getTime() - start.getTime();
-    if (durationMs < 0) return '-';
+    
+    // Sanity check - duration shouldn't be negative or more than a year
+    if (durationMs < 0 || durationMs > 365 * 24 * 60 * 60 * 1000) return '-';
+    
     const hours = Math.floor(durationMs / (1000 * 60 * 60));
     const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);

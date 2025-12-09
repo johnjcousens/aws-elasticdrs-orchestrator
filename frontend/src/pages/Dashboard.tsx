@@ -301,7 +301,7 @@ export const Dashboard: React.FC = () => {
                         </Link>
                         <Box color="text-body-secondary" fontSize="body-s">
                           {exec.startTime
-                            ? new Date(exec.startTime).toLocaleString()
+                            ? new Date(Number(exec.startTime) * 1000).toLocaleString()
                             : 'Not started'}
                         </Box>
                       </SpaceBetween>

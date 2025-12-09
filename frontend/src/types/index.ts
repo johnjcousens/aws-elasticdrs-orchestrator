@@ -68,6 +68,7 @@ export interface Wave {
   // executionType removed - backend ignores this field, all within-wave execution
   // is parallel with DRS-safe delays (15s between servers). Use dependsOnWaves for sequential operations.
   dependsOnWaves?: number[];
+  pauseBeforeWave?: boolean;  // If true, execution pauses before starting this wave (requires manual resume)
   protectionGroupIds: string[];  // Required - wave can have multiple Protection Groups
   protectionGroupId?: string;  // Backward compatibility - single PG (deprecated, use protectionGroupIds)
   ProtectionGroupIds?: string[];  // Backend PascalCase version for compatibility
@@ -153,6 +154,7 @@ export interface Execution {
   executedBy?: string;
   error?: ExecutionError;
   metadata?: Record<string, any>;
+  pausedBeforeWave?: number;  // Wave number that execution is paused before (0-indexed)
 }
 
 export interface WaveExecution {

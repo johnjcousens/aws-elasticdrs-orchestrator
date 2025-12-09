@@ -144,7 +144,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             ExecutionOrder: index,
             ProtectionGroupId: wave.protectionGroupId,  // Use wave's PG
             ServerIds: wave.serverIds,
-            // ExecutionType removed - backend ignores this field, all execution is parallel with DRS-safe delays
+            PauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
             Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
               DependsOnWaveId: `wave-${depNum}`
             }))
@@ -164,7 +164,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             ExecutionOrder: index,
             ProtectionGroupId: wave.protectionGroupId,  // Use wave's PG
             ServerIds: wave.serverIds,
-            // ExecutionType removed - backend ignores this field, all execution is parallel with DRS-safe delays
+            PauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
             Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
               DependsOnWaveId: `wave-${depNum}`
             }))
