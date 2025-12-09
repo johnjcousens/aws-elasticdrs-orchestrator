@@ -12,6 +12,62 @@
 
 ## 📜 Session Checkpoints
 
+**Session 66: Step Functions Pause/Resume & UI Improvements - COMPLETE** (December 9, 2025 - Evening Session)
+
+- **Git Commit**: `9030a07` - fix: Step Functions pause/resume, DRS events auto-refresh, button click prevention
+- **Git Tag**: `v4.0-ProtoType-StepFunctionsWithPauseAndResume`
+- **Summary**: 🎉 **CRITICAL FIXES COMPLETE** - Resume execution working, DRS events auto-refresh, improved UX
+
+- **Critical Fixes Implemented**:
+  1. **Resume Execution Fix (Step Functions Callback Pattern)**:
+     - **Problem**: 400 Bad Request when resuming paused executions
+     - **Root Cause**: `OutputPath: '$.Payload'` in `WaitForResume` state - callback output is at root level, not nested
+     - **Solution**: Removed `OutputPath` from `WaitForResume` state in `cfn/step-functions-stack.yaml`
+     - **Result**: Resume now works correctly, execution continues to next wave
+  
+  2. **DRS Job Events Auto-Refresh**:
+     - **Problem**: DRS Job Events section not updating automatically during execution
+     - **Solution**: Added separate 3-second polling interval for DRS events in `WaveProgress.tsx`
+     - **Features**: Collapsible section, auto-refresh independent of main status polling
+     - **Result**: Real-time visibility into DRS job progress (SNAPSHOT_START, CONVERSION_START, etc.)
+  
+  3. **Button Click Prevention (Loading States)**:
+     - **Problem**: Users could click action buttons multiple times during API calls
+     - **Solution**: Added `loading` prop to `ConfirmDialog` component, propagated to all dialogs
+     - **Files Updated**: `ConfirmDialog.tsx`, `ExecutionDetailsPage.tsx`
+     - **Result**: Buttons disabled during operations, prevents duplicate API calls
+  
+  4. **Step Functions Pause Timeout Increased**:
+     - **Change**: `WaitForResume` timeout increased from 86400 (24 hours) to 31536000 (1 year max)
+     - **Reason**: Support overnight pause testing and extended pause scenarios
+     - **File**: `cfn/step-functions-stack.yaml`
+
+- **Files Modified**:
+  - `cfn/step-functions-stack.yaml` - Removed OutputPath, increased timeout to 1 year
+  - `lambda/index.py` - Resume execution handler improvements
+  - `frontend/src/components/WaveProgress.tsx` - DRS events auto-refresh (3s polling)
+  - `frontend/src/components/ConfirmDialog.tsx` - Added loading prop
+  - `frontend/src/pages/ExecutionDetailsPage.tsx` - Loading states for all dialogs
+  - `README.md` - December 9, 2025 changelog
+
+- **Technical Details**:
+  - **Callback Pattern Fix**: For `waitForTaskToken` states, callback output is at root level, NOT `$.Payload`
+  - **Auto-logout**: Confirmed 45-minute timer in `AuthContext.tsx`
+  - **Cognito Tokens**: Access/ID = 60 min, Refresh = 30 days
+
+- **Deployment**:
+  - S3 artifacts synced to `s3://aws-drs-orchestration/`
+  - CloudFormation stack `drs-orchestration-dev` updated
+  - Frontend deployed to CloudFront distribution `E11GKJ6EKYBVWW`
+
+- **Session Statistics**:
+  - **Files Changed**: 6
+  - **Key Fixes**: 4 (resume, auto-refresh, loading states, timeout)
+  - **Deployment Method**: `./scripts/sync-to-deployment-bucket.sh --deploy-cfn`
+
+- **Result**: 🎉 **PAUSE/RESUME FULLY WORKING** - Ready for overnight pause testing
+- **Confidence Level**: **HIGH** - All fixes verified, user testing overnight pause scenario
+
 **Session 65: Documentation Deep Research - COMPLETE** (December 8, 2025 - 3:00 PM - 3:45 PM EST)
 - **Git Commits**: `aec77e7` - docs: Comprehensive documentation updates for DR platform APIs, `d005f99` - chore: Add Code Defender exceptions
 - **Checkpoint**: `history/checkpoints/checkpoint_session_20251208_154305_373195_2025-12-08_15-43-05.md`
