@@ -245,8 +245,8 @@ export const ProtectionGroupsPage: React.FC = () => {
                 return (
                   <ButtonDropdown
                     items={[
-                      { id: 'edit', text: 'Edit', disabled: isInActiveExecution, disabledReason: 'Cannot edit while execution is running' },
-                      { id: 'delete', text: 'Delete', disabled: isInRecoveryPlan, disabledReason: 'Remove from recovery plans first' },
+                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: isInActiveExecution, disabledReason: 'Cannot edit while execution is running' },
+                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: isInRecoveryPlan, disabledReason: 'Remove from recovery plans first' },
                     ]}
                     onItemClick={({ detail }) => {
                       if (detail.id === 'edit') {
