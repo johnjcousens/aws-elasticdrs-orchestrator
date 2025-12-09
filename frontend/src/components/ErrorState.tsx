@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Box, Button, Alert } from '@cloudscape-design/components';
+import { Box, Button, Alert, Icon } from '@cloudscape-design/components';
 
 export interface ErrorStateProps {
   error?: string | Error;
@@ -84,7 +84,9 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         padding: '24px',
       }}
     >
-      <div style={{ fontSize: '48px', color: '#d13212' }}>⚠️</div>
+      <div style={{ fontSize: '48px', color: '#d13212' }}>
+        <Icon name="status-warning" size="big" variant="error" />
+      </div>
       <h2 style={{ color: '#d13212', margin: 0 }}>{title}</h2>
       <p style={{ color: '#5f6b7a', maxWidth: '600px', margin: 0 }}>
         {errorMessage}
