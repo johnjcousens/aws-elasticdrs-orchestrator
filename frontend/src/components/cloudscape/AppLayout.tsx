@@ -86,6 +86,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           identity={{
             href: '/',
             title: 'DRS Orchestrator',
+            logo: {
+              src: 'https://a0.awsstatic.com/libra-css/images/logos/aws_smile-header-desktop-en-white_59x35.png',
+              alt: 'AWS',
+            },
             onFollow: (e) => {
               e.preventDefault();
               navigate('/');
