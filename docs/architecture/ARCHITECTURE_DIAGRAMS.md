@@ -104,7 +104,7 @@ graph TB
 ```
 
 **Key Components:**
-- **6 Lambda Functions**: API handler, orchestration (2), execution monitoring (2), frontend builder
+- **5 Lambda Functions**: API handler, orchestration-stepfunctions, execution finder, execution poller, frontend builder
 - **3 DynamoDB Tables**: Protection groups, recovery plans, execution history
 - **1 Step Functions State Machine**: Wave-based orchestration engine
 - **1 EventBridge Rule**: Triggers execution finder every 1 minute
@@ -657,7 +657,7 @@ s3://aws-drs-orchestration/
 
 This architecture provides:
 
-- **6 Lambda functions** for API, orchestration, and monitoring
+- **5 Lambda functions** for API, orchestration, and monitoring
 - **3 DynamoDB tables** for data persistence with GSI for efficient queries
 - **1 Step Functions state machine** for wave-based orchestration
 - **1 EventBridge rule** for scheduled execution monitoring
