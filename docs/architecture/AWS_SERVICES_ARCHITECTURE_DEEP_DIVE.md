@@ -39,7 +39,7 @@ This architectural deep dive establishes the technical foundation for AWS DRS Or
 
 **Operational Benefits:** The serverless architecture delivers automatic scaling from zero to thousands of concurrent operations without capacity planning. Pay-per-use pricing means you only pay for actual disaster recovery operations, not idle infrastructure. CloudFormation enables complete environment provisioning in 20-30 minutes with zero manual configuration. Built-in AWS service integrations eliminate custom integration code, reducing maintenance burden and improving reliability. CloudWatch provides comprehensive observability across all services with centralized logging and metrics.
 
-**Implementation Success:** The modular CloudFormation architecture supports rapid deployment across dev, test, and production environments. Each of the twelve services integrates through standard AWS APIs and IAM roles, enabling customization without architectural changes. The solution includes 4 Lambda functions (1,419 lines of Python), 3 DynamoDB tables with on-demand billing, complete Cognito authentication, and automated frontend deployment. Security controls include encryption at rest, TLS 1.2+ in transit, least-privilege IAM roles, and optional WAF protection.
+**Implementation Success:** The modular CloudFormation architecture supports rapid deployment across dev, test, and production environments. Each of the twelve services integrates through standard AWS APIs and IAM roles, enabling customization without architectural changes. The solution includes 5 Lambda functions (Python 3.12), 3 DynamoDB tables with on-demand billing, complete Cognito authentication, and automated frontend deployment. Security controls include encryption at rest, TLS 1.2+ in transit, least-privilege IAM roles, and optional WAF protection.
 
 This framework positions organizations to deploy enterprise disaster recovery automation with AWS-native services, eliminating dependency on third-party solutions while maintaining flexibility for future enhancements and integrations.
 
@@ -53,7 +53,7 @@ This framework positions organizations to deploy enterprise disaster recovery au
 **Key Deliverables:**
 	- **Complete Service Integration**: 12 AWS services working together through standard APIs and IAM roles
 	- **Production-Ready Infrastructure**: CloudFormation templates with 2,500+ lines defining 50+ resources
-	- **Operational Automation**: 4 Lambda functions handling API, orchestration, frontend build, and custom resources
+	- **Operational Automation**: 5 Lambda functions handling API, orchestration, polling, and frontend build
 	- **Security Framework**: 6 IAM roles with least-privilege policies, Cognito authentication, encryption at rest/in-transit
 
 ---

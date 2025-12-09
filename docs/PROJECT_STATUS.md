@@ -4,7 +4,7 @@
 **Version**: 4.0 - Production Deployed  
 **Status**: ✅ PRODUCTION READY - All core functionality operational
 **DRS Integration**: ✅ FULLY WORKING - Complete IAM permissions, recovery instances created
-**Architecture**: 6 Lambda functions, 7 CloudFormation stacks, Step Functions orchestration
+**Architecture**: 5 Lambda functions, 7 CloudFormation stacks, Step Functions orchestration
 **Cost**: $12-40/month operational cost
 **Regional Support**: All AWS DRS-supported regions (Americas: 5, Europe: 6, Asia Pacific: 3)
 
