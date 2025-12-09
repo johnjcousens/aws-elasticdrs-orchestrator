@@ -485,6 +485,20 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 - Resume button already had proper `disabled={resuming}` and `loading={resuming}` props
 - Prevents accidental multiple operations and provides clear visual feedback
 
+## Future Enhancements
+
+| Feature | Description | Status | Documentation |
+|---------|-------------|--------|---------------|
+| **Multi-Account Support** | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI. | Planned | [Implementation Plan](docs/implementation/MULTI_ACCOUNT_SUPPORT_IMPLEMENTATION_PLAN.md) |
+| **SNS Notification Integration** | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty. | Planned | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md) |
+| **Cross-Account DRS Monitoring** | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards. | Planned | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md) |
+| **Step Functions Visualization** | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI. | Planned | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md) |
+| **CodeBuild & CodeCommit Migration** | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline. | Planned | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md) |
+| **DRS Tag Synchronization** | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls. | Planned | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md) |
+| **DRS Launch Settings Management** | Configure EC2 launch templates for DRS source servers directly from the UI. Includes single-server configuration, bulk updates, and template library. | Planned | [Implementation Plan](docs/implementation/DRS_LAUNCH_SETTINGS_IMPLEMENTATION_PLAN.md) |
+| **SSM Automation Integration** | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts. | Planned | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md) |
+| **Scheduled Drills** | Automated scheduled drill executions with reporting | Planned | - |
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

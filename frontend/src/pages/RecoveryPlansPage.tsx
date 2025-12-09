@@ -313,13 +313,22 @@ export const RecoveryPlansPage: React.FC = () => {
               width: 150,
               cell: (item) => {
                 const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
-                const isDisabled = item.status === 'archived' || executing || hasInProgressExecution;
+                const hasServerConflict = item.hasServerConflict === true;
+                const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
+                
+                // Build description for disabled state
+                let drillDescription = 'Test recovery without failover';
+                let recoveryDescription = 'Actual failover operation';
+                if (hasServerConflict && item.conflictInfo?.reason) {
+                  drillDescription = `Blocked: ${item.conflictInfo.reason}`;
+                  recoveryDescription = `Blocked: ${item.conflictInfo.reason}`;
+                }
                 
                 return (
                   <ButtonDropdown
                     items={[
-                      { id: 'drill', text: 'Run Drill', iconName: 'check', description: 'Test recovery without failover', disabled: isDisabled },
-                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: 'Actual failover operation', disabled: isDisabled },
+                      { id: 'drill', text: 'Run Drill', iconName: 'check', description: drillDescription, disabled: isExecutionDisabled },
+                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: recoveryDescription, disabled: isExecutionDisabled },
                       { id: 'divider', text: '-', disabled: true },
                       { id: 'edit', text: 'Edit', iconName: 'edit', disabled: hasInProgressExecution },
                       { id: 'delete', text: 'Delete', iconName: 'remove', disabled: hasInProgressExecution },

@@ -123,20 +123,29 @@ Wave-based orchestration with multi-Protection Group support and pause/resume ca
 
 ### 3. Execution Engine
 
-Step Functions-driven recovery automation with pause/resume and instance termination.
+Step Functions-driven recovery automation with pause/resume, instance termination, and server conflict detection.
+
+**Server Conflict Detection**:
+- Prevents starting executions when servers are already in use by another active/paused execution
+- Checks ALL servers across ALL waves of the recovery plan (not just currently executing waves)
+- For PAUSED/PENDING executions, looks up the original Recovery Plan to identify all servers that will be used
+- Frontend proactively disables Drill/Recovery buttons with reason when conflicts exist
+- API returns `hasServerConflict` and `conflictInfo` fields for each recovery plan
+- Conflict info includes: conflicting execution ID, status, and list of conflicting server IDs
 
 **Execution Flow**:
-1. Validate plan and servers exist
-2. Create execution record with PENDING status
-3. Start Step Functions state machine
-4. For each wave:
+1. Check for server conflicts with active/paused executions
+2. Validate plan and servers exist
+3. Create execution record with PENDING status
+4. Start Step Functions state machine
+5. For each wave:
    - Check for `pauseBeforeWave` configuration
    - If paused: Enter `waitForTaskToken` state (up to 1 year timeout)
    - Call DRS `StartRecovery` API with all wave servers
    - Poll job status via Step Functions orchestration
    - Wait for all servers to reach LAUNCHED status
    - Update execution record in DynamoDB
-5. Mark execution COMPLETED or FAILED
+6. Mark execution COMPLETED or FAILED
 
 **Pause/Resume Mechanism**:
 - Waves can be configured with `pauseBeforeWave: true`
