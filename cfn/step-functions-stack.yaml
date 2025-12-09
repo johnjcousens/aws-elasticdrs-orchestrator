@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Step Functions State Machine for DRS Orchestration - Based on drs-plan-automation reference'
+Description: 'Step Functions State Machine for DRS Orchestration - Archive pattern with OutputPath'
 
 Parameters:
   ProjectName:
@@ -17,17 +17,17 @@ Parameters:
     Description: 'ARN of the orchestration Lambda function'
 
 Resources:
-  # Step Functions State Machine - Based on drs-plan-automation reference
+  # Step Functions State Machine - Archive pattern: Lambda owns ALL state via OutputPath
   DRSOrchestrationStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
       StateMachineName: !Sub '${ProjectName}-state-machine-${Environment}'
       RoleArn: !GetAtt StateMachineRole.Arn
       Definition:
-        Comment: 'DRS Recovery Plan Orchestration - Wait/Poll/Check/Loop pattern from reference implementation'
+        Comment: 'DRS Recovery Plan Orchestration - Archive pattern with OutputPath (Lambda owns state)'
         StartAt: 'InitiateWavePlan'
         States:
-          # Step 1: Initialize the wave plan
+          # Step 1: Initialize the wave plan - Lambda returns FULL state
           InitiateWavePlan:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
@@ -38,24 +38,7 @@ Resources:
                 execution.$: '$.Execution.Id'
                 plan.$: '$.Plan'
                 isDrill.$: '$.IsDrill'
-            ResultPath: '$.application'
-            ResultSelector:
-              plan_id.$: '$.Payload.plan_id'
-              execution_id.$: '$.Payload.execution_id'
-              is_drill.$: '$.Payload.is_drill'
-              waves.$: '$.Payload.waves'
-              current_wave_number.$: '$.Payload.current_wave_number'
-              all_waves_completed.$: '$.Payload.all_waves_completed'
-              wave_completed.$: '$.Payload.wave_completed'
-              current_wave_update_time.$: '$.Payload.current_wave_update_time'
-              current_wave_total_wait_time.$: '$.Payload.current_wave_total_wait_time'
-              current_wave_max_wait_time.$: '$.Payload.current_wave_max_wait_time'
-              status.$: '$.Payload.status'
-              job_id.$: '$.Payload.job_id'
-              region.$: '$.Payload.region'
-              server_ids.$: '$.Payload.server_ids'
-              wave_results.$: '$.Payload.wave_results'
-              error.$: '$.Payload.error'
+            OutputPath: '$.Payload'
             Next: 'DetermineWavePlanState'
             Retry:
               - ErrorEquals:
@@ -71,19 +54,23 @@ Resources:
             Type: Choice
             Choices:
               # Check for failure
-              - Variable: '$.application.status'
+              - Variable: '$.status'
                 StringEquals: 'failed'
                 Next: 'PlanFailed'
               # Check for timeout
-              - Variable: '$.application.status'
+              - Variable: '$.status'
                 StringEquals: 'timeout'
                 Next: 'PlanTimeout'
+              # Check for paused (PauseBeforeWave)
+              - Variable: '$.status'
+                StringEquals: 'paused'
+                Next: 'WaitForResume'
               # Check if all waves completed
-              - Variable: '$.application.all_waves_completed'
+              - Variable: '$.all_waves_completed'
                 BooleanEquals: true
                 Next: 'PlanCompleted'
               # Otherwise check wave state
-              - Variable: '$.application.all_waves_completed'
+              - Variable: '$.all_waves_completed'
                 BooleanEquals: false
                 Next: 'DetermineWaveState'
             Default: 'DetermineWaveState'
@@ -93,34 +80,73 @@ Resources:
             Type: Choice
             Choices:
               # Check for failure
-              - Variable: '$.application.status'
+              - Variable: '$.status'
                 StringEquals: 'failed'
                 Next: 'PlanFailed'
               # Check for timeout
-              - Variable: '$.application.status'
+              - Variable: '$.status'
                 StringEquals: 'timeout'
                 Next: 'PlanTimeout'
               # Check if all waves completed (after wave completion)
-              - Variable: '$.application.all_waves_completed'
+              - Variable: '$.all_waves_completed'
                 BooleanEquals: true
                 Next: 'PlanCompleted'
               # Check if current wave is still in progress
-              - Variable: '$.application.wave_completed'
+              - Variable: '$.wave_completed'
                 BooleanEquals: false
                 Next: 'WaitForWaveUpdate'
               # Wave completed, check plan state
-              - Variable: '$.application.wave_completed'
+              - Variable: '$.wave_completed'
                 BooleanEquals: true
                 Next: 'DetermineWavePlanState'
             Default: 'WaitForWaveUpdate'
           
-          # Step 4: Wait before polling (dynamic wait time from application state)
+          # Step 4: Wait before polling
           WaitForWaveUpdate:
             Type: Wait
-            SecondsPath: '$.application.current_wave_update_time'
+            SecondsPath: '$.current_wave_update_time'
             Next: 'UpdateWaveStatus'
           
-          # Step 5: Poll DRS job status and check server launch status
+          # Pause state: Wait for external resume signal (callback pattern)
+          # SendTaskSuccess output becomes the state (no Payload wrapper for callbacks)
+          WaitForResume:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke.waitForTaskToken'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'store_task_token'
+                application.$: '$'
+                taskToken.$: '$$.Task.Token'
+            # NOTE: No OutputPath here - callback output is returned directly at root level
+            TimeoutSeconds: 86400
+            Next: 'ResumeWavePlan'
+            Catch:
+              - ErrorEquals:
+                  - 'States.Timeout'
+                Next: 'PlanTimeout'
+          
+          # After resume, start the next wave - Lambda returns FULL state
+          ResumeWavePlan:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'resume_wave'
+                application.$: '$'
+            OutputPath: '$.Payload'
+            Next: 'DetermineWaveState'
+            Retry:
+              - ErrorEquals:
+                  - 'Lambda.ServiceException'
+                  - 'Lambda.AWSLambdaException'
+                  - 'Lambda.SdkClientException'
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+          
+          # Step 5: Poll DRS job status - Lambda returns FULL state
           UpdateWaveStatus:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
@@ -128,25 +154,8 @@ Resources:
               FunctionName: !Ref OrchestrationLambdaArn
               Payload:
                 action: 'update_wave_status'
-                application.$: '$.application'
-            ResultPath: '$.application'
-            ResultSelector:
-              plan_id.$: '$.Payload.plan_id'
-              execution_id.$: '$.Payload.execution_id'
-              is_drill.$: '$.Payload.is_drill'
-              waves.$: '$.Payload.waves'
-              current_wave_number.$: '$.Payload.current_wave_number'
-              all_waves_completed.$: '$.Payload.all_waves_completed'
-              wave_completed.$: '$.Payload.wave_completed'
-              current_wave_update_time.$: '$.Payload.current_wave_update_time'
-              current_wave_total_wait_time.$: '$.Payload.current_wave_total_wait_time'
-              current_wave_max_wait_time.$: '$.Payload.current_wave_max_wait_time'
-              status.$: '$.Payload.status'
-              job_id.$: '$.Payload.job_id'
-              region.$: '$.Payload.region'
-              server_ids.$: '$.Payload.server_ids'
-              wave_results.$: '$.Payload.wave_results'
-              error.$: '$.Payload.error'
+                application.$: '$'
+            OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:
               - ErrorEquals:

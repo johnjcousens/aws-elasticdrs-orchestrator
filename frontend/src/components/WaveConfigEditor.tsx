@@ -20,6 +20,7 @@ import {
   Container,
   Multiselect,
   Textarea,
+  Checkbox,
 } from '@cloudscape-design/components';
 import { ServerSelector } from './ServerSelector';
 import type { Wave, ProtectionGroup } from '../types';
@@ -284,6 +285,24 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                           disabled={readonly}
                           placeholder="Select waves this wave depends on"
                         />
+                      </FormField>
+                    )}
+
+                    {/* Pause Before Wave Checkbox - only show for waves after the first */}
+                    {wave.waveNumber > 0 && (
+                      <FormField
+                        label="Pause Before Wave"
+                        description="When enabled, execution will pause before starting this wave and require manual resume"
+                      >
+                        <Checkbox
+                          checked={wave.pauseBeforeWave || false}
+                          onChange={({ detail }) =>
+                            handleUpdateWave(wave.waveNumber, 'pauseBeforeWave', detail.checked)
+                          }
+                          disabled={readonly}
+                        >
+                          Pause execution before starting this wave
+                        </Checkbox>
                       </FormField>
                     )}
                   </SpaceBetween>
