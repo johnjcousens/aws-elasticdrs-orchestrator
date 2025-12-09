@@ -105,6 +105,55 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
         return []
 
 
+def get_active_execution_for_protection_group(group_id: str) -> Optional[Dict]:
+    """
+    Check if a protection group is part of any active execution.
+    Returns execution info if found, None otherwise.
+    """
+    try:
+        # First, find all recovery plans that use this protection group
+        plans_result = recovery_plans_table.scan()
+        all_plans = plans_result.get('Items', [])
+        
+        # Handle pagination
+        while 'LastEvaluatedKey' in plans_result:
+            plans_result = recovery_plans_table.scan(
+                ExclusiveStartKey=plans_result['LastEvaluatedKey']
+            )
+            all_plans.extend(plans_result.get('Items', []))
+        
+        # Find plan IDs that reference this protection group
+        plan_ids_with_pg = []
+        for plan in all_plans:
+            for wave in plan.get('Waves', []):
+                pg_id_in_wave = wave.get('ProtectionGroupId')
+                if pg_id_in_wave == group_id:
+                    plan_ids_with_pg.append(plan.get('PlanId'))
+                    break
+        
+        if not plan_ids_with_pg:
+            return None  # PG not used in any plan
+        
+        # Check if any of these plans have active executions
+        for plan_id in plan_ids_with_pg:
+            active_executions = get_active_executions_for_plan(plan_id)
+            if active_executions:
+                exec_info = active_executions[0]
+                # Get plan name
+                plan = next((p for p in all_plans if p.get('PlanId') == plan_id), {})
+                return {
+                    'executionId': exec_info.get('ExecutionId'),
+                    'planId': plan_id,
+                    'planName': plan.get('PlanName', 'Unknown'),
+                    'status': exec_info.get('Status')
+                }
+        
+        return None
+    except Exception as e:
+        print(f"Error checking active execution for protection group: {e}")
+        return None
+
+
 def get_all_active_executions() -> List[Dict]:
     """Get all active executions across all plans"""
     try:
@@ -228,15 +277,11 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         if http_method == 'OPTIONS':
             return response(200, {'message': 'OK'})
         
-        # DEBUG: Log routing info
-        print(f"ROUTE DEBUG - path: {path}, method: {http_method}, path_params: {path_parameters}")
-        
         # Route to appropriate handler
         if path.startswith('/protection-groups'):
             return handle_protection_groups(http_method, path_parameters, body)
         elif '/execute' in path and path.startswith('/recovery-plans'):
             # Handle /recovery-plans/{planId}/execute endpoint
-            print(f"DEBUG: Execute route matched!")
             plan_id = path_parameters.get('id')
             body['PlanId'] = plan_id
             if 'InitiatedBy' not in body:
@@ -445,6 +490,15 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             return response(404, {'error': 'Protection Group not found'})
         
         existing_group = result['Item']
+        
+        # BLOCK: Cannot update protection group if it's part of an active execution
+        active_exec_info = get_active_execution_for_protection_group(group_id)
+        if active_exec_info:
+            return response(409, {
+                'error': 'PG_IN_ACTIVE_EXECUTION',
+                'message': f'Cannot modify Protection Group while it is part of an active execution',
+                'activeExecution': active_exec_info
+            })
         
         # Prevent region changes
         if 'Region' in body and body['Region'] != existing_group.get('Region'):
@@ -3294,9 +3348,6 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
                 server_ids = [server_ids]
             else:
                 server_ids = []
-        
-        # LOGGING: Track transformation for debugging
-        print(f"Transforming wave {idx}: name={wave.get('WaveName')}, serverIds={server_ids}, count={len(server_ids)}")
         
         # Extract dependency wave numbers from WaveId format
         depends_on_waves = []

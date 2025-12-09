@@ -42,6 +42,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [terminateDialogOpen, setTerminateDialogOpen] = useState(false);
   const [terminating, setTerminating] = useState(false);
+  const [terminationInProgress, setTerminationInProgress] = useState(false);
   const [terminateError, setTerminateError] = useState<string | null>(null);
   const [terminateSuccess, setTerminateSuccess] = useState<string | null>(null);
 
@@ -98,6 +99,28 @@ export const ExecutionDetailsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [execution]);
 
+  // Polling while termination is in progress
+  useEffect(() => {
+    if (!terminationInProgress || !execution) return;
+
+    // Check if instances are now terminated
+    const isTerminated = 
+      (execution as any).instancesTerminated === true ||
+      (execution as any).InstancesTerminated === true;
+
+    if (isTerminated) {
+      setTerminationInProgress(false);
+      setTerminateSuccess('All recovery instances have been terminated.');
+      return;
+    }
+
+    const interval = setInterval(() => {
+      fetchExecution(true); // Silent refresh to check termination status
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [terminationInProgress, execution]);
+
   const handleCancelExecution = async () => {
     if (!executionId) return;
 
@@ -135,29 +158,33 @@ export const ExecutionDetailsPage: React.FC = () => {
     if (!executionId) return;
 
     setTerminating(true);
+    setTerminationInProgress(true);
     setTerminateError(null);
     setTerminateSuccess(null);
+    setTerminateDialogOpen(false);
 
     try {
       const result = await apiClient.terminateRecoveryInstances(executionId);
-      setTerminateDialogOpen(false);
       
       // Handle "already terminated" response
       if (result.alreadyTerminated) {
         setTerminateSuccess('Recovery instances have already been terminated.');
+        setTerminationInProgress(false);
       } else if (result.totalTerminated > 0) {
         setTerminateSuccess(
           `Successfully terminated ${result.totalTerminated} recovery instance(s)` +
           (result.totalFailed > 0 ? `. ${result.totalFailed} failed.` : '')
         );
+        // Keep terminationInProgress true - polling will detect when complete
       } else if (result.totalFailed > 0) {
         setTerminateError(`Failed to terminate ${result.totalFailed} instance(s). They may have already been terminated.`);
+        setTerminationInProgress(false);
       } else {
         setTerminateSuccess('No recovery instances to terminate.');
+        setTerminationInProgress(false);
       }
       await fetchExecution();
     } catch (err: any) {
-      setTerminateDialogOpen(false);
       // Check if error indicates already terminated
       const errorMsg = err.message || '';
       if (errorMsg.includes('No recovery instances') || errorMsg.includes('already')) {
@@ -166,6 +193,7 @@ export const ExecutionDetailsPage: React.FC = () => {
       } else {
         setTerminateError(err.message || 'Failed to terminate recovery instances');
       }
+      setTerminationInProgress(false);
     } finally {
       setTerminating(false);
     }
@@ -428,7 +456,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                 >
                   Refresh
                 </Button>
-                {isPaused && (
+                {isPaused && !resuming && (
                   <Button
                     onClick={handleResumeExecution}
                     disabled={resuming}
@@ -448,7 +476,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                     Cancel Execution
                   </Button>
                 )}
-                {canTerminate && (
+                {canTerminate && !terminationInProgress && (
                   <Button
                     onClick={() => setTerminateDialogOpen(true)}
                     disabled={terminating}
@@ -457,7 +485,10 @@ export const ExecutionDetailsPage: React.FC = () => {
                     Terminate Instances
                   </Button>
                 )}
-                {showTerminatedBadge && (
+                {terminationInProgress && (
+                  <Badge color="blue">Terminating...</Badge>
+                )}
+                {showTerminatedBadge && !terminationInProgress && (
                   <Badge color="grey">Instances Terminated</Badge>
                 )}
               </SpaceBetween>
@@ -493,6 +524,20 @@ export const ExecutionDetailsPage: React.FC = () => {
           {terminateSuccess && (
             <Alert type="success" dismissible onDismiss={() => setTerminateSuccess(null)}>
               {terminateSuccess}
+            </Alert>
+          )}
+
+          {/* Termination In Progress */}
+          {terminationInProgress && (
+            <Alert type="info" header="Terminating Recovery Instances">
+              <SpaceBetween size="s">
+                <div>Terminating recovery instances from DRS. This may take a few minutes...</div>
+                <ProgressBar
+                  status="in-progress"
+                  label="Termination Progress"
+                  description="Waiting for instances to be terminated"
+                />
+              </SpaceBetween>
             </Alert>
           )}
 
