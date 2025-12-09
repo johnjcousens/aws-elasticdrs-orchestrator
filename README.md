@@ -366,6 +366,81 @@ See [Appendix: Complete Documentation Index](#appendix-complete-documentation-in
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## Repository Snapshots & Rollback
+
+The repository uses Git tags to mark significant milestones. These tags capture the complete state of all files and can be used to rollback the entire repository.
+
+### Available Tags
+
+| Tag | Description | Date |
+|-----|-------------|------|
+| `mvp-demo-ready` | MVP Demo Ready - Complete working state with all core features functional | December 9, 2025 |
+| `future-plans-v1` | All future implementation plans documented | December 9, 2025 |
+
+### View All Tags
+
+```bash
+# List all tags with descriptions
+git tag -l -n1
+
+# Show detailed tag information
+git show mvp-demo-ready
+```
+
+### Rollback Entire Repository to a Tag
+
+**Option 1: Checkout tag (detached HEAD - read-only exploration)**
+```bash
+# View the repository at the tagged state
+git checkout mvp-demo-ready
+
+# Return to main branch when done
+git checkout main
+```
+
+**Option 2: Create a new branch from tag (for development)**
+```bash
+# Create a new branch starting from the tagged state
+git checkout -b my-feature-branch mvp-demo-ready
+```
+
+**Option 3: Hard reset main branch to tag (⚠️ DESTRUCTIVE)**
+```bash
+# WARNING: This discards all commits after the tag
+git checkout main
+git reset --hard mvp-demo-ready
+
+# If you need to push the reset (force push required)
+git push --force origin main
+```
+
+**Option 4: Revert to tag state while preserving history**
+```bash
+# Create a new commit that reverts to the tagged state
+git checkout main
+git revert --no-commit HEAD..mvp-demo-ready
+git commit -m "Revert to mvp-demo-ready state"
+```
+
+### Best Practices
+
+- **Before major changes**: Create a new tag to mark the stable state
+- **After successful demos**: Tag the repository for easy reference
+- **Use descriptive tag names**: Include version or milestone info (e.g., `v1.0-release`, `pre-refactor`)
+
+### Create a New Tag
+
+```bash
+# Create annotated tag (recommended)
+git tag -a my-tag-name -m "Description of this milestone"
+
+# Push tag to remote
+git push origin my-tag-name
+
+# Push all tags
+git push origin --tags
+```
+
 ---
 
 ## Appendix: Complete Documentation Index
