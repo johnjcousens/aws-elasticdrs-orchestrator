@@ -43,8 +43,9 @@ export const ProtectionGroupsPage: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ProtectionGroup | null>(null);
   const [groupsInRecoveryPlans, setGroupsInRecoveryPlans] = useState<Set<string>>(new Set());
+  const [groupsInActiveExecutions, setGroupsInActiveExecutions] = useState<Set<string>>(new Set());
 
-  // Fetch protection groups and check which are in recovery plans
+  // Fetch protection groups and check which are in recovery plans/active executions
   useEffect(() => {
     fetchGroups();
     fetchRecoveryPlansForGroupCheck();
@@ -54,14 +55,41 @@ export const ProtectionGroupsPage: React.FC = () => {
     try {
       const plans = await apiClient.listRecoveryPlans();
       const usedGroupIds = new Set<string>();
+      const activeGroupIds = new Set<string>();
+      
+      // Build map of plan ID to protection group IDs
+      const planToGroups: Record<string, string[]> = {};
       plans.forEach((plan) => {
+        const groupIds: string[] = [];
         plan.waves?.forEach((wave) => {
           if (wave.protectionGroupId) {
             usedGroupIds.add(wave.protectionGroupId);
+            groupIds.push(wave.protectionGroupId);
           }
         });
+        if (plan.id) {
+          planToGroups[plan.id] = groupIds;
+        }
       });
       setGroupsInRecoveryPlans(usedGroupIds);
+      
+      // Check for active executions
+      try {
+        const executionsResponse = await apiClient.listExecutions();
+        const executions = executionsResponse.items || [];
+        const activeStatuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'CANCELLING'];
+        executions.forEach((exec: { status?: string; recoveryPlanId?: string }) => {
+          const status = (exec.status || '').toUpperCase();
+          if (activeStatuses.includes(status) && exec.recoveryPlanId) {
+            // Add all protection groups from this plan to active set
+            const groupIds = planToGroups[exec.recoveryPlanId] || [];
+            groupIds.forEach(gid => activeGroupIds.add(gid));
+          }
+        });
+        setGroupsInActiveExecutions(activeGroupIds);
+      } catch (err) {
+        console.error('Failed to check active executions:', err);
+      }
     } catch (err) {
       console.error('Failed to check recovery plans:', err);
     }
@@ -213,10 +241,11 @@ export const ProtectionGroupsPage: React.FC = () => {
               width: 120,
               cell: (item) => {
                 const isInRecoveryPlan = groupsInRecoveryPlans.has(item.protectionGroupId);
+                const isInActiveExecution = groupsInActiveExecutions.has(item.protectionGroupId);
                 return (
                   <ButtonDropdown
                     items={[
-                      { id: 'edit', text: 'Edit' },
+                      { id: 'edit', text: 'Edit', disabled: isInActiveExecution, disabledReason: 'Cannot edit while execution is running' },
                       { id: 'delete', text: 'Delete', disabled: isInRecoveryPlan, disabledReason: 'Remove from recovery plans first' },
                     ]}
                     onItemClick={({ detail }) => {

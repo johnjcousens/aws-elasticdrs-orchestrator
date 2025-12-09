@@ -336,6 +336,28 @@ def update_wave_status(event: Dict) -> Dict:
     execution_id = state.get('execution_id')
     plan_id = state.get('plan_id')
     
+    # Early check for cancellation - check at start of every poll cycle
+    if execution_id and plan_id:
+        try:
+            exec_check = get_execution_history_table().get_item(
+                Key={'ExecutionId': execution_id, 'PlanId': plan_id}
+            )
+            exec_status = exec_check.get('Item', {}).get('Status', '')
+            if exec_status == 'CANCELLING':
+                print(f"⚠️ Execution cancelled (detected at poll start)")
+                state['all_waves_completed'] = True
+                state['wave_completed'] = True
+                state['status'] = 'cancelled'
+                get_execution_history_table().update_item(
+                    Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+                    UpdateExpression='SET #status = :status, EndTime = :end',
+                    ExpressionAttributeNames={'#status': 'Status'},
+                    ExpressionAttributeValues={':status': 'CANCELLED', ':end': int(time.time())}
+                )
+                return state
+        except Exception as e:
+            print(f"Error checking cancellation status: {e}")
+    
     if not job_id:
         print("No job_id found, marking wave complete")
         state['wave_completed'] = True
