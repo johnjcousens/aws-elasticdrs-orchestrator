@@ -5,7 +5,7 @@
  * Includes navigation, breadcrumbs, notifications, and content area.
  */
 
-import React, { type ReactNode } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import {
   AppLayout as CloudScapeAppLayout,
   SideNavigation,
@@ -45,6 +45,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const [navigationOpen, setNavigationOpen] = useState(true);
 
   // Navigation items
   const navigationItems = [
@@ -155,6 +156,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         content={children}
         toolsHide={toolsHide}
         navigationHide={navigationHide}
+        navigationOpen={navigationOpen}
+        onNavigationChange={({ detail }) => setNavigationOpen(detail.open)}
         navigationWidth={280}
         contentType="default"
         headerSelector="#top-nav"
