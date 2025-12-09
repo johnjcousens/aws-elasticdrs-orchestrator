@@ -52,13 +52,13 @@ const formatEventType = (event: string): { label: string; icon: string; color: s
     'JOB_START': { label: 'Job Started', icon: '▶', color: '#0972d3' },
     'JOB_END': { label: 'Job Completed', icon: '✓', color: '#037f0c' },
     'JOB_CANCEL': { label: 'Job Cancelled', icon: '⊘', color: '#5f6b7a' },
-    'SNAPSHOT_START': { label: 'Taking Snapshot', icon: '📸', color: '#0972d3' },
+    'SNAPSHOT_START': { label: 'Taking Snapshot', icon: '◉', color: '#0972d3' },
     'SNAPSHOT_END': { label: 'Snapshot Complete', icon: '✓', color: '#037f0c' },
-    'CONVERSION_START': { label: 'Conversion Started', icon: '🔄', color: '#0972d3' },
+    'CONVERSION_START': { label: 'Conversion Started', icon: '↻', color: '#0972d3' },
     'CONVERSION_END': { label: 'Conversion Succeeded', icon: '✓', color: '#037f0c' },
-    'LAUNCH_START': { label: 'Launching Instance', icon: '🚀', color: '#0972d3' },
+    'LAUNCH_START': { label: 'Launching Instance', icon: '↑', color: '#0972d3' },
     'LAUNCH_END': { label: 'Instance Launched', icon: '✓', color: '#037f0c' },
-    'CLEANUP_START': { label: 'Cleanup Started', icon: '🧹', color: '#5f6b7a' },
+    'CLEANUP_START': { label: 'Cleanup Started', icon: '○', color: '#5f6b7a' },
     'CLEANUP_END': { label: 'Cleanup Complete', icon: '✓', color: '#037f0c' },
     'CLEANUP_FAIL': { label: 'Cleanup Failed', icon: '⚠', color: '#d91515' },
     'USING_PREVIOUS_SNAPSHOT': { label: 'Using Previous Snapshot', icon: 'ℹ', color: '#5f6b7a' },
@@ -454,80 +454,6 @@ const calculateOverallProgressWithLogs = (
     completedWaves, 
     totalWaves 
   };
-};
-
-/**
- * Legacy progress calculation (kept for reference)
- */
-const calculateOverallProgress = (waves: WaveExecution[], planTotalWaves?: number): { percentage: number; completedWaves: number; totalWaves: number } => {
-  if (!waves || waves.length === 0) return { percentage: 0, completedWaves: 0, totalWaves: planTotalWaves || 0 };
-  
-  // Use planTotalWaves from recovery plan if provided, otherwise fall back to waves array length
-  const totalWaves = planTotalWaves || waves.length;
-  const completedWaves = waves.filter(w => 
-    ['completed', 'COMPLETED'].includes(w.status)
-  ).length;
-  
-  // Weight per wave (each wave contributes equally to 100%)
-  const waveWeight = 100 / totalWaves;
-  
-  // Calculate progress based on DRS phases within each wave
-  // Phases: JOB_START(5%) → SNAPSHOT(15%) → CONVERSION(75%) → LAUNCHED(100%)
-  let totalProgress = 0;
-  
-  for (const wave of waves) {
-    const status = (wave.status || 'pending').toUpperCase();
-    const serverExecutions = wave.serverExecutions || [];
-    
-    let wavePhaseProgress = 0;
-    
-    if (status === 'COMPLETED' || status === 'LAUNCHED') {
-      wavePhaseProgress = 1.0;
-    } else if (status === 'FAILED') {
-      wavePhaseProgress = 0.5; // Failed waves show partial progress
-    } else if (status === 'PAUSED') {
-      wavePhaseProgress = 0; // Paused before starting
-    } else if (serverExecutions.length > 0) {
-      // Check individual server launch statuses for more granular progress
-      const launchStatuses = serverExecutions.map(s => 
-        (s.launchStatus || s.status || 'PENDING').toUpperCase()
-      );
-      
-      if (launchStatuses.some(s => s === 'LAUNCHED')) {
-        wavePhaseProgress = 1.0;
-      } else if (launchStatuses.some(s => s === 'IN_PROGRESS' || s === 'LAUNCHING')) {
-        wavePhaseProgress = 0.85; // Past conversion, launching
-      } else if (launchStatuses.some(s => s === 'PENDING' || s === 'STARTED')) {
-        // Still in early phases - estimate based on wave status
-        if (status === 'LAUNCHING') {
-          wavePhaseProgress = 0.80;
-        } else if (status === 'POLLING' || status === 'IN_PROGRESS') {
-          wavePhaseProgress = 0.40; // Likely in conversion (longest phase)
-        } else if (status === 'STARTED') {
-          wavePhaseProgress = 0.10; // Just started, snapshot phase
-        } else {
-          wavePhaseProgress = 0.05;
-        }
-      }
-    } else {
-      // No server executions yet, use wave status
-      if (status === 'LAUNCHING') {
-        wavePhaseProgress = 0.80;
-      } else if (status === 'POLLING' || status === 'IN_PROGRESS') {
-        wavePhaseProgress = 0.40;
-      } else if (status === 'STARTED') {
-        wavePhaseProgress = 0.10;
-      } else if (status === 'PENDING') {
-        wavePhaseProgress = 0;
-      }
-    }
-    
-    totalProgress += wavePhaseProgress * waveWeight;
-  }
-  
-  const percentage = Math.min(Math.round(totalProgress), 100);
-  
-  return { percentage, completedWaves, totalWaves };
 };
 
 /**
