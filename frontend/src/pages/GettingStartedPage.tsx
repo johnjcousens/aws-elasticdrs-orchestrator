@@ -13,7 +13,14 @@ import {
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 
-const cardContentStyle: React.CSSProperties = { minHeight: '140px' };
+const cardGridStyle: React.CSSProperties = { 
+  display: 'grid', 
+  gridTemplateColumns: 'repeat(3, 1fr)', 
+  gap: '20px',
+  alignItems: 'stretch'
+};
+const cardWrapperStyle: React.CSSProperties = { display: 'flex' };
+const cardContentStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '120px', height: '100%' };
 const dividerStyle: React.CSSProperties = { border: 'none', borderTop: '1px solid #e9ebed', margin: '8px 0' };
 
 export const GettingStartedPage: React.FC = () => {
@@ -29,79 +36,79 @@ export const GettingStartedPage: React.FC = () => {
         }
       >
         <SpaceBetween size="l">
-          <Grid gridDefinition={[{ colspan: 4 }, { colspan: 4 }, { colspan: 4 }]}>
-            <Container
-              header={
-                <Header variant="h2">
-                  <SpaceBetween direction="horizontal" size="xs">
-                    <Icon name="folder" />
-                    <span>Protection Groups</span>
-                  </SpaceBetween>
-                </Header>
-              }
-            >
-              <div style={cardContentStyle}>
-                <SpaceBetween size="m">
+          <div style={cardGridStyle}>
+            <div style={cardWrapperStyle}>
+              <Container
+                header={
+                  <Header variant="h2">
+                    <SpaceBetween direction="horizontal" size="xs">
+                      <Icon name="folder" />
+                      <span>Protection Groups</span>
+                    </SpaceBetween>
+                  </Header>
+                }
+              >
+                <div style={cardContentStyle}>
                   <Box color="text-body-secondary">
                     Organize DRS source servers into logical groups for coordinated recovery. Each group contains servers that should be recovered together.
                   </Box>
-                  <Box>
+                  <Box padding={{ top: 'm' }}>
                     <Button onClick={() => navigate('/protection-groups')} variant="primary" fullWidth>
                       Manage Protection Groups
                     </Button>
                   </Box>
-                </SpaceBetween>
-              </div>
-            </Container>
+                </div>
+              </Container>
+            </div>
 
-            <Container
-              header={
-                <Header variant="h2">
-                  <SpaceBetween direction="horizontal" size="xs">
-                    <Icon name="file" />
-                    <span>Recovery Plans</span>
-                  </SpaceBetween>
-                </Header>
-              }
-            >
-              <div style={cardContentStyle}>
-                <SpaceBetween size="m">
+            <div style={cardWrapperStyle}>
+              <Container
+                header={
+                  <Header variant="h2">
+                    <SpaceBetween direction="horizontal" size="xs">
+                      <Icon name="file" />
+                      <span>Recovery Plans</span>
+                    </SpaceBetween>
+                  </Header>
+                }
+              >
+                <div style={cardContentStyle}>
                   <Box color="text-body-secondary">
                     Design multi-wave recovery sequences with dependencies. Control the order servers are recovered and add pause points for validation.
                   </Box>
-                  <Box>
+                  <Box padding={{ top: 'm' }}>
                     <Button onClick={() => navigate('/recovery-plans')} variant="primary" fullWidth>
                       Manage Recovery Plans
                     </Button>
                   </Box>
-                </SpaceBetween>
-              </div>
-            </Container>
+                </div>
+              </Container>
+            </div>
 
-            <Container
-              header={
-                <Header variant="h2">
-                  <SpaceBetween direction="horizontal" size="xs">
-                    <Icon name="status-in-progress" />
-                    <span>Execution History</span>
-                  </SpaceBetween>
-                </Header>
-              }
-            >
-              <div style={cardContentStyle}>
-                <SpaceBetween size="m">
+            <div style={cardWrapperStyle}>
+              <Container
+                header={
+                  <Header variant="h2">
+                    <SpaceBetween direction="horizontal" size="xs">
+                      <Icon name="status-in-progress" />
+                      <span>Execution History</span>
+                    </SpaceBetween>
+                  </Header>
+                }
+              >
+                <div style={cardContentStyle}>
                   <Box color="text-body-secondary">
                     Monitor active recoveries and review historical execution records. Track progress, view logs, and manage recovery instances.
                   </Box>
-                  <Box>
+                  <Box padding={{ top: 'm' }}>
                     <Button onClick={() => navigate('/executions')} variant="primary" fullWidth>
                       View Execution History
                     </Button>
                   </Box>
-                </SpaceBetween>
-              </div>
-            </Container>
-          </Grid>
+                </div>
+              </Container>
+            </div>
+          </div>
 
           <Container
             header={
