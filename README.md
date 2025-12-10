@@ -533,11 +533,15 @@ git push origin --tags
 
 ## Appendix: Complete Documentation Index
 
-### Requirements & Planning
+### Requirements & Planning (Source of Truth)
+
+These documents are the **authoritative source** for all system specifications. When conflicts exist between other documentation and requirements documents, the requirements documents take precedence.
 
 | Document                                                                         | Description                                                                         |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD with problem statement, features, technical specs, and success metrics |
+| [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) | Functional requirements, API contracts, validation rules |
+| [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) | Component specs (23 MVP + 9 Phase 2), user flows, accessibility |
 
 ### Architecture & Design
 
