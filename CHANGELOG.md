@@ -23,8 +23,6 @@ All notable changes to the AWS DRS Orchestration Solution project.
 - Confirmed technology versions match `package.json` (React 19.1.1, TypeScript 5.9.3, etc.)
 - Updated `frontend-design-consistency.md` header: 30 DRS regions (28 commercial + 2 GovCloud)
 
-### December 10, 2025
-
 **DRS Capacity Auto-Refresh** - `9c7177b`
 
 - Added 30-second auto-refresh interval to DRS Capacity panel on Dashboard
