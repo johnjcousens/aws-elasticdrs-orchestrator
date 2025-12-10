@@ -566,7 +566,61 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 
 ## Changelog
 
+### December 10, 2025
+
+**DRS Capacity Auto-Refresh** - `9c7177b`
+
+- Added 30-second auto-refresh interval to DRS Capacity panel on Dashboard
+- DRS quotas now poll automatically like executions, keeping capacity data current
+- Fixed TypeScript error with region value capture in interval callback
+
+**Dashboard DRS Regions Expansion** - `9c7177b`
+
+- Expanded Dashboard DRS region selector from 7 to all 28 commercial DRS regions
+- Organized by geography: Americas (6), Europe (8), Asia Pacific (10), Middle East & Africa (4)
+
+**DRS Uninitialized Region Error Messages** - `9c7177b`
+
+- Improved error handling for uninitialized DRS regions
+- Detects `UninitializedAccountException` and `UnrecognizedClientException` errors
+- Returns friendly message: "DRS not initialized in {region}. Initialize DRS in the AWS Console."
+
+**DRS Replicating Server Count Fix** - `9c7177b`
+
+- Fixed incorrect replicating server count showing 0 instead of actual count
+- Root cause: DRS API returns `CONTINUOUS` state, not `CONTINUOUS_REPLICATION`
+- Updated `VALID_REPLICATION_STATES` constant and capacity calculation
+
+**API Gateway CORS Fix for /drs/quotas** - `9c7177b`
+
+- Added missing `/drs/quotas` endpoint to API Gateway CloudFormation template
+- Created `DRSQuotasResource`, `DRSQuotasGetMethod`, and `DRSQuotasOptionsMethod`
+- Fixed CORS preflight for DRS quota requests
+
+**Multi-Account Support Implementation Plan Update**
+
+- Added Phase 3.0: Dashboard DRS Capacity account selector design
+- Added cross-account DRS quota API endpoint specification
+- Added `get_drs_account_capacity_cross_account()` Lambda function design
+- Added recommended implementation order prioritizing Dashboard account dropdown
+
 ### December 9, 2025
+
+**UI/UX Enhancements** - `6fbd084`, `b8f370d`, `931b08c`, `9a5f14c`, `c73f7f8`, `7d452cd`, `fc6c26c`
+
+- Added AWS smile logo to TopNavigation header
+- Updated title to "Elastic Disaster Recovery Orchestrator"
+- Navigation collapse state management for AWS Console-style hamburger menu
+- Login page redesigned to match AWS Console design standards
+- Native HTML inputs on login page for consistent password manager icon positioning
+- Standardized frontend icons - replaced emojis with CloudScape icons
+- Added CloudScape icons to Protection Groups actions menu
+
+**Getting Started Page Improvements** - `136ecc5`, `dee6fdd`, `178977e`
+
+- Enhanced Getting Started page with improved Quick Start Guide
+- Fixed card alignment with fitHeight and flex layout
+- Improved layout and guide content
 
 **DRS Service Limits Unit Tests** - `fd578cc`, `b65e25e`
 
@@ -642,6 +696,78 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 - Updated Terminate Instances dialog with loading state
 - Resume button already had proper `disabled={resuming}` and `loading={resuming}` props
 - Prevents accidental multiple operations and provides clear visual feedback
+
+### December 8, 2025
+
+**Documentation Deep Research** - `aec77e7`, `82185a0`, `9f351b0`, `29b745c`, `df4db12`, `5aed175`
+
+- Comprehensive documentation updates for DR platform APIs
+- Fixed Mermaid sequence diagram syntax errors
+- Updated S3 sync automation guide with accurate S3 structure
+- Updated CI/CD guide with ECR Public images to avoid Docker Hub rate limits
+- Removed competitor references and clarified AWS DRS regional availability
+
+**CI/CD Pipeline Improvements** - `d2f2850`, `b45aaf8`, `8814702`, `6d8b087`, `e198980`, `675d233`, `b159293`
+
+- Use ECR Public images to avoid Docker Hub rate limits
+- Correct aws-config.js structure in GitLab CI
+- Disable test jobs (tests/ directory is gitignored)
+- Resolve Fn::Sub variable error with CommaDelimitedList parameter
+- Fix cfn-lint CI pipeline configuration
+
+**Lambda Code Cleanup** - `89cf462`
+
+- Refactored and cleaned up deprecated Lambda code
+- Updated architecture diagrams
+
+### December 7, 2025
+
+**First Working Prototype** - `db1f41a`, `00f4eb3`
+
+- First working Step Functions integrated prototype
+- Dynamic DRS source server discovery
+- Fixed Step Functions LAUNCHED status detection
+
+**Critical IAM Permission Fixes** - `242b696`, `efeae49`, `8132665`, `60988cd`
+
+- Added ec2:StartInstances to IAM policy - both servers now launch
+- Fixed ec2:DeleteVolume IAM condition blocking DRS staging volume cleanup
+- Added ec2:DetachVolume permission for DRS credential passthrough
+- Added missing IAM permissions for DRS recovery operations
+
+**Architecture Simplification** - `1a797c7`, `d912534`
+
+- Removed polling infrastructure, use Step Functions only
+- Added Step Functions to fix EC2 launch issue
+
+**UI Improvements v1.1** - `aaf4059`
+
+- Various UI improvements and refinements
+
+**Documentation Updates** - `7e88a47`, `18acc84`, `0fc0bc7`, `d169e70`
+
+- Production-ready README with mermaid diagrams
+- Added CI/CD setup and post-deployment guide
+- Added DRS + Step Functions coordination analysis
+- Repository cleanup for production
+
+### December 6, 2025
+
+**🎉 MILESTONE: First Successful DRS Drill Execution** - `1f0f94f`
+
+- First successful end-to-end DRS drill execution through the platform
+
+**CloudScape Design System Migration Complete** - `c499193`, `f0892b3`, `5623c1d`
+
+- Complete CloudScape Design System migration (100%)
+- ExecutionsPage migration complete
+- All pages now use CloudScape components
+
+**GitLab CI/CD Pipeline** - `08aa58e`, `1683fc6`, `5e06334`
+
+- Added GitLab CI/CD pipeline with comprehensive deployment automation
+- Fixed CloudFormation output key names in CI/CD pipeline
+- Added Session 64 handoff document for CI/CD pipeline
 
 ## Future Enhancements
 

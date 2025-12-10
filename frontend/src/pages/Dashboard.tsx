@@ -15,12 +15,16 @@ import {
   Link,
   Spinner,
   PieChart,
+  Select,
+  type SelectProps,
 } from '@cloudscape-design/components';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
+import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
+import type { DRSQuotaStatus } from '../services/drsQuotaService';
 
 // Status colors for the pie chart
 const STATUS_COLORS: Record<string, string> = {
@@ -43,11 +47,57 @@ const STATUS_LABELS: Record<string, string> = {
   paused: 'Paused',
 };
 
+// Default region for DRS quota display
+const DEFAULT_REGION = 'us-east-1';
+
+// All 28 AWS DRS-supported commercial regions (verified December 2025)
+// Reference: https://docs.aws.amazon.com/general/latest/gr/drs.html
+const DRS_REGIONS: SelectProps.Option[] = [
+  // Americas (6)
+  { value: 'us-east-1', label: 'us-east-1 (N. Virginia)' },
+  { value: 'us-east-2', label: 'us-east-2 (Ohio)' },
+  { value: 'us-west-1', label: 'us-west-1 (N. California)' },
+  { value: 'us-west-2', label: 'us-west-2 (Oregon)' },
+  { value: 'ca-central-1', label: 'ca-central-1 (Canada)' },
+  { value: 'sa-east-1', label: 'sa-east-1 (São Paulo)' },
+  // Europe (8)
+  { value: 'eu-west-1', label: 'eu-west-1 (Ireland)' },
+  { value: 'eu-west-2', label: 'eu-west-2 (London)' },
+  { value: 'eu-west-3', label: 'eu-west-3 (Paris)' },
+  { value: 'eu-central-1', label: 'eu-central-1 (Frankfurt)' },
+  { value: 'eu-central-2', label: 'eu-central-2 (Zurich)' },
+  { value: 'eu-north-1', label: 'eu-north-1 (Stockholm)' },
+  { value: 'eu-south-1', label: 'eu-south-1 (Milan)' },
+  { value: 'eu-south-2', label: 'eu-south-2 (Spain)' },
+  // Asia Pacific (10)
+  { value: 'ap-northeast-1', label: 'ap-northeast-1 (Tokyo)' },
+  { value: 'ap-northeast-2', label: 'ap-northeast-2 (Seoul)' },
+  { value: 'ap-northeast-3', label: 'ap-northeast-3 (Osaka)' },
+  { value: 'ap-southeast-1', label: 'ap-southeast-1 (Singapore)' },
+  { value: 'ap-southeast-2', label: 'ap-southeast-2 (Sydney)' },
+  { value: 'ap-southeast-3', label: 'ap-southeast-3 (Jakarta)' },
+  { value: 'ap-southeast-4', label: 'ap-southeast-4 (Melbourne)' },
+  { value: 'ap-south-1', label: 'ap-south-1 (Mumbai)' },
+  { value: 'ap-south-2', label: 'ap-south-2 (Hyderabad)' },
+  { value: 'ap-east-1', label: 'ap-east-1 (Hong Kong)' },
+  // Middle East & Africa (4)
+  { value: 'me-south-1', label: 'me-south-1 (Bahrain)' },
+  { value: 'me-central-1', label: 'me-central-1 (UAE)' },
+  { value: 'af-south-1', label: 'af-south-1 (Cape Town)' },
+  { value: 'il-central-1', label: 'il-central-1 (Tel Aviv)' },
+];
+
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // DRS Quota state
+  const [selectedRegion, setSelectedRegion] = useState<SelectProps.Option>(DRS_REGIONS[0]);
+  const [drsQuotas, setDrsQuotas] = useState<DRSQuotaStatus | null>(null);
+  const [quotasLoading, setQuotasLoading] = useState(false);
+  const [quotasError, setQuotasError] = useState<string | null>(null);
 
   const fetchExecutions = useCallback(async () => {
     try {
@@ -62,11 +112,38 @@ export const Dashboard: React.FC = () => {
     }
   }, []);
 
+  const fetchDRSQuotas = useCallback(async (region: string) => {
+    setQuotasLoading(true);
+    setQuotasError(null);
+    try {
+      const quotas = await apiClient.getDRSQuotas(region);
+      setDrsQuotas(quotas);
+    } catch (err) {
+      console.error('Error fetching DRS quotas:', err);
+      setQuotasError('Unable to fetch DRS capacity');
+      setDrsQuotas(null);
+    } finally {
+      setQuotasLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchExecutions();
     const interval = setInterval(fetchExecutions, 30000);
     return () => clearInterval(interval);
   }, [fetchExecutions]);
+
+  // Fetch DRS quotas on region change and auto-refresh every 30 seconds
+  useEffect(() => {
+    const region = selectedRegion?.value;
+    if (region) {
+      fetchDRSQuotas(region);
+      const interval = setInterval(() => {
+        fetchDRSQuotas(region);
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedRegion, fetchDRSQuotas]);
 
   // Calculate status counts
   const statusCounts = executions.reduce(
@@ -269,6 +346,38 @@ export const Dashboard: React.FC = () => {
                 )}
               </Container>
             </ColumnLayout>
+
+            <Container
+              header={
+                <Header
+                  variant="h2"
+                  actions={
+                    <Select
+                      selectedOption={selectedRegion}
+                      onChange={({ detail }) => setSelectedRegion(detail.selectedOption)}
+                      options={DRS_REGIONS}
+                      placeholder="Select region"
+                    />
+                  }
+                >
+                  DRS Capacity
+                </Header>
+              }
+            >
+              {quotasLoading ? (
+                <Box textAlign="center" padding="l">
+                  <Spinner /> Loading DRS capacity...
+                </Box>
+              ) : quotasError ? (
+                <StatusIndicator type="warning">{quotasError}</StatusIndicator>
+              ) : drsQuotas ? (
+                <DRSQuotaStatusPanel quotas={drsQuotas} />
+              ) : (
+                <Box textAlign="center" padding="l" color="text-body-secondary">
+                  Select a region to view DRS capacity
+                </Box>
+              )}
+            </Container>
 
             <Container
               header={
