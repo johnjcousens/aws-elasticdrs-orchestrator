@@ -25,6 +25,32 @@ RECOVERY_PLANS_TABLE = os.environ['RECOVERY_PLANS_TABLE']
 EXECUTION_HISTORY_TABLE = os.environ['EXECUTION_HISTORY_TABLE']
 STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN', '')
 
+# DRS Service Limits (from AWS Service Quotas)
+# Reference: https://docs.aws.amazon.com/general/latest/gr/drs.html
+DRS_LIMITS = {
+    'MAX_SERVERS_PER_JOB': 100,           # L-B827C881 - Hard limit
+    'MAX_CONCURRENT_JOBS': 20,             # L-D88FAC3A - Hard limit
+    'MAX_SERVERS_IN_ALL_JOBS': 500,        # L-05AFA8C6 - Hard limit
+    'MAX_REPLICATING_SERVERS': 300,        # L-C1D14A2B - Hard limit (cannot increase)
+    'MAX_SOURCE_SERVERS': 4000,            # L-E28BE5E0 - Adjustable
+    'WARNING_REPLICATING_THRESHOLD': 250,  # Show warning at 83%
+    'CRITICAL_REPLICATING_THRESHOLD': 280  # Block new servers at 93%
+}
+
+# Valid replication states for recovery
+VALID_REPLICATION_STATES = [
+    'CONTINUOUS_REPLICATION',
+    'INITIAL_SYNC',
+    'RESCAN'
+]
+
+INVALID_REPLICATION_STATES = [
+    'DISCONNECTED',
+    'STOPPED',
+    'STALLED',
+    'NOT_STARTED'
+]
+
 # DynamoDB tables
 protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
@@ -360,6 +386,223 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:
     return plans_with_conflicts
 
 
+# ============================================================================
+# DRS Service Limits Validation Functions
+# ============================================================================
+
+def validate_wave_sizes(plan: Dict) -> List[Dict]:
+    """
+    Validate that no wave exceeds the DRS limit of 100 servers per job.
+    Returns list of validation errors.
+    """
+    errors = []
+    
+    for idx, wave in enumerate(plan.get('Waves', []), start=1):
+        server_count = len(wave.get('ServerIds', []))
+        if server_count > DRS_LIMITS['MAX_SERVERS_PER_JOB']:
+            errors.append({
+                'type': 'WAVE_SIZE_EXCEEDED',
+                'wave': wave.get('WaveName', f'Wave {idx}'),
+                'waveIndex': idx,
+                'serverCount': server_count,
+                'limit': DRS_LIMITS['MAX_SERVERS_PER_JOB'],
+                'message': f"Wave '{wave.get('WaveName', f'Wave {idx}')}' has {server_count} servers, exceeds limit of {DRS_LIMITS['MAX_SERVERS_PER_JOB']}"
+            })
+    
+    return errors
+
+
+def validate_concurrent_jobs(region: str) -> Dict:
+    """
+    Check current DRS job count against the 20 concurrent jobs limit.
+    Returns validation result with current count and availability.
+    """
+    try:
+        regional_drs = boto3.client('drs', region_name=region)
+        
+        # Get active jobs (PENDING or STARTED status)
+        active_jobs = []
+        paginator = regional_drs.get_paginator('describe_jobs')
+        
+        for page in paginator.paginate():
+            for job in page.get('items', []):
+                if job.get('status') in ['PENDING', 'STARTED']:
+                    active_jobs.append({
+                        'jobId': job.get('jobID'),
+                        'status': job.get('status'),
+                        'type': job.get('type'),
+                        'serverCount': len(job.get('participatingServers', []))
+                    })
+        
+        current_count = len(active_jobs)
+        available_slots = DRS_LIMITS['MAX_CONCURRENT_JOBS'] - current_count
+        
+        return {
+            'valid': current_count < DRS_LIMITS['MAX_CONCURRENT_JOBS'],
+            'currentJobs': current_count,
+            'maxJobs': DRS_LIMITS['MAX_CONCURRENT_JOBS'],
+            'availableSlots': available_slots,
+            'activeJobs': active_jobs,
+            'message': f"DRS has {current_count}/{DRS_LIMITS['MAX_CONCURRENT_JOBS']} active jobs" if current_count < DRS_LIMITS['MAX_CONCURRENT_JOBS'] else f"DRS concurrent job limit reached ({current_count}/{DRS_LIMITS['MAX_CONCURRENT_JOBS']})"
+        }
+        
+    except Exception as e:
+        print(f"Error checking concurrent jobs: {e}")
+        return {
+            'valid': True,
+            'warning': f'Could not verify concurrent jobs: {str(e)}',
+            'currentJobs': None,
+            'maxJobs': DRS_LIMITS['MAX_CONCURRENT_JOBS']
+        }
+
+
+def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
+    """
+    Check if adding new servers would exceed the 500 servers in all jobs limit.
+    Returns validation result.
+    """
+    try:
+        regional_drs = boto3.client('drs', region_name=region)
+        
+        # Count servers in active jobs
+        servers_in_jobs = 0
+        paginator = regional_drs.get_paginator('describe_jobs')
+        
+        for page in paginator.paginate():
+            for job in page.get('items', []):
+                if job.get('status') in ['PENDING', 'STARTED']:
+                    servers_in_jobs += len(job.get('participatingServers', []))
+        
+        total_after_new = servers_in_jobs + new_server_count
+        
+        return {
+            'valid': total_after_new <= DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS'],
+            'currentServersInJobs': servers_in_jobs,
+            'newServerCount': new_server_count,
+            'totalAfterNew': total_after_new,
+            'maxServers': DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS'],
+            'message': f"Would have {total_after_new}/{DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']} servers in active jobs" if total_after_new <= DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS'] else f"Would exceed max servers in all jobs ({total_after_new}/{DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']})"
+        }
+        
+    except Exception as e:
+        print(f"Error checking servers in all jobs: {e}")
+        return {
+            'valid': True,
+            'warning': f'Could not verify servers in jobs: {str(e)}',
+            'currentServersInJobs': None,
+            'maxServers': DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']
+        }
+
+
+def validate_server_replication_states(region: str, server_ids: List[str]) -> Dict:
+    """
+    Validate that all servers have healthy replication state for recovery.
+    Returns validation result with unhealthy servers list.
+    """
+    if not server_ids:
+        return {'valid': True, 'healthyCount': 0, 'unhealthyCount': 0, 'unhealthyServers': []}
+    
+    try:
+        regional_drs = boto3.client('drs', region_name=region)
+        
+        unhealthy_servers = []
+        healthy_servers = []
+        
+        # Batch describe servers (max 200 per call)
+        for i in range(0, len(server_ids), 200):
+            batch = server_ids[i:i+200]
+            
+            response = regional_drs.describe_source_servers(
+                filters={'sourceServerIDs': batch}
+            )
+            
+            for server in response.get('items', []):
+                server_id = server.get('sourceServerID')
+                replication_state = server.get('dataReplicationInfo', {}).get('dataReplicationState', 'UNKNOWN')
+                lifecycle_state = server.get('lifeCycle', {}).get('state', 'UNKNOWN')
+                
+                if replication_state in INVALID_REPLICATION_STATES or lifecycle_state == 'STOPPED':
+                    unhealthy_servers.append({
+                        'serverId': server_id,
+                        'hostname': server.get('sourceProperties', {}).get('identificationHints', {}).get('hostname', 'Unknown'),
+                        'replicationState': replication_state,
+                        'lifecycleState': lifecycle_state,
+                        'reason': f"Replication: {replication_state}, Lifecycle: {lifecycle_state}"
+                    })
+                else:
+                    healthy_servers.append(server_id)
+        
+        return {
+            'valid': len(unhealthy_servers) == 0,
+            'healthyCount': len(healthy_servers),
+            'unhealthyCount': len(unhealthy_servers),
+            'unhealthyServers': unhealthy_servers,
+            'message': f"All {len(healthy_servers)} servers have healthy replication" if len(unhealthy_servers) == 0 else f"{len(unhealthy_servers)} server(s) have unhealthy replication state"
+        }
+        
+    except Exception as e:
+        print(f"Error checking server replication states: {e}")
+        return {
+            'valid': True,
+            'warning': f'Could not verify server replication states: {str(e)}',
+            'unhealthyServers': []
+        }
+
+
+def get_drs_account_capacity(region: str) -> Dict:
+    """
+    Get current DRS account capacity metrics.
+    Returns capacity info including replicating server count vs 300 hard limit.
+    """
+    try:
+        regional_drs = boto3.client('drs', region_name=region)
+        
+        # Count all source servers and replicating servers
+        total_servers = 0
+        replicating_servers = 0
+        
+        paginator = regional_drs.get_paginator('describe_source_servers')
+        
+        for page in paginator.paginate():
+            for server in page.get('items', []):
+                total_servers += 1
+                replication_state = server.get('dataReplicationInfo', {}).get('dataReplicationState', '')
+                if replication_state in ['CONTINUOUS_REPLICATION', 'INITIAL_SYNC', 'RESCAN', 'CREATING_SNAPSHOT']:
+                    replicating_servers += 1
+        
+        # Determine capacity status
+        if replicating_servers >= DRS_LIMITS['MAX_REPLICATING_SERVERS']:
+            status = 'CRITICAL'
+            message = f"Account at hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+        elif replicating_servers >= DRS_LIMITS['CRITICAL_REPLICATING_THRESHOLD']:
+            status = 'WARNING'
+            message = f"Approaching hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+        elif replicating_servers >= DRS_LIMITS['WARNING_REPLICATING_THRESHOLD']:
+            status = 'INFO'
+            message = f"Monitor capacity: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+        else:
+            status = 'OK'
+            message = f"Capacity OK: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+        
+        return {
+            'totalSourceServers': total_servers,
+            'replicatingServers': replicating_servers,
+            'maxReplicatingServers': DRS_LIMITS['MAX_REPLICATING_SERVERS'],
+            'maxSourceServers': DRS_LIMITS['MAX_SOURCE_SERVERS'],
+            'availableReplicatingSlots': max(0, DRS_LIMITS['MAX_REPLICATING_SERVERS'] - replicating_servers),
+            'status': status,
+            'message': message
+        }
+        
+    except Exception as e:
+        print(f"Error getting account capacity: {e}")
+        return {
+            'error': str(e),
+            'status': 'UNKNOWN',
+            'message': f'Could not determine account capacity: {str(e)}'
+        }
+
+
 def lambda_handler(event: Dict, context: Any) -> Dict:
     """Main Lambda handler - routes requests to appropriate functions"""
     print(f"Received event: {json.dumps(event)}")
@@ -400,6 +643,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return handle_executions(http_method, path_parameters, query_parameters, body)
         elif path.startswith('/drs/source-servers'):
             return handle_drs_source_servers(query_parameters)
+        elif path.startswith('/drs/quotas'):
+            return handle_drs_quotas(query_parameters)
         else:
             return response(404, {'error': 'Not Found', 'path': path})
             
@@ -1123,6 +1368,71 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 'conflicts': server_conflicts,
                 'conflictingExecutions': list(conflict_executions.values())
             })
+        
+        # ============================================================
+        # DRS SERVICE LIMITS VALIDATION
+        # ============================================================
+        
+        # Get region from first wave's protection group
+        first_wave = plan.get('Waves', [{}])[0]
+        pg_id = first_wave.get('ProtectionGroupId')
+        if pg_id:
+            pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+            region = pg_result.get('Item', {}).get('Region', 'us-east-1')
+        else:
+            region = 'us-east-1'  # Default fallback
+        
+        # Collect all server IDs from all waves
+        all_server_ids = []
+        for wave in plan.get('Waves', []):
+            all_server_ids.extend(wave.get('ServerIds', []))
+        total_servers_in_plan = len(all_server_ids)
+        
+        # 1. Validate wave sizes (max 100 servers per wave)
+        wave_size_errors = validate_wave_sizes(plan)
+        if wave_size_errors:
+            return response(400, {
+                'error': 'WAVE_SIZE_LIMIT_EXCEEDED',
+                'message': f'{len(wave_size_errors)} wave(s) exceed the DRS limit of {DRS_LIMITS["MAX_SERVERS_PER_JOB"]} servers per job',
+                'errors': wave_size_errors,
+                'limit': DRS_LIMITS['MAX_SERVERS_PER_JOB']
+            })
+        
+        # 2. Validate concurrent jobs (max 20)
+        concurrent_jobs_result = validate_concurrent_jobs(region)
+        if not concurrent_jobs_result.get('valid'):
+            return response(429, {  # Too Many Requests
+                'error': 'CONCURRENT_JOBS_LIMIT_EXCEEDED',
+                'message': concurrent_jobs_result.get('message'),
+                'currentJobs': concurrent_jobs_result.get('currentJobs'),
+                'maxJobs': concurrent_jobs_result.get('maxJobs'),
+                'activeJobs': concurrent_jobs_result.get('activeJobs', [])
+            })
+        
+        # 3. Validate servers in all jobs (max 500)
+        servers_in_jobs_result = validate_servers_in_all_jobs(region, total_servers_in_plan)
+        if not servers_in_jobs_result.get('valid'):
+            return response(429, {
+                'error': 'SERVERS_IN_JOBS_LIMIT_EXCEEDED',
+                'message': servers_in_jobs_result.get('message'),
+                'currentServersInJobs': servers_in_jobs_result.get('currentServersInJobs'),
+                'newServerCount': servers_in_jobs_result.get('newServerCount'),
+                'totalAfterNew': servers_in_jobs_result.get('totalAfterNew'),
+                'maxServers': servers_in_jobs_result.get('maxServers')
+            })
+        
+        # 4. Validate server replication states
+        replication_result = validate_server_replication_states(region, all_server_ids)
+        if not replication_result.get('valid'):
+            return response(400, {
+                'error': 'UNHEALTHY_SERVER_REPLICATION',
+                'message': replication_result.get('message'),
+                'unhealthyServers': replication_result.get('unhealthyServers'),
+                'healthyCount': replication_result.get('healthyCount'),
+                'unhealthyCount': replication_result.get('unhealthyCount')
+            })
+        
+        print(f"✅ DRS service limits validation passed for plan {plan_id}")
         
         # Generate execution ID
         execution_id = str(uuid.uuid4())
@@ -3849,3 +4159,43 @@ def has_circular_dependencies(graph: Dict[str, List[str]]) -> bool:
                 return True
     
     return False
+
+
+# ============================================================================
+# DRS Quotas Handler
+# ============================================================================
+
+def handle_drs_quotas(query_params: Dict) -> Dict:
+    """Get DRS account quotas and current usage for a region"""
+    try:
+        region = query_params.get('region', 'us-east-1')
+        
+        # Get account capacity
+        capacity = get_drs_account_capacity(region)
+        
+        # Get concurrent jobs info
+        jobs_info = validate_concurrent_jobs(region)
+        
+        # Get servers in active jobs
+        servers_in_jobs = validate_servers_in_all_jobs(region, 0)
+        
+        return response(200, {
+            'region': region,
+            'limits': DRS_LIMITS,
+            'capacity': capacity,
+            'concurrentJobs': {
+                'current': jobs_info.get('currentJobs'),
+                'max': jobs_info.get('maxJobs'),
+                'available': jobs_info.get('availableSlots')
+            },
+            'serversInJobs': {
+                'current': servers_in_jobs.get('currentServersInJobs'),
+                'max': servers_in_jobs.get('maxServers')
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error getting DRS quotas: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': str(e)})
