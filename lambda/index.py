@@ -38,8 +38,9 @@ DRS_LIMITS = {
 }
 
 # Valid replication states for recovery
+# Note: DRS API returns 'CONTINUOUS' not 'CONTINUOUS_REPLICATION'
 VALID_REPLICATION_STATES = [
-    'CONTINUOUS_REPLICATION',
+    'CONTINUOUS',
     'INITIAL_SYNC',
     'RESCAN'
 ]
@@ -447,10 +448,22 @@ def validate_concurrent_jobs(region: str) -> Dict:
         }
         
     except Exception as e:
+        error_str = str(e)
         print(f"Error checking concurrent jobs: {e}")
+        
+        # Check for uninitialized region errors
+        if any(x in error_str for x in ['UninitializedAccountException', 'UnrecognizedClientException', 'security token']):
+            return {
+                'valid': True,
+                'currentJobs': 0,
+                'maxJobs': DRS_LIMITS['MAX_CONCURRENT_JOBS'],
+                'availableSlots': DRS_LIMITS['MAX_CONCURRENT_JOBS'],
+                'notInitialized': True
+            }
+        
         return {
             'valid': True,
-            'warning': f'Could not verify concurrent jobs: {str(e)}',
+            'warning': f'Could not verify concurrent jobs: {error_str}',
             'currentJobs': None,
             'maxJobs': DRS_LIMITS['MAX_CONCURRENT_JOBS']
         }
@@ -485,10 +498,21 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
         }
         
     except Exception as e:
+        error_str = str(e)
         print(f"Error checking servers in all jobs: {e}")
+        
+        # Check for uninitialized region errors
+        if any(x in error_str for x in ['UninitializedAccountException', 'UnrecognizedClientException', 'security token']):
+            return {
+                'valid': True,
+                'currentServersInJobs': 0,
+                'maxServers': DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS'],
+                'notInitialized': True
+            }
+        
         return {
             'valid': True,
-            'warning': f'Could not verify servers in jobs: {str(e)}',
+            'warning': f'Could not verify servers in jobs: {error_str}',
             'currentServersInJobs': None,
             'maxServers': DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']
         }
@@ -567,7 +591,7 @@ def get_drs_account_capacity(region: str) -> Dict:
             for server in page.get('items', []):
                 total_servers += 1
                 replication_state = server.get('dataReplicationInfo', {}).get('dataReplicationState', '')
-                if replication_state in ['CONTINUOUS_REPLICATION', 'INITIAL_SYNC', 'RESCAN', 'CREATING_SNAPSHOT']:
+                if replication_state in ['CONTINUOUS', 'INITIAL_SYNC', 'RESCAN', 'CREATING_SNAPSHOT']:
                     replicating_servers += 1
         
         # Determine capacity status
@@ -594,10 +618,53 @@ def get_drs_account_capacity(region: str) -> Dict:
             'message': message
         }
         
-    except Exception as e:
-        print(f"Error getting account capacity: {e}")
+    except regional_drs.exceptions.UninitializedAccountException:
+        # DRS not initialized in this region
         return {
-            'error': str(e),
+            'totalSourceServers': 0,
+            'replicatingServers': 0,
+            'maxReplicatingServers': DRS_LIMITS['MAX_REPLICATING_SERVERS'],
+            'maxSourceServers': DRS_LIMITS['MAX_SOURCE_SERVERS'],
+            'availableReplicatingSlots': DRS_LIMITS['MAX_REPLICATING_SERVERS'],
+            'status': 'NOT_INITIALIZED',
+            'message': f'DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.'
+        }
+        
+    except Exception as e:
+        error_str = str(e)
+        print(f"Error getting account capacity: {e}")
+        
+        # Check for common uninitialized/access errors
+        if 'UninitializedAccountException' in error_str or 'not initialized' in error_str.lower():
+            return {
+                'totalSourceServers': 0,
+                'replicatingServers': 0,
+                'maxReplicatingServers': DRS_LIMITS['MAX_REPLICATING_SERVERS'],
+                'maxSourceServers': DRS_LIMITS['MAX_SOURCE_SERVERS'],
+                'availableReplicatingSlots': DRS_LIMITS['MAX_REPLICATING_SERVERS'],
+                'status': 'NOT_INITIALIZED',
+                'message': f'DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.'
+            }
+        elif 'UnrecognizedClientException' in error_str or 'security token' in error_str.lower():
+            return {
+                'totalSourceServers': 0,
+                'replicatingServers': 0,
+                'maxReplicatingServers': DRS_LIMITS['MAX_REPLICATING_SERVERS'],
+                'maxSourceServers': DRS_LIMITS['MAX_SOURCE_SERVERS'],
+                'availableReplicatingSlots': DRS_LIMITS['MAX_REPLICATING_SERVERS'],
+                'status': 'NOT_INITIALIZED',
+                'message': f'DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.'
+            }
+        elif 'AccessDeniedException' in error_str or 'not authorized' in error_str.lower():
+            return {
+                'totalSourceServers': None,
+                'replicatingServers': None,
+                'status': 'ACCESS_DENIED',
+                'message': f'Access denied to DRS in {region}. Check IAM permissions.'
+            }
+        
+        return {
+            'error': error_str,
             'status': 'UNKNOWN',
             'message': f'Could not determine account capacity: {str(e)}'
         }
