@@ -182,15 +182,15 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   if (!drsInitialized) {
     return (
       <Alert type="warning" header="DRS Not Initialized">
-        {error || `DRS is not initialized in ${region}. Please initialize DRS before creating Protection Groups.`}
+        {error || `AWS Elastic Disaster Recovery (DRS) is not initialized in ${region}. Go to the DRS Console and complete the initialization wizard before creating Protection Groups.`}
       </Alert>
     );
   }
 
   if (servers.length === 0) {
     return (
-      <Alert type="info" header="No Servers Found">
-        No DRS source servers found in {region}. Add servers to DRS before creating Protection Groups.
+      <Alert type="info" header="No Replicating Servers">
+        DRS is initialized in {region}, but no source servers are replicating yet. Install the AWS Replication Agent on your source servers to begin replication before creating Protection Groups.
       </Alert>
     );
   }

@@ -3010,7 +3010,7 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             print(f"DRS not initialized in {region}")
             return response(400, {
                 'error': 'DRS_NOT_INITIALIZED',
-                'message': f'DRS is not initialized in {region}. Please initialize DRS before creating Protection Groups.',
+                'message': f'AWS Elastic Disaster Recovery (DRS) is not initialized in {region}. Go to the DRS Console in {region} and complete the initialization wizard before creating Protection Groups.',
                 'region': region,
                 'initialized': False
             })
@@ -3020,7 +3020,7 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             if 'UninitializedAccountException' in str(e) or 'not initialized' in str(e).lower():
                 return response(400, {
                     'error': 'DRS_NOT_INITIALIZED',
-                    'message': f'DRS is not initialized in {region}. Please initialize DRS before creating Protection Groups.',
+                    'message': f'AWS Elastic Disaster Recovery (DRS) is not initialized in {region}. Go to the DRS Console in {region} and complete the initialization wizard before creating Protection Groups.',
                     'region': region,
                     'initialized': False
                 })
