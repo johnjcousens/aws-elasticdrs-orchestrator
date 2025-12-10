@@ -1,9 +1,9 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 5.0  
+**Version**: 1.0  
 **Date**: December 2025  
-**Status**: Production Release
+**Status**: Requirements Specification
 
 ---
 
@@ -23,20 +23,29 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 
 ## Scope
 
-### In Scope
+### In Scope - Core Features (MVP)
 - Protection Group Management (CRUD, server discovery, conflict detection)
 - Recovery Plan Management (wave configuration, multi-PG support, dependencies)
 - Recovery Execution (drill/recovery modes, wave orchestration, pause/resume)
+- DRS Service Limits Validation (300 servers, 100 per job, 20 concurrent jobs)
 - Server Discovery (DRS API integration, automatic detection, assignment tracking)
 - User Management (Cognito authentication, JWT authorization)
 - Audit Trail (execution history, CloudWatch Logs)
 - Instance Management (terminate recovery instances)
+- Real-time Execution Monitoring (3-second auto-refresh, DRS job events)
+- Loading State Management (prevents multiple operations)
+- AWS DRS Regional Support (30 regions: 28 commercial + 2 GovCloud)
 
-### Out of Scope
-- Pre/Post-Wave Automation Hooks (Phase 2)
-- VPC Test Isolation (Phase 2)
-- Automated Rollback (Phase 2)
-- Reprotection/Failback (Phase 3)
+### In Scope - Advanced Features (Phase 2)
+- DRS Source Server Management (launch settings, EC2 templates, tags, disks, replication, post-launch)
+- DRS Tag Synchronization (EC2 to DRS tag sync with bulk operations)
+- SSM Automation Integration (pre/post-wave automation)
+- Step Functions Visualization (real-time state machine monitoring)
+- Multi-Account Support (cross-account orchestration, scale beyond 300 servers)
+- Cross-Account DRS Monitoring (centralized monitoring and alerting)
+- SNS Notification Integration (real-time notifications via multiple channels)
+- Scheduled Drills (automated recurring drill execution)
+- CodeBuild & CodeCommit Migration (AWS-native CI/CD pipeline)
 
 ---
 
@@ -49,9 +58,10 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 
 The system shall allow users to create a Protection Group with:
 - Unique name (case-insensitive, 1-128 characters, globally unique)
-- AWS region (all AWS DRS-supported regions)
+- AWS region (all 30 AWS DRS-supported regions)
 - Optional description (max 512 characters)
 - List of DRS source server IDs (minimum 1)
+
 
 **Validation Rules**:
 - Name must be globally unique (case-insensitive across all users)
@@ -172,6 +182,7 @@ The system shall return all Recovery Plans with:
 - Waves array with configuration
 - CreatedDate, LastModifiedDate
 - LastExecutionStatus, LastStartTime, LastEndTime (from execution history)
+- hasServerConflict, conflictInfo (for active execution detection)
 
 **API**: `GET /recovery-plans`
 **Response**: `{ "plans": [...], "count": N }`
@@ -217,7 +228,6 @@ The system shall start a recovery execution with:
 - PlanId (required)
 - ExecutionType: DRILL or RECOVERY (required)
 - InitiatedBy: username (optional, defaults to 'system')
-- DryRun: boolean (optional, defaults to false)
 
 **API**: `POST /executions`
 ```json
@@ -255,12 +265,6 @@ The system shall execute waves sequentially:
 5. Wait for all servers to reach LAUNCHED status
 6. Update execution record in DynamoDB
 7. Proceed to next wave or complete
-
-**Wave Execution Details**:
-- All servers in a wave launch with one DRS API call
-- 15-second delay between server launches (DRS-safe)
-- Waves execute sequentially (Wave 0, then Wave 1, etc.)
-- Step Functions orchestrates entire flow with error handling
 
 #### FR-3.3: DRS Integration
 **Priority**: Critical
@@ -376,11 +380,69 @@ The system shall delete all completed executions:
 **API**: `DELETE /executions`
 **Response**: `{ "deletedCount": N, "totalScanned": N }`
 
+
 ---
 
-### FR-4: Server Discovery
+### FR-4: DRS Service Limits Validation
 
-#### FR-4.1: Discover DRS Servers
+#### FR-4.1: Validate DRS Service Limits
+**Priority**: Critical
+
+The system shall validate operations against AWS DRS service limits:
+- 300 replicating servers per account per region (hard limit)
+- 100 servers per recovery job (hard limit)
+- 20 concurrent jobs (soft limit)
+- 500 max servers in all jobs (soft limit)
+
+**Frontend Validation**:
+- Protection Group creation: Check server count against 300 limit
+- Recovery Plan execution: Validate wave sizes against 100 server limit
+- Execution start: Check concurrent job limits
+- Real-time quota display in UI
+
+**Backend Validation**:
+- API endpoints validate limits before operations
+- Return specific error codes for limit violations
+- Include current usage in error responses
+
+**API**: `GET /drs/service-limits?region={region}`
+**Response**:
+```json
+{
+  "region": "us-east-1",
+  "limits": {
+    "maxReplicatingServers": 300,
+    "maxServersPerJob": 100,
+    "maxConcurrentJobs": 20,
+    "maxServersInAllJobs": 500
+  },
+  "usage": {
+    "currentReplicatingServers": 150,
+    "currentConcurrentJobs": 2,
+    "currentServersInJobs": 75
+  }
+}
+```
+
+#### FR-4.2: Quota Enforcement
+**Priority**: Critical
+
+The system shall enforce DRS quotas:
+- Block operations that would exceed limits
+- Provide clear error messages with current usage
+- Suggest alternatives (e.g., smaller waves, multi-account setup)
+
+**Error Codes**:
+- `DRS_REPLICATING_SERVERS_LIMIT_EXCEEDED`
+- `DRS_SERVERS_PER_JOB_LIMIT_EXCEEDED`
+- `DRS_CONCURRENT_JOBS_LIMIT_EXCEEDED`
+- `DRS_TOTAL_SERVERS_IN_JOBS_LIMIT_EXCEEDED`
+
+---
+
+### FR-5: Server Discovery
+
+#### FR-5.1: Discover DRS Servers
 **Priority**: Critical
 
 The system shall discover DRS source servers by region:
@@ -414,9 +476,420 @@ The system shall discover DRS source servers by region:
 
 ---
 
-### FR-5: Authentication
+### FR-6: DRS Source Server Management (Phase 2)
 
-#### FR-5.1: User Authentication
+**Implementation Phase**: Advanced Features
+
+#### FR-6.1: Get Server Info
+**Priority**: High
+
+The system shall return comprehensive DRS source server information:
+- Server ID, ARN, hostname
+- Lifecycle state and timestamps
+- Data replication info (state, progress, lag)
+- Source properties (OS, CPU, RAM, disks, network)
+- Last launch result
+- Tags
+
+**API**: `GET /drs/source-servers/{id}?region={region}`
+**Response**: Full server details object
+
+#### FR-6.2: Get Launch Settings
+**Priority**: High
+
+The system shall return DRS launch configuration:
+- targetInstanceTypeRightSizingMethod (NONE, BASIC, IN_AWS)
+- launchDisposition (STOPPED, STARTED)
+- copyPrivateIp (boolean)
+- copyTags (boolean)
+- licensing.osByol (boolean)
+- ec2LaunchTemplateID
+
+**API**: `GET /drs/source-servers/{id}/launch-settings?region={region}`
+
+#### FR-6.3: Update Launch Settings
+**Priority**: High
+
+The system shall update DRS launch configuration:
+- All fields from FR-5.2 are updatable
+- Validation per DRS API constraints
+
+**API**: `PUT /drs/source-servers/{id}/launch-settings`
+```json
+{
+  "region": "us-east-1",
+  "targetInstanceTypeRightSizingMethod": "BASIC",
+  "launchDisposition": "STARTED",
+  "copyPrivateIp": true,
+  "copyTags": true,
+  "licensing": { "osByol": false }
+}
+```
+
+#### FR-6.4: Get EC2 Template Settings
+**Priority**: High
+
+The system shall return EC2 launch template configuration:
+- Instance type
+- Subnet ID
+- Security group IDs
+- IAM instance profile name
+
+**API**: `GET /drs/source-servers/{id}/ec2-template?region={region}`
+
+#### FR-6.5: Update EC2 Template Settings
+**Priority**: High
+
+The system shall update EC2 launch template:
+- Create new template version with updated settings
+- Set new version as default
+- Validate resources exist (subnet, security groups, instance profile)
+
+**API**: `PUT /drs/source-servers/{id}/ec2-template`
+```json
+{
+  "region": "us-east-1",
+  "instanceType": "t3.medium",
+  "subnetId": "subnet-xxx",
+  "securityGroupIds": ["sg-xxx", "sg-yyy"],
+  "iamInstanceProfile": "MyInstanceProfile"
+}
+```
+
+#### FR-6.6: Get EC2 Resources
+**Priority**: High
+
+The system shall return available EC2 resources for dropdowns:
+- Subnets (with VPC, AZ, CIDR)
+- Security groups (with VPC, description)
+- Instance types
+- IAM instance profiles
+
+**API**: `GET /ec2/resources?region={region}`
+
+#### FR-6.7: Get Server Tags
+**Priority**: Medium
+
+The system shall return all tags for a DRS source server.
+
+**API**: `GET /drs/source-servers/{id}/tags?region={region}`
+**Response**: `{ "sourceServerId": "s-xxx", "tags": { "key": "value" } }`
+
+#### FR-6.8: Update Server Tags
+**Priority**: Medium
+
+The system shall add or update tags on a DRS source server:
+- Validate tag key does not start with `aws:`
+- Validate key length (1-128 chars)
+- Validate value length (0-256 chars)
+- Validate max 50 tags per resource
+
+**API**: `PUT /drs/source-servers/{id}/tags`
+```json
+{
+  "region": "us-east-1",
+  "tags": { "Environment": "Production", "CostCenter": "CC-12345" }
+}
+```
+
+#### FR-6.9: Delete Server Tags
+**Priority**: Medium
+
+The system shall remove tags from a DRS source server by key.
+
+**API**: `DELETE /drs/source-servers/{id}/tags`
+```json
+{
+  "region": "us-east-1",
+  "tagKeys": ["Environment", "CostCenter"]
+}
+```
+
+#### FR-6.10: Get Disk Settings
+**Priority**: High
+
+The system shall return disk configuration for a DRS source server:
+- Device name
+- Is boot disk
+- Staging disk type (GP2, GP3, IO1, IO2, ST1, SC1)
+- IOPS (for applicable types)
+- Throughput (for GP3)
+- Size in bytes
+
+**API**: `GET /drs/source-servers/{id}/disks?region={region}`
+
+#### FR-6.11: Update Disk Settings
+**Priority**: High
+
+The system shall update disk configuration:
+- Staging disk type
+- IOPS (for GP3, IO1, IO2)
+- Throughput (for GP3)
+
+**API**: `PUT /drs/source-servers/{id}/disks`
+```json
+{
+  "region": "us-east-1",
+  "disks": [
+    { "deviceName": "/dev/sda1", "stagingDiskType": "GP3", "iops": 3000, "throughput": 125 },
+    { "deviceName": "/dev/sdb", "stagingDiskType": "IO1", "iops": 10000 }
+  ]
+}
+```
+
+#### FR-6.12: Get Replication Settings
+**Priority**: High
+
+The system shall return replication configuration:
+- Staging area subnet ID
+- Associate default security group
+- Replication server security group IDs
+- Replication server instance type
+- Use dedicated replication server
+- Bandwidth throttling (Mbps, 0 = unlimited)
+- Data plane routing (PRIVATE_IP, PUBLIC_IP)
+- Create public IP
+- EBS encryption settings
+- Point-in-time (PIT) policy
+
+**API**: `GET /drs/source-servers/{id}/replication?region={region}`
+
+#### FR-6.13: Update Replication Settings
+**Priority**: High
+
+The system shall update replication configuration:
+- All fields from FR-5.12 are updatable
+- Validate subnet and security groups exist
+
+**API**: `PUT /drs/source-servers/{id}/replication`
+```json
+{
+  "region": "us-east-1",
+  "stagingAreaSubnetId": "subnet-xxx",
+  "replicationServersSecurityGroupsIDs": ["sg-xxx"],
+  "replicationServerInstanceType": "t3.small",
+  "useDedicatedReplicationServer": false,
+  "bandwidthThrottling": 0,
+  "dataPlaneRouting": "PRIVATE_IP",
+  "pitPolicy": [
+    { "interval": 10, "retentionDuration": 60, "units": "MINUTE", "enabled": true }
+  ]
+}
+```
+
+#### FR-6.14: Get Staging Resources
+**Priority**: High
+
+The system shall return available staging area resources:
+- Subnets (with VPC, AZ, CIDR, name)
+- Security groups (with VPC, name, description)
+
+**API**: `GET /drs/staging-resources?region={region}`
+
+#### FR-6.15: Get Post-Launch Settings
+**Priority**: Medium
+
+The system shall return post-launch action configuration:
+- Deployment type (TEST_AND_CUTOVER, CUTOVER)
+- SSM document configuration (name, timeout, must succeed)
+- S3 log bucket
+- S3 output key prefix
+
+**API**: `GET /drs/source-servers/{id}/post-launch?region={region}`
+
+#### FR-6.16: Update Post-Launch Settings
+**Priority**: Medium
+
+The system shall update post-launch action configuration.
+
+**API**: `PUT /drs/source-servers/{id}/post-launch`
+```json
+{
+  "region": "us-east-1",
+  "deployment": "TEST_AND_CUTOVER",
+  "ssmDocument": {
+    "ssmDocumentName": "AWS-RunShellScript",
+    "timeoutSeconds": 600,
+    "mustSucceedForCutover": true
+  },
+  "s3LogBucket": "my-drs-logs",
+  "s3OutputKeyPrefix": "post-launch/"
+}
+```
+
+#### FR-6.17: List SSM Documents
+**Priority**: Medium
+
+The system shall return available SSM documents for post-launch actions.
+
+**API**: `GET /ssm/documents?region={region}&type={Command|Automation}`
+**Response**: List of documents with name, owner, type, platform types, description
+
+#### FR-6.18: List S3 Buckets
+**Priority**: Medium
+
+The system shall return available S3 buckets for post-launch logs.
+
+**API**: `GET /s3/buckets?region={region}`
+**Response**: List of buckets with name, creation date, region
+
+---
+
+### FR-7: DRS Tag Synchronization (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-7.1: Sync EC2 Tags to DRS
+**Priority**: Medium
+
+The system shall synchronize EC2 instance tags to DRS source servers:
+- On-demand sync for individual servers
+- Bulk sync operations for multiple servers
+- Real-time progress monitoring
+- Sync history and audit trail
+
+**API**: `POST /drs/source-servers/{id}/sync-tags`
+**Response**: Sync job status and progress
+
+#### FR-7.2: Sync Instance Types
+**Priority**: Medium
+
+The system shall synchronize EC2 instance types to DRS launch templates:
+- Match source instance type to target
+- Validate instance type availability in target region
+- Update launch template configuration
+
+**API**: `POST /drs/source-servers/{id}/sync-instance-type`
+
+---
+
+### FR-8: SSM Automation Integration (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-8.1: Pre-Wave Automation
+**Priority**: Medium
+
+The system shall execute SSM automation before wave execution:
+- Manual approval gates
+- Health checks
+- Custom validation scripts
+
+#### FR-8.2: Post-Wave Automation
+**Priority**: Medium
+
+The system shall execute SSM automation after wave completion:
+- Application startup scripts
+- Health validation
+- Smoke tests
+
+---
+
+### FR-9: Step Functions Visualization (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-9.1: Real-Time State Machine Visualization
+**Priority**: Medium
+
+The system shall provide real-time Step Functions execution visualization:
+- State timeline with current position
+- State input/output data
+- CloudWatch Logs integration
+- Error state highlighting
+
+**API**: `GET /executions/{id}/step-functions-state`
+
+---
+
+### FR-10: Multi-Account Support (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-10.1: Cross-Account Orchestration
+**Priority**: Low
+
+The system shall orchestrate recovery across multiple AWS accounts:
+- Hub-and-spoke architecture
+- Cross-account IAM roles
+- Unified management UI
+- Scale beyond 300-server DRS limit
+
+#### FR-10.2: Account Management
+**Priority**: Low
+
+The system shall manage multiple DRS accounts:
+- Account registration and validation
+- Cross-account permission setup
+- Account health monitoring
+
+---
+
+### FR-11: Cross-Account DRS Monitoring (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-11.1: Centralized Monitoring
+**Priority**: Low
+
+The system shall provide centralized DRS monitoring:
+- Dynamic account management
+- Cross-account metrics collection
+- Unified dashboards
+- Alerting and notifications
+
+---
+
+### FR-12: SNS Notification Integration (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-12.1: Real-Time Notifications
+**Priority**: Low
+
+The system shall send real-time notifications:
+- Execution status changes
+- DRS events
+- System health alerts
+- Multiple channels: Email, SMS, Slack, PagerDuty
+
+**API**: `POST /notifications/configure`
+
+---
+
+### FR-13: Scheduled Drills (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-13.1: Automated Drill Scheduling
+**Priority**: Low
+
+The system shall support automated drill scheduling:
+- Cron-based scheduling
+- Recurring drill execution
+- Automated reporting
+- Compliance tracking
+
+---
+
+### FR-14: CodeBuild & CodeCommit Migration (Phase 2)
+
+**Implementation Phase**: Advanced Features
+
+#### FR-14.1: AWS-Native CI/CD
+**Priority**: Low
+
+The system shall migrate to AWS-native CI/CD:
+- CodePipeline orchestration
+- CodeBuild compilation
+- CodeCommit repository
+- Leverage archived DR orchestrator patterns
+
+---
+
+### FR-15: Authentication
+
+#### FR-15.1: User Authentication
 **Priority**: Critical
 
 The system shall authenticate users via AWS Cognito:
@@ -425,7 +898,7 @@ The system shall authenticate users via AWS Cognito:
 - Token refresh support via Amplify
 - Session management with 45-minute auto-logout
 
-#### FR-5.2: API Authorization
+#### FR-15.2: API Authorization
 **Priority**: Critical
 
 The system shall authorize API requests:
@@ -487,6 +960,7 @@ The system shall authorize API requests:
 | Deployment | S3-based artifact deployment |
 | Version Control | Git with feature branch workflow |
 
+
 ---
 
 ## API Specifications
@@ -529,7 +1003,7 @@ Authorization: Bearer {id_token}
 }
 ```
 
-### API Endpoints
+### API Endpoints Summary
 
 #### Protection Groups
 
@@ -550,7 +1024,6 @@ Authorization: Bearer {id_token}
 | GET | /recovery-plans/{id} | Get Recovery Plan by ID |
 | PUT | /recovery-plans/{id} | Update Recovery Plan |
 | DELETE | /recovery-plans/{id} | Delete Recovery Plan |
-| POST | /recovery-plans/{id}/execute | Execute Recovery Plan |
 
 #### Executions
 
@@ -560,138 +1033,84 @@ Authorization: Bearer {id_token}
 | POST | /executions | Start new Execution |
 | GET | /executions/{id} | Get Execution details |
 | POST | /executions/{id}/resume | Resume paused Execution |
-| POST | /executions/{id}/cancel | Cancel running Execution |
+| DELETE | /executions/{id} | Cancel running Execution |
 | POST | /executions/{id}/terminate-instances | Terminate recovery instances |
 | GET | /executions/{id}/job-logs | Get DRS job event logs |
 | DELETE | /executions | Bulk delete completed Executions |
 
-#### DRS Integration
+#### DRS Server Discovery
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /drs/source-servers | Discover DRS source servers by region |
 
-### Request/Response Examples
+#### DRS Service Limits Validation
 
-#### Create Protection Group
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /drs/service-limits | Get current DRS service limits and usage |
+| POST | /drs/validate-limits | Validate operation against service limits |
 
-```http
-POST /protection-groups
-Content-Type: application/json
-Authorization: Bearer {token}
+#### DRS Source Server Management (Phase 2)
 
-{
-  "GroupName": "Database Servers",
-  "Description": "Primary database tier",
-  "Region": "us-east-1",
-  "sourceServerIds": ["s-1234567890abcdef0", "s-0987654321fedcba0"]
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /drs/source-servers/{id} | Get full server details |
+| GET | /drs/source-servers/{id}/launch-settings | Get launch configuration |
+| PUT | /drs/source-servers/{id}/launch-settings | Update launch configuration |
+| GET | /drs/source-servers/{id}/ec2-template | Get EC2 template settings |
+| PUT | /drs/source-servers/{id}/ec2-template | Update EC2 template settings |
+| GET | /drs/source-servers/{id}/tags | Get server tags |
+| PUT | /drs/source-servers/{id}/tags | Add/update server tags |
+| DELETE | /drs/source-servers/{id}/tags | Remove server tags |
+| GET | /drs/source-servers/{id}/disks | Get disk configuration |
+| PUT | /drs/source-servers/{id}/disks | Update disk configuration |
+| GET | /drs/source-servers/{id}/replication | Get replication configuration |
+| PUT | /drs/source-servers/{id}/replication | Update replication configuration |
+| GET | /drs/source-servers/{id}/post-launch | Get post-launch configuration |
+| PUT | /drs/source-servers/{id}/post-launch | Update post-launch configuration |
+| POST | /drs/source-servers/{id}/sync-tags | Sync EC2 tags to DRS server |
+| POST | /drs/source-servers/{id}/sync-instance-type | Sync EC2 instance type to DRS |
 
-Response (201 Created):
+#### Supporting Resources (Phase 2)
 
-```json
-{
-  "groupId": "uuid-xxx",
-  "groupName": "Database Servers",
-  "description": "Primary database tier",
-  "region": "us-east-1",
-  "sourceServerIds": ["s-1234567890abcdef0", "s-0987654321fedcba0"],
-  "createdDate": 1702656000,
-  "lastModifiedDate": 1702656000
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /ec2/resources | Get EC2 resources (subnets, SGs, profiles) |
+| GET | /drs/staging-resources | Get staging area resources |
+| GET | /ssm/documents | List SSM documents |
+| GET | /s3/buckets | List S3 buckets |
 
-#### Create Recovery Plan
+#### Step Functions Visualization (Phase 2)
 
-```http
-POST /recovery-plans
-Content-Type: application/json
-Authorization: Bearer {token}
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /executions/{id}/step-functions-state | Get real-time state machine visualization |
 
-{
-  "PlanName": "3-Tier Application Recovery",
-  "Description": "Complete application stack recovery",
-  "Waves": [
-    {
-      "WaveId": "wave-0",
-      "WaveName": "Database Tier",
-      "ProtectionGroupId": "pg-uuid-1",
-      "ServerIds": ["s-xxx"],
-      "PauseBeforeWave": false,
-      "Dependencies": []
-    },
-    {
-      "WaveId": "wave-1",
-      "WaveName": "Application Tier",
-      "ProtectionGroupId": "pg-uuid-2",
-      "ServerIds": ["s-yyy"],
-      "PauseBeforeWave": true,
-      "Dependencies": [{"DependsOnWaveId": "wave-0"}]
-    }
-  ]
-}
-```
+#### Multi-Account Management (Phase 2)
 
-#### Start Execution
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /accounts | List registered DRS accounts |
+| POST | /accounts | Register new DRS account |
+| GET | /accounts/{id}/health | Check account health status |
 
-```http
-POST /executions
-Content-Type: application/json
-Authorization: Bearer {token}
+#### Notifications (Phase 2)
 
-{
-  "PlanId": "plan-uuid",
-  "ExecutionType": "DRILL",
-  "InitiatedBy": "admin@example.com"
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /notifications/config | Get notification configuration |
+| POST | /notifications/configure | Configure notification channels |
+| POST | /notifications/test | Test notification delivery |
 
-Response (202 Accepted):
+#### Scheduled Drills (Phase 2)
 
-```json
-{
-  "executionId": "exec-uuid",
-  "status": "PENDING",
-  "message": "Execution started - check status with GET /executions/{id}",
-  "statusUrl": "/executions/exec-uuid"
-}
-```
-
-#### Resume Paused Execution
-
-```http
-POST /executions/{id}/resume
-Authorization: Bearer {token}
-```
-
-Response (200 OK):
-
-```json
-{
-  "executionId": "exec-uuid",
-  "status": "RUNNING",
-  "message": "Execution resumed successfully"
-}
-```
-
-#### Terminate Recovery Instances
-
-```http
-POST /executions/{id}/terminate-instances
-Authorization: Bearer {token}
-```
-
-Response (200 OK):
-
-```json
-{
-  "executionId": "exec-uuid",
-  "terminated": ["i-xxx", "i-yyy"],
-  "failed": [],
-  "message": "2 instances terminated successfully"
-}
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /schedules | List drill schedules |
+| POST | /schedules | Create drill schedule |
+| PUT | /schedules/{id} | Update drill schedule |
+| DELETE | /schedules/{id} | Delete drill schedule |
 
 ---
 
@@ -777,26 +1196,6 @@ Response (200 OK):
 | InstancesTerminated | Boolean | Whether instances were terminated |
 | ErrorMessage | String | Error details if failed |
 
-**Wave Execution Object Structure**:
-
-```json
-{
-  "WaveNumber": 0,
-  "WaveName": "Database Tier",
-  "Status": "COMPLETED",
-  "JobId": "drsjob-xxx",
-  "StartTime": 1702656000,
-  "EndTime": 1702656300,
-  "ServerStatuses": [
-    {
-      "SourceServerId": "s-xxx",
-      "LaunchStatus": "LAUNCHED",
-      "RecoveryInstanceId": "i-xxx"
-    }
-  ]
-}
-```
-
 ### Execution Status Values
 
 | Status | Description |
@@ -811,16 +1210,6 @@ Response (200 OK):
 | FAILED | Execution failed |
 | CANCELLED | Execution cancelled by user |
 | CANCELLING | Cancellation in progress |
-
-### Server Launch Status Values
-
-| Status | Description |
-|--------|-------------|
-| PENDING | Not yet started |
-| IN_PROGRESS | DRS job running |
-| LAUNCHED | EC2 instance launched successfully |
-| FAILED | Launch failed |
-| TERMINATED | Instance terminated |
 
 ---
 
@@ -865,6 +1254,20 @@ Response (200 OK):
 | Resume only valid for PAUSED status | 400 |
 | Terminate only valid for terminal states | 400 |
 
+### DRS Server Management Validation
+
+| Rule | Error Code |
+|------|------------|
+| Server ID must exist in DRS | 404 |
+| Region required for all operations | 400 |
+| Tag key cannot start with aws: | 400 |
+| Tag key max 128 characters | 400 |
+| Tag value max 256 characters | 400 |
+| Max 50 tags per server | 400 |
+| IOPS only valid for GP3, IO1, IO2 | 400 |
+| Throughput only valid for GP3 | 400 |
+| SSM timeout must be 120-3600 seconds | 400 |
+
 ---
 
 ## Appendix: Status Flow Diagrams
@@ -908,3 +1311,17 @@ stateDiagram-v2
     COMPLETED --> [*]
     FAILED --> [*]
 ```
+
+---
+
+## References
+
+- [Product Requirements Document](./PRODUCT_REQUIREMENTS_DOCUMENT.md)
+- [UX/UI Design Specifications](./UX_UI_DESIGN_SPECIFICATIONS.md)
+- [DRS Server Info MVP](../implementation/DRS_SERVER_INFO_MVP_PLAN.md)
+- [DRS Launch Settings MVP](../implementation/DRS_LAUNCH_SETTINGS_MVP_PLAN.md)
+- [EC2 Launch Template MVP](../implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN.md)
+- [DRS Tags MVP](../implementation/DRS_TAGS_MVP_PLAN.md)
+- [DRS Disk Settings MVP](../implementation/DRS_DISK_SETTINGS_MVP_PLAN.md)
+- [DRS Replication Settings MVP](../implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md)
+- [DRS Post-Launch MVP](../implementation/DRS_POST_LAUNCH_MVP_PLAN.md)

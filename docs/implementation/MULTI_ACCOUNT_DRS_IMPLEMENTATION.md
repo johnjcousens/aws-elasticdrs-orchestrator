@@ -519,6 +519,7 @@ Account record schema:
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 # Cache for cross-account clients (reuse within Lambda execution)
 _cross_account_clients = {}
@@ -530,35 +531,61 @@ def get_cross_account_client(service: str, account_id: str, region: str):
     if cache_key in _cross_account_clients:
         return _cross_account_clients[cache_key]
     
-    # Get account configuration from DynamoDB
-    accounts_table = dynamodb.Table(os.environ['ACCOUNTS_TABLE'])
-    account = accounts_table.get_item(Key={'AccountId': account_id}).get('Item')
-    
-    if not account or account.get('Status') != 'ACTIVE':
-        raise ValueError(f"Account {account_id} not configured or inactive")
-    
-    # Assume cross-account role
-    sts_client = boto3.client('sts')
-    response = sts_client.assume_role(
-        RoleArn=account['CrossAccountRoleArn'],
-        RoleSessionName=f'drs-orchestration-{account_id[:8]}',
-        ExternalId=account['ExternalId'],
-        DurationSeconds=3600
-    )
-    
-    credentials = response['Credentials']
-    
-    client = boto3.client(
-        service,
-        region_name=region,
-        aws_access_key_id=credentials['AccessKeyId'],
-        aws_secret_access_key=credentials['SecretAccessKey'],
-        aws_session_token=credentials['SessionToken'],
-        config=Config(retries={'max_attempts': 3})
-    )
-    
-    _cross_account_clients[cache_key] = client
-    return client
+    try:
+        # Get account configuration from DynamoDB
+        accounts_table = dynamodb.Table(os.environ['ACCOUNTS_TABLE'])
+        response = accounts_table.get_item(Key={'AccountId': account_id})
+        account = response.get('Item')
+        
+        if not account:
+            raise ValueError(f"Account {account_id} not found in configuration")
+        
+        if account.get('Status') != 'ACTIVE':
+            raise ValueError(f"Account {account_id} is {account.get('Status', 'UNKNOWN')} - must be ACTIVE")
+        
+        # Validate required fields
+        role_arn = account.get('CrossAccountRoleArn')
+        external_id = account.get('ExternalId')
+        
+        if not role_arn or not external_id:
+            raise ValueError(f"Account {account_id} missing required CrossAccountRoleArn or ExternalId")
+        
+        # Assume cross-account role
+        sts_client = boto3.client('sts')
+        response = sts_client.assume_role(
+            RoleArn=role_arn,
+            RoleSessionName=f'drs-orchestration-{account_id[:8]}',
+            ExternalId=external_id,
+            DurationSeconds=3600
+        )
+        
+        credentials = response['Credentials']
+        
+        client = boto3.client(
+            service,
+            region_name=region,
+            aws_access_key_id=credentials['AccessKeyId'],
+            aws_secret_access_key=credentials['SecretAccessKey'],
+            aws_session_token=credentials['SessionToken'],
+            config=Config(retries={'max_attempts': 3})
+        )
+        
+        _cross_account_clients[cache_key] = client
+        return client
+        
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == 'AccessDenied':
+            raise ValueError(f"Access denied assuming role for account {account_id}. Check trust relationship.")
+        elif error_code == 'InvalidUserID.NotFound':
+            raise ValueError(f"External ID validation failed for account {account_id}")
+        else:
+            raise ValueError(f"AWS error assuming role for account {account_id}: {e}")
+    except Exception as e:
+        print(f"Error getting cross-account client for {account_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def get_drs_account_capacity_cross_account(region: str, account_id: str) -> dict:

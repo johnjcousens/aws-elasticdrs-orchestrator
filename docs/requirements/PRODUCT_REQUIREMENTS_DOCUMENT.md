@@ -1,27 +1,28 @@
 # Product Requirements Document
 # AWS DRS Orchestration Solution
 
-**Version**: 5.0  
+**Version**: 1.0  
 **Date**: December 2025  
-**Status**: Production Deployed  
+**Status**: Requirements Definition  
 **Document Owner**: AWS DRS Orchestration Team
 
 ---
 
 ## Executive Summary
 
-AWS DRS Orchestration is an enterprise-grade, serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, and comprehensive audit trails.
+AWS DRS Orchestration will be an enterprise-grade, serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution will enable organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, comprehensive DRS source server management, and complete audit trails.
 
 ### Problem Statement
 
-AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences. Organizations need wave-based execution, dependency management, pause/resume controls, and automated monitoring capabilities.
+AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences. Organizations need wave-based execution, dependency management, pause/resume controls, automated monitoring capabilities, and centralized DRS source server configuration management.
 
 ### Solution Overview
 
-AWS DRS Orchestration provides complete orchestration on top of AWS DRS:
+AWS DRS Orchestration will provide complete orchestration and management on top of AWS DRS:
 - Protection Groups for logical server organization with automatic DRS discovery
 - Recovery Plans with wave-based execution and multi-Protection Group support per wave
 - Step Functions-driven automation with pause/resume capability
+- Complete DRS source server management (launch settings, EC2 templates, tags, disks, replication, post-launch)
 - React 19 + CloudScape Design System UI with real-time updates
 - Complete REST API for automation and DevOps integration
 
@@ -44,9 +45,9 @@ AWS DRS Orchestration provides complete orchestration on top of AWS DRS:
 - AWS DRS: Core disaster recovery service integration
 
 **Infrastructure as Code**:
-- CloudFormation: 7 nested stacks (master, database, lambda, api, step-functions, security, frontend)
+- CloudFormation: 7 templates total (1 master + 6 nested stacks: database, lambda, api, step-functions, security, frontend)
 - Single-command deployment from S3 artifacts
-- Multi-region support (all AWS DRS-supported regions)
+- Multi-region support (all 30 AWS DRS-supported regions)
 
 ### Data Model
 
@@ -63,7 +64,7 @@ AWS DRS Orchestration provides complete orchestration on top of AWS DRS:
 Logical organization of DRS source servers with automatic discovery and conflict detection.
 
 **Capabilities**:
-- Auto-discovery of DRS source servers across all AWS DRS-supported regions
+- Auto-discovery of DRS source servers across all 30 AWS DRS-supported regions
 - Visual server selector with real-time status indicators (Available/Assigned)
 - Single server per group constraint (globally enforced across all users)
 - Real-time search and filtering in server discovery panel
@@ -89,7 +90,7 @@ Wave-based orchestration with multi-Protection Group support and pause/resume ca
 
 **Capabilities**:
 - Unlimited waves with sequential execution
-- Multiple Protection Groups per wave (new in v5.0)
+- Multiple Protection Groups per wave
 - Wave dependencies with circular dependency validation
 - Pause-before-wave configuration for manual checkpoints
 - Drill and Recovery execution modes
@@ -127,11 +128,10 @@ Step Functions-driven recovery automation with pause/resume, instance terminatio
 
 **Server Conflict Detection**:
 - Prevents starting executions when servers are already in use by another active/paused execution
-- Checks ALL servers across ALL waves of the recovery plan (not just currently executing waves)
-- For PAUSED/PENDING executions, looks up the original Recovery Plan to identify all servers that will be used
+- Checks ALL servers across ALL waves of the recovery plan
+- For PAUSED/PENDING executions, looks up the original Recovery Plan to identify all servers
 - Frontend proactively disables Drill/Recovery buttons with reason when conflicts exist
 - API returns `hasServerConflict` and `conflictInfo` fields for each recovery plan
-- Conflict info includes: conflicting execution ID, status, and list of conflicting server IDs
 
 **Execution Flow**:
 1. Check for server conflicts with active/paused executions
@@ -172,38 +172,254 @@ Step Functions-driven recovery automation with pause/resume, instance terminatio
 - `GET /executions/{id}/job-logs` - Get DRS job event logs
 - `DELETE /executions` - Bulk delete completed executions
 
-### 4. User Interface
+### 4. DRS Service Limits Validation
+
+Real-time validation and enforcement of AWS DRS service limits to prevent API errors and ensure reliable operations.
+
+**Capabilities**:
+- **Hard Limit Enforcement**: 300 replicating servers per account per region (cannot be increased)
+- **Job Size Validation**: Maximum 100 servers per recovery job (prevents DRS API failures)
+- **Concurrent Job Monitoring**: Maximum 20 concurrent jobs across all operations
+- **Total Server Tracking**: Maximum 500 servers across all active jobs
+- **Real-time Quota Display**: Live usage metrics in UI with status indicators
+- **Proactive Blocking**: Prevents operations that would exceed limits before API calls
+
+**API Endpoints**:
+- `GET /drs/service-limits?region={region}` - Get current limits and usage
+- `POST /drs/validate-limits` - Validate operation against limits
+- `GET /drs/quotas?region={region}` - Get comprehensive quota dashboard data
+
+---
+
+## Implementation Phases
+
+### Phase 1: Core Features (MVP)
+
+**Essential Capabilities**:
+- Protection Groups with DRS server discovery
+- Recovery Plans with wave-based execution
+- Execution Engine with pause/resume/cancel/terminate
+- DRS Service Limits Validation
+- Real-time monitoring with 3-second auto-refresh
+- DRS job events timeline
+- Loading state management
+- Server conflict detection
+
+### Phase 2: Advanced Features
+
+| Priority | Feature | Description |
+|----------|---------|-------------|
+| 3 | **DRS Source Server Management** | Complete DRS source server configuration from UI |
+| 4 | **DRS Tag Synchronization** | Synchronize EC2 instance tags to DRS source servers |
+| 5 | **SSM Automation Integration** | Pre-wave and post-wave SSM automation |
+| 6 | **Step Functions Visualization** | Real-time state machine execution visualization |
+| 7 | **Multi-Account Support** | Cross-account orchestration, scale beyond 300 servers |
+| 8 | **Cross-Account DRS Monitoring** | Centralized monitoring across multiple accounts |
+| 9 | **SNS Notification Integration** | Real-time notifications via Email, SMS, Slack |
+| 10 | **Scheduled Drills** | Automated recurring drill execution |
+| 11 | **CodeBuild & CodeCommit Migration** | AWS-native CI/CD pipeline |
+
+### 5. DRS Source Server Management (Phase 2)
+
+Complete DRS source server configuration management from the UI without navigating to AWS Console.
+
+#### 5.1 Server Info & Recovery Dashboard (Phase 2)
+
+Read-only visibility into DRS source server details, replication state, recovery readiness, and lifecycle information.
+
+**Capabilities**:
+- Server details panel with hostname, OS, CPU, RAM, disks, network
+- Replication status and progress with lag duration
+- Recovery readiness indicators (READY_FOR_TEST, READY_FOR_CUTOVER)
+- Lifecycle state display with timestamps
+- Last recovery result and recovery instance details
+
+**Data Fields**:
+| Field | Description |
+|-------|-------------|
+| sourceServerID | Unique server identifier (s-xxx) |
+| hostname | Source server hostname |
+| lifeCycle | Lifecycle state and timestamps |
+| dataReplicationInfo | Replication status and progress |
+| sourceProperties | OS, CPU, RAM, disks, network |
+| lastLaunchResult | Last recovery result |
+
+**API Endpoints**:
+- `GET /drs/source-servers/{id}?region={region}` - Get full server details
+
+#### 5.2 Launch Settings (Phase 2)
+
+Configure DRS launch settings for recovery instances.
+
+**Capabilities**:
+- Right-sizing method (NONE, BASIC, IN_AWS)
+- Launch disposition (STOPPED, STARTED)
+- Copy private IP option
+- Copy tags option
+- BYOL licensing configuration
+
+**API Endpoints**:
+- `GET /drs/source-servers/{id}/launch-settings?region={region}` - Get launch configuration
+- `PUT /drs/source-servers/{id}/launch-settings` - Update launch configuration
+
+#### 5.3 EC2 Launch Template (Phase 2)
+
+Configure EC2 launch template settings for recovery instances.
+
+**Capabilities**:
+- Instance type selection with full EC2 instance type catalog
+- Subnet selection from available VPC subnets
+- Security group selection (multiple)
+- IAM instance profile selection
+
+**API Endpoints**:
+- `GET /drs/source-servers/{id}/ec2-template?region={region}` - Get EC2 template settings
+- `PUT /drs/source-servers/{id}/ec2-template` - Update EC2 template settings
+- `GET /ec2/resources?region={region}` - Get available subnets, security groups, instance profiles
+
+#### 5.4 Tags Management (Phase 2)
+
+View, add, edit, and delete tags on DRS source servers.
+
+**Capabilities**:
+- View all server tags
+- Add new tags with key-value pairs
+- Edit existing tag values
+- Delete tags
+- Tag validation (no aws: prefix, max 50 tags, key/value length limits)
+
+**Tag Constraints**:
+- Max 50 tags per resource
+- Key: 1-128 characters, no `aws:` prefix
+- Value: 0-256 characters
+- Case-sensitive
+
+**API Endpoints**:
+- `GET /drs/source-servers/{id}/tags?region={region}` - List tags
+- `PUT /drs/source-servers/{id}/tags` - Add/update tags
+- `DELETE /drs/source-servers/{id}/tags` - Remove tags
+
+#### 5.5 Disk Settings (Phase 2)
+
+Configure per-disk settings for DRS source servers.
+
+**Capabilities**:
+- View disk configuration (device name, size, boot disk indicator)
+- Edit disk type (GP2, GP3, IO1, IO2, ST1, SC1)
+- Configure IOPS (for io1/io2/gp3)
+- Configure throughput (for gp3)
+
+**Disk Type Options**:
+| Type | Use Case | IOPS | Throughput |
+|------|----------|------|------------|
+| gp3 | General purpose | 3000-16000 | 125-1000 MiB/s |
+| gp2 | General purpose (legacy) | Burst to 3000 | N/A |
+| io1 | High performance | Up to 64000 | N/A |
+| io2 | High performance | Up to 64000 | N/A |
+| st1 | Throughput optimized | N/A | Up to 500 MiB/s |
+| sc1 | Cold storage | N/A | Up to 250 MiB/s |
+
+**API Endpoints**:
+- `GET /drs/source-servers/{id}/disks?region={region}` - Get disk configuration
+- `PUT /drs/source-servers/{id}/disks` - Update disk configuration
+
+#### 5.6 Replication Settings (Phase 2)
+
+Configure replication settings for DRS source servers.
+
+**Capabilities**:
+- Staging area subnet selection
+- Security group configuration for replication servers
+- Replication server instance type selection
+- Dedicated vs shared replication server
+- Bandwidth throttling (0 = unlimited)
+- Data plane routing (PRIVATE_IP or PUBLIC_IP)
+- EBS encryption settings
+- Point-in-time (PIT) snapshot policy configuration
+
+**PIT Policy Configuration**:
+```json
+{
+  "pitPolicy": [
+    { "interval": 10, "retentionDuration": 60, "units": "MINUTE", "enabled": true },
+    { "interval": 1, "retentionDuration": 24, "units": "HOUR", "enabled": true },
+    { "interval": 1, "retentionDuration": 7, "units": "DAY", "enabled": true }
+  ]
+}
+```
+
+**API Endpoints**:
+- `GET /drs/source-servers/{id}/replication?region={region}` - Get replication configuration
+- `PUT /drs/source-servers/{id}/replication` - Update replication configuration
+- `GET /drs/staging-resources?region={region}` - Get available subnets and security groups
+
+#### 5.7 Post-Launch Settings (Phase 2)
+
+Configure post-launch actions for recovery instances.
+
+**Capabilities**:
+- Deployment type (TEST_AND_CUTOVER or CUTOVER)
+- SSM automation document selection
+- SSM execution timeout (120-3600 seconds)
+- Must succeed for cutover option
+- S3 log bucket configuration
+- S3 key prefix for logs
+
+**API Endpoints**:
+- `GET /drs/source-servers/{id}/post-launch?region={region}` - Get post-launch configuration
+- `PUT /drs/source-servers/{id}/post-launch` - Update post-launch configuration
+- `GET /ssm/documents?region={region}` - List available SSM documents
+- `GET /s3/buckets?region={region}` - List available S3 buckets
+
+### 5. User Interface
 
 React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 
-**Pages (7 total)**:
+**Pages**:
+
+**MVP (Phase 1)**:
 | Route | Component | Description |
 |-------|-----------|-------------|
 | /login | LoginPage | Cognito authentication with error handling |
 | / | Dashboard | Metrics cards, pie chart, active executions, recent activity |
 | /getting-started | GettingStartedPage | 3-step onboarding guide with quick links |
-| /protection-groups | ProtectionGroupsPage | CRUD table with server counts |
-| /recovery-plans | RecoveryPlansPage | CRUD table with execution status, wave counts |
-| /executions | ExecutionsPage | Active/History tabs with real-time updates |
-| /executions/:id | ExecutionDetailsPage | Wave progress, DRS events, pause/resume/terminate controls |
+| /protection-groups | ProtectionGroupsPage | CRUD table with server counts and DRS limits validation |
+| /recovery-plans | RecoveryPlansPage | CRUD table with execution status, wave counts, conflict detection |
+| /executions | ExecutionsPage | Active/History tabs with real-time updates (3-second polling) |
+| /executions/:id | ExecutionDetailsPage | Wave progress, DRS job events, pause/resume/terminate controls |
+
+**Phase 2**:
+| Route | Component | Description |
+|-------|-----------|-------------|
+| /servers/:id | ServerDetailsPage | DRS source server configuration management |
+| /quotas | QuotasPage | DRS service limits dashboard and monitoring |
 
 **Key UI Features**:
 - Real-time updates: 3-second polling for active executions
 - DRS Job Events timeline with auto-refresh
 - Pause/Resume execution controls with loading states
 - Terminate recovery instances button (terminal states only)
+- DRS source server management modals (7 configuration areas)
 - Loading states on all action buttons (prevents double-clicks)
 - Toast notifications via react-hot-toast
 - Auto-logout after 45 minutes of inactivity
 - Responsive design, WCAG 2.1 AA compliant
 
-**Reusable Components (22 total)**:
+**Reusable Components**:
+
+**MVP (Phase 1)**:
 - ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog
 - ServerSelector, ServerDiscoveryPanel, ServerListItem, RegionSelector
 - WaveConfigEditor, WaveProgress, StatusBadge, DateTimeDisplay
 - LoadingState, ErrorState, ErrorBoundary, ErrorFallback
 - CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute
-- AppLayout, ContentLayout (CloudScape wrappers)
+- DRSLimitsValidator, QuotaDisplay, ServiceLimitsAlert
+- ConflictDetector, ExecutionControls, JobEventsTimeline
+
+**Phase 2**:
+- ServerInfoPanel, LaunchSettingsEditor, EC2TemplateEditor
+- TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor
+- TagSyncManager, MultiAccountManager, NotificationCenter
 
 ---
 
@@ -237,7 +453,7 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 
 ### DRS Integration
 
-**Critical Discovery**: DRS uses the calling Lambda role's IAM permissions for EC2 operations during recovery.
+**Critical Requirement**: DRS uses the calling Lambda role's IAM permissions for EC2 operations during recovery.
 
 **Required Lambda IAM Permissions**:
 ```yaml
@@ -247,11 +463,19 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 - drs:DescribeJobs
 - drs:DescribeJobLogItems
 - drs:DescribeRecoveryInstances
-- drs:CreateRecoveryInstanceForDrs  # CRITICAL - often missing
+- drs:CreateRecoveryInstanceForDrs
+- drs:GetLaunchConfiguration
+- drs:UpdateLaunchConfiguration
+- drs:GetReplicationConfiguration
+- drs:UpdateReplicationConfiguration
+- drs:ListTagsForResource
+- drs:TagResource
+- drs:UntagResource
 
 # EC2 Permissions (required by DRS during recovery)
 - ec2:DescribeInstances
 - ec2:DescribeInstanceStatus
+- ec2:DescribeInstanceTypes
 - ec2:DescribeLaunchTemplates
 - ec2:DescribeLaunchTemplateVersions
 - ec2:CreateLaunchTemplate
@@ -266,6 +490,20 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 - ec2:CreateTags
 - ec2:CreateNetworkInterface
 - ec2:DeleteNetworkInterface
+- ec2:DescribeSubnets
+- ec2:DescribeSecurityGroups
+- ec2:DescribeVpcs
+
+# SSM Permissions (for post-launch)
+- ssm:ListDocuments
+- ssm:DescribeDocument
+
+# S3 Permissions (for post-launch logs)
+- s3:ListAllMyBuckets
+- s3:GetBucketLocation
+
+# IAM Permissions (for instance profiles)
+- iam:ListInstanceProfiles
 ```
 
 **Recovery Flow Timeline**:
@@ -363,12 +601,14 @@ aws cloudformation deploy \
 | Create Protection Group | <5 minutes |
 | Create Recovery Plan | <15 minutes |
 | Execute Drill | <30 minutes |
+| Configure Server Launch Settings | <2 minutes |
+| Configure Server Replication | <5 minutes |
 
 ---
 
 ## AWS DRS Regional Availability
 
-The solution supports all **30 AWS regions** where Elastic Disaster Recovery (DRS) is available:
+The solution will support all **30 AWS regions** where Elastic Disaster Recovery (DRS) is available:
 
 | Region Group | Count | Regions |
 |--------------|-------|---------|
@@ -382,19 +622,15 @@ The solution supports all **30 AWS regions** where Elastic Disaster Recovery (DR
 
 ---
 
-## Future Enhancements
+## DRS Service Limits Compliance
 
-### Phase 2
-- Pre/post-wave automation hooks (SSM Automation, Lambda triggers)
-- VPC test isolation for drill executions
-- Automated drill scheduling (EventBridge)
-- PDF report generation for compliance
+The solution will enforce AWS DRS service limits to prevent API errors:
 
-### Phase 3
-- Reprotection/failback workflows
-- Multi-account hub-and-spoke architecture
-- Advanced CloudWatch dashboards
-- Cost optimization recommendations
+| Limit | Value | Enforcement |
+|-------|-------|-------------|
+| Max replicating servers | 300 | UI validation, API validation |
+| Max servers in all jobs | 500 | Execution validation |
+| Max concurrent jobs | 20 | Execution queue management |
 
 ---
 
@@ -404,3 +640,10 @@ The solution supports all **30 AWS regions** where Elastic Disaster Recovery (DR
 - [UX/UI Design Specifications](./UX_UI_DESIGN_SPECIFICATIONS.md)
 - [Deployment Guide](../guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md)
 - [Architecture Design](../architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)
+- [DRS Server Info MVP](../implementation/DRS_SERVER_INFO_MVP_PLAN.md)
+- [DRS Launch Settings MVP](../implementation/DRS_LAUNCH_SETTINGS_MVP_PLAN.md)
+- [EC2 Launch Template MVP](../implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN.md)
+- [DRS Tags MVP](../implementation/DRS_TAGS_MVP_PLAN.md)
+- [DRS Disk Settings MVP](../implementation/DRS_DISK_SETTINGS_MVP_PLAN.md)
+- [DRS Replication Settings MVP](../implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md)
+- [DRS Post-Launch MVP](../implementation/DRS_POST_LAUNCH_MVP_PLAN.md)
