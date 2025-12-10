@@ -368,11 +368,15 @@ aws cloudformation deploy \
 
 ## AWS DRS Regional Availability
 
-The solution supports all AWS regions where Elastic Disaster Recovery (DRS) is available:
+The solution supports all **30 AWS regions** where Elastic Disaster Recovery (DRS) is available:
 
-**Americas (5 regions)**: US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central)
-**Europe (6 regions)**: Ireland, London, Frankfurt, Paris, Stockholm, Milan
-**Asia Pacific (3 regions)**: Tokyo, Sydney, Singapore
+| Region Group | Count | Regions |
+|--------------|-------|---------|
+| **Americas** | 6 | US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central), South America (São Paulo) |
+| **Europe** | 8 | Ireland, London, Frankfurt, Paris, Stockholm, Milan, Spain, Zurich |
+| **Asia Pacific** | 10 | Tokyo, Seoul, Osaka, Singapore, Sydney, Mumbai, Hyderabad, Jakarta, Melbourne, Hong Kong |
+| **Middle East & Africa** | 4 | Bahrain, UAE, Cape Town, Tel Aviv |
+| **GovCloud** | 2 | US-East, US-West |
 
 *Regional availability is determined by AWS DRS service. As AWS expands DRS to additional regions, the solution automatically supports them.*
 
