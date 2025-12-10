@@ -328,7 +328,19 @@ npm run test:watch     # Run tests in watch mode
 npm run test:coverage  # Run tests with coverage report
 ```
 
-Tests validate DRS service limits and quota handling without requiring actual DRS infrastructure. See [DRS Service Limits Tests](frontend/src/services/__tests__/drsQuotaService.test.ts) for implementation.
+Tests validate DRS service limits and quota handling without requiring actual DRS infrastructure. See [Frontend Tests](frontend/src/services/__tests__/drsQuotaService.test.ts).
+
+### Backend Testing
+
+Python unit tests for Lambda validation functions using pytest with mocked boto3:
+
+```bash
+cd tests/python
+pip install -r requirements.txt
+python -m pytest unit/test_drs_service_limits.py -v
+```
+
+Tests validate DRS service limits validation logic with mocked AWS API responses. See [Backend Tests](tests/python/unit/test_drs_service_limits.py).
 
 ### Lambda Development
 
