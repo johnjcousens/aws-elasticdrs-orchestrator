@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="AWS DRS Orchestration Solution Deployment Guide">
+<meta name="keywords" content="AWS, DRS, Disaster Recovery, Orchestration, CloudFormation">
+<title>AWS DRS Orchestration Solution - Deployment Guide</title>
+<style>
+/* Base styles from archive template */
+@import "https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700";
+
+/* Amazon Ember font faces */
+@font-face {
+  font-family: 'Amazon Ember Regular';
+  src: url('https://m.media-amazon.com/images/G/01/AUIClients/AmazonUIBaseCSS-amazonember_rg-fd81bacb6a659a8c8c95828226b74594ab985060._V299195749_.woff2') format('woff2');
+}
+
+body {
+  font-family: "Amazon Ember Regular", "Helvetica", "Tahoma", "Geneva", "Arial", sans-serif;
+  background: #fff;
+  color: rgba(0,0,0,.8);
+  padding: 0;
+  margin: 0;
+  line-height: 1.6;
+}
+
+#header, #content, #footer {
+  width: 100%;
+  margin: 0 auto;
+  max-width: 62.5em;
+  padding: 0 .9375em;
+}
+
+#toc {
+  border-bottom: 1px solid #e7e7e9;
+  padding-bottom: .5em;
+  width: 230px;
+  overflow-x: hidden;
+  background: #1c222a;
+  position: fixed;
+  width: 15em;
+  left: 0;
+  top: 0;
+  height: 100%;
+  z-index: 1000;
+}
+
+#toc ul {
+  font-family: "Open Sans", "DejaVu Sans", sans-serif;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+#toc li {
+  line-height: 1.3334;
+  margin-top: .3334em;
+  padding: 0.3rem 0.6rem;
+}
+
+#toc a {
+  font-family: "Amazon Ember Light", "Helvetica", sans-serif;
+  text-decoration: none;
+  color: #ccc;
+  display: block;
+  font-size: 1rem;
+  line-height: 2rem;
+  padding: 0 1rem;
+  margin: 0 -1rem;
+}
+
+#toc a:hover {
+  color: #e6e6e6;
+}
+
+#toctitle {
+  background: #283e5b;
+  width: 100%;
+  height: 154px;
+  color: #283e5b;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='50' font-size='12' fill='%23fff' text-anchor='middle' x='50'%3EAWS DRS%3C/text%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 50%;
+  background-position: center;
+}
+
+body.toc2 {
+  padding-left: 15em;
+  padding-right: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Open Sans", "DejaVu Sans", sans-serif;
+  font-weight: 300;
+  color: #ec7211;
+  margin: 0.85rem 0 1.7rem 0;
+  text-rendering: optimizeLegibility;
+}
+
+h1 { font-size: 2.125em; }
+h2 { font-size: 1.6875em; }
+h3 { font-size: 1.375em; }
+
+p {
+  margin: 1rem 0;
+  font-size: 1.0625rem;
+}
+
+.admonitionblock {
+  margin: 1.25em 0;
+}
+
+.admonitionblock table {
+  border-collapse: separate;
+  border: 0;
+  background: none;
+  width: 100%;
+}
+
+.admonitionblock td.icon {
+  text-align: center;
+  width: 80px;
+}
+
+.admonitionblock td.content {
+  padding-left: 1.125em;
+  padding-right: 1.25em;
+  border-left: 1px solid #dddddf;
+  color: rgba(0,0,0,.6);
+}
+
+.tip {
+  border-top: 30px solid rgba(92, 184, 92, 0.8);
+  background: #E6F9E6;
+}
+
+.note {
+  border-top: 30px solid #6AB0DE;
+  background: #E7F2FA;
+}
+
+.warning {
+  border-top: 30px solid #F0B37E;
+  background: #FFF2DB;
+}
+
+.important {
+  border-top: 30px solid rgba(217, 83, 79, 0.8);
+  background: #FAE2E2;
+}
+
+.imageblock {
+  margin: 1.25em 0;
+  text-align: center;
+}
+
+.imageblock .title {
+  font-style: italic;
+  margin-top: 0.5em;
+  color: #34478c;
+}
+
+table {
+  background: #fff;
+  margin-bottom: 1.25em;
+  border: solid 1px #dedede;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table thead, table tfoot {
+  background: #f7f8f7;
+}
+
+table th, table td {
+  padding: .5625em .625em;
+  font-size: inherit;
+  color: rgba(0,0,0,.8);
+  border: 1px solid #dedede;
+}
+
+code {
+  font-family: "Droid Sans Mono", "DejaVu Sans Mono", monospace;
+  font-size: .9375em;
+  background: #f7f7f8;
+  padding: .1em .5ex;
+  border-radius: 4px;
+}
+
+pre {
+  background: #f7f7f8;
+  padding: 1em;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: "Droid Sans Mono", "DejaVu Sans Mono", monospace;
+}
+
+.listingblock .content pre {
+  background: #f7f7f8;
+  border-radius: 4px;
+}
+
+ul, ol {
+  margin-left: 1.5em;
+  margin-bottom: 1.25em;
+}
+
+.footer-text {
+  color: rgba(255,255,255,.8);
+  line-height: 1.44;
+  background: #1c222a;
+  padding: 1.25em;
+  max-width: 100%;
+  margin-bottom: 0;
+}
+
+.footer-text a {
+  color: #d7d8d8;
+}
+
+@media screen and (max-width: 767px) {
+  #toc {
+    display: none !important;
+  }
+  body.toc2 {
+    padding-left: 1%;
+    padding-right: 1%;
+  }
+}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="book toc2 toc-left">
+<div id="header">
+<div id="toc" class="toc2">
+<div id="toctitle"></div>
+<ul class="sectlevel1">
+<li><a href="#_overview">Overview</a></li>
+<li><a href="#_costs_and_licenses">Costs and licenses</a></li>
+<li><a href="#_architecture">Architecture</a></li>
+<li><a href="#_deployment_options">Deployment options</a></li>
+<li><a href="#_plan_the_deployment">Plan the deployment</a></li>
+<li><a href="#_predeployment_steps">Predeployment steps</a></li>
+<li><a href="#_deployment_steps">Deployment steps</a></li>
+<li><a href="#_postdeployment_steps">Postdeployment steps</a></li>
+<li><a href="#_security">Security</a></li>
+<li><a href="#_troubleshooting">Troubleshooting</a></li>
+<li><a href="#_customer_responsibility">Customer responsibility</a></li>
+<li><a href="#_feedback">Feedback</a></li>
+</ul>
+</div>
+</div>
+<div id="content">
+<div id="preamble">
+<div class="sectionbody">
+<h1 class="discrete text-center" style="color: #232F3E; margin-bottom: 0.5rem;">
+<img src="https://a0.awsstatic.com/libra-css/images/logos/aws_logo_smile_179x109.png" alt="AWS" style="height: 40px; vertical-align: middle; margin-right: 15px;">
+AWS DRS Orchestration Solution
+</h1>
+<h2 class="discrete text-center" style="color: #FF9900; margin-top: 0;">Deployment Guide</h2>
+
+<div class="imageblock text-center" style="margin: 2rem 0; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+<div class="content">
+<h3 style="color: #232F3E; margin-bottom: 1rem;">Solution Architecture Flow</h3>
+<div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 1rem;">
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 100px;">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="Users" style="width: 32px; height: 32px;"><br>
+<strong>Users</strong>
+</div>
+<div style="font-size: 1.5rem; color: #FF9900;">→</div>
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 100px;">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="CloudFront" style="width: 32px; height: 32px;"><br>
+<strong>CloudFront</strong>
+</div>
+<div style="font-size: 1.5rem; color: #FF9900;">→</div>
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 100px;">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="API Gateway" style="width: 32px; height: 32px;"><br>
+<strong>API Gateway</strong>
+</div>
+<div style="font-size: 1.5rem; color: #FF9900;">→</div>
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 100px;">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="Lambda" style="width: 32px; height: 32px;"><br>
+<strong>Lambda</strong>
+</div>
+<div style="font-size: 1.5rem; color: #FF9900;">→</div>
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 100px;">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="DRS" style="width: 32px; height: 32px;"><br>
+<strong>AWS DRS</strong>
+</div>
+</div>
+</div>
+</div>
+<div class="imageblock text-center" style="margin-top: 1.5em; background: transparent; border: none; padding: 1em;">
+<div class="content">
+<a href="https://aws.amazon.com/what-is-cloud-computing"><img src="https://d0.awsstatic.com/logos/powered-by-aws.png" alt="Powered by AWS Cloud Computing" width="200" style="background: none; border: none;"></a>
+</div>
+</div>
+<div class="paragraph text-center">
+<p><strong>December 2025</strong><br>
+<em>AWS Professional Services Team</em><br></p>
+</div>
+
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+This deployment guide provides automated reference deployments for AWS DRS Orchestration according to AWS best practices for enterprise disaster recovery orchestration.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_overview"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Overview</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This guide discusses architectural considerations and configuration steps for deploying AWS DRS Orchestration, an enterprise-grade disaster recovery orchestration platform for AWS Elastic Disaster Recovery (DRS). It provides links for launching <a href="http://aws.amazon.com/cloudformation/" target="_blank" rel="noopener">AWS CloudFormation</a> templates that automate the deployment.</p>
+</div>
+
+<div class="paragraph">
+<p>The guide is for IT infrastructure architects and disaster recovery specialists who want to design and deploy a solution for orchestrating complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks.</p>
+</div>
+
+<div class="paragraph">
+<p>AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services. The solution provides:</p>
+</div>
+
+<div class="ulist">
+<ul>
+<li><p><strong>Wave-Based Recovery</strong>: Execute disaster recovery in coordinated waves with explicit dependencies between tiers</p></li>
+<li><p><strong>Protection Groups</strong>: Organize DRS source servers into logical groups for coordinated recovery</p></li>
+<li><p><strong>Drill Mode</strong>: Test recovery procedures without impacting production environments</p></li>
+<li><p><strong>Real-Time Monitoring</strong>: Track execution progress with detailed status updates</p></li>
+<li><p><strong>API-First Design</strong>: Complete REST API for DevOps integration and automation workflows</p></li>
+</ul>
+</div>
+
+<div class="sect2">
+<h3 id="_key_capabilities">Key Capabilities</h3>
+<div class="ulist">
+<ul>
+<li><p><strong>Cost-Effective</strong>: $12-40/month operational cost with pay-per-use serverless pricing</p></li>
+<li><p><strong>Unlimited Waves</strong>: Flexible wave-based orchestration with no artificial constraints</p></li>
+<li><p><strong>Platform Agnostic</strong>: Supports any source platform (VMware, physical servers, cloud)</p></li>
+<li><p><strong>Sub-Second RPO</strong>: Leverages AWS DRS continuous replication capabilities</p></li>
+<li><p><strong>Fully Serverless</strong>: No infrastructure to manage, scales automatically</p></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_costs_and_licenses"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Costs and licenses</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This solution is built entirely on AWS serverless services and follows a pay-per-use pricing model. There are no upfront costs or licensing fees for the orchestration platform itself.</p>
+</div>
+
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 40%;">
+<col style="width: 30%;">
+<col style="width: 30%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Component</th>
+<th class="tableblock halign-left valign-top">Monthly Cost (Est.)</th>
+<th class="tableblock halign-left valign-top">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Lambda</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$1-5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Based on execution frequency</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API Gateway</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$3-10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">REST API requests</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DynamoDB</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$1-5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On-demand pricing</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CloudFront</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$1-5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CDN for frontend</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">S3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">&lt;$1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Static hosting</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Step Functions</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">$1-5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Orchestration engine</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cognito</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Free tier</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">User authentication</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Total</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>$12-40/month</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Varies based on usage</p></td>
+</tr>
+</tbody>
+</table>
+
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+DRS replication costs are separate and depend on the number of protected servers. The orchestration platform cost is independent of the number of servers being protected.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_architecture"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Architecture</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>AWS DRS Orchestration follows a serverless, event-driven architecture with clear separation between frontend, API, compute, data, and DRS integration layers.</p>
+</div>
+
+<div class="imageblock">
+<div class="content">
+<img src="../architecture/AWS-DRS-Orchestration-Architecture.png" alt="AWS DRS Orchestration Architecture" width="75%">
+</div>
+<div class="title">Figure 1. AWS DRS Orchestration Architecture</div>
+</div>
+
+<div class="imageblock text-center" style="margin: 2rem 0; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+<div class="content">
+<h3 style="color: #232F3E; margin-bottom: 1rem;">AWS Services Used</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+<div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="React" style="width: 40px; height: 40px; margin-bottom: 0.5rem;"><br>
+<strong>Frontend</strong><br>
+<small>React + CloudScape</small>
+</div>
+<div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="API Gateway" style="width: 40px; height: 40px; margin-bottom: 0.5rem;"><br>
+<strong>API Gateway</strong><br>
+<small>REST API</small>
+</div>
+<div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="Lambda" style="width: 40px; height: 40px; margin-bottom: 0.5rem;"><br>
+<strong>Lambda</strong><br>
+<small>5 Functions</small>
+</div>
+<div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="Step Functions" style="width: 40px; height: 40px; margin-bottom: 0.5rem;"><br>
+<strong>Step Functions</strong><br>
+<small>Orchestration</small>
+</div>
+<div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="DynamoDB" style="width: 40px; height: 40px; margin-bottom: 0.5rem;"><br>
+<strong>DynamoDB</strong><br>
+<small>3 Tables</small>
+</div>
+<div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+<img src="https://a0.awsstatic.com/libra-css/images/site/fav/favicon.ico" alt="DRS" style="width: 40px; height: 40px; margin-bottom: 0.5rem;"><br>
+<strong>AWS DRS</strong><br>
+<small>Disaster Recovery</small>
+</div>
+</div>
+</div>
+</div>
+
+<div class="sect2">
+<h3 id="_technology_stack"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Technology Stack</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 30%;">
+<col style="width: 70%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Layer</th>
+<th class="tableblock halign-left valign-top">Technology</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Frontend</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">React 19.1, TypeScript 5.9, CloudScape Design System 3.0</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Amazon API Gateway (REST), Amazon Cognito</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compute</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS Lambda (Python 3.12), AWS Step Functions</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Database</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Amazon DynamoDB (3 tables with GSI)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Hosting</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Amazon S3, Amazon CloudFront</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DR Service</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS Elastic Disaster Recovery (DRS)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="sect2">
+<h3 id="_cloudformation_stacks">CloudFormation Stacks</h3>
+<div class="paragraph">
+<p>The solution uses a modular nested stack architecture for maintainability:</p>
+</div>
+
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 40%;">
+<col style="width: 30%;">
+<col style="width: 30%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Stack</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+<th class="tableblock halign-left valign-top">Key Resources</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">master-template.yaml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Root orchestrator</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Parameter propagation, outputs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">database-stack.yaml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Data persistence</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3 DynamoDB tables with encryption</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">lambda-stack.yaml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compute layer</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5 Lambda functions, IAM roles</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">api-stack.yaml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API & Auth</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API Gateway, Cognito</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">step-functions-stack.yaml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Orchestration</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Step Functions state machine</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">security-stack.yaml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Security (optional)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">WAF, CloudTrail</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">frontend-stack.yaml</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Frontend hosting</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">S3, CloudFront</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_deployment_options"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Deployment options</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This solution provides automated deployment through AWS CloudFormation templates. Choose the deployment option that best fits your environment:</p>
+</div>
+
+<div class="ulist">
+<ul>
+<li><p><strong>New VPC Deployment</strong>: Deploy the complete solution including a new VPC with public and private subnets</p></li>
+<li><p><strong>Existing VPC Deployment</strong>: Deploy into your existing VPC infrastructure</p></li>
+</ul>
+</div>
+
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+AWS DRS is available in 30 AWS regions (28 commercial + 2 GovCloud). Ensure DRS is available in your target region before deployment.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_plan_the_deployment"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Plan the deployment</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Before deploying the solution, consider the following planning aspects:</p>
+</div>
+
+<div class="sect2">
+<h3 id="_drs_prerequisites">DRS Prerequisites</h3>
+<div class="ulist">
+<ul>
+<li><p><strong>DRS Initialization</strong>: AWS DRS must be initialized in your target region</p></li>
+<li><p><strong>Source Servers</strong>: Source servers should be replicating to AWS DRS</p></li>
+<li><p><strong>IAM Permissions</strong>: Appropriate IAM permissions for DRS operations</p></li>
+<li><p><strong>Network Connectivity</strong>: Ensure source servers can communicate with AWS DRS</p></li>
+</ul>
+</div>
+</div>
+
+<div class="sect2">
+<h3 id="_capacity_planning">Capacity Planning</h3>
+<div class="paragraph">
+<p>Consider AWS DRS service limits when planning your deployment:</p>
+</div>
+
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Limit</th>
+<th class="tableblock halign-left valign-top">Value</th>
+<th class="tableblock halign-left valign-top">Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Replicating servers per account per region</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">300</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Hard limit</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Servers per recovery job</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">100</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Hard limit</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Concurrent jobs</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">20</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Soft limit</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Max servers in all jobs</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">500</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Soft limit</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="sect2">
+<h3 id="_network_requirements">Network Requirements</h3>
+<div class="ulist">
+<ul>
+<li><p><strong>VPC Configuration</strong>: Public and private subnets in multiple AZs</p></li>
+<li><p><strong>Internet Access</strong>: Required for CloudFormation deployment and frontend access</p></li>
+<li><p><strong>Security Groups</strong>: Appropriate security group rules for AWS services</p></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_predeployment_steps"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Predeployment steps</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Complete these steps before deploying the solution:</p>
+</div>
+
+<div class="olist arabic">
+<ol class="arabic">
+<li><p><strong>AWS Account Setup</strong>: Ensure you have an AWS account with appropriate permissions</p></li>
+<li><p><strong>Region Selection</strong>: Choose an AWS region where DRS is available</p></li>
+<li><p><strong>DRS Initialization</strong>: Initialize AWS DRS in your target region</p></li>
+<li><p><strong>S3 Bucket</strong>: Create an S3 bucket for deployment artifacts</p></li>
+<li><p><strong>Service Quotas</strong>: Request quota increases if needed for your deployment scale</p></li>
+</ol>
+</div>
+
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-important" title="Important"></i>
+</td>
+<td class="content">
+Ensure AWS DRS is initialized and source servers are replicating before deploying the orchestration solution.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_deployment_steps"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Deployment steps</h2>
+
+<div class="imageblock text-center" style="margin: 2rem 0; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+<div class="content">
+<h3 style="color: #232F3E; margin-bottom: 1rem;">Deployment Process</h3>
+<div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 1rem;">
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 120px;">
+<strong style="color: #FF9900; font-size: 1.2rem;">1</strong><br>
+Upload Artifacts<br>to S3
+</div>
+<div style="font-size: 1.5rem; color: #FF9900;">→</div>
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 120px;">
+<strong style="color: #FF9900; font-size: 1.2rem;">2</strong><br>
+Deploy<br>CloudFormation
+</div>
+<div style="font-size: 1.5rem; color: #FF9900;">→</div>
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 120px;">
+<strong style="color: #FF9900; font-size: 1.2rem;">3</strong><br>
+Create<br>Admin User
+</div>
+<div style="font-size: 1.5rem; color: #FF9900;">→</div>
+<div style="background: white; border: 2px solid #FF9900; border-radius: 8px; padding: 1rem; text-align: center; min-width: 120px;">
+<strong style="color: #FF9900; font-size: 1.2rem;">4</strong><br>
+Access<br>Application
+</div>
+</div>
+</div>
+</div>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li><p>Sign in to your AWS account and navigate to the CloudFormation console</p></li>
+<li><p>Choose the correct AWS Region where DRS is initialized</p></li>
+<li><p>Create a new stack using the master template URL</p></li>
+<li><p>Configure stack parameters:</p>
+<div class="ulist">
+<ul>
+<li><p><strong>ProjectName</strong>: Name for your DRS orchestration deployment</p></li>
+<li><p><strong>Environment</strong>: Environment identifier (dev, test, prod)</p></li>
+<li><p><strong>SourceBucket</strong>: S3 bucket containing deployment artifacts</p></li>
+<li><p><strong>AdminEmail</strong>: Email for the initial admin user</p></li>
+</ul>
+</div></li>
+<li><p>Review and acknowledge IAM resource creation</p></li>
+<li><p>Deploy the stack (takes approximately 20-30 minutes)</p></li>
+<li><p>Monitor deployment progress in the CloudFormation console</p></li>
+<li><p>Retrieve stack outputs for application URLs and configuration</p></li>
+</ol>
+</div>
+
+<div class="sect2">
+<h3 id="_example_deployment_command">Example Deployment Command</h3>
+<div class="listingblock">
+<div class="content">
+<pre>aws cloudformation deploy \
+  --template-url https://your-bucket.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
+  --stack-name drs-orchestration \
+  --parameter-overrides \
+    ProjectName=drs-orchestration \
+    Environment=prod \
+    SourceBucket=your-bucket \
+    AdminEmail=admin@yourcompany.com \
+  --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+  --region us-east-1</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_postdeployment_steps"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Postdeployment steps</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>After successful deployment, complete these configuration steps:</p>
+</div>
+
+<div class="sect2">
+<h3 id="_create_admin_user">Create Admin User</h3>
+<div class="listingblock">
+<div class="content">
+<pre>USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name drs-orchestration \
+  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+  --output text)
+
+aws cognito-idp admin-create-user \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@yourcompany.com \
+  --user-attributes Name=email,Value=admin@yourcompany.com Name=email_verified,Value=true \
+  --temporary-password "TempPass123!" \
+  --message-action SUPPRESS</pre>
+</div>
+</div>
+</div>
+
+<div class="sect2">
+<h3 id="_access_the_application">Access the Application</h3>
+<div class="olist arabic">
+<ol class="arabic">
+<li><p>Retrieve the CloudFront URL from stack outputs</p></li>
+<li><p>Navigate to the application URL</p></li>
+<li><p>Sign in with the admin credentials</p></li>
+<li><p>Complete the initial setup wizard</p></li>
+</ol>
+</div>
+</div>
+
+<div class="sect2">
+<h3 id="_configure_protection_groups">Configure Protection Groups</h3>
+<div class="olist arabic">
+<ol class="arabic">
+<li><p>Navigate to Protection Groups in the application</p></li>
+<li><p>Create protection groups for your server tiers</p></li>
+<li><p>Assign DRS source servers to appropriate groups</p></li>
+<li><p>Verify server assignments and status</p></li>
+</ol>
+</div>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_security"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Security</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The solution implements comprehensive security controls:</p>
+</div>
+
+<div class="ulist">
+<ul>
+<li><p><strong>Encryption at Rest</strong>: All data encrypted in DynamoDB and S3</p></li>
+<li><p><strong>Encryption in Transit</strong>: HTTPS enforced via CloudFront and API Gateway</p></li>
+<li><p><strong>Authentication</strong>: Cognito JWT token-based authentication</p></li>
+<li><p><strong>Authorization</strong>: IAM least-privilege policies</p></li>
+<li><p><strong>Network Security</strong>: Security groups with minimal required access</p></li>
+<li><p><strong>Audit Logging</strong>: CloudTrail integration for API calls</p></li>
+</ul>
+</div>
+
+<div class="sect2">
+<h3 id="_iam_permissions">IAM Permissions</h3>
+<div class="paragraph">
+<p>The solution requires specific IAM permissions for DRS operations. Key permissions include:</p>
+</div>
+
+<div class="ulist">
+<ul>
+<li><p><code>drs:DescribeSourceServers</code></p></li>
+<li><p><code>drs:StartRecovery</code></p></li>
+<li><p><code>drs:DescribeJobs</code></p></li>
+<li><p><code>drs:TerminateRecoveryInstances</code></p></li>
+<li><p><code>ec2:DescribeInstances</code></p></li>
+<li><p><code>ec2:StartInstances</code></p></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_troubleshooting"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Troubleshooting</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_common_issues">Common Issues</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 30%;">
+<col style="width: 35%;">
+<col style="width: 35%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Issue</th>
+<th class="tableblock halign-left valign-top">Cause</th>
+<th class="tableblock halign-left valign-top">Solution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Deployment fails</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Missing IAM permissions</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Verify IAM capabilities are acknowledged</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No DRS servers found</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DRS not initialized</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Initialize DRS in the target region</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Authentication fails</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Incorrect Cognito configuration</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Verify user pool and client settings</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recovery job fails</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Insufficient EC2 permissions</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Review IAM role permissions</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="sect2">
+<h3 id="_logs_and_monitoring">Logs and Monitoring</h3>
+<div class="ulist">
+<ul>
+<li><p><strong>CloudWatch Logs</strong>: Lambda function execution logs</p></li>
+<li><p><strong>Step Functions</strong>: Execution history and state transitions</p></li>
+<li><p><strong>API Gateway</strong>: Request/response logs and metrics</p></li>
+<li><p><strong>DynamoDB</strong>: CloudWatch metrics for table operations</p></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_customer_responsibility"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Customer responsibility</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>After deploying the solution, you are responsible for:</p>
+</div>
+
+<div class="ulist">
+<ul>
+<li><p><strong>DRS Configuration</strong>: Configuring and maintaining AWS DRS source servers</p></li>
+<li><p><strong>User Management</strong>: Managing user access and permissions in Cognito</p></li>
+<li><p><strong>Monitoring</strong>: Monitoring solution health and performance</p></li>
+<li><p><strong>Updates</strong>: Applying updates and patches as needed</p></li>
+<li><p><strong>Backup</strong>: Backing up configuration data and execution history</p></li>
+<li><p><strong>Testing</strong>: Regular testing of disaster recovery procedures</p></li>
+</ul>
+</div>
+
+<div class="paragraph">
+<p>For more information, refer to the <a href="https://aws.amazon.com/compliance/shared-responsibility-model/" target="_blank" rel="noopener">AWS Shared Responsibility Model</a>.</p>
+</div>
+</div>
+</div>
+
+<div class="sect1">
+<h2 id="_feedback"><img src="https://a0.awsstatic.com/libra-css/images/site/touch-icon-ipad-144-smile.png" alt="AWS" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">Feedback</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To submit feature requests, report bugs, or provide feedback on this solution:</p>
+</div>
+
+<div class="ulist">
+<ul>
+<li><p>Create an issue in the GitHub repository</p></li>
+<li><p>Contact the AWS Professional Services team</p></li>
+<li><p>Submit feedback through AWS Support</p></li>
+</ul>
+</div>
+
+<div class="paragraph">
+<p>Your feedback helps improve the solution for all users.</p>
+</div>
+</div>
+</div>
+
+</div>
+<footer style="background: none; padding: 0;">
+<p class="footer-text">
+<a href="https://aws.amazon.com/privacy/">Privacy</a> | <a href="https://aws.amazon.com/terms/">Site terms</a> |
+© 2025, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+</p>
+<div class="imageblock text-center" style="margin-top: 1em; background: transparent; padding: 1em;">
+<div class="content">
+<a href="https://aws.amazon.com/what-is-cloud-computing"><img src="https://d0.awsstatic.com/logos/powered-by-aws.png" alt="Powered by AWS Cloud Computing" width="150" style="background: none; border: none;"></a>
+</div>
+</div>
+</footer>
+</body>
+</html>

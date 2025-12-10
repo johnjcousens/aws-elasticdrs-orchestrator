@@ -93,6 +93,125 @@ PlanTimeout (Fail)
 
 ---
 
+## UI Design Mockup
+
+### Step Functions Visualization Layout
+
+```mermaid
+flowchart TD
+    subgraph "ExecutionDetailsPage.tsx"
+        A[Wave Progress Section]
+        B[Step Functions Visualization Component]
+        C[DRS Job Events Section]
+    end
+    
+    subgraph "StepFunctionsVisualization Component"
+        D[Current State Indicator]
+        E[State Timeline]
+        F[State Details Panel]
+        G[CloudWatch Logs Link]
+    end
+    
+    subgraph "State Timeline"
+        H[InitiateWavePlan - Completed]
+        I[DetermineWavePlanState - Completed]
+        J[DetermineWaveState - Completed]
+        K[WaitForWaveUpdate - In Progress]
+        L[UpdateWaveStatus - Pending]
+    end
+    
+    A --> B
+    B --> C
+    B --> D
+    B --> E
+    B --> F
+    B --> G
+    E --> H
+    E --> I
+    E --> J
+    E --> K
+    E --> L
+```
+
+### ASCII Frame Design
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ Execution Details: Recovery Plan Alpha - Wave 2 of 3                           │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│ ┌─ Wave Progress ─────────────────────────────────────────────────────────────┐ │
+│ │ Wave 1: Database Tier     [████████████████████████] COMPLETED (2m 15s)    │ │
+│ │ Wave 2: Application Tier  [████████████░░░░░░░░░░░░] IN_PROGRESS (1m 32s)  │ │
+│ │ Wave 3: Web Tier          [░░░░░░░░░░░░░░░░░░░░░░░░] PENDING                │ │
+│ └─────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                 │
+│ ┌─ Step Functions Orchestration ──────────────────────────────── [Refresh] ──┐ │
+│ │                                                                             │ │
+│ │ Current State                                                               │ │
+│ │ [WaitForWaveUpdate] ● Active                                                │ │
+│ │                                                                             │ │
+│ │ ▼ State Timeline (5 states)                                                 │ │
+│ │                                                                             │ │
+│ │ ┌─ InitiateWavePlan ─────────────────────────────────────────────────────┐ │ │
+│ │ │ [Completed] [Task]                                           1.2s       │ │ │
+│ │ │ Entered: 14:32:15    Exited: 14:32:16    Duration: 1.2s                │ │ │
+│ │ └─────────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                             │ │
+│ │ ┌─ DetermineWavePlanState ───────────────────────────────────────────────┐ │ │
+│ │ │ [Completed] [Choice]                                         0.1s       │ │ │
+│ │ │ Entered: 14:32:16    Exited: 14:32:16    Duration: 0.1s                │ │ │
+│ │ └─────────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                             │ │
+│ │ ┌─ DetermineWaveState ───────────────────────────────────────────────────┐ │ │
+│ │ │ [Completed] [Choice]                                         0.1s       │ │ │
+│ │ │ Entered: 14:32:16    Exited: 14:32:16    Duration: 0.1s                │ │ │
+│ │ └─────────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                             │ │
+│ │ ┌─ WaitForWaveUpdate ────────────────────────────────────────────────────┐ │ │
+│ │ │ [In Progress] [Wait]                                         32.5s      │ │ │
+│ │ │ Entered: 14:32:16    Duration: 32.5s (ongoing)                         │ │ │
+│ │ │ ▼ State Data                                                            │ │ │
+│ │ │   Input: {"waitSeconds": 30, "currentWave": 2}                         │ │ │
+│ │ └─────────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                             │ │
+│ │ ┌─ UpdateWaveStatus ─────────────────────────────────────────────────────┐ │ │
+│ │ │ [Pending] [Task]                                                        │ │ │
+│ │ │ Waiting for WaitForWaveUpdate to complete...                           │ │ │
+│ │ └─────────────────────────────────────────────────────────────────────────┘ │ │
+│ │                                                                             │ │
+│ │                    [View in Step Functions Console]                        │ │
+│ │                                                                             │ │
+│ └─────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                 │
+│ ┌─ DRS Job Events (Auto-refresh: 3s) ────────────────────────────────────────┐ │
+│ │ ▼ DRS Job Events (12)                                                       │ │
+│ │ 14:32:45 - Job j-abc123: Server s-111 LAUNCHED successfully               │ │
+│ │ 14:32:43 - Job j-abc123: Server s-222 LAUNCHED successfully               │ │
+│ │ 14:32:41 - Job j-abc123: Conversion completed for 2 servers               │ │
+│ └─────────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### State Status Indicators
+
+```text
+Status Badges:
+[Pending]      - Grey badge, state not yet entered
+[In Progress]  - Blue badge with ● Active indicator
+[Completed]    - Green badge with checkmark
+[Failed]       - Red badge with error details
+
+State Types:
+[Task]    - Executes Lambda function or AWS service
+[Choice]  - Decision point based on input
+[Wait]    - Pauses execution for specified time
+[Succeed] - Terminal success state
+[Fail]    - Terminal failure state
+```
+
+---
+
 ## Implementation Design
 
 ### Architecture Overview

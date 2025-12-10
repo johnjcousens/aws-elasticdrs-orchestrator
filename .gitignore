@@ -30,11 +30,10 @@ lambda/poller/.coverage
 
 # Kiro/IDE configuration (internal)
 .kiro/
-# Exception: Include key steering documents
-!.kiro/steering/product.md
-!.kiro/steering/structure.md
-!.kiro/steering/tech.md
-.amazonq/
+# Exception: Include steering documents for agentic AI coding
+!.kiro/steering/
+# Amazon Q Developer configuration (include for agentic AI coding)
+!.amazonq/
 .cline_memory/
 
 # Internal scripts (not for customers)
