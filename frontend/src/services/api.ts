@@ -464,6 +464,20 @@ class ApiClient {
     return this.get<any>(`/drs/source-servers?${params.toString()}`);
   }
 
+  /**
+   * Get DRS quotas and current usage for a region
+   * 
+   * Returns account capacity metrics including:
+   * - Replicating servers count vs limit (300 hard limit)
+   * - Concurrent jobs count vs limit (20 hard limit)
+   * - Servers in active jobs vs limit (500 hard limit)
+   * 
+   * @param region - AWS region to check quotas for
+   */
+  public async getDRSQuotas(region: string): Promise<any> {
+    return this.get<any>(`/drs/quotas?region=${region}`);
+  }
+
   // ============================================================================
   // Health Check API
   // ============================================================================

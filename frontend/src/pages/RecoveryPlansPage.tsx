@@ -206,8 +206,28 @@ export const RecoveryPlansPage: React.FC = () => {
       
       navigate(`/executions/${execution.executionId}`);
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to execute recovery plan';
-      toast.error(errorMessage);
+      // Handle DRS service limit errors with specific messages
+      const errorCode = err.response?.data?.error || err.error;
+      const errorData = err.response?.data || err;
+      
+      switch (errorCode) {
+        case 'WAVE_SIZE_LIMIT_EXCEEDED':
+          toast.error(`Wave size limit exceeded. Maximum ${errorData.limit || 100} servers per wave.`);
+          break;
+        case 'CONCURRENT_JOBS_LIMIT_EXCEEDED':
+          toast.error(`DRS concurrent jobs limit reached (${errorData.currentJobs}/${errorData.maxJobs}). Wait for active jobs to complete.`);
+          break;
+        case 'SERVERS_IN_JOBS_LIMIT_EXCEEDED':
+          toast.error(`Would exceed max servers in active jobs (${errorData.totalAfterNew}/${errorData.maxServers}).`);
+          break;
+        case 'UNHEALTHY_SERVER_REPLICATION': {
+          const unhealthyCount = errorData.unhealthyCount || errorData.unhealthyServers?.length || 0;
+          toast.error(`${unhealthyCount} server(s) have unhealthy replication state and cannot be recovered.`);
+          break;
+        }
+        default:
+          toast.error(err.message || errorData.message || 'Failed to execute recovery plan');
+      }
     } finally {
       setExecuting(false);
     }
