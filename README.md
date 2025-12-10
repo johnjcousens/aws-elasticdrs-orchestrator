@@ -317,6 +317,19 @@ npm run build    # Production build
 npm run lint     # ESLint validation
 ```
 
+### Frontend Testing
+
+Unit tests for frontend services using Vitest:
+
+```bash
+cd frontend
+npm run test           # Run all tests once
+npm run test:watch     # Run tests in watch mode
+npm run test:coverage  # Run tests with coverage report
+```
+
+Tests validate DRS service limits and quota handling without requiring actual DRS infrastructure. See [DRS Service Limits Tests](frontend/src/services/__tests__/drsQuotaService.test.ts) for implementation.
+
 ### Lambda Development
 
 ```bash
@@ -613,7 +626,7 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 | Priority | Feature                                    | Description                                                                                                                                                                                                                      | Status      | Documentation                                                                          | Completion Date | Git Commits              |
 | -------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- | --------------- | ------------------------ |
 | ~~1~~   | ~~DRS Regional Availability Update~~      | ~~Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud).~~                                                                                                                                 | ✅ Complete | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md)       | Dec 9, 2025     | `fa80b39`, `aed36c0` |
-| ~~2~~   | ~~DRS Service Limits Compliance~~         | ~~Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Critical for multi-account planning.~~                                                | ✅ Complete | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md)      | Dec 9, 2025     | `52c649e`, `06bca16` |
+| ~~2~~   | ~~DRS Service Limits Compliance~~         | ~~Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Critical for multi-account planning. Includes [unit tests](frontend/src/services/__tests__/drsQuotaService.test.ts).~~ | ✅ Complete | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md)      | Dec 9, 2025     | `52c649e`, `06bca16` |
 | 3        | **CodeBuild & CodeCommit Migration** | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline.                                                                  | Planned     | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)         | -               | -                        |
 | 4        | **DRS Launch Settings Management**   | Configure EC2 launch templates for DRS source servers directly from the UI. Includes single-server configuration, bulk updates, and template library.                                                                            | Planned     | [Implementation Plan](docs/implementation/DRS_LAUNCH_SETTINGS_IMPLEMENTATION_PLAN.md)     | -               | -                        |
 | 5        | **DRS Tag Synchronization**          | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls. | Planned     | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md)            | -               | -                        |
