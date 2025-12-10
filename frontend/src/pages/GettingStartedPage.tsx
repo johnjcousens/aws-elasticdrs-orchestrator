@@ -6,10 +6,15 @@ import {
   Button,
   Container,
   Header,
-  ColumnLayout,
+  Grid,
+  Icon,
+  Link,
 } from '@cloudscape-design/components';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
+
+const cardContentStyle: React.CSSProperties = { minHeight: '140px' };
+const dividerStyle: React.CSSProperties = { border: 'none', borderTop: '1px solid #e9ebed', margin: '8px 0' };
 
 export const GettingStartedPage: React.FC = () => {
   const navigate = useNavigate();
@@ -24,61 +29,205 @@ export const GettingStartedPage: React.FC = () => {
         }
       >
         <SpaceBetween size="l">
-          <ColumnLayout columns={3} variant="text-grid">
-            <Container header={<Header variant="h2">Protection Groups</Header>}>
-              <SpaceBetween size="m">
-                <Box color="text-body-secondary">
-                  Manage and configure protection groups for disaster recovery.
-                </Box>
-                <Button onClick={() => navigate('/protection-groups')} fullWidth>
-                  View Protection Groups
-                </Button>
-              </SpaceBetween>
+          <Grid gridDefinition={[{ colspan: 4 }, { colspan: 4 }, { colspan: 4 }]}>
+            <Container
+              header={
+                <Header variant="h2">
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <Icon name="folder" />
+                    <span>Protection Groups</span>
+                  </SpaceBetween>
+                </Header>
+              }
+            >
+              <div style={cardContentStyle}>
+                <SpaceBetween size="m">
+                  <Box color="text-body-secondary">
+                    Organize DRS source servers into logical groups for coordinated recovery. Each group contains servers that should be recovered together.
+                  </Box>
+                  <Box>
+                    <Button onClick={() => navigate('/protection-groups')} variant="primary" fullWidth>
+                      Manage Protection Groups
+                    </Button>
+                  </Box>
+                </SpaceBetween>
+              </div>
             </Container>
 
-            <Container header={<Header variant="h2">Recovery Plans</Header>}>
-              <SpaceBetween size="m">
-                <Box color="text-body-secondary">
-                  Design and manage multi-wave recovery orchestration plans.
-                </Box>
-                <Button onClick={() => navigate('/recovery-plans')} fullWidth>
-                  View Recovery Plans
-                </Button>
-              </SpaceBetween>
+            <Container
+              header={
+                <Header variant="h2">
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <Icon name="file" />
+                    <span>Recovery Plans</span>
+                  </SpaceBetween>
+                </Header>
+              }
+            >
+              <div style={cardContentStyle}>
+                <SpaceBetween size="m">
+                  <Box color="text-body-secondary">
+                    Design multi-wave recovery sequences with dependencies. Control the order servers are recovered and add pause points for validation.
+                  </Box>
+                  <Box>
+                    <Button onClick={() => navigate('/recovery-plans')} variant="primary" fullWidth>
+                      Manage Recovery Plans
+                    </Button>
+                  </Box>
+                </SpaceBetween>
+              </div>
             </Container>
 
-            <Container header={<Header variant="h2">History</Header>}>
-              <SpaceBetween size="m">
-                <Box color="text-body-secondary">
-                  View active recoveries and historical records.
-                </Box>
-                <Button onClick={() => navigate('/executions')} fullWidth>
-                  View History
-                </Button>
-              </SpaceBetween>
+            <Container
+              header={
+                <Header variant="h2">
+                  <SpaceBetween direction="horizontal" size="xs">
+                    <Icon name="status-in-progress" />
+                    <span>Execution History</span>
+                  </SpaceBetween>
+                </Header>
+              }
+            >
+              <div style={cardContentStyle}>
+                <SpaceBetween size="m">
+                  <Box color="text-body-secondary">
+                    Monitor active recoveries and review historical execution records. Track progress, view logs, and manage recovery instances.
+                  </Box>
+                  <Box>
+                    <Button onClick={() => navigate('/executions')} variant="primary" fullWidth>
+                      View Execution History
+                    </Button>
+                  </Box>
+                </SpaceBetween>
+              </div>
             </Container>
-          </ColumnLayout>
+          </Grid>
 
-          <Container header={<Header variant="h2">Quick Start Guide</Header>}>
-            <SpaceBetween size="m">
-              <Box>
-                <Box variant="strong">Step 1: Create a Protection Group</Box>
-                <Box color="text-body-secondary">
-                  Define which servers to protect by discovering DRS source servers and grouping them logically.
+          <Container
+            header={
+              <Header variant="h2" description="Follow these steps to set up your first disaster recovery plan">
+                Quick Start Guide
+              </Header>
+            }
+          >
+            <SpaceBetween size="l">
+              <Grid gridDefinition={[{ colspan: 1 }, { colspan: 11 }]}>
+                <Box textAlign="center">
+                  <Box fontSize="heading-xl" fontWeight="bold" color="text-status-info">1</Box>
                 </Box>
-              </Box>
-              <Box>
-                <Box variant="strong">Step 2: Design a Recovery Plan</Box>
-                <Box color="text-body-secondary">
-                  Create orchestrated waves with dependencies to control recovery sequence.
+                <SpaceBetween size="xs">
+                  <Box variant="h3">Create a Protection Group</Box>
+                  <Box color="text-body-secondary">
+                    Protection Groups organize your DRS source servers into logical units. Each server can only belong to one group to prevent recovery conflicts.
+                  </Box>
+                  <SpaceBetween size="xs">
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Navigate to <Link onFollow={() => navigate('/protection-groups')}>Protection Groups</Link> and click "Create Group"
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Select a region where your DRS source servers are located
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Give your group a descriptive name (e.g., "Database Servers", "Web Tier")
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Select servers from the discovery panel - only servers with healthy replication are shown
+                    </Box>
+                  </SpaceBetween>
+                </SpaceBetween>
+              </Grid>
+
+              <hr style={dividerStyle} />
+
+              <Grid gridDefinition={[{ colspan: 1 }, { colspan: 11 }]}>
+                <Box textAlign="center">
+                  <Box fontSize="heading-xl" fontWeight="bold" color="text-status-info">2</Box>
                 </Box>
-              </Box>
-              <Box>
-                <Box variant="strong">Step 3: Execute Recovery</Box>
-                <Box color="text-body-secondary">
-                  Run drills to test your plan or execute actual recovery when needed.
+                <SpaceBetween size="xs">
+                  <Box variant="h3">Design a Recovery Plan</Box>
+                  <Box color="text-body-secondary">
+                    Recovery Plans define the sequence of waves for orchestrated recovery. Each wave can reference a different Protection Group and execute in order.
+                  </Box>
+                  <SpaceBetween size="xs">
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Navigate to <Link onFollow={() => navigate('/recovery-plans')}>Recovery Plans</Link> and click "Create Plan"
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Give your plan a name (e.g., "Production DR Plan", "App Stack Recovery")
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Add waves in the order you want servers recovered (e.g., Wave 1: Databases, Wave 2: App Servers)
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> For each wave, select a Protection Group and choose which servers to include
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Enable "Pause Before Wave" on any wave where you want to validate before continuing
+                    </Box>
+                  </SpaceBetween>
+                </SpaceBetween>
+              </Grid>
+
+              <hr style={dividerStyle} />
+
+              <Grid gridDefinition={[{ colspan: 1 }, { colspan: 11 }]}>
+                <Box textAlign="center">
+                  <Box fontSize="heading-xl" fontWeight="bold" color="text-status-info">3</Box>
                 </Box>
-              </Box>
+                <SpaceBetween size="xs">
+                  <Box variant="h3">Execute a Drill or Recovery</Box>
+                  <Box color="text-body-secondary">
+                    Test your plan with a Drill (non-disruptive) or execute an actual Recovery when disaster strikes.
+                  </Box>
+                  <SpaceBetween size="xs">
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> From the Recovery Plans page, click the actions menu on your plan
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Select "Run Drill" for testing or "Run Recovery" for actual failover
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Monitor progress in real-time on the Execution Details page
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> If you enabled pause points, click "Resume" when ready to continue
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> After a successful drill, use "Terminate Instances" to clean up
+                    </Box>
+                  </SpaceBetween>
+                </SpaceBetween>
+              </Grid>
+
+              <hr style={dividerStyle} />
+
+              <Grid gridDefinition={[{ colspan: 1 }, { colspan: 11 }]}>
+                <Box textAlign="center">
+                  <Box fontSize="heading-xl" fontWeight="bold" color="text-status-success">
+                    <Icon name="status-positive" size="big" />
+                  </Box>
+                </Box>
+                <SpaceBetween size="xs">
+                  <Box variant="h3">Best Practices</Box>
+                  <SpaceBetween size="xs">
+                    <Box color="text-body-secondary">
+                      <Icon name="status-positive" /> Run drills regularly to validate your recovery plans work as expected
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="status-positive" /> Use pause points between waves to verify each tier is healthy
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="status-positive" /> Keep Protection Groups focused - group servers by application tier
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="status-positive" /> Review execution history to identify and fix recurring issues
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="status-positive" /> Always terminate drill instances after testing to avoid costs
+                    </Box>
+                  </SpaceBetween>
+                </SpaceBetween>
+              </Grid>
             </SpaceBetween>
           </Container>
         </SpaceBetween>
