@@ -175,7 +175,10 @@ export const GettingStartedPage: React.FC = () => {
                       <Icon name="angle-right" /> Add waves in the order you want servers recovered (e.g., Wave 1: Databases, Wave 2: App Servers)
                     </Box>
                     <Box color="text-body-secondary">
-                      <Icon name="angle-right" /> For each wave, select a Protection Group and choose which servers to include
+                      <Icon name="angle-right" /> For each wave, select a Protection Group and choose servers to include
+                    </Box>
+                    <Box color="text-body-secondary">
+                      <Icon name="angle-right" /> Set "Depends On" to specify which wave must complete before this wave starts
                     </Box>
                     <Box color="text-body-secondary">
                       <Icon name="angle-right" /> Enable "Pause Before Wave" on any wave where you want to validate before continuing
