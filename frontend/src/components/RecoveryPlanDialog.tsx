@@ -22,6 +22,7 @@ import {
 import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
 import apiClient from '../services/api';
+import { DRS_LIMITS, validateWaveSize } from '../services/drsQuotaService';
 
 interface RecoveryPlanDialogProps {
   open: boolean;
@@ -117,6 +118,16 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
     if (waves.some(w => w.serverIds.length === 0)) {
       newErrors.waves = 'All waves must have at least one server';
+    }
+
+    // DRS Service Limits: Validate wave sizes (max 100 servers per wave)
+    const oversizedWaves = waves
+      .map((w, idx) => ({ name: w.name || `Wave ${idx + 1}`, count: w.serverIds.length }))
+      .filter(w => w.count > DRS_LIMITS.MAX_SERVERS_PER_JOB);
+    
+    if (oversizedWaves.length > 0) {
+      const waveNames = oversizedWaves.map(w => `${w.name} (${w.count} servers)`).join(', ');
+      newErrors.waves = `DRS limit: Max ${DRS_LIMITS.MAX_SERVERS_PER_JOB} servers per wave. Oversized: ${waveNames}`;
     }
 
     setErrors(newErrors);
