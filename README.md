@@ -22,18 +22,21 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 ## Key Features
 
 ### Protection Groups
+
 - **Automatic Server Discovery**: Real-time DRS source server discovery across all AWS DRS-supported regions
 - **Visual Server Selection**: Intuitive interface with assignment status indicators
 - **Conflict Prevention**: Single server per group constraint prevents recovery conflicts
 - **Real-Time Search**: Filter servers by hostname, Server ID, or Protection Group name
 
 ### Recovery Plans
+
 - **Wave-Based Orchestration**: Define multi-wave recovery sequences with unlimited flexibility
 - **Dependency Management**: Automatic wave dependency handling with circular dependency detection
 - **Drill Mode**: Test recovery procedures without impacting production
 - **Automation Hooks**: Pre-wave and post-wave actions for validation and health checks
 
 ### Execution Monitoring
+
 - **Real-Time Dashboard**: Live execution progress with wave-level status tracking
 - **Pause/Resume Control**: Pause executions between waves for validation and resume when ready
 - **Instance Termination**: Terminate recovery instances after successful testing
@@ -52,26 +55,26 @@ The solution follows a serverless, event-driven architecture with clear separati
 
 ### Technology Stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 19.1, TypeScript 5.9, CloudScape Design System 3.0 |
-| API | Amazon API Gateway (REST), Amazon Cognito |
-| Compute | AWS Lambda (Python 3.12), AWS Step Functions |
-| Database | Amazon DynamoDB (3 tables with GSI) |
-| Hosting | Amazon S3, Amazon CloudFront |
-| DR Service | AWS Elastic Disaster Recovery (DRS) |
+| Layer      | Technology                                               |
+| ---------- | -------------------------------------------------------- |
+| Frontend   | React 19.1, TypeScript 5.9, CloudScape Design System 3.0 |
+| API        | Amazon API Gateway (REST), Amazon Cognito                |
+| Compute    | AWS Lambda (Python 3.12), AWS Step Functions             |
+| Database   | Amazon DynamoDB (3 tables with GSI)                      |
+| Hosting    | Amazon S3, Amazon CloudFront                             |
+| DR Service | AWS Elastic Disaster Recovery (DRS)                      |
 
 ## AWS DRS Regional Availability
 
 The solution orchestrates disaster recovery in all **30 AWS regions** where Elastic Disaster Recovery (DRS) is available:
 
-| Region Group | Count | Regions |
-|--------------|-------|---------|
-| **Americas** | 6 | US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central), South America (São Paulo) |
-| **Europe** | 8 | Ireland, London, Frankfurt, Paris, Stockholm, Milan, Spain, Zurich |
-| **Asia Pacific** | 10 | Tokyo, Seoul, Osaka, Singapore, Sydney, Mumbai, Hyderabad, Jakarta, Melbourne, Hong Kong |
-| **Middle East & Africa** | 4 | Bahrain, UAE, Cape Town, Tel Aviv |
-| **GovCloud** | 2 | US-East, US-West |
+| Region Group                   | Count | Regions                                                                                                    |
+| ------------------------------ | ----- | ---------------------------------------------------------------------------------------------------------- |
+| **Americas**             | 6     | US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central), South America (São Paulo) |
+| **Europe**               | 8     | Ireland, London, Frankfurt, Paris, Stockholm, Milan, Spain, Zurich                                         |
+| **Asia Pacific**         | 10    | Tokyo, Seoul, Osaka, Singapore, Sydney, Mumbai, Hyderabad, Jakarta, Melbourne, Hong Kong                   |
+| **Middle East & Africa** | 4     | Bahrain, UAE, Cape Town, Tel Aviv                                                                          |
+| **GovCloud**             | 2     | US-East, US-West                                                                                           |
 
 *Regional availability determined by AWS DRS service. As AWS expands DRS, the solution automatically supports new regions.*
 
@@ -110,12 +113,12 @@ aws cloudformation describe-stacks \
   --output table
 ```
 
-| Output | Description |
-|--------|-------------|
-| CloudFrontURL | Frontend application URL |
-| ApiEndpoint | REST API endpoint |
-| UserPoolId | Cognito User Pool ID |
-| UserPoolClientId | Cognito App Client ID |
+| Output           | Description              |
+| ---------------- | ------------------------ |
+| CloudFrontURL    | Frontend application URL |
+| ApiEndpoint      | REST API endpoint        |
+| UserPoolId       | Cognito User Pool ID     |
+| UserPoolClientId | Cognito App Client ID    |
 
 ### Create Admin User
 
@@ -158,11 +161,11 @@ aws cognito-idp admin-set-user-password \
 2. Click **Create Recovery Plan**
 3. Enter plan name and configure waves:
 
-| Wave | Tier | Protection Groups | Depends On |
-|------|------|-------------------|------------|
-| 1 | Database | DB-Primary, DB-Secondary | - |
-| 2 | Application | App-Servers | Wave 1 |
-| 3 | Web | Web-Servers | Wave 2 |
+| Wave | Tier        | Protection Groups        | Depends On |
+| ---- | ----------- | ------------------------ | ---------- |
+| 1    | Database    | DB-Primary, DB-Secondary | -          |
+| 2    | Application | App-Servers              | Wave 1     |
+| 3    | Web         | Web-Servers              | Wave 2     |
 
 4. Configure optional pre/post-wave automation
 5. Click **Create**
@@ -196,41 +199,41 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 #### Protection Groups
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/protection-groups` | List all protection groups |
-| POST | `/protection-groups` | Create protection group |
-| GET | `/protection-groups/{id}` | Get protection group details |
-| PUT | `/protection-groups/{id}` | Update protection group |
-| DELETE | `/protection-groups/{id}` | Delete protection group |
+| Method | Endpoint                    | Description                  |
+| ------ | --------------------------- | ---------------------------- |
+| GET    | `/protection-groups`      | List all protection groups   |
+| POST   | `/protection-groups`      | Create protection group      |
+| GET    | `/protection-groups/{id}` | Get protection group details |
+| PUT    | `/protection-groups/{id}` | Update protection group      |
+| DELETE | `/protection-groups/{id}` | Delete protection group      |
 
 #### Recovery Plans
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/recovery-plans` | List all recovery plans |
-| POST | `/recovery-plans` | Create recovery plan |
-| GET | `/recovery-plans/{id}` | Get recovery plan details |
-| PUT | `/recovery-plans/{id}` | Update recovery plan |
-| DELETE | `/recovery-plans/{id}` | Delete recovery plan |
+| Method | Endpoint                 | Description               |
+| ------ | ------------------------ | ------------------------- |
+| GET    | `/recovery-plans`      | List all recovery plans   |
+| POST   | `/recovery-plans`      | Create recovery plan      |
+| GET    | `/recovery-plans/{id}` | Get recovery plan details |
+| PUT    | `/recovery-plans/{id}` | Update recovery plan      |
+| DELETE | `/recovery-plans/{id}` | Delete recovery plan      |
 
 #### Executions
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/executions` | List execution history |
-| POST | `/executions` | Start new execution |
-| GET | `/executions/{id}` | Get execution details |
-| POST | `/executions/{id}/pause` | Pause execution between waves |
-| POST | `/executions/{id}/resume` | Resume paused execution |
-| POST | `/executions/{id}/cancel` | Cancel running execution |
-| POST | `/executions/{id}/terminate-instances` | Terminate recovery instances |
+| Method | Endpoint                                 | Description                   |
+| ------ | ---------------------------------------- | ----------------------------- |
+| GET    | `/executions`                          | List execution history        |
+| POST   | `/executions`                          | Start new execution           |
+| GET    | `/executions/{id}`                     | Get execution details         |
+| POST   | `/executions/{id}/pause`               | Pause execution between waves |
+| POST   | `/executions/{id}/resume`              | Resume paused execution       |
+| POST   | `/executions/{id}/cancel`              | Cancel running execution      |
+| POST   | `/executions/{id}/terminate-instances` | Terminate recovery instances  |
 
 #### DRS Integration
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/drs/source-servers?region={region}` | Discover DRS source servers |
+| Method | Endpoint                                | Description                 |
+| ------ | --------------------------------------- | --------------------------- |
+| GET    | `/drs/source-servers?region={region}` | Discover DRS source servers |
 
 ## Infrastructure
 
@@ -238,35 +241,35 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 The solution uses a modular nested stack architecture for maintainability:
 
-| Stack | Purpose | Key Resources |
-|-------|---------|---------------|
-| `master-template.yaml` | Root orchestrator | Parameter propagation, outputs |
-| `database-stack.yaml` | Data persistence | 3 DynamoDB tables with encryption |
-| `lambda-stack.yaml` | Compute layer | 5 Lambda functions, IAM roles |
-| `api-stack.yaml` | API & Auth | API Gateway, Cognito |
-| `step-functions-stack.yaml` | Orchestration | Step Functions state machine |
-| `security-stack.yaml` | Security (optional) | WAF, CloudTrail |
-| `frontend-stack.yaml` | Frontend hosting | S3, CloudFront |
+| Stack                         | Purpose             | Key Resources                     |
+| ----------------------------- | ------------------- | --------------------------------- |
+| `master-template.yaml`      | Root orchestrator   | Parameter propagation, outputs    |
+| `database-stack.yaml`       | Data persistence    | 3 DynamoDB tables with encryption |
+| `lambda-stack.yaml`         | Compute layer       | 5 Lambda functions, IAM roles     |
+| `api-stack.yaml`            | API & Auth          | API Gateway, Cognito              |
+| `step-functions-stack.yaml` | Orchestration       | Step Functions state machine      |
+| `security-stack.yaml`       | Security (optional) | WAF, CloudTrail                   |
+| `frontend-stack.yaml`       | Frontend hosting    | S3, CloudFront                    |
 
 ### DynamoDB Tables
 
-| Table | Purpose | Key Schema |
-|-------|---------|------------|
-| `protection-groups-{env}` | Server groupings | `GroupId` (PK) |
-| `recovery-plans-{env}` | Wave configurations | `PlanId` (PK) |
-| `execution-history-{env}` | Audit trail | `ExecutionId` (PK), `PlanId` (SK) |
+| Table                       | Purpose             | Key Schema                            |
+| --------------------------- | ------------------- | ------------------------------------- |
+| `protection-groups-{env}` | Server groupings    | `GroupId` (PK)                      |
+| `recovery-plans-{env}`    | Wave configurations | `PlanId` (PK)                       |
+| `execution-history-{env}` | Audit trail         | `ExecutionId` (PK), `PlanId` (SK) |
 
 ## Cost Estimate
 
-| Component | Monthly Cost (Est.) |
-|-----------|---------------------|
-| Lambda | $1-5 |
-| API Gateway | $3-10 |
-| DynamoDB | $1-5 |
-| CloudFront | $1-5 |
-| S3 | <$1 |
-| Step Functions | $1-5 |
-| Cognito | Free tier |
+| Component       | Monthly Cost (Est.)    |
+| --------------- | ---------------------- |
+| Lambda          | $1-5                   |
+| API Gateway     | $3-10                  |
+| DynamoDB        | $1-5                   |
+| CloudFront      | $1-5                   |
+| S3              | <$1                    |
+| Step Functions  | $1-5                   |
+| Cognito         | Free tier              |
 | **Total** | **$12-40/month** |
 
 *Costs vary based on usage. DRS replication costs are separate and depend on protected server count.*
@@ -335,12 +338,12 @@ make lint        # cfn-lint validation
 
 ### Common Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| `PG_NAME_EXISTS` | Duplicate protection group name | Use a unique name |
-| `INVALID_SERVER_IDS` | Server IDs not found in DRS | Verify servers with `aws drs describe-source-servers` |
-| `CIRCULAR_DEPENDENCY` | Wave dependencies form a loop | Review and fix dependency chain |
-| `EXECUTION_IN_PROGRESS` | Plan already executing | Wait for completion or cancel |
+| Issue                     | Cause                           | Solution                                                |
+| ------------------------- | ------------------------------- | ------------------------------------------------------- |
+| `PG_NAME_EXISTS`        | Duplicate protection group name | Use a unique name                                       |
+| `INVALID_SERVER_IDS`    | Server IDs not found in DRS     | Verify servers with `aws drs describe-source-servers` |
+| `CIRCULAR_DEPENDENCY`   | Wave dependencies form a loop   | Review and fix dependency chain                         |
+| `EXECUTION_IN_PROGRESS` | Plan already executing          | Wait for completion or cancel                           |
 
 ### DRS Recovery Failures
 
@@ -350,13 +353,13 @@ If recovery jobs fail with `UnauthorizedOperation` errors, verify the Orchestrat
 
 ### Quick Links
 
-| Document | Description |
-|----------|-------------|
+| Document                                                                | Description                                   |
+| ----------------------------------------------------------------------- | --------------------------------------------- |
 | [Product Requirements](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD with features and specifications |
-| [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Step-by-step deployment instructions |
-| [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture and design decisions |
-| [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md) | DRS API integration patterns |
-| [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) | Testing procedures and quality assurance |
+| [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md)         | Step-by-step deployment instructions          |
+| [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)  | System architecture and design decisions      |
+| [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md)                      | DRS API integration patterns                  |
+| [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md)              | Testing procedures and quality assurance      |
 
 ### Documentation Index
 
@@ -376,10 +379,10 @@ The repository uses Git tags to mark significant milestones. These tags capture 
 
 ### Available Tags
 
-| Tag | Description | Date |
-|-----|-------------|------|
-| `mvp-demo-ready` | MVP Demo Ready - Complete working state with all core features functional | December 9, 2025 |
-| `future-plans-v1` | All future implementation plans documented | December 9, 2025 |
+| Tag                 | Description                                                               | Date             |
+| ------------------- | ------------------------------------------------------------------------- | ---------------- |
+| `mvp-demo-ready`  | MVP Demo Ready - Complete working state with all core features functional | December 9, 2025 |
+| `future-plans-v1` | All future implementation plans documented                                | December 9, 2025 |
 
 ### View All Tags
 
@@ -394,6 +397,7 @@ git show mvp-demo-ready
 ### Rollback Entire Repository to a Tag
 
 **Option 1: Checkout tag (detached HEAD - read-only exploration)**
+
 ```bash
 # View the repository at the tagged state
 git checkout mvp-demo-ready
@@ -403,12 +407,14 @@ git checkout main
 ```
 
 **Option 2: Create a new branch from tag (for development)**
+
 ```bash
 # Create a new branch starting from the tagged state
 git checkout -b my-feature-branch mvp-demo-ready
 ```
 
 **Option 3: Hard reset main branch to tag (⚠️ DESTRUCTIVE)**
+
 ```bash
 # WARNING: This discards all commits after the tag
 git checkout main
@@ -419,6 +425,7 @@ git push --force origin main
 ```
 
 **Option 4: Revert to tag state while preserving history**
+
 ```bash
 # Create a new commit that reverts to the tagged state
 git checkout main
@@ -451,67 +458,68 @@ git push origin --tags
 
 ### Requirements & Planning
 
-| Document | Description |
-|----------|-------------|
+| Document                                                                         | Description                                                                         |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD with problem statement, features, technical specs, and success metrics |
 
 ### Architecture & Design
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Diagrams](docs/architecture/ARCHITECTURE_DIAGRAMS.md) | **Visual reference** - Complete mermaid diagrams for all components and flows |
-| [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture, component design, and technology decisions |
-| [Step Functions Analysis](docs/architecture/STEP_FUNCTIONS_ANALYSIS.md) | Orchestration engine design and state machine patterns |
-| [DRS Coordination Patterns](docs/architecture/DRS_STEP_FUNCTIONS_COORDINATION_ANALYSIS.md) | Wave-based execution and DRS job coordination |
-| [AWS Services Deep Dive](docs/architecture/AWS_SERVICES_ARCHITECTURE_DEEP_DIVE.md) | Detailed analysis of AWS services used in the solution |
+| Document                                                                                | Description                                                                         |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [Architecture Diagrams](docs/architecture/ARCHITECTURE_DIAGRAMS.md)                        | **Visual reference** - Complete mermaid diagrams for all components and flows |
+| [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)        | System architecture, component design, and technology decisions                     |
+| [Step Functions Analysis](docs/architecture/STEP_FUNCTIONS_ANALYSIS.md)                    | Orchestration engine design and state machine patterns                              |
+| [DRS Coordination Patterns](docs/architecture/DRS_STEP_FUNCTIONS_COORDINATION_ANALYSIS.md) | Wave-based execution and DRS job coordination                                       |
+| [AWS Services Deep Dive](docs/architecture/AWS_SERVICES_ARCHITECTURE_DEEP_DIVE.md)         | Detailed analysis of AWS services used in the solution                              |
 
 ### Core Reference Documents
 
-| Document | Description |
-|----------|-------------|
-| [Product Overview](.kiro/steering/product.md) | **Core reference** - Business problem, solution overview, features, and success metrics |
-| [Project Structure](.kiro/steering/structure.md) | **Core reference** - Repository organization, component architecture, and data flows |
-| [Technology Stack](.kiro/steering/tech.md) | **Core reference** - Complete technology stack, AWS services, and development commands |
-| [Development Guidelines](docs/guides/DEVELOPMENT_GUIDELINES.md) | Code quality standards, architectural patterns, and best practices |
+| Document                                                     | Description                                                                                   |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| [Product Overview](.kiro/steering/product.md)                   | **Core reference** - Business problem, solution overview, features, and success metrics |
+| [Project Structure](.kiro/steering/structure.md)                | **Core reference** - Repository organization, component architecture, and data flows    |
+| [Technology Stack](.kiro/steering/tech.md)                      | **Core reference** - Complete technology stack, AWS services, and development commands  |
+| [Development Guidelines](docs/guides/DEVELOPMENT_GUIDELINES.md) | Code quality standards, architectural patterns, and best practices                            |
 
 ### Deployment & Operations
 
-| Document | Description |
-|----------|-------------|
-| [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment procedures, configuration, and operations |
-| [Deployment Recovery Guide](docs/guides/DEPLOYMENT_RECOVERY_GUIDE.md) | **CRITICAL** - How to redeploy from scratch using S3 artifacts |
-| [Deployment Success Summary](docs/guides/DEPLOYMENT_SUCCESS_SUMMARY.md) | Latest deployment verification and test results |
-| [CI/CD Pipeline Guide](docs/guides/CICD_PIPELINE_GUIDE.md) | GitLab CI/CD setup and automation workflows |
-| [S3 Sync Automation](docs/guides/S3_SYNC_AUTOMATION.md) | Automated deployment bucket synchronization |
+| Document                                                                       | Description                                                          |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment procedures, configuration, and operations        |
+| [Deployment Recovery Guide](docs/guides/DEPLOYMENT_RECOVERY_GUIDE.md)             | **CRITICAL** - How to redeploy from scratch using S3 artifacts |
+| [Deployment Success Summary](docs/guides/DEPLOYMENT_SUCCESS_SUMMARY.md)           | Latest deployment verification and test results                      |
+| [CI/CD Pipeline Guide](docs/guides/CICD_PIPELINE_GUIDE.md)                        | GitLab CI/CD setup and automation workflows                          |
+| [S3 Sync Automation](docs/guides/S3_SYNC_AUTOMATION.md)                           | Automated deployment bucket synchronization                          |
 
 ### API & Integration
 
-| Document | Description |
-|----------|-------------|
-| [AWS DRS API Reference](docs/guides/AWS_DRS_API_REFERENCE.md) | DRS API integration patterns and best practices |
-| [DRS Complete IAM Analysis](docs/reference/DRS_COMPLETE_IAM_ANALYSIS.md) | **CRITICAL** - Complete IAM permission requirements for DRS operations |
-| [DRS Service Role Policy Analysis](docs/reference/AWS_DRS_SERVICE_ROLE_POLICY_ANALYSIS.md) | Analysis of DRS service-linked role permissions |
-| [VMware SRM API Summary](docs/reference/VMware_SRM_REST_API_Summary.md) | VMware Site Recovery Manager API reference |
-| [Azure Site Recovery Analysis](docs/reference/AZURE_SITE_RECOVERY_RESEARCH_AND_API_ANALYSIS.md) | Azure Site Recovery competitive analysis |
-| [Zerto DR Analysis](docs/reference/ZERTO_RESEARCH_AND_API_ANALYSIS.md) | Zerto disaster recovery competitive analysis |
+| Document                                                                                     | Description                                                                  |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [AWS DRS API Reference](docs/guides/AWS_DRS_API_REFERENCE.md)                                   | DRS API integration patterns and best practices                              |
+| [DRS Complete IAM Analysis](docs/reference/DRS_COMPLETE_IAM_ANALYSIS.md)                        | **CRITICAL** - Complete IAM permission requirements for DRS operations |
+| [DRS Service Role Policy Analysis](docs/reference/AWS_DRS_SERVICE_ROLE_POLICY_ANALYSIS.md)      | Analysis of DRS service-linked role permissions                              |
+| [VMware SRM API Summary](docs/reference/VMware_SRM_REST_API_Summary.md)                         | VMware Site Recovery Manager API reference                                   |
+| [Azure Site Recovery Analysis](docs/reference/AZURE_SITE_RECOVERY_RESEARCH_AND_API_ANALYSIS.md) | Azure Site Recovery competitive analysis                                     |
+| [Zerto DR Analysis](docs/reference/ZERTO_RESEARCH_AND_API_ANALYSIS.md)                          | Zerto disaster recovery competitive analysis                                 |
 
 ### Testing & Quality
 
-| Document | Description |
-|----------|-------------|
+| Document                                                                   | Description                                                   |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | [Testing and Quality Assurance](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) | Comprehensive testing strategy, test cases, and QA procedures |
 
 ### Troubleshooting
 
-| Document | Description |
-|----------|-------------|
-| [DRS Drill Failure Analysis](docs/troubleshooting/DRS_DRILL_FAILURE_ANALYSIS.md) | Common drill failure patterns and resolution steps |
-| [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_PERMISSIONS.md) | **CRITICAL** - IAM permission requirements for DRS operations |
-| [CloudFormation Deployment Issues](docs/troubleshooting/CLOUDFORMATION_DEPLOYMENT_ISSUES.md) | Common CloudFormation deployment problems and solutions |
+| Document                                                                                  | Description                                                         |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [DRS Drill Failure Analysis](docs/troubleshooting/DRS_DRILL_FAILURE_ANALYSIS.md)             | Common drill failure patterns and resolution steps                  |
+| [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_PERMISSIONS.md)  | **CRITICAL** - IAM permission requirements for DRS operations |
+| [CloudFormation Deployment Issues](docs/troubleshooting/CLOUDFORMATION_DEPLOYMENT_ISSUES.md) | Common CloudFormation deployment problems and solutions             |
 
 ### Critical Discoveries
 
 **DRS IAM Permission Model**: When Lambda calls `drs:StartRecovery`, DRS uses the **calling role's IAM permissions** (not its service-linked role) to perform EC2 operations. The OrchestrationRole must have comprehensive EC2 permissions including:
+
 - `ec2:CreateLaunchTemplate`
 - `ec2:CreateLaunchTemplateVersion`
 - `ec2:ModifyLaunchTemplate`
@@ -524,8 +532,8 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 
 ### Project Status
 
-| Document | Description |
-|----------|-------------|
+| Document                              | Description                                     |
+| ------------------------------------- | ----------------------------------------------- |
 | [Project Status](docs/PROJECT_STATUS.md) | Current project status, milestones, and roadmap |
 
 ---
@@ -534,20 +542,55 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 
 ### December 9, 2025
 
-**Deployment Workflow Updates**
+**DRS Service Limits Compliance (Frontend Phase 2)** - `06bca16`
+
+- New `drsQuotaService.ts` with DRS_LIMITS constants and helper functions
+- New `DRSQuotaStatus.tsx` component with progress bars for quota visualization
+- Added `getDRSQuotas()` method to API client for `/drs/quotas` endpoint
+- Wave size validation in RecoveryPlanDialog (max 100 servers per wave)
+- DRS limit error handling in RecoveryPlansPage with specific toast messages
+
+**DRS Service Limits Compliance (Backend Phase 1)** - `52c649e`
+
+- Added comprehensive DRS service limits validation to prevent execution failures
+- New `DRS_LIMITS` constants with all AWS DRS service quotas:
+  - MAX_SERVERS_PER_JOB: 100 (hard limit)
+  - MAX_CONCURRENT_JOBS: 20 (hard limit)
+  - MAX_SERVERS_IN_ALL_JOBS: 500 (hard limit)
+  - MAX_REPLICATING_SERVERS: 300 (hard limit, cannot increase)
+  - Warning/Critical thresholds for capacity monitoring
+- New validation functions: `validate_wave_sizes()`, `validate_concurrent_jobs()`, `validate_servers_in_all_jobs()`, `validate_server_replication_states()`, `get_drs_account_capacity()`
+- New `/drs/quotas` API endpoint for quota monitoring
+- Integrated validations into `execute_recovery_plan()` with specific error codes
+
+**DRS Regional Availability Update** - `fa80b39`
+
+- Updated RegionSelector with all 28 commercial AWS DRS regions
+- Changed label format to show region code first: `us-east-1 (N. Virginia)`
+- Updated documentation to reflect 30 total regions (28 commercial + 2 GovCloud)
+
+**Improved DRS Initialization Error Messages** - `aed36c0`
+
+- Differentiated between "DRS Not Initialized" (warning) and "No Replicating Servers" (info)
+- More actionable error messages in both frontend and backend
+
+**Deployment Workflow Updates** - `9030a07`
+
 - Updated CI/CD documentation to reflect current `./scripts/sync-to-deployment-bucket.sh` process
 - Clarified 5 Lambda functions and 6 nested CloudFormation stacks architecture
 - Added timing information: fast Lambda updates (~5s) vs full deployments (5-10min)
 - Updated deployment verification rules with accurate architecture counts
 - Emphasized S3 bucket as source of truth for all deployments
 
-**Resume Execution Fix**
+**Resume Execution Fix** - `9030a07`
+
 - Fixed 400 Bad Request error when resuming paused executions
 - Root cause: Step Functions `WaitForResume` state had `OutputPath: '$.Payload'` but callback outputs from `SendTaskSuccess` are returned directly at root level
 - Solution: Removed `OutputPath` from `WaitForResume` state in `cfn/step-functions-stack.yaml`
 - Updated `resume_execution()` in Lambda to return full application state via `SendTaskSuccess`
 
-**DRS Job Events Auto-Refresh**
+**DRS Job Events Auto-Refresh** - `9030a07`
+
 - Fixed DRS Job Events not auto-updating in the execution details UI
 - Separated polling into its own `useEffect` with a ref to prevent interval recreation
 - Reduced polling interval from 5s to 3s for faster updates
@@ -555,7 +598,8 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 - Auto-refresh continues regardless of collapsed state
 - Added event count in header: `DRS Job Events (X)`
 
-**Loading State Management**
+**Loading State Management** - `9030a07`
+
 - Added `loading` prop to `ConfirmDialog` component that disables both Cancel and Confirm buttons
 - Updated Protection Groups delete dialog with loading state
 - Updated Recovery Plans delete dialog with loading state
@@ -566,19 +610,19 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 
 ## Future Enhancements
 
-| Priority | Feature | Description | Status | Documentation |
-|----------|---------|-------------|--------|---------------|
-| ~~1~~ | ~~DRS Regional Availability Update~~ | ~~Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud).~~ | ✅ Complete | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md) |
-| **2** | **DRS Service Limits Compliance** | Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Critical for multi-account planning. | Implementation Planned | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md) |
-| 3 | **CodeBuild & CodeCommit Migration** | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline. | Planned | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md) |
-| 4 | **DRS Launch Settings Management** | Configure EC2 launch templates for DRS source servers directly from the UI. Includes single-server configuration, bulk updates, and template library. | Planned | [Implementation Plan](docs/implementation/DRS_LAUNCH_SETTINGS_IMPLEMENTATION_PLAN.md) |
-| 5 | **DRS Tag Synchronization** | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls. | Planned | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md) |
-| 6 | **SSM Automation Integration** | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts. | Planned | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md) |
-| 7 | **Step Functions Visualization** | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI. | Planned | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md) |
-| 8 | **Multi-Account Support** | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI. | Planned | [Implementation Plan](docs/implementation/MULTI_ACCOUNT_SUPPORT_IMPLEMENTATION_PLAN.md) |
-| 9 | **Cross-Account DRS Monitoring** | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards. | Planned | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md) |
-| 10 | **SNS Notification Integration** | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty. | Planned | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md) |
-| 11 | **Scheduled Drills** | Automated scheduled drill executions with reporting | Planned | - |
+| Priority | Feature                                    | Description                                                                                                                                                                                                                      | Status      | Documentation                                                                          | Completion Date | Git Commits              |
+| -------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- | --------------- | ------------------------ |
+| ~~1~~   | ~~DRS Regional Availability Update~~      | ~~Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud).~~                                                                                                                                 | ✅ Complete | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md)       | Dec 9, 2025     | `fa80b39`, `aed36c0` |
+| ~~2~~   | ~~DRS Service Limits Compliance~~         | ~~Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Critical for multi-account planning.~~                                                | ✅ Complete | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md)      | Dec 9, 2025     | `52c649e`, `06bca16` |
+| 3        | **CodeBuild & CodeCommit Migration** | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline.                                                                  | Planned     | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)         | -               | -                        |
+| 4        | **DRS Launch Settings Management**   | Configure EC2 launch templates for DRS source servers directly from the UI. Includes single-server configuration, bulk updates, and template library.                                                                            | Planned     | [Implementation Plan](docs/implementation/DRS_LAUNCH_SETTINGS_IMPLEMENTATION_PLAN.md)     | -               | -                        |
+| 5        | **DRS Tag Synchronization**          | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls. | Planned     | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md)            | -               | -                        |
+| 6        | **SSM Automation Integration**       | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts.                                                                                                     | Planned     | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md)               | -               | -                        |
+| 7        | **Step Functions Visualization**     | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI.                            | Planned     | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md) | -               | -                        |
+| 8        | **Multi-Account Support**            | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI.                                                                                           | Planned     | [Implementation Plan](docs/implementation/MULTI_ACCOUNT_SUPPORT_IMPLEMENTATION_PLAN.md)   | -               | -                        |
+| 9        | **Cross-Account DRS Monitoring**     | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards.                                                              | Planned     | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md) | -               | -                        |
+| 10       | **SNS Notification Integration**     | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty.                                                                                                        | Planned     | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md)        | -               | -                        |
+| 11       | **Scheduled Drills**                 | Automated scheduled drill executions with reporting                                                                                                                                                                              | Planned     | -                                                                                      | -               | -                        |
 
 ## License
 
