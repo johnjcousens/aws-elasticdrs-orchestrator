@@ -390,6 +390,58 @@ If recovery jobs fail with `UnauthorizedOperation` errors, verify the Orchestrat
 
 See [Appendix: Complete Documentation Index](#appendix-complete-documentation-index) for full documentation catalog with detailed descriptions.
 
+## Agentic AI Coding
+
+### Amazon Q Developer Integration
+
+This repository includes comprehensive configuration for Amazon Q Developer to enable advanced agentic AI coding capabilities:
+
+#### Amazon Q Rules & Memory Bank
+
+| Document | Purpose |
+|----------|----------|
+| [CI/CD & IaC Workflow](.amazonq/rules/cicd-iac-workflow.md) | Enforce proper Infrastructure as Code workflow |
+| [Deployment Verification](.amazonq/rules/deployment-verification.md) | Verify deployment can be reproduced |
+| [Frontend Design Consistency](.amazonq/rules/frontend-design-consistency.md) | AWS CloudScape design system rules |
+| [Kiro Steering Alignment](.amazonq/rules/kiro-steering-alignment.md) | Complete project guidance alignment |
+| [Update Requirements Workflow](.amazonq/rules/update-requirements-workflow.md) | Automated documentation sync workflow |
+| [Development Guidelines](.amazonq/rules/memory-bank/guidelines.md) | Code quality standards and patterns |
+| [Product Overview](.amazonq/rules/memory-bank/product.md) | Business context and features |
+| [Project Structure](.amazonq/rules/memory-bank/structure.md) | Repository organization |
+| [Technology Stack](.amazonq/rules/memory-bank/tech.md) | Complete tech stack reference |
+
+#### Kiro Steering Documents
+
+| Document | Purpose |
+|----------|----------|
+| [Product Overview](.kiro/steering/product.md) | Business problem, solution overview, and features |
+| [Project Structure](.kiro/steering/structure.md) | Repository organization and component architecture |
+| [Technology Stack](.kiro/steering/tech.md) | Complete technology stack and development commands |
+| [CI/CD Guide](.kiro/steering/cicd.md) | Deployment architecture and GitLab pipeline |
+| [Frontend Design Consistency](.kiro/steering/frontend-design-consistency.md) | AWS CloudScape design system rules |
+| [Debugging Rules](.kiro/steering/debugging-rules.md) | DRS integration and troubleshooting guide |
+| [CloudScape Best Practices](.kiro/steering/cloudscape-best-practices.md) | CloudScape component usage and patterns |
+| [CloudScape Component Reference](.kiro/steering/cloudscape-component-reference.md) | Quick reference for CloudScape components |
+| [Terminal Rules](.kiro/steering/terminal-rules.md) | Terminal output suppression and connection guidelines |
+| [File Writing Rules](.kiro/steering/file-writing.md) | File creation and editing guidelines |
+| [Update Requirements Workflow](.kiro/steering/update-requirements-workflow.md) | Automated documentation sync workflow (trigger: "update docs", "align docs", "sync docs") |
+
+#### Key Benefits
+
+- **Consistent Development**: Enforces AWS CloudScape design patterns
+- **Automated Workflows**: CI/CD and deployment verification rules
+- **Documentation Sync**: Automated requirements document alignment
+- **Context Awareness**: Complete project understanding for AI assistance
+- **Quality Assurance**: Built-in code quality and architectural guidance
+
+### Usage with Amazon Q Developer
+
+1. **Install Amazon Q Developer** in your IDE
+2. **Open the repository** - Amazon Q will automatically load project rules
+3. **Use natural language** to request features, fixes, or documentation updates
+4. **Leverage workflows** - Say "update requirements documents" to trigger automated sync
+5. **Follow guidance** - Amazon Q enforces CloudScape patterns and deployment workflows
+
 ## Contributing
 
 1. Fork the repository
@@ -510,6 +562,7 @@ git push origin --tags
 
 | Document                                                                       | Description                                                          |
 | ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| [Solution Handoff Guide](docs/handoff/SOLUTION_HANDOFF_GUIDE.md)                  | **CUSTOMER HANDOFF** - Complete guide for continuing development with Amazon Q Developer |
 | [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment procedures, configuration, and operations        |
 | [Deployment Recovery Guide](docs/guides/DEPLOYMENT_RECOVERY_GUIDE.md)             | **CRITICAL** - How to redeploy from scratch using S3 artifacts |
 | [Deployment Success Summary](docs/guides/DEPLOYMENT_SUCCESS_SUMMARY.md)           | Latest deployment verification and test results                      |
@@ -562,212 +615,9 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 | ------------------------------------- | ----------------------------------------------- |
 | [Project Status](docs/PROJECT_STATUS.md) | Current project status, milestones, and roadmap |
 
----
-
 ## Changelog
 
-### December 10, 2025
-
-**DRS Capacity Auto-Refresh** - `9c7177b`
-
-- Added 30-second auto-refresh interval to DRS Capacity panel on Dashboard
-- DRS quotas now poll automatically like executions, keeping capacity data current
-- Fixed TypeScript error with region value capture in interval callback
-
-**Dashboard DRS Regions Expansion** - `9c7177b`
-
-- Expanded Dashboard DRS region selector from 7 to all 28 commercial DRS regions
-- Organized by geography: Americas (6), Europe (8), Asia Pacific (10), Middle East & Africa (4)
-
-**DRS Uninitialized Region Error Messages** - `9c7177b`
-
-- Improved error handling for uninitialized DRS regions
-- Detects `UninitializedAccountException` and `UnrecognizedClientException` errors
-- Returns friendly message: "DRS not initialized in {region}. Initialize DRS in the AWS Console."
-
-**DRS Replicating Server Count Fix** - `9c7177b`
-
-- Fixed incorrect replicating server count showing 0 instead of actual count
-- Root cause: DRS API returns `CONTINUOUS` state, not `CONTINUOUS_REPLICATION`
-- Updated `VALID_REPLICATION_STATES` constant and capacity calculation
-
-**API Gateway CORS Fix for /drs/quotas** - `9c7177b`
-
-- Added missing `/drs/quotas` endpoint to API Gateway CloudFormation template
-- Created `DRSQuotasResource`, `DRSQuotasGetMethod`, and `DRSQuotasOptionsMethod`
-- Fixed CORS preflight for DRS quota requests
-
-**Multi-Account Support Implementation Plan Update**
-
-- Added Phase 3.0: Dashboard DRS Capacity account selector design
-- Added cross-account DRS quota API endpoint specification
-- Added `get_drs_account_capacity_cross_account()` Lambda function design
-- Added recommended implementation order prioritizing Dashboard account dropdown
-
-### December 9, 2025
-
-**UI/UX Enhancements** - `6fbd084`, `b8f370d`, `931b08c`, `9a5f14c`, `c73f7f8`, `7d452cd`, `fc6c26c`
-
-- Added AWS smile logo to TopNavigation header
-- Updated title to "Elastic Disaster Recovery Orchestrator"
-- Navigation collapse state management for AWS Console-style hamburger menu
-- Login page redesigned to match AWS Console design standards
-- Native HTML inputs on login page for consistent password manager icon positioning
-- Standardized frontend icons - replaced emojis with CloudScape icons
-- Added CloudScape icons to Protection Groups actions menu
-
-**Getting Started Page Improvements** - `136ecc5`, `dee6fdd`, `178977e`
-
-- Enhanced Getting Started page with improved Quick Start Guide
-- Fixed card alignment with fitHeight and flex layout
-- Improved layout and guide content
-
-**DRS Service Limits Unit Tests** - `fd578cc`, `b65e25e`
-
-- Added Vitest test framework to frontend with jsdom environment
-- Created 21 frontend unit tests for `drsQuotaService.ts`
-- Created 27 backend unit tests for Lambda validation functions
-- Tests validate DRS limits without requiring actual DRS infrastructure
-- Uses mocked boto3 clients for backend API testing
-- Added test documentation: [DRS Service Limits Testing](docs/validation/DRS_SERVICE_LIMITS_TESTING.md)
-
-**DRS Service Limits Compliance (Frontend Phase 2)** - `06bca16`
-
-- New `drsQuotaService.ts` with DRS_LIMITS constants and helper functions
-- New `DRSQuotaStatus.tsx` component with progress bars for quota visualization
-- Added `getDRSQuotas()` method to API client for `/drs/quotas` endpoint
-- Wave size validation in RecoveryPlanDialog (max 100 servers per wave)
-- DRS limit error handling in RecoveryPlansPage with specific toast messages
-
-**DRS Service Limits Compliance (Backend Phase 1)** - `52c649e`
-
-- Added comprehensive DRS service limits validation to prevent execution failures
-- New `DRS_LIMITS` constants with all AWS DRS service quotas:
-  - MAX_SERVERS_PER_JOB: 100 (hard limit)
-  - MAX_CONCURRENT_JOBS: 20 (hard limit)
-  - MAX_SERVERS_IN_ALL_JOBS: 500 (hard limit)
-  - MAX_REPLICATING_SERVERS: 300 (hard limit, cannot increase)
-  - Warning/Critical thresholds for capacity monitoring
-- New validation functions: `validate_wave_sizes()`, `validate_concurrent_jobs()`, `validate_servers_in_all_jobs()`, `validate_server_replication_states()`, `get_drs_account_capacity()`
-- New `/drs/quotas` API endpoint for quota monitoring
-- Integrated validations into `execute_recovery_plan()` with specific error codes
-
-**DRS Regional Availability Update** - `fa80b39`
-
-- Updated RegionSelector with all 28 commercial AWS DRS regions
-- Changed label format to show region code first: `us-east-1 (N. Virginia)`
-- Updated documentation to reflect 30 total regions (28 commercial + 2 GovCloud)
-
-**Improved DRS Initialization Error Messages** - `aed36c0`
-
-- Differentiated between "DRS Not Initialized" (warning) and "No Replicating Servers" (info)
-- More actionable error messages in both frontend and backend
-
-**Deployment Workflow Updates** - `9030a07`
-
-- Updated CI/CD documentation to reflect current `./scripts/sync-to-deployment-bucket.sh` process
-- Clarified 5 Lambda functions and 6 nested CloudFormation stacks architecture
-- Added timing information: fast Lambda updates (~5s) vs full deployments (5-10min)
-- Updated deployment verification rules with accurate architecture counts
-- Emphasized S3 bucket as source of truth for all deployments
-
-**Resume Execution Fix** - `9030a07`
-
-- Fixed 400 Bad Request error when resuming paused executions
-- Root cause: Step Functions `WaitForResume` state had `OutputPath: '$.Payload'` but callback outputs from `SendTaskSuccess` are returned directly at root level
-- Solution: Removed `OutputPath` from `WaitForResume` state in `cfn/step-functions-stack.yaml`
-- Updated `resume_execution()` in Lambda to return full application state via `SendTaskSuccess`
-
-**DRS Job Events Auto-Refresh** - `9030a07`
-
-- Fixed DRS Job Events not auto-updating in the execution details UI
-- Separated polling into its own `useEffect` with a ref to prevent interval recreation
-- Reduced polling interval from 5s to 3s for faster updates
-- Made DRS Job Events collapsible via ExpandableSection (expanded by default)
-- Auto-refresh continues regardless of collapsed state
-- Added event count in header: `DRS Job Events (X)`
-
-**Loading State Management** - `9030a07`
-
-- Added `loading` prop to `ConfirmDialog` component that disables both Cancel and Confirm buttons
-- Updated Protection Groups delete dialog with loading state
-- Updated Recovery Plans delete dialog with loading state
-- Updated Cancel Execution dialog with loading state
-- Updated Terminate Instances dialog with loading state
-- Resume button already had proper `disabled={resuming}` and `loading={resuming}` props
-- Prevents accidental multiple operations and provides clear visual feedback
-
-### December 8, 2025
-
-**Documentation Deep Research** - `aec77e7`, `82185a0`, `9f351b0`, `29b745c`, `df4db12`, `5aed175`
-
-- Comprehensive documentation updates for DR platform APIs
-- Fixed Mermaid sequence diagram syntax errors
-- Updated S3 sync automation guide with accurate S3 structure
-- Updated CI/CD guide with ECR Public images to avoid Docker Hub rate limits
-- Removed competitor references and clarified AWS DRS regional availability
-
-**CI/CD Pipeline Improvements** - `d2f2850`, `b45aaf8`, `8814702`, `6d8b087`, `e198980`, `675d233`, `b159293`
-
-- Use ECR Public images to avoid Docker Hub rate limits
-- Correct aws-config.js structure in GitLab CI
-- Disable test jobs (tests/ directory is gitignored)
-- Resolve Fn::Sub variable error with CommaDelimitedList parameter
-- Fix cfn-lint CI pipeline configuration
-
-**Lambda Code Cleanup** - `89cf462`
-
-- Refactored and cleaned up deprecated Lambda code
-- Updated architecture diagrams
-
-### December 7, 2025
-
-**First Working Prototype** - `db1f41a`, `00f4eb3`
-
-- First working Step Functions integrated prototype
-- Dynamic DRS source server discovery
-- Fixed Step Functions LAUNCHED status detection
-
-**Critical IAM Permission Fixes** - `242b696`, `efeae49`, `8132665`, `60988cd`
-
-- Added ec2:StartInstances to IAM policy - both servers now launch
-- Fixed ec2:DeleteVolume IAM condition blocking DRS staging volume cleanup
-- Added ec2:DetachVolume permission for DRS credential passthrough
-- Added missing IAM permissions for DRS recovery operations
-
-**Architecture Simplification** - `1a797c7`, `d912534`
-
-- Removed polling infrastructure, use Step Functions only
-- Added Step Functions to fix EC2 launch issue
-
-**UI Improvements v1.1** - `aaf4059`
-
-- Various UI improvements and refinements
-
-**Documentation Updates** - `7e88a47`, `18acc84`, `0fc0bc7`, `d169e70`
-
-- Production-ready README with mermaid diagrams
-- Added CI/CD setup and post-deployment guide
-- Added DRS + Step Functions coordination analysis
-- Repository cleanup for production
-
-### December 6, 2025
-
-**🎉 MILESTONE: First Successful DRS Drill Execution** - `1f0f94f`
-
-- First successful end-to-end DRS drill execution through the platform
-
-**CloudScape Design System Migration Complete** - `c499193`, `f0892b3`, `5623c1d`
-
-- Complete CloudScape Design System migration (100%)
-- ExecutionsPage migration complete
-- All pages now use CloudScape components
-
-**GitLab CI/CD Pipeline** - `08aa58e`, `1683fc6`, `5e06334`
-
-- Added GitLab CI/CD pipeline with comprehensive deployment automation
-- Fixed CloudFormation output key names in CI/CD pipeline
-- Added Session 64 handoff document for CI/CD pipeline
+See [CHANGELOG.md](CHANGELOG.md) for complete project history since November 8, 2025.
 
 ## Future Enhancements
 
@@ -775,15 +625,15 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 | -------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- | --------------- | ------------------------ |
 | ~~1~~   | ~~DRS Regional Availability Update~~      | ~~Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud).~~                                                                                                                                 | ✅ Complete | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md)       | Dec 9, 2025     | `fa80b39`, `aed36c0` |
 | ~~2~~   | ~~DRS Service Limits Compliance~~         | ~~Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Includes 48 unit tests ([test docs](docs/validation/DRS_SERVICE_LIMITS_TESTING.md)).~~ | ✅ Complete | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md)      | Dec 9, 2025     | `52c649e`, `06bca16`, `fd578cc`, `b65e25e` |
-| 3        | **CodeBuild & CodeCommit Migration** | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline.                                                                  | Planned     | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)         | -               | -                        |
-| 4        | **DRS Launch Settings Management**   | Configure EC2 launch templates for DRS source servers directly from the UI. Includes single-server configuration, bulk updates, and template library.                                                                            | Planned     | [Implementation Plan](docs/implementation/DRS_LAUNCH_SETTINGS_IMPLEMENTATION_PLAN.md)     | -               | -                        |
-| 5        | **DRS Tag Synchronization**          | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls. | Planned     | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md)            | -               | -                        |
-| 6        | **SSM Automation Integration**       | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts.                                                                                                     | Planned     | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md)               | -               | -                        |
-| 7        | **Step Functions Visualization**     | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI.                            | Planned     | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md) | -               | -                        |
-| 8        | **Multi-Account Support**            | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI. Scale beyond 300 servers using multiple staging accounts (250/account recommended).       | Planned     | [Implementation Guide](docs/implementation/MULTI_ACCOUNT_DRS_IMPLEMENTATION.md) | -               | -                        |
-| 9        | **Cross-Account DRS Monitoring**     | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards.                                                              | Planned     | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md) | -               | -                        |
-| 10       | **SNS Notification Integration**     | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty.                                                                                                        | Planned     | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md)        | -               | -                        |
-| 11       | **Scheduled Drills**                 | Automated scheduled drill executions with reporting                                                                                                                                                                              | Planned     | -                                                                                      | -               | -                        |
+| 3        | **DRS Source Server Management**   | Complete DRS source server configuration from the UI. 7 MVP plans covering all settings: Server Info, Launch Settings, EC2 Templates, Tags, Disk Settings, Replication Settings, and Post-Launch Actions.                                                                            | Planned     | [Server Info MVP](docs/implementation/DRS_SERVER_INFO_MVP_PLAN.md), [Launch Settings MVP](docs/implementation/DRS_LAUNCH_SETTINGS_MVP_PLAN.md), [EC2 Template MVP](docs/implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN.md), [Tags MVP](docs/implementation/DRS_TAGS_MVP_PLAN.md), [Disk Settings MVP](docs/implementation/DRS_DISK_SETTINGS_MVP_PLAN.md), [Replication MVP](docs/implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md), [Post-Launch MVP](docs/implementation/DRS_POST_LAUNCH_MVP_PLAN.md)     | -               | -                        |
+| 4        | **DRS Tag Synchronization**          | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls. | Planned     | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md)            | -               | -                        |
+| 5        | **SSM Automation Integration**       | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts.                                                                                                     | Planned     | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md)               | -               | -                        |
+| 6        | **Step Functions Visualization**     | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI.                            | Planned     | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md) | -               | -                        |
+| 7        | **Multi-Account Support**            | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI. Scale beyond 300 servers using multiple staging accounts (250/account recommended).       | Planned     | [Implementation Guide](docs/implementation/MULTI_ACCOUNT_DRS_IMPLEMENTATION.md) | -               | -                        |
+| 8        | **Cross-Account DRS Monitoring**     | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards.                                                              | Planned     | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md) | -               | -                        |
+| 9        | **SNS Notification Integration**     | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty.                                                                                                        | Planned     | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md)        | -               | -                        |
+| 10       | **Scheduled Drills**                 | Automated scheduled drill executions with reporting                                                                                                                                                                              | Planned     | -                                                                                      | -               | -                        |
+| 11       | **CodeBuild & CodeCommit Migration** | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline.                                                                  | Planned     | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)         | -               | -                        |
 
 ## License
 
