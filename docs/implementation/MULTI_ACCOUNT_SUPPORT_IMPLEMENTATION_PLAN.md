@@ -158,6 +158,74 @@ New endpoints:
 | DELETE | `/accounts/{id}` | Remove account |
 | POST | `/accounts/{id}/validate` | Validate cross-account access |
 | GET | `/drs/source-servers?accountId={id}` | List servers for specific account |
+| GET | `/drs/quotas?region={r}&accountId={id}` | Get DRS capacity for specific account |
+
+Updated endpoint for DRS quotas:
+
+```python
+# lambda/index.py - Updated get_drs_quotas handler
+
+def get_drs_quotas(event):
+    """Get DRS account capacity and quotas, optionally for a cross-account"""
+    params = event.get('queryStringParameters') or {}
+    region = params.get('region', 'us-east-1')
+    account_id = params.get('accountId')  # Optional - if not provided, use hub account
+    
+    try:
+        if account_id:
+            # Cross-account query
+            capacity = get_drs_account_capacity_cross_account(region, account_id)
+        else:
+            # Hub account query (existing behavior)
+            capacity = get_drs_account_capacity(region)
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps(capacity)
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': str(e)})
+        }
+
+
+def get_drs_account_capacity_cross_account(region: str, account_id: str) -> dict:
+    """Get DRS capacity for a spoke account using cross-account role"""
+    drs_client = get_cross_account_client('drs', account_id, region)
+    
+    # Same logic as get_drs_account_capacity but using cross-account client
+    servers = []
+    paginator = drs_client.get_paginator('describe_source_servers')
+    for page in paginator.paginate():
+        servers.extend(page.get('items', []))
+    
+    replicating_count = sum(
+        1 for s in servers 
+        if s.get('dataReplicationInfo', {}).get('dataReplicationState') == 'CONTINUOUS'
+    )
+    
+    jobs = drs_client.describe_jobs(
+        filters={'jobIDs': []},
+        maxResults=100
+    ).get('items', [])
+    
+    active_jobs = [j for j in jobs if j.get('status') in ['PENDING', 'STARTED']]
+    servers_in_jobs = sum(
+        len(j.get('participatingServers', [])) for j in active_jobs
+    )
+    
+    return {
+        'accountId': account_id,
+        'region': region,
+        'replicatingServers': replicating_count,
+        'maxReplicatingServers': 300,
+        'concurrentJobs': len(active_jobs),
+        'maxConcurrentJobs': 20,
+        'serversInActiveJobs': servers_in_jobs,
+        'maxServersInAllJobs': 500
+    }
+```
 
 #### 1.3 Cross-Account Helper Functions
 
@@ -482,6 +550,110 @@ Outputs:
 ### Phase 3: Frontend UI (Priority: High)
 
 **Estimated Effort**: 3-4 days
+
+#### 3.0 Dashboard DRS Capacity - Account Selector
+
+Update the Dashboard DRS Capacity panel to support viewing quotas across accounts:
+
+```typescript
+// frontend/src/pages/Dashboard.tsx - Updated DRS Capacity section
+
+// State for account selection
+const [selectedAccount, setSelectedAccount] = useState<SelectProps.Option | null>(null);
+const [configuredAccounts, setConfiguredAccounts] = useState<Account[]>([]);
+
+// Fetch configured accounts on mount
+useEffect(() => {
+  const fetchAccounts = async () => {
+    try {
+      const response = await apiClient.listAccounts();
+      setConfiguredAccounts(response.items || []);
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+    }
+  };
+  fetchAccounts();
+}, []);
+
+// Build account options for dropdown
+const accountOptions: SelectProps.Option[] = [
+  { value: '', label: 'This Account (Hub)' },
+  ...configuredAccounts
+    .filter(a => a.status === 'ACTIVE')
+    .map(a => ({
+      value: a.accountId,
+      label: `${a.accountName} (${a.accountId})`
+    }))
+];
+
+// Updated DRS Capacity Container
+<Container
+  header={
+    <Header
+      variant="h2"
+      actions={
+        <SpaceBetween direction="horizontal" size="xs">
+          <Select
+            selectedOption={selectedAccount || accountOptions[0]}
+            onChange={({ detail }) => setSelectedAccount(detail.selectedOption)}
+            options={accountOptions}
+            placeholder="Select account"
+          />
+          <Select
+            selectedOption={selectedRegion}
+            onChange={({ detail }) => setSelectedRegion(detail.selectedOption)}
+            options={DRS_REGIONS.filter(r => 
+              !selectedAccount?.value || 
+              configuredAccounts.find(a => a.accountId === selectedAccount.value)?.regions.includes(r.value!)
+            )}
+            placeholder="Select region"
+          />
+        </SpaceBetween>
+      }
+    >
+      DRS Capacity
+    </Header>
+  }
+>
+  {/* Existing quota display content */}
+</Container>
+```
+
+Update `fetchDRSQuotas` to include account context:
+
+```typescript
+const fetchDRSQuotas = useCallback(async (region: string, accountId?: string) => {
+  setQuotasLoading(true);
+  setQuotasError(null);
+  try {
+    const params = new URLSearchParams({ region });
+    if (accountId) {
+      params.append('accountId', accountId);
+    }
+    const quotas = await apiClient.getDRSQuotas(region, accountId);
+    setDrsQuotas(quotas);
+  } catch (err) {
+    console.error('Error fetching DRS quotas:', err);
+    setQuotasError('Unable to fetch DRS capacity');
+    setDrsQuotas(null);
+  } finally {
+    setQuotasLoading(false);
+  }
+}, []);
+
+// Update effect to include account
+useEffect(() => {
+  const region = selectedRegion?.value;
+  const accountId = selectedAccount?.value || undefined;
+  if (region) {
+    fetchDRSQuotas(region, accountId);
+    const interval = setInterval(() => {
+      fetchDRSQuotas(region, accountId);
+    }, 30000);
+    return () => clearInterval(interval);
+  }
+}, [selectedRegion, selectedAccount, fetchDRSQuotas]);
+```
 
 #### 3.1 New Components
 
@@ -858,14 +1030,31 @@ def test_start_recovery_cross_account():
 - [ ] Recovery executions work across accounts
 - [ ] Audit trail captures all cross-account operations
 
+## Implementation Order
+
+The recommended implementation order prioritizes user-visible features:
+
+1. **Phase 1.1**: DynamoDB Accounts table
+2. **Phase 1.2**: Account CRUD API endpoints
+3. **Phase 2**: Cross-account role template (so users can prepare spoke accounts)
+4. **Phase 3.0**: Dashboard DRS Capacity account dropdown (immediate value)
+5. **Phase 3.1**: Accounts management page
+6. **Phase 1.3**: Cross-account helper functions
+7. **Phase 3.2**: Update Protection Groups for multi-account
+8. **Phase 4**: Navigation updates
+
+This order allows early testing of cross-account access via the Dashboard before full Protection Group integration.
+
 ## References
 
 ### AWS Documentation
+
 - [AWS STS AssumeRole](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html)
 - [Cross-Account Access Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html)
 - [External ID Confused Deputy Prevention](https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html)
 
 ### Archive Reference Implementations
+
 - [Cross-Account Role Template](archive/dr-orchestration-artifacts/role-templates/TargetAccountsAssumeRole.yaml) - Production-tested cross-account role pattern with multi-region support
 - [Cross-Account Setup Guide](docs/archive/archive_20251112_195507/CROSS_ACCOUNT_ACCESS_SETUP_GUIDE.md) - Original cross-account configuration documentation
 - [DRS Observability Templates](archive/drs-tools/drs-observability/) - EventBridge and SNS patterns for cross-account DRS monitoring
