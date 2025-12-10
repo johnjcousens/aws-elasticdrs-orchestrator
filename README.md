@@ -63,13 +63,17 @@ The solution follows a serverless, event-driven architecture with clear separati
 
 ## AWS DRS Regional Availability
 
-The solution orchestrates disaster recovery in all AWS regions where Elastic Disaster Recovery (DRS) is available:
+The solution orchestrates disaster recovery in all **30 AWS regions** where Elastic Disaster Recovery (DRS) is available:
 
-**Americas (5 regions)**: US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central)  
-**Europe (6 regions)**: Ireland, London, Frankfurt, Paris, Stockholm, Milan  
-**Asia Pacific (3 regions)**: Tokyo, Sydney, Singapore  
+| Region Group | Count | Regions |
+|--------------|-------|---------|
+| **Americas** | 6 | US East (N. Virginia, Ohio), US West (Oregon, N. California), Canada (Central), South America (São Paulo) |
+| **Europe** | 8 | Ireland, London, Frankfurt, Paris, Stockholm, Milan, Spain, Zurich |
+| **Asia Pacific** | 10 | Tokyo, Seoul, Osaka, Singapore, Sydney, Mumbai, Hyderabad, Jakarta, Melbourne, Hong Kong |
+| **Middle East & Africa** | 4 | Bahrain, UAE, Cape Town, Tel Aviv |
+| **GovCloud** | 2 | US-East, US-West |
 
-*Regional availability is determined by AWS DRS service, not the orchestration solution. As AWS expands DRS to additional regions, the solution automatically supports them without code changes.*
+*Regional availability determined by AWS DRS service. As AWS expands DRS, the solution automatically supports new regions.*
 
 ## Quick Start
 
@@ -564,7 +568,7 @@ See [IAM Permission Troubleshooting](docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_
 
 | Priority | Feature | Description | Status | Documentation |
 |----------|---------|-------------|--------|---------------|
-| **1** | **DRS Regional Availability Update** | Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud). Currently showing only 14 regions. | Implementation Planned | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md) |
+| ~~1~~ | ~~DRS Regional Availability Update~~ | ~~Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud).~~ | ✅ Complete | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md) |
 | **2** | **DRS Service Limits Compliance** | Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Critical for multi-account planning. | Implementation Planned | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md) |
 | 3 | **CodeBuild & CodeCommit Migration** | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline. | Planned | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md) |
 | 4 | **DRS Launch Settings Management** | Configure EC2 launch templates for DRS source servers directly from the UI. Includes single-server configuration, bulk updates, and template library. | Planned | [Implementation Plan](docs/implementation/DRS_LAUNCH_SETTINGS_IMPLEMENTATION_PLAN.md) |
