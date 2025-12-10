@@ -18,6 +18,7 @@ DEPLOY_CFN=false
 DEPLOY_LAMBDA=false
 UPDATE_LAMBDA_CODE=false
 DEPLOY_FRONTEND=false
+UPDATE_ALL_LAMBDA=false
 # Default to standard AWS credentials profile
 AWS_PROFILE="438465159935_AdministratorAccess"
 LIST_PROFILES=false
@@ -61,6 +62,10 @@ while [[ $# -gt 0 ]]; do
             UPDATE_LAMBDA_CODE=true
             shift
             ;;
+        --update-all-lambda)
+            UPDATE_ALL_LAMBDA=true
+            shift
+            ;;
         --deploy-frontend)
             DEPLOY_FRONTEND=true
             shift
@@ -82,9 +87,10 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Deployment Options:"
             echo "  --deploy-cfn             Deploy ALL stacks via parent CloudFormation (5-10 min)"
-            echo "  --update-lambda-code     Update Lambda code ONLY (bypass CloudFormation, ~5 sec)"
+            echo "  --update-lambda-code     Update api-handler Lambda code ONLY (~5 sec)"
+            echo "  --update-all-lambda      Update ALL Lambda functions code (~15 sec)"
             echo "  --deploy-lambda          Deploy Lambda stack via CloudFormation (~30 sec)"
-            echo "  --deploy-frontend        Deploy Frontend stack via CloudFormation (~2 min)"
+            echo "  --deploy-frontend        Sync frontend/dist to S3 + CloudFront invalidation (~10 sec)"
             echo ""
             echo "Examples:"
             echo "  # Basic sync (no deployment)"
@@ -491,6 +497,75 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
     fi
 fi
 
+# Update ALL Lambda functions
+if [ "$UPDATE_ALL_LAMBDA" = true ]; then
+    if [ "$DRY_RUN" = true ]; then
+        echo "ℹ️  DRY RUN: Would update all Lambda functions"
+        echo ""
+    else
+        echo "======================================"
+        echo "⚡ Updating ALL Lambda Functions"
+        echo "======================================"
+        echo ""
+        
+        DEPLOY_START=$(date +%s)
+        
+        cd "$PROJECT_ROOT/lambda"
+        
+        # Lambda function mappings: local file -> function name suffix
+        declare -A LAMBDA_FUNCTIONS=(
+            ["index.py"]="api-handler"
+            ["orchestration_stepfunctions.py"]="orchestration-stepfunctions"
+            ["build_and_deploy.py"]="frontend-builder"
+            ["poller/execution_finder.py"]="execution-finder"
+            ["poller/execution_poller.py"]="execution-poller"
+        )
+        
+        for local_file in "${!LAMBDA_FUNCTIONS[@]}"; do
+            func_suffix="${LAMBDA_FUNCTIONS[$local_file]}"
+            func_name="${PROJECT_NAME}-${func_suffix}-${ENVIRONMENT}"
+            
+            if [ -f "$local_file" ]; then
+                echo "📦 Packaging $func_suffix..."
+                rm -f /tmp/lambda-${func_suffix}.zip
+                
+                # Create zip based on file location
+                if [[ "$local_file" == poller/* ]]; then
+                    # For poller functions, include the poller directory structure
+                    zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
+                else
+                    zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
+                fi
+                
+                echo "⚡ Updating $func_name..."
+                aws lambda update-function-code \
+                    --function-name "$func_name" \
+                    --zip-file fileb:///tmp/lambda-${func_suffix}.zip \
+                    $PROFILE_FLAG \
+                    --region $REGION \
+                    --query 'LastModified' \
+                    --output text 2>/dev/null && echo "  ✅ $func_suffix updated" || echo "  ⚠️  $func_suffix not found (may not be deployed)"
+                
+                rm -f /tmp/lambda-${func_suffix}.zip
+            else
+                echo "  ⚠️  $local_file not found, skipping $func_suffix"
+            fi
+        done
+        
+        cd "$PROJECT_ROOT"
+        
+        DEPLOY_END=$(date +%s)
+        DEPLOY_DURATION=$((DEPLOY_END - DEPLOY_START))
+        
+        echo ""
+        echo "======================================"
+        echo "✅ All Lambda Functions Updated!"
+        echo "======================================"
+        echo "Deployment Duration: ${DEPLOY_DURATION}s"
+        echo ""
+    fi
+fi
+
 # Individual stack deployment: Deploy Lambda stack via CloudFormation
 if [ "$DEPLOY_LAMBDA" = true ]; then
     if [ "$DRY_RUN" = true ]; then
@@ -592,77 +667,56 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
         echo ""
     else
         echo "======================================"
-        echo "🚀 Deploying Frontend Stack"
+        echo "🚀 Deploying Frontend"
         echo "======================================"
         echo ""
         
         DEPLOY_START=$(date +%s)
         
-        # Get Frontend stack name from parent stack
-        FRONTEND_STACK_ID=$(aws cloudformation describe-stack-resources \
+        # Get Frontend bucket name from parent stack
+        FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name "$PARENT_STACK_NAME" \
-            --logical-resource-id "FrontendStack" \
-            --query "StackResources[0].PhysicalResourceId" \
-            --output text \
-            $PROFILE_FLAG \
-            --region $REGION 2>/dev/null) || FRONTEND_STACK_ID="${PROJECT_NAME}-${ENVIRONMENT}-frontend"
-        
-        echo "🔄 Updating Frontend stack ($FRONTEND_STACK_ID)..."
-        
-        # Get parameters from parent/API stack
-        USER_POOL=$(aws cloudformation describe-stacks \
-            --stack-name "$PARENT_STACK_NAME" \
-            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION)
-        USER_POOL_CLIENT=$(aws cloudformation describe-stacks \
-            --stack-name "$PARENT_STACK_NAME" \
-            --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION)
-        IDENTITY_POOL=$(aws cloudformation describe-stacks \
-            --stack-name "$PARENT_STACK_NAME" \
-            --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION)
-        API_ENDPOINT=$(aws cloudformation describe-stacks \
-            --stack-name "$PARENT_STACK_NAME" \
-            --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION)
-        FRONTEND_BUILDER_ARN=$(aws cloudformation describe-stacks \
-            --stack-name "$PARENT_STACK_NAME" \
-            --query "Stacks[0].Outputs[?OutputKey=='FrontendBuilderFunctionArn'].OutputValue" \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
             --output text $PROFILE_FLAG --region $REGION)
         
-        STACK_UPDATE_OUTPUT=$(aws cloudformation update-stack \
-            --stack-name "$FRONTEND_STACK_ID" \
-            --template-url "https://s3.amazonaws.com/$BUCKET/cfn/frontend-stack.yaml" \
-            --parameters \
-                ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME" \
-                ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-                ParameterKey=UserPoolId,ParameterValue="$USER_POOL" \
-                ParameterKey=UserPoolClientId,ParameterValue="$USER_POOL_CLIENT" \
-                ParameterKey=IdentityPoolId,ParameterValue="$IDENTITY_POOL" \
-                ParameterKey=ApiEndpoint,ParameterValue="$API_ENDPOINT" \
-                ParameterKey=FrontendBuilderFunctionArn,ParameterValue="$FRONTEND_BUILDER_ARN" \
-            --capabilities CAPABILITY_NAMED_IAM \
-            $PROFILE_FLAG \
-            --region $REGION \
-            2>&1) || STACK_UPDATE_FAILED=true
+        # Get CloudFront distribution ID
+        CLOUDFRONT_DIST=$(aws cloudformation describe-stacks \
+            --stack-name "$PARENT_STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text $PROFILE_FLAG --region $REGION)
         
-        if [ "$STACK_UPDATE_FAILED" = true ]; then
-            if echo "$STACK_UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
-                echo "  ℹ️  Frontend stack already up-to-date"
-            else
-                echo "  ❌ Stack update failed:"
-                echo "$STACK_UPDATE_OUTPUT"
-                exit 1
-            fi
-        else
-            echo "  ⏳ Waiting for Frontend stack update..."
-            echo "     (This may take 2-3 minutes for CloudFront)"
-            aws cloudformation wait stack-update-complete \
-                --stack-name "$FRONTEND_STACK_ID" \
+        if [ -z "$FRONTEND_BUCKET" ] || [ "$FRONTEND_BUCKET" = "None" ]; then
+            echo "  ❌ Could not find Frontend bucket from stack outputs"
+            exit 1
+        fi
+        
+        echo "📦 Syncing frontend/dist/ to s3://$FRONTEND_BUCKET/..."
+        
+        # Sync frontend dist to the actual frontend bucket (not deployment bucket)
+        if [ -d "frontend/dist" ]; then
+            aws s3 sync frontend/dist/ s3://$FRONTEND_BUCKET/ \
                 $PROFILE_FLAG \
+                --delete \
+                --exclude "aws-config.json" \
                 --region $REGION
-            echo "  ✅ Frontend stack updated"
+            echo "  ✅ Frontend files synced to $FRONTEND_BUCKET"
+        else
+            echo "  ❌ frontend/dist/ not found - run with --build-frontend first"
+            exit 1
+        fi
+        
+        # Invalidate CloudFront cache
+        if [ -n "$CLOUDFRONT_DIST" ] && [ "$CLOUDFRONT_DIST" != "None" ]; then
+            echo ""
+            echo "🔄 Invalidating CloudFront cache ($CLOUDFRONT_DIST)..."
+            aws cloudfront create-invalidation \
+                --distribution-id "$CLOUDFRONT_DIST" \
+                --paths "/*" \
+                $PROFILE_FLAG \
+                --region $REGION \
+                --query 'Invalidation.Id' \
+                --output text
+            echo "  ✅ CloudFront invalidation started"
         fi
         
         DEPLOY_END=$(date +%s)
@@ -670,9 +724,11 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
         
         echo ""
         echo "======================================"
-        echo "✅ Frontend Stack Deployed!"
+        echo "✅ Frontend Deployed!"
         echo "======================================"
         echo "Deployment Duration: ${DEPLOY_DURATION}s"
+        echo "Frontend Bucket: $FRONTEND_BUCKET"
+        echo "CloudFront: $CLOUDFRONT_DIST"
         echo ""
     fi
 fi

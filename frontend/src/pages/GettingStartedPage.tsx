@@ -16,11 +16,17 @@ import { PageTransition } from '../components/PageTransition';
 const cardGridStyle: React.CSSProperties = { 
   display: 'grid', 
   gridTemplateColumns: 'repeat(3, 1fr)', 
-  gap: '20px',
-  alignItems: 'stretch'
+  gap: '20px'
 };
-const cardWrapperStyle: React.CSSProperties = { display: 'flex' };
-const cardContentStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '120px', height: '100%' };
+const cardWrapperStyle: React.CSSProperties = { 
+  display: 'flex',
+  flexDirection: 'column'
+};
+const containerWrapperStyle: React.CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column'
+};
 const dividerStyle: React.CSSProperties = { border: 'none', borderTop: '1px solid #e9ebed', margin: '8px 0' };
 
 export const GettingStartedPage: React.FC = () => {
@@ -38,75 +44,78 @@ export const GettingStartedPage: React.FC = () => {
         <SpaceBetween size="l">
           <div style={cardGridStyle}>
             <div style={cardWrapperStyle}>
-              <Container
-                header={
-                  <Header variant="h2">
-                    <SpaceBetween direction="horizontal" size="xs">
-                      <Icon name="folder" />
-                      <span>Protection Groups</span>
-                    </SpaceBetween>
-                  </Header>
-                }
-              >
-                <div style={cardContentStyle}>
-                  <Box color="text-body-secondary">
-                    Organize DRS source servers into logical groups for coordinated recovery. Each group contains servers that should be recovered together.
-                  </Box>
-                  <Box padding={{ top: 'm' }}>
+              <div style={containerWrapperStyle}>
+                <Container
+                  header={
+                    <Header variant="h2">
+                      <SpaceBetween direction="horizontal" size="xs">
+                        <Icon name="folder" />
+                        <span>Protection Groups</span>
+                      </SpaceBetween>
+                    </Header>
+                  }
+                  fitHeight
+                >
+                  <SpaceBetween size="m">
+                    <Box color="text-body-secondary">
+                      Group DRS servers for coordinated recovery.
+                    </Box>
                     <Button onClick={() => navigate('/protection-groups')} variant="primary" fullWidth>
-                      Manage Protection Groups
+                      View Protection Groups
                     </Button>
-                  </Box>
-                </div>
-              </Container>
+                  </SpaceBetween>
+                </Container>
+              </div>
             </div>
 
             <div style={cardWrapperStyle}>
-              <Container
-                header={
-                  <Header variant="h2">
-                    <SpaceBetween direction="horizontal" size="xs">
-                      <Icon name="file" />
-                      <span>Recovery Plans</span>
-                    </SpaceBetween>
-                  </Header>
-                }
-              >
-                <div style={cardContentStyle}>
-                  <Box color="text-body-secondary">
-                    Design multi-wave recovery sequences with dependencies. Control the order servers are recovered and add pause points for validation.
-                  </Box>
-                  <Box padding={{ top: 'm' }}>
+              <div style={containerWrapperStyle}>
+                <Container
+                  header={
+                    <Header variant="h2">
+                      <SpaceBetween direction="horizontal" size="xs">
+                        <Icon name="file" />
+                        <span>Recovery Plans</span>
+                      </SpaceBetween>
+                    </Header>
+                  }
+                  fitHeight
+                >
+                  <SpaceBetween size="m">
+                    <Box color="text-body-secondary">
+                      Design multi-wave recovery sequences.
+                    </Box>
                     <Button onClick={() => navigate('/recovery-plans')} variant="primary" fullWidth>
-                      Manage Recovery Plans
+                      View Recovery Plans
                     </Button>
-                  </Box>
-                </div>
-              </Container>
+                  </SpaceBetween>
+                </Container>
+              </div>
             </div>
 
             <div style={cardWrapperStyle}>
-              <Container
-                header={
-                  <Header variant="h2">
-                    <SpaceBetween direction="horizontal" size="xs">
-                      <Icon name="status-in-progress" />
-                      <span>Execution History</span>
-                    </SpaceBetween>
-                  </Header>
-                }
-              >
-                <div style={cardContentStyle}>
-                  <Box color="text-body-secondary">
-                    Monitor active recoveries and review historical execution records. Track progress, view logs, and manage recovery instances.
-                  </Box>
-                  <Box padding={{ top: 'm' }}>
+              <div style={containerWrapperStyle}>
+                <Container
+                  header={
+                    <Header variant="h2">
+                      <SpaceBetween direction="horizontal" size="xs">
+                        <Icon name="status-in-progress" />
+                        <span>Execution History</span>
+                      </SpaceBetween>
+                    </Header>
+                  }
+                  fitHeight
+                >
+                  <SpaceBetween size="m">
+                    <Box color="text-body-secondary">
+                      Monitor and manage recovery executions.
+                    </Box>
                     <Button onClick={() => navigate('/executions')} variant="primary" fullWidth>
-                      View Execution History
+                      View Executions
                     </Button>
-                  </Box>
-                </div>
-              </Container>
+                  </SpaceBetween>
+                </Container>
+              </div>
             </div>
           </div>
 
