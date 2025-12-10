@@ -338,17 +338,16 @@ export const RecoveryPlansPage: React.FC = () => {
                 
                 // Build description for disabled state
                 let drillDescription = 'Test recovery without failover';
-                let recoveryDescription = 'Actual failover operation';
+                const recoveryDescription = 'Coming soon - actual failover operation';
                 if (hasServerConflict && item.conflictInfo?.reason) {
                   drillDescription = `Blocked: ${item.conflictInfo.reason}`;
-                  recoveryDescription = `Blocked: ${item.conflictInfo.reason}`;
                 }
                 
                 return (
                   <ButtonDropdown
                     items={[
                       { id: 'drill', text: 'Run Drill', iconName: 'check', description: drillDescription, disabled: isExecutionDisabled },
-                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: recoveryDescription, disabled: isExecutionDisabled },
+                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: recoveryDescription, disabled: true },
                       { id: 'divider', text: '-', disabled: true },
                       { id: 'edit', text: 'Edit', iconName: 'edit', disabled: hasInProgressExecution },
                       { id: 'delete', text: 'Delete', iconName: 'remove', disabled: hasInProgressExecution },
