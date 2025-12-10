@@ -45,6 +45,10 @@ export const ExecutionDetailsPage: React.FC = () => {
   const [terminationInProgress, setTerminationInProgress] = useState(false);
   const [terminateError, setTerminateError] = useState<string | null>(null);
   const [terminateSuccess, setTerminateSuccess] = useState<string | null>(null);
+  const [terminationJobInfo, setTerminationJobInfo] = useState<{
+    totalInstances: number;
+    jobIds: string[];
+  } | null>(null);
 
   // Fetch execution details
   const fetchExecution = async (silent = false) => {
@@ -110,7 +114,14 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     if (isTerminated) {
       setTerminationInProgress(false);
-      setTerminateSuccess('All recovery instances have been terminated.');
+      // NOW show the success message - termination is actually complete
+      const instanceCount = terminationJobInfo?.totalInstances || 0;
+      if (instanceCount > 0) {
+        setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
+      } else {
+        setTerminateSuccess('All recovery instances have been terminated.');
+      }
+      setTerminationJobInfo(null);
       return;
     }
 
@@ -119,7 +130,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(interval);
-  }, [terminationInProgress, execution]);
+  }, [terminationInProgress, execution, terminationJobInfo]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
@@ -162,6 +173,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     setTerminateError(null);
     setTerminateSuccess(null);
     setTerminateDialogOpen(false);
+    setTerminationJobInfo(null);
 
     try {
       const result = await apiClient.terminateRecoveryInstances(executionId);
@@ -171,11 +183,16 @@ export const ExecutionDetailsPage: React.FC = () => {
         setTerminateSuccess('Recovery instances have already been terminated.');
         setTerminationInProgress(false);
       } else if (result.totalTerminated > 0) {
-        setTerminateSuccess(
-          `Successfully terminated ${result.totalTerminated} recovery instance(s)` +
-          (result.totalFailed > 0 ? `. ${result.totalFailed} failed.` : '')
-        );
+        // Termination INITIATED (not completed) - DRS job created
+        // Store job info for progress tracking
+        const resultAny = result as any;
+        const jobIds = (resultAny.jobs || []).map((j: any) => j.jobId).filter(Boolean);
+        setTerminationJobInfo({
+          totalInstances: result.totalTerminated,
+          jobIds: jobIds
+        });
         // Keep terminationInProgress true - polling will detect when complete
+        // Do NOT show success message yet - wait for actual completion
       } else if (result.totalFailed > 0) {
         setTerminateError(`Failed to terminate ${result.totalFailed} instance(s). They may have already been terminated.`);
         setTerminationInProgress(false);
@@ -531,11 +548,17 @@ export const ExecutionDetailsPage: React.FC = () => {
           {terminationInProgress && (
             <Alert type="info" header="Terminating Recovery Instances">
               <SpaceBetween size="s">
-                <div>Terminating recovery instances from DRS. This may take a few minutes...</div>
+                <div>
+                  {terminationJobInfo 
+                    ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes...`
+                    : 'Terminating recovery instances from DRS. This may take a few minutes...'}
+                </div>
                 <ProgressBar
                   status="in-progress"
                   label="Termination Progress"
-                  description="Waiting for instances to be terminated"
+                  description={terminationJobInfo?.jobIds?.length 
+                    ? `DRS Job${terminationJobInfo.jobIds.length > 1 ? 's' : ''}: ${terminationJobInfo.jobIds.join(', ')}`
+                    : 'Waiting for DRS to terminate instances...'}
                 />
               </SpaceBetween>
             </Alert>
