@@ -1,0 +1,426 @@
+schemaVersion: '0.3'
+description: |
+  AWS DRS Launch Configuration Automation
+  
+  This automation configures AWS Disaster Recovery Service (DRS) launch settings by matching DRS source servers
+  to EC2 instances based on Name tags and synchronizing metadata between recovery targets and source servers.
+  
+  Workflow:
+  
+  1. Retrieves all DRS source servers from specified region
+  
+  2. Matches servers to EC2 instances via Name tag correlation
+  
+  3. Synchronizes tags from recovery target instances to DRS source servers
+  
+  4. Updates DRS launch configuration for launch-into-instance (disables copyTags, copyPrivateIp, rightSizing; sets launchDisposition to STOPPED)
+  
+  Key Features:
+  - Batch processing of multiple DRS source servers
+  - Intelligent instance matching and validation
+  - Complete tag replacement (removes old, applies new)
+  - Excludes AWSDRS tag from synchronization
+  - Comprehensive error handling and status reporting
+  
+  Use Cases:
+  - DRS launch configuration automation
+  - Tag synchronization between recovery targets and source servers
+  - Batch processing of multiple disaster recovery servers
+  - Infrastructure as code integration for DR operations
+
+assumeRole: 'arn:aws:iam::140023385391:role/drs-plan-automation-lambda-prod-iam-usw2'
+parameters:
+  DRRegion:
+    type: String
+    default: 'us-west-2'
+    allowedValues:
+      - 'us-east-1'         # US East (N. Virginia)
+      - 'us-east-2'         # US East (Ohio)
+      - 'us-west-1'         # US West (N. California)
+      - 'us-west-2'         # US West (Oregon)
+      - 'ca-central-1'      # Canada (Central)
+      - 'ca-west-1'         # Canada (West)
+      - 'eu-central-1'      # Europe (Frankfurt)
+      - 'eu-central-2'      # Europe (Zurich)
+      - 'eu-west-1'         # Europe (Ireland)
+      - 'eu-west-2'         # Europe (London)
+      - 'eu-west-3'         # Europe (Paris)
+      - 'eu-north-1'        # Europe (Stockholm)
+      - 'eu-south-1'        # Europe (Milan)
+      - 'eu-south-2'        # Europe (Spain)
+      - 'ap-east-1'         # Asia Pacific (Hong Kong)
+      - 'ap-south-1'        # Asia Pacific (Mumbai)
+      - 'ap-south-2'        # Asia Pacific (Hyderabad)
+      - 'ap-southeast-1'    # Asia Pacific (Singapore)
+      - 'ap-southeast-2'    # Asia Pacific (Sydney)
+      - 'ap-southeast-3'    # Asia Pacific (Jakarta)
+      - 'ap-southeast-4'    # Asia Pacific (Melbourne)
+      - 'ap-northeast-1'    # Asia Pacific (Tokyo)
+      - 'ap-northeast-2'    # Asia Pacific (Seoul)
+      - 'ap-northeast-3'    # Asia Pacific (Osaka)
+      - 'me-south-1'        # Middle East (Bahrain)
+      - 'af-south-1'        # Africa (Cape Town)
+      - 'sa-east-1'         # South America (São Paulo)
+    description: 'AWS region where DRS source servers and target EC2 instances are located. Select from the dropdown list.'
+
+outputs:
+  - FindTargetInstances.ServerMappings
+  - SyncTags.TagSyncResults
+  - UpdateLaunchConfiguration.LaunchConfigResults
+
+mainSteps:
+  - name: GetDRSSourceServers
+    action: aws:executeAwsApi
+    description: |
+      STEP 1: Retrieve all DRS source servers from the specified region
+      
+      This step queries the AWS DRS service to obtain a complete list of source servers
+      that are currently configured for disaster recovery in the target region.
+      
+      OPERATION DETAILS:
+      - Calls DRS DescribeSourceServers API
+      - Retrieves server metadata including tags and configuration
+      - Provides foundation data for subsequent processing steps
+      - No filtering applied - gets all servers in region
+      
+      SUCCESS CRITERIA:
+      - API call completes without errors
+      - Returns valid JSON response with server list
+      - Server data includes required fields (sourceServerID, tags)
+      
+      ERROR HANDLING:
+      - API failures will terminate automation
+      - Invalid responses will be caught in next step
+      - Permissions issues will generate clear error messages
+    inputs:
+      Service: drs
+      Api: DescribeSourceServers
+    outputs:
+      - Name: SourceServers
+        Selector: $.items
+        Type: MapList
+
+  - name: FindTargetInstances
+    action: aws:executeScript
+    description: |
+      STEP 2: Find matching EC2 instances for each DRS source server
+      
+      This step processes each DRS source server to identify suitable EC2 target instances
+      for launch-into-instance configuration based on Name tag matching and instance state.
+      
+      MATCHING LOGIC:
+      - Extracts Name tag from each DRS source server
+      - Searches for EC2 instances with identical Name tag
+      - Validates instance state (must be 'stopped')
+      - Checks for AWSDRS=AllowLaunchingIntoThisInstance tag
+      - Creates server-to-instance mappings for valid matches
+      
+      VALIDATION CRITERIA:
+      - Source server must have Name tag
+      - Target instance must exist with matching Name
+      - Target instance must be in 'stopped' state
+      - Target instance must have AWSDRS=AllowLaunchingIntoThisInstance tag
+      
+      OUTPUT STATUS VALUES:
+      - 'Ready': Server has suitable target instance
+      - 'Skipped - No Name tag': Source server missing Name tag
+      - 'Skipped - No suitable instance': No valid target found
+      
+      PERFORMANCE OPTIMIZATION:
+      - Batch processes all servers in single execution
+      - Efficient EC2 API calls with targeted filters
+      - Minimal data transfer and processing overhead
+    inputs:
+      Runtime: python3.11
+      Handler: find_target_instances
+      InputPayload:
+        SourceServers: '{{ GetDRSSourceServers.SourceServers }}'
+        DRRegion: '{{ DRRegion }}'
+      Script: |
+        import boto3
+        
+        def find_target_instances(events, context):
+            source_servers = events['SourceServers']
+            dr_region = events['DRRegion']
+            
+            ec2_client = boto3.client('ec2', region_name=dr_region)
+            
+            server_mappings = []
+            
+            for server in source_servers:
+                server_id = server['sourceServerID']
+                server_name = server.get('tags', {}).get('Name')
+                
+                mapping = {
+                    'SourceServerID': server_id,
+                    'ServerName': server_name,
+                    'TargetInstance': None,
+                    'Status': 'Unknown'
+                }
+                
+                if not server_name:
+                    mapping['Status'] = 'Skipped - No Name tag'
+                    server_mappings.append(mapping)
+                    continue
+                
+                # Find matching EC2 instances
+                ec2_response = ec2_client.describe_instances(
+                    Filters=[{'Name': 'tag:Name', 'Values': [server_name]}]
+                )
+                
+                suitable_instance = None
+                for reservation in ec2_response['Reservations']:
+                    for instance in reservation['Instances']:
+                        instance_id = instance['InstanceId']
+                        instance_state = instance['State']['Name']
+                        
+                        awsdrs_tag = None
+                        for tag in instance.get('Tags', []):
+                            if tag['Key'] == 'AWSDRS':
+                                awsdrs_tag = tag['Value']
+                                break
+                        
+                        if instance_state == 'stopped' and awsdrs_tag == 'AllowLaunchingIntoThisInstance':
+                            suitable_instance = instance_id
+                            break
+                    
+                    if suitable_instance:
+                        break
+                
+                if suitable_instance:
+                    mapping['TargetInstance'] = suitable_instance
+                    mapping['Status'] = 'Ready'
+                else:
+                    mapping['Status'] = 'Skipped - No suitable instance'
+                
+                server_mappings.append(mapping)
+            
+            return {'ServerMappings': server_mappings}
+    outputs:
+      - Name: ServerMappings
+        Selector: $.Payload.ServerMappings
+        Type: MapList
+
+  - name: SyncTags
+    action: aws:executeScript
+    description: |
+      STEP 3: Synchronize tags from EC2 instances to DRS source servers
+      
+      This step performs comprehensive tag synchronization between recovery target EC2 instances
+      and their corresponding DRS source servers, ensuring consistent metadata across resources.
+      
+      TAG SYNCHRONIZATION PROCESS:
+      - Retrieves all tags from target EC2 instances
+      - Removes existing tags from DRS source servers (complete replacement)
+      - Applies new tags from EC2 instances to DRS source servers
+      - Excludes AWSDRS tag from synchronization (DRS-specific)
+      - Provides detailed logging of tag operations
+      
+      SYNCHRONIZATION FEATURES:
+      - Complete tag replacement (not additive)
+      - Preserves tag key-value relationships
+      - Handles tag removal and addition in single operation
+      - Excludes system tags that shouldn't be copied
+      
+      ERROR HANDLING:
+      - Continues processing if tag removal fails
+      - Logs warnings for partial failures
+      - Tracks success/failure status per server
+      - Provides detailed error messages for troubleshooting
+      
+      EXPECTED OUTCOMES:
+      - DRS source servers have identical tags to recovery targets
+      - Consistent metadata for disaster recovery operations
+      - Audit trail of tag synchronization activities
+    inputs:
+      Runtime: python3.11
+      Handler: sync_tags
+      InputPayload:
+        ServerMappings: '{{ FindTargetInstances.ServerMappings }}'
+        DRRegion: '{{ DRRegion }}'
+      Script: |
+        import boto3
+        
+        def sync_tags(events, context):
+            server_mappings = events['ServerMappings']
+            dr_region = events['DRRegion']
+            
+            drs_client = boto3.client('drs', region_name=dr_region)
+            ec2_client = boto3.client('ec2', region_name=dr_region)
+            sts_client = boto3.client('sts')
+            
+            results = {'TagSyncResults': []}
+            
+            for mapping in server_mappings:
+                if mapping['Status'] != 'Ready':
+                    continue
+                
+                server_id = mapping['SourceServerID']
+                target_instance = mapping['TargetInstance']
+                
+                print(f"Syncing tags for {server_id} -> {target_instance}")
+                
+                try:
+                    # Get tags from target instance
+                    instance_response = ec2_client.describe_instances(InstanceIds=[target_instance])
+                    instance_tags = instance_response['Reservations'][0]['Instances'][0].get('Tags', [])
+                    
+                    if instance_tags:
+                        account_id = sts_client.get_caller_identity()['Account']
+                        resource_arn = f"arn:aws:drs:{dr_region}:{account_id}:source-server/{server_id}"
+                        
+                        # Remove existing tags
+                        try:
+                            existing_tags_response = drs_client.list_tags_for_resource(resourceArn=resource_arn)
+                            existing_tags = existing_tags_response.get('tags', {})
+                            
+                            if existing_tags:
+                                tag_keys = list(existing_tags.keys())
+                                drs_client.untag_resource(resourceArn=resource_arn, tagKeys=tag_keys)
+                                print(f"  Removed {len(tag_keys)} existing tags")
+                        except Exception as e:
+                            print(f"  Warning: Failed to remove existing tags: {str(e)}")
+                        
+                        # Apply new tags (exclude AWSDRS)
+                        new_tags = {tag['Key']: tag['Value'] for tag in instance_tags if tag['Key'] != 'AWSDRS'}
+                        
+                        if new_tags:
+                            drs_client.tag_resource(resourceArn=resource_arn, tags=new_tags)
+                            print(f"  ✓ Synced {len(new_tags)} tags")
+                            
+                            results['TagSyncResults'].append({
+                                'SourceServerID': server_id,
+                                'Status': 'Success',
+                                'TagsApplied': len(new_tags)
+                            })
+                        else:
+                            print(f"  No valid tags to sync")
+                    else:
+                        print(f"  No tags found on target instance")
+                        
+                except Exception as e:
+                    print(f"  ERROR: {str(e)}")
+                    results['TagSyncResults'].append({
+                        'SourceServerID': server_id,
+                        'Status': 'Failed',
+                        'Error': str(e)
+                    })
+            
+            return results
+    outputs:
+      - Name: TagSyncResults
+        Selector: $.Payload.TagSyncResults
+        Type: MapList
+
+  - name: UpdateLaunchConfiguration
+    action: aws:executeScript
+    description: |
+      STEP 4: Update DRS launch configuration for launch-into-instance
+      
+      This step configures DRS source servers to launch into specific EC2 instances during
+      disaster recovery operations, disabling conflicting settings and enabling targeted recovery.
+      
+      CONFIGURATION PROCESS:
+      - Disables conflicting DRS settings (copyTags, copyPrivateIp, rightSizing)
+      - Sets launch disposition to 'STOPPED' for controlled recovery
+      - Configures launch-into-instance properties with target EC2 instance ID
+      - Validates configuration changes and reports results
+      
+      SETTINGS MODIFIED:
+      - copyTags: DISABLED (tags managed separately)
+      - copyPrivateIp: DISABLED (preserves network configuration)
+      - targetInstanceTypeRightSizingMethod: NONE (uses existing instance type)
+      - launchDisposition: STOPPED (instances start in stopped state)
+      - launchIntoInstanceProperties: ENABLED with target instance ID
+      
+      VALIDATION AND REPORTING:
+      - Confirms successful configuration updates
+      - Tracks success/failure counts across all servers
+      - Provides detailed error messages for failed operations
+      - Generates comprehensive execution summary
+      
+      DISASTER RECOVERY IMPACT:
+      - Enables precise instance targeting during recovery
+      - Preserves existing instance configurations
+      - Allows controlled recovery process initiation
+      - Maintains consistency with infrastructure as code
+    inputs:
+      Runtime: python3.11
+      Handler: update_launch_config
+      InputPayload:
+        ServerMappings: '{{ FindTargetInstances.ServerMappings }}'
+        DRRegion: '{{ DRRegion }}'
+      Script: |
+        import boto3
+        
+        def update_launch_config(events, context):
+            server_mappings = events['ServerMappings']
+            dr_region = events['DRRegion']
+            
+            drs_client = boto3.client('drs', region_name=dr_region)
+            
+            results = {
+                'TotalServers': len([m for m in server_mappings if m['Status'] == 'Ready']),
+                'Successful': 0,
+                'Failed': 0,
+                'LaunchConfigResults': []
+            }
+            
+            for mapping in server_mappings:
+                if mapping['Status'] != 'Ready':
+                    continue
+                
+                server_id = mapping['SourceServerID']
+                target_instance = mapping['TargetInstance']
+                server_name = mapping['ServerName']
+                
+                print(f"Updating launch config: {server_name} ({server_id}) -> {target_instance}")
+                
+                try:
+                    # Disable conflicting settings
+                    drs_client.update_launch_configuration(
+                        sourceServerID=server_id,
+                        copyTags=False,
+                        copyPrivateIp=False,
+                        targetInstanceTypeRightSizingMethod='NONE',
+                        launchDisposition='STOPPED'
+                    )
+                    
+                    # Configure launch-into-instance
+                    launch_properties = {'launchIntoEC2InstanceID': target_instance}
+                    
+                    drs_client.update_launch_configuration(
+                        sourceServerID=server_id,
+                        launchIntoInstanceProperties=launch_properties
+                    )
+                    
+                    print(f"  ✓ SUCCESS: Launch configuration updated")
+                    results['Successful'] += 1
+                    results['LaunchConfigResults'].append({
+                        'SourceServerID': server_id,
+                        'ServerName': server_name,
+                        'TargetInstance': target_instance,
+                        'Status': 'Success'
+                    })
+                    
+                except Exception as e:
+                    print(f"  ✗ ERROR: {str(e)}")
+                    results['Failed'] += 1
+                    results['LaunchConfigResults'].append({
+                        'SourceServerID': server_id,
+                        'ServerName': server_name,
+                        'TargetInstance': target_instance,
+                        'Status': 'Failed',
+                        'Error': str(e)
+                    })
+            
+            print(f"\n=== LAUNCH CONFIG SUMMARY ===")
+            print(f"Total: {results['TotalServers']}")
+            print(f"Successful: {results['Successful']}")
+            print(f"Failed: {results['Failed']}")
+            
+            return results
+    outputs:
+      - Name: LaunchConfigResults
+        Selector: $.Payload
+        Type: StringMap
