@@ -1,6 +1,6 @@
 # AWS DRS Orchestration Platform - Innovation Initiative
 
-**Leadership Principles Demonstrated: Invent and Simplify (#3), Think Big (#8), Bias for Action (#9)**
+**Leadership Principles Demonstrated: Customer Obsession (#1), Invent and Simplify (#3), Bias for Action (#9)**
 
 ## Situation
 
