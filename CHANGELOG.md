@@ -6,7 +6,7 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### December 12, 2025
 
-**Tag-Based Protection Groups** - EC2 Instance Tag Resolution
+**Tag-Based Protection Groups** - `3409505`
 
 - Protection Groups now support tag-based server selection as an alternative to explicit server selection
 - Tags are resolved against EC2 instance tags (not DRS resource tags) for accurate filtering
