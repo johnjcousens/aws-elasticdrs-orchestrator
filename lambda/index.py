@@ -761,7 +761,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
                 body['InitiatedBy'] = 'system'
             return execute_recovery_plan(body)
         elif path.startswith('/recovery-plans'):
-            return handle_recovery_plans(http_method, path_parameters, body)
+            return handle_recovery_plans(http_method, path_parameters, query_parameters, body)
         elif path.startswith('/executions'):
             # Pass full path for action routing (cancel, pause, resume)
             path_parameters['_full_path'] = path
@@ -942,13 +942,42 @@ def create_protection_group(body: Dict) -> Dict:
     try:
         # Validate required fields
         if 'GroupName' not in body:
-            return response(400, {'error': 'GroupName is required'})
+            return response(400, {
+                'error': 'MISSING_FIELD',
+                'message': 'GroupName is required',
+                'field': 'GroupName'
+            })
         
         if 'Region' not in body:
-            return response(400, {'error': 'Region is required'})
+            return response(400, {
+                'error': 'MISSING_FIELD',
+                'message': 'Region is required',
+                'field': 'Region'
+            })
         
         name = body['GroupName']
         region = body['Region']
+        
+        # Validate name is not empty or whitespace-only
+        if not name or not name.strip():
+            return response(400, {
+                'error': 'INVALID_NAME',
+                'message': 'GroupName cannot be empty or whitespace-only',
+                'field': 'GroupName'
+            })
+        
+        # Validate name length (1-256 characters)
+        if len(name.strip()) > 256:
+            return response(400, {
+                'error': 'INVALID_NAME',
+                'message': 'GroupName must be 256 characters or fewer',
+                'field': 'GroupName',
+                'maxLength': 256,
+                'actualLength': len(name.strip())
+            })
+        
+        # Use trimmed name
+        name = name.strip()
         
         # Support both selection modes
         selection_tags = body.get('ServerSelectionTags', {})
@@ -1116,13 +1145,39 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         if 'Region' in body and body['Region'] != existing_group.get('Region'):
             return response(400, {'error': 'Cannot change region after creation'})
         
-        # Validate unique name if changing
-        if 'GroupName' in body and body['GroupName'] != existing_group.get('GroupName'):
-            if not validate_unique_pg_name(body['GroupName'], group_id):
-                return response(409, {
-                    'error': 'PG_NAME_EXISTS',
-                    'message': f'A Protection Group named "{body["GroupName"]}" already exists'
+        # Validate name if provided
+        if 'GroupName' in body:
+            name = body['GroupName']
+            
+            # Validate name is not empty or whitespace-only
+            if not name or not name.strip():
+                return response(400, {
+                    'error': 'INVALID_NAME',
+                    'message': 'GroupName cannot be empty or whitespace-only',
+                    'field': 'GroupName'
                 })
+            
+            # Validate name length (1-256 characters)
+            if len(name.strip()) > 256:
+                return response(400, {
+                    'error': 'INVALID_NAME',
+                    'message': 'GroupName must be 256 characters or fewer',
+                    'field': 'GroupName',
+                    'maxLength': 256,
+                    'actualLength': len(name.strip())
+                })
+            
+            # Trim the name
+            body['GroupName'] = name.strip()
+            
+            # Validate unique name if changing
+            if body['GroupName'] != existing_group.get('GroupName'):
+                if not validate_unique_pg_name(body['GroupName'], group_id):
+                    return response(409, {
+                        'error': 'PG_NAME_EXISTS',
+                        'message': f'A Protection Group named "{body["GroupName"]}" already exists',
+                        'existingName': body['GroupName']
+                    })
         
         # Validate tags if provided
         if 'ServerSelectionTags' in body:
@@ -1268,7 +1323,7 @@ def delete_protection_group(group_id: str) -> Dict:
 # Recovery Plans Handlers
 # ============================================================================
 
-def handle_recovery_plans(method: str, path_params: Dict, body: Dict) -> Dict:
+def handle_recovery_plans(method: str, path_params: Dict, query_params: Dict, body: Dict) -> Dict:
     """Route Recovery Plans requests"""
     plan_id = path_params.get('id')
     path = path_params.get('proxy', '')
@@ -1285,7 +1340,7 @@ def handle_recovery_plans(method: str, path_params: Dict, body: Dict) -> Dict:
     if method == 'POST':
         return create_recovery_plan(body)
     elif method == 'GET' and not plan_id:
-        return get_recovery_plans()
+        return get_recovery_plans(query_params)
     elif method == 'GET' and plan_id:
         return get_recovery_plan(plan_id)
     elif method == 'PUT' and plan_id:
@@ -1301,13 +1356,42 @@ def create_recovery_plan(body: Dict) -> Dict:
     try:
         # Validate required fields
         if 'PlanName' not in body:
-            return response(400, {'error': 'Missing required field: PlanName'})
+            return response(400, {
+                'error': 'MISSING_FIELD',
+                'message': 'PlanName is required',
+                'field': 'PlanName'
+            })
         
         if 'Waves' not in body or not body['Waves']:
-            return response(400, {'error': 'At least one Wave is required'})
+            return response(400, {
+                'error': 'MISSING_FIELD',
+                'message': 'At least one Wave is required',
+                'field': 'Waves'
+            })
+        
+        # Validate name is not empty or whitespace-only
+        plan_name = body['PlanName']
+        if not plan_name or not plan_name.strip():
+            return response(400, {
+                'error': 'INVALID_NAME',
+                'message': 'PlanName cannot be empty or whitespace-only',
+                'field': 'PlanName'
+            })
+        
+        # Validate name length (1-256 characters)
+        if len(plan_name.strip()) > 256:
+            return response(400, {
+                'error': 'INVALID_NAME',
+                'message': 'PlanName must be 256 characters or fewer',
+                'field': 'PlanName',
+                'maxLength': 256,
+                'actualLength': len(plan_name.strip())
+            })
+        
+        # Use trimmed name
+        plan_name = plan_name.strip()
         
         # Validate unique name (case-insensitive, global across all users)
-        plan_name = body['PlanName']
         if not validate_unique_rp_name(plan_name):
             return response(409, {  # Conflict
                 'error': 'RP_NAME_EXISTS',
@@ -1346,11 +1430,45 @@ def create_recovery_plan(body: Dict) -> Dict:
         return response(500, {'error': str(e)})
 
 
-def get_recovery_plans() -> Dict:
-    """List all Recovery Plans with latest execution history and conflict info"""
+def get_recovery_plans(query_params: Dict = None) -> Dict:
+    """List all Recovery Plans with latest execution history and conflict info
+    
+    Query Parameters:
+        name: Filter by plan name (case-insensitive partial match)
+        nameExact: Filter by exact plan name (case-insensitive)
+        tag: Filter by tag key=value (plans with protection groups having this tag)
+        hasConflict: Filter by conflict status (true/false)
+        status: Filter by last execution status
+    """
     try:
+        query_params = query_params or {}
+        
         result = recovery_plans_table.scan()
         plans = result.get('Items', [])
+        
+        # Apply filters
+        name_filter = query_params.get('name', '').lower()
+        name_exact_filter = query_params.get('nameExact', '').lower()
+        tag_filter = query_params.get('tag', '')  # Format: key=value
+        has_conflict_filter = query_params.get('hasConflict')
+        status_filter = query_params.get('status', '').lower()
+        
+        # Parse tag filter
+        tag_key, tag_value = None, None
+        if tag_filter and '=' in tag_filter:
+            tag_key, tag_value = tag_filter.split('=', 1)
+        
+        # Build protection group tag lookup if tag filter is specified
+        pg_tags_map = {}
+        if tag_key:
+            try:
+                pg_result = protection_groups_table.scan()
+                for pg in pg_result.get('Items', []):
+                    pg_id = pg.get('GroupId')
+                    pg_tags = pg.get('ServerSelectionTags', {})
+                    pg_tags_map[pg_id] = pg_tags
+            except Exception as e:
+                print(f"Error loading PG tags for filter: {e}")
         
         # Get conflict info for all plans (for graying out Drill/Recovery buttons)
         plans_with_conflicts = get_plans_with_conflicts()
@@ -1398,9 +1516,54 @@ def get_recovery_plans() -> Dict:
             # Add wave count before transformation
             plan['WaveCount'] = len(plan.get('Waves', []))
 
+        # Apply filters to plans
+        filtered_plans = []
+        for plan in plans:
+            # Name filter (partial match, case-insensitive)
+            if name_filter:
+                plan_name = plan.get('PlanName', '').lower()
+                if name_filter not in plan_name:
+                    continue
+            
+            # Exact name filter (case-insensitive)
+            if name_exact_filter:
+                plan_name = plan.get('PlanName', '').lower()
+                if name_exact_filter != plan_name:
+                    continue
+            
+            # Conflict filter
+            if has_conflict_filter is not None:
+                has_conflict = plan.get('HasServerConflict', False)
+                if has_conflict_filter.lower() == 'true' and not has_conflict:
+                    continue
+                if has_conflict_filter.lower() == 'false' and has_conflict:
+                    continue
+            
+            # Status filter (last execution status)
+            if status_filter:
+                last_status = (plan.get('LastExecutionStatus') or '').lower()
+                if status_filter != last_status:
+                    continue
+            
+            # Tag filter - check if any protection group in plan has matching tag
+            if tag_key:
+                plan_waves = plan.get('Waves', [])
+                has_matching_tag = False
+                for wave in plan_waves:
+                    pg_id = wave.get('ProtectionGroupId')
+                    if pg_id and pg_id in pg_tags_map:
+                        pg_tags = pg_tags_map[pg_id]
+                        if tag_key in pg_tags and pg_tags[tag_key] == tag_value:
+                            has_matching_tag = True
+                            break
+                if not has_matching_tag:
+                    continue
+            
+            filtered_plans.append(plan)
+
         # Transform to camelCase for frontend
         camelcase_plans = []
-        for plan in plans:
+        for plan in filtered_plans:
             camelcase_plans.append(transform_rp_to_camelcase(plan))
 
         return response(200, {'plans': camelcase_plans, 'count': len(camelcase_plans)})
@@ -1452,14 +1615,39 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 'planId': plan_id
             })
         
-        # Validate unique name if changing
-        if 'PlanName' in body and body['PlanName'] != existing_plan.get('PlanName'):
-            if not validate_unique_rp_name(body['PlanName'], plan_id):
-                return response(409, {
-                    'error': 'RP_NAME_EXISTS',
-                    'message': f'A Recovery Plan named "{body["PlanName"]}" already exists',
-                    'existingName': body['PlanName']
+        # Validate name if provided
+        if 'PlanName' in body:
+            plan_name = body['PlanName']
+            
+            # Validate name is not empty or whitespace-only
+            if not plan_name or not plan_name.strip():
+                return response(400, {
+                    'error': 'INVALID_NAME',
+                    'message': 'PlanName cannot be empty or whitespace-only',
+                    'field': 'PlanName'
                 })
+            
+            # Validate name length (1-256 characters)
+            if len(plan_name.strip()) > 256:
+                return response(400, {
+                    'error': 'INVALID_NAME',
+                    'message': 'PlanName must be 256 characters or fewer',
+                    'field': 'PlanName',
+                    'maxLength': 256,
+                    'actualLength': len(plan_name.strip())
+                })
+            
+            # Trim the name
+            body['PlanName'] = plan_name.strip()
+            
+            # Validate unique name if changing
+            if body['PlanName'] != existing_plan.get('PlanName'):
+                if not validate_unique_rp_name(body['PlanName'], plan_id):
+                    return response(409, {
+                        'error': 'RP_NAME_EXISTS',
+                        'message': f'A Recovery Plan named "{body["PlanName"]}" already exists',
+                        'existingName': body['PlanName']
+                    })
         
         # NEW: Pre-write validation for Waves
         if 'Waves' in body:
@@ -1601,29 +1789,61 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         # Extract Cognito user if event provided
         cognito_user = get_cognito_user_from_event(event) if event else {'email': 'system', 'userId': 'system'}
         
-        # Validate required fields
-        required_fields = ['PlanId', 'ExecutionType', 'InitiatedBy']
-        for field in required_fields:
-            if field not in body:
-                return response(400, {'error': f'Missing required field: {field}'})
+        # Validate required fields with helpful messages
+        if 'PlanId' not in body:
+            return response(400, {
+                'error': 'MISSING_FIELD',
+                'message': 'PlanId is required - specify which Recovery Plan to execute',
+                'field': 'PlanId'
+            })
+        
+        if 'ExecutionType' not in body:
+            return response(400, {
+                'error': 'MISSING_FIELD',
+                'message': 'ExecutionType is required - must be DRILL or RECOVERY',
+                'field': 'ExecutionType',
+                'allowedValues': ['DRILL', 'RECOVERY']
+            })
+        
+        if 'InitiatedBy' not in body:
+            return response(400, {
+                'error': 'MISSING_FIELD',
+                'message': 'InitiatedBy is required - identify who/what started this execution',
+                'field': 'InitiatedBy'
+            })
         
         plan_id = body['PlanId']
-        execution_type = body['ExecutionType']
+        execution_type = body['ExecutionType'].upper() if body['ExecutionType'] else ''
         
         # Validate execution type
         if execution_type not in ['DRILL', 'RECOVERY']:
-            return response(400, {'error': 'Invalid ExecutionType'})
+            return response(400, {
+                'error': 'INVALID_EXECUTION_TYPE',
+                'message': f'ExecutionType must be DRILL or RECOVERY, got: {body["ExecutionType"]}',
+                'field': 'ExecutionType',
+                'providedValue': body['ExecutionType'],
+                'allowedValues': ['DRILL', 'RECOVERY']
+            })
         
         # Get Recovery Plan
         plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
         if 'Item' not in plan_result:
-            return response(404, {'error': 'Recovery Plan not found'})
+            return response(404, {
+                'error': 'RECOVERY_PLAN_NOT_FOUND',
+                'message': f'Recovery Plan with ID {plan_id} not found',
+                'planId': plan_id
+            })
         
         plan = plan_result['Item']
         
         # Validate plan has waves
         if not plan.get('Waves'):
-            return response(400, {'error': 'Recovery Plan has no waves configured'})
+            return response(400, {
+                'error': 'PLAN_HAS_NO_WAVES',
+                'message': f'Recovery Plan "{plan.get("PlanName", plan_id)}" has no waves configured - add at least one wave before executing',
+                'planId': plan_id,
+                'planName': plan.get('PlanName')
+            })
         
         # BLOCK: Cannot execute plan that already has an active execution
         active_executions = get_active_executions_for_plan(plan_id)
@@ -2700,17 +2920,25 @@ def cancel_execution(execution_id: str) -> Dict:
         )
         
         if not result.get('Items'):
-            return response(404, {'error': 'Execution not found'})
+            return response(404, {
+                'error': 'EXECUTION_NOT_FOUND',
+                'message': f'Execution with ID {execution_id} not found',
+                'executionId': execution_id
+            })
         
         execution = result['Items'][0]
         plan_id = execution.get('PlanId')
         
         # Check if execution is still running
         current_status = execution.get('Status')
-        if current_status not in ['RUNNING', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING', 'IN_PROGRESS', 'POLLING', 'INITIATED']:
+        cancellable_statuses = ['RUNNING', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING', 'IN_PROGRESS', 'POLLING', 'INITIATED', 'PENDING']
+        if current_status not in cancellable_statuses:
             return response(400, {
-                'error': 'Execution is not running',
-                'currentStatus': current_status
+                'error': 'EXECUTION_NOT_CANCELLABLE',
+                'message': f'Execution cannot be cancelled - status is {current_status}',
+                'currentStatus': current_status,
+                'cancellableStatuses': cancellable_statuses,
+                'reason': 'Execution must be running, paused, or pending to cancel'
             })
         
         # Get waves from execution and plan
@@ -2849,17 +3077,24 @@ def pause_execution(execution_id: str) -> Dict:
         )
         
         if not result.get('Items'):
-            return response(404, {'error': 'Execution not found'})
+            return response(404, {
+                'error': 'EXECUTION_NOT_FOUND',
+                'message': f'Execution with ID {execution_id} not found',
+                'executionId': execution_id
+            })
         
         execution = result['Items'][0]
         plan_id = execution.get('PlanId')
         current_status = execution.get('Status', '')
         
         # Check if execution is in a pausable state
-        if current_status not in ['RUNNING', 'IN_PROGRESS', 'POLLING']:
+        pausable_statuses = ['RUNNING', 'IN_PROGRESS', 'POLLING']
+        if current_status not in pausable_statuses:
             return response(400, {
-                'error': 'Execution cannot be paused',
+                'error': 'EXECUTION_NOT_PAUSABLE',
+                'message': f'Execution cannot be paused - status is {current_status}',
                 'currentStatus': current_status,
+                'pausableStatuses': pausable_statuses,
                 'reason': 'Execution must be running to pause'
             })
         
@@ -2867,16 +3102,20 @@ def pause_execution(execution_id: str) -> Dict:
         waves = execution.get('Waves', [])
         if not waves:
             return response(400, {
-                'error': 'No waves found in execution',
+                'error': 'EXECUTION_NO_WAVES',
+                'message': 'No waves found in execution - cannot pause',
+                'executionId': execution_id,
                 'currentStatus': current_status
             })
         
         # Single wave executions cannot be paused
         if len(waves) == 1:
             return response(400, {
-                'error': 'Cannot pause single-wave execution',
-                'reason': 'Pause is only available for multi-wave recovery plans',
-                'currentStatus': current_status
+                'error': 'SINGLE_WAVE_NOT_PAUSABLE',
+                'message': 'Cannot pause single-wave execution - pause is only available for multi-wave recovery plans',
+                'executionId': execution_id,
+                'waveCount': 1,
+                'reason': 'Pause is only available for multi-wave recovery plans'
             })
         
         # Find current wave state
@@ -2886,24 +3125,29 @@ def pause_execution(execution_id: str) -> Dict:
         has_in_progress_wave = False
         has_pending_wave = False
         current_wave_number = 0
+        last_completed_wave = 0
         
         for i, wave in enumerate(waves):
             wave_status = (wave.get('Status') or '').upper()
             wave_number = wave.get('WaveNumber', i + 1)
             
-            if wave_status in in_progress_statuses:
+            if wave_status in completed_statuses:
+                last_completed_wave = wave_number
+            elif wave_status in in_progress_statuses:
                 has_in_progress_wave = True
                 current_wave_number = wave_number
-            elif wave_status not in completed_statuses and wave_status not in ['CANCELLED']:
+            else:
                 # Pending wave (empty status, PENDING, NOT_STARTED)
                 has_pending_wave = True
         
         # Must have pending waves to pause
         if not has_pending_wave:
             return response(400, {
-                'error': 'Cannot pause - no pending waves remaining',
-                'reason': 'All waves have already completed or failed',
-                'currentStatus': current_status
+                'error': 'NO_PENDING_WAVES',
+                'message': 'Cannot pause - no pending waves remaining',
+                'executionId': execution_id,
+                'lastCompletedWave': last_completed_wave,
+                'reason': 'All waves have already completed or failed'
             })
         
         # Determine pause type
