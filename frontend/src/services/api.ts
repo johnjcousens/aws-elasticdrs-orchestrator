@@ -287,6 +287,27 @@ class ApiClient {
   /**
    * Execute a recovery plan
    * 
+   * Check for existing recovery instances for servers in a recovery plan.
+   * Used to warn user before starting a new drill if instances exist.
+   */
+  public async checkExistingRecoveryInstances(planId: string): Promise<{
+    hasExistingInstances: boolean;
+    existingInstances: Array<{
+      sourceServerId: string;
+      recoveryInstanceId: string;
+      ec2InstanceId: string;
+      ec2InstanceState: string;
+      sourceExecutionId?: string;
+      sourcePlanName?: string;
+      region: string;
+    }>;
+    instanceCount: number;
+    planId: string;
+  }> {
+    return this.get(`/recovery-plans/${planId}/check-existing-instances`);
+  }
+
+  /**
    * Note: Backend expects POST to /executions (not /recovery-plans/{id}/execute)
    * with PlanId in the body, not as a path parameter.
    */

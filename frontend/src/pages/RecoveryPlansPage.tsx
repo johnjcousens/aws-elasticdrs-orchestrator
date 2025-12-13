@@ -19,6 +19,8 @@ import {
   Pagination,
   TextFilter,
   CopyToClipboard,
+  Modal,
+  Alert,
 } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
@@ -56,9 +58,25 @@ export const RecoveryPlansPage: React.FC = () => {
     return stored ? new Set(JSON.parse(stored)) : new Set();
   });
   const [executionProgress, setExecutionProgress] = useState<Map<string, { currentWave: number; totalWaves: number }>>(new Map());
+  
+  // Existing instances confirmation dialog state
+  const [existingInstancesDialogOpen, setExistingInstancesDialogOpen] = useState(false);
+  const [existingInstancesInfo, setExistingInstancesInfo] = useState<{
+    plan: RecoveryPlan;
+    executionType: 'DRILL' | 'RECOVERY';
+    instances: Array<{
+      sourceServerId: string;
+      recoveryInstanceId: string;
+      ec2InstanceId: string;
+      ec2InstanceState: string;
+      sourceExecutionId?: string;
+      sourcePlanName?: string;
+    }>;
+  } | null>(null);
+  const [checkingInstances, setCheckingInstances] = useState(false);
 
   // CloudScape collection hooks
-  const { items, actions, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
+  const { items, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
     plans,
     {
       filtering: {
@@ -72,7 +90,7 @@ export const RecoveryPlansPage: React.FC = () => {
 
   // Track dialog state with ref for interval callbacks
   const isAnyDialogOpenRef = React.useRef(false);
-  isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen;
+  isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen || existingInstancesDialogOpen;
 
   // Initial fetch on mount only
   useEffect(() => {
@@ -118,13 +136,11 @@ export const RecoveryPlansPage: React.FC = () => {
   const checkInProgressExecutions = async () => {
     try {
       const response = await apiClient.listExecutions();
-      // Include all active statuses
       const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
       const activeExecutions = response.items.filter((exec) => activeStatuses.includes(exec.status.toUpperCase()));
       const plansWithActiveExecution = new Set<string>(activeExecutions.map((exec) => exec.recoveryPlanId));
       setPlansWithInProgressExecution(plansWithActiveExecution);
       
-      // Track wave progress for each plan
       const progressMap = new Map<string, { currentWave: number; totalWaves: number }>();
       activeExecutions.forEach((exec) => {
         progressMap.set(exec.recoveryPlanId, {
@@ -144,8 +160,8 @@ export const RecoveryPlansPage: React.FC = () => {
       setError(null);
       const data = await apiClient.listRecoveryPlans();
       setPlans(data);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to load recovery plans';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load recovery plans';
       setError(errorMessage);
       addNotification('error', errorMessage);
     } finally {
@@ -168,8 +184,8 @@ export const RecoveryPlansPage: React.FC = () => {
       addNotification('success', `Recovery plan "${planToDelete.name}" deleted successfully`);
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to delete recovery plan';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete recovery plan';
       setError(errorMessage);
       addNotification('error', errorMessage);
       setDeleteDialogOpen(false);
@@ -205,8 +221,34 @@ export const RecoveryPlansPage: React.FC = () => {
   };
 
   const handleExecute = async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
-    if (executing) return;
+    if (executing || checkingInstances) return;
 
+    // For drills, check for existing recovery instances first
+    if (executionType === 'DRILL') {
+      setCheckingInstances(true);
+      try {
+        const result = await apiClient.checkExistingRecoveryInstances(plan.id);
+        if (result.hasExistingInstances && result.existingInstances.length > 0) {
+          setExistingInstancesInfo({
+            plan,
+            executionType,
+            instances: result.existingInstances
+          });
+          setExistingInstancesDialogOpen(true);
+          setCheckingInstances(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to check existing instances:', err);
+      } finally {
+        setCheckingInstances(false);
+      }
+    }
+
+    await executeRecoveryPlanInternal(plan, executionType);
+  };
+
+  const executeRecoveryPlanInternal = async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
     setExecuting(true);
 
     try {
@@ -226,20 +268,31 @@ export const RecoveryPlansPage: React.FC = () => {
       setTimeout(() => checkInProgressExecutions(), 1000);
       
       navigate(`/executions/${execution.executionId}`);
-    } catch (err: any) {
-      // Handle DRS service limit errors with specific messages
-      const errorCode = err.response?.data?.error || err.error;
-      const errorData = err.response?.data || err;
+    } catch (err: unknown) {
+      interface ErrorData {
+        error?: string;
+        limit?: number;
+        currentJobs?: number;
+        maxJobs?: number;
+        totalAfterNew?: number;
+        maxServers?: number;
+        unhealthyCount?: number;
+        unhealthyServers?: unknown[];
+        message?: string;
+      }
+      const error = err as { response?: { data?: ErrorData }; error?: string; message?: string };
+      const errorCode = error.response?.data?.error || error.error;
+      const errorData: ErrorData = error.response?.data || {};
       
       switch (errorCode) {
         case 'WAVE_SIZE_LIMIT_EXCEEDED':
           addNotification('error', `Wave size limit exceeded. Maximum ${errorData.limit || 100} servers per wave.`);
           break;
         case 'CONCURRENT_JOBS_LIMIT_EXCEEDED':
-          addNotification('error', `DRS concurrent jobs limit reached (${errorData.currentJobs}/${errorData.maxJobs}). Wait for active jobs to complete.`);
+          addNotification('error', `DRS concurrent jobs limit reached (${errorData.currentJobs || 0}/${errorData.maxJobs || 20}). Wait for active jobs to complete.`);
           break;
         case 'SERVERS_IN_JOBS_LIMIT_EXCEEDED':
-          addNotification('error', `Would exceed max servers in active jobs (${errorData.totalAfterNew}/${errorData.maxServers}).`);
+          addNotification('error', `Would exceed max servers in active jobs (${errorData.totalAfterNew || 0}/${errorData.maxServers || 500}).`);
           break;
         case 'UNHEALTHY_SERVER_REPLICATION': {
           const unhealthyCount = errorData.unhealthyCount || errorData.unhealthyServers?.length || 0;
@@ -247,11 +300,26 @@ export const RecoveryPlansPage: React.FC = () => {
           break;
         }
         default:
-          addNotification('error', err.message || errorData.message || 'Failed to execute recovery plan');
+          addNotification('error', error.message || errorData.message || 'Failed to execute recovery plan');
       }
     } finally {
       setExecuting(false);
     }
+  };
+
+  const handleExistingInstancesConfirm = async () => {
+    if (!existingInstancesInfo) return;
+    
+    setExistingInstancesDialogOpen(false);
+    const { plan, executionType } = existingInstancesInfo;
+    setExistingInstancesInfo(null);
+    
+    await executeRecoveryPlanInternal(plan, executionType);
+  };
+
+  const handleExistingInstancesCancel = () => {
+    setExistingInstancesDialogOpen(false);
+    setExistingInstancesInfo(null);
   };
 
   if (loading) {
@@ -371,7 +439,6 @@ export const RecoveryPlansPage: React.FC = () => {
                 const hasServerConflict = item.hasServerConflict === true;
                 const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
                 
-                // Build description for disabled state
                 let drillDescription = 'Test recovery without failover';
                 const recoveryDescription = 'Coming soon - actual failover operation';
                 if (hasServerConflict && item.conflictInfo?.reason) {
@@ -413,7 +480,7 @@ export const RecoveryPlansPage: React.FC = () => {
             <Box textAlign="center" color="inherit">
               <b>No recovery plans</b>
               <Box padding={{ bottom: 's' }} variant="p" color="inherit">
-                No recovery plans found. Click 'Create Plan' above to get started.
+                No recovery plans found. Click &apos;Create Plan&apos; above to get started.
               </Box>
             </Box>
           }
@@ -449,6 +516,54 @@ export const RecoveryPlansPage: React.FC = () => {
           onClose={handleDialogClose}
           onSave={handleDialogSave}
         />
+
+        <Modal
+          visible={existingInstancesDialogOpen}
+          onDismiss={handleExistingInstancesCancel}
+          header="Existing Recovery Instances Found"
+          size="medium"
+          footer={
+            <Box float="right">
+              <SpaceBetween direction="horizontal" size="xs">
+                <Button variant="link" onClick={handleExistingInstancesCancel}>
+                  Cancel
+                </Button>
+                <Button variant="primary" onClick={handleExistingInstancesConfirm}>
+                  Continue with Drill
+                </Button>
+              </SpaceBetween>
+            </Box>
+          }
+        >
+          <SpaceBetween size="m">
+            <Alert type="warning">
+              There are {existingInstancesInfo?.instances.length || 0} recovery instance(s) from a previous execution that have not been terminated.
+            </Alert>
+            <Box>
+              {existingInstancesInfo?.instances[0]?.sourcePlanName && (
+                <Box variant="p">
+                  These instances were created by: <strong>{existingInstancesInfo.instances[0].sourcePlanName}</strong>
+                </Box>
+              )}
+              <Box variant="p" color="text-body-secondary">
+                Starting a new drill will create additional recovery instances. Consider terminating the existing instances first to avoid unnecessary costs.
+              </Box>
+            </Box>
+            <Box>
+              <Box variant="awsui-key-label">Existing instances:</Box>
+              {existingInstancesInfo?.instances.slice(0, 5).map((inst, idx) => (
+                <Box key={idx} color="text-body-secondary" fontSize="body-s">
+                  • {inst.ec2InstanceId} ({inst.ec2InstanceState})
+                </Box>
+              ))}
+              {(existingInstancesInfo?.instances.length || 0) > 5 && (
+                <Box color="text-body-secondary" fontSize="body-s">
+                  ... and {(existingInstancesInfo?.instances.length || 0) - 5} more
+                </Box>
+              )}
+            </Box>
+          </SpaceBetween>
+        </Modal>
       </ContentLayout>
     </PageTransition>
   );
