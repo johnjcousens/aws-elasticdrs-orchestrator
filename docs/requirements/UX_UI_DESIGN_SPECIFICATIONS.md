@@ -640,6 +640,7 @@ continued development, we recommend Amazon Q Developer.
 **Requirements**:
 - Shall allow users to create, edit, and delete Protection Groups
 - Shall display all Protection Groups in a searchable, sortable table
+- Shall support two server selection modes: tag-based (dynamic) and explicit server IDs (static)
 - Shall prevent deletion of groups used in Recovery Plans
 - Shall prevent editing of groups with active executions
 
@@ -671,9 +672,21 @@ continued development, we recommend Amazon Q Developer.
 | name | Name | Yes | Group name |
 | description | Description | Yes | Description or "-" |
 | region | Region | Yes | AWS region code |
-| servers | Servers | Yes | Count of sourceServerIds |
+| tags | Selection Tags | No | Count of serverSelectionTags or "-" |
+| servers | Servers | Yes | Count of sourceServerIds or resolved server count |
 | createdAt | Created | Yes | DateTimeDisplay (relative format) |
 | actions | Actions | No | ButtonDropdown (Edit, Delete) |
+
+**Server Selection Modes**:
+
+Protection Groups support two mutually exclusive server selection modes:
+
+| Mode | Field | Description |
+|------|-------|-------------|
+| Tag-based | serverSelectionTags | Dynamic selection - servers matching ALL specified EC2 tags are included at execution time |
+| Explicit | sourceServerIds | Static selection - specific DRS source server IDs are stored |
+
+Tag-based selection enables dynamic membership where servers are resolved at execution time based on their current EC2 tags. This allows servers to be automatically included/excluded as tags change.
 
 **Row Actions** (ButtonDropdown):
 
@@ -689,7 +702,6 @@ continued development, we recommend Amazon Q Developer.
 - Buttons: Cancel, Delete (loading state)
 
 **Empty State**: "No protection groups" with guidance text
-- ServerSelector component with real-time search
 
 ### 5. Recovery Plans Page
 
@@ -1100,26 +1112,77 @@ The following sections define the detailed specifications for each component tha
 
 ### ProtectionGroupDialog
 
-**Purpose**: Create and edit Protection Groups with server selection
+**Purpose**: Create and edit Protection Groups with tag-based or explicit server selection
 
 **Props**:
 
 ```typescript
+interface TagEntry {
+  key: string;
+  value: string;
+}
+
 interface ProtectionGroupDialogProps {
-  visible: boolean;
-  onDismiss: () => void;
-  onSave: (group: ProtectionGroup) => Promise<void>;
-  group?: ProtectionGroup; // undefined for create mode
-  existingGroups: ProtectionGroup[]; // for validation
+  open: boolean;
+  group?: ProtectionGroup | null;
+  onClose: () => void;
+  onSave: (group: ProtectionGroup) => void;
 }
 ```
+
+**Server Selection Modes**:
+
+The dialog supports two mutually exclusive server selection modes via CloudScape Tabs:
+
+| Tab | Mode | Description |
+|-----|------|-------------|
+| Select by Tags | tags | Dynamic selection using EC2 tags - servers matching ALL specified tags are resolved at execution time |
+| Select Servers | servers | Static selection - explicitly choose specific DRS source servers |
+
+**Tag-Based Selection Tab**:
+
+- Key-value tag input rows with Add/Remove buttons
+- "Preview Servers" button to resolve matching servers before saving
+- Preview table showing resolved servers with hostname, source server ID, and replication status
+- Servers must match ALL specified tags (AND logic)
+- At least one valid tag required when using tag mode
+- Tags are stored in `serverSelectionTags` field
+
+**Explicit Server Selection Tab**:
+
+- ServerDiscoveryPanel component for browsing available servers
+- Multi-select server picker with search/filter
+- Shows server hostname, ID, and replication status
+- Filters out servers already assigned to other groups
+- Server IDs stored in `sourceServerIds` field
+
+**Form Fields**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| Name | Input | Yes | Unique group name |
+| Description | Textarea | No | Optional description |
+| Region | RegionSelector | Yes | AWS region (28 commercial DRS regions) |
+| Selection Mode | Tabs | Yes | "Select by Tags" or "Select Servers" |
+| Tags | TagEntry[] | Conditional | Required if tag mode selected |
+| Servers | string[] | Conditional | Required if server mode selected |
+
+**Launch Settings** (Expandable Section):
+
+- LaunchConfigSection component for DRS launch configuration
+- Collapsed by default, expandable via caret icon
+- Settings applied to all servers in the group during recovery
 
 **Behavior**:
 
 - Modal size: large (900px)
-- Validates name uniqueness
-- Fetches available servers on region change
-- Filters out servers already assigned to other groups
+- Validates name uniqueness across existing groups
+- Region selector disabled in edit mode (cannot change region after creation)
+- Determines initial selection mode based on existing data:
+  - If `serverSelectionTags` has entries → tag mode
+  - If `sourceServerIds` has entries → server mode
+  - Default for new groups → server mode
+- Preview button calls `resolveProtectionGroupTags` API endpoint
 - Shows server count in footer
 
 ### RecoveryPlanDialog
@@ -2714,18 +2777,24 @@ The following wireframes define the visual layout that shall be implemented for 
 │   │ US East (N. Virginia) - us-east-1                              ▾  │     │
 │   └───────────────────────────────────────────────────────────────────┘     │
 │                                                                             │
-│   Select Servers                                                            │
-│   ┌───────────────────────────────────────────────────────────────────┐     │
-│   │ 🔍 Search servers...                                              │     │
-│   └───────────────────────────────────────────────────────────────────┘     │
-│   ┌───────────────────────────────────────────────────────────────────┐     │
-│   │  ☑  db-primary-01        ● Ready for Recovery    s-0abc123...     │     │
-│   │  ☑  db-replica-01        ● Ready for Recovery    s-0def456...     │     │
-│   │  ☑  db-replica-02        ● Ready for Recovery    s-0ghi789...     │     │
-│   │  ☐  app-server-01        ● Ready for Recovery    s-0jkl012...     │     │
-│   │  ☐  app-server-02        ○ Stalled               s-0mno345...     │     │
-│   └───────────────────────────────────────────────────────────────────┘     │
-│   3 servers selected                                                        │
+│   Server Selection                                                          │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │  [ Select by Tags ]  [ Select Servers ]                             │   │
+│   ├─────────────────────────────────────────────────────────────────────┤   │
+│   │  Servers matching ALL specified tags will be included dynamically.  │   │
+│   │                                                                     │   │
+│   │  Tag Key                    Tag Value                               │   │
+│   │  ┌──────────────────┐       ┌──────────────────┐    ┌───┐           │   │
+│   │  │ Environment      │       │ Production       │    │ ✕ │           │   │
+│   │  └──────────────────┘       └──────────────────┘    └───┘           │   │
+│   │  ┌──────────────────┐       ┌──────────────────┐    ┌───┐           │   │
+│   │  │ Tier             │       │ Database         │    │ ✕ │           │   │
+│   │  └──────────────────┘       └──────────────────┘    └───┘           │   │
+│   │  ┌─────────────┐  ┌───────────────────┐                             │   │
+│   │  │  + Add Tag  │  │  Preview Servers  │                             │   │
+│   │  └─────────────┘  └───────────────────┘                             │   │
+│   │  Preview: 3 servers match                                           │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │   ▼ Launch Settings (configured)                                            │
 │   ╭───────────────────────────────────────────────────────────────────╮     │
