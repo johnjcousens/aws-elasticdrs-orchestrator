@@ -175,7 +175,9 @@ Resources:
                   - ec2:DescribeSecurityGroups
                   - ec2:DescribeSubnets
                   - ec2:DescribeVpcs
+                  - ec2:DescribeInstanceTypes
                   - iam:PassRole
+                  - iam:ListInstanceProfiles
                 Resource: '*'
               # EC2 Snapshot/AMI permissions for drill conversion (no condition - DRS needs full access)
               - Effect: Allow
@@ -344,7 +346,9 @@ Resources:
                   - ec2:DescribeSecurityGroups
                   - ec2:DescribeSubnets
                   - ec2:DescribeVpcs
+                  - ec2:DescribeInstanceTypes
                   - iam:PassRole
+                  - iam:ListInstanceProfiles
                 Resource: '*'
               # EC2 Snapshot/AMI permissions for drill conversion (no condition - DRS needs full access)
               - Effect: Allow
