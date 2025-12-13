@@ -294,21 +294,16 @@ export const RecoveryPlansPage: React.FC = () => {
             },
             {
               id: 'planId',
-              header: 'Plan ID',
-              width: 340,
+              header: 'ID',
+              width: 60,
               cell: (item) => (
-                <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                  <Box fontSize="body-s" color="text-body-secondary">
-                    {item.id}
-                  </Box>
-                  <CopyToClipboard
-                    copyButtonAriaLabel="Copy Plan ID"
-                    copySuccessText="Plan ID copied"
-                    copyErrorText="Failed to copy"
-                    textToCopy={item.id}
-                    variant="icon"
-                  />
-                </div>
+                <CopyToClipboard
+                  copyButtonAriaLabel="Copy Plan ID"
+                  copySuccessText="Plan ID copied"
+                  copyErrorText="Failed to copy"
+                  textToCopy={item.id}
+                  variant="icon"
+                />
               ),
             },
             {
