@@ -25,22 +25,38 @@ MVP implementation of EC2 Launch Template editing for single servers. This exten
 
 ### Business Value
 
+- **AWS-Validated Approach**: Follows patterns from official AWS DRS tools
 - **Complete configuration**: Edit both DRS settings AND EC2 template in one dialog
 - **Eliminate AWS Console navigation**: No need to switch to EC2 console
 - **Reduce errors**: Dropdown selections prevent typos in resource IDs
+- **Enterprise-Ready**: Supports same settings as AWS Configuration Synchronizer
+- **Tag-Based Future**: Foundation for tag-based configuration management
 
 ---
 
 ## EC2 Launch Template Settings
 
-### Settings Managed (MVP Scope)
+### AWS-Approved Settings (Based on Official Tools Analysis)
 
-| Setting | EC2 API Field | Type | Description |
-|---------|---------------|------|-------------|
-| Instance Type | `InstanceType` | String | t3.small, m5.large, r5.xlarge, etc. |
-| Subnet | `NetworkInterfaces[0].SubnetId` | String | Target VPC subnet for recovery |
-| Security Groups | `NetworkInterfaces[0].Groups` | Array | Security group IDs |
-| IAM Instance Profile | `IamInstanceProfile.Name` | String | Instance profile for permissions |
+Based on analysis of AWS's official DRS tools ([template-manager](https://github.com/aws-samples/drs-tools/tree/main/drs-template-manager) and [configuration-synchronizer](https://github.com/aws-samples/drs-tools/tree/main/drs-configuration-synchronizer)), AWS officially supports editing these launch template settings:
+
+#### ✅ Safe to Edit (MVP Scope)
+| Setting | EC2 API Field | Type | Description | AWS Tool Support |
+|---------|---------------|------|-------------|------------------|
+| **Instance Type** | `InstanceType` | String | t3.small, m5.large, r5.xlarge, etc. | ✅ Template Manager, Config Sync |
+| **Subnet** | `NetworkInterfaces[0].SubnetId` | String | Target VPC subnet for recovery | ✅ Config Sync (auto-assignment) |
+| **Security Groups** | `NetworkInterfaces[0].Groups` | Array | Security group IDs | ✅ Template Manager, Config Sync |
+| **IAM Instance Profile** | `IamInstanceProfile.Name` | String | Instance profile for permissions | ✅ Template Manager, Config Sync |
+| **Monitoring** | `Monitoring.Enabled` | Boolean | CloudWatch detailed monitoring | ✅ Config Sync |
+| **Tags** | `TagSpecifications` | Array | Instance and volume tags | ✅ Template Manager, Config Sync |
+
+#### ⚠️ AWS Manages (Do Not Edit)
+| Setting | Reason | AWS Tool Behavior |
+|---------|--------|-------------------|
+| **ImageId** | DRS creates recovery-specific AMIs | Always `null` in Template Manager |
+| **BlockDeviceMappings** | DRS maps source server disks | Ignored by Config Sync |
+| **UserData** | DRS may inject recovery scripts | Always `null` in Template Manager |
+| **KeyName** | Handled separately by DRS | Ignored by Config Sync |
 
 ### AWS API Calls Required
 
@@ -167,12 +183,12 @@ sequenceDiagram
 
 #### New API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/ec2/instance-types` | List available EC2 instance types |
-| GET | `/ec2/subnets` | List VPC subnets |
-| GET | `/ec2/security-groups` | List security groups |
-| GET | `/ec2/instance-profiles` | List IAM instance profiles |
+| Method | Endpoint | Description | AWS Tool Reference |
+|--------|----------|-------------|--------------------|
+| GET | `/ec2/instance-types` | List available EC2 instance types | Template Manager pattern |
+| GET | `/ec2/subnets` | List VPC subnets | Config Sync auto-assignment |
+| GET | `/ec2/security-groups` | List security groups | Template Manager + Config Sync |
+| GET | `/ec2/instance-profiles` | List IAM instance profiles | Config Sync pattern |
 
 #### Lambda Handler Implementation
 
@@ -198,8 +214,8 @@ def get_ec2_instance_types(event: Dict) -> Dict:
         instance_types = []
         paginator = ec2_client.get_paginator('describe_instance_types')
         
-        # Filter to common families to reduce response size
-        common_families = ['t3', 't3a', 'm5', 'm5a', 'r5', 'r5a', 'c5', 'c5a']
+        # Filter to common families to reduce response size (based on AWS DRS recommendations)
+        common_families = ['t3', 't3a', 'm5', 'm5a', 'm5n', 'r5', 'r5a', 'r5n', 'c5', 'c5a', 'c5n', 'm6i', 'r6i', 'c6i']
         
         for page in paginator.paginate(
             Filters=[{
@@ -420,7 +436,9 @@ def get_launch_settings(event: Dict) -> Dict:
                         'subnetId': subnet_id,
                         'securityGroupIds': security_group_ids,
                         'iamInstanceProfile': template_data.get('IamInstanceProfile', {}).get('Name'),
-                        'ebsOptimized': template_data.get('EbsOptimized', False)
+                        'monitoring': template_data.get('Monitoring', {}).get('Enabled', False),
+                        'disableApiTermination': template_data.get('DisableApiTermination', False),
+                        'metadataOptions': template_data.get('MetadataOptions', {})
                     }
             except ec2_client.exceptions.ClientError as e:
                 logger.warning(f'Could not get EC2 template {template_id}: {str(e)}')
@@ -501,6 +519,14 @@ def update_launch_settings(event: Dict) -> Dict:
             if ec2_template.get('iamInstanceProfile'):
                 template_data['IamInstanceProfile'] = {'Name': ec2_template['iamInstanceProfile']}
             
+            # Add monitoring setting (AWS Config Sync pattern)
+            if 'monitoring' in ec2_template:
+                template_data['Monitoring'] = {'Enabled': ec2_template['monitoring']}
+            
+            # Add metadata options (AWS Config Sync security pattern)
+            if ec2_template.get('metadataOptions'):
+                template_data['MetadataOptions'] = ec2_template['metadataOptions']
+            
             if template_data:
                 # Create new version
                 ec2_client.create_launch_template_version(
@@ -538,7 +564,7 @@ def update_launch_settings(event: Dict) -> Dict:
 Add to `cfn/lambda-stack.yaml` OrchestrationRole:
 
 ```yaml
-# EC2 Read permissions (for dropdowns)
+# EC2 Read permissions (for dropdowns) - Based on AWS DRS tools
 - Effect: Allow
   Action:
     - ec2:DescribeInstanceTypes
@@ -549,14 +575,14 @@ Add to `cfn/lambda-stack.yaml` OrchestrationRole:
     - ec2:DescribeLaunchTemplateVersions
   Resource: '*'
 
-# EC2 Write permissions (for template updates)
+# EC2 Write permissions (for template updates) - AWS Template Manager pattern
 - Effect: Allow
   Action:
-    - ec2:CreateLaunchTemplateVersion
-    - ec2:ModifyLaunchTemplate
+    - ec2:CreateLaunchTemplateVersion  # AWS Template Manager requirement
+    - ec2:ModifyLaunchTemplate         # AWS Template Manager requirement
   Resource: !Sub 'arn:aws:ec2:*:${AWS::AccountId}:launch-template/*'
 
-# IAM Read permissions (for instance profiles dropdown)
+# IAM Read permissions (for instance profiles dropdown) - AWS Config Sync pattern
 - Effect: Allow
   Action:
     - iam:ListInstanceProfiles
@@ -1106,8 +1132,24 @@ export const LaunchSettingsDialog: React.FC<LaunchSettingsDialogProps> = ({
                     />
                   </FormField>
 
+                  <ColumnLayout columns={2}>
+                    <Checkbox
+                      checked={settings.ec2Template?.monitoring || false}
+                      onChange={({ detail }) => updateEc2Template('monitoring', detail.checked)}
+                    >
+                      Enable Detailed Monitoring
+                    </Checkbox>
+                    <Checkbox
+                      checked={settings.ec2Template?.disableApiTermination || false}
+                      onChange={({ detail }) => updateEc2Template('disableApiTermination', detail.checked)}
+                    >
+                      Enable Termination Protection
+                    </Checkbox>
+                  </ColumnLayout>
+
                   <Alert type="info">
-                    Template ID: <code>{settings.ec2Template.templateId}</code>
+                    Template ID: <code>{settings.ec2Template.templateId}</code><br/>
+                    <small>Settings follow AWS DRS Configuration Synchronizer patterns</small>
                   </Alert>
                 </SpaceBetween>
               )}
@@ -1572,14 +1614,24 @@ describe('LaunchSettingsDialog - EC2 Template', () => {
 
 ## Future Enhancements (Post-MVP)
 
-| Feature | Priority | Effort |
-|---------|----------|--------|
-| Bulk apply to protection group | High | 2-3 days |
-| Template library | Medium | 2-3 days |
-| VPC filtering for subnets/SGs | Medium | 1 day |
-| Instance type recommendations | Low | 1-2 days |
-| EBS volume configuration | Low | 2 days |
-| User data script editing | Low | 1-2 days |
+### Based on AWS DRS Tools Analysis
+
+| Feature | Priority | Effort | AWS Tool Reference |
+|---------|----------|--------|--------------------|
+| **Tag-based configuration** | High | 3-4 days | Config Sync core feature |
+| **Bulk apply to protection group** | High | 2-3 days | Template Manager pattern |
+| **Template library** | Medium | 2-3 days | Template Manager S3 storage |
+| **Automatic subnet assignment** | Medium | 2-3 days | Config Sync IP-to-subnet mapping |
+| **VPC filtering for subnets/SGs** | Medium | 1 day | Config Sync VPC tagging |
+| **Configuration as Code export** | Medium | 2-3 days | Config Sync YAML format |
+| **Metadata options security** | Low | 1 day | Config Sync security hardening |
+| **Instance type recommendations** | Low | 1-2 days | DRS right-sizing integration |
+
+### AWS Configuration Synchronizer Features
+- **Tag-based overrides**: `override_for_tag__Environment__Production.yml`
+- **Multi-account support**: Cross-account role assumptions
+- **Configuration drift detection**: Scheduled synchronization
+- **SNS notifications**: Execution reports and error alerts
 
 ---
 
@@ -1601,7 +1653,19 @@ This MVP depends on:
 
 ## References
 
+### Implementation Plans
 - [DRS Launch Settings MVP Plan](DRS_LAUNCH_SETTINGS_MVP_PLAN.md)
 - [Full Implementation Plan](DRS_LAUNCH_SETTINGS_IMPLEMENTATION_PLAN.md)
+
+### AWS Documentation
 - [AWS DRS API Reference](https://docs.aws.amazon.com/drs/latest/APIReference/)
 - [EC2 Launch Templates](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-launch-templates.html)
+
+### AWS Official Tools Analysis
+- [DRS Template Manager Analysis](../research/DRS_TEMPLATE_MANAGER_ANALYSIS.md)
+- [DRS Configuration Synchronizer Analysis](../research/DRS_CONFIGURATION_SYNCHRONIZER_ANALYSIS.md)
+- [DRS Launch Template Settings Research](../research/DRS_LAUNCH_TEMPLATE_SETTINGS_RESEARCH.md)
+
+### AWS Sample Tools
+- [AWS DRS Template Manager](https://github.com/aws-samples/drs-tools/tree/main/drs-template-manager)
+- [AWS DRS Configuration Synchronizer](https://github.com/aws-samples/drs-tools/tree/main/drs-configuration-synchronizer)
