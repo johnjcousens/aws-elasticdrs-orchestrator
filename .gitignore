@@ -67,15 +67,18 @@ scripts/wait_for_completion.sh
 # BUILD ARTIFACTS
 # -------------------------
 
-# Lambda build artifacts
-lambda/*.zip
+# Lambda build artifacts (keep deployment ZIPs for easy customer deployment)
+# Required ZIPs are tracked: api-handler.zip, orchestration-stepfunctions.zip, 
+# execution-finder.zip, execution-poller.zip, frontend-builder.zip
+lambda/deployment-package.zip
+lambda/lambda-package.zip
+lambda/orchestration-package.zip
 lambda/poller/*.zip
 lambda/__pycache__/
 lambda/package/
 
-# Frontend build artifacts
+# Frontend build artifacts (keep dist/ for easy customer deployment)
 frontend/node_modules/
-frontend/dist/
 frontend/build/
 
 # Python artifacts
