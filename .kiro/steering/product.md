@@ -58,15 +58,29 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform f
 - **Real-time Quota Display**: Live usage metrics in UI with status indicators
 - **Proactive Blocking**: Prevents operations that would exceed limits
 
+### DRS Source Server Management
+
+Complete DRS source server configuration management from the UI:
+
+- **Server Info & Recovery Dashboard**: Read-only visibility into server details, replication state, recovery readiness
+- **DRS Launch Settings**: Instance type right sizing, launch disposition, copy private IP/tags, OS licensing
+- **EC2 Launch Template**: Instance type, subnet, security groups, IAM instance profile selection
+- **Tags Management**: View, add, edit, delete tags on DRS source servers
+- **Disk Settings**: Per-disk configuration (type, IOPS, throughput)
+- **Replication Settings**: Staging area, bandwidth throttling, PIT snapshot policy
+- **Post-Launch Settings**: SSM automation, deployment type, S3 log configuration
+
 ### Frontend Application
 
-- CloudScape Design System UI with 23 MVP components (32 total including Phase 2)
+- CloudScape Design System UI with 33 components
 - Cognito-based authentication with 45-minute auto-logout
 - CloudFront CDN distribution for global performance
 - Real-time status updates and execution monitoring with 3-second polling
 - DRS Job Events timeline with auto-refresh
 - DRS Service Limits validation and quota display
 - Intuitive protection group and recovery plan management
+- Tag-based server selection with preview capability
+- Invocation source tracking (UI, CLI, API, EventBridge, SSM, Step Functions)
 
 ## AWS DRS Regional Availability
 
@@ -98,19 +112,18 @@ The solution supports disaster recovery orchestration in all **30 AWS regions** 
 5. **DevOps Integration**: Automate DR testing as part of CI/CD pipelines using the REST API
 6. **Controlled Recovery**: Pause execution before critical waves for manual validation before proceeding
 
-## Phase 2: Advanced Features
+## Future Roadmap
 
-| Priority | Feature | Description |
-|----------|---------|-------------|
-| 3 | **DRS Source Server Management** | Complete DRS source server configuration from UI |
-| 4 | **DRS Tag Synchronization** | Synchronize EC2 instance tags to DRS source servers |
-| 5 | **SSM Automation Integration** | Pre-wave and post-wave SSM automation |
-| 6 | **Step Functions Visualization** | Real-time state machine execution visualization |
-| 7 | **Multi-Account Support** | Cross-account orchestration, scale beyond 300 servers |
-| 8 | **Cross-Account DRS Monitoring** | Centralized monitoring across multiple accounts |
-| 9 | **SNS Notification Integration** | Real-time notifications via Email, SMS, Slack |
-| 10 | **Scheduled Drills** | Automated recurring drill execution |
-| 11 | **CodeBuild & CodeCommit Migration** | AWS-native CI/CD pipeline |
+| Feature | Description |
+|---------|-------------|
+| **DRS Tag Synchronization** | Synchronize EC2 instance tags to DRS source servers |
+| **SSM Automation Integration** | Pre-wave and post-wave SSM automation |
+| **Step Functions Visualization** | Real-time state machine execution visualization |
+| **Multi-Account Support** | Cross-account orchestration, scale beyond 300 servers |
+| **Cross-Account DRS Monitoring** | Centralized monitoring across multiple accounts |
+| **SNS Notification Integration** | Real-time notifications via Email, SMS, Slack |
+| **Scheduled Drills** | Automated recurring drill execution |
+| **CodeBuild & CodeCommit Migration** | AWS-native CI/CD pipeline |
 
 ## Architecture Highlights
 

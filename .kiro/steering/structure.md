@@ -36,7 +36,7 @@ React + TypeScript + CloudScape Design System:
 ```text
 frontend/
 ├── src/
-│   ├── components/          # 23 MVP components (32 total with Phase 2)
+│   ├── components/          # 33 components
 │   │   ├── cloudscape/      # CloudScape wrapper components
 │   │   │   ├── AppLayout.tsx
 │   │   │   └── ContentLayout.tsx
@@ -46,6 +46,7 @@ frontend/
 │   │   ├── ServerSelector.tsx
 │   │   ├── ServerDiscoveryPanel.tsx
 │   │   ├── ServerListItem.tsx
+│   │   ├── ServerInfoPanel.tsx
 │   │   ├── RegionSelector.tsx
 │   │   ├── WaveConfigEditor.tsx
 │   │   ├── StatusBadge.tsx
@@ -53,6 +54,14 @@ frontend/
 │   │   ├── DateTimeDisplay.tsx
 │   │   ├── DRSQuotaStatus.tsx
 │   │   ├── ExecutionDetails.tsx
+│   │   ├── InvocationSourceBadge.tsx
+│   │   ├── JobEventsTimeline.tsx
+│   │   ├── LaunchConfigSection.tsx
+│   │   ├── TagsEditor.tsx
+│   │   ├── DiskSettingsEditor.tsx
+│   │   ├── ReplicationSettingsEditor.tsx
+│   │   ├── PostLaunchSettingsEditor.tsx
+│   │   ├── PitPolicyEditor.tsx
 │   │   ├── ErrorBoundary.tsx
 │   │   ├── ErrorFallback.tsx
 │   │   ├── ErrorState.tsx
@@ -61,14 +70,16 @@ frontend/
 │   │   ├── DataTableSkeleton.tsx
 │   │   ├── PageTransition.tsx
 │   │   └── ProtectedRoute.tsx
-│   ├── pages/               # 7 MVP page components
+│   ├── pages/               # 9 page components
 │   │   ├── LoginPage.tsx
 │   │   ├── Dashboard.tsx
 │   │   ├── GettingStartedPage.tsx
 │   │   ├── ProtectionGroupsPage.tsx
 │   │   ├── RecoveryPlansPage.tsx
 │   │   ├── ExecutionsPage.tsx
-│   │   └── ExecutionDetailsPage.tsx
+│   │   ├── ExecutionDetailsPage.tsx
+│   │   ├── ServerDetailsPage.tsx
+│   │   └── QuotasPage.tsx
 │   ├── services/            # API client and authentication services
 │   ├── contexts/            # React contexts (Auth, API, Notification)
 │   ├── types/               # TypeScript type definitions

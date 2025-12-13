@@ -16,13 +16,20 @@
 ## Core Technologies
 
 ### Frontend Stack
-- **React 19.1.1**: UI framework with hooks and functional components
-- **CloudScape Design System 3.0.1148**: AWS-native UI component library
-- **Vite 7.1.7**: Fast build tool and development server
-- **React Router 7.9.5**: Client-side routing and navigation
-- **AWS Amplify 6.15.8**: Authentication and AWS service integration
-- **Axios 1.13.2**: HTTP client for API communication
-- **ESLint**: Code quality and linting
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| React | 19.1.1 | UI framework with hooks and functional components |
+| CloudScape Design System | 3.0.1148 | AWS-native UI component library |
+| @cloudscape-design/collection-hooks | 1.0.78 | Table state management |
+| Vite | 7.1.7 | Fast build tool and development server |
+| React Router | 7.9.5 | Client-side routing and navigation |
+| AWS Amplify | 6.15.8 | Authentication and AWS service integration |
+| Axios | 1.13.2 | HTTP client for API communication |
+| react-hot-toast | 2.6.0 | Toast notifications |
+| date-fns | 4.1.0 | Date formatting and manipulation |
+| TypeScript | 5.9.3 | Type checking |
+| ESLint | 9.36.0 | Code quality and linting |
 
 ### Backend Stack
 - **AWS Lambda**: Serverless compute (Python 3.12 runtime)
@@ -30,16 +37,20 @@
 - **crhelper 2.0.11**: CloudFormation custom resource helper
 
 ### AWS Services
-- **API Gateway**: REST API with Cognito authorizer
-- **Cognito**: User authentication and authorization
-- **Step Functions**: Orchestration state machine for wave execution
-- **DynamoDB**: NoSQL database for protection groups, recovery plans, execution history
-- **S3**: Static website hosting and deployment artifact storage
-- **CloudFront**: CDN for global frontend distribution
-- **CloudFormation**: Infrastructure as Code deployment
-- **IAM**: Least-privilege access control
-- **CloudWatch Logs**: Centralized logging and monitoring
-- **AWS DRS**: Elastic Disaster Recovery service integration
+
+| Service | Purpose |
+|---------|---------|
+| API Gateway | REST API with Cognito authorizer |
+| Cognito | User authentication with 45-minute session timeout |
+| Step Functions | Orchestration state machine with waitForTaskToken |
+| DynamoDB | NoSQL database for protection groups, recovery plans, execution history |
+| S3 | Static website hosting and deployment artifact storage |
+| CloudFront | CDN for global frontend distribution |
+| CloudFormation | Infrastructure as Code deployment |
+| IAM | Least-privilege access control |
+| CloudWatch Logs | Centralized logging and monitoring |
+| EventBridge | Scheduled execution polling (1-minute intervals) |
+| AWS DRS | Elastic Disaster Recovery service integration |
 
 ### Testing Stack
 - **Pytest**: Python unit and integration testing
@@ -269,7 +280,10 @@ aws cognito-idp admin-create-user \
     "aws-amplify": "^6.15.8",
     "axios": "^1.13.2",
     "react": "^19.1.1",
-    "react-router-dom": "^7.9.5"
+    "react-dom": "^19.1.1",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.9.5",
+    "date-fns": "^4.1.0"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
@@ -327,3 +341,30 @@ VITE_COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
 4. **Test**: Python unit tests, Playwright E2E tests
 5. **Deploy Infrastructure**: S3 artifact upload, CloudFormation deployment
 6. **Deploy Frontend**: S3 sync, CloudFront invalidation
+
+## Key Implementation Patterns
+
+### Pause/Resume Execution
+
+Uses Step Functions `waitForTaskToken` callback pattern:
+
+```mermaid
+sequenceDiagram
+    participant SF as Step Functions
+    participant Lambda as Orchestration Lambda
+    participant DDB as DynamoDB
+    participant User as User/API
+    
+    SF->>Lambda: Execute wave with taskToken
+    Lambda->>DDB: Store taskToken, set status=PAUSED
+    Lambda-->>SF: (waiting for callback)
+    User->>DDB: Resume execution
+    User->>SF: SendTaskSuccess(taskToken)
+    SF->>Lambda: Continue execution
+```
+
+### Real-Time Polling
+
+- Frontend polls every 3 seconds for active executions
+- EventBridge triggers execution-finder every 1 minute
+- DRS job status polled until LAUNCHED or FAILED
