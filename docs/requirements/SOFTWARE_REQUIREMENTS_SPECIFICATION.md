@@ -35,7 +35,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - Real-time Execution Monitoring (3-second auto-refresh, DRS job events)
 - Loading State Management (prevents multiple operations)
 - AWS DRS Regional Support (30 regions: 28 commercial + 2 GovCloud)
-- EC2 Launch Template & DRS Launch Settings (Protection Group level configuration) ✅ Dec 13, 2025
+- EC2 Launch Template & DRS Launch Settings (Protection Group level configuration)
 
 ### In Scope - Advanced Features (Phase 2)
 - DRS Source Server Management - Remaining (Server Info, tags, disks, replication, post-launch)
@@ -479,7 +479,7 @@ The system shall discover DRS source servers by region:
 
 ### FR-6: DRS Source Server Management
 
-**Implementation Phase**: Partially Complete (Launch Settings & EC2 Templates done Dec 13, 2025)
+This section defines requirements for DRS source server configuration. FR-6.1 through FR-6.18 cover server info, launch settings, EC2 templates, tags, disks, replication, and post-launch actions. FR-6.2 through FR-6.6 (Launch Settings and EC2 Templates) are MVP features; remaining requirements are Phase 2.
 
 #### FR-6.1: Get Server Info (Phase 2)
 **Priority**: High
@@ -495,7 +495,7 @@ The system shall return comprehensive DRS source server information:
 **API**: `GET /drs/source-servers/{id}?region={region}`
 **Response**: Full server details object
 
-#### FR-6.2: Get Launch Settings ✅ COMPLETE (Dec 13, 2025)
+#### FR-6.2: Get Launch Settings
 **Priority**: High
 
 The system shall return DRS launch configuration:
@@ -510,7 +510,7 @@ The system shall return DRS launch configuration:
 
 **API**: Protection Group endpoints with LaunchConfig field
 
-#### FR-6.3: Update Launch Settings ✅ COMPLETE (Dec 13, 2025)
+#### FR-6.3: Update Launch Settings
 **Priority**: High
 
 The system shall update DRS launch configuration:
@@ -531,7 +531,7 @@ The system shall update DRS launch configuration:
 }
 ```
 
-#### FR-6.4: Get EC2 Template Settings ✅ COMPLETE (Dec 13, 2025)
+#### FR-6.4: Get EC2 Template Settings
 **Priority**: High
 
 The system shall return EC2 launch template configuration:
@@ -544,7 +544,7 @@ The system shall return EC2 launch template configuration:
 
 **API**: `GET /protection-groups/{id}` returns LaunchConfig with EC2 settings
 
-#### FR-6.5: Update EC2 Template Settings ✅ COMPLETE (Dec 13, 2025)
+#### FR-6.5: Update EC2 Template Settings
 **Priority**: High
 
 The system shall update EC2 launch template:
