@@ -69,17 +69,28 @@ export const RecoveryPlansPage: React.FC = () => {
     }
   );
 
+  // Track dialog state with ref for interval callbacks
+  const isAnyDialogOpenRef = React.useRef(false);
+  isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen;
+
+  // Initial fetch on mount only
   useEffect(() => {
     fetchPlans();
     checkInProgressExecutions();
-    
-    // Auto-refresh plans every 30 seconds, execution status every 5 seconds
+  }, []);
+
+  // Auto-refresh intervals - created once, check ref for dialog state
+  useEffect(() => {
     const plansInterval = setInterval(() => {
-      fetchPlans();
+      if (!isAnyDialogOpenRef.current) {
+        fetchPlans();
+      }
     }, 30000);
     
     const executionInterval = setInterval(() => {
-      checkInProgressExecutions();
+      if (!isAnyDialogOpenRef.current) {
+        checkInProgressExecutions();
+      }
     }, 5000);
     
     return () => {
@@ -107,7 +118,7 @@ export const RecoveryPlansPage: React.FC = () => {
     try {
       const response = await apiClient.listExecutions();
       // Include all active statuses
-      const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED'];
+      const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
       const activeExecutions = response.items.filter((exec) => activeStatuses.includes(exec.status.toUpperCase()));
       const plansWithActiveExecution = new Set<string>(activeExecutions.map((exec) => exec.recoveryPlanId));
       setPlansWithInProgressExecution(plansWithActiveExecution);

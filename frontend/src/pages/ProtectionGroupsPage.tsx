@@ -45,24 +45,27 @@ export const ProtectionGroupsPage: React.FC = () => {
   const [groupsInRecoveryPlans, setGroupsInRecoveryPlans] = useState<Set<string>>(new Set());
   const [groupsInActiveExecutions, setGroupsInActiveExecutions] = useState<Set<string>>(new Set());
 
-  // Fetch protection groups and check which are in recovery plans/active executions
+  // Track dialog state with ref for interval callbacks
+  const isAnyDialogOpenRef = React.useRef(false);
+  isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen;
+
+  // Initial fetch on mount only
   useEffect(() => {
-    // Only fetch on mount, not when dialog state changes
-    if (!dialogOpen) {
-      fetchGroups();
-      fetchRecoveryPlansForGroupCheck();
-    }
-    
-    // Auto-refresh every 30 seconds, but pause when dialog is open
+    fetchGroups();
+    fetchRecoveryPlansForGroupCheck();
+  }, []);
+
+  // Auto-refresh every 30 seconds, but pause when any dialog is open
+  useEffect(() => {
     const interval = setInterval(() => {
-      if (!dialogOpen) {
+      if (!isAnyDialogOpenRef.current) {
         fetchGroups();
         fetchRecoveryPlansForGroupCheck();
       }
     }, 30000);
     
     return () => clearInterval(interval);
-  }, [dialogOpen]);
+  }, []);
 
   const fetchRecoveryPlansForGroupCheck = async () => {
     try {
@@ -90,7 +93,7 @@ export const ProtectionGroupsPage: React.FC = () => {
       try {
         const executionsResponse = await apiClient.listExecutions();
         const executions = executionsResponse.items || [];
-        const activeStatuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'CANCELLING'];
+        const activeStatuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
         executions.forEach((exec: { status?: string; recoveryPlanId?: string }) => {
           const status = (exec.status || '').toUpperCase();
           if (activeStatuses.includes(status) && exec.recoveryPlanId) {
