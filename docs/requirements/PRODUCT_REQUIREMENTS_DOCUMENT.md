@@ -1,7 +1,7 @@
 # Product Requirements Document
 # AWS DRS Orchestration Solution
 
-**Version**: 1.0  
+**Version**: 1.5  
 **Date**: December 2025  
 **Status**: Requirements Definition  
 **Document Owner**: AWS DRS Orchestration Team
@@ -160,6 +160,13 @@ Step Functions-driven recovery automation with pause/resume, instance terminatio
 - Updates execution record with `instancesTerminated: true`
 - Prevents duplicate termination attempts
 
+**Existing Instance Detection**:
+- Before starting a drill, checks for existing recovery instances from previous executions
+- Displays warning dialog with instance details (Name tag, private IP, instance type, launch time)
+- Tracks source execution ID and plan name for each recovery instance
+- Warns users that starting a new drill will terminate existing instances first
+- Helps prevent unexpected costs from orphaned recovery instances
+
 **Status Values**: PENDING, POLLING, INITIATED, LAUNCHING, STARTED, IN_PROGRESS, RUNNING, PAUSED, COMPLETED, PARTIAL, FAILED, CANCELLED
 
 **API Endpoints**:
@@ -171,6 +178,7 @@ Step Functions-driven recovery automation with pause/resume, instance terminatio
 - `POST /executions/{id}/terminate-instances` - Terminate recovery EC2 instances
 - `GET /executions/{id}/job-logs` - Get DRS job event logs
 - `DELETE /executions` - Bulk delete completed executions
+- `GET /recovery-plans/{id}/check-existing-instances` - Check for existing recovery instances with source tracking
 
 ### 4. DRS Service Limits Validation
 
