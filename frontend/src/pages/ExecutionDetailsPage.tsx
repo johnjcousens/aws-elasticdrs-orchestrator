@@ -39,6 +39,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [resuming, setResuming] = useState(false);
+  const [resumeInProgress, setResumeInProgress] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [terminateDialogOpen, setTerminateDialogOpen] = useState(false);
   const [terminating, setTerminating] = useState(false);
@@ -61,6 +62,11 @@ export const ExecutionDetailsPage: React.FC = () => {
       }
       const data = await apiClient.getExecution(executionId);
       setExecution(data);
+      
+      // Reset resumeInProgress when execution is no longer paused
+      if (data.status !== 'paused' && resumeInProgress) {
+        setResumeInProgress(false);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load execution details');
     } finally {
@@ -150,16 +156,19 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   const handleResumeExecution = async () => {
-    if (!executionId || resuming) return;
+    if (!executionId || resuming || resumeInProgress) return;
 
     setResuming(true);
+    setResumeInProgress(true);
     setResumeError(null);
 
     try {
       await apiClient.resumeExecution(executionId);
       await fetchExecution();
+      // Keep resumeInProgress true - status polling will update when execution resumes
     } catch (err: any) {
       setResumeError(err.message || 'Failed to resume execution');
+      setResumeInProgress(false); // Only reset on error so button can be retried
     } finally {
       setResuming(false);
     }
@@ -473,16 +482,19 @@ export const ExecutionDetailsPage: React.FC = () => {
                 >
                   Refresh
                 </Button>
-                {isPaused && !resuming && (
+                {isPaused && !resumeInProgress && (
                   <Button
                     onClick={handleResumeExecution}
-                    disabled={resuming}
+                    disabled={resuming || resumeInProgress}
                     loading={resuming}
                     variant="primary"
                     iconName="caret-right-filled"
                   >
                     Resume Execution
                   </Button>
+                )}
+                {resumeInProgress && (
+                  <Badge color="blue">Resuming...</Badge>
                 )}
                 {canCancel && (
                   <Button
@@ -565,7 +577,7 @@ export const ExecutionDetailsPage: React.FC = () => {
           )}
 
           {/* Paused Before Wave Alert */}
-          {isPaused && (
+          {isPaused && !resumeInProgress && (
             <Alert
               type="info"
               header="Execution Paused"
@@ -573,7 +585,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                 <Button
                   onClick={handleResumeExecution}
                   loading={resuming}
-                  disabled={resuming}
+                  disabled={resuming || resumeInProgress}
                 >
                   Resume Execution
                 </Button>
@@ -582,6 +594,13 @@ export const ExecutionDetailsPage: React.FC = () => {
               {pausedBeforeWave !== undefined
                 ? `Execution is paused before starting Wave ${pausedBeforeWave + 1}. Click Resume to continue.`
                 : 'Execution is paused. Click Resume to continue with the next wave.'}
+            </Alert>
+          )}
+
+          {/* Resume In Progress Alert */}
+          {resumeInProgress && (
+            <Alert type="info" header="Resuming Execution">
+              Execution is resuming. The next wave will start shortly...
             </Alert>
           )}
 
