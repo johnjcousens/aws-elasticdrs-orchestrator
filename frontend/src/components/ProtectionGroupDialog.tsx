@@ -222,7 +222,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 
       if (selectionMode === 'tags') {
         // Tag-based selection
-        const groupData = {
+        const groupData: any = {
           GroupName: name.trim(),
           Description: description.trim() || undefined,
           Region: region,
@@ -230,13 +230,17 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         };
 
         if (isEditMode && group) {
+          // Include version for optimistic locking
+          if (group.version !== undefined) {
+            groupData.version = group.version;
+          }
           savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData);
         } else {
           savedGroup = await apiClient.createProtectionGroup(groupData);
         }
       } else {
         // Explicit server selection (legacy)
-        const groupData = {
+        const groupData: any = {
           GroupName: name.trim(),
           Description: description.trim() || undefined,
           Region: region,
@@ -244,16 +248,23 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         };
 
         if (isEditMode && group) {
-          savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData as any);
+          // Include version for optimistic locking
+          if (group.version !== undefined) {
+            groupData.version = group.version;
+          }
+          savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData);
         } else {
-          savedGroup = await apiClient.createProtectionGroup(groupData as any);
+          savedGroup = await apiClient.createProtectionGroup(groupData);
         }
       }
 
       onSave(savedGroup);
       onClose();
     } catch (err: any) {
-      if (err.response?.status === 409) {
+      if (err.isVersionConflict) {
+        // Optimistic locking conflict - another user modified the resource
+        setError('This protection group was modified by another user. Please close and reopen to get the latest version.');
+      } else if (err.response?.status === 409) {
         const conflictData = err.response?.data;
         if (conflictData?.conflictType === 'NAME_CONFLICT') {
           setError(`Protection Group name "${name}" is already in use.`);

@@ -94,6 +94,14 @@ class ApiClient {
           } else if (status === 403) {
             // Forbidden - insufficient permissions
             console.error('Permission denied:', data);
+          } else if (status === 409 && data?.error === 'VERSION_CONFLICT') {
+            // Optimistic locking conflict - resource was modified by another user
+            const versionError = new Error(data?.message || 'Resource was modified by another user. Please refresh and try again.');
+            (versionError as any).isVersionConflict = true;
+            (versionError as any).resourceId = data?.resourceId;
+            (versionError as any).expectedVersion = data?.expectedVersion;
+            (versionError as any).currentVersion = data?.currentVersion;
+            throw versionError;
           } else if (status >= 500) {
             // Server error
             console.error('Server error:', data);
