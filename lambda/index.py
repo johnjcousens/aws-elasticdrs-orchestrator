@@ -248,45 +248,43 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:
                         'executionStatus': exec_status
                     }
         
-        # For PAUSED or PENDING executions, resolve remaining waves' Protection Groups
-        if exec_status in ['PAUSED', 'PENDING', 'PAUSE_PENDING']:
-            # Look up the original Recovery Plan
-            if plan_id not in plan_cache:
-                try:
-                    plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
-                    plan_cache[plan_id] = plan_result.get('Item', {})
-                except Exception as e:
-                    print(f"Error fetching plan {plan_id}: {e}")
-                    plan_cache[plan_id] = {}
+        # For ALL active executions, resolve servers from the recovery plan's protection groups
+        # This ensures we catch conflicts even if ServerStatuses isn't populated yet
+        if plan_id not in plan_cache:
+            try:
+                plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
+                plan_cache[plan_id] = plan_result.get('Item', {})
+            except Exception as e:
+                print(f"Error fetching plan {plan_id}: {e}")
+                plan_cache[plan_id] = {}
+        
+        plan = plan_cache.get(plan_id, {})
+        current_wave = execution.get('CurrentWave', 1)
+        
+        # Convert Decimal to int if needed
+        if hasattr(current_wave, '__int__'):
+            current_wave = int(current_wave)
+        
+        # Get servers from all waves (for active executions, all servers are "in use")
+        for idx, wave in enumerate(plan.get('Waves', []), start=1):
+            wave_name = wave.get('WaveName', f'Wave {idx}')
             
-            plan = plan_cache.get(plan_id, {})
-            paused_before_wave = execution.get('PausedBeforeWave', 1)
+            # Get Protection Group ID for this wave
+            pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
             
-            # Convert Decimal to int if needed
-            if hasattr(paused_before_wave, '__int__'):
-                paused_before_wave = int(paused_before_wave)
-            
-            # Get servers from waves that haven't completed yet
-            for idx, wave in enumerate(plan.get('Waves', []), start=1):
-                wave_name = wave.get('WaveName', f'Wave {idx}')
-                
-                # For PAUSED: include servers from paused wave onwards
-                # For PENDING: include all servers
-                if exec_status == 'PENDING' or idx >= paused_before_wave:
-                    # Get Protection Group ID for this wave
-                    pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
-                    
-                    if pg_id:
-                        # Resolve servers from Protection Group tags
-                        server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
-                        for server_id in server_ids:
-                            servers_in_use[server_id] = {
-                                'executionId': execution_id,
-                                'planId': plan_id,
-                                'waveName': wave_name,
-                                'waveStatus': 'PENDING (paused)' if exec_status == 'PAUSED' else 'PENDING',
-                                'executionStatus': exec_status
-                            }
+            if pg_id:
+                # Resolve servers from Protection Group (handles both tags and explicit IDs)
+                server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+                for server_id in server_ids:
+                    # Only add if not already tracked (ServerStatuses takes precedence)
+                    if server_id not in servers_in_use:
+                        servers_in_use[server_id] = {
+                            'executionId': execution_id,
+                            'planId': plan_id,
+                            'waveName': wave_name,
+                            'waveStatus': f'Wave {idx}' if idx <= current_wave else 'PENDING',
+                            'executionStatus': exec_status
+                        }
     
     return servers_in_use
 
@@ -294,7 +292,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:
 def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict) -> List[str]:
     """
     Resolve a Protection Group to server IDs for conflict checking.
-    Uses tag-based resolution.
+    Handles both tag-based and explicit server ID selection.
     """
     if pg_id in pg_cache:
         return pg_cache[pg_id]
@@ -309,11 +307,15 @@ def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict) -> List[st
         
         region = pg.get('Region', 'us-east-1')
         selection_tags = pg.get('ServerSelectionTags', {})
+        source_server_ids = pg.get('SourceServerIds', [])
         
         if selection_tags:
             # Resolve servers by tags
             resolved = query_drs_servers_by_tags(region, selection_tags)
             server_ids = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+        elif source_server_ids:
+            # Use explicit server IDs
+            server_ids = source_server_ids
         else:
             server_ids = []
         
@@ -1246,14 +1248,20 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     'resourceId': group_id
                 })
         
-        # BLOCK: Cannot update protection group if it's part of an active execution
+        # BLOCK: Cannot update protection group if it's part of a RUNNING execution
+        # Note: PAUSED executions allow edits - only block when actively running
         active_exec_info = get_active_execution_for_protection_group(group_id)
         if active_exec_info:
-            return response(409, {
-                'error': 'PG_IN_ACTIVE_EXECUTION',
-                'message': f'Cannot modify Protection Group while it is part of an active execution',
-                'activeExecution': active_exec_info
-            })
+            exec_status = active_exec_info.get('status', '').upper()
+            # Only block if execution is actively running (not paused)
+            running_statuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 
+                               'IN_PROGRESS', 'RUNNING', 'CANCELLING']
+            if exec_status in running_statuses:
+                return response(409, {
+                    'error': 'PG_IN_ACTIVE_EXECUTION',
+                    'message': f'Cannot modify Protection Group while it is part of a running execution',
+                    'activeExecution': active_exec_info
+                })
         
         # Prevent region changes
         if 'Region' in body and body['Region'] != existing_group.get('Region'):
