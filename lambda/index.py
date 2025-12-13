@@ -1916,7 +1916,10 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
             })
         
         print(f"Updated Recovery Plan: {plan_id}")
-        return response(200, result['Attributes'])
+        # Transform to camelCase for frontend consistency
+        updated_plan = result['Attributes']
+        updated_plan['WaveCount'] = len(updated_plan.get('Waves', []))
+        return response(200, transform_rp_to_camelcase(updated_plan))
         
     except Exception as e:
         print(f"Error updating Recovery Plan: {str(e)}")
