@@ -1099,7 +1099,7 @@ The following components shall be implemented to support the application pages. 
 | | WaveProgress | Wave timeline with server details |
 | | DateTimeDisplay | Formatted date/time display |
 | | DRSQuotaStatus | DRS service quota/capacity display |
-| | InvocationSourceBadge | Execution source indicator (UI/CLI/API/Scheduled) |
+| | InvocationSourceBadge | Execution source indicator (UI/CLI/API/EVENTBRIDGE/SSM/STEPFUNCTIONS) |
 | | JobEventsTimeline | DRS job events display |
 | **Execution** | ExecutionDetails | Execution summary panel |
 | **Launch Config** | LaunchConfigSection | DRS launch settings + EC2 template config |
