@@ -10,6 +10,17 @@
 docs/PROJECT_STATUS.md
 docs/SESSION_*.md
 
+# Temporary commit message file
+.git_commit_msg.txt
+
+# MCP integration docs (future work)
+docs/implementation/AMAZON_Q_MCP_INTEGRATION.md
+docs/implementation/MCP_INTEGRATION_PLAN.md
+
+# Development scripts (not part of MVP)
+deploy.sh
+scripts/check-mcp-status.sh
+
 # Archive folder (internal development history)
 docs/archive/
 
