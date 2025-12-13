@@ -1054,8 +1054,6 @@ The following components shall be implemented to support the application pages. 
 
 ### Component Inventory
 
-**MVP Components (23 Components)** - Required for initial release:
-
 | Category | Component | Purpose |
 |----------|-----------|---------|
 | **Layout** | ErrorBoundary | Catch and display React errors |
@@ -1071,9 +1069,15 @@ The following components shall be implemented to support the application pages. 
 | **Dialogs** | ProtectionGroupDialog | Create/edit protection groups |
 | | RecoveryPlanDialog | Create/edit recovery plans |
 | | ConfirmDialog | Confirmation prompts |
+| | TagsEditor | Server tag management |
+| | DiskSettingsEditor | Per-disk configuration |
+| | ReplicationSettingsEditor | Replication settings |
+| | PostLaunchSettingsEditor | Post-launch actions |
 | **Server Management** | ServerSelector | Multi-select server picker |
 | | ServerDiscoveryPanel | DRS server discovery |
 | | ServerListItem | Server row in selection list |
+| | ServerInfoPanel | Read-only server details |
+| | PitPolicyEditor | Point-in-time policy editor |
 | **Form Controls** | RegionSelector | AWS region dropdown (30 DRS regions) |
 | | WaveConfigEditor | Wave configuration form |
 | **Status Display** | StatusBadge | Colored status indicator |
@@ -1081,22 +1085,11 @@ The following components shall be implemented to support the application pages. 
 | | DateTimeDisplay | Formatted date/time display |
 | | DRSQuotaStatus | DRS service quota/capacity display |
 | | InvocationSourceBadge | Execution source indicator (UI/CLI/API/Scheduled) |
+| | JobEventsTimeline | DRS job events display |
 | **Execution** | ExecutionDetails | Execution summary panel |
 | **Launch Config** | LaunchConfigSection | DRS launch settings + EC2 template config |
 
-**Phase 2 Components** - DRS Source Server Management:
-
-| Category | Component | Purpose |
-|----------|-----------|---------|
-| **Dialogs** | TagsEditor | Server tag management |
-| | DiskSettingsEditor | Per-disk configuration |
-| | ReplicationSettingsEditor | Replication settings |
-| | PostLaunchSettingsEditor | Post-launch actions |
-| **Server Management** | ServerInfoPanel | Read-only server details |
-| | PitPolicyEditor | Point-in-time policy editor |
-| **Status Display** | JobEventsTimeline | DRS job events display |
-
-**Total: 32 Components (26 MVP + 7 Phase 2)**
+**Total: 33 Components**
 
 
 ---
@@ -2733,6 +2726,30 @@ The following wireframes define the visual layout that shall be implemented for 
 │   │  ☐  app-server-02        ○ Stalled               s-0mno345...     │     │
 │   └───────────────────────────────────────────────────────────────────┘     │
 │   3 servers selected                                                        │
+│                                                                             │
+│   ▼ Launch Settings (configured)                                            │
+│   ╭───────────────────────────────────────────────────────────────────╮     │
+│   │ Configure EC2 settings applied to all servers during recovery     │     │
+│   │                                                                   │     │
+│   │ Target Subnet                    Instance Type                    │     │
+│   │ ┌─────────────────────┐          ┌─────────────────────┐          │     │
+│   │ │ subnet-abc (10.0.1) │          │ r5.xlarge           │          │     │
+│   │ └─────────────────────┘          └─────────────────────┘          │     │
+│   │                                                                   │     │
+│   │ Security Groups                                                   │     │
+│   │ ┌─────────────────────────────────────────────────────────┐       │     │
+│   │ │ sg-123 (web) × │ sg-456 (db) ×                          │       │     │
+│   │ └─────────────────────────────────────────────────────────┘       │     │
+│   │                                                                   │     │
+│   │ IAM Instance Profile                                              │     │
+│   │ ┌─────────────────────────────────────────────────────────┐       │     │
+│   │ │ DRRecoveryRole                                          │       │     │
+│   │ └─────────────────────────────────────────────────────────┘       │     │
+│   │                                                                   │     │
+│   │ Right Sizing: Inactive    Launch Disposition: Started             │     │
+│   │ OS Licensing: AWS provided                                        │     │
+│   │ ☑ Copy Private IP         ☑ Transfer Server Tags                  │     │
+│   ╰───────────────────────────────────────────────────────────────────╯     │
 │                                                                             │
 │   ─────────────────────────────────────────────────────────────────────     │
 │                                                                             │
