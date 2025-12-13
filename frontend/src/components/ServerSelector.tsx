@@ -174,13 +174,13 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
         {!readonly && (
           <SpaceBetween direction="horizontal" size="xs">
             <Button
-              onClick={handleSelectAll}
+              onClick={(e) => { e.preventDefault(); handleSelectAll(); }}
               disabled={safeSelectedServerIds.length === filteredServers.length}
             >
               Select All
             </Button>
             <Button
-              onClick={handleDeselectAll}
+              onClick={(e) => { e.preventDefault(); handleDeselectAll(); }}
               disabled={safeSelectedServerIds.length === 0}
             >
               Deselect All
@@ -214,7 +214,10 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
                 <div key={server.id} style={{ padding: '8px 0' }}>
                   <Checkbox
                     checked={safeSelectedServerIds.includes(server.id)}
-                    onChange={() => handleToggle(server.id)}
+                    onChange={({ detail }) => {
+                      // Prevent any form submission behavior
+                      handleToggle(server.id);
+                    }}
                     disabled={readonly}
                   >
                     <div>
