@@ -1,7 +1,7 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 1.0  
+**Version**: 1.5  
 **Date**: December 2025  
 **Status**: Requirements Specification
 
@@ -378,6 +378,47 @@ The system shall delete all completed executions:
 
 **API**: `DELETE /executions`
 **Response**: `{ "deletedCount": N, "totalScanned": N }`
+
+#### FR-3.13: Check Existing Recovery Instances
+**Priority**: High
+
+The system shall check for existing recovery instances before starting a drill:
+- Query DRS for recovery instances associated with servers in the Recovery Plan
+- Track source execution ID and plan name for each instance
+- Return enriched instance details from EC2 (Name tag, private IP, instance type, launch time)
+- Enable frontend to display warning dialog with instance details
+- Help users understand which previous execution created the instances
+
+**API**: `GET /recovery-plans/{id}/check-existing-instances`
+**Response**:
+```json
+{
+  "hasExistingInstances": true,
+  "instanceCount": 4,
+  "instances": [
+    {
+      "instanceId": "i-xxx",
+      "sourceServerId": "s-xxx",
+      "state": "RUNNING",
+      "sourceExecutionId": "exec-xxx",
+      "sourcePlanName": "MyRecoveryPlan",
+      "name": "web-server-01",
+      "privateIp": "10.0.1.100",
+      "instanceType": "t3.medium",
+      "launchTime": "2025-12-13T10:30:00Z"
+    }
+  ],
+  "sourcePlanNames": ["MyRecoveryPlan"]
+}
+```
+
+**Behavior**:
+1. Get all servers from all waves of the Recovery Plan
+2. Query DRS DescribeRecoveryInstances for each server
+3. For each recovery instance found:
+   - Search execution history to find source execution and plan
+   - Query EC2 DescribeInstances for enriched details
+4. Return aggregated results with source tracking
 
 
 ---
@@ -1027,6 +1068,12 @@ Authorization: Bearer {id_token}
 | POST | /executions/{id}/terminate-instances | Terminate recovery instances |
 | GET | /executions/{id}/job-logs | Get DRS job event logs |
 | DELETE | /executions | Bulk delete completed Executions |
+
+#### Recovery Instance Detection
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /recovery-plans/{id}/check-existing-instances | Check for existing recovery instances with source tracking |
 
 #### DRS Server Discovery
 
