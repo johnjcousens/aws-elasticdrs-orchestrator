@@ -105,24 +105,57 @@ def begin_wave_plan(event: Dict) -> Dict:
     print(f"Total waves: {len(waves)}, isDrill: {is_drill}")
     
     # Initialize state object (at root level - archive pattern)
+    # Enhanced for parent Step Function integration
+    start_time = int(time.time())
     state = {
+        # Core identifiers
         'plan_id': plan_id,
+        'plan_name': plan.get('PlanName', ''),
         'execution_id': execution_id,
         'is_drill': is_drill,
+        
+        # Wave tracking
         'waves': waves,
+        'total_waves': len(waves),
         'current_wave_number': 0,
+        'completed_waves': 0,
+        'failed_waves': 0,
+        
+        # Completion flags (for Step Functions Choice states)
         'all_waves_completed': False,
         'wave_completed': False,
+        
+        # Polling configuration
         'current_wave_update_time': 30,
         'current_wave_total_wait_time': 0,
         'current_wave_max_wait_time': 1800,
+        
+        # Status for parent orchestrator branching
+        # Values: 'running', 'paused', 'completed', 'failed', 'cancelled'
         'status': 'running',
+        'status_reason': None,
+        
+        # Results for downstream processing
         'wave_results': [],
+        'recovery_instance_ids': [],  # EC2 instance IDs of recovered servers
+        'recovery_instance_ips': [],  # Private IPs of recovered servers
+        
+        # Current wave details
         'job_id': None,
         'region': None,
         'server_ids': [],
+        
+        # Error handling
         'error': None,
-        'paused_before_wave': None
+        'error_code': None,
+        
+        # Pause/Resume
+        'paused_before_wave': None,
+        
+        # Timing for SLA tracking
+        'start_time': start_time,
+        'end_time': None,
+        'duration_seconds': None
     }
     
     # Update DynamoDB execution status
@@ -230,10 +263,90 @@ def resume_wave(event: Dict) -> Dict:
     return state
 
 
+def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[str]:
+    """
+    Query DRS source servers whose SOURCE EC2 INSTANCES match ALL specified tags.
+    Returns list of source server IDs.
+    
+    This queries EC2 instance tags (rich tagging), not DRS resource tags.
+    """
+    try:
+        drs_client = boto3.client('drs', region_name=region)
+        ec2_client = boto3.client('ec2', region_name=region)
+        
+        # Get all source servers in the region
+        all_servers = []
+        paginator = drs_client.get_paginator('describe_source_servers')
+        
+        for page in paginator.paginate():
+            all_servers.extend(page.get('items', []))
+        
+        if not all_servers:
+            print("No DRS source servers found in region")
+            return []
+        
+        # Build map of instance_id -> server_id
+        instance_to_server = {}
+        instance_ids = []
+        
+        for server in all_servers:
+            source_props = server.get('sourceProperties', {})
+            ident_hints = source_props.get('identificationHints', {})
+            instance_id = ident_hints.get('awsInstanceID', '')
+            
+            if instance_id:
+                instance_ids.append(instance_id)
+                instance_to_server[instance_id] = server.get('sourceServerID')
+        
+        if not instance_ids:
+            print("No source EC2 instances found for DRS servers")
+            return []
+        
+        # Query EC2 for instance tags (batch in groups of 200)
+        instance_tags_map = {}
+        for i in range(0, len(instance_ids), 200):
+            batch = instance_ids[i:i+200]
+            try:
+                ec2_response = ec2_client.describe_instances(InstanceIds=batch)
+                for reservation in ec2_response.get('Reservations', []):
+                    for instance in reservation.get('Instances', []):
+                        inst_id = instance.get('InstanceId', '')
+                        # Convert EC2 tag list to dict
+                        inst_tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+                        instance_tags_map[inst_id] = inst_tags
+            except Exception as e:
+                print(f"Warning: Could not fetch EC2 tags for batch: {str(e)}")
+        
+        # Filter servers whose source EC2 instances match ALL specified tags
+        matching_server_ids = []
+        for instance_id, server_id in instance_to_server.items():
+            ec2_tags = instance_tags_map.get(instance_id, {})
+            
+            # Check if EC2 instance has ALL required tags with matching values
+            matches_all = True
+            for tag_key, tag_value in tags.items():
+                if ec2_tags.get(tag_key) != tag_value:
+                    matches_all = False
+                    break
+            
+            if matches_all:
+                matching_server_ids.append(server_id)
+        
+        print(f"Found {len(matching_server_ids)} servers matching EC2 tags: {tags}")
+        return matching_server_ids
+        
+    except Exception as e:
+        print(f"Error querying DRS servers by EC2 tags: {str(e)}")
+        raise
+
+
 def start_wave_recovery(state: Dict, wave_number: int) -> None:
     """
     Start DRS recovery for a wave
     Modifies state in place (archive pattern)
+    
+    Tag-based server resolution: Servers are resolved at execution time
+    by querying DRS for servers matching the Protection Group's tags.
     """
     waves = state['waves']
     wave = waves[wave_number]
@@ -261,11 +374,23 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             return
         
         pg = pg_response['Item']
-        server_ids = wave.get('ServerIds', pg.get('SourceServerIds', []))
         region = pg.get('Region', 'us-east-1')
         
+        # TAG-BASED RESOLUTION: Resolve servers at execution time using tags
+        selection_tags = pg.get('ServerSelectionTags', {})
+        
+        if selection_tags:
+            # Resolve servers by tags at execution time
+            print(f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}")
+            server_ids = query_drs_servers_by_tags(region, selection_tags)
+            print(f"Resolved {len(server_ids)} servers from tags")
+        else:
+            # Fallback: Check if wave has explicit ServerIds (legacy support)
+            server_ids = wave.get('ServerIds', [])
+            print(f"Using explicit ServerIds from wave: {len(server_ids)} servers")
+        
         if not server_ids:
-            print(f"Wave {wave_number} has no servers, marking complete")
+            print(f"Wave {wave_number} has no servers (no tags matched or no servers found), marking complete")
             state['wave_completed'] = True
             return
         
@@ -467,6 +592,28 @@ def update_wave_status(event: Dict) -> Dict:
                 print(f"Warning: Could not fetch recovery instance details: {e}")
             
             state['wave_completed'] = True
+            state['completed_waves'] = state.get('completed_waves', 0) + 1
+            
+            # Capture recovery instance IDs and IPs for parent orchestrator
+            for ss in server_statuses:
+                ec2_id = ss.get('EC2InstanceId')
+                if ec2_id:
+                    if ec2_id not in state.get('recovery_instance_ids', []):
+                        state.setdefault('recovery_instance_ids', []).append(ec2_id)
+            
+            # Fetch private IPs from EC2
+            try:
+                ec2_ids = [ss.get('EC2InstanceId') for ss in server_statuses if ss.get('EC2InstanceId')]
+                if ec2_ids:
+                    ec2_client = boto3.client('ec2', region_name=region)
+                    ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
+                    for reservation in ec2_response.get('Reservations', []):
+                        for instance in reservation.get('Instances', []):
+                            private_ip = instance.get('PrivateIpAddress')
+                            if private_ip and private_ip not in state.get('recovery_instance_ips', []):
+                                state.setdefault('recovery_instance_ips', []).append(private_ip)
+            except Exception as e:
+                print(f"Warning: Could not fetch EC2 IPs: {e}")
             
             # Update wave result
             for wr in state.get('wave_results', []):
@@ -487,8 +634,13 @@ def update_wave_status(event: Dict) -> Dict:
                 
                 if exec_status == 'CANCELLING':
                     print(f"⚠️ Execution cancelled")
+                    end_time = int(time.time())
                     state['all_waves_completed'] = True
                     state['status'] = 'cancelled'
+                    state['status_reason'] = 'Execution cancelled by user'
+                    state['end_time'] = end_time
+                    if state.get('start_time'):
+                        state['duration_seconds'] = end_time - state['start_time']
                     get_execution_history_table().update_item(
                         Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                         UpdateExpression='SET #status = :status, EndTime = :end',
@@ -523,20 +675,33 @@ def update_wave_status(event: Dict) -> Dict:
                 start_wave_recovery(state, next_wave)
             else:
                 print("✅ ALL WAVES COMPLETE")
+                end_time = int(time.time())
                 state['all_waves_completed'] = True
                 state['status'] = 'completed'
+                state['status_reason'] = 'All waves completed successfully'
+                state['end_time'] = end_time
+                state['completed_waves'] = len(waves_list)
+                if state.get('start_time'):
+                    state['duration_seconds'] = end_time - state['start_time']
                 get_execution_history_table().update_item(
                     Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                     UpdateExpression='SET #status = :status, EndTime = :end',
                     ExpressionAttributeNames={'#status': 'Status'},
-                    ExpressionAttributeValues={':status': 'COMPLETED', ':end': int(time.time())}
+                    ExpressionAttributeValues={':status': 'COMPLETED', ':end': end_time}
                 )
         
         elif failed_count > 0:
             print(f"❌ Wave {wave_number} FAILED - {failed_count} servers failed")
+            end_time = int(time.time())
             state['wave_completed'] = True
             state['status'] = 'failed'
+            state['status_reason'] = f'Wave {wave_number} failed: {failed_count} servers failed to launch'
             state['error'] = f'{failed_count} servers failed to launch'
+            state['error_code'] = 'WAVE_LAUNCH_FAILED'
+            state['failed_waves'] = 1
+            state['end_time'] = end_time
+            if state.get('start_time'):
+                state['duration_seconds'] = end_time - state['start_time']
             update_wave_in_dynamodb(execution_id, plan_id, wave_number, 'FAILED', server_statuses)
         
         else:

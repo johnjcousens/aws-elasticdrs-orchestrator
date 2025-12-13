@@ -14,7 +14,9 @@ import {
   TextFilter,
   Alert,
   Modal,
+  Select,
 } from '@cloudscape-design/components';
+import type { SelectProps } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -25,8 +27,28 @@ import { CardSkeleton } from '../components/CardSkeleton';
 import { PageTransition } from '../components/PageTransition';
 import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
+import { InvocationSourceBadge } from '../components/InvocationSourceBadge';
+import type { InvocationSource, InvocationDetails } from '../components/InvocationSourceBadge';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
+
+// Invocation source filter options
+const INVOCATION_SOURCE_OPTIONS: SelectProps.Option[] = [
+  { value: '', label: 'All Sources' },
+  { value: 'UI', label: 'UI (Manual)' },
+  { value: 'CLI', label: 'CLI' },
+  { value: 'EVENTBRIDGE', label: 'Scheduled' },
+  { value: 'SSM', label: 'SSM Runbook' },
+  { value: 'STEPFUNCTIONS', label: 'Step Functions' },
+  { value: 'API', label: 'API' },
+];
+
+// Selection mode filter options
+const SELECTION_MODE_OPTIONS: SelectProps.Option[] = [
+  { value: '', label: 'All Modes' },
+  { value: 'PLAN', label: 'Plan-Based' },
+  { value: 'TAGS', label: 'Tag-Based' },
+];
 
 export const ExecutionsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -38,6 +60,8 @@ export const ExecutionsPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<SelectProps.Option | null>(null);
+  const [modeFilter, setModeFilter] = useState<SelectProps.Option | null>(null);
 
   useEffect(() => {
     fetchExecutions();
@@ -102,7 +126,20 @@ export const ExecutionsPage: React.FC = () => {
 
   const historyExecutions = executions.filter((e) => {
     const status = e.status.toUpperCase();
-    return ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'ROLLED_BACK', 'TIMEOUT'].includes(status);
+    const isTerminal = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'ROLLED_BACK', 'TIMEOUT'].includes(status);
+    if (!isTerminal) return false;
+    
+    // Apply source filter
+    if (sourceFilter?.value && (e as any).invocationSource !== sourceFilter.value) {
+      return false;
+    }
+    
+    // Apply selection mode filter
+    if (modeFilter?.value && (e as any).selectionMode !== modeFilter.value) {
+      return false;
+    }
+    
+    return true;
   });
 
   const calculateProgress = (execution: ExecutionListItem): number => {
@@ -263,13 +300,34 @@ export const ExecutionsPage: React.FC = () => {
                     <Table
                       {...collectionProps}
                       columnDefinitions={[
-                        { id: 'plan', header: 'Plan Name', cell: (item) => item.recoveryPlanName, sortingField: 'recoveryPlanName' },
-                        { id: 'status', header: 'Status', cell: (item) => <StatusBadge status={item.status} /> },
-                        { id: 'waves', header: 'Waves', cell: (item) => (item.totalWaves > 0 ? `${item.totalWaves} waves` : '-') },
-                        { id: 'started', header: 'Started', cell: (item) => <DateTimeDisplay value={item.startTime} format="full" /> },
-                        { id: 'completed', header: 'Completed', cell: (item) => (item.endTime ? <DateTimeDisplay value={item.endTime} format="full" /> : '-') },
-                        { id: 'duration', header: 'Duration', cell: (item) => calculateDuration(item) },
-                        { id: 'actions', header: 'Actions', cell: (item) => <Button variant="inline-link" iconName="external" onClick={() => handleViewDetails(item)}>View</Button> },
+                        { id: 'plan', header: 'Plan Name', cell: (item) => item.recoveryPlanName || (item as any).tags ? `Tag-based: ${Object.entries((item as any).tags || {}).map(([k, v]) => `${k}=${v}`).join(', ')}` : '-', sortingField: 'recoveryPlanName', width: 200 },
+                        { id: 'status', header: 'Status', cell: (item) => <StatusBadge status={item.status} />, width: 120 },
+                        { 
+                          id: 'source', 
+                          header: 'Source', 
+                          cell: (item) => (
+                            <InvocationSourceBadge 
+                              source={((item as any).invocationSource || 'UI') as InvocationSource} 
+                              details={(item as any).invocationDetails as InvocationDetails}
+                            />
+                          ),
+                          width: 130,
+                        },
+                        { 
+                          id: 'mode', 
+                          header: 'Selection', 
+                          cell: (item) => (
+                            <Badge color={(item as any).selectionMode === 'TAGS' ? 'green' : 'blue'}>
+                              {(item as any).selectionMode === 'TAGS' ? 'Tag-Based' : 'Plan-Based'}
+                            </Badge>
+                          ),
+                          width: 100,
+                        },
+                        { id: 'waves', header: 'Waves', cell: (item) => (item.totalWaves > 0 ? `${item.totalWaves} waves` : '-'), width: 80 },
+                        { id: 'started', header: 'Started', cell: (item) => <DateTimeDisplay value={item.startTime} format="full" />, width: 160 },
+                        { id: 'completed', header: 'Completed', cell: (item) => (item.endTime ? <DateTimeDisplay value={item.endTime} format="full" /> : '-'), width: 160 },
+                        { id: 'duration', header: 'Duration', cell: (item) => calculateDuration(item), width: 90 },
+                        { id: 'actions', header: 'Actions', cell: (item) => <Button variant="inline-link" iconName="external" onClick={() => handleViewDetails(item)}>View</Button>, width: 80 },
                       ]}
                       items={items}
                       loading={loading}
@@ -280,7 +338,23 @@ export const ExecutionsPage: React.FC = () => {
                           <Box padding={{ bottom: 's' }} variant="p" color="inherit">Completed executions will appear here</Box>
                         </Box>
                       }
-                      filter={<TextFilter {...filterProps} filteringPlaceholder="Find executions" countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`} />}
+                      filter={
+                        <SpaceBetween direction="horizontal" size="xs">
+                          <TextFilter {...filterProps} filteringPlaceholder="Find executions" countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`} />
+                          <Select
+                            selectedOption={sourceFilter}
+                            onChange={({ detail }) => setSourceFilter(detail.selectedOption)}
+                            options={INVOCATION_SOURCE_OPTIONS}
+                            placeholder="Filter by source"
+                          />
+                          <Select
+                            selectedOption={modeFilter}
+                            onChange={({ detail }) => setModeFilter(detail.selectedOption)}
+                            options={SELECTION_MODE_OPTIONS}
+                            placeholder="Filter by mode"
+                          />
+                        </SpaceBetween>
+                      }
                       pagination={<Pagination {...paginationProps} />}
                       variant="full-page"
                     />

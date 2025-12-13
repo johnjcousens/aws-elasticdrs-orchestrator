@@ -13,6 +13,7 @@ interface DRSServer {
   state: string;
   replicationState: string;
   lagDuration: string;
+  drsTags?: Record<string, string>;
   assignedToProtectionGroup?: {
     protectionGroupId: string;
     protectionGroupName: string;
@@ -48,8 +49,11 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
 }) => {
   const { 
     sourceServerID, hostname, nameTag, sourceInstanceId, sourceIp, 
-    sourceRegion, sourceAccount, state, assignedToProtectionGroup, selectable 
+    sourceRegion, sourceAccount, state, drsTags, assignedToProtectionGroup, selectable 
   } = server;
+  
+  // Filter out Name tag from DRS tags display (already shown as nameTag)
+  const displayTags = drsTags ? Object.entries(drsTags).filter(([k]) => k !== 'Name') : [];
   
   // Display name: prefer Name tag, fall back to hostname
   const displayName = nameTag || hostname;
@@ -106,6 +110,23 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
               <strong>Account:</strong> {sourceAccount || 'N/A'}
             </span>
           </div>
+          
+          {/* DRS Tags (for tag-based selection) */}
+          {displayTags.length > 0 && (
+            <div style={{ fontSize: '11px', color: '#0972d3', marginBottom: '4px' }}>
+              <strong>Tags:</strong>{' '}
+              {displayTags.map(([key, value], idx) => (
+                <span key={key} style={{ 
+                  backgroundColor: '#f2f8fd', 
+                  padding: '1px 6px', 
+                  borderRadius: '3px',
+                  marginRight: '4px'
+                }}>
+                  {key}={value}
+                </span>
+              ))}
+            </div>
+          )}
           
           {/* DRS Server ID */}
           <div style={{ fontSize: '11px', color: '#879596', marginBottom: '4px' }}>

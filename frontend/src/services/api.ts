@@ -191,6 +191,34 @@ class ApiClient {
     return this.delete<void>(`/protection-groups/${id}`);
   }
 
+  /**
+   * Resolve protection group tags to actual servers
+   * 
+   * Queries DRS API to find servers matching the specified tags.
+   * Used for previewing which servers will be included at execution time.
+   * 
+   * @param region - AWS region to query
+   * @param tags - Tag key-value pairs (AND logic - all must match)
+   * @returns List of resolved servers with their details
+   */
+  public async resolveProtectionGroupTags(
+    region: string,
+    tags: Record<string, string>
+  ): Promise<{
+    region: string;
+    tags: Record<string, string>;
+    resolvedServers: Array<{
+      sourceServerId: string;
+      hostname: string;
+      replicationState: string;
+      tags: Record<string, string>;
+    }>;
+    serverCount: number;
+    resolvedAt: number;
+  }> {
+    return this.post(`/protection-groups/resolve`, { region, tags });
+  }
+
   // ============================================================================
   // Recovery Plans API
   // ============================================================================
@@ -503,6 +531,7 @@ export const {
   createProtectionGroup,
   updateProtectionGroup,
   deleteProtectionGroup,
+  resolveProtectionGroupTags,
   listRecoveryPlans,
   getRecoveryPlan,
   createRecoveryPlan,

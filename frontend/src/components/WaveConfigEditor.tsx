@@ -59,46 +59,19 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
   /**
-   * Calculate which Protection Groups are available for a specific wave
-   * A PG is unavailable if ALL its servers are already assigned to OTHER waves
+   * Get Protection Groups for selection
+   * With tag-based PGs, servers are resolved at execution time
    */
-  const getAvailableProtectionGroups = (currentWaveNumber: number) => {
+  const getAvailableProtectionGroups = (_currentWaveNumber: number) => {
     if (!protectionGroups || protectionGroups.length === 0) return [];
 
     return protectionGroups.map(pg => {
-      // Get all servers from other waves using this PG
-      // Check BOTH old protectionGroupId field AND new protectionGroupIds array for backward compatibility
-      const otherWavesWithThisPg = safeWaves.filter(w => {
-        if (w.waveNumber === currentWaveNumber) return false;
-        
-        // Check new array format first
-        if (w.protectionGroupIds && w.protectionGroupIds.includes(pg.protectionGroupId)) {
-          return true;
-        }
-        
-        // Fallback to old single field format
-        if (w.protectionGroupId === pg.protectionGroupId) {
-          return true;
-        }
-        
-        return false;
-      });
-
-      // Get all server IDs assigned to other waves for this PG
-      const assignedServerIds = new Set(
-        otherWavesWithThisPg.flatMap(w => w.serverIds || [])
-      );
-
-      // Calculate available servers (all servers in PG minus assigned ones)
-      // Support both sourceServerIds (camelCase) and SourceServerIds (PascalCase from Lambda)
-      const serverIds = pg.sourceServerIds || (pg as any).SourceServerIds || [];
-      const totalServers = serverIds.length;
-      const availableServerCount = totalServers - assignedServerIds.size;
-
+      // With tag-based PGs, we show tag count instead of server count
+      const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
       return {
         ...pg,
-        availableServerCount,
-        isAvailable: availableServerCount > 0
+        tagCount,
+        isAvailable: tagCount > 0
       };
     });
   };
@@ -320,14 +293,11 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                           (protectionGroups || [])
                             .filter(pg => (wave.protectionGroupIds || []).includes(pg.protectionGroupId))
                             .map(pg => {
-                              const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
-                              const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
-                              const availableCount = availableInfo?.availableServerCount || 0;
-                              const totalCount = pg.sourceServerIds?.length || 0;
+                              const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
                               return {
-                                label: `${pg.name} (${availableCount}/${totalCount} available)`,
+                                label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
                                 value: pg.protectionGroupId,
-                                tags: availableCount > 0 ? ['available'] : ['unavailable']
+                                tags: tagCount > 0 ? ['configured'] : ['no-tags']
                               };
                             })
                         }
@@ -342,14 +312,11 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                         }}
                         options={
                           (protectionGroups || []).map(pg => {
-                            const availablePgs = getAvailableProtectionGroups(wave.waveNumber);
-                            const availableInfo = availablePgs.find(apg => apg.protectionGroupId === pg.protectionGroupId);
-                            const availableCount = availableInfo?.availableServerCount || 0;
-                            const totalCount = pg.sourceServerIds?.length || 0;
+                            const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
                             return {
-                              label: `${pg.name} (${availableCount}/${totalCount} available)`,
+                              label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
                               value: pg.protectionGroupId,
-                              tags: availableCount > 0 ? ['available'] : ['unavailable']
+                              tags: tagCount > 0 ? ['configured'] : ['no-tags']
                             };
                           })
                         }
@@ -364,9 +331,12 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     )}
                     {(wave.protectionGroupIds || []).length > 1 && (
                       <Alert type="info">
-                        Multiple Protection Groups selected. Servers from all selected Protection Groups will be available for this wave.
+                        Multiple Protection Groups selected. Servers matching tags from all selected Protection Groups will be included.
                       </Alert>
                     )}
+                    <Alert type="info">
+                      Servers are resolved dynamically at execution time based on Protection Group tags.
+                    </Alert>
                   </SpaceBetween>
                 </Container>
 
