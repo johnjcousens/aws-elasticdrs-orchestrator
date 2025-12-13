@@ -56,22 +56,27 @@ AWS DRS creates launch templates that customers can modify. DRS will **NOT** ove
 ### Safe to Edit in Launch Template
 | Setting | Description | Notes |
 |---------|-------------|-------|
-| **Instance Type** | EC2 instance type for recovery | Can override DRS right-sizing |
-| **Key Pair** | SSH key pair for access | Add your own key pair |
-| **Security Groups** | Additional security groups | Can add more SGs beyond DRS defaults |
-| **IAM Instance Profile** | Instance role for recovery instance | Can add additional permissions |
-| **User Data** | Additional boot scripts | Can append to DRS user data |
-| **Tags** | Additional instance tags | Can add custom tags |
-| **Monitoring** | Detailed monitoring settings | Safe to enable/disable |
-| **Tenancy** | Instance tenancy (default/dedicated) | Can change if needed |
-| **Placement Group** | EC2 placement group | Can specify for performance |
+| **Instance Type** | EC2 instance type for recovery | Override DRS right-sizing recommendations |
+| **Key Pair (KeyName)** | SSH key pair for access | Essential for server access after recovery |
+| **Security Groups** | Additional security groups | Add application-specific security groups |
+| **IAM Instance Profile** | Instance role for recovery instance | Add roles for application requirements |
+| **Subnet ID** | Target subnet for recovery | Change recovery subnet if needed |
+| **Tags (TagSpecifications)** | Additional instance tags | Add custom tags for organization |
+| **Monitoring** | Detailed monitoring settings | Enable CloudWatch detailed monitoring |
+| **Tenancy** | Instance tenancy (default/dedicated) | Change for compliance requirements |
+| **Placement Group** | EC2 placement group | Specify for performance optimization |
+| **Credit Specification** | T-series CPU credits | Configure burstable performance |
+| **Elastic GPU** | GPU specifications | Add GPU for compute workloads |
+| **Elastic Inference** | ML inference acceleration | Add for ML workloads |
 
 ### Settings to Avoid Editing
 | Setting | Reason | Risk Level |
 |---------|--------|------------|
-| **AMI ID** | DRS manages recovery snapshots | ❌ High - Will break recovery |
-| **Block Device Mappings** | DRS maps source server disks | ❌ High - Data loss risk |
-| **Network Interfaces** | DRS manages primary network config | ⚠️ Medium - May break connectivity |
+| **AMI ID (ImageId)** | DRS creates AMIs from source server snapshots | ❌ Critical - Recovery will fail |
+| **Block Device Mappings** | DRS maps source server disks with specific snapshots | ❌ Critical - Data corruption/loss |
+| **User Data (if DRS-generated)** | DRS may inject recovery scripts | ⚠️ High - May break recovery process |
+| **Network Interfaces (primary)** | DRS configures primary network interface | ⚠️ Medium - May break connectivity |
+| **Instance Metadata Options** | DRS may require specific metadata settings | ⚠️ Medium - May break DRS agent |
 
 ### Best Practices for Launch Template Editing
 | Practice | Description |
@@ -113,12 +118,14 @@ flowchart TD
 2. **Don't modify block device mappings** - Risk of data loss
 3. **Don't change primary network interface** - May break connectivity
 
-### ✅ Recommended Edits
-1. **Add SSH key pairs** for server access
-2. **Add security groups** for application requirements
-3. **Change instance types** for performance needs
-4. **Add IAM roles** for application permissions
-5. **Add custom tags** for organization
+### ✅ Most Common Customer Edits
+1. **Add SSH key pairs** - Essential for server access after recovery
+2. **Add security groups** - Application-specific firewall rules
+3. **Change instance types** - Performance or cost optimization
+4. **Add IAM roles** - Application permissions and AWS service access
+5. **Change subnets** - Recovery in different availability zones
+6. **Add custom tags** - Cost allocation and organization
+7. **Enable detailed monitoring** - Enhanced CloudWatch metrics
 
 ## Configuration Hierarchy
 
@@ -197,26 +204,30 @@ aws drs describe-jobs --filters jobIDs=drsjob-1234567890abcdef0
 
 ## Summary
 
-### DRS-Managed Settings (Never Edit Manually)
-- AMI ID
-- Block device mappings  
-- User data scripts
-- Core security groups
-- Network interfaces
-- Instance metadata options
+### Critical - Never Edit These
+- **AMI ID (ImageId)** - DRS creates recovery-specific AMIs
+- **Block Device Mappings** - DRS maps source server disks with snapshots
+
+### High Risk - Edit with Caution
+- **User Data** - May contain DRS recovery scripts
+- **Primary Network Interface** - DRS configures networking
+- **Instance Metadata Options** - May affect DRS agent
+
+### Safe to Edit (Common Customer Changes)
+- **Instance Type** - Performance/cost optimization
+- **Key Pair** - SSH access after recovery
+- **Security Groups** - Application firewall rules
+- **IAM Instance Profile** - Application permissions
+- **Subnet ID** - Recovery location
+- **Tags** - Organization and cost allocation
+- **Monitoring** - CloudWatch settings
+- **Tenancy/Placement** - Performance optimization
 
 ### DRS Configuration Settings (Edit via DRS API)
 - Launch disposition (started/stopped)
-- Instance type right-sizing
-- Copy private IP/tags
+- Instance type right-sizing method
+- Copy private IP/tags from source
 - Licensing (BYOL)
 - Post-launch actions
-- Launch into existing instance
 
-### EC2 Settings (Use with Extreme Caution)
-- Additional security groups (add only)
-- Additional tags
-- Monitoring settings
-- Placement groups (may conflict)
-
-**Key Principle**: AWS DRS allows and preserves customer launch template modifications. Edit templates directly in EC2 console, but avoid changing AMI ID and block device mappings.
+**Key Principle**: DRS preserves customer launch template edits. Most settings are safe to modify, but never change AMI ID or block device mappings as these are critical for recovery functionality.
