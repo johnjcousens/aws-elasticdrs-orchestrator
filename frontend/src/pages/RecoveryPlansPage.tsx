@@ -73,11 +73,19 @@ export const RecoveryPlansPage: React.FC = () => {
     fetchPlans();
     checkInProgressExecutions();
     
-    const interval = setInterval(() => {
+    // Auto-refresh plans every 30 seconds, execution status every 5 seconds
+    const plansInterval = setInterval(() => {
+      fetchPlans();
+    }, 30000);
+    
+    const executionInterval = setInterval(() => {
       checkInProgressExecutions();
     }, 5000);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(plansInterval);
+      clearInterval(executionInterval);
+    };
   }, []);
   
   useEffect(() => {
