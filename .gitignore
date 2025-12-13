@@ -77,9 +77,10 @@ lambda/poller/*.zip
 lambda/__pycache__/
 lambda/package/
 
-# Frontend build artifacts (keep dist/ for easy customer deployment)
+# Frontend build artifacts
 frontend/node_modules/
 frontend/build/
+frontend/dist/
 
 # Python artifacts
 __pycache__/
