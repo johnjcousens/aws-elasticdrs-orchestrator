@@ -264,6 +264,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
               checked={selectedServerIds.length > 0 && selectedServerIds.length === filteredServers.filter(s => s.selectable).length}
               indeterminate={selectedServerIds.length > 0 && selectedServerIds.length < filteredServers.filter(s => s.selectable).length}
               onChange={({ detail }) => {
+                // Prevent any form submission behavior
                 if (detail.checked) {
                   handleSelectAll();
                 } else {

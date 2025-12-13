@@ -112,17 +112,34 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       newErrors.waves = 'At least one wave is required';
     }
 
-    if (waves.some(w => !w.protectionGroupId)) {
+    if (waves.some(w => !w.protectionGroupId && (!w.protectionGroupIds || w.protectionGroupIds.length === 0))) {
       newErrors.waves = 'All waves must have a Protection Group selected';
     }
 
-    if (waves.some(w => w.serverIds.length === 0)) {
-      newErrors.waves = 'All waves must have at least one server';
+    // Check serverIds only for non-tag-based Protection Groups
+    const wavesNeedingServers = waves.filter(w => {
+      // Get the PGs for this wave
+      const wavePgIds = w.protectionGroupIds && w.protectionGroupIds.length > 0 
+        ? w.protectionGroupIds 
+        : (w.protectionGroupId ? [w.protectionGroupId] : []);
+      
+      // Check if ALL selected PGs are tag-based
+      const selectedPGs = protectionGroups.filter(pg => wavePgIds.includes(pg.protectionGroupId));
+      const allTagBased = selectedPGs.length > 0 && selectedPGs.every(pg => 
+        pg.serverSelectionTags && Object.keys(pg.serverSelectionTags).length > 0
+      );
+      
+      // Only require serverIds if NOT tag-based
+      return !allTagBased;
+    });
+
+    if (wavesNeedingServers.some(w => (w.serverIds || []).length === 0)) {
+      newErrors.waves = 'All waves with non-tag-based Protection Groups must have at least one server';
     }
 
-    // DRS Service Limits: Validate wave sizes (max 100 servers per wave)
-    const oversizedWaves = waves
-      .map((w, idx) => ({ name: w.name || `Wave ${idx + 1}`, count: w.serverIds.length }))
+    // DRS Service Limits: Validate wave sizes (max 100 servers per wave) - only for non-tag-based
+    const oversizedWaves = wavesNeedingServers
+      .map((w, idx) => ({ name: w.name || `Wave ${idx + 1}`, count: (w.serverIds || []).length }))
       .filter(w => w.count > DRS_LIMITS.MAX_SERVERS_PER_JOB);
     
     if (oversizedWaves.length > 0) {
@@ -235,70 +252,72 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         </Box>
       }
     >
-      {loadingGroups ? (
-        <LoadingState message="Loading protection groups..." />
-      ) : (
-        <SpaceBetween size="l">
-          {/* Error Alert */}
-          {error && (
-            <Alert
-              type="error"
-              dismissible
-              onDismiss={() => setError(null)}
-            >
-              {error}
-            </Alert>
-          )}
-
-          {/* Basic Information Section */}
-          <Container header={<Header variant="h2">Basic Information</Header>}>
-            <SpaceBetween size="l">
-              <FormField
-                label="Plan Name"
-                errorText={errors.name}
+      <form onSubmit={(e) => e.preventDefault()}>
+        {loadingGroups ? (
+          <LoadingState message="Loading protection groups..." />
+        ) : (
+          <SpaceBetween size="l">
+            {/* Error Alert */}
+            {error && (
+              <Alert
+                type="error"
+                dismissible
+                onDismiss={() => setError(null)}
               >
-                <Input
-                  value={name}
-                  onChange={({ detail }) => setName(detail.value)}
-                  placeholder="e.g., Production Recovery Plan"
-                  disabled={loading}
-                  autoFocus
-                />
-              </FormField>
+                {error}
+              </Alert>
+            )}
 
-              <FormField
-                label="Description"
-                description="Optional description of this recovery plan"
-              >
-                <Textarea
-                  value={description}
-                  onChange={({ detail }) => setDescription(detail.value)}
-                  placeholder="e.g., Recovery plan for all production servers"
-                  rows={2}
-                  disabled={loading}
-                />
-              </FormField>
-            </SpaceBetween>
-          </Container>
+            {/* Basic Information Section */}
+            <Container header={<Header variant="h2">Basic Information</Header>}>
+              <SpaceBetween size="l">
+                <FormField
+                  label="Plan Name"
+                  errorText={errors.name}
+                >
+                  <Input
+                    value={name}
+                    onChange={({ detail }) => setName(detail.value)}
+                    placeholder="e.g., Production Recovery Plan"
+                    disabled={loading}
+                    autoFocus
+                  />
+                </FormField>
 
-          {/* Wave Configuration */}
-          <Container header={<Header variant="h2">Wave Configuration</Header>}>
-            <SpaceBetween size="l">
-              <WaveConfigEditor
-                waves={waves}
-                protectionGroupId=""
-                protectionGroups={protectionGroups}
-                onChange={setWaves}
-              />
-              {errors.waves && (
-                <Alert type="error">
-                  {errors.waves}
-                </Alert>
-              )}
-            </SpaceBetween>
-          </Container>
-        </SpaceBetween>
-      )}
+                <FormField
+                  label="Description"
+                  description="Optional description of this recovery plan"
+                >
+                  <Textarea
+                    value={description}
+                    onChange={({ detail }) => setDescription(detail.value)}
+                    placeholder="e.g., Recovery plan for all production servers"
+                    rows={2}
+                    disabled={loading}
+                  />
+                </FormField>
+              </SpaceBetween>
+            </Container>
+
+            {/* Wave Configuration */}
+            <Container header={<Header variant="h2">Wave Configuration</Header>}>
+              <SpaceBetween size="l">
+                <WaveConfigEditor
+                  waves={waves}
+                  protectionGroupId=""
+                  protectionGroups={protectionGroups}
+                  onChange={setWaves}
+                />
+                {errors.waves && (
+                  <Alert type="error">
+                    {errors.waves}
+                  </Alert>
+                )}
+              </SpaceBetween>
+            </Container>
+          </SpaceBetween>
+        )}
+      </form>
     </Modal>
   );
 };
