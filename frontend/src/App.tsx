@@ -6,8 +6,8 @@
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './components/cloudscape/AppLayout';
@@ -27,33 +27,8 @@ import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
  */
 function App() {
   return (
-    <>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          // Default options for all toasts
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#4caf50',
-              secondary: '#fff',
-            },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#f44336',
-              secondary: '#fff',
-            },
-          },
-        }}
-      />
-      <AuthProvider>
+    <AuthProvider>
+      <NotificationProvider>
         <BrowserRouter>
           <ErrorBoundary>
             <Routes>
@@ -155,8 +130,8 @@ function App() {
           </Routes>
           </ErrorBoundary>
         </BrowserRouter>
-      </AuthProvider>
-    </>
+      </NotificationProvider>
+    </AuthProvider>
   );
 }
 
