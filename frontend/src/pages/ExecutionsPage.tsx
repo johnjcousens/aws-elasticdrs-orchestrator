@@ -300,34 +300,48 @@ export const ExecutionsPage: React.FC = () => {
                     <Table
                       {...collectionProps}
                       columnDefinitions={[
-                        { id: 'plan', header: 'Plan Name', cell: (item) => item.recoveryPlanName || (item as any).tags ? `Tag-based: ${Object.entries((item as any).tags || {}).map(([k, v]) => `${k}=${v}`).join(', ')}` : '-', sortingField: 'recoveryPlanName', width: 200 },
-                        { id: 'status', header: 'Status', cell: (item) => <StatusBadge status={item.status} />, width: 120 },
+                        { id: 'plan', header: 'Plan Name', cell: (item) => item.recoveryPlanName || '-', sortingField: 'recoveryPlanName', width: 180 },
+                        { id: 'status', header: 'Status', cell: (item) => <StatusBadge status={item.status} />, width: 110 },
                         { 
                           id: 'source', 
                           header: 'Source', 
                           cell: (item) => (
-                            <InvocationSourceBadge 
-                              source={((item as any).invocationSource || 'UI') as InvocationSource} 
-                              details={(item as any).invocationDetails as InvocationDetails}
-                            />
-                          ),
-                          width: 130,
-                        },
-                        { 
-                          id: 'mode', 
-                          header: 'Selection', 
-                          cell: (item) => (
-                            <Badge color={(item as any).selectionMode === 'TAGS' ? 'green' : 'blue'}>
-                              {(item as any).selectionMode === 'TAGS' ? 'Tag-Based' : 'Plan-Based'}
-                            </Badge>
+                            <span style={{ whiteSpace: 'nowrap' }}>
+                              <InvocationSourceBadge 
+                                source={((item as any).invocationSource || 'UI') as InvocationSource} 
+                                details={(item as any).invocationDetails as InvocationDetails}
+                              />
+                            </span>
                           ),
                           width: 100,
                         },
-                        { id: 'waves', header: 'Waves', cell: (item) => (item.totalWaves > 0 ? `${item.totalWaves} waves` : '-'), width: 80 },
-                        { id: 'started', header: 'Started', cell: (item) => <DateTimeDisplay value={item.startTime} format="full" />, width: 160 },
-                        { id: 'completed', header: 'Completed', cell: (item) => (item.endTime ? <DateTimeDisplay value={item.endTime} format="full" /> : '-'), width: 160 },
-                        { id: 'duration', header: 'Duration', cell: (item) => calculateDuration(item), width: 90 },
-                        { id: 'actions', header: 'Actions', cell: (item) => <Button variant="inline-link" iconName="external" onClick={() => handleViewDetails(item)}>View</Button>, width: 80 },
+                        { 
+                          id: 'recoveryType', 
+                          header: 'Recovery Type', 
+                          cell: (item) => (
+                            <span style={{ whiteSpace: 'nowrap' }}>
+                              <Badge color="blue">
+                                {item.selectionMode === 'TAGS' ? 'Tag-Based' : 'Plan-Based'}
+                              </Badge>
+                            </span>
+                          ),
+                          width: 110,
+                        },
+                        { 
+                          id: 'type', 
+                          header: 'Type', 
+                          cell: (item) => (
+                            <Badge color={item.executionType === 'DRILL' ? 'blue' : 'red'}>
+                              {item.executionType || 'DRILL'}
+                            </Badge>
+                          ),
+                          width: 70,
+                        },
+                        { id: 'waves', header: 'Waves', cell: (item) => (item.totalWaves > 0 ? `${item.totalWaves} waves` : '-'), width: 70 },
+                        { id: 'started', header: 'Started', cell: (item) => <DateTimeDisplay value={item.startTime} format="full" />, width: 150 },
+                        { id: 'completed', header: 'Completed', cell: (item) => (item.endTime ? <DateTimeDisplay value={item.endTime} format="full" /> : '-'), width: 150 },
+                        { id: 'duration', header: 'Duration', cell: (item) => calculateDuration(item), width: 80 },
+                        { id: 'actions', header: 'Actions', cell: (item) => <Button variant="inline-link" iconName="external" onClick={() => handleViewDetails(item)}>View</Button>, width: 70 },
                       ]}
                       items={items}
                       loading={loading}

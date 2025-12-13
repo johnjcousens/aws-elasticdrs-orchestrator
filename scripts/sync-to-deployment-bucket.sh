@@ -5,6 +5,9 @@
 
 set -e  # Exit on error
 
+# Disable AWS CLI pager for all commands (compatible with CLI v1 and v2)
+export AWS_PAGER=""
+
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -174,7 +177,7 @@ echo ""
 
 # Verify AWS credentials
 echo "🔐 Verifying AWS credentials..."
-if ! aws sts get-caller-identity $PROFILE_FLAG --region $REGION --no-pager >/dev/null 2>&1; then
+if ! AWS_PAGER="" aws sts get-caller-identity $PROFILE_FLAG --region $REGION >/dev/null 2>&1; then
     echo "❌ ERROR: AWS credentials not configured or profile not found"
     echo ""
     echo "Current profile: $AWS_PROFILE"
@@ -202,7 +205,7 @@ if [ "$CLEAN_ORPHANS" = true ]; then
     echo ""
     
     # Get all top-level directories from S3
-    S3_DIRS=$(aws s3 ls s3://$BUCKET/ $PROFILE_FLAG --region $REGION --no-pager | grep PRE | awk '{print $2}' | sed 's/\///')
+    S3_DIRS=$(aws s3 ls s3://$BUCKET/ $PROFILE_FLAG --region $REGION | grep PRE | awk '{print $2}' | sed 's/\///')
     
     # Find orphaned directories
     ORPHANED_DIRS=()
@@ -223,7 +226,7 @@ if [ "$CLEAN_ORPHANS" = true ]; then
     done
     
     # Check for orphaned files at root level (excluding approved files)
-    S3_FILES=$(aws s3 ls s3://$BUCKET/ $PROFILE_FLAG --region $REGION --no-pager | grep -v PRE | awk '{print $4}')
+    S3_FILES=$(aws s3 ls s3://$BUCKET/ $PROFILE_FLAG --region $REGION | grep -v PRE | awk '{print $4}')
     APPROVED_FILES=("README.md" ".gitignore" "Makefile")
     
     for file in $S3_FILES; do
@@ -275,13 +278,13 @@ if [ "$CLEAN_ORPHANS" = true ]; then
                 # Delete orphaned directories
                 for dir in "${ORPHANED_DIRS[@]}"; do
                     echo "  🗑️  Deleting $dir/..."
-                    aws s3 rm s3://$BUCKET/$dir/ $PROFILE_FLAG --recursive --region $REGION --no-pager
+                    aws s3 rm s3://$BUCKET/$dir/ $PROFILE_FLAG --recursive --region $REGION
                 done
                 
                 # Delete orphaned files
                 for file in "${ORPHANED_FILES[@]}"; do
                     echo "  🗑️  Deleting $file..."
-                    aws s3 rm s3://$BUCKET/$file $PROFILE_FLAG --region $REGION --no-pager
+                    aws s3 rm s3://$BUCKET/$file $PROFILE_FLAG --region $REGION
                 done
                 
                 echo ""
@@ -329,7 +332,7 @@ aws s3 sync cfn/ s3://$BUCKET/cfn/ \
     $SYNC_FLAGS \
     --exclude "*.swp" \
     --exclude ".DS_Store" \
-    --no-pager
+   
 
 # Sync Lambda functions
 echo "  📁 Syncing lambda/ functions..."
@@ -341,7 +344,7 @@ aws s3 sync lambda/ s3://$BUCKET/lambda/ \
     --exclude "__pycache__/*" \
     --exclude "package/*" \
     --exclude ".DS_Store" \
-    --no-pager
+   
 
 # Sync frontend (built dist/ and source)
 echo "  📁 Syncing frontend..."
@@ -351,7 +354,7 @@ if [ -d "frontend/dist" ]; then
         --delete \
         $SYNC_FLAGS \
         --exclude ".DS_Store" \
-        --no-pager
+       
     echo "    ✅ frontend/dist/ synced"
 else
     echo "    ⚠️  frontend/dist/ not found (run with --build-frontend to create)"
@@ -363,14 +366,14 @@ aws s3 sync frontend/src/ s3://$BUCKET/frontend/src/ \
     $SYNC_FLAGS \
     --exclude "*.swp" \
     --exclude ".DS_Store" \
-    --no-pager
+   
 echo "    ✅ frontend/src/ synced"
 
 # Sync frontend config files
-aws s3 cp frontend/package.json s3://$BUCKET/frontend/package.json $PROFILE_FLAG $SYNC_FLAGS --no-pager
-aws s3 cp frontend/package-lock.json s3://$BUCKET/frontend/package-lock.json $PROFILE_FLAG $SYNC_FLAGS --no-pager
-aws s3 cp frontend/tsconfig.json s3://$BUCKET/frontend/tsconfig.json $PROFILE_FLAG $SYNC_FLAGS --no-pager
-aws s3 cp frontend/vite.config.ts s3://$BUCKET/frontend/vite.config.ts $PROFILE_FLAG $SYNC_FLAGS --no-pager
+aws s3 cp frontend/package.json s3://$BUCKET/frontend/package.json $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp frontend/package-lock.json s3://$BUCKET/frontend/package-lock.json $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp frontend/tsconfig.json s3://$BUCKET/frontend/tsconfig.json $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp frontend/vite.config.ts s3://$BUCKET/frontend/vite.config.ts $PROFILE_FLAG $SYNC_FLAGS
 echo "    ✅ frontend config files synced"
 
 # Sync scripts
@@ -380,7 +383,7 @@ aws s3 sync scripts/ s3://$BUCKET/scripts/ \
     --delete \
     $SYNC_FLAGS \
     --exclude ".DS_Store" \
-    --no-pager
+   
 
 # Sync SSM documents
 echo "  📁 Syncing ssm-documents/..."
@@ -389,7 +392,7 @@ aws s3 sync ssm-documents/ s3://$BUCKET/ssm-documents/ \
     --delete \
     $SYNC_FLAGS \
     --exclude ".DS_Store" \
-    --no-pager
+   
 
 # Sync documentation
 echo "  📁 Syncing docs/..."
@@ -399,13 +402,13 @@ aws s3 sync docs/ s3://$BUCKET/docs/ \
     $SYNC_FLAGS \
     --exclude ".DS_Store" \
     --exclude "archive/*" \
-    --no-pager
+   
 
 # Sync root files
 echo "  📄 Syncing root files..."
-aws s3 cp README.md s3://$BUCKET/README.md $PROFILE_FLAG $SYNC_FLAGS --no-pager
-aws s3 cp .gitignore s3://$BUCKET/.gitignore $PROFILE_FLAG $SYNC_FLAGS --no-pager
-aws s3 cp Makefile s3://$BUCKET/Makefile $PROFILE_FLAG $SYNC_FLAGS --no-pager
+aws s3 cp README.md s3://$BUCKET/README.md $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp .gitignore s3://$BUCKET/.gitignore $PROFILE_FLAG $SYNC_FLAGS
+aws s3 cp Makefile s3://$BUCKET/Makefile $PROFILE_FLAG $SYNC_FLAGS
 
 echo ""
 echo "======================================"
@@ -488,7 +491,7 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
             --region $REGION \
             --query '[FunctionName,LastModified,CodeSize]' \
             --output table \
-            --no-pager
+           
         
         rm -f /tmp/lambda-quick.zip
         
@@ -553,7 +556,7 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
                     --region $REGION \
                     --query 'LastModified' \
                     --output text \
-                    --no-pager 2>/dev/null && echo "  ✅ $func_suffix updated" || echo "  ⚠️  $func_suffix not found (may not be deployed)"
+                    2>/dev/null && echo "  ✅ $func_suffix updated" || echo "  ⚠️  $func_suffix not found (may not be deployed)"
                 
                 rm -f /tmp/lambda-${func_suffix}.zip
             else
@@ -596,7 +599,7 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
             $PROFILE_FLAG \
             --region $REGION \
             --metadata "git-commit=$GIT_COMMIT,sync-time=$SYNC_TIME" \
-            --no-pager
+           
         echo "  ✅ Package uploaded"
         echo ""
         
@@ -608,7 +611,7 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
             --output text \
             $PROFILE_FLAG \
             --region $REGION \
-            --no-pager 2>/dev/null) || LAMBDA_STACK_ID="${PROJECT_NAME}-${ENVIRONMENT}-lambda"
+            2>/dev/null) || LAMBDA_STACK_ID="${PROJECT_NAME}-${ENVIRONMENT}-lambda"
         
         echo "🔄 Updating Lambda stack ($LAMBDA_STACK_ID)..."
         
@@ -616,15 +619,15 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
         PROT_TABLE=$(aws cloudformation describe-stacks \
             --stack-name "$PARENT_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='ProtectionGroupsTableName'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION --no-pager)
+            --output text $PROFILE_FLAG --region $REGION)
         PLANS_TABLE=$(aws cloudformation describe-stacks \
             --stack-name "$PARENT_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='RecoveryPlansTableName'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION --no-pager)
+            --output text $PROFILE_FLAG --region $REGION)
         EXEC_TABLE=$(aws cloudformation describe-stacks \
             --stack-name "$PARENT_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='ExecutionHistoryTableName'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION --no-pager)
+            --output text $PROFILE_FLAG --region $REGION)
         
         STACK_UPDATE_OUTPUT=$(aws cloudformation update-stack \
             --stack-name "$LAMBDA_STACK_ID" \
@@ -640,7 +643,7 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
             --capabilities CAPABILITY_NAMED_IAM \
             $PROFILE_FLAG \
             --region $REGION \
-            --no-pager \
+            \
             2>&1) || STACK_UPDATE_FAILED=true
         
         if [ "$STACK_UPDATE_FAILED" = true ]; then
@@ -657,7 +660,7 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
                 --stack-name "$LAMBDA_STACK_ID" \
                 $PROFILE_FLAG \
                 --region $REGION \
-                --no-pager
+               
             echo "  ✅ Lambda stack updated"
         fi
         
@@ -690,13 +693,13 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
         FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name "$PARENT_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION --no-pager)
+            --output text $PROFILE_FLAG --region $REGION)
         
         # Get CloudFront distribution ID
         CLOUDFRONT_DIST=$(aws cloudformation describe-stacks \
             --stack-name "$PARENT_STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
-            --output text $PROFILE_FLAG --region $REGION --no-pager)
+            --output text $PROFILE_FLAG --region $REGION)
         
         if [ -z "$FRONTEND_BUCKET" ] || [ "$FRONTEND_BUCKET" = "None" ]; then
             echo "  ❌ Could not find Frontend bucket from stack outputs"
@@ -712,7 +715,7 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
                 --delete \
                 --exclude "aws-config.json" \
                 --region $REGION \
-                --no-pager
+               
             echo "  ✅ Frontend files synced to $FRONTEND_BUCKET"
         else
             echo "  ❌ frontend/dist/ not found - run with --build-frontend first"
@@ -730,7 +733,7 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
                 --region $REGION \
                 --query 'Invalidation.Id' \
                 --output text \
-                --no-pager
+               
             echo "  ✅ CloudFront invalidation started"
         fi
         
@@ -791,7 +794,7 @@ if [ "$DEPLOY_CFN" = true ]; then
             $PROFILE_FLAG \
             --region $REGION \
             --metadata "git-commit=$GIT_COMMIT,sync-time=$SYNC_TIME" \
-            --no-pager
+           
         
         cd "$PROJECT_ROOT"
         echo "  ✅ Lambda package uploaded"
@@ -818,7 +821,7 @@ if [ "$DEPLOY_CFN" = true ]; then
             --capabilities CAPABILITY_NAMED_IAM \
             $PROFILE_FLAG \
             --region $REGION \
-            --no-pager \
+            \
             2>&1) || STACK_UPDATE_FAILED=true
         
         if [ "$STACK_UPDATE_FAILED" = true ]; then
@@ -839,7 +842,7 @@ if [ "$DEPLOY_CFN" = true ]; then
                 --stack-name "$PARENT_STACK_NAME" \
                 $PROFILE_FLAG \
                 --region $REGION \
-                --no-pager
+               
             echo "  ✅ Parent stack updated successfully"
             echo "     All nested stacks (Database, Lambda, API, Frontend) are now up-to-date"
             STACK_UPDATED=true

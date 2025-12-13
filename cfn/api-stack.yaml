@@ -340,6 +340,25 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  # Methods - POST /protection-groups/{id} (for /protection-groups/resolve)
+  ProtectionGroupIdPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ProtectionGroupResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      RequestValidatorId: !Ref ApiRequestValidator
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
   # CORS - OPTIONS /protection-groups
   ProtectionGroupsOptionsMethod:
     Type: AWS::ApiGateway::Method

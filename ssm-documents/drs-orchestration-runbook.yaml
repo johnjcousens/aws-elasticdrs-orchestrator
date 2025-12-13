@@ -1,0 +1,303 @@
+description: |
+  DRS Orchestration Runbook
+  
+  Invokes DRS disaster recovery orchestration for drill or actual recovery operations.
+  Supports tag-based server selection for automated workflows.
+  
+  All executions are tracked in the DRS Orchestration frontend History page.
+  
+  Usage:
+  - Drill: Test DR procedures without impacting production
+  - Failover: Actual disaster recovery operation
+  - Terminate: Clean up recovery instances after drill
+  - Status: Check execution status
+
+schemaVersion: '0.3'
+assumeRole: '{{AutomationAssumeRole}}'
+
+parameters:
+  Action:
+    type: String
+    description: 'Action to perform: drill, failover, terminate, or status'
+    allowedValues:
+      - drill
+      - failover
+      - terminate
+      - status
+    default: drill
+
+  WaveNumber:
+    type: String
+    description: 'Wave number to execute (1, 2, 3, etc.) or "all" for all waves'
+    default: '1'
+
+  Application:
+    type: String
+    description: 'Application tag filter (e.g., HRP, SAP, Oracle)'
+    default: ''
+
+  Environment:
+    type: String
+    description: 'Environment tag filter (e.g., prod, dr, staging)'
+    default: ''
+
+  CustomTags:
+    type: String
+    description: 'Additional tags as JSON (e.g., {"Team":"Platform","Tier":"Database"})'
+    default: '{}'
+
+  IsDrill:
+    type: String
+    description: 'Execute as drill (true) or actual recovery (false)'
+    allowedValues:
+      - 'true'
+      - 'false'
+    default: 'true'
+
+  MaxWaitMinutes:
+    type: String
+    description: 'Maximum wait time for recovery completion in minutes'
+    default: '120'
+
+  Region:
+    type: String
+    description: 'AWS region for DRS operations'
+    default: '{{global:REGION}}'
+
+  StateMachineArn:
+    type: String
+    description: 'ARN of the DRS modular orchestrator Step Function'
+
+  AutomationAssumeRole:
+    type: String
+    description: 'IAM role ARN for SSM Automation execution'
+
+mainSteps:
+  - name: BuildTagFilter
+    action: aws:executeScript
+    description: 'Build tag filter from parameters'
+    inputs:
+      Runtime: python3.9
+      Handler: build_tags
+      Script: |
+        import json
+        
+        def build_tags(events, context):
+            tags = {}
+            
+            # Add wave filter
+            wave = events.get('WaveNumber', '1')
+            if wave and wave != 'all':
+                tags['DR-Wave'] = wave
+            
+            # Add application filter
+            app = events.get('Application', '')
+            if app:
+                tags['DR-Application'] = app
+            
+            # Add environment filter
+            env = events.get('Environment', '')
+            if env:
+                tags['DR-Environment'] = env
+            
+            # Always include DR-Enabled
+            tags['DR-Enabled'] = 'true'
+            
+            # Merge custom tags
+            custom_tags_str = events.get('CustomTags', '{}')
+            try:
+                custom_tags = json.loads(custom_tags_str)
+                tags.update(custom_tags)
+            except json.JSONDecodeError:
+                pass
+            
+            return {
+                'tags': tags,
+                'tagsJson': json.dumps(tags)
+            }
+      InputPayload:
+        WaveNumber: '{{WaveNumber}}'
+        Application: '{{Application}}'
+        Environment: '{{Environment}}'
+        CustomTags: '{{CustomTags}}'
+    outputs:
+      - Name: Tags
+        Selector: $.Payload.tags
+        Type: StringMap
+      - Name: TagsJson
+        Selector: $.Payload.tagsJson
+        Type: String
+
+  - name: BuildStepFunctionInput
+    action: aws:executeScript
+    description: 'Build Step Function input payload with inline plan'
+    inputs:
+      Runtime: python3.9
+      Handler: build_input
+      Script: |
+        import json
+        
+        def build_input(events, context):
+            is_drill = events.get('IsDrill', 'true').lower() == 'true'
+            max_wait = int(events.get('MaxWaitMinutes', '120'))
+            tags = events.get('Tags', {})
+            region = events.get('Region', 'us-east-1')
+            wave = events.get('WaveNumber', '1')
+            
+            # Build inline plan with tag-based Protection Groups
+            # This uses the unified model where PGs can be defined by tags
+            inline_plan = {
+                'planName': f"SSM Drill - Wave {wave}",
+                'protectionGroups': [
+                    {
+                        'name': f"Wave {wave} Servers",
+                        'selectionMode': 'TAGS',
+                        'tags': tags,
+                        'region': region
+                    }
+                ],
+                'waves': [
+                    {
+                        'waveNumber': 1,
+                        'waveName': f"Wave {wave}",
+                        'protectionGroupIndex': 0,
+                        'pauseBeforeWave': False
+                    }
+                ]
+            }
+            
+            input_payload = {
+                'executionType': 'DRILL' if is_drill else 'RECOVERY',
+                'inlinePlan': inline_plan,
+                'options': {
+                    'isDrill': is_drill,
+                    'maxWaitMinutes': max_wait,
+                    'region': region
+                },
+                'invocationSource': 'SSM',
+                'invocationDetails': {
+                    'ssmDocumentName': 'DRS-Orchestration-Runbook',
+                    'ssmExecutionId': events.get('ExecutionId', 'unknown')
+                }
+            }
+            
+            return {
+                'inputJson': json.dumps(input_payload)
+            }
+      InputPayload:
+        Action: '{{Action}}'
+        Tags: '{{BuildTagFilter.Tags}}'
+        WaveNumber: '{{WaveNumber}}'
+        IsDrill: '{{IsDrill}}'
+        MaxWaitMinutes: '{{MaxWaitMinutes}}'
+        Region: '{{Region}}'
+        ExecutionId: '{{automation:EXECUTION_ID}}'
+    outputs:
+      - Name: InputJson
+        Selector: $.Payload.inputJson
+        Type: String
+
+  - name: InvokeDRSOrchestration
+    action: aws:executeStateMachine
+    description: 'Invoke the DRS modular orchestrator Step Function'
+    inputs:
+      stateMachineArn: '{{StateMachineArn}}'
+      input: '{{BuildStepFunctionInput.InputJson}}'
+    outputs:
+      - Name: ExecutionArn
+        Selector: $.executionArn
+        Type: String
+      - Name: Output
+        Selector: $.output
+        Type: String
+    onFailure: step:HandleError
+    nextStep: ParseResult
+
+  - name: ParseResult
+    action: aws:executeScript
+    description: 'Parse Step Function execution result'
+    inputs:
+      Runtime: python3.9
+      Handler: parse_result
+      Script: |
+        import json
+        
+        def parse_result(events, context):
+            output_str = events.get('Output', '{}')
+            
+            try:
+                output = json.loads(output_str)
+            except json.JSONDecodeError:
+                output = {'status': 'UNKNOWN', 'message': 'Failed to parse output'}
+            
+            # Extract key fields
+            execution_id = output.get('executionId', output.get('registration', {}).get('executionId', 'unknown'))
+            status = output.get('status', output.get('recoveryResult', {}).get('status', 'UNKNOWN'))
+            
+            # Get summary if available
+            summary = output.get('summary', output.get('recoveryResult', {}).get('summary', {}))
+            total_servers = summary.get('totalServers', 0)
+            succeeded = summary.get('succeeded', 0)
+            failed = summary.get('failed', 0)
+            
+            return {
+                'executionId': execution_id,
+                'status': status,
+                'totalServers': total_servers,
+                'succeeded': succeeded,
+                'failed': failed,
+                'message': f"Execution {execution_id}: {status} - {succeeded}/{total_servers} servers succeeded"
+            }
+      InputPayload:
+        Output: '{{InvokeDRSOrchestration.Output}}'
+    outputs:
+      - Name: ExecutionId
+        Selector: $.Payload.executionId
+        Type: String
+      - Name: Status
+        Selector: $.Payload.status
+        Type: String
+      - Name: TotalServers
+        Selector: $.Payload.totalServers
+        Type: Integer
+      - Name: Succeeded
+        Selector: $.Payload.succeeded
+        Type: Integer
+      - Name: Failed
+        Selector: $.Payload.failed
+        Type: Integer
+      - Name: Message
+        Selector: $.Payload.message
+        Type: String
+    isEnd: true
+
+  - name: HandleError
+    action: aws:executeScript
+    description: 'Handle execution errors'
+    inputs:
+      Runtime: python3.9
+      Handler: handle_error
+      Script: |
+        def handle_error(events, context):
+            return {
+                'status': 'FAILED',
+                'message': 'Step Function execution failed. Check CloudWatch Logs for details.',
+                'executionId': 'unknown'
+            }
+      InputPayload: {}
+    outputs:
+      - Name: Status
+        Selector: $.Payload.status
+        Type: String
+      - Name: Message
+        Selector: $.Payload.message
+        Type: String
+    isEnd: true
+
+outputs:
+  - ParseResult.ExecutionId
+  - ParseResult.Status
+  - ParseResult.TotalServers
+  - ParseResult.Succeeded
+  - ParseResult.Failed
+  - ParseResult.Message

@@ -2386,12 +2386,40 @@ def list_executions(query_params: Dict) -> Dict:
                 if plan_id:
                     plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
                     if 'Item' in plan_result:
-                        execution['RecoveryPlanName'] = plan_result['Item'].get('PlanName', 'Unknown')
+                        plan = plan_result['Item']
+                        execution['RecoveryPlanName'] = plan.get('PlanName', 'Unknown')
+                        
+                        # Determine selection mode from protection groups
+                        # Check if any protection group in the plan uses tag-based selection
+                        selection_mode = 'PLAN'  # Default to plan-based
+                        waves = plan.get('Waves', [])
+                        pg_ids = set()
+                        for wave in waves:
+                            pg_id = wave.get('ProtectionGroupId')
+                            if pg_id:
+                                pg_ids.add(pg_id)
+                        
+                        # Check each protection group for ServerSelectionTags
+                        for pg_id in pg_ids:
+                            try:
+                                pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+                                if 'Item' in pg_result:
+                                    pg = pg_result['Item']
+                                    tags = pg.get('ServerSelectionTags', {})
+                                    if tags and len(tags) > 0:
+                                        selection_mode = 'TAGS'
+                                        break  # Found tag-based, no need to check more
+                            except Exception as pg_err:
+                                print(f"Error checking PG {pg_id}: {str(pg_err)}")
+                        
+                        execution['SelectionMode'] = selection_mode
                     else:
                         execution['RecoveryPlanName'] = 'Unknown'
+                        execution['SelectionMode'] = 'PLAN'
             except Exception as e:
                 print(f"Error enriching execution {execution.get('ExecutionId')}: {str(e)}")
                 execution['RecoveryPlanName'] = 'Unknown'
+                execution['SelectionMode'] = 'PLAN'
             
             # Transform to camelCase for frontend
             transformed_executions.append(transform_execution_to_camelcase(execution))
@@ -4565,7 +4593,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         'currentWave': current_wave,  # FIXED: Proper wave progress calculation
         'totalWaves': total_waves,  # Use stored value from execution creation
         'errorMessage': execution.get('ErrorMessage'),
-        'pausedBeforeWave': execution.get('PausedBeforeWave')  # Wave number paused before (0-indexed)
+        'pausedBeforeWave': execution.get('PausedBeforeWave'),  # Wave number paused before (0-indexed)
+        'selectionMode': execution.get('SelectionMode', 'PLAN')  # TAGS or PLAN based on protection group config
     }
 
 
