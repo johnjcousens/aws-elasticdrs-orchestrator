@@ -18,6 +18,7 @@ import {
   Badge,
   Pagination,
   TextFilter,
+  CopyToClipboard,
 } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import toast from 'react-hot-toast';
@@ -270,6 +271,25 @@ export const RecoveryPlansPage: React.FC = () => {
                 </span>
               ),
               sortingField: 'name',
+            },
+            {
+              id: 'planId',
+              header: 'Plan ID',
+              width: 340,
+              cell: (item) => (
+                <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                  <Box fontSize="body-s" color="text-body-secondary">
+                    {item.id}
+                  </Box>
+                  <CopyToClipboard
+                    copyButtonAriaLabel="Copy Plan ID"
+                    copySuccessText="Plan ID copied"
+                    copyErrorText="Failed to copy"
+                    textToCopy={item.id}
+                    variant="icon"
+                  />
+                </div>
+              ),
             },
             {
               id: 'waves',

@@ -214,23 +214,41 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:
     Get all servers currently in active executions.
     Returns dict mapping server_id -> {execution_id, plan_id, wave_name, status}
     
-    IMPORTANT: For PAUSED executions, we must look up the original Recovery Plan
-    to get ALL servers that will be affected when the execution resumes,
-    not just the waves already recorded in the execution history.
+    For tag-based Protection Groups, we resolve servers at check time by:
+    1. Looking at ServerStatuses in execution waves (servers already resolved)
+    2. For PAUSED/PENDING executions, resolving remaining waves' PGs via tags
     """
     active_executions = get_all_active_executions()
     servers_in_use = {}
     
-    # Cache for recovery plans to avoid repeated lookups
+    # Cache for recovery plans and protection groups
     plan_cache = {}
+    pg_cache = {}
     
     for execution in active_executions:
         execution_id = execution.get('ExecutionId')
         plan_id = execution.get('PlanId')
         exec_status = execution.get('Status', '').upper()
         
-        # For PAUSED or PENDING executions, get ALL servers from the original Recovery Plan
-        # because they will be affected when the execution resumes
+        # First, check ServerStatuses in execution waves (already resolved servers)
+        for wave in execution.get('Waves', []):
+            wave_name = wave.get('WaveName', 'Unknown')
+            wave_status = wave.get('Status', '')
+            
+            for server in wave.get('ServerStatuses', []):
+                server_id = server.get('SourceServerId')
+                launch_status = server.get('LaunchStatus', '')
+                # Track servers not yet launched
+                if server_id and launch_status.upper() not in ['LAUNCHED', 'FAILED', 'TERMINATED']:
+                    servers_in_use[server_id] = {
+                        'executionId': execution_id,
+                        'planId': plan_id,
+                        'waveName': wave_name,
+                        'launchStatus': launch_status,
+                        'executionStatus': exec_status
+                    }
+        
+        # For PAUSED or PENDING executions, resolve remaining waves' Protection Groups
         if exec_status in ['PAUSED', 'PENDING', 'PAUSE_PENDING']:
             # Look up the original Recovery Plan
             if plan_id not in plan_cache:
@@ -248,79 +266,98 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:
             if hasattr(paused_before_wave, '__int__'):
                 paused_before_wave = int(paused_before_wave)
             
-            # Get all servers from waves that haven't completed yet
+            # Get servers from waves that haven't completed yet
             for idx, wave in enumerate(plan.get('Waves', []), start=1):
                 wave_name = wave.get('WaveName', f'Wave {idx}')
                 
                 # For PAUSED: include servers from paused wave onwards
                 # For PENDING: include all servers
                 if exec_status == 'PENDING' or idx >= paused_before_wave:
-                    for server_id in wave.get('ServerIds', []):
-                        servers_in_use[server_id] = {
-                            'executionId': execution_id,
-                            'planId': plan_id,
-                            'waveName': wave_name,
-                            'waveStatus': 'PENDING (paused)' if exec_status == 'PAUSED' else 'PENDING',
-                            'executionStatus': exec_status
-                        }
-        
-        # For running executions, check the waves in the execution record
-        # Get servers from waves that are active or pending
-        for wave in execution.get('Waves', []):
-            wave_name = wave.get('WaveName', 'Unknown')
-            wave_status = wave.get('Status', '')
-            
-            # Only consider waves that are active or pending
-            if wave_status.upper() in ['PENDING', 'STARTED', 'IN_PROGRESS', 'POLLING', 'LAUNCHING']:
-                for server_id in wave.get('ServerIds', []):
-                    servers_in_use[server_id] = {
-                        'executionId': execution_id,
-                        'planId': plan_id,
-                        'waveName': wave_name,
-                        'waveStatus': wave_status,
-                        'executionStatus': exec_status
-                    }
-        
-        # Also check ServerStatuses if present
-        for wave in execution.get('Waves', []):
-            wave_name = wave.get('WaveName', 'Unknown')
-            for server in wave.get('ServerStatuses', []):
-                server_id = server.get('SourceServerId')
-                launch_status = server.get('LaunchStatus', '')
-                # Only track servers not yet launched
-                if server_id and launch_status.upper() not in ['LAUNCHED', 'FAILED', 'TERMINATED']:
-                    servers_in_use[server_id] = {
-                        'executionId': execution_id,
-                        'planId': plan_id,
-                        'waveName': wave_name,
-                        'launchStatus': launch_status,
-                        'executionStatus': exec_status
-                    }
+                    # Get Protection Group ID for this wave
+                    pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
+                    
+                    if pg_id:
+                        # Resolve servers from Protection Group tags
+                        server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+                        for server_id in server_ids:
+                            servers_in_use[server_id] = {
+                                'executionId': execution_id,
+                                'planId': plan_id,
+                                'waveName': wave_name,
+                                'waveStatus': 'PENDING (paused)' if exec_status == 'PAUSED' else 'PENDING',
+                                'executionStatus': exec_status
+                            }
     
     return servers_in_use
+
+
+def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict) -> List[str]:
+    """
+    Resolve a Protection Group to server IDs for conflict checking.
+    Uses tag-based resolution.
+    """
+    if pg_id in pg_cache:
+        return pg_cache[pg_id]
+    
+    try:
+        pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+        pg = pg_result.get('Item', {})
+        
+        if not pg:
+            pg_cache[pg_id] = []
+            return []
+        
+        region = pg.get('Region', 'us-east-1')
+        selection_tags = pg.get('ServerSelectionTags', {})
+        
+        if selection_tags:
+            # Resolve servers by tags
+            resolved = query_drs_servers_by_tags(region, selection_tags)
+            server_ids = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+        else:
+            server_ids = []
+        
+        pg_cache[pg_id] = server_ids
+        return server_ids
+        
+    except Exception as e:
+        print(f"Error resolving PG {pg_id} for conflict check: {e}")
+        pg_cache[pg_id] = []
+        return []
 
 
 def check_server_conflicts(plan: Dict) -> List[Dict]:
     """
     Check if any servers in the plan are currently in active executions.
     Returns list of conflicts with details.
+    
+    For tag-based Protection Groups, resolves servers at check time.
     """
     servers_in_use = get_servers_in_active_executions()
     conflicts = []
+    pg_cache = {}
     
     for wave in plan.get('Waves', []):
         wave_name = wave.get('WaveName', 'Unknown')
-        for server_id in wave.get('ServerIds', []):
-            if server_id in servers_in_use:
-                conflict_info = servers_in_use[server_id]
-                conflicts.append({
-                    'serverId': server_id,
-                    'waveName': wave_name,
-                    'conflictingExecutionId': conflict_info['executionId'],
-                    'conflictingPlanId': conflict_info['planId'],
-                    'conflictingWaveName': conflict_info.get('waveName'),
-                    'conflictingStatus': conflict_info.get('executionStatus')
-                })
+        
+        # Get Protection Group ID for this wave
+        pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
+        
+        if pg_id:
+            # Resolve servers from Protection Group tags
+            server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+            
+            for server_id in server_ids:
+                if server_id in servers_in_use:
+                    conflict_info = servers_in_use[server_id]
+                    conflicts.append({
+                        'serverId': server_id,
+                        'waveName': wave_name,
+                        'conflictingExecutionId': conflict_info['executionId'],
+                        'conflictingPlanId': conflict_info['planId'],
+                        'conflictingWaveName': conflict_info.get('waveName'),
+                        'conflictingStatus': conflict_info.get('executionStatus')
+                    })
     
     return conflicts
 
@@ -331,6 +368,7 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:
     Returns dict mapping plan_id -> conflict info for plans that cannot be executed.
     
     This is used by the frontend to gray out Drill/Recovery buttons.
+    For tag-based Protection Groups, resolves servers at check time.
     """
     servers_in_use = get_servers_in_active_executions()
     
@@ -353,6 +391,7 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:
         return {}
     
     plans_with_conflicts = {}
+    pg_cache = {}
     
     for plan in all_plans:
         plan_id = plan.get('PlanId')
@@ -364,24 +403,31 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:
         conflicting_status = None
         
         for wave in plan.get('Waves', []):
-            for server_id in wave.get('ServerIds', []):
-                if server_id in servers_in_use:
-                    conflict_info = servers_in_use[server_id]
-                    # Don't count as conflict if it's this plan's own execution
-                    if conflict_info['planId'] != plan_id:
-                        conflicting_servers.append(server_id)
-                        conflicting_execution_id = conflict_info['executionId']
-                        conflicting_plan_id = conflict_info['planId']
-                        conflicting_status = conflict_info.get('executionStatus')
+            # Get Protection Group ID for this wave
+            pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
+            
+            if pg_id:
+                # Resolve servers from Protection Group tags
+                server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+                
+                for server_id in server_ids:
+                    if server_id in servers_in_use:
+                        conflict_info = servers_in_use[server_id]
+                        # Don't count as conflict if it's this plan's own execution
+                        if conflict_info['planId'] != plan_id:
+                            conflicting_servers.append(server_id)
+                            conflicting_execution_id = conflict_info['executionId']
+                            conflicting_plan_id = conflict_info['planId']
+                            conflicting_status = conflict_info.get('executionStatus')
         
         if conflicting_servers:
             plans_with_conflicts[plan_id] = {
                 'hasConflict': True,
-                'conflictingServers': conflicting_servers,
+                'conflictingServers': list(set(conflicting_servers)),  # Dedupe
                 'conflictingExecutionId': conflicting_execution_id,
                 'conflictingPlanId': conflicting_plan_id,
                 'conflictingStatus': conflicting_status,
-                'reason': f'{len(conflicting_servers)} server(s) in use by another execution'
+                'reason': f'{len(set(conflicting_servers))} server(s) in use by another execution'
             }
     
     return plans_with_conflicts
@@ -395,11 +441,23 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
     """
     Validate that no wave exceeds the DRS limit of 100 servers per job.
     Returns list of validation errors.
+    
+    For tag-based Protection Groups, resolves servers at validation time.
     """
     errors = []
+    pg_cache = {}
     
     for idx, wave in enumerate(plan.get('Waves', []), start=1):
-        server_count = len(wave.get('ServerIds', []))
+        # Get Protection Group ID for this wave
+        pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
+        
+        if pg_id:
+            # Resolve servers from Protection Group tags
+            server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+            server_count = len(server_ids)
+        else:
+            server_count = 0
+        
         if server_count > DRS_LIMITS['MAX_SERVERS_PER_JOB']:
             errors.append({
                 'type': 'WAVE_SIZE_EXCEEDED',
@@ -730,6 +788,10 @@ def handle_protection_groups(method: str, path_params: Dict, body: Dict) -> Dict
     """Route Protection Groups requests"""
     group_id = path_params.get('id')
     
+    # Handle /protection-groups/resolve endpoint (POST with tags to preview servers)
+    if method == 'POST' and group_id == 'resolve':
+        return resolve_protection_group_tags(body)
+    
     if method == 'POST':
         return create_protection_group(body)
     elif method == 'GET' and not group_id:
@@ -744,60 +806,210 @@ def handle_protection_groups(method: str, path_params: Dict, body: Dict) -> Dict
         return response(405, {'error': 'Method Not Allowed'})
 
 
-def create_protection_group(body: Dict) -> Dict:
-    """Create a new Protection Group with automatic server discovery"""
+def resolve_protection_group_tags(body: Dict) -> Dict:
+    """
+    Resolve tag-based server selection to actual DRS source servers.
+    Used for previewing which servers match the specified tags.
+    
+    Request body:
+    {
+        "region": "us-east-1",
+        "tags": {"DR-Application": "HRP", "DR-Tier": "Database"}
+    }
+    
+    Returns list of servers matching ALL specified tags.
+    """
     try:
-        # Validate required fields for new schema
+        region = body.get('region')
+        tags = body.get('tags', {})
+        
+        if not region:
+            return response(400, {'error': 'region is required'})
+        
+        if not tags or not isinstance(tags, dict):
+            return response(400, {'error': 'tags must be a non-empty object'})
+        
+        # Query DRS for servers matching tags
+        resolved_servers = query_drs_servers_by_tags(region, tags)
+        
+        return response(200, {
+            'region': region,
+            'tags': tags,
+            'resolvedServers': resolved_servers,
+            'serverCount': len(resolved_servers),
+            'resolvedAt': int(time.time())
+        })
+        
+    except Exception as e:
+        print(f"Error resolving protection group tags: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': str(e)})
+
+
+def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
+    """
+    Query DRS source servers whose SOURCE EC2 INSTANCES match ALL specified tags.
+    Uses AND logic - source EC2 instance must have all tags to be included.
+    
+    This queries the EC2 instance tags (rich tagging), not DRS resource tags.
+    """
+    try:
+        regional_drs = boto3.client('drs', region_name=region)
+        ec2_client = boto3.client('ec2', region_name=region)
+        
+        # Get all source servers in the region
+        all_servers = []
+        paginator = regional_drs.get_paginator('describe_source_servers')
+        
+        for page in paginator.paginate():
+            all_servers.extend(page.get('items', []))
+        
+        if not all_servers:
+            return []
+        
+        # Build map of instance_id -> server info
+        instance_to_server = {}
+        instance_ids = []
+        
+        for server in all_servers:
+            source_props = server.get('sourceProperties', {})
+            ident_hints = source_props.get('identificationHints', {})
+            instance_id = ident_hints.get('awsInstanceID', '')
+            
+            if instance_id:
+                instance_ids.append(instance_id)
+                instance_to_server[instance_id] = {
+                    'sourceServerId': server.get('sourceServerID'),
+                    'hostname': ident_hints.get('hostname', 'Unknown'),
+                    'replicationState': server.get('dataReplicationInfo', {}).get('dataReplicationState', 'UNKNOWN'),
+                    'instanceId': instance_id
+                }
+        
+        if not instance_ids:
+            print("No source EC2 instances found for DRS servers")
+            return []
+        
+        # Query EC2 for instance tags (batch in groups of 200)
+        instance_tags_map = {}
+        for i in range(0, len(instance_ids), 200):
+            batch = instance_ids[i:i+200]
+            try:
+                ec2_response = ec2_client.describe_instances(InstanceIds=batch)
+                for reservation in ec2_response.get('Reservations', []):
+                    for instance in reservation.get('Instances', []):
+                        inst_id = instance.get('InstanceId', '')
+                        # Convert EC2 tag list to dict
+                        inst_tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+                        instance_tags_map[inst_id] = inst_tags
+            except Exception as e:
+                print(f"Warning: Could not fetch EC2 tags for batch: {str(e)}")
+        
+        # Filter servers whose source EC2 instances match ALL specified tags
+        matching_servers = []
+        for instance_id, server_info in instance_to_server.items():
+            ec2_tags = instance_tags_map.get(instance_id, {})
+            
+            # Check if EC2 instance has ALL required tags with matching values
+            matches_all = True
+            for tag_key, tag_value in tags.items():
+                if ec2_tags.get(tag_key) != tag_value:
+                    matches_all = False
+                    break
+            
+            if matches_all:
+                matching_servers.append({
+                    'sourceServerId': server_info['sourceServerId'],
+                    'hostname': server_info['hostname'],
+                    'replicationState': server_info['replicationState'],
+                    'tags': ec2_tags  # Return EC2 instance tags
+                })
+        
+        print(f"Found {len(matching_servers)} servers matching EC2 tags: {tags}")
+        return matching_servers
+        
+    except Exception as e:
+        error_str = str(e)
+        if 'UninitializedAccountException' in error_str:
+            print(f"DRS not initialized in region {region}")
+            return []
+        print(f"Error querying DRS servers by EC2 tags: {error_str}")
+        raise
+
+
+def create_protection_group(body: Dict) -> Dict:
+    """Create a new Protection Group - supports both tag-based and explicit server selection"""
+    try:
+        # Validate required fields
         if 'GroupName' not in body:
             return response(400, {'error': 'GroupName is required'})
         
         if 'Region' not in body:
             return response(400, {'error': 'Region is required'})
         
-        if 'sourceServerIds' not in body or not body['sourceServerIds']:
-            return response(400, {'error': 'At least one source server must be selected'})
-        
         name = body['GroupName']
-        server_ids = body['sourceServerIds']
         region = body['Region']
         
-        # NEW: Validate servers exist in DRS (CRITICAL - prevents fake data)
-        invalid_servers = validate_servers_exist_in_drs(region, server_ids)
-        if invalid_servers:
-            return response(400, {
-                'error': 'INVALID_SERVER_IDS',
-                'message': f'{len(invalid_servers)} server ID(s) do not exist in DRS',
-                'invalidServers': invalid_servers,
-                'region': region
-            })
+        # Support both selection modes
+        selection_tags = body.get('ServerSelectionTags', {})
+        source_server_ids = body.get('SourceServerIds', [])
+        
+        # Must have at least one selection method
+        has_tags = isinstance(selection_tags, dict) and len(selection_tags) > 0
+        has_servers = isinstance(source_server_ids, list) and len(source_server_ids) > 0
+        
+        if not has_tags and not has_servers:
+            return response(400, {'error': 'Either ServerSelectionTags or SourceServerIds is required'})
         
         # Validate unique name (case-insensitive, global across all users)
         if not validate_unique_pg_name(name):
-            return response(409, {  # Conflict
+            return response(409, {
                 'error': 'PG_NAME_EXISTS',
                 'message': f'A Protection Group named "{name}" already exists',
                 'existingName': name
             })
         
-        # Validate server assignments (no conflicts across all users)
-        conflicts = validate_server_assignments(server_ids)
-        if conflicts:
-            return response(409, {  # Conflict
-                'error': 'SERVER_ASSIGNMENT_CONFLICT',
-                'message': 'Some servers are already assigned to other Protection Groups',
-                'conflicts': conflicts
-            })
+        # If using tags, check for tag conflicts with other PGs
+        if has_tags:
+            tag_conflicts = check_tag_conflicts_for_create(selection_tags, region)
+            if tag_conflicts:
+                return response(409, {
+                    'error': 'TAG_CONFLICT',
+                    'message': 'Another Protection Group already uses these exact tags',
+                    'conflicts': tag_conflicts
+                })
+        
+        # If using explicit server IDs, validate they exist and aren't assigned elsewhere
+        if has_servers:
+            # Validate servers exist in DRS
+            regional_drs = boto3.client('drs', region_name=region)
+            try:
+                drs_response = regional_drs.describe_source_servers(
+                    filters={'sourceServerIDs': source_server_ids}
+                )
+                found_ids = {s['sourceServerID'] for s in drs_response.get('items', [])}
+                missing = set(source_server_ids) - found_ids
+                if missing:
+                    return response(400, {'error': f'Invalid server IDs: {list(missing)}'})
+            except Exception as e:
+                print(f"Error validating servers: {e}")
+                # Continue anyway - servers might be valid
+            
+            # Check for server conflicts with other PGs
+            conflicts = check_server_conflicts_for_create(source_server_ids)
+            if conflicts:
+                return response(409, {
+                    'error': 'SERVER_CONFLICT',
+                    'message': 'One or more servers are already assigned to another Protection Group',
+                    'conflicts': conflicts
+                })
         
         # Generate UUID for GroupId
         group_id = str(uuid.uuid4())
-        
-        # Create Protection Group with new schema
         timestamp = int(time.time())
         
-        # Validate timestamp is not 0 or negative
         if timestamp <= 0:
-            print(f"WARNING: Invalid timestamp generated: {timestamp}")
-            timestamp = int(time.time())  # Retry
+            timestamp = int(time.time())
             if timestamp <= 0:
                 raise Exception("Failed to generate valid timestamp")
         
@@ -805,15 +1017,23 @@ def create_protection_group(body: Dict) -> Dict:
             'GroupId': group_id,
             'GroupName': name,
             'Description': body.get('Description', ''),
-            'Region': body['Region'],
-            'SourceServerIds': server_ids,
+            'Region': region,
             'AccountId': body.get('AccountId', ''),
             'Owner': body.get('Owner', ''),
             'CreatedDate': timestamp,
             'LastModifiedDate': timestamp
         }
         
-        print(f"Creating Protection Group with timestamp: {timestamp} ({time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(timestamp))} UTC)")
+        # Store the appropriate selection method (MUTUALLY EXCLUSIVE)
+        # Tags take precedence if both are somehow provided
+        if has_tags:
+            item['ServerSelectionTags'] = selection_tags
+            item['SourceServerIds'] = []  # Ensure empty
+        elif has_servers:
+            item['SourceServerIds'] = source_server_ids
+            item['ServerSelectionTags'] = {}  # Ensure empty
+        
+        print(f"Creating Protection Group: {group_id}")
         
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
@@ -821,7 +1041,6 @@ def create_protection_group(body: Dict) -> Dict:
         # Transform to camelCase for frontend
         response_item = transform_pg_to_camelcase(item)
         
-        print(f"Created Protection Group: {group_id} with {len(server_ids)} servers")
         return response(201, response_item)
         
     except Exception as e:
@@ -837,27 +1056,15 @@ def get_protection_groups() -> Dict:
         result = protection_groups_table.scan()
         groups = result.get('Items', [])
         
-        # Transform to camelCase and enrich with current DRS source server status
-        camelcase_groups = []
-        for group in groups:
-            # Only enrich if AccountId is present
-            if group.get('AccountId') and group.get('SourceServerIds'):
-                try:
-                    server_details = get_drs_source_server_details(
-                        group['AccountId'],
-                        group['Region'],
-                        group['SourceServerIds']
-                    )
-                    group['ServerDetails'] = server_details
-                except Exception as e:
-                    print(f"Error enriching group {group['GroupId']}: {str(e)}")
-                    group['ServerDetails'] = []
-            else:
-                # Skip enrichment if AccountId is missing
-                group['ServerDetails'] = []
-            
-            # Transform to camelCase
-            camelcase_groups.append(transform_pg_to_camelcase(group))
+        # Handle pagination
+        while 'LastEvaluatedKey' in result:
+            result = protection_groups_table.scan(
+                ExclusiveStartKey=result['LastEvaluatedKey']
+            )
+            groups.extend(result.get('Items', []))
+        
+        # Transform to camelCase (no server enrichment - tags are resolved at execution time)
+        camelcase_groups = [transform_pg_to_camelcase(group) for group in groups]
         
         return response(200, {'groups': camelcase_groups, 'count': len(camelcase_groups)})
         
@@ -876,19 +1083,7 @@ def get_protection_group(group_id: str) -> Dict:
         
         group = result['Item']
         
-        # Enrich with DRS source server details
-        try:
-            server_details = get_drs_source_server_details(
-                group['AccountId'],
-                group['Region'],
-                group['SourceServerIds']
-            )
-            group['ServerDetails'] = server_details
-        except Exception as e:
-            print(f"Error enriching group: {str(e)}")
-            group['ServerDetails'] = []
-        
-        # Transform to camelCase
+        # Transform to camelCase (no server enrichment - use /resolve endpoint for that)
         camelcase_group = transform_pg_to_camelcase(group)
         
         return response(200, camelcase_group)
@@ -929,24 +1124,40 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     'message': f'A Protection Group named "{body["GroupName"]}" already exists'
                 })
         
-        # If updating server list, validate they exist in DRS first
-        if 'sourceServerIds' in body:
-            # NEW: Validate servers exist in DRS
-            invalid_servers = validate_servers_exist_in_drs(existing_group['Region'], body['sourceServerIds'])
-            if invalid_servers:
+        # Validate tags if provided
+        if 'ServerSelectionTags' in body:
+            selection_tags = body['ServerSelectionTags']
+            if not isinstance(selection_tags, dict) or len(selection_tags) == 0:
                 return response(400, {
-                    'error': 'INVALID_SERVER_IDS',
-                    'message': f'{len(invalid_servers)} server ID(s) do not exist in DRS',
-                    'invalidServers': invalid_servers,
-                    'region': existing_group['Region']
+                    'error': 'INVALID_TAGS',
+                    'message': 'ServerSelectionTags must be a non-empty object with tag key-value pairs'
                 })
             
-            # Then validate assignments
-            conflicts = validate_server_assignments(body['sourceServerIds'], current_pg_id=group_id)
+            # Check for tag conflicts with other PGs (excluding this one)
+            region = existing_group.get('Region', '')
+            tag_conflicts = check_tag_conflicts_for_update(selection_tags, region, group_id)
+            if tag_conflicts:
+                return response(409, {
+                    'error': 'TAG_CONFLICT',
+                    'message': 'Another Protection Group already uses these exact tags',
+                    'conflicts': tag_conflicts
+                })
+        
+        # Validate server IDs if provided
+        if 'SourceServerIds' in body:
+            source_server_ids = body['SourceServerIds']
+            if not isinstance(source_server_ids, list) or len(source_server_ids) == 0:
+                return response(400, {
+                    'error': 'INVALID_SERVERS',
+                    'message': 'SourceServerIds must be a non-empty array'
+                })
+            
+            # Check for conflicts with other PGs (excluding this one)
+            conflicts = check_server_conflicts_for_update(source_server_ids, group_id)
             if conflicts:
                 return response(409, {
-                    'error': 'SERVER_ASSIGNMENT_CONFLICT',
-                    'message': 'Some servers are already assigned to other Protection Groups',
+                    'error': 'SERVER_CONFLICT',
+                    'message': 'One or more servers are already assigned to another Protection Group',
                     'conflicts': conflicts
                 })
         
@@ -964,13 +1175,21 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             expression_values[':desc'] = body['Description']
             expression_names['#desc'] = 'Description'
         
-        if 'sourceServerIds' in body:
-            update_expression += ", SourceServerIds = :servers"
-            expression_values[':servers'] = body['sourceServerIds']
+        # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
+        # When one is set, clear the other
+        if 'ServerSelectionTags' in body:
+            update_expression += ", ServerSelectionTags = :tags"
+            expression_values[':tags'] = body['ServerSelectionTags']
+            # Clear SourceServerIds when using tags
+            update_expression += ", SourceServerIds = :empty_servers"
+            expression_values[':empty_servers'] = []
         
-        # Legacy support for Tags (if present, ignore - new schema doesn't use them)
-        if 'Tags' in body:
-            print(f"Warning: Tags field ignored in update (legacy field)")
+        if 'SourceServerIds' in body:
+            update_expression += ", SourceServerIds = :servers"
+            expression_values[':servers'] = body['SourceServerIds']
+            # Clear ServerSelectionTags when using explicit servers
+            update_expression += ", ServerSelectionTags = :empty_tags"
+            expression_values[':empty_tags'] = {}
         
         # Update item
         update_args = {
@@ -985,8 +1204,11 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         
         result = protection_groups_table.update_item(**update_args)
         
+        # Transform to camelCase for frontend
+        response_item = transform_pg_to_camelcase(result['Attributes'])
+        
         print(f"Updated Protection Group: {group_id}")
-        return response(200, result['Attributes'])
+        return response(200, response_item)
         
     except Exception as e:
         print(f"Error updating Protection Group: {str(e)}")
@@ -3459,6 +3681,9 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             }
             display_state = state_mapping.get(rep_state, rep_state)
             
+            # Extract DRS tags (for tag-based selection)
+            drs_tags = item.get('tags', {})
+            
             servers.append({
                 'sourceServerID': server_id,
                 'hostname': hostname,
@@ -3472,36 +3697,45 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
                 'replicationState': rep_state,
                 'lagDuration': lag_duration,
                 'lastSeen': lifecycle.get('lastSeenByServiceDateTime', ''),
+                'drsTags': drs_tags,  # DRS resource tags for tag-based selection
                 'assignedToProtectionGroup': None,  # Will be populated below
                 'selectable': True  # Will be updated below
             })
         
-        # 2b. Fetch Name tags from source EC2 instances
-        ec2_name_tags = {}
+        # 2b. Fetch ALL tags from source EC2 instances (for tag-based selection)
+        ec2_tags_map = {}  # instance_id -> {tag_key: tag_value}
         if source_instance_ids:
             try:
                 ec2_client = boto3.client('ec2', region_name=region)
-                ec2_response = ec2_client.describe_instances(InstanceIds=source_instance_ids)
-                for reservation in ec2_response.get('Reservations', []):
-                    for instance in reservation.get('Instances', []):
-                        instance_id = instance.get('InstanceId', '')
-                        for tag in instance.get('Tags', []):
-                            if tag.get('Key') == 'Name':
-                                ec2_name_tags[instance_id] = tag.get('Value', '')
-                                break
+                # Batch in groups of 200
+                for i in range(0, len(source_instance_ids), 200):
+                    batch = source_instance_ids[i:i+200]
+                    ec2_response = ec2_client.describe_instances(InstanceIds=batch)
+                    for reservation in ec2_response.get('Reservations', []):
+                        for instance in reservation.get('Instances', []):
+                            instance_id = instance.get('InstanceId', '')
+                            # Convert tag list to dict
+                            tags_dict = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+                            ec2_tags_map[instance_id] = tags_dict
             except Exception as e:
                 print(f"Warning: Could not fetch EC2 tags: {str(e)}")
         
-        # Update servers with EC2 Name tags
+        # Update servers with EC2 tags (Name tag and all other tags for filtering)
         for server in servers:
-            if server['sourceInstanceId'] in ec2_name_tags:
-                server['nameTag'] = ec2_name_tags[server['sourceInstanceId']]
+            instance_id = server['sourceInstanceId']
+            if instance_id in ec2_tags_map:
+                ec2_tags = ec2_tags_map[instance_id]
+                server['nameTag'] = ec2_tags.get('Name', '')
+                # Replace drsTags with EC2 instance tags for tag-based selection
+                server['drsTags'] = ec2_tags
         
         # 3. Query ALL Protection Groups to build assignment map
         # Exclude current PG if editing (allows deselection)
         pg_response = protection_groups_table.scan()
         
         assignment_map = {}
+        tag_based_pgs = []  # Track tag-based PGs for later matching
+        
         for pg in pg_response.get('Items', []):
             pg_id = pg.get('GroupId') or pg.get('protectionGroupId')
             
@@ -3511,19 +3745,53 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             
             pg_name = pg.get('GroupName') or pg.get('name')
             pg_servers = pg.get('SourceServerIds') or pg.get('sourceServerIds', [])
+            pg_tags = pg.get('ServerSelectionTags', {})
             
+            # Track explicit server assignments
             for server_id in pg_servers:
                 assignment_map[server_id] = {
                     'protectionGroupId': pg_id,
-                    'protectionGroupName': pg_name
+                    'protectionGroupName': pg_name,
+                    'assignmentType': 'explicit'
                 }
+            
+            # Track tag-based PGs for matching
+            if pg_tags:
+                tag_based_pgs.append({
+                    'id': pg_id,
+                    'name': pg_name,
+                    'tags': pg_tags
+                })
         
-        # 4. Update servers with assignment info
+        # 4. Update servers with assignment info (explicit + tag-based)
         for server in servers:
             server_id = server['sourceServerID']
+            
+            # Check explicit assignment first
             if server_id in assignment_map:
                 server['assignedToProtectionGroup'] = assignment_map[server_id]
                 server['selectable'] = False
+                continue
+            
+            # Check tag-based assignments
+            server_ec2_tags = server.get('drsTags', {})
+            for tag_pg in tag_based_pgs:
+                pg_tags = tag_pg['tags']
+                # Check if server matches ALL tags (AND logic)
+                matches_all = True
+                for tag_key, tag_value in pg_tags.items():
+                    if server_ec2_tags.get(tag_key) != tag_value:
+                        matches_all = False
+                        break
+                
+                if matches_all:
+                    server['assignedToProtectionGroup'] = {
+                        'protectionGroupId': tag_pg['id'],
+                        'protectionGroupName': tag_pg['name'],
+                        'assignmentType': 'tag-based'
+                    }
+                    server['selectable'] = False
+                    break  # First matching tag-based PG wins
         
         # 5. Return enhanced server list
         return response(200, {
@@ -3547,14 +3815,16 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
 
 def get_protection_group_servers(pg_id: str, region: str) -> Dict:
     """
-    Get servers that belong to a specific Protection Group
+    Get servers that belong to a specific Protection Group.
+    
+    For tag-based Protection Groups, this resolves the tags to actual servers.
     
     Args:
     - pg_id: Protection Group ID
     - region: AWS region
     
     Returns:
-    - Response with servers from the Protection Group
+    - Response with servers from the Protection Group (resolved from tags)
     """
     print(f"Getting servers for Protection Group: {pg_id}")
     
@@ -3569,6 +3839,74 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
             })
         
         pg = result['Item']
+        selection_tags = pg.get('ServerSelectionTags', {})
+        
+        if not selection_tags:
+            return response(200, {
+                'region': region,
+                'protectionGroupId': pg_id,
+                'protectionGroupName': pg.get('GroupName'),
+                'initialized': True,
+                'servers': [],
+                'totalCount': 0,
+                'message': 'No server selection tags defined'
+            })
+        
+        # 2. Resolve servers by tags
+        resolved_servers = query_drs_servers_by_tags(region, selection_tags)
+        
+        if not resolved_servers:
+            return response(200, {
+                'region': region,
+                'protectionGroupId': pg_id,
+                'protectionGroupName': pg.get('GroupName'),
+                'initialized': True,
+                'servers': [],
+                'totalCount': 0,
+                'tags': selection_tags,
+                'message': 'No servers match the specified tags'
+            })
+        
+        # Return resolved servers
+        return response(200, {
+            'region': region,
+            'protectionGroupId': pg_id,
+            'protectionGroupName': pg.get('GroupName'),
+            'initialized': True,
+            'servers': resolved_servers,
+            'totalCount': len(resolved_servers),
+            'tags': selection_tags,
+            'resolvedAt': int(time.time())
+        })
+        
+    except Exception as e:
+        print(f"Error getting Protection Group servers: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'INTERNAL_ERROR',
+            'message': f'Failed to get Protection Group servers: {str(e)}'
+        })
+
+
+def get_protection_group_servers_legacy(pg_id: str, region: str) -> Dict:
+    """
+    LEGACY: Get servers by explicit IDs (kept for backward compatibility).
+    This function is deprecated - use tag-based resolution instead.
+    """
+    print(f"[LEGACY] Getting servers for Protection Group: {pg_id}")
+    
+    try:
+        result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+        
+        if 'Item' not in result:
+            return response(404, {
+                'error': 'PROTECTION_GROUP_NOT_FOUND',
+                'message': f'Protection Group {pg_id} not found'
+            })
+        
+        pg = result['Item']
+        # Legacy: check for old SourceServerIds field
         pg_server_ids = pg.get('SourceServerIds', [])
         
         if not pg_server_ids:
@@ -3581,7 +3919,6 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
                 'totalCount': 0
             })
         
-        # 2. Query DRS for these specific servers
         drs_client = boto3.client('drs', region_name=region)
         
         try:
@@ -3800,6 +4137,147 @@ def validate_unique_rp_name(name: str, current_rp_id: Optional[str] = None) -> b
 # Helper Functions
 # ============================================================================
 
+def check_server_conflicts_for_create(server_ids: List[str]) -> List[Dict]:
+    """Check if any servers are already assigned to other Protection Groups"""
+    conflicts = []
+    
+    # Scan all PGs
+    pg_response = protection_groups_table.scan()
+    all_pgs = pg_response.get('Items', [])
+    
+    while 'LastEvaluatedKey' in pg_response:
+        pg_response = protection_groups_table.scan(
+            ExclusiveStartKey=pg_response['LastEvaluatedKey']
+        )
+        all_pgs.extend(pg_response.get('Items', []))
+    
+    for pg in all_pgs:
+        existing_servers = pg.get('SourceServerIds', [])
+        if not existing_servers:
+            continue
+        
+        for server_id in server_ids:
+            if server_id in existing_servers:
+                conflicts.append({
+                    'serverId': server_id,
+                    'protectionGroupId': pg.get('GroupId'),
+                    'protectionGroupName': pg.get('GroupName')
+                })
+    
+    return conflicts
+
+
+def check_server_conflicts_for_update(server_ids: List[str], current_pg_id: str) -> List[Dict]:
+    """Check if any servers are already assigned to other Protection Groups (excluding current)"""
+    conflicts = []
+    
+    # Scan all PGs
+    pg_response = protection_groups_table.scan()
+    all_pgs = pg_response.get('Items', [])
+    
+    while 'LastEvaluatedKey' in pg_response:
+        pg_response = protection_groups_table.scan(
+            ExclusiveStartKey=pg_response['LastEvaluatedKey']
+        )
+        all_pgs.extend(pg_response.get('Items', []))
+    
+    for pg in all_pgs:
+        # Skip current PG
+        if pg.get('GroupId') == current_pg_id:
+            continue
+        
+        existing_servers = pg.get('SourceServerIds', [])
+        if not existing_servers:
+            continue
+        
+        for server_id in server_ids:
+            if server_id in existing_servers:
+                conflicts.append({
+                    'serverId': server_id,
+                    'protectionGroupId': pg.get('GroupId'),
+                    'protectionGroupName': pg.get('GroupName')
+                })
+    
+    return conflicts
+
+
+def check_tag_conflicts_for_create(tags: Dict[str, str], region: str) -> List[Dict]:
+    """
+    Check if the specified tags would conflict with existing tag-based Protection Groups.
+    A conflict occurs if another PG has the EXACT SAME tags (all keys and values match).
+    """
+    if not tags:
+        return []
+    
+    conflicts = []
+    
+    # Scan all PGs
+    pg_response = protection_groups_table.scan()
+    all_pgs = pg_response.get('Items', [])
+    
+    while 'LastEvaluatedKey' in pg_response:
+        pg_response = protection_groups_table.scan(
+            ExclusiveStartKey=pg_response['LastEvaluatedKey']
+        )
+        all_pgs.extend(pg_response.get('Items', []))
+    
+    for pg in all_pgs:
+        existing_tags = pg.get('ServerSelectionTags', {})
+        if not existing_tags:
+            continue
+        
+        # Check if tags are identical (exact match)
+        if existing_tags == tags:
+            conflicts.append({
+                'protectionGroupId': pg.get('GroupId'),
+                'protectionGroupName': pg.get('GroupName'),
+                'conflictingTags': existing_tags,
+                'conflictType': 'exact_match'
+            })
+    
+    return conflicts
+
+
+def check_tag_conflicts_for_update(tags: Dict[str, str], region: str, current_pg_id: str) -> List[Dict]:
+    """
+    Check if the specified tags would conflict with existing tag-based Protection Groups (excluding current).
+    """
+    if not tags:
+        return []
+    
+    conflicts = []
+    
+    # Scan all PGs
+    pg_response = protection_groups_table.scan()
+    all_pgs = pg_response.get('Items', [])
+    
+    while 'LastEvaluatedKey' in pg_response:
+        pg_response = protection_groups_table.scan(
+            ExclusiveStartKey=pg_response['LastEvaluatedKey']
+        )
+        all_pgs.extend(pg_response.get('Items', []))
+    
+    for pg in all_pgs:
+        # Skip current PG
+        if pg.get('GroupId') == current_pg_id:
+            continue
+        
+        existing_tags = pg.get('ServerSelectionTags', {})
+        if not existing_tags:
+            continue
+        
+        # Check if tags are identical (exact match)
+        if existing_tags == tags:
+            conflicts.append({
+                'protectionGroupId': pg.get('GroupId'),
+                'protectionGroupName': pg.get('GroupName'),
+                'conflictingTags': existing_tags,
+                'conflictType': 'exact_match'
+            })
+    
+    return conflicts
+
+
 def transform_pg_to_camelcase(pg: Dict) -> Dict:
     """Transform Protection Group from DynamoDB PascalCase to frontend camelCase"""
     # Convert timestamps from seconds to milliseconds for JavaScript Date()
@@ -3807,16 +4285,19 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
     updated_at = pg.get('LastModifiedDate')
     
     return {
+        'id': pg.get('GroupId'),
         'protectionGroupId': pg.get('GroupId'),
         'name': pg.get('GroupName'),
         'description': pg.get('Description', ''),
         'region': pg.get('Region'),
-        'sourceServerIds': pg.get('SourceServerIds', []),
+        'serverSelectionTags': pg.get('ServerSelectionTags', {}),
+        'sourceServerIds': pg.get('SourceServerIds', []),  # Legacy explicit server selection
         'accountId': pg.get('AccountId', ''),
         'owner': pg.get('Owner', ''),
         'createdAt': int(created_at * 1000) if created_at else None,
         'updatedAt': int(updated_at * 1000) if updated_at else None,
-        'serverDetails': pg.get('ServerDetails', [])
+        'resolvedServers': pg.get('ResolvedServers', []),
+        'resolvedServerCount': pg.get('ResolvedServerCount', 0)
     }
 
 

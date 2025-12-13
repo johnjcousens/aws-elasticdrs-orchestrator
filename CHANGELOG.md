@@ -4,6 +4,32 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+### December 12, 2025
+
+**Tag-Based Protection Groups** - EC2 Instance Tag Resolution
+
+- Protection Groups now support tag-based server selection as an alternative to explicit server selection
+- Tags are resolved against EC2 instance tags (not DRS resource tags) for accurate filtering
+- Tag-based and explicit server selection are mutually exclusive - switching modes clears the other
+- Added tag conflict prevention: cannot create two Protection Groups with identical tags
+- Servers matching another Protection Group's tags are grayed out in the UI with "tag-based" assignment indicator
+- Backend validates tag conflicts on create/update with `TAG_CONFLICT` error code
+
+**Enhanced Orchestration State Object for Parent Step Function Integration**
+
+- Added comprehensive state object fields for downstream Step Function integration:
+  - `plan_name`, `total_waves`, `completed_waves`, `failed_waves` - execution summary
+  - `status_reason`, `error_code` - failure details for error handling
+  - `recovery_instance_ids`, `recovery_instance_ips` - EC2 instance data for downstream tasks
+  - `start_time`, `end_time`, `duration_seconds` - SLA tracking metrics
+- Enables parent Step Functions to chain additional automation after DR execution
+
+**UI Improvements**
+
+- Expanded Recovery Plan ID column from 180px to 340px to show full UUID
+- Copy button positioned to right of Plan ID with no word wrap
+- Fixed recurring duplicate import issue in InvocationSourceBadge.tsx
+
 ### December 10, 2025
 
 **Steering Documents & Workflow Automation** - `356056d`

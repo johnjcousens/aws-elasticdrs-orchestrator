@@ -14,19 +14,36 @@ export interface ProtectionGroup {
   name: string;
   description?: string;
   region: string;
-  sourceServerIds: string[];
+  
+  // Tag-based server selection - servers matching ALL tags are included at execution time
+  serverSelectionTags?: Record<string, string>;
+  
+  // Legacy: Explicit server IDs (for backward compatibility with existing PGs)
+  sourceServerIds?: string[];
+  
   createdAt: number;
   updatedAt: number;
   accountId?: string;
   owner?: string;
-  serverDetails?: any[];
+  
+  // Resolved servers (populated by /resolve endpoint or at execution time)
+  resolvedServers?: ResolvedServer[];
+  resolvedServerCount?: number;
+}
+
+// Server resolved from tag-based Protection Group
+export interface ResolvedServer {
+  sourceServerId: string;
+  hostname: string;
+  replicationState: string;
+  tags: Record<string, string>;
 }
 
 export interface CreateProtectionGroupRequest {
   GroupName: string;  // API expects PascalCase
   Description?: string;
   Region: string;
-  sourceServerIds: string[];
+  ServerSelectionTags: Record<string, string>;  // Required - tag filters for server discovery
   AccountId?: string;
   Owner?: string;
 }
@@ -34,7 +51,7 @@ export interface CreateProtectionGroupRequest {
 export interface UpdateProtectionGroupRequest {
   GroupName?: string;  // API expects PascalCase
   Description?: string;
-  sourceServerIds?: string[];
+  ServerSelectionTags?: Record<string, string>;  // Update tag filters
 }
 
 // ============================================================================
@@ -241,6 +258,23 @@ export interface ExecuteRecoveryPlanRequest {
   topicArn?: string;    // Added for backend SNS notifications
 }
 
+// Invocation source types for unified orchestration
+export type InvocationSource = 'UI' | 'CLI' | 'SSM' | 'STEPFUNCTIONS' | 'API';
+
+export interface InvocationDetails {
+  userEmail?: string;
+  userId?: string;
+  scheduleRuleName?: string;
+  scheduleExpression?: string;
+  ssmDocumentName?: string;
+  ssmExecutionId?: string;
+  parentStepFunctionArn?: string;
+  parentExecutionId?: string;
+  apiKeyId?: string;
+  correlationId?: string;
+  iamUser?: string;
+}
+
 export interface ExecutionListItem {
   executionId: string;
   recoveryPlanId: string;
@@ -252,6 +286,11 @@ export interface ExecutionListItem {
   currentWave?: number;
   totalWaves: number;
   executedBy?: string;
+  
+  // Unified orchestration fields
+  invocationSource?: InvocationSource;
+  invocationDetails?: InvocationDetails;
+  initiatedBy?: string;
 }
 
 // ============================================================================

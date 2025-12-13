@@ -24,6 +24,7 @@ interface DRSServer {
   state: string;
   replicationState: string;
   lagDuration: string;
+  drsTags?: Record<string, string>;
   assignedToProtectionGroup?: {
     protectionGroupId: string;
     protectionGroupName: string;
