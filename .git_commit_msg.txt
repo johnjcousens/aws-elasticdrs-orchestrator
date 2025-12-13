@@ -1,0 +1,32 @@
+feat(backend): EC2 Launch Template Configuration - Backend Complete
+
+Added EC2 launch settings management for Protection Groups:
+
+API Endpoints:
+- GET /ec2/subnets?region={region} - List VPC subnets
+- GET /ec2/security-groups?region={region} - List security groups  
+- GET /ec2/instance-profiles?region={region} - List IAM instance profiles
+- GET /ec2/instance-types?region={region} - List EC2 instance types
+
+Backend Implementation:
+- apply_launch_config_to_servers() updates EC2 launch templates and DRS settings
+- Protection Groups support LaunchConfig field (SubnetId, SecurityGroupIds, 
+  InstanceType, InstanceProfileName, CopyPrivateIp, CopyTags)
+- Tag-based server resolution via EC2 instance tags (awsInstanceID from DRS)
+- Fixed: DRS update_launch_configuration called before EC2 template updates
+  to prevent DRS from overwriting our InstanceType changes
+
+IAM Permissions Added:
+- ec2:CreateLaunchTemplateVersion
+- ec2:ModifyLaunchTemplate  
+- ec2:DescribeLaunchTemplates
+- ec2:DescribeLaunchTemplateVersions
+
+Files Changed:
+- lambda/index.py - EC2 endpoints and apply_launch_config_to_servers()
+- cfn/api-stack.yaml - API Gateway routes for EC2 endpoints
+- cfn/lambda-stack.yaml - IAM permissions for EC2 launch templates
+- README.md - Documentation for new endpoints
+- CHANGELOG.md - Release notes
+
+Next: Frontend implementation (LaunchConfigSection component)

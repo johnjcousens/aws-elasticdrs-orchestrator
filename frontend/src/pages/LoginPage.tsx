@@ -9,7 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { SpaceBetween, FormField, Alert, Link } from '@cloudscape-design/components';
+import { SpaceBetween, Alert, Link } from '@cloudscape-design/components';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -137,7 +137,12 @@ export const LoginPage: React.FC = () => {
               Sign in
             </h1>
 
-            <form onSubmit={handleSubmit}>
+            <form 
+              onSubmit={handleSubmit}
+              method="post"
+              action="#"
+              autoComplete="on"
+            >
               <SpaceBetween direction="vertical" size="l">
                 {error && (
                   <Alert type="error" dismissible onDismiss={() => setError(null)}>
@@ -145,9 +150,14 @@ export const LoginPage: React.FC = () => {
                   </Alert>
                 )}
 
-                <FormField label="Username or email">
+                <div>
+                  <label htmlFor="login-username" style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600, color: '#16191f' }}>
+                    Username or email
+                  </label>
                   <input
-                    type="text"
+                    id="login-username"
+                    name="username"
+                    type="email"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     style={inputStyle}
@@ -156,10 +166,15 @@ export const LoginPage: React.FC = () => {
                     autoComplete="username"
                     autoFocus
                   />
-                </FormField>
+                </div>
 
-                <FormField label="Password">
+                <div>
+                  <label htmlFor="login-password" style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600, color: '#16191f' }}>
+                    Password
+                  </label>
                   <input
+                    id="login-password"
+                    name="password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -167,8 +182,9 @@ export const LoginPage: React.FC = () => {
                     placeholder="Enter your password"
                     required
                     autoComplete="current-password"
+                    data-lpignore="false"
                   />
-                </FormField>
+                </div>
 
                 <button type="submit" style={buttonStyle} disabled={loading}>
                   {loading ? 'Signing in...' : 'Sign in'}

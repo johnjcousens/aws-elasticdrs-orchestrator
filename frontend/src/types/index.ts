@@ -21,6 +21,9 @@ export interface ProtectionGroup {
   // Legacy: Explicit server IDs (for backward compatibility with existing PGs)
   sourceServerIds?: string[];
   
+  // EC2 Launch Configuration - applied to all servers in this group
+  launchConfig?: LaunchConfig;
+  
   createdAt: number;
   updatedAt: number;
   accountId?: string;
@@ -34,11 +37,74 @@ export interface ProtectionGroup {
   version?: number;
 }
 
+// ============================================================================
+// EC2 Launch Configuration Types
+// ============================================================================
+
+export interface LaunchConfig {
+  // EC2 Launch Template settings
+  SubnetId?: string;
+  SecurityGroupIds?: string[];
+  InstanceProfileName?: string;
+  InstanceType?: string;
+  
+  // DRS Launch Configuration settings
+  TargetInstanceTypeRightSizingMethod?: 'NONE' | 'BASIC' | 'IN_AWS';
+  LaunchIntoInstanceProperties?: {
+    launchIntoEC2InstanceID?: string;
+  };
+  BootMode?: 'LEGACY_BIOS' | 'UEFI' | 'USE_SOURCE';
+  CopyPrivateIp?: boolean;
+  CopyTags?: boolean;
+  LaunchDisposition?: 'STOPPED' | 'STARTED';
+  Licensing?: {
+    osByol?: boolean;
+  };
+  PostLaunchEnabled?: boolean;
+}
+
+// EC2 Dropdown option types
+export interface SubnetOption {
+  value: string;
+  label: string;
+  vpcId: string;
+  az: string;
+  cidr: string;
+}
+
+export interface SecurityGroupOption {
+  value: string;
+  label: string;
+  name: string;
+  vpcId: string;
+  description: string;
+}
+
+export interface InstanceProfileOption {
+  value: string;
+  label: string;
+  arn: string;
+}
+
+export interface InstanceTypeOption {
+  value: string;
+  label: string;
+  vcpus: number;
+  memoryGb: number;
+}
+
 // Server resolved from tag-based Protection Group
 export interface ResolvedServer {
   sourceServerId: string;
   hostname: string;
+  nameTag?: string;
+  sourceInstanceId?: string;
+  sourceIp?: string;
+  sourceRegion?: string;
+  sourceAccount?: string;
+  state?: string;
   replicationState: string;
+  lagDuration?: string;
   tags: Record<string, string>;
 }
 
@@ -46,7 +112,9 @@ export interface CreateProtectionGroupRequest {
   GroupName: string;  // API expects PascalCase
   Description?: string;
   Region: string;
-  ServerSelectionTags: Record<string, string>;  // Required - tag filters for server discovery
+  ServerSelectionTags?: Record<string, string>;  // Tag filters for server discovery
+  SourceServerIds?: string[];  // Explicit server IDs (legacy)
+  LaunchConfig?: LaunchConfig;  // EC2 launch settings
   AccountId?: string;
   Owner?: string;
 }
@@ -55,6 +123,8 @@ export interface UpdateProtectionGroupRequest {
   GroupName?: string;  // API expects PascalCase
   Description?: string;
   ServerSelectionTags?: Record<string, string>;  // Update tag filters
+  SourceServerIds?: string[];  // Explicit server IDs (legacy)
+  LaunchConfig?: LaunchConfig;  // EC2 launch settings
   version?: number;  // Optimistic locking - must match current version
 }
 

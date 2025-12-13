@@ -772,6 +772,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return handle_drs_source_servers(query_parameters)
         elif path.startswith('/drs/quotas'):
             return handle_drs_quotas(query_parameters)
+        elif path.startswith('/ec2/'):
+            return handle_ec2_resources(path, query_parameters)
         else:
             return response(404, {'error': 'Not Found', 'path': path})
             
@@ -855,6 +857,7 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
     Uses AND logic - source EC2 instance must have all tags to be included.
     
     This queries the EC2 instance tags (rich tagging), not DRS resource tags.
+    Returns full server details matching the dynamic server discovery format.
     """
     try:
         regional_drs = boto3.client('drs', region_name=region)
@@ -870,7 +873,7 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
         if not all_servers:
             return []
         
-        # Build map of instance_id -> server info
+        # Build map of instance_id -> full server info
         instance_to_server = {}
         instance_ids = []
         
@@ -878,14 +881,53 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
             source_props = server.get('sourceProperties', {})
             ident_hints = source_props.get('identificationHints', {})
             instance_id = ident_hints.get('awsInstanceID', '')
+            hostname = ident_hints.get('hostname', 'Unknown')
+            
+            # Extract source IP
+            network_interfaces = source_props.get('networkInterfaces', [])
+            source_ip = ''
+            if network_interfaces:
+                ips = network_interfaces[0].get('ips', [])
+                if ips:
+                    source_ip = ips[0]
+            
+            # Extract source region/account from sourceCloudProperties
+            source_cloud_props = server.get('sourceCloudProperties', {})
+            source_region = source_cloud_props.get('originRegion', '')
+            source_account = source_cloud_props.get('originAccountID', '')
+            
+            # Extract replication info
+            data_rep_info = server.get('dataReplicationInfo', {})
+            rep_state = data_rep_info.get('dataReplicationState', 'UNKNOWN')
+            lag_duration = data_rep_info.get('lagDuration', 'UNKNOWN')
+            
+            # Map replication state to lifecycle state for display
+            state_mapping = {
+                'STOPPED': 'STOPPED',
+                'INITIATING': 'INITIATING',
+                'INITIAL_SYNC': 'SYNCING',
+                'BACKLOG': 'SYNCING',
+                'CREATING_SNAPSHOT': 'SYNCING',
+                'CONTINUOUS': 'READY_FOR_RECOVERY',
+                'PAUSED': 'PAUSED',
+                'RESCAN': 'SYNCING',
+                'STALLED': 'STALLED',
+                'DISCONNECTED': 'DISCONNECTED'
+            }
+            display_state = state_mapping.get(rep_state, rep_state)
             
             if instance_id:
                 instance_ids.append(instance_id)
                 instance_to_server[instance_id] = {
                     'sourceServerId': server.get('sourceServerID'),
-                    'hostname': ident_hints.get('hostname', 'Unknown'),
-                    'replicationState': server.get('dataReplicationInfo', {}).get('dataReplicationState', 'UNKNOWN'),
-                    'instanceId': instance_id
+                    'hostname': hostname,
+                    'sourceInstanceId': instance_id,
+                    'sourceIp': source_ip,
+                    'sourceRegion': source_region,
+                    'sourceAccount': source_account,
+                    'state': display_state,
+                    'replicationState': rep_state,
+                    'lagDuration': lag_duration
                 }
         
         if not instance_ids:
@@ -920,11 +962,19 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
                     break
             
             if matches_all:
+                # Return full server details matching dynamic UI format
                 matching_servers.append({
                     'sourceServerId': server_info['sourceServerId'],
                     'hostname': server_info['hostname'],
+                    'nameTag': ec2_tags.get('Name', ''),
+                    'sourceInstanceId': server_info['sourceInstanceId'],
+                    'sourceIp': server_info['sourceIp'],
+                    'sourceRegion': server_info['sourceRegion'],
+                    'sourceAccount': server_info['sourceAccount'],
+                    'state': server_info['state'],
                     'replicationState': server_info['replicationState'],
-                    'tags': ec2_tags  # Return EC2 instance tags
+                    'lagDuration': server_info['lagDuration'],
+                    'tags': ec2_tags  # All EC2 instance tags
                 })
         
         print(f"Found {len(matching_servers)} servers matching EC2 tags: {tags}")
@@ -1065,6 +1115,48 @@ def create_protection_group(body: Dict) -> Dict:
             item['SourceServerIds'] = source_server_ids
             item['ServerSelectionTags'] = {}  # Ensure empty
         
+        # Handle LaunchConfig if provided
+        launch_config_apply_results = None
+        if 'LaunchConfig' in body:
+            launch_config = body['LaunchConfig']
+            
+            # Validate LaunchConfig structure
+            if not isinstance(launch_config, dict):
+                return response(400, {'error': 'LaunchConfig must be an object', 'code': 'INVALID_LAUNCH_CONFIG'})
+            
+            # Validate SecurityGroupIds is array if present
+            if 'SecurityGroupIds' in launch_config:
+                if not isinstance(launch_config['SecurityGroupIds'], list):
+                    return response(400, {'error': 'SecurityGroupIds must be an array', 'code': 'INVALID_SECURITY_GROUPS'})
+            
+            # Get server IDs to apply settings to
+            server_ids_to_apply = source_server_ids if has_servers else []
+            
+            # If using tags, resolve servers first
+            if has_tags and not server_ids_to_apply:
+                resolved = query_drs_servers_by_tags(region, selection_tags)
+                server_ids_to_apply = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+            
+            # Apply LaunchConfig to DRS/EC2 immediately
+            if server_ids_to_apply and launch_config:
+                launch_config_apply_results = apply_launch_config_to_servers(
+                    server_ids_to_apply, launch_config, region,
+                    protection_group_id=group_id, protection_group_name=name
+                )
+                
+                # If any failed, return error (don't save partial state)
+                if launch_config_apply_results.get('failed', 0) > 0:
+                    failed_servers = [d for d in launch_config_apply_results.get('details', []) if d.get('status') == 'failed']
+                    return response(400, {
+                        'error': 'Failed to apply launch settings to some servers',
+                        'code': 'LAUNCH_CONFIG_APPLY_FAILED',
+                        'failedServers': failed_servers,
+                        'applyResults': launch_config_apply_results
+                    })
+            
+            # Store LaunchConfig in item
+            item['LaunchConfig'] = launch_config
+        
         print(f"Creating Protection Group: {group_id}")
         
         # Store in DynamoDB
@@ -1072,6 +1164,10 @@ def create_protection_group(body: Dict) -> Dict:
         
         # Transform to camelCase for frontend
         response_item = transform_pg_to_camelcase(item)
+        
+        # Include LaunchConfig apply results if applicable
+        if launch_config_apply_results:
+            response_item['launchConfigApplyResults'] = launch_config_apply_results
         
         return response(201, response_item)
         
@@ -1269,6 +1365,52 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             update_expression += ", ServerSelectionTags = :empty_tags"
             expression_values[':empty_tags'] = {}
         
+        # Handle LaunchConfig - EC2 launch settings for recovery instances
+        launch_config_apply_results = None
+        if 'LaunchConfig' in body:
+            launch_config = body['LaunchConfig']
+            
+            # Validate LaunchConfig structure
+            if not isinstance(launch_config, dict):
+                return response(400, {'error': 'LaunchConfig must be an object', 'code': 'INVALID_LAUNCH_CONFIG'})
+            
+            # Validate SecurityGroupIds is array if present
+            if 'SecurityGroupIds' in launch_config:
+                if not isinstance(launch_config['SecurityGroupIds'], list):
+                    return response(400, {'error': 'SecurityGroupIds must be an array', 'code': 'INVALID_SECURITY_GROUPS'})
+            
+            # Get server IDs to apply settings to
+            region = existing_group.get('Region')
+            server_ids = body.get('SourceServerIds', existing_group.get('SourceServerIds', []))
+            
+            # If using tags, resolve servers first
+            if not server_ids and existing_group.get('ServerSelectionTags'):
+                resolved = query_drs_servers_by_tags(region, existing_group['ServerSelectionTags'])
+                server_ids = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+            
+            # Apply LaunchConfig to DRS/EC2 immediately
+            if server_ids and launch_config:
+                # Get group name (use updated name if provided, else existing)
+                pg_name = body.get('GroupName', existing_group.get('GroupName', ''))
+                launch_config_apply_results = apply_launch_config_to_servers(
+                    server_ids, launch_config, region,
+                    protection_group_id=group_id, protection_group_name=pg_name
+                )
+                
+                # If any failed, return error (don't save partial state)
+                if launch_config_apply_results.get('failed', 0) > 0:
+                    failed_servers = [d for d in launch_config_apply_results.get('details', []) if d.get('status') == 'failed']
+                    return response(400, {
+                        'error': 'Failed to apply launch settings to some servers',
+                        'code': 'LAUNCH_CONFIG_APPLY_FAILED',
+                        'failedServers': failed_servers,
+                        'applyResults': launch_config_apply_results
+                    })
+            
+            # Store LaunchConfig in DynamoDB
+            update_expression += ", LaunchConfig = :launchConfig"
+            expression_values[':launchConfig'] = launch_config
+        
         # Update item with conditional write (optimistic locking)
         # Only succeeds if version hasn't changed since we read it
         update_args = {
@@ -1294,6 +1436,10 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         
         # Transform to camelCase for frontend
         response_item = transform_pg_to_camelcase(result['Attributes'])
+        
+        # Include LaunchConfig apply results if applicable
+        if launch_config_apply_results:
+            response_item['launchConfigApplyResults'] = launch_config_apply_results
         
         print(f"Updated Protection Group: {group_id}")
         return response(200, response_item)
@@ -4658,7 +4804,8 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
         'updatedAt': int(updated_at * 1000) if updated_at else None,
         'resolvedServers': pg.get('ResolvedServers', []),
         'resolvedServerCount': pg.get('ResolvedServerCount', 0),
-        'version': version  # Optimistic locking version
+        'version': version,  # Optimistic locking version
+        'launchConfig': pg.get('LaunchConfig')  # EC2 launch settings
     }
 
 
@@ -5116,4 +5263,302 @@ def handle_drs_quotas(query_params: Dict) -> Dict:
         print(f"Error getting DRS quotas: {e}")
         import traceback
         traceback.print_exc()
+        return response(500, {'error': str(e)})
+
+
+# ============================================================================
+# Launch Config Application Functions
+# ============================================================================
+
+def apply_launch_config_to_servers(server_ids: List[str], launch_config: Dict, region: str, 
+                                    protection_group_id: str = None, protection_group_name: str = None) -> Dict:
+    """Apply LaunchConfig to all servers' EC2 launch templates and DRS settings.
+    
+    Called immediately when Protection Group is saved.
+    Returns summary of results for each server.
+    
+    Args:
+        server_ids: List of DRS source server IDs
+        launch_config: Dict with SubnetId, SecurityGroupIds, InstanceProfileName, etc.
+        region: AWS region
+        protection_group_id: Optional PG ID for version tracking
+        protection_group_name: Optional PG name for version tracking
+    
+    Returns:
+        Dict with applied, skipped, failed counts and details array
+    """
+    if not launch_config or not server_ids:
+        return {'applied': 0, 'skipped': 0, 'failed': 0, 'details': []}
+    
+    regional_drs = boto3.client('drs', region_name=region)
+    ec2 = boto3.client('ec2', region_name=region)
+    
+    results = {'applied': 0, 'skipped': 0, 'failed': 0, 'details': []}
+    
+    for server_id in server_ids:
+        try:
+            # Get DRS launch configuration to find template ID
+            drs_config = regional_drs.get_launch_configuration(sourceServerID=server_id)
+            template_id = drs_config.get('ec2LaunchTemplateID')
+            
+            if not template_id:
+                results['skipped'] += 1
+                results['details'].append({
+                    'serverId': server_id,
+                    'status': 'skipped',
+                    'reason': 'No EC2 launch template found'
+                })
+                continue
+            
+            # Build EC2 template data for the new version
+            template_data = {}
+            
+            if launch_config.get('InstanceType'):
+                template_data['InstanceType'] = launch_config['InstanceType']
+            
+            # Network interface settings (subnet and security groups)
+            if launch_config.get('SubnetId') or launch_config.get('SecurityGroupIds'):
+                network_interface = {'DeviceIndex': 0}
+                if launch_config.get('SubnetId'):
+                    network_interface['SubnetId'] = launch_config['SubnetId']
+                if launch_config.get('SecurityGroupIds'):
+                    network_interface['Groups'] = launch_config['SecurityGroupIds']
+                template_data['NetworkInterfaces'] = [network_interface]
+            
+            if launch_config.get('InstanceProfileName'):
+                template_data['IamInstanceProfile'] = {'Name': launch_config['InstanceProfileName']}
+            
+            # IMPORTANT: Update DRS launch configuration FIRST
+            # DRS update_launch_configuration creates a new EC2 launch template version,
+            # so we must call it before our EC2 template updates to avoid being overwritten
+            drs_update = {'sourceServerID': server_id}
+            if 'CopyPrivateIp' in launch_config:
+                drs_update['copyPrivateIp'] = launch_config['CopyPrivateIp']
+            if 'CopyTags' in launch_config:
+                drs_update['copyTags'] = launch_config['CopyTags']
+            if 'Licensing' in launch_config:
+                drs_update['licensing'] = launch_config['Licensing']
+            if 'TargetInstanceTypeRightSizingMethod' in launch_config:
+                drs_update['targetInstanceTypeRightSizingMethod'] = launch_config['TargetInstanceTypeRightSizingMethod']
+            if 'LaunchDisposition' in launch_config:
+                drs_update['launchDisposition'] = launch_config['LaunchDisposition']
+            
+            if len(drs_update) > 1:  # More than just sourceServerID
+                regional_drs.update_launch_configuration(**drs_update)
+            
+            # THEN update EC2 launch template (after DRS, so our changes stick)
+            if template_data:
+                # Build detailed version description for tracking/reuse
+                from datetime import datetime
+                timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                desc_parts = [f'DRS Orchestration | {timestamp}']
+                if protection_group_name:
+                    desc_parts.append(f'PG: {protection_group_name}')
+                if protection_group_id:
+                    desc_parts.append(f'ID: {protection_group_id[:8]}')
+                # Add config details
+                config_details = []
+                if launch_config.get('InstanceType'):
+                    config_details.append(f"Type:{launch_config['InstanceType']}")
+                if launch_config.get('SubnetId'):
+                    config_details.append(f"Subnet:{launch_config['SubnetId'][-8:]}")
+                if launch_config.get('SecurityGroupIds'):
+                    sg_count = len(launch_config['SecurityGroupIds'])
+                    config_details.append(f"SGs:{sg_count}")
+                if launch_config.get('InstanceProfileName'):
+                    profile = launch_config['InstanceProfileName']
+                    # Truncate long profile names
+                    if len(profile) > 20:
+                        profile = profile[:17] + '...'
+                    config_details.append(f"Profile:{profile}")
+                if launch_config.get('CopyPrivateIp'):
+                    config_details.append('CopyIP')
+                if launch_config.get('CopyTags'):
+                    config_details.append('CopyTags')
+                if launch_config.get('TargetInstanceTypeRightSizingMethod'):
+                    config_details.append(f"RightSize:{launch_config['TargetInstanceTypeRightSizingMethod']}")
+                if launch_config.get('LaunchDisposition'):
+                    config_details.append(f"Launch:{launch_config['LaunchDisposition']}")
+                if config_details:
+                    desc_parts.append(' | '.join(config_details))
+                # EC2 version description max 255 chars
+                version_desc = ' | '.join(desc_parts)[:255]
+                
+                ec2.create_launch_template_version(
+                    LaunchTemplateId=template_id,
+                    LaunchTemplateData=template_data,
+                    VersionDescription=version_desc
+                )
+                ec2.modify_launch_template(
+                    LaunchTemplateId=template_id,
+                    DefaultVersion='$Latest'
+                )
+            
+            results['applied'] += 1
+            results['details'].append({
+                'serverId': server_id,
+                'status': 'applied',
+                'templateId': template_id
+            })
+            
+        except Exception as e:
+            print(f'Error applying LaunchConfig to {server_id}: {e}')
+            results['failed'] += 1
+            results['details'].append({
+                'serverId': server_id,
+                'status': 'failed',
+                'error': str(e)
+            })
+    
+    return results
+
+
+# ============================================================================
+# EC2 Resource Handlers (for Launch Config dropdowns)
+# ============================================================================
+
+def handle_ec2_resources(path: str, query_params: Dict) -> Dict:
+    """Route EC2 resource requests for Launch Config dropdowns"""
+    if path == '/ec2/subnets':
+        return get_ec2_subnets(query_params)
+    elif path == '/ec2/security-groups':
+        return get_ec2_security_groups(query_params)
+    elif path == '/ec2/instance-profiles':
+        return get_ec2_instance_profiles(query_params)
+    elif path == '/ec2/instance-types':
+        return get_ec2_instance_types(query_params)
+    else:
+        return response(404, {'error': 'Not Found', 'path': path})
+
+
+def get_ec2_subnets(query_params: Dict) -> Dict:
+    """Get VPC subnets for dropdown selection."""
+    region = query_params.get('region')
+    
+    if not region:
+        return response(400, {'error': 'region is required', 'code': 'MISSING_REGION'})
+    
+    try:
+        ec2 = boto3.client('ec2', region_name=region)
+        result = ec2.describe_subnets()
+        
+        subnets = []
+        for subnet in result['Subnets']:
+            name = next(
+                (t['Value'] for t in subnet.get('Tags', []) if t['Key'] == 'Name'),
+                None
+            )
+            label = f"{subnet['SubnetId']}"
+            if name:
+                label = f"{name} ({subnet['SubnetId']})"
+            label += f" - {subnet['CidrBlock']} - {subnet['AvailabilityZone']}"
+            
+            subnets.append({
+                'value': subnet['SubnetId'],
+                'label': label,
+                'vpcId': subnet['VpcId'],
+                'az': subnet['AvailabilityZone'],
+                'cidr': subnet['CidrBlock']
+            })
+        
+        subnets.sort(key=lambda x: x['label'])
+        return response(200, {'subnets': subnets})
+    except Exception as e:
+        print(f'Error getting subnets: {e}')
+        return response(500, {'error': str(e)})
+
+
+def get_ec2_security_groups(query_params: Dict) -> Dict:
+    """Get security groups for dropdown selection."""
+    region = query_params.get('region')
+    vpc_id = query_params.get('vpcId')  # Optional filter
+    
+    if not region:
+        return response(400, {'error': 'region is required', 'code': 'MISSING_REGION'})
+    
+    try:
+        ec2 = boto3.client('ec2', region_name=region)
+        filters = [{'Name': 'vpc-id', 'Values': [vpc_id]}] if vpc_id else []
+        result = ec2.describe_security_groups(Filters=filters) if filters else ec2.describe_security_groups()
+        
+        groups = []
+        for sg in result['SecurityGroups']:
+            label = f"{sg['GroupName']} ({sg['GroupId']})"
+            groups.append({
+                'value': sg['GroupId'],
+                'label': label,
+                'name': sg['GroupName'],
+                'vpcId': sg['VpcId'],
+                'description': sg.get('Description', '')[:100]
+            })
+        
+        groups.sort(key=lambda x: x['name'])
+        return response(200, {'securityGroups': groups})
+    except Exception as e:
+        print(f'Error getting security groups: {e}')
+        return response(500, {'error': str(e)})
+
+
+def get_ec2_instance_profiles(query_params: Dict) -> Dict:
+    """Get IAM instance profiles for dropdown selection."""
+    region = query_params.get('region')
+    
+    if not region:
+        return response(400, {'error': 'region is required', 'code': 'MISSING_REGION'})
+    
+    try:
+        # IAM is global but we accept region for consistency
+        iam = boto3.client('iam')
+        profiles = []
+        paginator = iam.get_paginator('list_instance_profiles')
+        
+        for page in paginator.paginate():
+            for profile in page['InstanceProfiles']:
+                profiles.append({
+                    'value': profile['InstanceProfileName'],
+                    'label': profile['InstanceProfileName'],
+                    'arn': profile['Arn']
+                })
+        
+        profiles.sort(key=lambda x: x['label'])
+        return response(200, {'instanceProfiles': profiles})
+    except Exception as e:
+        print(f'Error getting instance profiles: {e}')
+        return response(500, {'error': str(e)})
+
+
+def get_ec2_instance_types(query_params: Dict) -> Dict:
+    """Get common EC2 instance types for dropdown selection."""
+    region = query_params.get('region')
+    
+    if not region:
+        return response(400, {'error': 'region is required', 'code': 'MISSING_REGION'})
+    
+    try:
+        ec2 = boto3.client('ec2', region_name=region)
+        
+        # Filter to common families for DRS recovery
+        common_families = ['t3', 't3a', 'm5', 'm5a', 'm6i', 'r5', 'r5a', 'r6i', 'c5', 'c5a', 'c6i']
+        
+        types = []
+        paginator = ec2.get_paginator('describe_instance_types')
+        
+        for page in paginator.paginate(
+            Filters=[{'Name': 'instance-type', 'Values': [f'{f}.*' for f in common_families]}]
+        ):
+            for it in page['InstanceTypes']:
+                vcpus = it['VCpuInfo']['DefaultVCpus']
+                mem_gb = round(it['MemoryInfo']['SizeInMiB'] / 1024)
+                types.append({
+                    'value': it['InstanceType'],
+                    'label': f"{it['InstanceType']} ({vcpus} vCPU, {mem_gb} GB)",
+                    'vcpus': vcpus,
+                    'memoryGb': mem_gb
+                })
+        
+        # Sort by family then by vcpus
+        types.sort(key=lambda x: (x['value'].split('.')[0], x['vcpus']))
+        return response(200, {'instanceTypes': types})
+    except Exception as e:
+        print(f'Error getting instance types: {e}')
         return response(500, {'error': str(e)})

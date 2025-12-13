@@ -37,13 +37,15 @@ interface ServerDiscoveryPanelProps {
   selectedServerIds: string[];
   onSelectionChange: (serverIds: string[]) => void;
   currentProtectionGroupId?: string;
+  pauseRefresh?: boolean;  // Pause auto-refresh when user is configuring other settings
 }
 
 export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   region,
   selectedServerIds,
   onSelectionChange,
-  currentProtectionGroupId
+  currentProtectionGroupId,
+  pauseRefresh = false,
 }) => {
   const [servers, setServers] = useState<DRSServer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,16 +92,16 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     fetchServers();
   }, [fetchServers]);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 30 seconds (paused when user is configuring launch settings)
   useEffect(() => {
-    if (!region || !drsInitialized) return;
+    if (!region || !drsInitialized || pauseRefresh) return;
     
     const interval = setInterval(() => {
       fetchServers(true); // Silent refresh
     }, 30000);
     
     return () => clearInterval(interval);
-  }, [region, drsInitialized, fetchServers]);
+  }, [region, drsInitialized, fetchServers, pauseRefresh]);
 
   // Filter, search, and sort
   const filteredServers = servers

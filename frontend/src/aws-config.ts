@@ -75,12 +75,11 @@ export const awsConfig = new Proxy({} as typeof defaultConfig, {
   }
 });
 
-// Log which config is being used on first access
-if (window.AWS_CONFIG) {
-  console.log('Using CloudFormation-injected AWS configuration');
-  console.log('API Endpoint:', window.AWS_CONFIG.API.REST.DRSOrchestration.endpoint);
-  console.log('User Pool ID:', window.AWS_CONFIG.Auth.Cognito.userPoolId);
-} else {
-  console.warn('Using default AWS configuration - CloudFormation config not found');
-  console.warn('This is expected during local development');
+// Log config status only in development mode
+if (import.meta.env.DEV) {
+  if (window.AWS_CONFIG) {
+    console.log('✅ AWS Config loaded from CloudFormation');
+  } else {
+    console.log('⚠️ Using default AWS config (local dev)');
+  }
 }
