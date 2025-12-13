@@ -45,6 +45,14 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Loading State Management**: Prevents multiple button clicks during operations with visual feedback
 - **Execution History**: Complete audit trail of all recovery executions
 - **CloudWatch Integration**: Deep-link to CloudWatch Logs for troubleshooting
+- **Auto-Refresh**: All pages auto-refresh (30s for lists, 3-5s for active executions)
+
+### API & Integration
+
+- **Optimistic Locking**: Version-based concurrency control prevents conflicting updates
+- **Comprehensive Error Handling**: Standardized error codes (MISSING_FIELD, INVALID_NAME, VERSION_CONFLICT, etc.)
+- **Health Endpoint**: `/health` endpoint for monitoring and load balancer health checks
+- **51 API Tests**: Full test coverage for all API operations
 
 ## Architecture
 
@@ -383,6 +391,7 @@ If recovery jobs fail with `UnauthorizedOperation` errors, verify the Orchestrat
 | ----------------------------------------------------------------------- | --------------------------------------------- |
 | [Product Requirements](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD with features and specifications |
 | [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md)         | Step-by-step deployment instructions          |
+| [Orchestration Integration](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) | CLI, SSM, Step Functions, API integration     |
 | [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)  | System architecture and design decisions      |
 | [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md)                      | DRS API integration patterns                  |
 | [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md)              | Testing procedures and quality assurance      |

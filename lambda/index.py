@@ -751,7 +751,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return response(200, {'message': 'OK'})
         
         # Route to appropriate handler
-        if path.startswith('/protection-groups'):
+        if path == '/health':
+            return response(200, {'status': 'healthy', 'service': 'drs-orchestration-api'})
+        elif path.startswith('/protection-groups'):
             return handle_protection_groups(http_method, path_parameters, body)
         elif '/execute' in path and path.startswith('/recovery-plans'):
             # Handle /recovery-plans/{planId}/execute endpoint
@@ -966,13 +968,13 @@ def create_protection_group(body: Dict) -> Dict:
                 'field': 'GroupName'
             })
         
-        # Validate name length (1-256 characters)
-        if len(name.strip()) > 256:
+        # Validate name length (1-64 characters)
+        if len(name.strip()) > 64:
             return response(400, {
                 'error': 'INVALID_NAME',
-                'message': 'GroupName must be 256 characters or fewer',
+                'message': 'GroupName must be 64 characters or fewer',
                 'field': 'GroupName',
-                'maxLength': 256,
+                'maxLength': 64,
                 'actualLength': len(name.strip())
             })
         
@@ -1050,7 +1052,8 @@ def create_protection_group(body: Dict) -> Dict:
             'AccountId': body.get('AccountId', ''),
             'Owner': body.get('Owner', ''),
             'CreatedDate': timestamp,
-            'LastModifiedDate': timestamp
+            'LastModifiedDate': timestamp,
+            'Version': 1  # Optimistic locking - starts at version 1
         }
         
         # Store the appropriate selection method (MUTUALLY EXCLUSIVE)
@@ -1123,7 +1126,7 @@ def get_protection_group(group_id: str) -> Dict:
 
 
 def update_protection_group(group_id: str, body: Dict) -> Dict:
-    """Update an existing Protection Group with validation"""
+    """Update an existing Protection Group with validation and optimistic locking"""
     try:
         # Check if group exists
         result = protection_groups_table.get_item(Key={'GroupId': group_id})
@@ -1131,6 +1134,21 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             return response(404, {'error': 'Protection Group not found'})
         
         existing_group = result['Item']
+        current_version = existing_group.get('Version', 1)  # Default to 1 for legacy items
+        
+        # Optimistic locking: Check if client provided expected version
+        client_version = body.get('version') or body.get('Version')
+        if client_version is not None:
+            # Convert to int for comparison (handles Decimal from DynamoDB)
+            client_version = int(client_version)
+            if client_version != int(current_version):
+                return response(409, {
+                    'error': 'VERSION_CONFLICT',
+                    'message': 'Resource was modified by another user. Please refresh and try again.',
+                    'expectedVersion': client_version,
+                    'currentVersion': int(current_version),
+                    'resourceId': group_id
+                })
         
         # BLOCK: Cannot update protection group if it's part of an active execution
         active_exec_info = get_active_execution_for_protection_group(group_id)
@@ -1157,13 +1175,13 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     'field': 'GroupName'
                 })
             
-            # Validate name length (1-256 characters)
-            if len(name.strip()) > 256:
+            # Validate name length (1-64 characters)
+            if len(name.strip()) > 64:
                 return response(400, {
                     'error': 'INVALID_NAME',
-                    'message': 'GroupName must be 256 characters or fewer',
+                    'message': 'GroupName must be 64 characters or fewer',
                     'field': 'GroupName',
-                    'maxLength': 256,
+                    'maxLength': 64,
                     'actualLength': len(name.strip())
                 })
             
@@ -1216,9 +1234,14 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     'conflicts': conflicts
                 })
         
-        # Build update expression
-        update_expression = "SET LastModifiedDate = :timestamp"
-        expression_values = {':timestamp': int(time.time())}
+        # Build update expression with version increment (optimistic locking)
+        new_version = int(current_version) + 1
+        update_expression = "SET LastModifiedDate = :timestamp, Version = :new_version"
+        expression_values = {
+            ':timestamp': int(time.time()),
+            ':new_version': new_version,
+            ':current_version': int(current_version)
+        }
         expression_names = {}
         
         if 'GroupName' in body:
@@ -1246,10 +1269,12 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             update_expression += ", ServerSelectionTags = :empty_tags"
             expression_values[':empty_tags'] = {}
         
-        # Update item
+        # Update item with conditional write (optimistic locking)
+        # Only succeeds if version hasn't changed since we read it
         update_args = {
             'Key': {'GroupId': group_id},
             'UpdateExpression': update_expression,
+            'ConditionExpression': 'Version = :current_version OR attribute_not_exists(Version)',
             'ExpressionAttributeValues': expression_values,
             'ReturnValues': 'ALL_NEW'
         }
@@ -1257,7 +1282,15 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         if expression_names:
             update_args['ExpressionAttributeNames'] = expression_names
         
-        result = protection_groups_table.update_item(**update_args)
+        try:
+            result = protection_groups_table.update_item(**update_args)
+        except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+            # Another process updated the item between our read and write
+            return response(409, {
+                'error': 'VERSION_CONFLICT',
+                'message': 'Resource was modified by another user. Please refresh and try again.',
+                'resourceId': group_id
+            })
         
         # Transform to camelCase for frontend
         response_item = transform_pg_to_camelcase(result['Attributes'])
@@ -1378,13 +1411,13 @@ def create_recovery_plan(body: Dict) -> Dict:
                 'field': 'PlanName'
             })
         
-        # Validate name length (1-256 characters)
-        if len(plan_name.strip()) > 256:
+        # Validate name length (1-64 characters)
+        if len(plan_name.strip()) > 64:
             return response(400, {
                 'error': 'INVALID_NAME',
-                'message': 'PlanName must be 256 characters or fewer',
+                'message': 'PlanName must be 64 characters or fewer',
                 'field': 'PlanName',
-                'maxLength': 256,
+                'maxLength': 64,
                 'actualLength': len(plan_name.strip())
             })
         
@@ -1410,7 +1443,8 @@ def create_recovery_plan(body: Dict) -> Dict:
             'Description': body.get('Description', ''),  # Optional
             'Waves': body.get('Waves', []),
             'CreatedDate': timestamp,
-            'LastModifiedDate': timestamp
+            'LastModifiedDate': timestamp,
+            'Version': 1  # Optimistic locking - starts at version 1
         }
         
         # Validate waves if provided
@@ -1595,7 +1629,7 @@ def get_recovery_plan(plan_id: str) -> Dict:
 
 
 def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
-    """Update an existing Recovery Plan - blocked if execution in progress"""
+    """Update an existing Recovery Plan - blocked if execution in progress, with optimistic locking"""
     try:
         # Check if plan exists
         result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
@@ -1603,6 +1637,21 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
             return response(404, {'error': 'Recovery Plan not found'})
         
         existing_plan = result['Item']
+        current_version = existing_plan.get('Version', 1)  # Default to 1 for legacy items
+        
+        # Optimistic locking: Check if client provided expected version
+        client_version = body.get('version') or body.get('Version')
+        if client_version is not None:
+            # Convert to int for comparison (handles Decimal from DynamoDB)
+            client_version = int(client_version)
+            if client_version != int(current_version):
+                return response(409, {
+                    'error': 'VERSION_CONFLICT',
+                    'message': 'Resource was modified by another user. Please refresh and try again.',
+                    'expectedVersion': client_version,
+                    'currentVersion': int(current_version),
+                    'resourceId': plan_id
+                })
         
         # BLOCK: Cannot update plan with active execution
         active_executions = get_active_executions_for_plan(plan_id)
@@ -1627,13 +1676,13 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                     'field': 'PlanName'
                 })
             
-            # Validate name length (1-256 characters)
-            if len(plan_name.strip()) > 256:
+            # Validate name length (1-64 characters)
+            if len(plan_name.strip()) > 64:
                 return response(400, {
                     'error': 'INVALID_NAME',
-                    'message': 'PlanName must be 256 characters or fewer',
+                    'message': 'PlanName must be 64 characters or fewer',
                     'field': 'PlanName',
-                    'maxLength': 256,
+                    'maxLength': 64,
                     'actualLength': len(plan_name.strip())
                 })
             
@@ -1669,9 +1718,14 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
             if validation_error:
                 return response(400, {'error': validation_error})
         
-        # Build update expression
-        update_expression = "SET LastModifiedDate = :timestamp"
-        expression_values = {':timestamp': int(time.time())}
+        # Build update expression with version increment (optimistic locking)
+        new_version = int(current_version) + 1
+        update_expression = "SET LastModifiedDate = :timestamp, Version = :new_version"
+        expression_values = {
+            ':timestamp': int(time.time()),
+            ':new_version': new_version,
+            ':current_version': int(current_version)
+        }
         expression_names = {}
         
         updatable_fields = ['PlanName', 'Description', 'RPO', 'RTO', 'Waves']
@@ -1685,10 +1739,11 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                     update_expression += f", {field} = :{field.lower()}"
                     expression_values[f':{field.lower()}'] = body[field]
         
-        # Update item
+        # Update item with conditional write (optimistic locking)
         update_args = {
             'Key': {'PlanId': plan_id},
             'UpdateExpression': update_expression,
+            'ConditionExpression': 'Version = :current_version OR attribute_not_exists(Version)',
             'ExpressionAttributeValues': expression_values,
             'ReturnValues': 'ALL_NEW'
         }
@@ -1696,7 +1751,15 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         if expression_names:
             update_args['ExpressionAttributeNames'] = expression_names
         
-        result = recovery_plans_table.update_item(**update_args)
+        try:
+            result = recovery_plans_table.update_item(**update_args)
+        except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+            # Another process updated the item between our read and write
+            return response(409, {
+                'error': 'VERSION_CONFLICT',
+                'message': 'Resource was modified by another user. Please refresh and try again.',
+                'resourceId': plan_id
+            })
         
         print(f"Updated Recovery Plan: {plan_id}")
         return response(200, result['Attributes'])
@@ -2532,7 +2595,11 @@ def get_execution_status(execution_id: str) -> Dict:
         )
         
         if not result.get('Items'):
-            return response(404, {'error': 'Execution not found'})
+            return response(404, {
+                'error': 'EXECUTION_NOT_FOUND',
+                'message': f'Execution with ID {execution_id} not found',
+                'executionId': execution_id
+            })
         
         execution = result['Items'][0]
         
@@ -2844,7 +2911,11 @@ def get_execution_details(execution_id: str) -> Dict:
         )
 
         if 'Items' not in result or len(result['Items']) == 0:
-            return response(404, {'error': 'Execution not found'})
+            return response(404, {
+                'error': 'EXECUTION_NOT_FOUND',
+                'message': f'Execution with ID {execution_id} not found',
+                'executionId': execution_id
+            })
 
         execution = result['Items'][0]
         
@@ -3204,7 +3275,11 @@ def resume_execution(execution_id: str) -> Dict:
         
         if not result.get('Items'):
             print(f"No items found for execution {execution_id}")
-            return response(404, {'error': 'Execution not found'})
+            return response(404, {
+                'error': 'EXECUTION_NOT_FOUND',
+                'message': f'Execution with ID {execution_id} not found',
+                'executionId': execution_id
+            })
         
         execution = result['Items'][0]
         plan_id = execution.get('PlanId')
@@ -3329,7 +3404,11 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
             Limit=1
         )
         if not result.get('Items'):
-            return response(404, {'error': 'Execution not found'})
+            return response(404, {
+                'error': 'EXECUTION_NOT_FOUND',
+                'message': f'Execution with ID {execution_id} not found',
+                'executionId': execution_id
+            })
         
         execution = result['Items'][0]
         waves = execution.get('Waves', [])
@@ -3421,7 +3500,11 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         )
         
         if not result.get('Items'):
-            return response(404, {'error': 'Execution not found'})
+            return response(404, {
+                'error': 'EXECUTION_NOT_FOUND',
+                'message': f'Execution with ID {execution_id} not found',
+                'executionId': execution_id
+            })
         
         execution = result['Items'][0]
         waves = execution.get('Waves', [])
@@ -4556,6 +4639,11 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
     created_at = pg.get('CreatedDate')
     updated_at = pg.get('LastModifiedDate')
     
+    # Get version for optimistic locking (default to 1 for legacy items)
+    version = pg.get('Version', 1)
+    if hasattr(version, '__int__'):
+        version = int(version)
+    
     return {
         'id': pg.get('GroupId'),
         'protectionGroupId': pg.get('GroupId'),
@@ -4569,7 +4657,8 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
         'createdAt': int(created_at * 1000) if created_at else None,
         'updatedAt': int(updated_at * 1000) if updated_at else None,
         'resolvedServers': pg.get('ResolvedServers', []),
-        'resolvedServerCount': pg.get('ResolvedServerCount', 0)
+        'resolvedServerCount': pg.get('ResolvedServerCount', 0),
+        'version': version  # Optimistic locking version
     }
 
 
@@ -4626,6 +4715,11 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
     last_start_time = rp.get('LastStartTime')
     last_end_time = rp.get('LastEndTime')
     
+    # Get version for optimistic locking (default to 1 for legacy items)
+    version = rp.get('Version', 1)
+    if hasattr(version, '__int__'):
+        version = int(version)
+    
     # Transform conflict info if present
     conflict_info = rp.get('ConflictInfo')
     transformed_conflict = None
@@ -4658,7 +4752,8 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         'lastEndTime': last_end_time,  # NEW: Unix timestamp (seconds) - no conversion needed
         'waveCount': len(waves),
         'hasServerConflict': rp.get('HasServerConflict', False),  # NEW: Server conflict with other executions
-        'conflictInfo': transformed_conflict  # NEW: Details about the conflict
+        'conflictInfo': transformed_conflict,  # NEW: Details about the conflict
+        'version': version  # Optimistic locking version
     }
 
 
@@ -4989,7 +5084,9 @@ def has_circular_dependencies(graph: Dict[str, List[str]]) -> bool:
 def handle_drs_quotas(query_params: Dict) -> Dict:
     """Get DRS account quotas and current usage for a region"""
     try:
-        region = query_params.get('region', 'us-east-1')
+        region = query_params.get('region')
+        if not region:
+            return response(400, {'error': 'MISSING_FIELD', 'message': 'region query parameter is required'})
         
         # Get account capacity
         capacity = get_drs_account_capacity(region)

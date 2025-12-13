@@ -29,6 +29,9 @@ export interface ProtectionGroup {
   // Resolved servers (populated by /resolve endpoint or at execution time)
   resolvedServers?: ResolvedServer[];
   resolvedServerCount?: number;
+  
+  // Optimistic locking version - incremented on each update
+  version?: number;
 }
 
 // Server resolved from tag-based Protection Group
@@ -52,6 +55,7 @@ export interface UpdateProtectionGroupRequest {
   GroupName?: string;  // API expects PascalCase
   Description?: string;
   ServerSelectionTags?: Record<string, string>;  // Update tag filters
+  version?: number;  // Optimistic locking - must match current version
 }
 
 // ============================================================================
@@ -84,6 +88,8 @@ export interface RecoveryPlan {
     conflictingStatus?: string;
     reason?: string;
   };
+  // Optimistic locking version - incremented on each update
+  version?: number;
 }
 
 export interface Wave {
@@ -145,6 +151,7 @@ export interface UpdateRecoveryPlanRequest {
   description?: string;
   waves?: Wave[];
   status?: 'draft' | 'active' | 'archived';
+  version?: number;  // Optimistic locking - must match current version
 }
 
 // ============================================================================
