@@ -6,7 +6,41 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### December 13, 2025
 
-**EC2 Launch Template Configuration (Backend Complete)** - `pending`
+**DRS Launch Settings - Full UI and API Support** - `2272e5e`, `drs-launch-settings-v1`
+
+Complete DRS Launch Settings configuration for Protection Groups via UI and API:
+
+EC2 Launch Template Settings:
+- Subnet selection (target VPC subnet for recovery instances)
+- Security Groups (one or more security groups)
+- Instance Profile (IAM instance profile for recovery instance permissions)
+- Instance Type (specific EC2 instance type override)
+
+DRS Launch Configuration Settings:
+- Instance Type Right Sizing (BASIC/IN_AWS/NONE)
+- Launch Disposition (STARTED/STOPPED)
+- OS Licensing (BYOL/AWS-provided)
+- Copy Private IP (preserve source server's private IP)
+- Transfer Server Tags (propagate EC2 tags to recovery instance)
+
+Frontend Changes:
+- New `LaunchConfigSection.tsx` component with dropdowns for all settings
+- Updated `LaunchConfig` interface with all DRS fields
+- Fixed conditional rendering of ServerDiscoveryPanel (prevents API calls when on Tags tab)
+- Added 30-second auto-refresh pause when Protection Group dialog is open
+- Fixed broken JSX in LoginPage.tsx
+
+Backend Changes:
+- `apply_launch_config_to_servers()` now passes all DRS settings: `targetInstanceTypeRightSizingMethod`, `launchDisposition`, `licensing`
+- Enhanced version description tracking for audit trails
+- `query_drs_servers_by_tags()` returns full server details for tag preview
+
+Documentation:
+- Added comprehensive API Request/Response Examples section to ORCHESTRATION_INTEGRATION_GUIDE.md
+- Added LaunchConfig Field Reference table
+- Updated README with EC2 Launch Configuration section and API examples
+
+**EC2 Launch Template Configuration (Backend)** - `74ac444`, `a75eb67`
 
 EC2 Launch Settings Backend Implementation:
 - Added 4 new EC2 API endpoints for launch configuration dropdowns:
