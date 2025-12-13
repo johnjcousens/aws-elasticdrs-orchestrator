@@ -6,7 +6,9 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### December 12, 2025
 
-**Tag-Based Protection Groups** - `3409505`
+**Dual Mode Orchestration Complete** - `3409505`, `f50658c`
+
+Tag-Based Protection Groups:
 
 - Protection Groups now support tag-based server selection as an alternative to explicit server selection
 - Tags are resolved against EC2 instance tags (not DRS resource tags) for accurate filtering
@@ -24,11 +26,19 @@ All notable changes to the AWS DRS Orchestration Solution project.
   - `start_time`, `end_time`, `duration_seconds` - SLA tracking metrics
 - Enables parent Step Functions to chain additional automation after DR execution
 
+**Invocation Source Tracking**
+
+- InvocationSourceBadge component displays execution source (UI, CLI, SSM, Step Functions, EventBridge, API)
+- ExecutionsPage shows Source column with badge and filter support
+- Execution registry Lambda tracks `InvocationSource` and `InvocationDetails`
+- SSM runbook (`ssm-documents/drs-orchestration-runbook.yaml`) for automated execution
+- Tag discovery Lambda (`lambda/tag_discovery.py`) for server resolution
+
 **UI Improvements**
 
 - Expanded Recovery Plan ID column from 180px to 340px to show full UUID
 - Copy button positioned to right of Plan ID with no word wrap
-- Fixed recurring duplicate import issue in InvocationSourceBadge.tsx
+- Protection Groups page shows tag count instead of server count
 
 ### December 10, 2025
 
