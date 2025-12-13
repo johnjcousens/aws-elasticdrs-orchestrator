@@ -286,6 +286,8 @@ export interface ExecutionListItem {
   currentWave?: number;
   totalWaves: number;
   executedBy?: string;
+  executionType?: 'DRILL' | 'RECOVERY';  // Execution type (DRILL or RECOVERY)
+  selectionMode?: 'TAGS' | 'PLAN';  // Server selection mode (tag-based or plan-based)
   
   // Unified orchestration fields
   invocationSource?: InvocationSource;
