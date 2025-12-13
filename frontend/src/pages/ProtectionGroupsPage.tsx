@@ -224,10 +224,13 @@ export const ProtectionGroupsPage: React.FC = () => {
               sortingField: 'region',
             },
             {
-              id: 'servers',
-              header: 'Servers',
-              cell: (item) => (item.sourceServerIds || []).length,
-              sortingField: 'sourceServerIds',
+              id: 'tags',
+              header: 'Selection Tags',
+              cell: (item) => {
+                const tags = item.serverSelectionTags || {};
+                const tagCount = Object.keys(tags).length;
+                return tagCount > 0 ? `${tagCount} tag${tagCount !== 1 ? 's' : ''}` : '-';
+              },
             },
             {
               id: 'createdAt',
