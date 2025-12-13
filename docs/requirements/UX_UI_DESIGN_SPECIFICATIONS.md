@@ -1080,12 +1080,8 @@ The following components shall be implemented to support the application pages. 
 | | WaveProgress | Wave timeline with server details |
 | | DateTimeDisplay | Formatted date/time display |
 | | DRSQuotaStatus | DRS service quota/capacity display |
+| | InvocationSourceBadge | Execution source indicator (UI/CLI/API/Scheduled) |
 | **Execution** | ExecutionDetails | Execution summary panel |
-
-**MVP Components - Launch Configuration**:
-
-| Category | Component | Purpose |
-|----------|-----------|---------|
 | **Launch Config** | LaunchConfigSection | DRS launch settings + EC2 template config |
 
 **Phase 2 Components** - DRS Source Server Management:
@@ -1100,7 +1096,7 @@ The following components shall be implemented to support the application pages. 
 | | PitPolicyEditor | Point-in-time policy editor |
 | **Status Display** | JobEventsTimeline | DRS job events display |
 
-**Total: 32 Components (25 MVP + 7 Phase 2)**
+**Total: 32 Components (26 MVP + 7 Phase 2)**
 
 
 ---
@@ -1719,6 +1715,151 @@ interface DRSQuotaStatus {
 | available | success | All quotas below 80% |
 | limited | warning | Any quota between 80-90% |
 | full | error | Any quota ≥90% |
+
+
+### InvocationSourceBadge
+
+**Purpose**: Display the source of an execution (UI, CLI, Scheduled, SSM, API, Step Functions)
+
+**Props**:
+
+```typescript
+type InvocationSource = 'UI' | 'CLI' | 'EVENTBRIDGE' | 'SSM' | 'STEPFUNCTIONS' | 'API';
+
+interface InvocationDetails {
+  userEmail?: string;
+  userId?: string;
+  scheduleRuleName?: string;
+  scheduleExpression?: string;
+  ssmDocumentName?: string;
+  ssmExecutionId?: string;
+  parentStepFunctionArn?: string;
+  parentExecutionId?: string;
+  apiKeyId?: string;
+  correlationId?: string;
+  iamUser?: string;
+}
+
+interface InvocationSourceBadgeProps {
+  source: InvocationSource | string;
+  details?: InvocationDetails;
+  showDetails?: boolean;
+}
+```
+
+**Visual Elements**:
+
+- Icon + Badge inline display
+- Color-coded by source type
+
+**Source Configuration**:
+
+| Source | Icon | Badge Color | Label |
+|--------|------|-------------|-------|
+| UI | user-profile | blue | UI |
+| CLI | script | grey | CLI |
+| EVENTBRIDGE | calendar | green | Scheduled |
+| SSM | settings | blue | SSM |
+| STEPFUNCTIONS | share | blue | Step Functions |
+| API | external | grey | API |
+
+
+### LaunchConfigSection
+
+**Purpose**: Configure EC2 launch settings and DRS launch configuration for Protection Groups
+
+**Props**:
+
+```typescript
+interface LaunchConfigSectionProps {
+  region: string;
+  launchConfig: LaunchConfig;
+  onChange: (config: LaunchConfig) => void;
+  onExpandChange?: (expanded: boolean) => void;
+  disabled?: boolean;
+}
+
+interface LaunchConfig {
+  SubnetId?: string;
+  SecurityGroupIds?: string[];
+  InstanceType?: string;
+  InstanceProfileName?: string;
+  TargetInstanceTypeRightSizingMethod?: 'NONE' | 'BASIC' | 'IN_AWS';
+  LaunchDisposition?: 'STARTED' | 'STOPPED';
+  CopyPrivateIp?: boolean;
+  CopyTags?: boolean;
+  Licensing?: { osByol: boolean };
+}
+```
+
+**Features**:
+
+- ExpandableSection container with "Launch Settings" header
+- Header shows "(configured)" suffix when any setting is set
+- Lazy-loads EC2 resources when section expands
+- Two-column layout for related fields
+- Loading spinner while fetching EC2 resources
+- Error alert if EC2 API fails
+
+**Form Fields**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| Target Subnet | Select (filterable) | VPC subnet for recovery instances |
+| Instance Type | Select (filterable) | EC2 instance type |
+| Security Groups | Multiselect (filterable) | Security groups for recovery instances |
+| IAM Instance Profile | Select (filterable) | IAM role for recovery instances |
+| Instance Type Right Sizing | Select | BASIC, IN_AWS, or NONE |
+| Launch Disposition | Select | STARTED or STOPPED |
+| OS Licensing | Select | BYOL or AWS provided |
+| Copy Private IP | Checkbox | Copy source server private IP |
+| Transfer Server Tags | Checkbox | Copy tags to recovery instances |
+
+**Visual Layout**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ▼ Launch Settings (configured)                                          │
+│   Configure EC2 settings applied to all servers during recovery         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Target Subnet                    Instance Type                         │
+│  ┌─────────────────────────┐      ┌─────────────────────────┐          │
+│  │ subnet-abc123 (10.0.1.0)│      │ r5.xlarge               │          │
+│  └─────────────────────────┘      └─────────────────────────┘          │
+│                                                                         │
+│  Security Groups                                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ sg-123 (web-tier) × │ sg-456 (db-access) ×                      │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  IAM Instance Profile                                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ DRRecoveryRole                                                   │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  Instance Type Right Sizing       Launch Disposition                    │
+│  ┌─────────────────────────┐      ┌─────────────────────────┐          │
+│  │ Inactive - Use template │      │ Started                 │          │
+│  └─────────────────────────┘      └─────────────────────────┘          │
+│                                                                         │
+│  OS Licensing                                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ Use AWS provided license                                         │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  ☑ Copy Private IP                ☑ Transfer Server Tags               │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Right Sizing Options**:
+
+| Value | Label | Description |
+|-------|-------|-------------|
+| BASIC | Active (basic) | DRS selects instance type based on source |
+| IN_AWS | Active (in-aws) | Periodic updates from EC2 metrics |
+| NONE | Inactive | Use EC2 launch template instance type |
 
 
 ---
