@@ -21,6 +21,7 @@ These documents are the authoritative source for all system specifications. When
 
 - [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) - Step-by-step deployment
 - [Deployment Recovery Guide](docs/guides/DEPLOYMENT_RECOVERY_GUIDE.md) - Redeploy from S3 artifacts
+- [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) - CLI, SSM, Step Functions, EventBridge, Python SDK integration
 - [Testing and Quality Assurance](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) - Test strategy and procedures
 
 ## Reference

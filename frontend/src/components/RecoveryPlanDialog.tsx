@@ -145,7 +145,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
       if (plan) {
         // Update existing plan - each wave uses its own Protection Group
-        const updateData = {
+        const updateData: any = {
           PlanName: name,
           Description: description,
           Waves: waves.map((wave, index) => ({
@@ -161,7 +161,11 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             }))
           }))
         };
-        const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData as any);
+        // Include version for optimistic locking
+        if (plan.version !== undefined) {
+          updateData.version = plan.version;
+        }
+        const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData);
         onSave(updatedPlan);
       } else {
         // Create new plan - waves specify their own Protection Groups
@@ -187,7 +191,12 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
       handleClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to save recovery plan');
+      if (err.isVersionConflict) {
+        // Optimistic locking conflict - another user modified the resource
+        setError('This recovery plan was modified by another user. Please close and reopen to get the latest version.');
+      } else {
+        setError(err.message || 'Failed to save recovery plan');
+      }
     } finally {
       setLoading(false);
     }

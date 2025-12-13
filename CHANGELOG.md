@@ -4,6 +4,34 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+### December 13, 2025
+
+**Comprehensive API Testing & Error Handling** - `d61e282`
+
+API Error Handling Improvements:
+- Standardized error codes across all API endpoints (MISSING_FIELD, INVALID_NAME, etc.)
+- Reduced max name length from 256 to 64 characters for Protection Groups and Recovery Plans
+- Added `/health` endpoint returning `{"status": "healthy", "service": "drs-orchestration-api"}`
+- DRS quotas endpoint now requires `region` parameter (returns 400 if missing)
+
+Optimistic Locking Implementation:
+- Added `version` field to Protection Groups and Recovery Plans for concurrency control
+- Version increments on each update; stale version updates return 409 VERSION_CONFLICT
+- Frontend detects version conflicts and prompts user to refresh before retrying
+- Works for all clients (UI, CLI, SDK, IAM role invocations)
+
+Comprehensive API Test Suite:
+- Created `scripts/comprehensive_api_test.py` with 51 tests covering all API operations
+- Tests: Protection Groups CRUD, Recovery Plans CRUD, Executions, DRS Integration, Tag Resolution
+- Validates optimistic locking, error handling, and referential integrity
+- All 51 tests passing
+
+Auto-Refresh for All Pages:
+- Protection Groups page: 30-second auto-refresh
+- Recovery Plans page: 30-second auto-refresh (plans) + 5-second (execution status)
+- Dashboard: 30-second auto-refresh (already existed)
+- Executions page: 3-second polling for active executions (already existed)
+
 ### December 12, 2025
 
 **Dual Mode Orchestration Complete** - `3409505`, `f50658c`

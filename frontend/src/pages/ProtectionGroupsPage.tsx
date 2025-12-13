@@ -49,6 +49,14 @@ export const ProtectionGroupsPage: React.FC = () => {
   useEffect(() => {
     fetchGroups();
     fetchRecoveryPlansForGroupCheck();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchGroups();
+      fetchRecoveryPlansForGroupCheck();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchRecoveryPlansForGroupCheck = async () => {
