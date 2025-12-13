@@ -71,6 +71,11 @@ export const RecoveryPlansPage: React.FC = () => {
       ec2InstanceState: string;
       sourceExecutionId?: string;
       sourcePlanName?: string;
+      name?: string;
+      privateIp?: string;
+      publicIp?: string;
+      instanceType?: string;
+      launchTime?: string;
     }>;
   } | null>(null);
   const [checkingInstances, setCheckingInstances] = useState(false);
@@ -546,19 +551,29 @@ export const RecoveryPlansPage: React.FC = () => {
                 </Box>
               )}
               <Box variant="p" color="text-body-secondary">
-                Starting a new drill will create additional recovery instances. Consider terminating the existing instances first to avoid unnecessary costs.
+                Starting a new drill will <strong>terminate these existing instances</strong> before launching new ones. If you want to keep them, cancel and terminate them manually first.
               </Box>
             </Box>
             <Box>
-              <Box variant="awsui-key-label">Existing instances:</Box>
-              {existingInstancesInfo?.instances.slice(0, 5).map((inst, idx) => (
-                <Box key={idx} color="text-body-secondary" fontSize="body-s">
-                  • {inst.ec2InstanceId} ({inst.ec2InstanceState})
-                </Box>
-              ))}
-              {(existingInstancesInfo?.instances.length || 0) > 5 && (
-                <Box color="text-body-secondary" fontSize="body-s">
-                  ... and {(existingInstancesInfo?.instances.length || 0) - 5} more
+              <Box variant="awsui-key-label">Existing instances ({existingInstancesInfo?.instances.length || 0}):</Box>
+              <SpaceBetween size="xs">
+                {existingInstancesInfo?.instances.slice(0, 6).map((inst, idx) => (
+                  <Box key={idx} padding={{ left: 's' }}>
+                    <Box fontSize="body-s">
+                      <strong>{inst.name || inst.ec2InstanceId}</strong>
+                      <Box variant="span" color="text-status-success" fontSize="body-s"> ({inst.ec2InstanceState})</Box>
+                    </Box>
+                    <Box fontSize="body-s" color="text-body-secondary">
+                      {inst.privateIp && <span>IP: {inst.privateIp} • </span>}
+                      {inst.instanceType && <span>{inst.instanceType} • </span>}
+                      {inst.launchTime && <span>Launched: {new Date(inst.launchTime).toLocaleString()}</span>}
+                    </Box>
+                  </Box>
+                ))}
+              </SpaceBetween>
+              {(existingInstancesInfo?.instances.length || 0) > 6 && (
+                <Box color="text-body-secondary" fontSize="body-s" padding={{ top: 'xs' }}>
+                  ... and {(existingInstancesInfo?.instances.length || 0) - 6} more
                 </Box>
               )}
             </Box>

@@ -435,6 +435,13 @@ Resources:
       ParentId: !Ref RecoveryPlanResource
       PathPart: execute
 
+  RecoveryPlanCheckExistingInstancesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref RecoveryPlanResource
+      PathPart: check-existing-instances
+
   # API Resources - Executions
   ExecutionsResource:
     Type: AWS::ApiGateway::Resource
@@ -938,6 +945,51 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  # Methods - GET /recovery-plans/{id}/check-existing-instances
+  RecoveryPlanCheckExistingInstancesMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref RecoveryPlanCheckExistingInstancesResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # CORS - OPTIONS /recovery-plans/{id}/check-existing-instances
+  RecoveryPlanCheckExistingInstancesOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref RecoveryPlanCheckExistingInstancesResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   # CORS - OPTIONS /recovery-plans/{id}
   RecoveryPlanOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -1385,6 +1437,8 @@ Resources:
       - RecoveryPlanPutMethod
       - RecoveryPlanDeleteMethod
       - RecoveryPlanExecuteMethod
+      - RecoveryPlanCheckExistingInstancesMethod
+      - RecoveryPlanCheckExistingInstancesOptionsMethod
       - RecoveryPlansOptionsMethod
       - RecoveryPlanOptionsMethod
       - ExecutionsGetMethod
