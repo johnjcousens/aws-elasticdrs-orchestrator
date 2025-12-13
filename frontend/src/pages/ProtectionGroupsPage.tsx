@@ -18,8 +18,8 @@ import {
   TextFilter,
 } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
-import toast from 'react-hot-toast';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
+import { useNotifications } from '../contexts/NotificationContext';
 import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
@@ -34,6 +34,7 @@ import apiClient from '../services/api';
  * Manages the display and CRUD operations for protection groups.
  */
 export const ProtectionGroupsPage: React.FC = () => {
+  const { addNotification } = useNotifications();
   const [groups, setGroups] = useState<ProtectionGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +121,7 @@ export const ProtectionGroupsPage: React.FC = () => {
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to load protection groups';
       setError(errorMessage);
-      toast.error(errorMessage);
+      addNotification('error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -138,13 +139,13 @@ export const ProtectionGroupsPage: React.FC = () => {
     try {
       await apiClient.deleteProtectionGroup(groupToDelete.protectionGroupId);
       setGroups(groups.filter(g => g.protectionGroupId !== groupToDelete.protectionGroupId));
-      toast.success(`Protection group "${groupToDelete.name}" deleted successfully`);
+      addNotification('success', `Protection group "${groupToDelete.name}" deleted successfully`);
       setDeleteDialogOpen(false);
       setGroupToDelete(null);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to delete protection group';
       setError(errorMessage);
-      toast.error(errorMessage);
+      addNotification('error', errorMessage);
       setDeleteDialogOpen(false);
     } finally {
       setDeleting(false);
@@ -167,11 +168,8 @@ export const ProtectionGroupsPage: React.FC = () => {
   };
 
   const handleDialogSave = (savedGroup: ProtectionGroup) => {
-    // Show success toast
     const action = editingGroup ? 'updated' : 'created';
-    toast.success(`Protection group "${savedGroup.name}" ${action} successfully`);
-    
-    // Refresh the groups list after save
+    addNotification('success', `Protection group "${savedGroup.name}" ${action} successfully`);
     fetchGroups();
   };
 

@@ -18,8 +18,8 @@ import {
 } from '@cloudscape-design/components';
 import type { SelectProps } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
-import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { useNotifications } from '../contexts/NotificationContext';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
@@ -52,6 +52,7 @@ const SELECTION_MODE_OPTIONS: SelectProps.Option[] = [
 
 export const ExecutionsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { addNotification } = useNotifications();
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export const ExecutionsPage: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load executions';
       setErrorMsg(msg);
-      toast.error(msg);
+      addNotification('error', msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -108,12 +109,12 @@ export const ExecutionsPage: React.FC = () => {
     setClearing(true);
     try {
       const result = await apiClient.deleteCompletedExecutions();
-      toast.success(`Cleared ${result.deletedCount} completed executions`);
+      addNotification('success', `Cleared ${result.deletedCount} completed executions`);
       setClearDialogOpen(false);
       await fetchExecutions();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to clear history';
-      toast.error(msg);
+      addNotification('error', msg);
     } finally {
       setClearing(false);
     }
