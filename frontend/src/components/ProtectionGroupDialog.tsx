@@ -27,8 +27,9 @@ import {
 } from '@cloudscape-design/components';
 import { RegionSelector } from './RegionSelector';
 import { ServerDiscoveryPanel } from './ServerDiscoveryPanel';
+import { LaunchConfigSection } from './LaunchConfigSection';
 import apiClient from '../services/api';
-import type { ProtectionGroup, ResolvedServer } from '../types';
+import type { ProtectionGroup, ResolvedServer, LaunchConfig } from '../types';
 
 interface TagEntry {
   key: string;
@@ -60,6 +61,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   const [tags, setTags] = useState<TagEntry[]>([{ key: '', value: '' }]);
   const [selectedServerIds, setSelectedServerIds] = useState<string[]>([]);
   const [selectionMode, setSelectionMode] = useState<'tags' | 'servers'>('servers');
+  const [launchConfig, setLaunchConfig] = useState<LaunchConfig>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{
@@ -117,6 +119,8 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           setSelectedServerIds([]);
           setTags([{ key: '', value: '' }]);
         }
+        // Load existing launch config
+        setLaunchConfig(group.launchConfig || {});
       } else {
         // Create mode - reset form
         setName('');
@@ -125,6 +129,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         setSelectionMode('servers');
         setSelectedServerIds([]);
         setTags([{ key: '', value: '' }]);
+        setLaunchConfig({});
       }
       setError(null);
       setValidationErrors({});
@@ -220,42 +225,41 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 
       let savedGroup: ProtectionGroup;
 
+      // Build base group data
+      const groupData: any = {
+        GroupName: name.trim(),
+        Description: description.trim() || undefined,
+        Region: region,
+      };
+
+      // Add server selection based on mode
       if (selectionMode === 'tags') {
-        // Tag-based selection
-        const groupData: any = {
-          GroupName: name.trim(),
-          Description: description.trim() || undefined,
-          Region: region,
-          ServerSelectionTags: tagsArrayToObject(tags),
-        };
-
-        if (isEditMode && group) {
-          // Include version for optimistic locking
-          if (group.version !== undefined) {
-            groupData.version = group.version;
-          }
-          savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData);
-        } else {
-          savedGroup = await apiClient.createProtectionGroup(groupData);
-        }
+        groupData.ServerSelectionTags = tagsArrayToObject(tags);
       } else {
-        // Explicit server selection (legacy)
-        const groupData: any = {
-          GroupName: name.trim(),
-          Description: description.trim() || undefined,
-          Region: region,
-          SourceServerIds: selectedServerIds,
-        };
+        groupData.SourceServerIds = selectedServerIds;
+      }
 
-        if (isEditMode && group) {
-          // Include version for optimistic locking
-          if (group.version !== undefined) {
-            groupData.version = group.version;
-          }
-          savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData);
-        } else {
-          savedGroup = await apiClient.createProtectionGroup(groupData);
+      // Add launch config if any settings are configured
+      const hasLaunchConfig = launchConfig.SubnetId ||
+        (launchConfig.SecurityGroupIds && launchConfig.SecurityGroupIds.length > 0) ||
+        launchConfig.InstanceType ||
+        launchConfig.InstanceProfileName ||
+        launchConfig.CopyPrivateIp ||
+        launchConfig.CopyTags ||
+        launchConfig.Licensing?.osByol;
+
+      if (hasLaunchConfig) {
+        groupData.LaunchConfig = launchConfig;
+      }
+
+      if (isEditMode && group) {
+        // Include version for optimistic locking
+        if (group.version !== undefined) {
+          groupData.version = group.version;
         }
+        savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData);
+      } else {
+        savedGroup = await apiClient.createProtectionGroup(groupData);
       }
 
       onSave(savedGroup);
@@ -393,12 +397,16 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                       {validationErrors.servers && (
                         <Alert type="error">{validationErrors.servers}</Alert>
                       )}
-                      <ServerDiscoveryPanel
-                        region={region}
-                        selectedServerIds={selectedServerIds}
-                        onSelectionChange={setSelectedServerIds}
-                        currentProtectionGroupId={group?.protectionGroupId}
-                      />
+                      {/* Only render ServerDiscoveryPanel when this tab is active to prevent background API calls */}
+                      {selectionMode === 'servers' && (
+                        <ServerDiscoveryPanel
+                          region={region}
+                          selectedServerIds={selectedServerIds}
+                          onSelectionChange={setSelectedServerIds}
+                          currentProtectionGroupId={group?.protectionGroupId}
+                          pauseRefresh={false}
+                        />
+                      )}
                     </SpaceBetween>
                   </Container>
                 ),
@@ -487,42 +495,57 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                       )}
                       
                       {previewServers.length > 0 ? (
-                        <Table
-                          items={previewServers}
-                          columnDefinitions={[
-                            {
-                              id: 'hostname',
-                              header: 'Hostname',
-                              cell: (item) => item.hostname || 'N/A',
-                            },
-                            {
-                              id: 'serverId',
-                              header: 'Server ID',
-                              cell: (item) => (
-                                <code style={{ fontSize: '12px' }}>
-                                  {item.sourceServerId.substring(0, 16)}...
-                                </code>
-                              ),
-                            },
-                            {
-                              id: 'status',
-                              header: 'Replication',
-                              cell: (item) => (
-                                <StatusIndicator
-                                  type={item.replicationState === 'CONTINUOUS' ? 'success' : 'warning'}
-                                >
-                                  {item.replicationState}
-                                </StatusIndicator>
-                              ),
-                            },
-                          ]}
-                          variant="embedded"
-                          empty={
-                            <Box textAlign="center" color="inherit" padding="s">
-                              Click "Preview Servers" to see matching servers
-                            </Box>
-                          }
-                        />
+                        <div style={{ maxHeight: '400px', overflow: 'auto', border: '1px solid #e9ebed', borderRadius: '8px' }}>
+                          {previewServers.map((server) => {
+                            const displayName = server.nameTag || server.hostname;
+                            const displayTags = Object.entries(server.tags || {}).filter(([k]) => k !== 'Name');
+                            const getStateStatus = (state?: string) => {
+                              switch (state) {
+                                case 'READY_FOR_RECOVERY': return 'success';
+                                case 'SYNCING': case 'INITIATED': return 'in-progress';
+                                case 'DISCONNECTED': case 'STOPPED': return 'error';
+                                default: return 'pending';
+                              }
+                            };
+                            return (
+                              <div key={server.sourceServerId} style={{ padding: '12px 16px', borderBottom: '1px solid #e9ebed' }}>
+                                {/* Primary: Name with status */}
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                                  <span style={{ fontWeight: 600, marginRight: '8px' }}>{displayName}</span>
+                                  <StatusIndicator type={getStateStatus(server.state)}>
+                                    {server.state || server.replicationState}
+                                  </StatusIndicator>
+                                </div>
+                                {/* Secondary: Hostname, Instance ID, IP */}
+                                <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '2px' }}>
+                                  <span style={{ marginRight: '12px' }}><strong>Hostname:</strong> {server.hostname || 'N/A'}</span>
+                                  <span style={{ marginRight: '12px' }}><strong>Instance:</strong> {server.sourceInstanceId || 'N/A'}</span>
+                                  <span><strong>IP:</strong> {server.sourceIp || 'N/A'}</span>
+                                </div>
+                                {/* Tertiary: Region/Account */}
+                                <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '2px' }}>
+                                  <span style={{ marginRight: '12px' }}><strong>Source Region:</strong> {server.sourceRegion || 'N/A'}</span>
+                                  <span><strong>Account:</strong> {server.sourceAccount || 'N/A'}</span>
+                                </div>
+                                {/* Tags */}
+                                {displayTags.length > 0 && (
+                                  <div style={{ fontSize: '11px', color: '#0972d3', marginBottom: '4px' }}>
+                                    <strong>Tags:</strong>{' '}
+                                    {displayTags.map(([key, value]) => (
+                                      <span key={key} style={{ backgroundColor: '#f2f8fd', padding: '1px 6px', borderRadius: '3px', marginRight: '4px' }}>
+                                        {key}={value}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {/* DRS Server ID */}
+                                <div style={{ fontSize: '11px', color: '#879596' }}>
+                                  DRS ID: {server.sourceServerId}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       ) : !previewError && (
                         <Box textAlign="center" color="text-body-secondary" padding="s">
                           <Icon name="search" /> Click "Preview Servers" to see which servers match your tags
@@ -533,6 +556,16 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                 ),
               },
             ]}
+          />
+        )}
+
+        {/* Launch Settings Section */}
+        {region && (
+          <LaunchConfigSection
+            region={region}
+            launchConfig={launchConfig}
+            onChange={setLaunchConfig}
+            disabled={loading}
           />
         )}
       </SpaceBetween>

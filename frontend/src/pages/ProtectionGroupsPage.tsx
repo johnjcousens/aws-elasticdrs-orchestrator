@@ -47,17 +47,22 @@ export const ProtectionGroupsPage: React.FC = () => {
 
   // Fetch protection groups and check which are in recovery plans/active executions
   useEffect(() => {
-    fetchGroups();
-    fetchRecoveryPlansForGroupCheck();
-    
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(() => {
+    // Only fetch on mount, not when dialog state changes
+    if (!dialogOpen) {
       fetchGroups();
       fetchRecoveryPlansForGroupCheck();
+    }
+    
+    // Auto-refresh every 30 seconds, but pause when dialog is open
+    const interval = setInterval(() => {
+      if (!dialogOpen) {
+        fetchGroups();
+        fetchRecoveryPlansForGroupCheck();
+      }
     }, 30000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [dialogOpen]);
 
   const fetchRecoveryPlansForGroupCheck = async () => {
     try {

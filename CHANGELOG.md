@@ -6,6 +6,21 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### December 13, 2025
 
+**EC2 Launch Template Configuration (Backend Complete)** - `pending`
+
+EC2 Launch Settings Backend Implementation:
+- Added 4 new EC2 API endpoints for launch configuration dropdowns:
+  - `GET /ec2/subnets?region={region}` - List VPC subnets
+  - `GET /ec2/security-groups?region={region}` - List security groups
+  - `GET /ec2/instance-profiles?region={region}` - List IAM instance profiles
+  - `GET /ec2/instance-types?region={region}` - List EC2 instance types
+- Added `apply_launch_config_to_servers()` function that updates EC2 launch templates and DRS settings
+- Protection Groups now support `LaunchConfig` field with: SubnetId, SecurityGroupIds, InstanceType, InstanceProfileName, CopyPrivateIp, CopyTags
+- Tag-based server resolution queries EC2 instance tags via DRS `awsInstanceID` from `sourceProperties.identificationHints`
+- Fixed critical bug: DRS `update_launch_configuration` was overwriting EC2 template changes; now DRS is called first, then EC2 template updates
+- Added IAM permissions: `ec2:CreateLaunchTemplateVersion`, `ec2:ModifyLaunchTemplate`, `ec2:DescribeLaunchTemplates`, `ec2:DescribeLaunchTemplateVersions`
+- API Gateway routes added for all 4 EC2 endpoints in `cfn/api-stack.yaml`
+
 **Comprehensive API Testing & Error Handling** - `d61e282`
 
 API Error Handling Improvements:

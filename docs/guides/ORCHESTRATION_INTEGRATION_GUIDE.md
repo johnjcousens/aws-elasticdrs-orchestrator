@@ -612,6 +612,632 @@ The health endpoint returns:
 
 ---
 
+## API Request/Response Examples
+
+This section provides complete request and response examples for all API operations.
+
+### Protection Groups
+
+#### Create Protection Group (Explicit Server Selection)
+
+```bash
+POST /protection-groups
+Content-Type: application/json
+
+{
+  "GroupName": "Database-Servers",
+  "Description": "Primary database servers for HRP application",
+  "Region": "us-east-1",
+  "SourceServerIds": ["s-1234567890abcdef0", "s-0987654321fedcba0"],
+  "LaunchConfig": {
+    "SubnetId": "subnet-12345678",
+    "SecurityGroupIds": ["sg-12345678", "sg-87654321"],
+    "InstanceType": "r5.xlarge",
+    "InstanceProfileName": "EC2-DRS-Recovery-Role",
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "Licensing": {"osByol": false},
+    "TargetInstanceTypeRightSizingMethod": "BASIC",
+    "LaunchDisposition": "STARTED"
+  }
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "name": "Database-Servers",
+  "description": "Primary database servers for HRP application",
+  "region": "us-east-1",
+  "sourceServerIds": ["s-1234567890abcdef0", "s-0987654321fedcba0"],
+  "serverSelectionTags": {},
+  "launchConfig": {
+    "SubnetId": "subnet-12345678",
+    "SecurityGroupIds": ["sg-12345678", "sg-87654321"],
+    "InstanceType": "r5.xlarge",
+    "InstanceProfileName": "EC2-DRS-Recovery-Role",
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "Licensing": {"osByol": false},
+    "TargetInstanceTypeRightSizingMethod": "BASIC",
+    "LaunchDisposition": "STARTED"
+  },
+  "launchConfigApplyResults": {
+    "applied": 2,
+    "skipped": 0,
+    "failed": 0,
+    "details": [
+      {"serverId": "s-1234567890abcdef0", "status": "applied", "templateId": "lt-0123456789abcdef0"},
+      {"serverId": "s-0987654321fedcba0", "status": "applied", "templateId": "lt-fedcba9876543210f"}
+    ]
+  },
+  "createdDate": 1702500000,
+  "lastModifiedDate": 1702500000,
+  "version": 1
+}
+```
+
+#### Create Protection Group (Tag-Based Selection)
+
+```bash
+POST /protection-groups
+Content-Type: application/json
+
+{
+  "GroupName": "App-Servers-HRP",
+  "Description": "Application servers selected by tags",
+  "Region": "us-east-1",
+  "ServerSelectionTags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Application"
+  },
+  "LaunchConfig": {
+    "SubnetId": "subnet-app12345",
+    "SecurityGroupIds": ["sg-app12345"],
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "TargetInstanceTypeRightSizingMethod": "IN_AWS",
+    "LaunchDisposition": "STARTED"
+  }
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+  "name": "App-Servers-HRP",
+  "description": "Application servers selected by tags",
+  "region": "us-east-1",
+  "sourceServerIds": [],
+  "serverSelectionTags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Application"
+  },
+  "launchConfig": {
+    "SubnetId": "subnet-app12345",
+    "SecurityGroupIds": ["sg-app12345"],
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "TargetInstanceTypeRightSizingMethod": "IN_AWS",
+    "LaunchDisposition": "STARTED"
+  },
+  "createdDate": 1702500100,
+  "lastModifiedDate": 1702500100,
+  "version": 1
+}
+```
+
+#### LaunchConfig Field Reference
+
+| Field | Type | Description | Values |
+|-------|------|-------------|--------|
+| `SubnetId` | string | Target VPC subnet for recovery instances | `subnet-xxxxxxxx` |
+| `SecurityGroupIds` | string[] | Security groups to attach | `["sg-xxx", "sg-yyy"]` |
+| `InstanceType` | string | EC2 instance type | `t3.medium`, `r5.xlarge`, etc. |
+| `InstanceProfileName` | string | IAM instance profile name | Profile name (not ARN) |
+| `CopyPrivateIp` | boolean | Copy source server's private IP | `true` / `false` |
+| `CopyTags` | boolean | Transfer source server tags to recovery instance | `true` / `false` |
+| `Licensing` | object | OS licensing configuration | `{"osByol": true}` or `{"osByol": false}` |
+| `TargetInstanceTypeRightSizingMethod` | string | Instance type right-sizing | `BASIC`, `IN_AWS`, `NONE` |
+| `LaunchDisposition` | string | Start instance upon launch | `STARTED`, `STOPPED` |
+
+**TargetInstanceTypeRightSizingMethod Values:**
+- `BASIC` - DRS selects instance type based on source server hardware
+- `IN_AWS` - DRS periodically updates based on EC2 instance source server (for in-AWS sources)
+- `NONE` - Use instance type from EC2 launch template
+
+**LaunchDisposition Values:**
+- `STARTED` - Instance starts automatically upon launch
+- `STOPPED` - Instance remains stopped after launch (manual start required)
+
+**Licensing Values:**
+- `{"osByol": true}` - Bring Your Own License (BYOL)
+- `{"osByol": false}` - Use AWS-provided license
+
+#### Update Protection Group
+
+```bash
+PUT /protection-groups/{id}
+Content-Type: application/json
+
+{
+  "version": 1,
+  "GroupName": "Database-Servers-Updated",
+  "Description": "Updated description",
+  "LaunchConfig": {
+    "SubnetId": "subnet-newsubnet",
+    "SecurityGroupIds": ["sg-newsecgroup"],
+    "InstanceType": "r5.2xlarge",
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "Licensing": {"osByol": true},
+    "TargetInstanceTypeRightSizingMethod": "NONE",
+    "LaunchDisposition": "STOPPED"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "name": "Database-Servers-Updated",
+  "description": "Updated description",
+  "region": "us-east-1",
+  "sourceServerIds": ["s-1234567890abcdef0", "s-0987654321fedcba0"],
+  "launchConfig": {
+    "SubnetId": "subnet-newsubnet",
+    "SecurityGroupIds": ["sg-newsecgroup"],
+    "InstanceType": "r5.2xlarge",
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "Licensing": {"osByol": true},
+    "TargetInstanceTypeRightSizingMethod": "NONE",
+    "LaunchDisposition": "STOPPED"
+  },
+  "launchConfigApplyResults": {
+    "applied": 2,
+    "skipped": 0,
+    "failed": 0
+  },
+  "version": 2
+}
+```
+
+#### List Protection Groups
+
+```bash
+GET /protection-groups
+```
+
+**Response (200 OK):**
+```json
+{
+  "groups": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Database-Servers",
+      "description": "Primary database servers",
+      "region": "us-east-1",
+      "sourceServerIds": ["s-1234567890abcdef0"],
+      "serverSelectionTags": {},
+      "launchConfig": {...},
+      "version": 1
+    }
+  ]
+}
+```
+
+#### Resolve Servers from Tags
+
+```bash
+POST /protection-groups/{id}/resolve
+```
+
+**Response (200 OK):**
+```json
+{
+  "servers": [
+    {
+      "sourceServerId": "s-1234567890abcdef0",
+      "hostname": "DBSERVER01",
+      "nameTag": "HRP-Database-Primary",
+      "sourceInstanceId": "i-0123456789abcdef0",
+      "sourceIp": "10.0.1.100",
+      "sourceRegion": "us-east-1",
+      "sourceAccount": "123456789012",
+      "state": "READY_FOR_RECOVERY",
+      "lagDuration": "PT5M",
+      "tags": {
+        "DR-Application": "HRP",
+        "DR-Tier": "Database",
+        "Name": "HRP-Database-Primary"
+      }
+    }
+  ]
+}
+```
+
+### Recovery Plans
+
+#### Create Recovery Plan
+
+```bash
+POST /recovery-plans
+Content-Type: application/json
+
+{
+  "PlanName": "HRP-Full-Recovery",
+  "Description": "Full HRP application recovery - DB then App",
+  "Waves": [
+    {
+      "waveNumber": 1,
+      "name": "Database Tier",
+      "protectionGroupId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "pauseBeforeWave": false
+    },
+    {
+      "waveNumber": 2,
+      "name": "Application Tier",
+      "protectionGroupId": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+      "pauseBeforeWave": true,
+      "dependsOn": [1]
+    }
+  ]
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+  "name": "HRP-Full-Recovery",
+  "description": "Full HRP application recovery - DB then App",
+  "waves": [
+    {
+      "waveNumber": 1,
+      "name": "Database Tier",
+      "protectionGroupId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "protectionGroupName": "Database-Servers",
+      "pauseBeforeWave": false,
+      "dependsOn": []
+    },
+    {
+      "waveNumber": 2,
+      "name": "Application Tier",
+      "protectionGroupId": "b2c3d4e5-f6a7-8901-bcde-f23456789012",
+      "protectionGroupName": "App-Servers-HRP",
+      "pauseBeforeWave": true,
+      "dependsOn": [1]
+    }
+  ],
+  "createdDate": 1702500200,
+  "lastModifiedDate": 1702500200,
+  "version": 1
+}
+```
+
+### Executions
+
+#### Start Execution
+
+```bash
+POST /executions
+Content-Type: application/json
+
+{
+  "recoveryPlanId": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+  "executionType": "DRILL",
+  "initiatedBy": "api-automation",
+  "invocationSource": "CLI"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "ExecutionId": "d4e5f6a7-b8c9-0123-def4-567890123456",
+  "recoveryPlanId": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+  "recoveryPlanName": "HRP-Full-Recovery",
+  "executionType": "DRILL",
+  "status": "PENDING",
+  "initiatedBy": "api-automation",
+  "invocationSource": "CLI",
+  "startTime": 1702500300,
+  "waves": [
+    {"waveNumber": 1, "status": "PENDING"},
+    {"waveNumber": 2, "status": "PENDING"}
+  ]
+}
+```
+
+#### Get Execution Status
+
+```bash
+GET /executions/{id}
+```
+
+**Response (200 OK):**
+```json
+{
+  "ExecutionId": "d4e5f6a7-b8c9-0123-def4-567890123456",
+  "recoveryPlanId": "c3d4e5f6-a7b8-9012-cdef-345678901234",
+  "recoveryPlanName": "HRP-Full-Recovery",
+  "executionType": "DRILL",
+  "status": "PAUSED",
+  "currentWave": 2,
+  "totalWaves": 2,
+  "initiatedBy": "api-automation",
+  "startTime": 1702500300,
+  "waves": [
+    {
+      "waveNumber": 1,
+      "name": "Database Tier",
+      "status": "COMPLETED",
+      "startTime": 1702500300,
+      "endTime": 1702500600,
+      "servers": [
+        {
+          "sourceServerId": "s-1234567890abcdef0",
+          "hostname": "DBSERVER01",
+          "status": "LAUNCHED",
+          "recoveryInstanceId": "i-recovery123456"
+        }
+      ]
+    },
+    {
+      "waveNumber": 2,
+      "name": "Application Tier",
+      "status": "PAUSED",
+      "pauseBeforeWave": true
+    }
+  ]
+}
+```
+
+#### Resume Paused Execution
+
+```bash
+POST /executions/{id}/resume
+Content-Type: application/json
+
+{}
+```
+
+**Response (200 OK):**
+```json
+{
+  "ExecutionId": "d4e5f6a7-b8c9-0123-def4-567890123456",
+  "status": "IN_PROGRESS",
+  "message": "Execution resumed"
+}
+```
+
+#### Terminate Recovery Instances
+
+```bash
+POST /executions/{id}/terminate-instances
+Content-Type: application/json
+
+{}
+```
+
+**Response (200 OK):**
+```json
+{
+  "ExecutionId": "d4e5f6a7-b8c9-0123-def4-567890123456",
+  "terminatedInstances": [
+    {"instanceId": "i-recovery123456", "status": "terminated"},
+    {"instanceId": "i-recovery789012", "status": "terminated"}
+  ]
+}
+```
+
+### DRS Operations
+
+#### List Source Servers
+
+```bash
+GET /drs/source-servers?region=us-east-1
+```
+
+**Response (200 OK):**
+```json
+{
+  "servers": [
+    {
+      "sourceServerId": "s-1234567890abcdef0",
+      "hostname": "DBSERVER01",
+      "nameTag": "HRP-Database-Primary",
+      "sourceInstanceId": "i-0123456789abcdef0",
+      "sourceIp": "10.0.1.100",
+      "sourceRegion": "us-east-1",
+      "sourceAccount": "123456789012",
+      "state": "READY_FOR_RECOVERY",
+      "lagDuration": "PT5M",
+      "assignedProtectionGroupId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "assignedProtectionGroupName": "Database-Servers",
+      "tags": {
+        "DR-Application": "HRP",
+        "DR-Tier": "Database"
+      }
+    }
+  ]
+}
+```
+
+#### Query Servers by Tags
+
+```bash
+POST /drs/source-servers/query-by-tags?region=us-east-1
+Content-Type: application/json
+
+{
+  "tags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Database"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "servers": [
+    {
+      "sourceServerId": "s-1234567890abcdef0",
+      "hostname": "DBSERVER01",
+      "nameTag": "HRP-Database-Primary",
+      "sourceInstanceId": "i-0123456789abcdef0",
+      "sourceIp": "10.0.1.100",
+      "state": "READY_FOR_RECOVERY",
+      "tags": {...}
+    }
+  ],
+  "matchedTags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Database"
+  }
+}
+```
+
+#### Get DRS Quotas
+
+```bash
+GET /drs/quotas?region=us-east-1
+```
+
+**Response (200 OK):**
+```json
+{
+  "region": "us-east-1",
+  "quotas": {
+    "maxReplicatingServers": 300,
+    "currentReplicatingServers": 45,
+    "maxConcurrentJobs": 20,
+    "currentActiveJobs": 2,
+    "maxServersPerJob": 100,
+    "maxTotalServersInActiveJobs": 500
+  }
+}
+```
+
+### EC2 Resources (for Launch Config)
+
+#### List Subnets
+
+```bash
+GET /ec2/subnets?region=us-east-1
+```
+
+**Response (200 OK):**
+```json
+{
+  "subnets": [
+    {
+      "subnetId": "subnet-12345678",
+      "vpcId": "vpc-abcdef01",
+      "availabilityZone": "us-east-1a",
+      "cidrBlock": "10.0.1.0/24",
+      "name": "Private-Subnet-1a"
+    }
+  ]
+}
+```
+
+#### List Security Groups
+
+```bash
+GET /ec2/security-groups?region=us-east-1
+```
+
+**Response (200 OK):**
+```json
+{
+  "securityGroups": [
+    {
+      "groupId": "sg-12345678",
+      "groupName": "DRS-Recovery-SG",
+      "vpcId": "vpc-abcdef01",
+      "description": "Security group for DRS recovery instances"
+    }
+  ]
+}
+```
+
+#### List Instance Profiles
+
+```bash
+GET /ec2/instance-profiles?region=us-east-1
+```
+
+**Response (200 OK):**
+```json
+{
+  "instanceProfiles": [
+    {
+      "instanceProfileName": "EC2-DRS-Recovery-Role",
+      "instanceProfileId": "AIPA1234567890EXAMPLE",
+      "arn": "arn:aws:iam::123456789012:instance-profile/EC2-DRS-Recovery-Role",
+      "roles": ["EC2-DRS-Recovery-Role"]
+    }
+  ]
+}
+```
+
+#### List Instance Types
+
+```bash
+GET /ec2/instance-types?region=us-east-1
+```
+
+**Response (200 OK):**
+```json
+{
+  "instanceTypes": [
+    {"instanceType": "t3.micro", "vCpus": 2, "memoryGiB": 1},
+    {"instanceType": "t3.small", "vCpus": 2, "memoryGiB": 2},
+    {"instanceType": "t3.medium", "vCpus": 2, "memoryGiB": 4},
+    {"instanceType": "r5.large", "vCpus": 2, "memoryGiB": 16},
+    {"instanceType": "r5.xlarge", "vCpus": 4, "memoryGiB": 32}
+  ]
+}
+```
+
+### Error Responses
+
+All error responses follow this format:
+
+```json
+{
+  "error": "ERROR_CODE",
+  "message": "Human-readable error message",
+  "field": "fieldName",
+  "details": {}
+}
+```
+
+**Common Error Codes:**
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `MISSING_FIELD` | 400 | Required field not provided |
+| `INVALID_NAME` | 400 | Name validation failed |
+| `INVALID_SERVER_IDS` | 400 | Server IDs not found in DRS |
+| `INVALID_LAUNCH_CONFIG` | 400 | LaunchConfig validation failed |
+| `PG_NAME_EXISTS` | 409 | Protection group name already exists |
+| `SERVER_CONFLICT` | 409 | Server already assigned to another group |
+| `TAG_CONFLICT` | 409 | Tags already used by another group |
+| `VERSION_CONFLICT` | 409 | Optimistic locking conflict |
+| `PG_IN_ACTIVE_EXECUTION` | 409 | Cannot modify group during active execution |
+| `PLAN_IN_ACTIVE_EXECUTION` | 409 | Cannot modify plan during active execution |
+| `CIRCULAR_DEPENDENCY` | 400 | Wave dependencies form a loop |
+| `DRS_QUOTA_EXCEEDED` | 400 | DRS service limit would be exceeded |
+
+---
+
 ## CLI Integration
 
 ### Environment Setup

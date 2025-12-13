@@ -47,6 +47,20 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **CloudWatch Integration**: Deep-link to CloudWatch Logs for troubleshooting
 - **Auto-Refresh**: All pages auto-refresh (30s for lists, 3-5s for active executions)
 
+### EC2 Launch Configuration
+
+- **Launch Template Management**: Configure EC2 launch settings per Protection Group
+- **Instance Type Selection**: Choose instance types for recovery instances
+- **Network Configuration**: Select subnets and security groups for recovery
+- **IAM Instance Profiles**: Assign instance profiles to recovery instances
+- **DRS Launch Settings**:
+  - **Instance Type Right Sizing**: BASIC (DRS selects), IN_AWS (periodic updates), or NONE (use template)
+  - **Launch Disposition**: Start instance automatically (STARTED) or keep stopped (STOPPED)
+  - **Copy Private IP**: Preserve source server's private IP address
+  - **Transfer Server Tags**: Copy source server tags to recovery instance
+  - **OS Licensing**: BYOL (Bring Your Own License) or AWS-provided license
+- **Automatic Application**: Settings applied to all servers in Protection Group on save
+
 ### API & Integration
 
 - **Optimistic Locking**: Version-based concurrency control prevents conflicting updates
@@ -245,13 +259,58 @@ curl -H "Authorization: Bearer $TOKEN" \
 | GET    | `/drs/source-servers?region={region}` | Discover DRS source servers            |
 | GET    | `/drs/quotas?region={region}`         | Get DRS service quotas (region required) |
 
+#### EC2 Resources (for Launch Config)
+
+| Method | Endpoint                                | Description                            |
+| ------ | --------------------------------------- | -------------------------------------- |
+| GET    | `/ec2/subnets?region={region}`        | List VPC subnets for dropdown          |
+| GET    | `/ec2/security-groups?region={region}`| List security groups for dropdown      |
+| GET    | `/ec2/instance-profiles?region={region}`| List IAM instance profiles           |
+| GET    | `/ec2/instance-types?region={region}` | List EC2 instance types                |
+
 #### Health Check
 
 | Method | Endpoint   | Description                    |
 | ------ | ---------- | ------------------------------ |
 | GET    | `/health` | Service health check endpoint  |
 
-For complete API documentation including error codes, optimistic locking, and integration examples (CLI, SSM, Step Functions, EventBridge), see the [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md).
+### API Request Examples
+
+**Create Protection Group with Launch Config:**
+```bash
+curl -X POST "${API_ENDPOINT}/protection-groups" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "GroupName": "Database-Servers",
+    "Region": "us-east-1",
+    "SourceServerIds": ["s-1234567890abcdef0"],
+    "LaunchConfig": {
+      "SubnetId": "subnet-12345678",
+      "SecurityGroupIds": ["sg-12345678"],
+      "InstanceType": "r5.xlarge",
+      "CopyPrivateIp": true,
+      "CopyTags": true,
+      "Licensing": {"osByol": false},
+      "TargetInstanceTypeRightSizingMethod": "BASIC",
+      "LaunchDisposition": "STARTED"
+    }
+  }'
+```
+
+**Start Drill Execution:**
+```bash
+curl -X POST "${API_ENDPOINT}/executions" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recoveryPlanId": "plan-uuid-here",
+    "executionType": "DRILL",
+    "initiatedBy": "cli-automation"
+  }'
+```
+
+For complete API documentation including all endpoints, request/response examples, error codes, and integration patterns (CLI, SSM, Step Functions, EventBridge, Python SDK), see the [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md).
 
 ## Infrastructure
 
