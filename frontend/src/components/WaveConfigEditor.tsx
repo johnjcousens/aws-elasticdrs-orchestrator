@@ -150,7 +150,13 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       {/* Header with Add Wave button */}
       <Box float="right" margin={{ bottom: 's' }}>
         {!readonly && (
-          <Button iconName="add-plus" onClick={handleAddWave}>
+          <Button 
+            iconName="add-plus" 
+            onClick={(e) => {
+              e.preventDefault();
+              handleAddWave();
+            }}
+          >
             Add Wave
           </Button>
         )}
@@ -184,19 +190,19 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                       <Button
                         variant="icon"
                         iconName="angle-up"
-                        onClick={() => handleMoveWave(wave.waveNumber, 'up')}
+                        onClick={(e) => { e.preventDefault(); handleMoveWave(wave.waveNumber, 'up'); }}
                         disabled={wave.waveNumber === 0}
                       />
                       <Button
                         variant="icon"
                         iconName="angle-down"
-                        onClick={() => handleMoveWave(wave.waveNumber, 'down')}
+                        onClick={(e) => { e.preventDefault(); handleMoveWave(wave.waveNumber, 'down'); }}
                         disabled={wave.waveNumber === safeWaves.length - 1}
                       />
                       <Button
                         variant="icon"
                         iconName="remove"
-                        onClick={() => handleRemoveWave(wave.waveNumber)}
+                        onClick={(e) => { e.preventDefault(); handleRemoveWave(wave.waveNumber); }}
                       />
                     </div>
                   )}
@@ -235,29 +241,31 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
 
                     {getAvailableDependencies(wave.waveNumber).length > 0 && (
                       <FormField label="Depends On Waves">
-                        <Multiselect
-                          selectedOptions={
-                            (wave.dependsOnWaves || []).map(waveNum => ({
-                              label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
-                              value: String(waveNum)
-                            }))
-                          }
-                          onChange={({ detail }) =>
-                            handleUpdateWave(
-                              wave.waveNumber,
-                              'dependsOnWaves',
-                              detail.selectedOptions.map(opt => Number(opt.value))
-                            )
-                          }
-                          options={
-                            getAvailableDependencies(wave.waveNumber).map(waveNum => ({
-                              label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
-                              value: String(waveNum)
-                            }))
-                          }
-                          disabled={readonly}
-                          placeholder="Select waves this wave depends on"
-                        />
+                        <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                          <Multiselect
+                            selectedOptions={
+                              (wave.dependsOnWaves || []).map(waveNum => ({
+                                label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
+                                value: String(waveNum)
+                              }))
+                            }
+                            onChange={({ detail }) =>
+                              handleUpdateWave(
+                                wave.waveNumber,
+                                'dependsOnWaves',
+                                detail.selectedOptions.map(opt => Number(opt.value))
+                              )
+                            }
+                            options={
+                              getAvailableDependencies(wave.waveNumber).map(waveNum => ({
+                                label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
+                                value: String(waveNum)
+                              }))
+                            }
+                            disabled={readonly}
+                            placeholder="Select waves this wave depends on"
+                          />
+                        </div>
                       </FormField>
                     )}
 
@@ -288,11 +296,31 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                       label="Protection Groups"
                       constraintText="Required - Multiple Protection Groups can be selected per wave"
                     >
-                      <Multiselect
-                        selectedOptions={
-                          (protectionGroups || [])
-                            .filter(pg => (wave.protectionGroupIds || []).includes(pg.protectionGroupId))
-                            .map(pg => {
+                      <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                        <Multiselect
+                          selectedOptions={
+                            (protectionGroups || [])
+                              .filter(pg => (wave.protectionGroupIds || []).includes(pg.protectionGroupId))
+                              .map(pg => {
+                                const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
+                                return {
+                                  label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
+                                  value: pg.protectionGroupId,
+                                  tags: tagCount > 0 ? ['configured'] : ['no-tags']
+                                };
+                              })
+                          }
+                          onChange={({ detail }) => {
+                            const pgIds = detail.selectedOptions.map(opt => opt.value || '');
+                            const updatedWaves = safeWaves.map(w =>
+                              w.waveNumber === wave.waveNumber 
+                                ? { ...w, protectionGroupIds: pgIds, protectionGroupId: pgIds[0] || '', serverIds: [] } 
+                                : w
+                            );
+                            onChange(updatedWaves);
+                          }}
+                          options={
+                            (protectionGroups || []).map(pg => {
                               const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
                               return {
                                 label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
@@ -300,29 +328,11 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                                 tags: tagCount > 0 ? ['configured'] : ['no-tags']
                               };
                             })
-                        }
-                        onChange={({ detail }) => {
-                          const pgIds = detail.selectedOptions.map(opt => opt.value || '');
-                          const updatedWaves = safeWaves.map(w =>
-                            w.waveNumber === wave.waveNumber 
-                              ? { ...w, protectionGroupIds: pgIds, protectionGroupId: pgIds[0] || '', serverIds: [] } 
-                              : w
-                          );
-                          onChange(updatedWaves);
-                        }}
-                        options={
-                          (protectionGroups || []).map(pg => {
-                            const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
-                            return {
-                              label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
-                              value: pg.protectionGroupId,
-                              tags: tagCount > 0 ? ['configured'] : ['no-tags']
-                            };
-                          })
-                        }
-                        disabled={readonly}
-                        placeholder="Select one or more Protection Groups"
-                      />
+                          }
+                          disabled={readonly}
+                          placeholder="Select one or more Protection Groups"
+                        />
+                      </div>
                     </FormField>
                     {(wave.protectionGroupIds || []).length === 0 && (
                       <Alert type="warning">
@@ -343,14 +353,36 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                 {/* Server Selection */}
                 <Container header={<Header variant="h3">Server Selection</Header>}>
                   {(wave.protectionGroupIds || []).length > 0 ? (
-                    <ServerSelector
-                      key={(wave.protectionGroupIds || []).join(',')}
-                      protectionGroupIds={wave.protectionGroupIds || []}
-                      protectionGroupId={wave.protectionGroupId || wave.protectionGroupIds?.[0] || ''}
-                      selectedServerIds={wave.serverIds}
-                      onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
-                      readonly={readonly}
-                    />
+                    // Check if ALL selected PGs are tag-based
+                    (() => {
+                      const selectedPGs = (protectionGroups || []).filter(pg => 
+                        (wave.protectionGroupIds || []).includes(pg.protectionGroupId)
+                      );
+                      const allTagBased = selectedPGs.length > 0 && selectedPGs.every(pg => 
+                        pg.serverSelectionTags && Object.keys(pg.serverSelectionTags).length > 0
+                      );
+                      
+                      if (allTagBased) {
+                        return (
+                          <Alert type="info">
+                            <strong>Tag-based Protection Groups selected.</strong><br />
+                            Servers will be automatically resolved at execution time based on Protection Group tags.
+                            No manual server selection is needed.
+                          </Alert>
+                        );
+                      }
+                      
+                      return (
+                        <ServerSelector
+                          key={(wave.protectionGroupIds || []).join(',')}
+                          protectionGroupIds={wave.protectionGroupIds || []}
+                          protectionGroupId={wave.protectionGroupId || wave.protectionGroupIds?.[0] || ''}
+                          selectedServerIds={wave.serverIds}
+                          onChange={(serverIds) => handleUpdateWave(wave.waveNumber, 'serverIds', serverIds)}
+                          readonly={readonly}
+                        />
+                      );
+                    })()
                   ) : (
                     <Alert type="info">
                       Select one or more Protection Groups above to choose servers for this wave
@@ -363,8 +395,18 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
         </SpaceBetween>
       )}
 
-      {/* Validation Messages */}
-      {safeWaves.length > 0 && safeWaves.some(w => (w.serverIds || []).length === 0) && (
+      {/* Validation Messages - only show for non-tag-based PGs */}
+      {safeWaves.length > 0 && safeWaves.some(w => {
+        // Check if wave uses tag-based PGs
+        const selectedPGs = (protectionGroups || []).filter(pg => 
+          (w.protectionGroupIds || []).includes(pg.protectionGroupId)
+        );
+        const isTagBased = selectedPGs.length > 0 && selectedPGs.every(pg => 
+          pg.serverSelectionTags && Object.keys(pg.serverSelectionTags).length > 0
+        );
+        // Only warn if NOT tag-based and no servers selected
+        return !isTagBased && (w.serverIds || []).length === 0;
+      }) && (
         <Alert type="warning" dismissible>
           Some waves have no servers selected. Each wave must include at least one server.
         </Alert>
