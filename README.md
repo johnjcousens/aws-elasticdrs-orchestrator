@@ -240,9 +240,18 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 #### DRS Integration
 
-| Method | Endpoint                                | Description                 |
-| ------ | --------------------------------------- | --------------------------- |
-| GET    | `/drs/source-servers?region={region}` | Discover DRS source servers |
+| Method | Endpoint                                | Description                            |
+| ------ | --------------------------------------- | -------------------------------------- |
+| GET    | `/drs/source-servers?region={region}` | Discover DRS source servers            |
+| GET    | `/drs/quotas?region={region}`         | Get DRS service quotas (region required) |
+
+#### Health Check
+
+| Method | Endpoint   | Description                    |
+| ------ | ---------- | ------------------------------ |
+| GET    | `/health` | Service health check endpoint  |
+
+For complete API documentation including error codes, optimistic locking, and integration examples (CLI, SSM, Step Functions, EventBridge), see the [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md).
 
 ## Infrastructure
 
