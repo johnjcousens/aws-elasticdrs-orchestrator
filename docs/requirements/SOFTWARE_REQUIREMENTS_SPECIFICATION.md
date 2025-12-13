@@ -23,7 +23,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 
 ## Scope
 
-### In Scope - Core Features (MVP)
+### In Scope
 - Protection Group Management (CRUD, server discovery, conflict detection)
 - Recovery Plan Management (wave configuration, multi-PG support, dependencies)
 - Recovery Execution (drill/recovery modes, wave orchestration, pause/resume)
@@ -36,9 +36,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - Loading State Management (prevents multiple operations)
 - AWS DRS Regional Support (30 regions: 28 commercial + 2 GovCloud)
 - EC2 Launch Template & DRS Launch Settings (Protection Group level configuration)
-
-### In Scope - Advanced Features (Phase 2)
-- DRS Source Server Management - Remaining (Server Info, tags, disks, replication, post-launch)
+- DRS Source Server Management (Server Info, tags, disks, replication, post-launch)
 - DRS Tag Synchronization (EC2 to DRS tag sync with bulk operations)
 - SSM Automation Integration (pre/post-wave automation)
 - Step Functions Visualization (real-time state machine monitoring)
@@ -479,9 +477,9 @@ The system shall discover DRS source servers by region:
 
 ### FR-6: DRS Source Server Management
 
-This section defines requirements for DRS source server configuration. FR-6.1 through FR-6.18 cover server info, launch settings, EC2 templates, tags, disks, replication, and post-launch actions. FR-6.2 through FR-6.6 (Launch Settings and EC2 Templates) are MVP features; remaining requirements are Phase 2.
+This section defines requirements for DRS source server configuration. FR-6.1 through FR-6.18 cover server info, launch settings, EC2 templates, tags, disks, replication, and post-launch actions.
 
-#### FR-6.1: Get Server Info (Phase 2)
+#### FR-6.1: Get Server Info
 **Priority**: High
 
 The system shall return comprehensive DRS source server information:
@@ -743,9 +741,7 @@ The system shall return available S3 buckets for post-launch logs.
 
 ---
 
-### FR-7: DRS Tag Synchronization (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-7: DRS Tag Synchronization
 
 #### FR-7.1: Sync EC2 Tags to DRS
 **Priority**: Medium
@@ -771,9 +767,7 @@ The system shall synchronize EC2 instance types to DRS launch templates:
 
 ---
 
-### FR-8: SSM Automation Integration (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-8: SSM Automation Integration
 
 #### FR-8.1: Pre-Wave Automation
 **Priority**: Medium
@@ -793,9 +787,7 @@ The system shall execute SSM automation after wave completion:
 
 ---
 
-### FR-9: Step Functions Visualization (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-9: Step Functions Visualization
 
 #### FR-9.1: Real-Time State Machine Visualization
 **Priority**: Medium
@@ -810,9 +802,7 @@ The system shall provide real-time Step Functions execution visualization:
 
 ---
 
-### FR-10: Multi-Account Support (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-10: Multi-Account Support
 
 #### FR-10.1: Cross-Account Orchestration
 **Priority**: Low
@@ -833,9 +823,7 @@ The system shall manage multiple DRS accounts:
 
 ---
 
-### FR-11: Cross-Account DRS Monitoring (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-11: Cross-Account DRS Monitoring
 
 #### FR-11.1: Centralized Monitoring
 **Priority**: Low
@@ -848,9 +836,7 @@ The system shall provide centralized DRS monitoring:
 
 ---
 
-### FR-12: SNS Notification Integration (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-12: SNS Notification Integration
 
 #### FR-12.1: Real-Time Notifications
 **Priority**: Low
@@ -865,9 +851,7 @@ The system shall send real-time notifications:
 
 ---
 
-### FR-13: Scheduled Drills (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-13: Scheduled Drills
 
 #### FR-13.1: Automated Drill Scheduling
 **Priority**: Low
@@ -880,9 +864,7 @@ The system shall support automated drill scheduling:
 
 ---
 
-### FR-14: CodeBuild & CodeCommit Migration (Phase 2)
-
-**Implementation Phase**: Advanced Features
+### FR-14: CodeBuild & CodeCommit Migration
 
 #### FR-14.1: AWS-Native CI/CD
 **Priority**: Low
@@ -1059,7 +1041,7 @@ Authorization: Bearer {id_token}
 | GET | /drs/service-limits | Get current DRS service limits and usage |
 | POST | /drs/validate-limits | Validate operation against service limits |
 
-#### DRS Source Server Management (Phase 2)
+#### DRS Source Server Management
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1080,7 +1062,7 @@ Authorization: Bearer {id_token}
 | POST | /drs/source-servers/{id}/sync-tags | Sync EC2 tags to DRS server |
 | POST | /drs/source-servers/{id}/sync-instance-type | Sync EC2 instance type to DRS |
 
-#### Supporting Resources (Phase 2)
+#### Supporting Resources
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1089,13 +1071,13 @@ Authorization: Bearer {id_token}
 | GET | /ssm/documents | List SSM documents |
 | GET | /s3/buckets | List S3 buckets |
 
-#### Step Functions Visualization (Phase 2)
+#### Step Functions Visualization
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /executions/{id}/step-functions-state | Get real-time state machine visualization |
 
-#### Multi-Account Management (Phase 2)
+#### Multi-Account Management
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1103,7 +1085,7 @@ Authorization: Bearer {id_token}
 | POST | /accounts | Register new DRS account |
 | GET | /accounts/{id}/health | Check account health status |
 
-#### Notifications (Phase 2)
+#### Notifications
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1111,7 +1093,7 @@ Authorization: Bearer {id_token}
 | POST | /notifications/configure | Configure notification channels |
 | POST | /notifications/test | Test notification delivery |
 
-#### Scheduled Drills (Phase 2)
+#### Scheduled Drills
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1326,10 +1308,10 @@ stateDiagram-v2
 
 - [Product Requirements Document](./PRODUCT_REQUIREMENTS_DOCUMENT.md)
 - [UX/UI Design Specifications](./UX_UI_DESIGN_SPECIFICATIONS.md)
-- [DRS Server Info MVP](../implementation/DRS_SERVER_INFO_MVP_PLAN.md)
-- [DRS Launch Settings MVP](../implementation/DRS_LAUNCH_SETTINGS_MVP_PLAN.md)
-- [EC2 Launch Template MVP](../implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN.md)
-- [DRS Tags MVP](../implementation/DRS_TAGS_MVP_PLAN.md)
-- [DRS Disk Settings MVP](../implementation/DRS_DISK_SETTINGS_MVP_PLAN.md)
-- [DRS Replication Settings MVP](../implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md)
-- [DRS Post-Launch MVP](../implementation/DRS_POST_LAUNCH_MVP_PLAN.md)
+- [DRS Server Info Implementation](../implementation/DRS_SERVER_INFO_MVP_PLAN.md)
+- [DRS Launch Settings Implementation](../implementation/DRS_LAUNCH_SETTINGS_MVP_PLAN.md)
+- [EC2 Launch Template Implementation](../implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN.md)
+- [DRS Tags Implementation](../implementation/DRS_TAGS_MVP_PLAN.md)
+- [DRS Disk Settings Implementation](../implementation/DRS_DISK_SETTINGS_MVP_PLAN.md)
+- [DRS Replication Settings Implementation](../implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md)
+- [DRS Post-Launch Implementation](../implementation/DRS_POST_LAUNCH_MVP_PLAN.md)
