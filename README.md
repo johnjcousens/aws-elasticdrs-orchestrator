@@ -47,6 +47,8 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Execution History**: Complete audit trail of all recovery executions with source badges
 - **CloudWatch Integration**: Deep-link to CloudWatch Logs for troubleshooting
 - **Auto-Refresh**: All pages auto-refresh (30s for lists, 3-5s for active executions)
+- **Existing Instance Detection**: Pre-drill check warns about existing recovery instances with source plan tracking
+- **Instance Details**: Shows EC2 name, IP, instance type, and launch time for existing instances
 
 ### EC2 Launch Configuration
 
