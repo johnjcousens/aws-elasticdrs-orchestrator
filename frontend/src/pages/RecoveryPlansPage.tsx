@@ -21,8 +21,8 @@ import {
   CopyToClipboard,
 } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
-import toast from 'react-hot-toast';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
+import { useNotifications } from '../contexts/NotificationContext';
 import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
@@ -41,6 +41,7 @@ import apiClient from '../services/api';
 export const RecoveryPlansPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
   const [plans, setPlans] = useState<RecoveryPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +147,7 @@ export const RecoveryPlansPage: React.FC = () => {
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to load recovery plans';
       setError(errorMessage);
-      toast.error(errorMessage);
+      addNotification('error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -164,13 +165,13 @@ export const RecoveryPlansPage: React.FC = () => {
     try {
       await apiClient.deleteRecoveryPlan(planToDelete.id);
       setPlans(plans.filter(p => p.id !== planToDelete.id));
-      toast.success(`Recovery plan "${planToDelete.name}" deleted successfully`);
+      addNotification('success', `Recovery plan "${planToDelete.name}" deleted successfully`);
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to delete recovery plan';
       setError(errorMessage);
-      toast.error(errorMessage);
+      addNotification('error', errorMessage);
       setDeleteDialogOpen(false);
     } finally {
       setDeleting(false);
@@ -194,7 +195,7 @@ export const RecoveryPlansPage: React.FC = () => {
 
   const handleDialogSave = (savedPlan: RecoveryPlan) => {
     const action = editingPlan ? 'updated' : 'created';
-    toast.success(`Recovery plan "${savedPlan.name}" ${action} successfully`);
+    addNotification('success', `Recovery plan "${savedPlan.name}" ${action} successfully`);
     fetchPlans();
   };
 
@@ -216,7 +217,7 @@ export const RecoveryPlansPage: React.FC = () => {
         executedBy: user?.username || 'unknown'
       });
       
-      toast.success(`${executionType === 'DRILL' ? 'Drill' : 'Recovery'} execution started`);
+      addNotification('success', `${executionType === 'DRILL' ? 'Drill' : 'Recovery'} execution started`);
       
       const updatedSet = new Set(plansWithInProgressExecution);
       updatedSet.add(plan.id);
@@ -232,21 +233,21 @@ export const RecoveryPlansPage: React.FC = () => {
       
       switch (errorCode) {
         case 'WAVE_SIZE_LIMIT_EXCEEDED':
-          toast.error(`Wave size limit exceeded. Maximum ${errorData.limit || 100} servers per wave.`);
+          addNotification('error', `Wave size limit exceeded. Maximum ${errorData.limit || 100} servers per wave.`);
           break;
         case 'CONCURRENT_JOBS_LIMIT_EXCEEDED':
-          toast.error(`DRS concurrent jobs limit reached (${errorData.currentJobs}/${errorData.maxJobs}). Wait for active jobs to complete.`);
+          addNotification('error', `DRS concurrent jobs limit reached (${errorData.currentJobs}/${errorData.maxJobs}). Wait for active jobs to complete.`);
           break;
         case 'SERVERS_IN_JOBS_LIMIT_EXCEEDED':
-          toast.error(`Would exceed max servers in active jobs (${errorData.totalAfterNew}/${errorData.maxServers}).`);
+          addNotification('error', `Would exceed max servers in active jobs (${errorData.totalAfterNew}/${errorData.maxServers}).`);
           break;
         case 'UNHEALTHY_SERVER_REPLICATION': {
           const unhealthyCount = errorData.unhealthyCount || errorData.unhealthyServers?.length || 0;
-          toast.error(`${unhealthyCount} server(s) have unhealthy replication state and cannot be recovered.`);
+          addNotification('error', `${unhealthyCount} server(s) have unhealthy replication state and cannot be recovered.`);
           break;
         }
         default:
-          toast.error(err.message || errorData.message || 'Failed to execute recovery plan');
+          addNotification('error', err.message || errorData.message || 'Failed to execute recovery plan');
       }
     } finally {
       setExecuting(false);

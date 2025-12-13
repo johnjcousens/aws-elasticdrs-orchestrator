@@ -12,15 +12,14 @@ import {
   BreadcrumbGroup,
   Flashbar,
   TopNavigation,
-  type FlashbarProps,
 } from '@cloudscape-design/components';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface AppLayoutProps {
   children: ReactNode;
   breadcrumbs?: Array<{ text: string; href: string }>;
-  notifications?: FlashbarProps.MessageDefinition[];
   navigationHide?: boolean;
   toolsHide?: boolean;
 }
@@ -38,13 +37,13 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   breadcrumbs = [],
-  notifications = [],
   navigationHide = false,
   toolsHide = true,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const { notifications } = useNotifications();
   const [navigationOpen, setNavigationOpen] = useState(true);
 
   // Navigation items
@@ -148,11 +147,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             />
           ) : undefined
         }
-        notifications={
-          notifications.length > 0 ? (
-            <Flashbar items={notifications} />
-          ) : undefined
-        }
+        notifications={<Flashbar items={notifications} />}
         content={children}
         toolsHide={toolsHide}
         navigationHide={navigationHide}
