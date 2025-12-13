@@ -228,7 +228,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       // Build base group data
       const groupData: any = {
         GroupName: name.trim(),
-        Description: description.trim() || undefined,
+        Description: description.trim(),  // Always send, even if empty, to allow clearing
         Region: region,
       };
 
@@ -320,18 +320,19 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         </Box>
       }
     >
-      <SpaceBetween size="l">
-        {error && (
-          <Alert type="error" dismissible onDismiss={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
+      <form onSubmit={(e) => e.preventDefault()}>
+        <SpaceBetween size="l">
+          {error && (
+            <Alert type="error" dismissible onDismiss={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
 
-        <FormField
-          label="Name"
-          description="A unique name for this protection group"
-          errorText={validationErrors.name}
-        >
+          <FormField
+            label="Name"
+            description="A unique name for this protection group"
+            errorText={validationErrors.name}
+          >
           <Input
             value={name}
             onChange={({ detail }) => setName(detail.value)}
@@ -404,7 +405,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                           selectedServerIds={selectedServerIds}
                           onSelectionChange={setSelectedServerIds}
                           currentProtectionGroupId={group?.protectionGroupId}
-                          pauseRefresh={false}
+                          pauseRefresh={true}
                         />
                       )}
                     </SpaceBetween>
@@ -423,7 +424,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                           variant="h3"
                           description="Servers with ALL these tags will be included at execution time"
                           actions={
-                            <Button iconName="add-plus" onClick={handleAddTag} disabled={loading}>
+                            <Button iconName="add-plus" onClick={(e) => { e.preventDefault(); handleAddTag(); }} disabled={loading}>
                               Add Tag
                             </Button>
                           }
@@ -459,7 +460,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                               <Button
                                 iconName="close"
                                 variant="icon"
-                                onClick={() => handleRemoveTag(index)}
+                                onClick={(e) => { e.preventDefault(); handleRemoveTag(index); }}
                                 disabled={loading || tags.length === 1}
                                 ariaLabel="Remove tag"
                               />
@@ -477,7 +478,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                           counter={previewServers.length > 0 ? `(${previewServers.length})` : undefined}
                           actions={
                             <Button
-                              onClick={handlePreview}
+                              onClick={(e) => { e.preventDefault(); handlePreview(); }}
                               loading={previewLoading}
                               disabled={!tags.some(t => t.key.trim() && t.value.trim()) || loading}
                               iconName="refresh"
@@ -559,16 +560,17 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           />
         )}
 
-        {/* Launch Settings Section */}
-        {region && (
-          <LaunchConfigSection
-            region={region}
-            launchConfig={launchConfig}
-            onChange={setLaunchConfig}
-            disabled={loading}
-          />
-        )}
-      </SpaceBetween>
+          {/* Launch Settings Section */}
+          {region && (
+            <LaunchConfigSection
+              region={region}
+              launchConfig={launchConfig}
+              onChange={setLaunchConfig}
+              disabled={loading}
+            />
+          )}
+        </SpaceBetween>
+      </form>
     </Modal>
   );
 };
