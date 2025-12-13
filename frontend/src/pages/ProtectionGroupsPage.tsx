@@ -249,7 +249,7 @@ export const ProtectionGroupsPage: React.FC = () => {
             {
               id: 'createdAt',
               header: 'Created',
-              cell: (item) => <DateTimeDisplay value={item.createdAt} format="relative" />,
+              cell: (item) => <DateTimeDisplay value={item.createdAt} format="full" />,
               sortingField: 'createdAt',
             },
             {

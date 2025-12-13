@@ -764,6 +764,10 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             if 'InitiatedBy' not in body:
                 body['InitiatedBy'] = 'system'
             return execute_recovery_plan(body)
+        elif '/check-existing-instances' in path and path.startswith('/recovery-plans'):
+            # Handle /recovery-plans/{planId}/check-existing-instances endpoint
+            plan_id = path_parameters.get('id')
+            return check_existing_recovery_instances(plan_id)
         elif path.startswith('/recovery-plans'):
             return handle_recovery_plans(http_method, path_parameters, query_parameters, body)
         elif path.startswith('/executions'):
@@ -1987,11 +1991,48 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         
         plan = plan_result['Item']
         
-        # Collect all server IDs from all waves
+        # Collect all server IDs from all waves by resolving protection groups
         all_server_ids = set()
+        region = 'us-east-1'
+        
         for wave in plan.get('Waves', []):
-            for server_id in wave.get('ServerIds', []):
-                all_server_ids.add(server_id)
+            pg_id = wave.get('ProtectionGroupId')
+            if not pg_id:
+                continue
+                
+            pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+            pg = pg_result.get('Item', {})
+            if not pg:
+                continue
+            
+            # Get region from protection group
+            pg_region = pg.get('Region', 'us-east-1')
+            if pg_region:
+                region = pg_region
+            
+            # Check for explicit server IDs first
+            explicit_servers = pg.get('SourceServerIds', [])
+            if explicit_servers:
+                print(f"PG {pg_id} has explicit servers: {explicit_servers}")
+                for server_id in explicit_servers:
+                    all_server_ids.add(server_id)
+            else:
+                # Resolve servers from tags using EC2 instance tags (not DRS tags)
+                selection_tags = pg.get('ServerSelectionTags', {})
+                print(f"PG {pg_id} has selection tags: {selection_tags}")
+                if selection_tags:
+                    try:
+                        resolved = query_drs_servers_by_tags(pg_region, selection_tags)
+                        print(f"Resolved {len(resolved)} servers from tags")
+                        for server in resolved:
+                            server_id = server.get('sourceServerId')
+                            if server_id:
+                                all_server_ids.add(server_id)
+                                print(f"Added server {server_id} to check list")
+                    except Exception as e:
+                        print(f"Error resolving tags for PG {pg_id}: {e}")
+        
+        print(f"Total servers to check for recovery instances: {len(all_server_ids)}: {all_server_ids}")
         
         if not all_server_ids:
             return response(200, {
@@ -2000,14 +2041,6 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 'planId': plan_id
             })
         
-        # Get region from first wave's protection group
-        first_wave = plan.get('Waves', [{}])[0]
-        pg_id = first_wave.get('ProtectionGroupId')
-        region = 'us-east-1'
-        if pg_id:
-            pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
-            region = pg_result.get('Item', {}).get('Region', 'us-east-1')
-        
         # Query DRS for recovery instances
         drs_client = boto3.client('drs', region_name=region)
         
@@ -2015,9 +2048,13 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         try:
             # Get all recovery instances in the region
             paginator = drs_client.get_paginator('describe_recovery_instances')
+            ri_count = 0
             for page in paginator.paginate():
                 for ri in page.get('items', []):
+                    ri_count += 1
                     source_server_id = ri.get('sourceServerID')
+                    ec2_state = ri.get('ec2InstanceState')
+                    print(f"Recovery instance: source={source_server_id}, state={ec2_state}, in_list={source_server_id in all_server_ids}")
                     if source_server_id in all_server_ids:
                         ec2_instance_id = ri.get('ec2InstanceID')
                         recovery_instance_id = ri.get('recoveryInstanceID')
@@ -2027,38 +2064,40 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                         source_plan_name = None
                         
                         # Search execution history for this recovery instance
+                        # Structure: Waves[].ServerStatuses[] with SourceServerId, RecoveryInstanceID
                         try:
+                            # Scan recent executions that have Waves data
                             exec_scan = execution_history_table.scan(
-                                FilterExpression='contains(#waves, :ri_id)',
-                                ExpressionAttributeNames={'#waves': 'Waves'},
-                                ExpressionAttributeValues={':ri_id': recovery_instance_id},
-                                Limit=10
+                                FilterExpression='attribute_exists(Waves)',
+                                Limit=100  # Check last 100 executions
                             )
-                            # If not found by recovery instance ID, try by source server
-                            if not exec_scan.get('Items'):
-                                exec_scan = execution_history_table.scan(
-                                    FilterExpression='attribute_exists(Waves)',
-                                    Limit=50
-                                )
                             
-                            for exec_item in exec_scan.get('Items', []):
+                            # Sort by StartTime descending to find most recent match
+                            exec_items = sorted(
+                                exec_scan.get('Items', []),
+                                key=lambda x: x.get('StartTime', 0),
+                                reverse=True
+                            )
+                            
+                            for exec_item in exec_items:
                                 exec_waves = exec_item.get('Waves', [])
+                                found = False
                                 for wave in exec_waves:
-                                    for job in wave.get('Jobs', []):
-                                        for server in job.get('Servers', []):
-                                            if server.get('sourceServerID') == source_server_id:
-                                                source_execution = exec_item.get('ExecutionId')
-                                                # Get plan name
-                                                exec_plan_id = exec_item.get('PlanId')
-                                                if exec_plan_id:
-                                                    plan_lookup = recovery_plans_table.get_item(Key={'PlanId': exec_plan_id})
-                                                    source_plan_name = plan_lookup.get('Item', {}).get('PlanName', exec_plan_id)
-                                                break
-                                        if source_execution:
+                                    # Check ServerStatuses array (correct structure)
+                                    for server in wave.get('ServerStatuses', []):
+                                        # Match by source server ID (most reliable)
+                                        if server.get('SourceServerId') == source_server_id:
+                                            source_execution = exec_item.get('ExecutionId')
+                                            # Get plan name
+                                            exec_plan_id = exec_item.get('PlanId')
+                                            if exec_plan_id:
+                                                plan_lookup = recovery_plans_table.get_item(Key={'PlanId': exec_plan_id})
+                                                source_plan_name = plan_lookup.get('Item', {}).get('PlanName', exec_plan_id)
+                                            found = True
                                             break
-                                    if source_execution:
+                                    if found:
                                         break
-                                if source_execution:
+                                if found:
                                     break
                         except Exception as e:
                             print(f"Error looking up execution for recovery instance: {e}")
@@ -2075,6 +2114,33 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         except Exception as e:
             print(f"Error querying DRS recovery instances: {e}")
             # Don't fail the whole request, just return empty
+        
+        # Enrich with EC2 instance details (Name tag, IP, launch time)
+        if existing_instances:
+            try:
+                ec2_client = boto3.client('ec2', region_name=region)
+                ec2_ids = [inst['ec2InstanceId'] for inst in existing_instances if inst.get('ec2InstanceId')]
+                if ec2_ids:
+                    ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
+                    ec2_details = {}
+                    for reservation in ec2_response.get('Reservations', []):
+                        for instance in reservation.get('Instances', []):
+                            inst_id = instance.get('InstanceId')
+                            name_tag = next((t['Value'] for t in instance.get('Tags', []) if t['Key'] == 'Name'), None)
+                            ec2_details[inst_id] = {
+                                'name': name_tag,
+                                'privateIp': instance.get('PrivateIpAddress'),
+                                'publicIp': instance.get('PublicIpAddress'),
+                                'instanceType': instance.get('InstanceType'),
+                                'launchTime': instance.get('LaunchTime').isoformat() if instance.get('LaunchTime') else None
+                            }
+                    # Merge EC2 details into existing_instances
+                    for inst in existing_instances:
+                        ec2_id = inst.get('ec2InstanceId')
+                        if ec2_id and ec2_id in ec2_details:
+                            inst.update(ec2_details[ec2_id])
+            except Exception as e:
+                print(f"Error fetching EC2 details: {e}")
         
         return response(200, {
             'hasExistingInstances': len(existing_instances) > 0,
@@ -4528,128 +4594,6 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
             'error': 'INTERNAL_ERROR',
             'message': f'Failed to get Protection Group servers: {str(e)}'
         })
-
-
-def get_protection_group_servers_legacy(pg_id: str, region: str) -> Dict:
-    """
-    LEGACY: Get servers by explicit IDs (kept for backward compatibility).
-    This function is deprecated - use tag-based resolution instead.
-    """
-    print(f"[LEGACY] Getting servers for Protection Group: {pg_id}")
-    
-    try:
-        result = protection_groups_table.get_item(Key={'GroupId': pg_id})
-        
-        if 'Item' not in result:
-            return response(404, {
-                'error': 'PROTECTION_GROUP_NOT_FOUND',
-                'message': f'Protection Group {pg_id} not found'
-            })
-        
-        pg = result['Item']
-        # Legacy: check for old SourceServerIds field
-        pg_server_ids = pg.get('SourceServerIds', [])
-        
-        if not pg_server_ids:
-            return response(200, {
-                'region': region,
-                'protectionGroupId': pg_id,
-                'protectionGroupName': pg.get('GroupName'),
-                'initialized': True,
-                'servers': [],
-                'totalCount': 0
-            })
-        
-        drs_client = boto3.client('drs', region_name=region)
-        
-        try:
-            servers_response = drs_client.describe_source_servers(
-                filters={
-                    'sourceServerIDs': pg_server_ids
-                }
-            )
-        except drs_client.exceptions.UninitializedAccountException:
-            return response(400, {
-                'error': 'DRS_NOT_INITIALIZED',
-                'message': f'DRS is not initialized in {region}',
-                'region': region,
-                'initialized': False
-            })
-        except Exception as e:
-            print(f"Error querying DRS: {str(e)}")
-            if 'UninitializedAccountException' in str(e) or 'not initialized' in str(e).lower():
-                return response(400, {
-                    'error': 'DRS_NOT_INITIALIZED',
-                    'message': f'DRS is not initialized in {region}',
-                    'region': region,
-                    'initialized': False
-                })
-            raise
-        
-        # 3. Build server list from DRS response
-        servers = []
-        for item in servers_response.get('items', []):
-            server_id = item['sourceServerID']
-            
-            # Extract server metadata
-            source_props = item.get('sourceProperties', {})
-            ident_hints = source_props.get('identificationHints', {})
-            hostname = ident_hints.get('hostname', 'Unknown')
-            
-            # Extract replication info
-            lifecycle = item.get('lifeCycle', {})
-            data_rep_info = item.get('dataReplicationInfo', {})
-            rep_state = data_rep_info.get('dataReplicationState', 'UNKNOWN')
-            lag_duration = data_rep_info.get('lagDuration', 'UNKNOWN')
-            
-            # Map replication state to lifecycle state for display
-            state_mapping = {
-                'STOPPED': 'STOPPED',
-                'INITIATING': 'INITIATING',
-                'INITIAL_SYNC': 'SYNCING',
-                'BACKLOG': 'SYNCING',
-                'CREATING_SNAPSHOT': 'SYNCING',
-                'CONTINUOUS': 'READY_FOR_RECOVERY',
-                'PAUSED': 'PAUSED',
-                'RESCAN': 'SYNCING',
-                'STALLED': 'STALLED',
-                'DISCONNECTED': 'DISCONNECTED'
-            }
-            display_state = state_mapping.get(rep_state, rep_state)
-            
-            servers.append({
-                'sourceServerID': server_id,
-                'hostname': hostname,
-                'state': display_state,
-                'replicationState': rep_state,
-                'lagDuration': lag_duration,
-                'lastSeen': lifecycle.get('lastSeenByServiceDateTime', ''),
-                'assignedToProtectionGroup': {
-                    'protectionGroupId': pg_id,
-                    'protectionGroupName': pg.get('GroupName')
-                },
-                'selectable': True  # All servers in this PG are selectable for waves
-            })
-        
-        # 4. Return server list
-        return response(200, {
-            'region': region,
-            'protectionGroupId': pg_id,
-            'protectionGroupName': pg.get('GroupName'),
-            'initialized': True,
-            'servers': servers,
-            'totalCount': len(servers)
-        })
-        
-    except Exception as e:
-        print(f"Error getting Protection Group servers: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return response(500, {
-            'error': 'INTERNAL_ERROR',
-            'message': f'Failed to get Protection Group servers: {str(e)}'
-        })
-
 
 def validate_server_assignments(server_ids: List[str], current_pg_id: Optional[str] = None) -> List[Dict]:
     """
