@@ -1523,6 +1523,10 @@ def handle_recovery_plans(method: str, path_params: Dict, query_params: Dict, bo
         if 'InitiatedBy' not in body:
             body['InitiatedBy'] = 'system'  # Will be replaced by Cognito user
         return execute_recovery_plan(body)
+    
+    # Handle /recovery-plans/{planId}/check-existing-instances endpoint
+    if method == 'GET' and plan_id and 'check-existing-instances' in path:
+        return check_existing_recovery_instances(plan_id)
 
     if method == 'POST':
         return create_recovery_plan(body)
@@ -1961,6 +1965,131 @@ def delete_recovery_plan(plan_id: str) -> Dict:
         return response(500, {
             'error': 'DELETE_FAILED',
             'message': f'Failed to delete Recovery Plan: {str(e)}',
+            'planId': plan_id
+        })
+
+
+def check_existing_recovery_instances(plan_id: str) -> Dict:
+    """Check if servers in this plan have existing recovery instances from completed executions.
+    
+    Returns info about any recovery instances that haven't been terminated yet.
+    Used by frontend to prompt user before starting a new drill.
+    """
+    try:
+        # Get the recovery plan
+        plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
+        if 'Item' not in plan_result:
+            return response(404, {
+                'error': 'RECOVERY_PLAN_NOT_FOUND',
+                'message': f'Recovery Plan with ID {plan_id} not found',
+                'planId': plan_id
+            })
+        
+        plan = plan_result['Item']
+        
+        # Collect all server IDs from all waves
+        all_server_ids = set()
+        for wave in plan.get('Waves', []):
+            for server_id in wave.get('ServerIds', []):
+                all_server_ids.add(server_id)
+        
+        if not all_server_ids:
+            return response(200, {
+                'hasExistingInstances': False,
+                'existingInstances': [],
+                'planId': plan_id
+            })
+        
+        # Get region from first wave's protection group
+        first_wave = plan.get('Waves', [{}])[0]
+        pg_id = first_wave.get('ProtectionGroupId')
+        region = 'us-east-1'
+        if pg_id:
+            pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+            region = pg_result.get('Item', {}).get('Region', 'us-east-1')
+        
+        # Query DRS for recovery instances
+        drs_client = boto3.client('drs', region_name=region)
+        
+        existing_instances = []
+        try:
+            # Get all recovery instances in the region
+            paginator = drs_client.get_paginator('describe_recovery_instances')
+            for page in paginator.paginate():
+                for ri in page.get('items', []):
+                    source_server_id = ri.get('sourceServerID')
+                    if source_server_id in all_server_ids:
+                        ec2_instance_id = ri.get('ec2InstanceID')
+                        recovery_instance_id = ri.get('recoveryInstanceID')
+                        
+                        # Find which execution created this instance
+                        source_execution = None
+                        source_plan_name = None
+                        
+                        # Search execution history for this recovery instance
+                        try:
+                            exec_scan = execution_history_table.scan(
+                                FilterExpression='contains(#waves, :ri_id)',
+                                ExpressionAttributeNames={'#waves': 'Waves'},
+                                ExpressionAttributeValues={':ri_id': recovery_instance_id},
+                                Limit=10
+                            )
+                            # If not found by recovery instance ID, try by source server
+                            if not exec_scan.get('Items'):
+                                exec_scan = execution_history_table.scan(
+                                    FilterExpression='attribute_exists(Waves)',
+                                    Limit=50
+                                )
+                            
+                            for exec_item in exec_scan.get('Items', []):
+                                exec_waves = exec_item.get('Waves', [])
+                                for wave in exec_waves:
+                                    for job in wave.get('Jobs', []):
+                                        for server in job.get('Servers', []):
+                                            if server.get('sourceServerID') == source_server_id:
+                                                source_execution = exec_item.get('ExecutionId')
+                                                # Get plan name
+                                                exec_plan_id = exec_item.get('PlanId')
+                                                if exec_plan_id:
+                                                    plan_lookup = recovery_plans_table.get_item(Key={'PlanId': exec_plan_id})
+                                                    source_plan_name = plan_lookup.get('Item', {}).get('PlanName', exec_plan_id)
+                                                break
+                                        if source_execution:
+                                            break
+                                    if source_execution:
+                                        break
+                                if source_execution:
+                                    break
+                        except Exception as e:
+                            print(f"Error looking up execution for recovery instance: {e}")
+                        
+                        existing_instances.append({
+                            'sourceServerId': source_server_id,
+                            'recoveryInstanceId': recovery_instance_id,
+                            'ec2InstanceId': ec2_instance_id,
+                            'ec2InstanceState': ri.get('ec2InstanceState'),
+                            'sourceExecutionId': source_execution,
+                            'sourcePlanName': source_plan_name,
+                            'region': region
+                        })
+        except Exception as e:
+            print(f"Error querying DRS recovery instances: {e}")
+            # Don't fail the whole request, just return empty
+        
+        return response(200, {
+            'hasExistingInstances': len(existing_instances) > 0,
+            'existingInstances': existing_instances,
+            'instanceCount': len(existing_instances),
+            'planId': plan_id
+        })
+        
+    except Exception as e:
+        print(f"Error checking existing recovery instances for plan {plan_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'CHECK_FAILED',
+            'message': f'Failed to check existing recovery instances: {str(e)}',
             'planId': plan_id
         })
 
