@@ -593,7 +593,21 @@ Base URL: `https://{api-id}.execute-api.{region}.amazonaws.com/{stage}`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/drs/source-servers?region={region}` | List DRS source servers |
-| GET | `/drs/quotas?region={region}` | Get DRS service quotas |
+| GET | `/drs/quotas?region={region}` | Get DRS service quotas (region required) |
+
+### Health Check
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check endpoint (returns service status) |
+
+The health endpoint returns:
+```json
+{
+  "status": "healthy",
+  "service": "drs-orchestration-api"
+}
+```
 
 ---
 
@@ -1688,10 +1702,17 @@ TIMEOUT=7200 ./scripts/execute_dr_drill.sh "Large Recovery Plan" DRILL
 | Error Code | HTTP | Message | Cause | Resolution |
 |------------|------|---------|-------|------------|
 | `MISSING_FIELD` | 400 | "X is required" | Required field not provided | Include the required field in request |
-| `INVALID_NAME` | 400 | "Name cannot be empty" or "Name must be 256 characters or fewer" | Empty or too long name | Provide valid name (1-256 chars) |
+| `MISSING_REGION` | 400 | "region query parameter is required" | Region not provided for DRS operations | Include `?region=us-east-1` in request |
+| `INVALID_NAME` | 400 | "Name cannot be empty" or "Name must be 64 characters or fewer" | Empty or too long name | Provide valid name (1-64 chars) |
 | `INVALID_EXECUTION_TYPE` | 400 | "ExecutionType must be DRILL or RECOVERY" | Invalid execution type | Use DRILL or RECOVERY |
 | `PLAN_HAS_NO_WAVES` | 400 | "Recovery Plan has no waves configured" | Plan has no waves | Add at least one wave to the plan |
 | `RECOVERY_PLAN_NOT_FOUND` | 404 | "Recovery Plan with ID X not found" | Invalid plan ID | Verify plan ID exists |
+
+#### Concurrency Errors
+
+| Error Code | HTTP | Message | Cause | Resolution |
+|------------|------|---------|-------|------------|
+| `VERSION_CONFLICT` | 409 | "Resource was modified by another user" | Optimistic locking conflict | Refresh data and retry with current version |
 
 #### General Errors
 
@@ -1699,6 +1720,57 @@ TIMEOUT=7200 ./scripts/execute_dr_drill.sh "Large Recovery Plan" DRILL
 |------------|------|---------|-------|------------|
 | `INTERNAL_ERROR` | 500 | "Failed to X: error details" | Unexpected error | Check CloudWatch logs, retry |
 | `DELETE_FAILED` | 500 | "Failed to delete X" | Delete operation failed | Check CloudWatch logs, retry |
+
+### Optimistic Locking (Version Field)
+
+All Protection Groups and Recovery Plans include a `version` field for optimistic locking. When updating a resource, you must include the current version number. If another user modified the resource since you fetched it, you'll receive a `VERSION_CONFLICT` error.
+
+#### Create Response (version starts at 1)
+```json
+{
+  "id": "pg-abc123",
+  "name": "Database Servers",
+  "version": 1,
+  ...
+}
+```
+
+#### Update Request (must include current version)
+```json
+{
+  "name": "Updated Name",
+  "version": 1
+}
+```
+
+#### Version Conflict Response
+```json
+{
+  "error": "VERSION_CONFLICT",
+  "message": "Resource was modified by another user. Please refresh and try again."
+}
+```
+
+#### Handling Version Conflicts
+
+```python
+def update_with_retry(client, resource_id, updates, max_retries=3):
+    """Update resource with automatic conflict resolution"""
+    for attempt in range(max_retries):
+        # Get current resource state
+        resource = client.get_protection_group(resource_id)
+        
+        # Apply updates with current version
+        updates['version'] = resource['version']
+        
+        try:
+            return client.update_protection_group(resource_id, updates)
+        except Exception as e:
+            if 'VERSION_CONFLICT' in str(e) and attempt < max_retries - 1:
+                print(f"Version conflict, retrying ({attempt + 1}/{max_retries})...")
+                continue
+            raise
+```
 
 ### Error Response Format
 
@@ -1875,10 +1947,13 @@ def handle_api_error(response_body: dict) -> None:
         'NO_PENDING_WAVES': 'All waves have completed - nothing to pause',
         # Validation errors
         'MISSING_FIELD': 'Include all required fields in the request',
-        'INVALID_NAME': 'Provide a valid name (1-256 characters, not empty)',
+        'MISSING_REGION': 'Include region query parameter (e.g., ?region=us-east-1)',
+        'INVALID_NAME': 'Provide a valid name (1-64 characters, not empty)',
         'INVALID_EXECUTION_TYPE': 'Use DRILL or RECOVERY as execution type',
         'PLAN_HAS_NO_WAVES': 'Add at least one wave to the Recovery Plan',
         'RECOVERY_PLAN_NOT_FOUND': 'Verify the Recovery Plan ID exists',
+        # Concurrency errors
+        'VERSION_CONFLICT': 'Refresh the resource and retry with current version',
         # DRS errors
         'DRS_NOT_INITIALIZED': 'Initialize DRS in the AWS Console for this region',
     }
@@ -1917,6 +1992,12 @@ handle_error() {
             ;;
         PG_IN_ACTIVE_EXECUTION|PLAN_ALREADY_EXECUTING)
             echo "→ Wait for execution to complete or cancel it"
+            ;;
+        VERSION_CONFLICT)
+            echo "→ Resource was modified - refresh and retry with current version"
+            ;;
+        MISSING_REGION)
+            echo "→ Include region parameter: ?region=us-east-1"
             ;;
         DRS_NOT_INITIALIZED)
             local region=$(echo "$response" | jq -r '.region')
