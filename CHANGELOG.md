@@ -4,6 +4,30 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+## [1.5.0] - December 13, 2025
+
+**Recovery Instance Source Tracking** - `51c0031`, `v1.5.0`
+
+New API endpoint and enhanced UI for tracking existing recovery instances before starting drills:
+
+API Changes:
+- Added `GET /recovery-plans/{planId}/check-existing-instances` endpoint
+- Returns existing recovery instances with source execution and plan tracking
+- Enriched response with EC2 details: Name tag, private IP, instance type, launch time
+- Fixed execution history lookup to correctly search `Waves[].ServerStatuses[].SourceServerId`
+
+Frontend Changes:
+- Enhanced warning dialog shows detailed instance information before drill
+- Displays: instance name, private IP, instance type, launch time
+- Updated warning message: clarifies drill will TERMINATE existing instances (not create additional)
+- Shows source plan name that created the instances
+
+Code Cleanup:
+- Removed unused `get_protection_group_servers_legacy` function (~110 lines)
+- Deleted `cfn/api-stack.yaml.bak` backup file
+
+---
+
 ### December 13, 2025
 
 **DRS Launch Settings - Full UI and API Support** - `2272e5e`, `drs-launch-settings-v1`
