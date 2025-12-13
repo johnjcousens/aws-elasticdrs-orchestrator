@@ -2,7 +2,7 @@
 
 ## AWS DRS Orchestration System
 
-**Version**: 1.0  
+**Version**: 1.5  
 **Date**: December 2025  
 **Status**: Design Specification
 
@@ -767,6 +767,24 @@ When a plan has servers that are currently in use by another active execution:
 - `conflictInfo.reason` contains the blocking reason
 - Run Drill description changes to: "Blocked: {conflictInfo.reason}"
 - Run Drill button is disabled
+
+**Existing Recovery Instance Warning**:
+
+Before starting a drill, the system checks for existing recovery instances:
+- Calls `GET /recovery-plans/{id}/check-existing-instances` API
+- If instances exist, displays warning dialog with:
+  - Count of existing instances and source plan name
+  - Warning message: "Starting a new drill will terminate these existing instances before launching new ones"
+  - Instance details table showing:
+    - Instance ID (i-xxx)
+    - Name tag (from EC2)
+    - Private IP address
+    - Instance type (e.g., t3.medium)
+    - Launch time (formatted date)
+    - State (RUNNING, STOPPED, etc.)
+  - Source execution tracking (which plan/execution created the instances)
+- User can proceed (instances will be terminated) or cancel
+- Helps prevent unexpected costs from orphaned recovery instances
 
 **Execution Disabled Logic**:
 
