@@ -35,9 +35,10 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - Real-time Execution Monitoring (3-second auto-refresh, DRS job events)
 - Loading State Management (prevents multiple operations)
 - AWS DRS Regional Support (30 regions: 28 commercial + 2 GovCloud)
+- EC2 Launch Template & DRS Launch Settings (Protection Group level configuration) ✅ Dec 13, 2025
 
 ### In Scope - Advanced Features (Phase 2)
-- DRS Source Server Management (launch settings, EC2 templates, tags, disks, replication, post-launch)
+- DRS Source Server Management - Remaining (Server Info, tags, disks, replication, post-launch)
 - DRS Tag Synchronization (EC2 to DRS tag sync with bulk operations)
 - SSM Automation Integration (pre/post-wave automation)
 - Step Functions Visualization (real-time state machine monitoring)
@@ -476,11 +477,11 @@ The system shall discover DRS source servers by region:
 
 ---
 
-### FR-6: DRS Source Server Management (Phase 2)
+### FR-6: DRS Source Server Management
 
-**Implementation Phase**: Advanced Features
+**Implementation Phase**: Partially Complete (Launch Settings & EC2 Templates done Dec 13, 2025)
 
-#### FR-6.1: Get Server Info
+#### FR-6.1: Get Server Info (Phase 2)
 **Priority**: High
 
 The system shall return comprehensive DRS source server information:
@@ -494,7 +495,7 @@ The system shall return comprehensive DRS source server information:
 **API**: `GET /drs/source-servers/{id}?region={region}`
 **Response**: Full server details object
 
-#### FR-6.2: Get Launch Settings
+#### FR-6.2: Get Launch Settings ✅ COMPLETE (Dec 13, 2025)
 **Priority**: High
 
 The system shall return DRS launch configuration:
@@ -505,28 +506,32 @@ The system shall return DRS launch configuration:
 - licensing.osByol (boolean)
 - ec2LaunchTemplateID
 
-**API**: `GET /drs/source-servers/{id}/launch-settings?region={region}`
+**Implementation**: Configured at Protection Group level via LaunchConfig field. Applied to all servers when Protection Group is saved.
 
-#### FR-6.3: Update Launch Settings
+**API**: Protection Group endpoints with LaunchConfig field
+
+#### FR-6.3: Update Launch Settings ✅ COMPLETE (Dec 13, 2025)
 **Priority**: High
 
 The system shall update DRS launch configuration:
-- All fields from FR-5.2 are updatable
+- All fields from FR-6.2 are updatable
 - Validation per DRS API constraints
+- Applied via `apply_launch_config_to_servers()` function
 
-**API**: `PUT /drs/source-servers/{id}/launch-settings`
+**API**: `PUT /protection-groups/{id}` with LaunchConfig:
 ```json
 {
-  "region": "us-east-1",
-  "targetInstanceTypeRightSizingMethod": "BASIC",
-  "launchDisposition": "STARTED",
-  "copyPrivateIp": true,
-  "copyTags": true,
-  "licensing": { "osByol": false }
+  "LaunchConfig": {
+    "TargetInstanceTypeRightSizingMethod": "BASIC",
+    "LaunchDisposition": "STARTED",
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "Licensing": { "osByol": false }
+  }
 }
 ```
 
-#### FR-6.4: Get EC2 Template Settings
+#### FR-6.4: Get EC2 Template Settings ✅ COMPLETE (Dec 13, 2025)
 **Priority**: High
 
 The system shall return EC2 launch template configuration:
@@ -535,9 +540,11 @@ The system shall return EC2 launch template configuration:
 - Security group IDs
 - IAM instance profile name
 
-**API**: `GET /drs/source-servers/{id}/ec2-template?region={region}`
+**Implementation**: Configured at Protection Group level via LaunchConfig field.
 
-#### FR-6.5: Update EC2 Template Settings
+**API**: `GET /protection-groups/{id}` returns LaunchConfig with EC2 settings
+
+#### FR-6.5: Update EC2 Template Settings ✅ COMPLETE (Dec 13, 2025)
 **Priority**: High
 
 The system shall update EC2 launch template:
@@ -545,14 +552,15 @@ The system shall update EC2 launch template:
 - Set new version as default
 - Validate resources exist (subnet, security groups, instance profile)
 
-**API**: `PUT /drs/source-servers/{id}/ec2-template`
+**API**: `PUT /protection-groups/{id}` with LaunchConfig:
 ```json
 {
-  "region": "us-east-1",
-  "instanceType": "t3.medium",
-  "subnetId": "subnet-xxx",
-  "securityGroupIds": ["sg-xxx", "sg-yyy"],
-  "iamInstanceProfile": "MyInstanceProfile"
+  "LaunchConfig": {
+    "SubnetId": "subnet-xxx",
+    "SecurityGroupIds": ["sg-xxx", "sg-yyy"],
+    "InstanceProfileName": "MyInstanceProfile",
+    "InstanceType": "t3.medium"
+  }
 }
 ```
 

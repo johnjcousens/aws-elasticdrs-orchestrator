@@ -204,12 +204,14 @@ Real-time validation and enforcement of AWS DRS service limits to prevent API er
 - DRS job events timeline
 - Loading state management
 - Server conflict detection
+- **EC2 Launch Template & DRS Launch Settings** (added Dec 13, 2025)
 
 ### Phase 2: Advanced Features
 
 | Priority | Feature | Description |
 |----------|---------|-------------|
-| 3 | **DRS Source Server Management** | Complete DRS source server configuration from UI |
+| ~~3~~ | ~~**EC2 Launch Template & DRS Launch Settings**~~ | ~~✅ COMPLETE (Dec 13, 2025) - Full EC2 Launch Template and DRS Launch Settings via UI and API~~ |
+| 4 | **DRS Source Server Management (Remaining)** | Server Info dashboard, Tags, Disk Settings, Replication, Post-Launch |
 | 4 | **DRS Tag Synchronization** | Synchronize EC2 instance tags to DRS source servers |
 | 5 | **SSM Automation Integration** | Pre-wave and post-wave SSM automation |
 | 6 | **Step Functions Visualization** | Real-time state machine execution visualization |
@@ -247,9 +249,9 @@ Read-only visibility into DRS source server details, replication state, recovery
 **API Endpoints**:
 - `GET /drs/source-servers/{id}?region={region}` - Get full server details
 
-#### 5.2 Launch Settings (Phase 2)
+#### 5.2 Launch Settings ✅ COMPLETE (Dec 13, 2025)
 
-Configure DRS launch settings for recovery instances.
+Configure DRS launch settings for recovery instances. **Now implemented at Protection Group level.**
 
 **Capabilities**:
 - Right-sizing method (NONE, BASIC, IN_AWS)
@@ -258,13 +260,19 @@ Configure DRS launch settings for recovery instances.
 - Copy tags option
 - BYOL licensing configuration
 
+**Implementation**: Settings are configured per Protection Group and applied to all servers in the group when saved. Available via UI (LaunchConfigSection component) and API.
+
 **API Endpoints**:
-- `GET /drs/source-servers/{id}/launch-settings?region={region}` - Get launch configuration
-- `PUT /drs/source-servers/{id}/launch-settings` - Update launch configuration
+- `POST /protection-groups` - Create with LaunchConfig
+- `PUT /protection-groups/{id}` - Update LaunchConfig (applies to all servers)
+- `GET /ec2/subnets?region={region}` - List available subnets
+- `GET /ec2/security-groups?region={region}` - List security groups
+- `GET /ec2/instance-profiles?region={region}` - List IAM instance profiles
+- `GET /ec2/instance-types?region={region}` - List EC2 instance types
 
-#### 5.3 EC2 Launch Template (Phase 2)
+#### 5.3 EC2 Launch Template ✅ COMPLETE (Dec 13, 2025)
 
-Configure EC2 launch template settings for recovery instances.
+Configure EC2 launch template settings for recovery instances. **Now implemented at Protection Group level.**
 
 **Capabilities**:
 - Instance type selection with full EC2 instance type catalog
@@ -272,10 +280,11 @@ Configure EC2 launch template settings for recovery instances.
 - Security group selection (multiple)
 - IAM instance profile selection
 
-**API Endpoints**:
-- `GET /drs/source-servers/{id}/ec2-template?region={region}` - Get EC2 template settings
-- `PUT /drs/source-servers/{id}/ec2-template` - Update EC2 template settings
-- `GET /ec2/resources?region={region}` - Get available subnets, security groups, instance profiles
+**Implementation**: Settings are stored in Protection Group's LaunchConfig and applied via `apply_launch_config_to_servers()` which updates both DRS launch configuration and EC2 launch templates.
+
+**API Endpoints** (same as 5.2 - unified in LaunchConfig):
+- Protection Group CRUD endpoints with LaunchConfig field
+- EC2 resource endpoints for dropdown population
 
 #### 5.4 Tags Management (Phase 2)
 
