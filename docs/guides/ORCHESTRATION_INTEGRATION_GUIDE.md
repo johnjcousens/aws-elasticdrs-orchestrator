@@ -119,7 +119,7 @@ import json
 def invoke_drs_api(method: str, path: str, body: dict = None, query_params: dict = None) -> dict:
     """Invoke DRS Orchestration Lambda directly using IAM credentials"""
     lambda_client = boto3.client('lambda', region_name='us-east-1')
-    
+  
     event = {
         'httpMethod': method,
         'path': path,
@@ -127,21 +127,21 @@ def invoke_drs_api(method: str, path: str, body: dict = None, query_params: dict
         'queryStringParameters': query_params,
         'body': json.dumps(body) if body else None
     }
-    
+  
     response = lambda_client.invoke(
         FunctionName='drs-orchestration-api-handler-dev',
         InvocationType='RequestResponse',
         Payload=json.dumps(event)
     )
-    
+  
     result = json.loads(response['Payload'].read())
-    
+  
     # Parse the Lambda response (API Gateway format)
     if 'statusCode' in result:
         if result['statusCode'] >= 400:
             raise Exception(f"API Error {result['statusCode']}: {result.get('body', 'Unknown error')}")
         return json.loads(result.get('body', '{}'))
-    
+  
     return result
 
 # Usage examples
@@ -180,7 +180,7 @@ invoke_lambda() {
     local method=$1
     local path=$2
     local body=$3
-    
+  
     local payload
     if [ -n "$body" ]; then
         payload=$(jq -n --arg m "$method" --arg p "$path" --arg b "$body" \
@@ -189,14 +189,14 @@ invoke_lambda() {
         payload=$(jq -n --arg m "$method" --arg p "$path" \
             '{httpMethod: $m, path: $p, headers: {}, queryStringParameters: null, body: null}')
     fi
-    
+  
     AWS_PAGER="" aws lambda invoke \
         --function-name "$FUNCTION_NAME" \
         --payload "$payload" \
         --cli-binary-format raw-in-base64-out \
         --region "$REGION" \
         /tmp/lambda_response.json > /dev/null 2>&1
-    
+  
     # Extract body from Lambda response
     jq -r '.body' /tmp/lambda_response.json | jq .
 }
@@ -400,11 +400,11 @@ outputs:
 
 #### When to Use Each Authentication Method
 
-| Method | Use Case | Pros | Cons |
-|--------|----------|------|------|
-| **Cognito (User)** | Interactive/manual operations | User identity tracking | Requires password management |
-| **Cognito (Service)** | External integrations, third-party tools | Works with any HTTP client | Token refresh needed |
-| **IAM (Direct Lambda)** | AWS-native automation (Step Functions, SSM, EventBridge) | No token management, uses IAM roles | Only works within AWS |
+| Method                        | Use Case                                                 | Pros                                | Cons                         |
+| ----------------------------- | -------------------------------------------------------- | ----------------------------------- | ---------------------------- |
+| **Cognito (User)**      | Interactive/manual operations                            | User identity tracking              | Requires password management |
+| **Cognito (Service)**   | External integrations, third-party tools                 | Works with any HTTP client          | Token refresh needed         |
+| **IAM (Direct Lambda)** | AWS-native automation (Step Functions, SSM, EventBridge) | No token management, uses IAM roles | Only works within AWS        |
 
 #### Security Considerations for IAM-Based Access
 
@@ -435,13 +435,13 @@ outputs:
 
 ##### What IAM-Based Access CANNOT Do
 
-| Limitation | Reason | Workaround |
-|------------|--------|------------|
-| **Cross-account without setup** | Lambda must allow cross-account invocation | Add resource-based policy to Lambda |
-| **External/third-party tools** | Tools outside AWS can't use IAM roles directly | Use Cognito service account instead |
-| **User identity tracking** | No Cognito user context in Lambda | Pass `initiatedBy` field in request body |
-| **Rate limiting per user** | No user-level throttling | Implement custom throttling in Lambda |
-| **Browser/frontend access** | Browsers can't assume IAM roles | Use Cognito for frontend authentication |
+| Limitation                            | Reason                                         | Workaround                                 |
+| ------------------------------------- | ---------------------------------------------- | ------------------------------------------ |
+| **Cross-account without setup** | Lambda must allow cross-account invocation     | Add resource-based policy to Lambda        |
+| **External/third-party tools**  | Tools outside AWS can't use IAM roles directly | Use Cognito service account instead        |
+| **User identity tracking**      | No Cognito user context in Lambda              | Pass `initiatedBy` field in request body |
+| **Rate limiting per user**      | No user-level throttling                       | Implement custom throttling in Lambda      |
+| **Browser/frontend access**     | Browsers can't assume IAM roles                | Use Cognito for frontend authentication    |
 
 ##### Cross-Account Invocation
 
@@ -461,60 +461,60 @@ The calling account still needs an IAM policy allowing `lambda:InvokeFunction` o
 
 ##### What is NOT Allowed
 
-| Action | Allowed? | Notes |
-|--------|----------|-------|
-| Direct Lambda invocation from same account | ✅ Yes | Requires IAM policy |
-| Direct Lambda invocation from different account | ✅ Yes | Requires resource-based policy on Lambda |
-| Direct Lambda invocation from outside AWS | ❌ No | Use API Gateway + Cognito |
-| Invoking Lambda from browser JavaScript | ❌ No | Use API Gateway + Cognito |
-| Bypassing DRS service limits | ❌ No | Lambda enforces DRS quotas regardless of auth method |
-| Executing without valid recovery plan | ❌ No | API validates plan exists and has no conflicts |
-| Starting execution with conflicting servers | ❌ No | Server conflict check applies to all auth methods |
-| Deleting active executions | ❌ No | Must cancel first, then delete |
-| Modifying completed executions | ❌ No | Execution history is immutable |
+| Action                                          | Allowed? | Notes                                                |
+| ----------------------------------------------- | -------- | ---------------------------------------------------- |
+| Direct Lambda invocation from same account      | ✅ Yes   | Requires IAM policy                                  |
+| Direct Lambda invocation from different account | ✅ Yes   | Requires resource-based policy on Lambda             |
+| Direct Lambda invocation from outside AWS       | ❌ No    | Use API Gateway + Cognito                            |
+| Invoking Lambda from browser JavaScript         | ❌ No    | Use API Gateway + Cognito                            |
+| Bypassing DRS service limits                    | ❌ No    | Lambda enforces DRS quotas regardless of auth method |
+| Executing without valid recovery plan           | ❌ No    | API validates plan exists and has no conflicts       |
+| Starting execution with conflicting servers     | ❌ No    | Server conflict check applies to all auth methods    |
+| Deleting active executions                      | ❌ No    | Must cancel first, then delete                       |
+| Modifying completed executions                  | ❌ No    | Execution history is immutable                       |
 
 ##### Edge Cases and Error Handling
 
-| Scenario | Behavior | Recommended Action |
-|----------|----------|-------------------|
-| Lambda cold start | First invocation may take 1-3 seconds longer | Account for latency in timeouts |
-| Lambda timeout (29 sec) | Request fails with timeout error | Break long operations into smaller calls |
-| Concurrent execution limit | Throttling error (429) | Implement exponential backoff |
-| Invalid event format | 400 Bad Request | Validate event structure before invoking |
-| Missing required fields | 400 Bad Request with field details | Check API documentation for required fields |
-| Plan has server conflicts | 409 Conflict | Query plan first, check `hasServerConflict` |
-| Execution already running | 409 Conflict | Wait for completion or cancel existing |
-| DRS quota exceeded | 400 Bad Request | Check `/drs/quotas` before starting |
+| Scenario                   | Behavior                                     | Recommended Action                            |
+| -------------------------- | -------------------------------------------- | --------------------------------------------- |
+| Lambda cold start          | First invocation may take 1-3 seconds longer | Account for latency in timeouts               |
+| Lambda timeout (29 sec)    | Request fails with timeout error             | Break long operations into smaller calls      |
+| Concurrent execution limit | Throttling error (429)                       | Implement exponential backoff                 |
+| Invalid event format       | 400 Bad Request                              | Validate event structure before invoking      |
+| Missing required fields    | 400 Bad Request with field details           | Check API documentation for required fields   |
+| Plan has server conflicts  | 409 Conflict                                 | Query plan first, check `hasServerConflict` |
+| Execution already running  | 409 Conflict                                 | Wait for completion or cancel existing        |
+| DRS quota exceeded         | 400 Bad Request                              | Check `/drs/quotas` before starting         |
 
 ##### Lambda Payload Size Limits
 
-| Limit | Value | Impact |
-|-------|-------|--------|
-| Synchronous invocation payload | 6 MB | Request + response combined |
-| Response payload | 6 MB | Large execution histories may be truncated |
-| Event payload | 256 KB (async) | Use synchronous for larger payloads |
+| Limit                          | Value          | Impact                                     |
+| ------------------------------ | -------------- | ------------------------------------------ |
+| Synchronous invocation payload | 6 MB           | Request + response combined                |
+| Response payload               | 6 MB           | Large execution histories may be truncated |
+| Event payload                  | 256 KB (async) | Use synchronous for larger payloads        |
 
 ##### Required Event Fields by Operation
 
-| Operation | Required Fields | Optional Fields |
-|-----------|-----------------|-----------------|
-| List resources | `httpMethod`, `path` | `queryStringParameters` |
-| Get by ID | `httpMethod`, `path` (with ID) | - |
-| Create | `httpMethod`, `path`, `body` | - |
-| Update | `httpMethod`, `path` (with ID), `body` | - |
-| Delete | `httpMethod`, `path` (with ID) | - |
+| Operation       | Required Fields                                                           | Optional Fields                                 |
+| --------------- | ------------------------------------------------------------------------- | ----------------------------------------------- |
+| List resources  | `httpMethod`, `path`                                                  | `queryStringParameters`                       |
+| Get by ID       | `httpMethod`, `path` (with ID)                                        | -                                               |
+| Create          | `httpMethod`, `path`, `body`                                        | -                                               |
+| Update          | `httpMethod`, `path` (with ID), `body`                              | -                                               |
+| Delete          | `httpMethod`, `path` (with ID)                                        | -                                               |
 | Start execution | `httpMethod`, `path`, `body.recoveryPlanId`, `body.executionType` | `body.initiatedBy`, `body.invocationSource` |
 
 ##### Troubleshooting IAM-Based Access
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `AccessDeniedException` | Missing `lambda:InvokeFunction` permission | Add IAM policy to calling role |
-| `ResourceNotFoundException` | Wrong function name or region | Verify function name and region |
-| `InvalidRequestContentException` | Malformed JSON payload | Validate JSON structure |
-| `ServiceException` | Lambda internal error | Retry with exponential backoff |
-| `TooManyRequestsException` | Throttled | Implement backoff, request limit increase |
-| `KMSAccessDeniedException` | Lambda uses encrypted env vars | Grant KMS decrypt to calling role |
+| Error                              | Cause                                        | Solution                                  |
+| ---------------------------------- | -------------------------------------------- | ----------------------------------------- |
+| `AccessDeniedException`          | Missing `lambda:InvokeFunction` permission | Add IAM policy to calling role            |
+| `ResourceNotFoundException`      | Wrong function name or region                | Verify function name and region           |
+| `InvalidRequestContentException` | Malformed JSON payload                       | Validate JSON structure                   |
+| `ServiceException`               | Lambda internal error                        | Retry with exponential backoff            |
+| `TooManyRequestsException`       | Throttled                                    | Implement backoff, request limit increase |
+| `KMSAccessDeniedException`       | Lambda uses encrypted env vars               | Grant KMS decrypt to calling role         |
 
 ##### Audit and Compliance
 
@@ -552,56 +552,57 @@ Base URL: `https://{api-id}.execute-api.{region}.amazonaws.com/{stage}`
 
 ### Protection Groups
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/protection-groups` | List all protection groups |
-| GET | `/protection-groups/{id}` | Get protection group by ID |
-| POST | `/protection-groups` | Create protection group |
-| PUT | `/protection-groups/{id}` | Update protection group |
-| DELETE | `/protection-groups/{id}` | Delete protection group |
-| POST | `/protection-groups/{id}/resolve` | Resolve servers from tags |
+| Method | Endpoint                            | Description                |
+| ------ | ----------------------------------- | -------------------------- |
+| GET    | `/protection-groups`              | List all protection groups |
+| GET    | `/protection-groups/{id}`         | Get protection group by ID |
+| POST   | `/protection-groups`              | Create protection group    |
+| PUT    | `/protection-groups/{id}`         | Update protection group    |
+| DELETE | `/protection-groups/{id}`         | Delete protection group    |
+| POST   | `/protection-groups/{id}/resolve` | Resolve servers from tags  |
 
 ### Recovery Plans
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/recovery-plans` | List all recovery plans |
-| GET | `/recovery-plans?name={partial}` | Filter by name (partial match) |
-| GET | `/recovery-plans?nameExact={name}` | Filter by exact name |
-| GET | `/recovery-plans?tag={key}={value}` | Filter by protection group tag |
-| GET | `/recovery-plans?hasConflict=false` | Filter by conflict status |
-| GET | `/recovery-plans?status={status}` | Filter by last execution status |
-| GET | `/recovery-plans/{id}` | Get recovery plan by ID |
-| POST | `/recovery-plans` | Create recovery plan |
-| PUT | `/recovery-plans/{id}` | Update recovery plan |
-| DELETE | `/recovery-plans/{id}` | Delete recovery plan |
+| Method | Endpoint                              | Description                     |
+| ------ | ------------------------------------- | ------------------------------- |
+| GET    | `/recovery-plans`                   | List all recovery plans         |
+| GET    | `/recovery-plans?name={partial}`    | Filter by name (partial match)  |
+| GET    | `/recovery-plans?nameExact={name}`  | Filter by exact name            |
+| GET    | `/recovery-plans?tag={key}={value}` | Filter by protection group tag  |
+| GET    | `/recovery-plans?hasConflict=false` | Filter by conflict status       |
+| GET    | `/recovery-plans?status={status}`   | Filter by last execution status |
+| GET    | `/recovery-plans/{id}`              | Get recovery plan by ID         |
+| POST   | `/recovery-plans`                   | Create recovery plan            |
+| PUT    | `/recovery-plans/{id}`              | Update recovery plan            |
+| DELETE | `/recovery-plans/{id}`              | Delete recovery plan            |
 
 ### Executions
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/executions` | List all executions |
-| GET | `/executions/{id}` | Get execution details |
-| POST | `/executions` | Start new execution |
-| POST | `/executions/{id}/cancel` | Cancel execution |
-| POST | `/executions/{id}/pause` | Pause execution |
-| POST | `/executions/{id}/resume` | Resume paused execution |
-| DELETE | `/executions/{id}` | Delete execution record |
+| Method | Endpoint                    | Description             |
+| ------ | --------------------------- | ----------------------- |
+| GET    | `/executions`             | List all executions     |
+| GET    | `/executions/{id}`        | Get execution details   |
+| POST   | `/executions`             | Start new execution     |
+| POST   | `/executions/{id}/cancel` | Cancel execution        |
+| POST   | `/executions/{id}/pause`  | Pause execution         |
+| POST   | `/executions/{id}/resume` | Resume paused execution |
+| DELETE | `/executions/{id}`        | Delete execution record |
 
 ### DRS Operations
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/drs/source-servers?region={region}` | List DRS source servers |
-| GET | `/drs/quotas?region={region}` | Get DRS service quotas (region required) |
+| Method | Endpoint                                | Description                              |
+| ------ | --------------------------------------- | ---------------------------------------- |
+| GET    | `/drs/source-servers?region={region}` | List DRS source servers                  |
+| GET    | `/drs/quotas?region={region}`         | Get DRS service quotas (region required) |
 
 ### Health Check
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check endpoint (returns service status) |
+| Method | Endpoint    | Description                                    |
+| ------ | ----------- | ---------------------------------------------- |
+| GET    | `/health` | Health check endpoint (returns service status) |
 
 The health endpoint returns:
+
 ```json
 {
   "status": "healthy",
@@ -790,17 +791,17 @@ mainSteps:
       Script: |
         import boto3
         import json
-        
+      
         def get_token(events, context):
             ssm = boto3.client('ssm')
             cognito = boto3.client('cognito-idp')
-            
+          
             # Get password from Parameter Store
             password = ssm.get_parameter(
                 Name=events['PasswordParameter'],
                 WithDecryption=True
             )['Parameter']['Value']
-            
+          
             # Authenticate
             response = cognito.initiate_auth(
                 ClientId=events['CognitoClientId'],
@@ -810,7 +811,7 @@ mainSteps:
                     'PASSWORD': password
                 }
             )
-            
+          
             return {'token': response['AuthenticationResult']['IdToken']}
       InputPayload:
         CognitoClientId: '{{CognitoClientId}}'
@@ -830,23 +831,23 @@ mainSteps:
         import urllib.request
         import urllib.parse
         import json
-        
+      
         def find_plan(events, context):
             api = events['ApiEndpoint']
             token = events['Token']
             plan_name = urllib.parse.quote(events['RecoveryPlanName'])
-            
+          
             url = f"{api}/recovery-plans?nameExact={plan_name}"
             req = urllib.request.Request(url, headers={
                 'Authorization': f'Bearer {token}'
             })
-            
+          
             with urllib.request.urlopen(req) as resp:
                 data = json.loads(resp.read())
-                
+              
             if not data.get('plans'):
                 raise Exception(f"Recovery plan '{events['RecoveryPlanName']}' not found")
-            
+          
             plan = data['plans'][0]
             return {
                 'planId': plan['id'],
@@ -893,11 +894,11 @@ mainSteps:
       Script: |
         import urllib.request
         import json
-        
+      
         def start_execution(events, context):
             api = events['ApiEndpoint']
             token = events['Token']
-            
+          
             url = f"{api}/executions"
             data = json.dumps({
                 'recoveryPlanId': events['PlanId'],
@@ -908,15 +909,15 @@ mainSteps:
                     'ssmDocumentName': 'drs-drill-automation'
                 }
             }).encode()
-            
+          
             req = urllib.request.Request(url, data=data, headers={
                 'Authorization': f'Bearer {token}',
                 'Content-Type': 'application/json'
             })
-            
+          
             with urllib.request.urlopen(req) as resp:
                 result = json.loads(resp.read())
-            
+          
             return {'executionId': result.get('ExecutionId') or result.get('executionId')}
       InputPayload:
         ApiEndpoint: '{{ApiEndpoint}}'
@@ -1183,23 +1184,23 @@ import urllib.request
 
 def handler(event, context):
     """EventBridge scheduled DR drill execution"""
-    
+  
     # Get configuration from environment or event
     api_endpoint = os.environ.get('API_ENDPOINT') or event.get('apiEndpoint')
     plan_name = event.get('planName', os.environ.get('DEFAULT_PLAN_NAME'))
     execution_type = event.get('executionType', 'DRILL')
-    
+  
     # Get auth token
     token = get_auth_token()
-    
+  
     # Find recovery plan
     plan = find_plan_by_name(api_endpoint, token, plan_name)
     if not plan:
         raise Exception(f"Recovery plan '{plan_name}' not found")
-    
+  
     if plan.get('hasServerConflict'):
         raise Exception(f"Recovery plan has server conflicts")
-    
+  
     # Start execution
     execution = start_execution(
         api_endpoint, token, plan['id'], execution_type,
@@ -1209,7 +1210,7 @@ def handler(event, context):
             'scheduleExpression': event.get('scheduleExpression', 'manual')
         }
     )
-    
+  
     return {
         'statusCode': 200,
         'executionId': execution['executionId'],
@@ -1220,17 +1221,17 @@ def get_auth_token():
     """Get Cognito auth token from SSM Parameter Store credentials"""
     ssm = boto3.client('ssm')
     cognito = boto3.client('cognito-idp')
-    
+  
     client_id = ssm.get_parameter(Name='/drs-orchestration/cognito-client-id')['Parameter']['Value']
     username = ssm.get_parameter(Name='/drs-orchestration/service-username')['Parameter']['Value']
     password = ssm.get_parameter(Name='/drs-orchestration/service-password', WithDecryption=True)['Parameter']['Value']
-    
+  
     response = cognito.initiate_auth(
         ClientId=client_id,
         AuthFlow='USER_PASSWORD_AUTH',
         AuthParameters={'USERNAME': username, 'PASSWORD': password}
     )
-    
+  
     return response['AuthenticationResult']['IdToken']
 
 def find_plan_by_name(api_endpoint, token, plan_name):
@@ -1238,10 +1239,10 @@ def find_plan_by_name(api_endpoint, token, plan_name):
     import urllib.parse
     url = f"{api_endpoint}/recovery-plans?nameExact={urllib.parse.quote(plan_name)}"
     req = urllib.request.Request(url, headers={'Authorization': f'Bearer {token}'})
-    
+  
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read())
-    
+  
     return data['plans'][0] if data.get('plans') else None
 
 def start_execution(api_endpoint, token, plan_id, execution_type, invocation_source, invocation_details):
@@ -1254,12 +1255,12 @@ def start_execution(api_endpoint, token, plan_id, execution_type, invocation_sou
         'invocationSource': invocation_source,
         'invocationDetails': invocation_details
     }).encode()
-    
+  
     req = urllib.request.Request(url, data=data, headers={
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
     })
-    
+  
     with urllib.request.urlopen(req) as resp:
         return json.loads(resp.read())
 ```
@@ -1277,20 +1278,20 @@ DRS Orchestration Python Client
 
 Usage:
     from drs_orchestration_client import DRSOrchestrationClient
-    
+  
     client = DRSOrchestrationClient(
         api_endpoint='https://xxx.execute-api.us-east-1.amazonaws.com/prod',
         cognito_client_id='xxxxxxxxxx',
         username='dr-automation@example.com',
         password='YourPassword123!'
     )
-    
+  
     # List plans
     plans = client.list_recovery_plans()
-    
+  
     # Start drill
     execution = client.start_execution(plan_id='xxx', execution_type='DRILL')
-    
+  
     # Wait for completion
     result = client.wait_for_completion(execution['executionId'], timeout=3600)
 """
@@ -1312,12 +1313,12 @@ class DRSOrchestrationClient:
         self.region = region
         self._token = None
         self._token_expiry = 0
-    
+  
     def _get_token(self) -> str:
         """Get or refresh Cognito auth token"""
         if self._token and time.time() < self._token_expiry - 300:
             return self._token
-        
+      
         cognito = boto3.client('cognito-idp', region_name=self.region)
         response = cognito.initiate_auth(
             ClientId=self.cognito_client_id,
@@ -1327,11 +1328,11 @@ class DRSOrchestrationClient:
                 'PASSWORD': self.password
             }
         )
-        
+      
         self._token = response['AuthenticationResult']['IdToken']
         self._token_expiry = time.time() + response['AuthenticationResult']['ExpiresIn']
         return self._token
-    
+  
     def _request(self, method: str, path: str, data: Dict = None) -> Dict:
         """Make authenticated API request"""
         url = f"{self.api_endpoint}{path}"
@@ -1339,12 +1340,12 @@ class DRSOrchestrationClient:
             'Authorization': f'Bearer {self._get_token()}',
             'Content-Type': 'application/json'
         }
-        
+      
         if data:
             req = urllib.request.Request(url, json.dumps(data).encode(), headers, method=method)
         else:
             req = urllib.request.Request(url, headers=headers, method=method)
-        
+      
         try:
             with urllib.request.urlopen(req) as resp:
                 return json.loads(resp.read())
@@ -1356,15 +1357,15 @@ class DRSOrchestrationClient:
     def list_protection_groups(self) -> List[Dict]:
         """List all protection groups"""
         return self._request('GET', '/protection-groups').get('groups', [])
-    
+  
     def get_protection_group(self, group_id: str) -> Dict:
         """Get protection group by ID"""
         return self._request('GET', f'/protection-groups/{group_id}')
-    
+  
     def resolve_protection_group(self, group_id: str) -> Dict:
         """Resolve servers from protection group tags"""
         return self._request('POST', f'/protection-groups/{group_id}/resolve')
-    
+  
     # Recovery Plans
     def list_recovery_plans(self, name: str = None, name_exact: str = None,
                            tag: str = None, has_conflict: bool = None,
@@ -1381,28 +1382,28 @@ class DRSOrchestrationClient:
             params.append(f'hasConflict={str(has_conflict).lower()}')
         if status:
             params.append(f'status={urllib.parse.quote(status)}')
-        
+      
         query = '?' + '&'.join(params) if params else ''
         return self._request('GET', f'/recovery-plans{query}').get('plans', [])
-    
+  
     def get_recovery_plan(self, plan_id: str) -> Dict:
         """Get recovery plan by ID"""
         return self._request('GET', f'/recovery-plans/{plan_id}')
-    
+  
     def find_plan_by_name(self, name: str) -> Optional[Dict]:
         """Find recovery plan by exact name"""
         plans = self.list_recovery_plans(name_exact=name)
         return plans[0] if plans else None
-    
+  
     # Executions
     def list_executions(self, limit: int = 50) -> List[Dict]:
         """List executions"""
         return self._request('GET', f'/executions?limit={limit}').get('items', [])
-    
+  
     def get_execution(self, execution_id: str) -> Dict:
         """Get execution details"""
         return self._request('GET', f'/executions/{execution_id}')
-    
+  
     def start_execution(self, plan_id: str, execution_type: str = 'DRILL',
                        initiated_by: str = 'api-client',
                        invocation_source: str = 'API') -> Dict:
@@ -1413,44 +1414,44 @@ class DRSOrchestrationClient:
             'initiatedBy': initiated_by,
             'invocationSource': invocation_source
         })
-    
+  
     def cancel_execution(self, execution_id: str) -> Dict:
         """Cancel running execution"""
         return self._request('POST', f'/executions/{execution_id}/cancel')
-    
+  
     def pause_execution(self, execution_id: str) -> Dict:
         """Pause execution"""
         return self._request('POST', f'/executions/{execution_id}/pause')
-    
+  
     def resume_execution(self, execution_id: str) -> Dict:
         """Resume paused execution"""
         return self._request('POST', f'/executions/{execution_id}/resume')
-    
+  
     def wait_for_completion(self, execution_id: str, timeout: int = 3600,
                            poll_interval: int = 30) -> Dict:
         """Wait for execution to complete"""
         start_time = time.time()
         terminal_states = {'completed', 'failed', 'cancelled'}
-        
+      
         while time.time() - start_time < timeout:
             execution = self.get_execution(execution_id)
             status = execution.get('status', '').lower()
-            
+          
             if status in terminal_states:
                 return execution
-            
+          
             if status == 'paused':
                 raise Exception(f"Execution {execution_id} is paused - manual intervention required")
-            
+          
             time.sleep(poll_interval)
-        
+      
         raise TimeoutError(f"Execution {execution_id} did not complete within {timeout} seconds")
-    
+  
     # DRS Operations
     def list_drs_source_servers(self, region: str) -> List[Dict]:
         """List DRS source servers in region"""
         return self._request('GET', f'/drs/source-servers?region={region}').get('servers', [])
-    
+  
     def get_drs_quotas(self, region: str) -> Dict:
         """Get DRS service quotas for region"""
         return self._request('GET', f'/drs/quotas?region={region}')
@@ -1459,20 +1460,20 @@ class DRSOrchestrationClient:
 # Example usage
 if __name__ == '__main__':
     import os
-    
+  
     client = DRSOrchestrationClient(
         api_endpoint=os.environ['API_ENDPOINT'],
         cognito_client_id=os.environ['COGNITO_CLIENT_ID'],
         username=os.environ['DR_USERNAME'],
         password=os.environ['DR_PASSWORD']
     )
-    
+  
     # Find and execute plan
     plan = client.find_plan_by_name('2-Tier Recovery')
     if plan and not plan.get('hasServerConflict'):
         execution = client.start_execution(plan['id'], 'DRILL')
         print(f"Started execution: {execution['executionId']}")
-        
+      
         result = client.wait_for_completion(execution['executionId'])
         print(f"Execution completed with status: {result['status']}")
 ```
@@ -1581,21 +1582,21 @@ START_TIME=$(date +%s)
 while true; do
     CURRENT_TIME=$(date +%s)
     ELAPSED=$((CURRENT_TIME - START_TIME))
-    
+  
     if [ $ELAPSED -ge $TIMEOUT ]; then
         log_error "Timeout waiting for execution to complete"
         exit 1
     fi
-    
+  
     STATUS_RESPONSE=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
         "${API_ENDPOINT}/executions/${EXECUTION_ID}")
-    
+  
     STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
     CURRENT_WAVE=$(echo "$STATUS_RESPONSE" | jq -r '.currentWave // 0')
     TOTAL_WAVES=$(echo "$STATUS_RESPONSE" | jq -r '.totalWaves // 0')
-    
+  
     log_info "Status: ${STATUS} (Wave ${CURRENT_WAVE}/${TOTAL_WAVES}) - Elapsed: ${ELAPSED}s"
-    
+  
     case "$STATUS" in
         completed)
             log_info "Execution completed successfully!"
@@ -1616,7 +1617,7 @@ while true; do
             exit 2
             ;;
     esac
-    
+  
     sleep $POLL_INTERVAL
 done
 ```
@@ -1640,92 +1641,93 @@ TIMEOUT=7200 ./scripts/execute_dr_drill.sh "Large Recovery Plan" DRILL
 
 ### Common HTTP Status Codes
 
-| HTTP Code | Category | Description | Resolution |
-|-----------|----------|-------------|------------|
-| 400 | Bad Request | Invalid request body, missing fields, or validation failure | Check request format and required fields |
-| 401 | Unauthorized | Invalid or expired Cognito token | Refresh auth token or use IAM-based access |
-| 403 | Forbidden | Insufficient IAM or Cognito permissions | Check IAM policy or Cognito group membership |
-| 404 | Not Found | Resource (PG, Plan, Execution) not found | Verify resource ID exists |
-| 405 | Method Not Allowed | HTTP method not supported for endpoint | Check API documentation for allowed methods |
-| 409 | Conflict | Resource conflict (duplicate name, active execution, etc.) | Resolve conflict before retrying |
-| 429 | Too Many Requests | DRS service limit exceeded | Wait and retry, or request limit increase |
-| 500 | Internal Server Error | Unexpected server-side error | Check CloudWatch logs, retry with backoff |
+| HTTP Code | Category              | Description                                                 | Resolution                                   |
+| --------- | --------------------- | ----------------------------------------------------------- | -------------------------------------------- |
+| 400       | Bad Request           | Invalid request body, missing fields, or validation failure | Check request format and required fields     |
+| 401       | Unauthorized          | Invalid or expired Cognito token                            | Refresh auth token or use IAM-based access   |
+| 403       | Forbidden             | Insufficient IAM or Cognito permissions                     | Check IAM policy or Cognito group membership |
+| 404       | Not Found             | Resource (PG, Plan, Execution) not found                    | Verify resource ID exists                    |
+| 405       | Method Not Allowed    | HTTP method not supported for endpoint                      | Check API documentation for allowed methods  |
+| 409       | Conflict              | Resource conflict (duplicate name, active execution, etc.)  | Resolve conflict before retrying             |
+| 429       | Too Many Requests     | DRS service limit exceeded                                  | Wait and retry, or request limit increase    |
+| 500       | Internal Server Error | Unexpected server-side error                                | Check CloudWatch logs, retry with backoff    |
 
 ### API Error Codes Reference
 
 #### Protection Group Errors
 
-| Error Code | HTTP | Message | Cause | Resolution |
-|------------|------|---------|-------|------------|
-| `PG_NAME_EXISTS` | 409 | "A Protection Group named X already exists" | Duplicate name (case-insensitive) | Use a unique name |
-| `TAG_CONFLICT` | 409 | "Another Protection Group already uses these exact tags" | Identical tag set exists | Use different tags or modify existing PG |
-| `SERVER_CONFLICT` | 409 | "One or more servers are already assigned to another Protection Group" | Server already in another PG | Remove server from other PG first |
-| `PG_IN_ACTIVE_EXECUTION` | 409 | "Cannot modify Protection Group while it is part of an active execution" | PG is in running execution | Wait for execution to complete or cancel |
-| `PG_IN_USE` | 409 | "Cannot delete Protection Group - it is used in N Recovery Plan(s)" | PG referenced by plans | Remove PG from all plans first |
-| `PROTECTION_GROUP_NOT_FOUND` | 404 | "Protection Group X not found" | Invalid PG ID | Verify PG ID exists |
-| `INVALID_TAGS` | 400 | "ServerSelectionTags must be a non-empty object" | Empty or invalid tags | Provide valid tag key-value pairs |
-| `INVALID_SERVERS` | 400 | "SourceServerIds must be a non-empty array" | Empty or invalid server list | Provide valid server IDs |
+| Error Code                     | HTTP | Message                                                                  | Cause                             | Resolution                               |
+| ------------------------------ | ---- | ------------------------------------------------------------------------ | --------------------------------- | ---------------------------------------- |
+| `PG_NAME_EXISTS`             | 409  | "A Protection Group named X already exists"                              | Duplicate name (case-insensitive) | Use a unique name                        |
+| `TAG_CONFLICT`               | 409  | "Another Protection Group already uses these exact tags"                 | Identical tag set exists          | Use different tags or modify existing PG |
+| `SERVER_CONFLICT`            | 409  | "One or more servers are already assigned to another Protection Group"   | Server already in another PG      | Remove server from other PG first        |
+| `PG_IN_ACTIVE_EXECUTION`     | 409  | "Cannot modify Protection Group while it is part of an active execution" | PG is in running execution        | Wait for execution to complete or cancel |
+| `PG_IN_USE`                  | 409  | "Cannot delete Protection Group - it is used in N Recovery Plan(s)"      | PG referenced by plans            | Remove PG from all plans first           |
+| `PROTECTION_GROUP_NOT_FOUND` | 404  | "Protection Group X not found"                                           | Invalid PG ID                     | Verify PG ID exists                      |
+| `INVALID_TAGS`               | 400  | "ServerSelectionTags must be a non-empty object"                         | Empty or invalid tags             | Provide valid tag key-value pairs        |
+| `INVALID_SERVERS`            | 400  | "SourceServerIds must be a non-empty array"                              | Empty or invalid server list      | Provide valid server IDs                 |
 
 #### Recovery Plan Errors
 
-| Error Code | HTTP | Message | Cause | Resolution |
-|------------|------|---------|-------|------------|
-| `RP_NAME_EXISTS` | 409 | "A Recovery Plan named X already exists" | Duplicate name (case-insensitive) | Use a unique name |
-| `PLAN_HAS_ACTIVE_EXECUTION` | 409 | "Cannot modify/delete Recovery Plan while execution is in progress" | Plan has running execution | Wait for execution to complete or cancel |
-| `INVALID_WAVE_DATA` | 400 | "Wave N has invalid ServerIds format" | Wave data malformed | Ensure ServerIds is an array |
+| Error Code                    | HTTP | Message                                                             | Cause                             | Resolution                               |
+| ----------------------------- | ---- | ------------------------------------------------------------------- | --------------------------------- | ---------------------------------------- |
+| `RP_NAME_EXISTS`            | 409  | "A Recovery Plan named X already exists"                            | Duplicate name (case-insensitive) | Use a unique name                        |
+| `PLAN_HAS_ACTIVE_EXECUTION` | 409  | "Cannot modify/delete Recovery Plan while execution is in progress" | Plan has running execution        | Wait for execution to complete or cancel |
+| `INVALID_WAVE_DATA`         | 400  | "Wave N has invalid ServerIds format"                               | Wave data malformed               | Ensure ServerIds is an array             |
 
 #### Execution Errors
 
-| Error Code | HTTP | Message | Cause | Resolution |
-|------------|------|---------|-------|------------|
-| `PLAN_ALREADY_EXECUTING` | 409 | "This Recovery Plan already has an execution in progress" | Plan already running | Wait for current execution to complete |
-| `SERVER_CONFLICT` | 409 | "N server(s) are already in active executions" | Servers in other running executions | Wait for other executions to complete |
-| `WAVE_SIZE_LIMIT_EXCEEDED` | 400 | "N wave(s) exceed the DRS limit of 100 servers per job" | Wave has >100 servers | Split wave into smaller groups |
-| `CONCURRENT_JOBS_LIMIT_EXCEEDED` | 429 | "DRS concurrent jobs limit exceeded" | >20 concurrent DRS jobs | Wait for jobs to complete |
-| `SERVERS_IN_JOBS_LIMIT_EXCEEDED` | 429 | "DRS servers in jobs limit exceeded" | >500 servers across all jobs | Wait for jobs to complete |
-| `UNHEALTHY_SERVER_REPLICATION` | 400 | "Server replication not healthy" | Server not ready for recovery | Check DRS console for replication status |
-| `EXECUTION_NOT_FOUND` | 404 | "Execution with ID X not found" | Invalid execution ID | Verify execution ID exists |
-| `EXECUTION_NOT_CANCELLABLE` | 400 | "Execution cannot be cancelled - status is X" | Execution already completed/failed | Only running/paused executions can be cancelled |
-| `EXECUTION_NOT_PAUSABLE` | 400 | "Execution cannot be paused - status is X" | Execution not running | Only running executions can be paused |
-| `EXECUTION_NO_WAVES` | 400 | "No waves found in execution" | Execution has no wave data | Internal error - check execution state |
-| `SINGLE_WAVE_NOT_PAUSABLE` | 400 | "Cannot pause single-wave execution" | Plan has only one wave | Pause only works for multi-wave plans |
-| `NO_PENDING_WAVES` | 400 | "Cannot pause - no pending waves remaining" | All waves completed | Nothing left to pause |
+| Error Code                         | HTTP | Message                                                   | Cause                               | Resolution                                      |
+| ---------------------------------- | ---- | --------------------------------------------------------- | ----------------------------------- | ----------------------------------------------- |
+| `PLAN_ALREADY_EXECUTING`         | 409  | "This Recovery Plan already has an execution in progress" | Plan already running                | Wait for current execution to complete          |
+| `SERVER_CONFLICT`                | 409  | "N server(s) are already in active executions"            | Servers in other running executions | Wait for other executions to complete           |
+| `WAVE_SIZE_LIMIT_EXCEEDED`       | 400  | "N wave(s) exceed the DRS limit of 100 servers per job"   | Wave has >100 servers               | Split wave into smaller groups                  |
+| `CONCURRENT_JOBS_LIMIT_EXCEEDED` | 429  | "DRS concurrent jobs limit exceeded"                      | >20 concurrent DRS jobs             | Wait for jobs to complete                       |
+| `SERVERS_IN_JOBS_LIMIT_EXCEEDED` | 429  | "DRS servers in jobs limit exceeded"                      | >500 servers across all jobs        | Wait for jobs to complete                       |
+| `UNHEALTHY_SERVER_REPLICATION`   | 400  | "Server replication not healthy"                          | Server not ready for recovery       | Check DRS console for replication status        |
+| `EXECUTION_NOT_FOUND`            | 404  | "Execution with ID X not found"                           | Invalid execution ID                | Verify execution ID exists                      |
+| `EXECUTION_NOT_CANCELLABLE`      | 400  | "Execution cannot be cancelled - status is X"             | Execution already completed/failed  | Only running/paused executions can be cancelled |
+| `EXECUTION_NOT_PAUSABLE`         | 400  | "Execution cannot be paused - status is X"                | Execution not running               | Only running executions can be paused           |
+| `EXECUTION_NO_WAVES`             | 400  | "No waves found in execution"                             | Execution has no wave data          | Internal error - check execution state          |
+| `SINGLE_WAVE_NOT_PAUSABLE`       | 400  | "Cannot pause single-wave execution"                      | Plan has only one wave              | Pause only works for multi-wave plans           |
+| `NO_PENDING_WAVES`               | 400  | "Cannot pause - no pending waves remaining"               | All waves completed                 | Nothing left to pause                           |
 
 #### DRS Service Errors
 
-| Error Code | HTTP | Message | Cause | Resolution |
-|------------|------|---------|-------|------------|
-| `DRS_NOT_INITIALIZED` | 400 | "DRS is not initialized in region" | DRS not set up in region | Complete DRS initialization wizard in AWS Console |
+| Error Code              | HTTP | Message                            | Cause                    | Resolution                                        |
+| ----------------------- | ---- | ---------------------------------- | ------------------------ | ------------------------------------------------- |
+| `DRS_NOT_INITIALIZED` | 400  | "DRS is not initialized in region" | DRS not set up in region | Complete DRS initialization wizard in AWS Console |
 
 #### Validation Errors
 
-| Error Code | HTTP | Message | Cause | Resolution |
-|------------|------|---------|-------|------------|
-| `MISSING_FIELD` | 400 | "X is required" | Required field not provided | Include the required field in request |
-| `MISSING_REGION` | 400 | "region query parameter is required" | Region not provided for DRS operations | Include `?region=us-east-1` in request |
-| `INVALID_NAME` | 400 | "Name cannot be empty" or "Name must be 64 characters or fewer" | Empty or too long name | Provide valid name (1-64 chars) |
-| `INVALID_EXECUTION_TYPE` | 400 | "ExecutionType must be DRILL or RECOVERY" | Invalid execution type | Use DRILL or RECOVERY |
-| `PLAN_HAS_NO_WAVES` | 400 | "Recovery Plan has no waves configured" | Plan has no waves | Add at least one wave to the plan |
-| `RECOVERY_PLAN_NOT_FOUND` | 404 | "Recovery Plan with ID X not found" | Invalid plan ID | Verify plan ID exists |
+| Error Code                  | HTTP | Message                                                         | Cause                                  | Resolution                               |
+| --------------------------- | ---- | --------------------------------------------------------------- | -------------------------------------- | ---------------------------------------- |
+| `MISSING_FIELD`           | 400  | "X is required"                                                 | Required field not provided            | Include the required field in request    |
+| `MISSING_REGION`          | 400  | "region query parameter is required"                            | Region not provided for DRS operations | Include `?region=us-east-1` in request |
+| `INVALID_NAME`            | 400  | "Name cannot be empty" or "Name must be 64 characters or fewer" | Empty or too long name                 | Provide valid name (1-64 chars)          |
+| `INVALID_EXECUTION_TYPE`  | 400  | "ExecutionType must be DRILL or RECOVERY"                       | Invalid execution type                 | Use DRILL or RECOVERY                    |
+| `PLAN_HAS_NO_WAVES`       | 400  | "Recovery Plan has no waves configured"                         | Plan has no waves                      | Add at least one wave to the plan        |
+| `RECOVERY_PLAN_NOT_FOUND` | 404  | "Recovery Plan with ID X not found"                             | Invalid plan ID                        | Verify plan ID exists                    |
 
 #### Concurrency Errors
 
-| Error Code | HTTP | Message | Cause | Resolution |
-|------------|------|---------|-------|------------|
-| `VERSION_CONFLICT` | 409 | "Resource was modified by another user" | Optimistic locking conflict | Refresh data and retry with current version |
+| Error Code           | HTTP | Message                                 | Cause                       | Resolution                                  |
+| -------------------- | ---- | --------------------------------------- | --------------------------- | ------------------------------------------- |
+| `VERSION_CONFLICT` | 409  | "Resource was modified by another user" | Optimistic locking conflict | Refresh data and retry with current version |
 
 #### General Errors
 
-| Error Code | HTTP | Message | Cause | Resolution |
-|------------|------|---------|-------|------------|
-| `INTERNAL_ERROR` | 500 | "Failed to X: error details" | Unexpected error | Check CloudWatch logs, retry |
-| `DELETE_FAILED` | 500 | "Failed to delete X" | Delete operation failed | Check CloudWatch logs, retry |
+| Error Code         | HTTP | Message                      | Cause                   | Resolution                   |
+| ------------------ | ---- | ---------------------------- | ----------------------- | ---------------------------- |
+| `INTERNAL_ERROR` | 500  | "Failed to X: error details" | Unexpected error        | Check CloudWatch logs, retry |
+| `DELETE_FAILED`  | 500  | "Failed to delete X"         | Delete operation failed | Check CloudWatch logs, retry |
 
 ### Optimistic Locking (Version Field)
 
 All Protection Groups and Recovery Plans include a `version` field for optimistic locking. When updating a resource, you must include the current version number. If another user modified the resource since you fetched it, you'll receive a `VERSION_CONFLICT` error.
 
 #### Create Response (version starts at 1)
+
 ```json
 {
   "id": "pg-abc123",
@@ -1736,6 +1738,7 @@ All Protection Groups and Recovery Plans include a `version` field for optimisti
 ```
 
 #### Update Request (must include current version)
+
 ```json
 {
   "name": "Updated Name",
@@ -1744,6 +1747,7 @@ All Protection Groups and Recovery Plans include a `version` field for optimisti
 ```
 
 #### Version Conflict Response
+
 ```json
 {
   "error": "VERSION_CONFLICT",
@@ -1759,10 +1763,10 @@ def update_with_retry(client, resource_id, updates, max_retries=3):
     for attempt in range(max_retries):
         # Get current resource state
         resource = client.get_protection_group(resource_id)
-        
+      
         # Apply updates with current version
         updates['version'] = resource['version']
-        
+      
         try:
             return client.update_protection_group(resource_id, updates)
         except Exception as e:
@@ -1791,6 +1795,7 @@ All errors return a consistent JSON structure:
 ### Example Error Responses
 
 #### Duplicate Protection Group Name
+
 ```json
 {
   "error": "PG_NAME_EXISTS",
@@ -1800,6 +1805,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### Tag Conflict
+
 ```json
 {
   "error": "TAG_CONFLICT",
@@ -1816,6 +1822,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### Server Already Assigned
+
 ```json
 {
   "error": "SERVER_CONFLICT",
@@ -1832,6 +1839,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### Execution Server Conflict
+
 ```json
 {
   "error": "SERVER_CONFLICT",
@@ -1856,6 +1864,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### DRS Limit Exceeded
+
 ```json
 {
   "error": "CONCURRENT_JOBS_LIMIT_EXCEEDED",
@@ -1866,6 +1875,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### DRS Not Initialized
+
 ```json
 {
   "error": "DRS_NOT_INITIALIZED",
@@ -1876,6 +1886,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### Execution Not Pausable
+
 ```json
 {
   "error": "EXECUTION_NOT_PAUSABLE",
@@ -1888,6 +1899,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### Single Wave Not Pausable
+
 ```json
 {
   "error": "SINGLE_WAVE_NOT_PAUSABLE",
@@ -1899,6 +1911,7 @@ All errors return a consistent JSON structure:
 ```
 
 #### Execution Not Cancellable
+
 ```json
 {
   "error": "EXECUTION_NOT_CANCELLABLE",
@@ -1919,7 +1932,7 @@ def handle_api_error(response_body: dict) -> None:
     """Handle API errors with user-friendly messages"""
     error_code = response_body.get('error', 'UNKNOWN')
     message = response_body.get('message', 'An unknown error occurred')
-    
+  
     # Map error codes to user actions
     error_actions = {
         # Protection Group errors
@@ -1957,12 +1970,12 @@ def handle_api_error(response_body: dict) -> None:
         # DRS errors
         'DRS_NOT_INITIALIZED': 'Initialize DRS in the AWS Console for this region',
     }
-    
+  
     action = error_actions.get(error_code, 'Check the error details and try again')
-    
+  
     print(f"Error: {message}")
     print(f"Action: {action}")
-    
+  
     # Log additional context if available
     if 'conflicts' in response_body:
         print(f"Conflicts: {len(response_body['conflicts'])} resource(s)")
@@ -1977,9 +1990,9 @@ handle_error() {
     local response="$1"
     local error_code=$(echo "$response" | jq -r '.error // "UNKNOWN"')
     local message=$(echo "$response" | jq -r '.message // "Unknown error"')
-    
+  
     echo "ERROR [$error_code]: $message"
-    
+  
     case "$error_code" in
         PG_NAME_EXISTS|RP_NAME_EXISTS)
             echo "→ Choose a different name"
@@ -2007,7 +2020,7 @@ handle_error() {
             echo "→ Check CloudWatch logs for details"
             ;;
     esac
-    
+  
     return 1
 }
 
@@ -2034,7 +2047,7 @@ def api_call_with_retry(func, max_retries=3, base_delay=1):
         except Exception as e:
             if attempt == max_retries - 1:
                 raise
-            
+          
             # Check if retryable
             error_str = str(e)
             if '429' in error_str or '500' in error_str or '503' in error_str:
@@ -2075,29 +2088,29 @@ def api_call_with_retry(func, max_retries=3, base_delay=1):
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Integration Patterns                          │
+│                    Integration Patterns                         │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│  │ EventBridge│───▶│  Lambda  │───▶│   API    │───▶│   DRS    │  │
+│                                                                 │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐   │
+│  │EventBridge│───▶│  Lambda  │───▶│   API    │───▶│   DRS    │  │
 │  │ Schedule  │    │ Trigger  │    │ Gateway  │    │ Service  │  │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│                                                                  │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│  │   SSM    │───▶│Automation│───▶│   API    │───▶│   DRS    │  │
-│  │ Document │    │  Steps   │    │ Gateway  │    │ Service  │  │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│                                                                  │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│  │  Step    │───▶│  HTTP    │───▶│   API    │───▶│   DRS    │  │
-│  │Functions │    │  Task    │    │ Gateway  │    │ Service  │  │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│                                                                  │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│  │  Bash/   │───▶│  curl/   │───▶│   API    │───▶│   DRS    │  │
-│  │ Python   │    │ requests │    │ Gateway  │    │ Service  │  │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│                                                                  │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘   │
+│                                                                 │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐   │
+│  │   SSM    │───▶│Automation│───▶│   API    │───▶│   DRS    │   │
+│  │ Document │    │  Steps   │    │ Gateway  │    │ Service  │   │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘   │
+│                                                                 │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐   │
+│  │  Step    │───▶│  HTTP    │───▶│   API    │───▶│   DRS    │   │
+│  │Functions │    │  Task    │    │ Gateway  │    │ Service  │   │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘   │
+│                                                                 │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐   │
+│  │  Bash/   │───▶│  curl/   │───▶│   API    │───▶│   DRS    │   │
+│  │ Python   │    │ requests │    │ Gateway  │    │ Service  │   │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘   │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
