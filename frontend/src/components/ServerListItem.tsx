@@ -67,14 +67,17 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
         backgroundColor: selectable ? 'transparent' : '#f2f3f3',
         cursor: selectable ? 'pointer' : 'not-allowed',
       }}
-      onClick={selectable ? onToggle : undefined}
+      onClick={(e) => {
+        e.preventDefault();
+        if (selectable) onToggle();
+      }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start' }}>
         <div style={{ marginRight: '12px', paddingTop: '2px' }}>
           <Checkbox
             checked={selected}
             disabled={!selectable}
-            onChange={onToggle}
+            onChange={(e) => { e.stopPropagation(); onToggle(); }}
           />
         </div>
         <div style={{ flex: 1 }}>
