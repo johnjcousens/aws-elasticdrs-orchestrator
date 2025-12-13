@@ -137,7 +137,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      // Not logged in is expected on login page - don't log as error
       // Clear auto-logout timer on auth failure
       clearLogoutTimer();
       

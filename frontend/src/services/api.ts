@@ -20,6 +20,10 @@ import type {
   ExecuteRecoveryPlanRequest,
   ExecutionListItem,
   PaginatedResponse,
+  SubnetOption,
+  SecurityGroupOption,
+  InstanceProfileOption,
+  InstanceTypeOption,
 } from '../types';
 
 // API configuration
@@ -218,7 +222,14 @@ class ApiClient {
     resolvedServers: Array<{
       sourceServerId: string;
       hostname: string;
+      nameTag?: string;
+      sourceInstanceId?: string;
+      sourceIp?: string;
+      sourceRegion?: string;
+      sourceAccount?: string;
+      state?: string;
       replicationState: string;
+      lagDuration?: string;
       tags: Record<string, string>;
     }>;
     serverCount: number;
@@ -512,6 +523,44 @@ class ApiClient {
    */
   public async getDRSQuotas(region: string): Promise<any> {
     return this.get<any>(`/drs/quotas?region=${region}`);
+  }
+
+  // ============================================================================
+  // EC2 Resources API (for Launch Config dropdowns)
+  // ============================================================================
+
+  /**
+   * Get VPC subnets for dropdown selection
+   */
+  public async getEC2Subnets(region: string): Promise<SubnetOption[]> {
+    const response = await this.get<{ subnets: SubnetOption[] }>('/ec2/subnets', { region });
+    return response.subnets || [];
+  }
+
+  /**
+   * Get security groups for dropdown selection
+   */
+  public async getEC2SecurityGroups(region: string, vpcId?: string): Promise<SecurityGroupOption[]> {
+    const params: Record<string, string> = { region };
+    if (vpcId) params.vpcId = vpcId;
+    const response = await this.get<{ securityGroups: SecurityGroupOption[] }>('/ec2/security-groups', params);
+    return response.securityGroups || [];
+  }
+
+  /**
+   * Get IAM instance profiles for dropdown selection
+   */
+  public async getEC2InstanceProfiles(region: string): Promise<InstanceProfileOption[]> {
+    const response = await this.get<{ instanceProfiles: InstanceProfileOption[] }>('/ec2/instance-profiles', { region });
+    return response.instanceProfiles || [];
+  }
+
+  /**
+   * Get EC2 instance types for dropdown selection
+   */
+  public async getEC2InstanceTypes(region: string): Promise<InstanceTypeOption[]> {
+    const response = await this.get<{ instanceTypes: InstanceTypeOption[] }>('/ec2/instance-types', { region });
+    return response.instanceTypes || [];
   }
 
   // ============================================================================
