@@ -869,6 +869,7 @@ After successful drill/recovery start:
 - Card-based layout for running/paused executions
 - Each card shows:
   - Recovery Plan name (header)
+  - Invocation source badge (UI/CLI/API/Scheduled/SSM) - top right of card
   - Status badge (Running, Paused, Polling, etc.)
   - Wave progress (Wave X of Y)
   - Start time
@@ -888,6 +889,7 @@ After successful drill/recovery start:
 |--------|-------|----------|---------|
 | Plan Name | flex | Yes | Recovery plan name |
 | Status | 100px | No | StatusBadge component |
+| Source | 80px | No | InvocationSourceBadge (UI/CLI/API/Scheduled/SSM) |
 | Waves | 80px | No | "X waves" format |
 | Started | 150px | Yes | DateTimeDisplay (full format) |
 | Completed | 150px | Yes | DateTimeDisplay or "-" |
@@ -966,6 +968,7 @@ showTerminatedBadge = instancesTerminated && !terminationInProgress;
 **Execution Summary Container**:
 
 - Plan name (large, bold)
+- Invocation source badge (UI/CLI/API/Scheduled/SSM) - top right of container
 - Status badge with color
 - Current wave / Total waves badge
 - Initiated by user
@@ -2934,7 +2937,7 @@ The following wireframes define the visual layout that shall be implemented for 
 ║                    ║   ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔                                      ║
 ║                    ║                                                          ║
 ║                    ║  ╭─────────────────────────────────────────────────────╮ ║
-║                    ║  │ DR-Plan-Production                                  │ ║
+║                    ║  │ DR-Plan-Production                            [UI] │ ║
 ║                    ║  │ ─────────────────────────────────────────────────── │ ║
 ║                    ║  │ ● Running   Wave 2 of 3   Dec 10, 10:30 AM   45m 23s│ ║
 ║                    ║  │                                                     │ ║
@@ -2947,7 +2950,7 @@ The following wireframes define the visual layout that shall be implemented for 
 ║                    ║  ╰─────────────────────────────────────────────────────╯ ║
 ║                    ║                                                          ║
 ║                    ║  ╭─────────────────────────────────────────────────────╮ ║
-║                    ║  │ DR-Plan-QA                                          │ ║
+║                    ║  │ DR-Plan-QA                                    [CLI] │ ║
 ║                    ║  │ ─────────────────────────────────────────────────── │ ║
 ║                    ║  │ ⏸ Paused    Wave 1 of 2   Dec 10, 9:15 AM    1h 30m │ ║
 ║                    ║  │                                                     │ ║
@@ -2986,14 +2989,14 @@ The following wireframes define the visual layout that shall be implemented for 
 ║                    ║  │ 🔍 Find executions          │   24 matches            ║
 ║                    ║  └─────────────────────────────┘                         ║
 ║                    ║                                                          ║
-║                    ║  ┌────────────┬──────────┬───────┬───────────┬──────────┐║
-║                    ║  │ Plan Name  │ Status   │ Waves │ Started   │ Duration │║
-║                    ║  ├────────────┼──────────┼───────┼───────────┼──────────┤║
-║                    ║  │ DR-Plan-Dev│ ✓ Success│3 waves│Dec 9 2:30 │ 45m 12s  │║
-║                    ║  │ DR-Plan-Pro│ ✓ Success│3 waves│Dec 8 10:00│ 1h 23m   │║
-║                    ║  │ DR-Plan-QA │ ✗ Failed │2 waves│Dec 7 4:15 │ 12m 45s  │║
-║                    ║  │ DR-Plan-Dev│ ⊘ Cancel │3 waves│Dec 6 9:00 │ 5m 30s   │║
-║                    ║  └────────────┴──────────┴───────┴───────────┴──────────┘║
+║                    ║  ┌────────────┬──────────┬──────┬───────┬───────────┬────────┐║
+║                    ║  │ Plan Name  │ Status   │Source│ Waves │ Started   │Duration│║
+║                    ║  ├────────────┼──────────┼──────┼───────┼───────────┼────────┤║
+║                    ║  │ DR-Plan-Dev│ ✓ Success│  UI  │3 waves│Dec 9 2:30 │ 45m 12s│║
+║                    ║  │ DR-Plan-Pro│ ✓ Success│  CLI │3 waves│Dec 8 10:00│ 1h 23m │║
+║                    ║  │ DR-Plan-QA │ ✗ Failed │  API │2 waves│Dec 7 4:15 │ 12m 45s│║
+║                    ║  │ DR-Plan-Dev│ ⊘ Cancel │  SSM │3 waves│Dec 6 9:00 │ 5m 30s │║
+║                    ║  └────────────┴──────────┴──────┴───────┴───────────┴────────┘║
 ║                    ║                                                          ║
 ║                    ║  ◂  1  2  3  ▸                       Showing 1-10 of 24  ║
 ║                    ║                                                          ║
@@ -3027,7 +3030,7 @@ The following wireframes define the visual layout that shall be implemented for 
 ║                    ║                                                          ║
 ║                    ║  Recovery Plan                                           ║
 ║                    ║  ╭─────────────────────────────────────────────────────╮ ║
-║                    ║  │ DR-Plan-Production                                  │ ║
+║                    ║  │ DR-Plan-Production                            [UI] │ ║
 ║                    ║  │ ⏸ Paused   Wave 2 of 3   By: admin@example.com      │ ║
 ║                    ║  │                                                     │ ║
 ║                    ║  │ Started           Ended        Duration   Exec ID   │ ║
@@ -3086,7 +3089,7 @@ The following wireframes define the visual layout that shall be implemented for 
 ║  ▶ History         ║                                                          ║
 ║                    ║  Recovery Plan                                           ║
 ║                    ║  ╭─────────────────────────────────────────────────────╮ ║
-║                    ║  │ DR-Plan-Production                                  │ ║
+║                    ║  │ DR-Plan-Production                           [CLI] │ ║
 ║                    ║  │ ✓ Completed   Wave 3 of 3   By: admin@example.com   │ ║
 ║                    ║  │                                                     │ ║
 ║                    ║  │ Started           Ended            Duration  Exec ID│ ║
@@ -3127,7 +3130,7 @@ The following wireframes define the visual layout that shall be implemented for 
 ║                    ║                                                          ║
 ║                    ║  Recovery Plan                                           ║
 ║                    ║  ╭─────────────────────────────────────────────────────╮ ║
-║                    ║  │ DR-Plan-Production                                  │ ║
+║                    ║  │ DR-Plan-Production                           [API] │ ║
 ║                    ║  │ ✓ Completed   Wave 3 of 3   By: admin@example.com   │ ║
 ║                    ║  │                                                     │ ║
 ║                    ║  │ Started           Ended            Duration  Exec ID│ ║
@@ -3163,7 +3166,7 @@ The following wireframes define the visual layout that shall be implemented for 
 ║                    ║                                                          ║
 ║                    ║  Recovery Plan                                           ║
 ║                    ║  ╭─────────────────────────────────────────────────────╮ ║
-║                    ║  │ DR-Plan-Production                                  │ ║
+║                    ║  │ DR-Plan-Production                           [SSM] │ ║
 ║                    ║  │ ✓ Completed   Wave 3 of 3   By: admin@example.com   │ ║
 ║                    ║  ╰─────────────────────────────────────────────────────╯ ║
 ║                    ║                                                          ║
