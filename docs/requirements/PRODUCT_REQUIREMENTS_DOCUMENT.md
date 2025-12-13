@@ -196,30 +196,29 @@ Real-time validation and enforcement of AWS DRS service limits to prevent API er
 ### Phase 1: Core Features (MVP)
 
 **Essential Capabilities**:
-- Protection Groups with DRS server discovery
-- Recovery Plans with wave-based execution
+- Protection Groups with DRS server discovery (tag-based and explicit server selection)
+- Recovery Plans with wave-based execution and multi-Protection Group support
 - Execution Engine with pause/resume/cancel/terminate
 - DRS Service Limits Validation
 - Real-time monitoring with 3-second auto-refresh
 - DRS job events timeline
 - Loading state management
 - Server conflict detection
-- **EC2 Launch Template & DRS Launch Settings** (added Dec 13, 2025)
+- EC2 Launch Template & DRS Launch Settings (Protection Group level)
 
 ### Phase 2: Advanced Features
 
 | Priority | Feature | Description |
 |----------|---------|-------------|
-| ~~3~~ | ~~**EC2 Launch Template & DRS Launch Settings**~~ | ~~✅ COMPLETE (Dec 13, 2025) - Full EC2 Launch Template and DRS Launch Settings via UI and API~~ |
-| 4 | **DRS Source Server Management (Remaining)** | Server Info dashboard, Tags, Disk Settings, Replication, Post-Launch |
-| 4 | **DRS Tag Synchronization** | Synchronize EC2 instance tags to DRS source servers |
-| 5 | **SSM Automation Integration** | Pre-wave and post-wave SSM automation |
-| 6 | **Step Functions Visualization** | Real-time state machine execution visualization |
-| 7 | **Multi-Account Support** | Cross-account orchestration, scale beyond 300 servers |
-| 8 | **Cross-Account DRS Monitoring** | Centralized monitoring across multiple accounts |
-| 9 | **SNS Notification Integration** | Real-time notifications via Email, SMS, Slack |
-| 10 | **Scheduled Drills** | Automated recurring drill execution |
-| 11 | **CodeBuild & CodeCommit Migration** | AWS-native CI/CD pipeline |
+| 1 | **DRS Source Server Management** | Server Info dashboard, Tags, Disk Settings, Replication, Post-Launch |
+| 2 | **DRS Tag Synchronization** | Synchronize EC2 instance tags to DRS source servers |
+| 3 | **SSM Automation Integration** | Pre-wave and post-wave SSM automation |
+| 4 | **Step Functions Visualization** | Real-time state machine execution visualization |
+| 5 | **Multi-Account Support** | Cross-account orchestration, scale beyond 300 servers |
+| 6 | **Cross-Account DRS Monitoring** | Centralized monitoring across multiple accounts |
+| 7 | **SNS Notification Integration** | Real-time notifications via Email, SMS, Slack |
+| 8 | **Scheduled Drills** | Automated recurring drill execution |
+| 9 | **CodeBuild & CodeCommit Migration** | AWS-native CI/CD pipeline |
 
 ### 5. DRS Source Server Management (Phase 2)
 
@@ -249,42 +248,40 @@ Read-only visibility into DRS source server details, replication state, recovery
 **API Endpoints**:
 - `GET /drs/source-servers/{id}?region={region}` - Get full server details
 
-#### 5.2 Launch Settings ✅ COMPLETE (Dec 13, 2025)
+#### 5.2 DRS Launch Settings (MVP)
 
-Configure DRS launch settings for recovery instances. **Now implemented at Protection Group level.**
+The system shall configure DRS launch settings for recovery instances at the Protection Group level.
 
 **Capabilities**:
-- Right-sizing method (NONE, BASIC, IN_AWS)
-- Launch disposition (STOPPED, STARTED)
-- Copy private IP option
-- Copy tags option
-- BYOL licensing configuration
+- Instance Type Right Sizing method (NONE, BASIC, IN_AWS)
+- Launch Disposition (STOPPED, STARTED)
+- Copy Private IP option
+- Copy Tags option
+- OS Licensing (BYOL or AWS-provided)
 
-**Implementation**: Settings are configured per Protection Group and applied to all servers in the group when saved. Available via UI (LaunchConfigSection component) and API.
+**Behavior**: Settings are configured per Protection Group and applied to all servers in the group when the Protection Group is saved.
 
 **API Endpoints**:
-- `POST /protection-groups` - Create with LaunchConfig
+- `POST /protection-groups` - Create Protection Group with LaunchConfig
 - `PUT /protection-groups/{id}` - Update LaunchConfig (applies to all servers)
-- `GET /ec2/subnets?region={region}` - List available subnets
-- `GET /ec2/security-groups?region={region}` - List security groups
-- `GET /ec2/instance-profiles?region={region}` - List IAM instance profiles
-- `GET /ec2/instance-types?region={region}` - List EC2 instance types
 
-#### 5.3 EC2 Launch Template ✅ COMPLETE (Dec 13, 2025)
+#### 5.3 EC2 Launch Template (MVP)
 
-Configure EC2 launch template settings for recovery instances. **Now implemented at Protection Group level.**
+The system shall configure EC2 launch template settings for recovery instances at the Protection Group level.
 
 **Capabilities**:
-- Instance type selection with full EC2 instance type catalog
+- Instance type selection from EC2 instance type catalog
 - Subnet selection from available VPC subnets
 - Security group selection (multiple)
 - IAM instance profile selection
 
-**Implementation**: Settings are stored in Protection Group's LaunchConfig and applied via `apply_launch_config_to_servers()` which updates both DRS launch configuration and EC2 launch templates.
+**Behavior**: Settings are stored in Protection Group's LaunchConfig field and applied to DRS source servers via the DRS UpdateLaunchConfiguration API, which updates the underlying EC2 launch templates.
 
-**API Endpoints** (same as 5.2 - unified in LaunchConfig):
-- Protection Group CRUD endpoints with LaunchConfig field
-- EC2 resource endpoints for dropdown population
+**API Endpoints**:
+- `GET /ec2/subnets?region={region}` - List available subnets
+- `GET /ec2/security-groups?region={region}` - List security groups
+- `GET /ec2/instance-profiles?region={region}` - List IAM instance profiles
+- `GET /ec2/instance-types?region={region}` - List EC2 instance types
 
 #### 5.4 Tags Management (Phase 2)
 

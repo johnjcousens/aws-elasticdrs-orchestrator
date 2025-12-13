@@ -1082,13 +1082,13 @@ The following components shall be implemented to support the application pages. 
 | | DRSQuotaStatus | DRS service quota/capacity display |
 | **Execution** | ExecutionDetails | Execution summary panel |
 
-**Completed Components (Added to MVP Dec 13, 2025)**:
+**MVP Components - Launch Configuration**:
 
-| Category | Component | Purpose | Status |
-|----------|-----------|---------|--------|
-| **Launch Config** | LaunchConfigSection | DRS launch settings + EC2 template config | ✅ Complete |
+| Category | Component | Purpose |
+|----------|-----------|---------|
+| **Launch Config** | LaunchConfigSection | DRS launch settings + EC2 template config |
 
-**Phase 2 Components (7 Remaining)** - DRS Source Server Management:
+**Phase 2 Components** - DRS Source Server Management:
 
 | Category | Component | Purpose |
 |----------|-----------|---------|
@@ -1100,7 +1100,7 @@ The following components shall be implemented to support the application pages. 
 | | PitPolicyEditor | Point-in-time policy editor |
 | **Status Display** | JobEventsTimeline | DRS job events display |
 
-**Total: 32 Components (24 MVP + 7 Phase 2)** - Updated Dec 13, 2025
+**Total: 32 Components (25 MVP + 7 Phase 2)**
 
 
 ---
