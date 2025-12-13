@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS DRS Orchestrator</title>
+    <!-- Load AWS config BEFORE React app loads -->
+    <script>
+      // Create a promise that resolves when config is loaded
+      window.configReady = new Promise(async (resolve) => {
+        try {
+          const response = await fetch('/aws-config.json');
+          const config = await response.json();
+          
+          window.AWS_CONFIG = {
+            Auth: {
+              Cognito: {
+                region: config.region,
+                userPoolId: config.userPoolId,
+                userPoolClientId: config.userPoolClientId,
+                identityPoolId: config.identityPoolId,
+                loginWith: {
+                  email: true
+                }
+              }
+            },
+            API: {
+              REST: {
+                DRSOrchestration: {
+                  endpoint: config.apiEndpoint,
+                  region: config.region
+                }
+              }
+            }
+          };
+          
+          console.log('✅ AWS Config loaded successfully');
+          console.log('API Endpoint:', config.apiEndpoint);
+          resolve();
+        } catch (error) {
+          console.error('❌ Failed to load AWS config:', error);
+          // Resolve anyway so app doesn't hang
+          resolve();
+        }
+      });
+    </script>
+    <script type="module" crossorigin src="/assets/index-ag80oUgP.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-D2p37RnT.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-cloudscape-DvIB2xEp.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-aws-1qfFVWRO.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-http-DuHxbQuH.js">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-cloudscape-B8XRFzRN.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-Ci4E6TmJ.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
