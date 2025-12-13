@@ -6,6 +6,15 @@
 
 import React from 'react';
 import { Badge, Icon, SpaceBetween, Popover, Box } from '@cloudscape-design/components';
+import { config } from 'process';
+import { config } from 'process';
+import { config } from 'process';
+import { config } from 'process';
+import { config } from 'process';
+import { config } from 'process';
+import { config } from 'process';
+import { config } from 'process';
+import { config } from 'process';
 
 export type InvocationSource = 'UI' | 'CLI' | 'EVENTBRIDGE' | 'SSM' | 'STEPFUNCTIONS' | 'API';
 
