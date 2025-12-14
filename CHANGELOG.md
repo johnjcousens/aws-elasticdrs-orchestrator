@@ -4,28 +4,11 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
-## [1.6.1] - December 13, 2025
-
-**Export/Import Improvements** - `be7b4e0`, `9acab27`, `5b8d1be`, `e3e7469`, `03db924`
-
-Export/Import enhancements for better portability across environments:
-
-Backend (Lambda):
-- Export now uses `ProtectionGroupName` instead of `ProtectionGroupId` in Recovery Plan waves
-- Import resolves `ProtectionGroupName` to `ProtectionGroupId` during import (enables cross-environment portability)
-- Changed WaveId from 0-based to 1-based indexing (wave-1, wave-2, wave-3)
-- Orphaned PG references in waves are gracefully handled (removed from export if PG doesn't exist)
-
-Documentation:
-- Added minimum import example to ORCHESTRATION_INTEGRATION_GUIDE.md
-- Documented required vs optional fields for import JSON
-- Added `ServerSelectionTags` explanation for tag-based server discovery
-
 ## [1.6.0] - December 13, 2025
 
-**Configuration Export/Import Feature** - `9a34e74`, `eb3ba49`, `c888b56`
+**Configuration Export/Import Feature** - `9a34e74`, `eb3ba49`, `c888b56`, `be7b4e0`, `9acab27`, `e3e7469`, `03db924`
 
-New feature to backup and restore Protection Groups and Recovery Plans via Settings modal:
+Complete backup and restore capability for Protection Groups and Recovery Plans:
 
 Backend (Lambda):
 - Added `GET /config/export` endpoint - exports all Protection Groups and Recovery Plans to JSON
@@ -38,6 +21,10 @@ Backend (Lambda):
 - Detailed error reporting with specific failure reasons per resource
 - **LaunchConfig preservation**: Export includes all LaunchConfig settings (subnet, security groups, instance type, DRS settings)
 - **LaunchConfig application on import**: Automatically applies LaunchConfig to DRS source servers when importing Protection Groups
+- **Cross-environment portability**: Export uses `ProtectionGroupName` instead of `ProtectionGroupId` in Recovery Plan waves
+- **Name resolution on import**: Resolves `ProtectionGroupName` to `ProtectionGroupId` during import
+- Changed WaveId from 0-based to 1-based indexing (wave-1, wave-2, wave-3)
+- Orphaned PG references in waves are gracefully handled (removed from export if PG doesn't exist)
 
 Frontend:
 - Added Settings modal accessible via gear icon in top navigation
@@ -53,6 +40,9 @@ Infrastructure (CloudFormation):
 
 Documentation:
 - Added `docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md` with full specification
+- Added minimum import example to ORCHESTRATION_INTEGRATION_GUIDE.md
+- Documented required vs optional fields for import JSON
+- Added `ServerSelectionTags` explanation for tag-based server discovery
 - Updated README Future Enhancements table (item #5 complete)
 
 Files Added:
@@ -62,8 +52,6 @@ Files Added:
 - `frontend/src/components/ImportResultsDialog.tsx`
 - `frontend/src/contexts/ApiContext.tsx`
 - `docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md`
-
-## [1.5.1] - December 13, 2025
 
 **Documentation Alignment & Unified Specification**
 
@@ -76,9 +64,7 @@ Files Added:
 - Updated .amazonq/rules and .kiro/steering files for consistency
 - Clarified DRS regions: 30 total (28 commercial + 2 GovCloud)
 
-## [1.5.0] - December 13, 2025
-
-**Recovery Instance Source Tracking** - `51c0031`, `v1.5.0`
+**Recovery Instance Source Tracking** - `51c0031`
 
 New API endpoint and enhanced UI for tracking existing recovery instances before starting drills:
 
@@ -98,11 +84,7 @@ Code Cleanup:
 - Removed unused `get_protection_group_servers_legacy` function (~110 lines)
 - Deleted `cfn/api-stack.yaml.bak` backup file
 
----
-
-### December 13, 2025
-
-**DRS Launch Settings - Full UI and API Support** - `2272e5e`, `drs-launch-settings-v1`
+**DRS Launch Settings - Full UI and API Support** - `2272e5e`
 
 Complete DRS Launch Settings configuration for Protection Groups via UI and API:
 
