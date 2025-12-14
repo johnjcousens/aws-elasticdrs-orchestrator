@@ -6062,12 +6062,34 @@ def _process_protection_group_import(
                 item['ServerSelectionTags'] = server_selection_tags
                 item['SourceServerIds'] = []
             
-            if pg.get('LaunchConfig'):
-                item['LaunchConfig'] = pg['LaunchConfig']
+            launch_config = pg.get('LaunchConfig')
+            if launch_config:
+                item['LaunchConfig'] = launch_config
             
             protection_groups_table.put_item(Item=item)
             result['details'] = {'groupId': group_id}
             print(f"[{correlation_id}] Created PG '{pg_name}' with ID {group_id}")
+            
+            # Apply LaunchConfig to DRS servers (same as create/update)
+            if launch_config:
+                server_ids_to_apply = []
+                if source_server_ids:
+                    server_ids_to_apply = source_server_ids
+                elif server_selection_tags:
+                    resolved = query_drs_servers_by_tags(region, server_selection_tags)
+                    server_ids_to_apply = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+                
+                if server_ids_to_apply:
+                    try:
+                        apply_results = apply_launch_config_to_servers(
+                            server_ids_to_apply, launch_config, region,
+                            protection_group_id=group_id, protection_group_name=pg_name
+                        )
+                        result['details']['launchConfigApplied'] = apply_results.get('applied', 0)
+                        result['details']['launchConfigFailed'] = apply_results.get('failed', 0)
+                        print(f"[{correlation_id}] Applied LaunchConfig to {apply_results.get('applied', 0)} servers")
+                    except Exception as lc_err:
+                        print(f"[{correlation_id}] Warning: Failed to apply LaunchConfig: {lc_err}")
         except Exception as e:
             result['reason'] = 'CREATE_ERROR'
             result['details'] = {'error': str(e)}
