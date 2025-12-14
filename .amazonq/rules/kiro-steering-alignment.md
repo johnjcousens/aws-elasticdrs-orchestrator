@@ -56,13 +56,70 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform f
 - **Proactive Blocking**: Prevents operations that would exceed limits
 
 **Frontend Application**
-- CloudScape Design System UI with 23 MVP components (32 total including Phase 2)
+- CloudScape Design System UI with 33 components
 - Cognito-based authentication with 45-minute auto-logout
 - CloudFront CDN distribution for global performance
 - Real-time status updates and execution monitoring with 3-second polling
 - DRS Job Events timeline with auto-refresh
 - DRS Service Limits validation and quota display
 - Intuitive protection group and recovery plan management
+- Tag-based server selection with preview capability
+- Invocation source tracking (UI, CLI, API, EventBridge, SSM, Step Functions)
+
+**DRS Source Server Management**
+- Server Info & Recovery Dashboard: Read-only visibility into server details, replication state, recovery readiness
+- DRS Launch Settings: Instance type right sizing, launch disposition, copy private IP/tags, OS licensing
+- EC2 Launch Template: Instance type, subnet, security groups, IAM instance profile selection
+- Tags Management: View, add, edit, delete tags on DRS source servers
+- Disk Settings: Per-disk configuration (type, IOPS, throughput)
+- Replication Settings: Staging area, bandwidth throttling, PIT snapshot policy
+- Post-Launch Settings: SSM automation, deployment type, S3 log configuration
+
+**DRS Tag Synchronization**
+- Synchronize EC2 instance tags to DRS source servers
+- On-demand sync for individual servers
+- Bulk sync operations for multiple servers
+- Real-time progress monitoring
+- Sync history and audit trail
+
+**SSM Automation Integration**
+- Pre-wave automation: manual approval gates, health checks, custom validation scripts
+- Post-wave automation: application startup scripts, health validation, smoke tests
+- Configurable SSM document execution per wave
+
+**Step Functions Visualization**
+- Real-time state machine execution visualization
+- State timeline with current position
+- State input/output data inspection
+- CloudWatch Logs integration
+- Error state highlighting
+
+**Multi-Account Support**
+- Cross-account orchestration with hub-and-spoke architecture
+- Cross-account IAM roles for secure access
+- Unified management UI across accounts
+- Scale beyond 300-server DRS limit per account
+- Account registration and validation
+- Account health monitoring
+
+**Cross-Account DRS Monitoring**
+- Centralized monitoring across multiple AWS accounts
+- Dynamic account management
+- Cross-account metrics collection
+- Unified dashboards
+- Alerting and notifications
+
+**SNS Notification Integration**
+- Real-time notifications for execution status changes
+- DRS event notifications
+- System health alerts
+- Multiple channels: Email, SMS, Slack, PagerDuty
+
+**Scheduled Drills**
+- Automated recurring drill execution
+- Cron-based scheduling
+- Automated reporting
+- Compliance tracking
 
 ### AWS DRS Regional Availability
 
@@ -99,7 +156,7 @@ AWS-DRS-Orchestration/
 ├── scripts/                      # Deployment and automation scripts
 ├── tests/                        # Python unit/integration and Playwright E2E tests
 ├── docs/                         # Comprehensive documentation
-├── ssm-documents/                # SSM automation documents (Phase 2)
+├── ssm-documents/                # SSM automation documents
 ├── archive/                      # Historical artifacts and reference implementations
 └── .kiro/steering/               # Kiro steering rules and project guidance
 ```
@@ -123,7 +180,7 @@ React + TypeScript + CloudScape Design System:
 ```text
 frontend/
 ├── src/
-│   ├── components/          # 23 MVP components (32 total with Phase 2)
+│   ├── components/          # 33 components
 │   │   ├── cloudscape/      # CloudScape wrapper components
 │   │   │   ├── AppLayout.tsx
 │   │   │   └── ContentLayout.tsx
@@ -133,6 +190,7 @@ frontend/
 │   │   ├── ServerSelector.tsx
 │   │   ├── ServerDiscoveryPanel.tsx
 │   │   ├── ServerListItem.tsx
+│   │   ├── ServerInfoPanel.tsx
 │   │   ├── RegionSelector.tsx
 │   │   ├── WaveConfigEditor.tsx
 │   │   ├── StatusBadge.tsx
@@ -140,6 +198,14 @@ frontend/
 │   │   ├── DateTimeDisplay.tsx
 │   │   ├── DRSQuotaStatus.tsx
 │   │   ├── ExecutionDetails.tsx
+│   │   ├── InvocationSourceBadge.tsx
+│   │   ├── JobEventsTimeline.tsx
+│   │   ├── LaunchConfigSection.tsx
+│   │   ├── TagsEditor.tsx
+│   │   ├── DiskSettingsEditor.tsx
+│   │   ├── ReplicationSettingsEditor.tsx
+│   │   ├── PostLaunchSettingsEditor.tsx
+│   │   ├── PitPolicyEditor.tsx
 │   │   ├── ErrorBoundary.tsx
 │   │   ├── ErrorFallback.tsx
 │   │   ├── ErrorState.tsx
@@ -148,14 +214,16 @@ frontend/
 │   │   ├── DataTableSkeleton.tsx
 │   │   ├── PageTransition.tsx
 │   │   └── ProtectedRoute.tsx
-│   ├── pages/               # 7 MVP page components
+│   ├── pages/               # 9 page components
 │   │   ├── LoginPage.tsx
 │   │   ├── Dashboard.tsx
 │   │   ├── GettingStartedPage.tsx
 │   │   ├── ProtectionGroupsPage.tsx
 │   │   ├── RecoveryPlansPage.tsx
 │   │   ├── ExecutionsPage.tsx
-│   │   └── ExecutionDetailsPage.tsx
+│   │   ├── ExecutionDetailsPage.tsx
+│   │   ├── ServerDetailsPage.tsx
+│   │   └── QuotasPage.tsx
 │   ├── services/            # API client and authentication services
 │   ├── contexts/            # React contexts (Auth, API, Notification)
 │   ├── types/               # TypeScript type definitions
@@ -568,7 +636,7 @@ const STANDARD_ICONS = {
 
 ### Region Selector Rules
 
-**1. DRS Regions (COMPLETE LIST - 28 COMMERCIAL)**
+**1. DRS Regions (30 TOTAL: 28 COMMERCIAL + 2 GOVCLOUD)**
 ```typescript
 // ALWAYS use this complete DRS regions list (verified December 2025)
 const DRS_REGIONS = [

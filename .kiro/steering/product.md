@@ -112,18 +112,64 @@ The solution supports disaster recovery orchestration in all **30 AWS regions** 
 5. **DevOps Integration**: Automate DR testing as part of CI/CD pipelines using the REST API
 6. **Controlled Recovery**: Pause execution before critical waves for manual validation before proceeding
 
-## Future Roadmap
+### DRS Tag Synchronization
 
-| Feature | Description |
-|---------|-------------|
-| **DRS Tag Synchronization** | Synchronize EC2 instance tags to DRS source servers |
-| **SSM Automation Integration** | Pre-wave and post-wave SSM automation |
-| **Step Functions Visualization** | Real-time state machine execution visualization |
-| **Multi-Account Support** | Cross-account orchestration, scale beyond 300 servers |
-| **Cross-Account DRS Monitoring** | Centralized monitoring across multiple accounts |
-| **SNS Notification Integration** | Real-time notifications via Email, SMS, Slack |
-| **Scheduled Drills** | Automated recurring drill execution |
-| **CodeBuild & CodeCommit Migration** | AWS-native CI/CD pipeline |
+- Synchronize EC2 instance tags to DRS source servers
+- On-demand sync for individual servers
+- Bulk sync operations for multiple servers
+- Real-time progress monitoring
+- Sync history and audit trail
+
+### SSM Automation Integration
+
+- Pre-wave automation: manual approval gates, health checks, custom validation scripts
+- Post-wave automation: application startup scripts, health validation, smoke tests
+- Configurable SSM document execution per wave
+
+### Step Functions Visualization
+
+- Real-time state machine execution visualization
+- State timeline with current position
+- State input/output data inspection
+- CloudWatch Logs integration
+- Error state highlighting
+
+### Multi-Account Support
+
+- Cross-account orchestration with hub-and-spoke architecture
+- Cross-account IAM roles for secure access
+- Unified management UI across accounts
+- Scale beyond 300-server DRS limit per account
+- Account registration and validation
+- Account health monitoring
+
+### Cross-Account DRS Monitoring
+
+- Centralized monitoring across multiple AWS accounts
+- Dynamic account management
+- Cross-account metrics collection
+- Unified dashboards
+- Alerting and notifications
+
+### SNS Notification Integration
+
+- Real-time notifications for execution status changes
+- DRS event notifications
+- System health alerts
+- Multiple channels: Email, SMS, Slack, PagerDuty
+
+### Scheduled Drills
+
+- Automated recurring drill execution
+- Cron-based scheduling
+- Automated reporting
+- Compliance tracking
+
+### AWS-Native CI/CD Pipeline
+
+- CodePipeline orchestration
+- CodeBuild compilation
+- CodeCommit repository integration
 
 ## Architecture Highlights
 

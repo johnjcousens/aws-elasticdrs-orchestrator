@@ -10,9 +10,9 @@ Quick reference for CloudScape components used in this application. Use this whe
 
 ## Application Components
 
-**Total: 32 Components (23 MVP + 9 Phase 2)**
+**Total: 32 Components**
 
-### Page Components (7 MVP)
+### Page Components (7)
 
 | Component | File | Purpose |
 |-----------|------|---------|
@@ -24,7 +24,7 @@ Quick reference for CloudScape components used in this application. Use this whe
 | ExecutionsPage | `pages/ExecutionsPage.tsx` | Active/History tabs with 3-second polling |
 | ExecutionDetailsPage | `pages/ExecutionDetailsPage.tsx` | Wave progress, DRS events, pause/resume/terminate |
 
-### MVP Reusable Components (23)
+### Reusable Components (16)
 
 **Layout Components:**
 
@@ -79,7 +79,7 @@ Quick reference for CloudScape components used in this application. Use this whe
 |-----------|------|---------|
 | ExecutionDetails | `components/ExecutionDetails.tsx` | Execution detail display |
 
-### Phase 2 Components (9) - DRS Source Server Management
+### DRS Source Server Management Components (9)
 
 | Component | File | Purpose |
 |-----------|------|---------|

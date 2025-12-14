@@ -37,7 +37,7 @@ flowchart TD
 2. **MINIMIZE terminal output** - Suppress verbose command output
 3. **MINIMIZE chat responses** - Work silently, report only at end
 4. **Write as if from scratch** - Documents should read as complete blueprints for building the full solution
-5. **Include future enhancements** - Phase 2 features documented alongside MVP
+5. **Present as unified specification** - No MVP/Phase distinctions, all features documented as part of complete system
 
 ## Step 1: Analyze Current Code
 
@@ -54,13 +54,12 @@ cfn/                         → List all CloudFormation templates
 
 ## Step 2: Update /docs/requirements (Source of Truth)
 
-Update these three documents to reflect current code + future enhancements:
+Update these three documents to reflect complete system specification:
 
 ### PRODUCT_REQUIREMENTS_DOCUMENT.md
-- Features and capabilities (current + Phase 2)
+- Features and capabilities
 - Success metrics
 - User stories
-- Phase 2 roadmap
 
 ### SOFTWARE_REQUIREMENTS_SPECIFICATION.md
 - Functional requirements
@@ -70,7 +69,7 @@ Update these three documents to reflect current code + future enhancements:
 - Component counts must match actual code
 
 ### UX_UI_DESIGN_SPECIFICATIONS.md
-- Component inventory (MVP + Phase 2)
+- Component inventory
 - **Wireframes must match current .tsx files**
 - Page specifications
 - Visual design system
@@ -88,7 +87,7 @@ Verify consistency across all three requirements docs:
 | DynamoDB tables | ✓ | ✓ | - |
 | Technology versions | ✓ | ✓ | ✓ |
 | DRS regions | ✓ | ✓ | ✓ |
-| Phase 2 features | ✓ | ✓ | ✓ |
+| All features | ✓ | ✓ | ✓ |
 
 ## Step 4: Update README.md
 
@@ -130,11 +129,11 @@ Align steering files with updated requirements:
 
 | Steering File | Sync With |
 |---------------|-----------|
-| product.md | PRD |
+| product.md | PRD (features, capabilities) |
 | structure.md | SRS, actual code structure |
 | tech.md | package.json, SRS |
 | cicd.md | .gitlab-ci.yml |
-| cloudscape-component-reference.md | UX Specs |
+| frontend-design-consistency.md | UX Specs |
 | debugging-rules.md | SRS (IAM permissions) |
 
 ## Step 7: Final Git Commit & Push
@@ -169,7 +168,7 @@ Before completing, verify:
 - [ ] All Lambda functions documented
 - [ ] All API endpoints documented
 - [ ] All DynamoDB tables documented
-- [ ] Phase 2 features included
+- [ ] All features documented as unified specification
 - [ ] Wireframes match current .tsx implementations
 - [ ] README reflects current state
 - [ ] Both git commits pushed successfully
@@ -186,7 +185,7 @@ Commits:
 - [commit-hash-2]: chore: Align steering documents
 
 Summary:
-- X components (Y MVP + Z Phase 2)
+- X components
 - X Lambda functions
 - X CloudFormation templates
 - X API endpoints

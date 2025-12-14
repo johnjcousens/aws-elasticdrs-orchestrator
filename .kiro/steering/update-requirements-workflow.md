@@ -37,7 +37,7 @@ flowchart TD
 2. **MINIMIZE terminal output** - Suppress verbose command output
 3. **MINIMIZE chat responses** - Work silently, report only at end
 4. **Write as if from scratch** - Documents should read as complete blueprints for building the full solution
-5. **Include future enhancements** - Phase 2 features documented alongside MVP
+5. **Include all features** - All features documented as standard requirements
 
 ## Step 1: Analyze Current Code
 
@@ -54,13 +54,12 @@ cfn/                         → List all CloudFormation templates
 
 ## Step 2: Update /docs/requirements (Source of Truth)
 
-Update these three documents to reflect current code + future enhancements:
+Update these three documents to reflect the complete system specification:
 
 ### PRODUCT_REQUIREMENTS_DOCUMENT.md
-- Features and capabilities (current + Phase 2)
+- Features and capabilities
 - Success metrics
 - User stories
-- Phase 2 roadmap
 
 ### SOFTWARE_REQUIREMENTS_SPECIFICATION.md
 - Functional requirements
@@ -70,7 +69,7 @@ Update these three documents to reflect current code + future enhancements:
 - Component counts must match actual code
 
 ### UX_UI_DESIGN_SPECIFICATIONS.md
-- Component inventory (MVP + Phase 2)
+- Component inventory (all components)
 - **Wireframes must match current .tsx files**
 - Page specifications
 - Visual design system
@@ -88,7 +87,6 @@ Verify consistency across all three requirements docs:
 | DynamoDB tables | ✓ | ✓ | - |
 | Technology versions | ✓ | ✓ | ✓ |
 | DRS regions | ✓ | ✓ | ✓ |
-| Phase 2 features | ✓ | ✓ | ✓ |
 
 ## Step 4: Update README.md
 
@@ -169,7 +167,6 @@ Before completing, verify:
 - [ ] All Lambda functions documented
 - [ ] All API endpoints documented
 - [ ] All DynamoDB tables documented
-- [ ] Phase 2 features included
 - [ ] Wireframes match current .tsx implementations
 - [ ] README reflects current state
 - [ ] Both git commits pushed successfully
@@ -186,7 +183,7 @@ Commits:
 - [commit-hash-2]: chore: Align steering documents
 
 Summary:
-- X components (Y MVP + Z Phase 2)
+- X components
 - X Lambda functions
 - X CloudFormation templates
 - X API endpoints

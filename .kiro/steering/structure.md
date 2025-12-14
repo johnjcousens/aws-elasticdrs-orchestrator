@@ -10,7 +10,7 @@ AWS-DRS-Orchestration/
 ├── scripts/                      # Deployment and automation scripts
 ├── tests/                        # Python unit/integration and Playwright E2E tests
 ├── docs/                         # Comprehensive documentation
-├── ssm-documents/                # SSM automation documents (Phase 2)
+├── ssm-documents/                # SSM automation documents
 ├── archive/                      # Historical artifacts and reference implementations
 └── .kiro/steering/               # Kiro steering rules and project guidance
 ```
