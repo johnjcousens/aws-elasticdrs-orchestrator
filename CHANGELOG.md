@@ -4,6 +4,23 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+## [1.6.1] - December 14, 2025
+
+**Export/Import Improvements** - `be7b4e0`, `9acab27`, `5b8d1be`, `e3e7469`, `03db924`
+
+Export/Import enhancements for better portability across environments:
+
+Backend (Lambda):
+- Export now uses `ProtectionGroupName` instead of `ProtectionGroupId` in Recovery Plan waves
+- Import resolves `ProtectionGroupName` to `ProtectionGroupId` during import (enables cross-environment portability)
+- Changed WaveId from 0-based to 1-based indexing (wave-1, wave-2, wave-3)
+- Orphaned PG references in waves are gracefully handled (removed from export if PG doesn't exist)
+
+Documentation:
+- Added minimum import example to ORCHESTRATION_INTEGRATION_GUIDE.md
+- Documented required vs optional fields for import JSON
+- Added `ServerSelectionTags` explanation for tag-based server discovery
+
 ## [1.6.0] - December 14, 2025
 
 **Configuration Export/Import Feature** - `9a34e74`, `eb3ba49`, `c888b56`
