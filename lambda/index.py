@@ -5726,16 +5726,22 @@ def export_configuration(query_params: Dict) -> Dict:
         
         # Transform Recovery Plans for export (resolve PG IDs to names)
         exported_rps = []
+        orphaned_pg_ids = []
         for rp in recovery_plans:
             # Transform waves to include ProtectionGroupName
             exported_waves = []
             for wave in rp.get('Waves', []):
                 exported_wave = dict(wave)
                 pg_id = wave.get('ProtectionGroupId', '')
-                if pg_id and pg_id in pg_id_to_name:
-                    exported_wave['ProtectionGroupName'] = pg_id_to_name[pg_id]
-                # Remove ProtectionGroupId - use name only for portability
-                exported_wave.pop('ProtectionGroupId', None)
+                if pg_id:
+                    if pg_id in pg_id_to_name:
+                        exported_wave['ProtectionGroupName'] = pg_id_to_name[pg_id]
+                        # Remove ID - use name only for portability
+                        exported_wave.pop('ProtectionGroupId', None)
+                    else:
+                        # Keep ID if name can't be resolved (orphaned reference)
+                        orphaned_pg_ids.append(pg_id)
+                        print(f"Warning: PG ID '{pg_id}' not found - keeping ID in export")
                 exported_waves.append(exported_wave)
             
             exported_rp = {
@@ -5744,6 +5750,9 @@ def export_configuration(query_params: Dict) -> Dict:
                 'Waves': exported_waves,
             }
             exported_rps.append(exported_rp)
+        
+        if orphaned_pg_ids:
+            print(f"Export contains {len(orphaned_pg_ids)} orphaned PG references")
         
         # Build export payload
         export_data = {
