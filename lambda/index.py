@@ -5698,6 +5698,12 @@ def export_configuration(query_params: Dict) -> Dict:
             )
             recovery_plans.extend(rp_result.get('Items', []))
         
+        # Build PG ID -> Name mapping for wave export
+        pg_id_to_name = {
+            pg.get('GroupId', ''): pg.get('GroupName', '')
+            for pg in protection_groups
+        }
+        
         # Transform Protection Groups for export (exclude internal fields)
         exported_pgs = []
         for pg in protection_groups:
@@ -5718,13 +5724,24 @@ def export_configuration(query_params: Dict) -> Dict:
                 exported_pg['LaunchConfig'] = pg['LaunchConfig']
             exported_pgs.append(exported_pg)
         
-        # Transform Recovery Plans for export
+        # Transform Recovery Plans for export (resolve PG IDs to names)
         exported_rps = []
         for rp in recovery_plans:
+            # Transform waves to include ProtectionGroupName
+            exported_waves = []
+            for wave in rp.get('Waves', []):
+                exported_wave = dict(wave)
+                pg_id = wave.get('ProtectionGroupId', '')
+                if pg_id and pg_id in pg_id_to_name:
+                    exported_wave['ProtectionGroupName'] = pg_id_to_name[pg_id]
+                # Remove ProtectionGroupId - use name only for portability
+                exported_wave.pop('ProtectionGroupId', None)
+                exported_waves.append(exported_wave)
+            
             exported_rp = {
                 'PlanName': rp.get('PlanName', ''),
                 'Description': rp.get('Description', ''),
-                'Waves': rp.get('Waves', []),
+                'Waves': exported_waves,
             }
             exported_rps.append(exported_rp)
         
