@@ -4,6 +4,42 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+## [1.6.0] - December 13, 2025
+
+**Configuration Export/Import Feature**
+
+New feature to backup and restore Protection Groups and Recovery Plans via Settings modal:
+
+Backend (Lambda):
+- Added `GET /config/export` endpoint - exports all Protection Groups and Recovery Plans to JSON
+- Added `POST /config/import` endpoint - imports configuration with validation and dry-run support
+- Export includes metadata (schemaVersion, exportedAt, sourceRegion)
+- Import is completely non-destructive and additive-only (skips existing resources by name)
+- Server validation for explicit-server Protection Groups (verifies servers exist in DRS)
+- Tag validation for tag-based Protection Groups (verifies tags resolve to servers)
+- Cascade failure handling for Recovery Plans when referenced Protection Groups fail
+- Detailed error reporting with specific failure reasons per resource
+
+Frontend:
+- Added Settings modal accessible via gear icon in top navigation
+- Export tab: One-click download of configuration as JSON file
+- Import tab: File picker with preview, dry-run validation, and detailed results
+- ImportResultsDialog shows created/skipped/failed counts with expandable details
+- Created ApiContext for centralized API state management
+
+Infrastructure (CloudFormation):
+- Added `/config/export` and `/config/import` API Gateway resources
+- Added CORS OPTIONS methods for both endpoints
+- Updated API deployment dependencies
+
+Files Added:
+- `frontend/src/components/SettingsModal.tsx`
+- `frontend/src/components/ConfigExportPanel.tsx`
+- `frontend/src/components/ConfigImportPanel.tsx`
+- `frontend/src/components/ImportResultsDialog.tsx`
+- `frontend/src/contexts/ApiContext.tsx`
+- `.kiro/specs/config-export-import/` (requirements, design, tasks)
+
 ## [1.5.1] - December 13, 2025
 
 **Documentation Alignment & Unified Specification**

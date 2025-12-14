@@ -585,6 +585,50 @@ class ApiClient {
   }
 
   // ============================================================================
+  // Configuration Export/Import API
+  // ============================================================================
+
+  /**
+   * Export all Protection Groups and Recovery Plans to JSON
+   */
+  public async exportConfiguration(): Promise<{
+    metadata: {
+      schemaVersion: string;
+      exportedAt: string;
+      sourceRegion: string;
+      exportedBy: string;
+    };
+    protectionGroups: Array<Record<string, unknown>>;
+    recoveryPlans: Array<Record<string, unknown>>;
+  }> {
+    return this.get('/config/export');
+  }
+
+  /**
+   * Import Protection Groups and Recovery Plans from JSON
+   * 
+   * @param config - Configuration data to import
+   * @param dryRun - If true, validate without making changes
+   */
+  public async importConfiguration(
+    config: Record<string, unknown>,
+    dryRun: boolean = false
+  ): Promise<{
+    success: boolean;
+    dryRun: boolean;
+    correlationId: string;
+    summary: {
+      protectionGroups: { created: number; skipped: number; failed: number };
+      recoveryPlans: { created: number; skipped: number; failed: number };
+    };
+    created: Array<{ type: string; name: string; details?: Record<string, unknown> }>;
+    skipped: Array<{ type: string; name: string; reason: string; details?: Record<string, unknown> }>;
+    failed: Array<{ type: string; name: string; reason: string; details?: Record<string, unknown> }>;
+  }> {
+    return this.post('/config/import', { config, dryRun });
+  }
+
+  // ============================================================================
   // Health Check API
   // ============================================================================
 
@@ -622,5 +666,7 @@ export const {
   pauseExecution,
   resumeExecution,
   deleteCompletedExecutions,
+  exportConfiguration,
+  importConfiguration,
   healthCheck,
 } = apiClient;

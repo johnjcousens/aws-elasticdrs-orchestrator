@@ -64,11 +64,22 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
   - **OS Licensing**: BYOL (Bring Your Own License) or AWS-provided license
 - **Automatic Application**: Settings applied to all servers in Protection Group on save
 
+### Configuration Export/Import
+
+- **Full Backup**: Export all Protection Groups and Recovery Plans to JSON file
+- **Non-Destructive Import**: Additive-only import skips existing resources by name
+- **Dry Run Mode**: Validate import without making changes
+- **Server Validation**: Verifies DRS source servers exist before import
+- **Tag Validation**: Confirms tag-based selections resolve to servers
+- **Cascade Handling**: Reports Recovery Plan failures when Protection Groups fail
+- **Settings Modal**: Access via gear icon in top navigation bar
+
 ### API & Integration
 
 - **Optimistic Locking**: Version-based concurrency control prevents conflicting updates
 - **Comprehensive Error Handling**: Standardized error codes (MISSING_FIELD, INVALID_NAME, VERSION_CONFLICT, etc.)
 - **Health Endpoint**: `/health` endpoint for monitoring and load balancer health checks
+- **Config Export/Import**: `GET /config/export` and `POST /config/import` endpoints
 - **51 API Tests**: Full test coverage for all API operations
 
 ## Architecture

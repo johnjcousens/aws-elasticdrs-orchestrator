@@ -780,6 +780,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return handle_drs_quotas(query_parameters)
         elif path.startswith('/ec2/'):
             return handle_ec2_resources(path, query_parameters)
+        elif path.startswith('/config'):
+            return handle_config(http_method, path, body, query_parameters)
         else:
             return response(404, {'error': 'Not Found', 'path': path})
             
@@ -5646,3 +5648,528 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
     except Exception as e:
         print(f'Error getting instance types: {e}')
         return response(500, {'error': str(e)})
+
+
+# ============================================================================
+# Configuration Export/Import Handlers
+# ============================================================================
+
+SCHEMA_VERSION = "1.0"
+SUPPORTED_SCHEMA_VERSIONS = ["1.0"]
+
+
+def handle_config(method: str, path: str, body: Dict, query_params: Dict) -> Dict:
+    """Route configuration export/import requests"""
+    if path == '/config/export' and method == 'GET':
+        return export_configuration(query_params)
+    elif path == '/config/import' and method == 'POST':
+        return import_configuration(body)
+    else:
+        return response(405, {'error': 'Method Not Allowed'})
+
+
+def export_configuration(query_params: Dict) -> Dict:
+    """
+    Export all Protection Groups and Recovery Plans to JSON format.
+    
+    Returns complete configuration with metadata for backup/migration.
+    """
+    try:
+        import datetime
+        
+        # Get source region from environment or default
+        source_region = os.environ.get('AWS_REGION', 'us-east-1')
+        
+        # Scan all Protection Groups
+        pg_result = protection_groups_table.scan()
+        protection_groups = pg_result.get('Items', [])
+        while 'LastEvaluatedKey' in pg_result:
+            pg_result = protection_groups_table.scan(
+                ExclusiveStartKey=pg_result['LastEvaluatedKey']
+            )
+            protection_groups.extend(pg_result.get('Items', []))
+        
+        # Scan all Recovery Plans
+        rp_result = recovery_plans_table.scan()
+        recovery_plans = rp_result.get('Items', [])
+        while 'LastEvaluatedKey' in rp_result:
+            rp_result = recovery_plans_table.scan(
+                ExclusiveStartKey=rp_result['LastEvaluatedKey']
+            )
+            recovery_plans.extend(rp_result.get('Items', []))
+        
+        # Transform Protection Groups for export (exclude internal fields)
+        exported_pgs = []
+        for pg in protection_groups:
+            exported_pg = {
+                'GroupName': pg.get('GroupName', ''),
+                'Description': pg.get('Description', ''),
+                'Region': pg.get('Region', ''),
+                'AccountId': pg.get('AccountId', ''),
+                'Owner': pg.get('Owner', ''),
+            }
+            # Include server selection method (mutually exclusive)
+            if pg.get('SourceServerIds'):
+                exported_pg['SourceServerIds'] = pg['SourceServerIds']
+            if pg.get('ServerSelectionTags'):
+                exported_pg['ServerSelectionTags'] = pg['ServerSelectionTags']
+            # Include LaunchConfig if present
+            if pg.get('LaunchConfig'):
+                exported_pg['LaunchConfig'] = pg['LaunchConfig']
+            exported_pgs.append(exported_pg)
+        
+        # Transform Recovery Plans for export
+        exported_rps = []
+        for rp in recovery_plans:
+            exported_rp = {
+                'PlanName': rp.get('PlanName', ''),
+                'Description': rp.get('Description', ''),
+                'Waves': rp.get('Waves', []),
+            }
+            exported_rps.append(exported_rp)
+        
+        # Build export payload
+        export_data = {
+            'metadata': {
+                'schemaVersion': SCHEMA_VERSION,
+                'exportedAt': datetime.datetime.utcnow().isoformat() + 'Z',
+                'sourceRegion': source_region,
+                'exportedBy': 'api',
+            },
+            'protectionGroups': exported_pgs,
+            'recoveryPlans': exported_rps,
+        }
+        
+        return response(200, export_data)
+        
+    except Exception as e:
+        print(f"Error exporting configuration: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': 'Failed to export configuration', 'details': str(e)})
+
+
+def import_configuration(body: Dict) -> Dict:
+    """
+    Import Protection Groups and Recovery Plans from JSON configuration.
+    
+    Non-destructive, additive-only operation:
+    - Skips resources that already exist (by name)
+    - Validates server existence and conflicts
+    - Supports dry_run mode for validation without changes
+    
+    Returns detailed results with created, skipped, and failed resources.
+    """
+    try:
+        import datetime
+        
+        correlation_id = str(uuid.uuid4())
+        print(f"[{correlation_id}] Starting configuration import")
+        
+        # Extract parameters
+        dry_run = body.get('dryRun', False)
+        config = body.get('config', body)  # Support both wrapped and direct format
+        
+        # Validate schema version
+        metadata = config.get('metadata', {})
+        schema_version = metadata.get('schemaVersion', '')
+        
+        if not schema_version:
+            return response(400, {
+                'error': 'Missing schemaVersion in metadata',
+                'supportedVersions': SUPPORTED_SCHEMA_VERSIONS
+            })
+        
+        if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+            return response(400, {
+                'error': f'Unsupported schema version: {schema_version}',
+                'supportedVersions': SUPPORTED_SCHEMA_VERSIONS
+            })
+        
+        # Get import data
+        import_pgs = config.get('protectionGroups', [])
+        import_rps = config.get('recoveryPlans', [])
+        
+        # Load existing data for conflict detection
+        existing_pgs = _get_existing_protection_groups()
+        existing_rps = _get_existing_recovery_plans()
+        active_execution_servers = _get_active_execution_servers()
+        
+        # Track results
+        results = {
+            'success': True,
+            'dryRun': dry_run,
+            'correlationId': correlation_id,
+            'summary': {
+                'protectionGroups': {'created': 0, 'skipped': 0, 'failed': 0},
+                'recoveryPlans': {'created': 0, 'skipped': 0, 'failed': 0},
+            },
+            'created': [],
+            'skipped': [],
+            'failed': [],
+        }
+        
+        # Track which PGs were successfully created/exist for RP dependency resolution
+        available_pg_names = set(existing_pgs.keys())
+        failed_pg_names = set()
+        
+        # Process Protection Groups first (RPs depend on them)
+        for pg in import_pgs:
+            pg_result = _process_protection_group_import(
+                pg, existing_pgs, active_execution_servers, dry_run, correlation_id
+            )
+            
+            if pg_result['status'] == 'created':
+                results['created'].append(pg_result)
+                results['summary']['protectionGroups']['created'] += 1
+                available_pg_names.add(pg.get('GroupName', ''))
+            elif pg_result['status'] == 'skipped':
+                results['skipped'].append(pg_result)
+                results['summary']['protectionGroups']['skipped'] += 1
+            else:  # failed
+                results['failed'].append(pg_result)
+                results['summary']['protectionGroups']['failed'] += 1
+                failed_pg_names.add(pg.get('GroupName', ''))
+                results['success'] = False
+        
+        # Process Recovery Plans
+        for rp in import_rps:
+            rp_result = _process_recovery_plan_import(
+                rp, existing_rps, available_pg_names, failed_pg_names, dry_run, correlation_id
+            )
+            
+            if rp_result['status'] == 'created':
+                results['created'].append(rp_result)
+                results['summary']['recoveryPlans']['created'] += 1
+            elif rp_result['status'] == 'skipped':
+                results['skipped'].append(rp_result)
+                results['summary']['recoveryPlans']['skipped'] += 1
+            else:  # failed
+                results['failed'].append(rp_result)
+                results['summary']['recoveryPlans']['failed'] += 1
+                results['success'] = False
+        
+        print(f"[{correlation_id}] Import complete: {results['summary']}")
+        return response(200, results)
+        
+    except Exception as e:
+        print(f"Error importing configuration: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': 'Failed to import configuration', 'details': str(e)})
+
+
+def _get_existing_protection_groups() -> Dict[str, Dict]:
+    """Get all existing Protection Groups indexed by name (case-insensitive)"""
+    result = protection_groups_table.scan()
+    pgs = result.get('Items', [])
+    while 'LastEvaluatedKey' in result:
+        result = protection_groups_table.scan(ExclusiveStartKey=result['LastEvaluatedKey'])
+        pgs.extend(result.get('Items', []))
+    return {pg.get('GroupName', '').lower(): pg for pg in pgs}
+
+
+def _get_existing_recovery_plans() -> Dict[str, Dict]:
+    """Get all existing Recovery Plans indexed by name (case-insensitive)"""
+    result = recovery_plans_table.scan()
+    rps = result.get('Items', [])
+    while 'LastEvaluatedKey' in result:
+        result = recovery_plans_table.scan(ExclusiveStartKey=result['LastEvaluatedKey'])
+        rps.extend(result.get('Items', []))
+    return {rp.get('PlanName', '').lower(): rp for rp in rps}
+
+
+def _get_active_execution_servers() -> Dict[str, Dict]:
+    """Get servers involved in active executions with execution details"""
+    # Query executions with active statuses
+    active_statuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 
+                       'IN_PROGRESS', 'RUNNING', 'PAUSED']
+    
+    servers = {}
+    for status in active_statuses:
+        try:
+            result = execution_history_table.query(
+                IndexName='StatusIndex',
+                KeyConditionExpression='#s = :status',
+                ExpressionAttributeNames={'#s': 'Status'},
+                ExpressionAttributeValues={':status': status}
+            )
+            for exec_item in result.get('Items', []):
+                exec_id = exec_item.get('ExecutionId', '')
+                plan_name = exec_item.get('PlanName', '')
+                exec_status = exec_item.get('Status', '')
+                # Get servers from waves
+                for wave in exec_item.get('Waves', []):
+                    for server in wave.get('Servers', []):
+                        server_id = server.get('sourceServerId', '')
+                        if server_id:
+                            servers[server_id] = {
+                                'executionId': exec_id,
+                                'planName': plan_name,
+                                'status': exec_status
+                            }
+        except Exception as e:
+            print(f"Warning: Could not query executions for status {status}: {e}")
+    
+    return servers
+
+
+def _get_all_assigned_servers() -> Dict[str, str]:
+    """Get all servers assigned to any Protection Group"""
+    result = protection_groups_table.scan()
+    pgs = result.get('Items', [])
+    while 'LastEvaluatedKey' in result:
+        result = protection_groups_table.scan(ExclusiveStartKey=result['LastEvaluatedKey'])
+        pgs.extend(result.get('Items', []))
+    
+    assigned = {}
+    for pg in pgs:
+        pg_name = pg.get('GroupName', '')
+        for server_id in pg.get('SourceServerIds', []):
+            assigned[server_id] = pg_name
+    return assigned
+
+
+def _process_protection_group_import(
+    pg: Dict, 
+    existing_pgs: Dict[str, Dict],
+    active_execution_servers: Dict[str, Dict],
+    dry_run: bool,
+    correlation_id: str
+) -> Dict:
+    """Process a single Protection Group import"""
+    pg_name = pg.get('GroupName', '')
+    region = pg.get('Region', '')
+    
+    result = {
+        'type': 'ProtectionGroup',
+        'name': pg_name,
+        'status': 'failed',
+        'reason': '',
+        'details': {}
+    }
+    
+    # Check if already exists
+    if pg_name.lower() in existing_pgs:
+        result['status'] = 'skipped'
+        result['reason'] = 'ALREADY_EXISTS'
+        result['details'] = {'existingGroupId': existing_pgs[pg_name.lower()].get('GroupId', '')}
+        print(f"[{correlation_id}] Skipping PG '{pg_name}': already exists")
+        return result
+    
+    # Get server IDs to validate
+    source_server_ids = pg.get('SourceServerIds', [])
+    server_selection_tags = pg.get('ServerSelectionTags', {})
+    
+    # Validate explicit servers
+    if source_server_ids:
+        # Check servers exist in DRS
+        try:
+            regional_drs = boto3.client('drs', region_name=region)
+            drs_response = regional_drs.describe_source_servers(
+                filters={'sourceServerIDs': source_server_ids}
+            )
+            found_ids = {s['sourceServerID'] for s in drs_response.get('items', [])}
+            missing = set(source_server_ids) - found_ids
+            
+            if missing:
+                result['reason'] = 'SERVER_NOT_FOUND'
+                result['details'] = {'missingServerIds': list(missing), 'region': region}
+                print(f"[{correlation_id}] Failed PG '{pg_name}': missing servers {missing}")
+                return result
+        except Exception as e:
+            if 'UninitializedAccountException' in str(e):
+                result['reason'] = 'DRS_NOT_INITIALIZED'
+                result['details'] = {'region': region, 'error': str(e)}
+            else:
+                result['reason'] = 'DRS_VALIDATION_ERROR'
+                result['details'] = {'region': region, 'error': str(e)}
+            print(f"[{correlation_id}] Failed PG '{pg_name}': DRS error {e}")
+            return result
+        
+        # Check for server conflicts with existing PGs
+        assigned_servers = _get_all_assigned_servers()
+        conflicts = []
+        for server_id in source_server_ids:
+            if server_id in assigned_servers:
+                conflicts.append({
+                    'serverId': server_id,
+                    'assignedTo': assigned_servers[server_id]
+                })
+        
+        if conflicts:
+            result['reason'] = 'SERVER_CONFLICT'
+            result['details'] = {'conflicts': conflicts}
+            print(f"[{correlation_id}] Failed PG '{pg_name}': server conflicts {conflicts}")
+            return result
+        
+        # Check for conflicts with active executions
+        exec_conflicts = []
+        for server_id in source_server_ids:
+            if server_id in active_execution_servers:
+                exec_conflicts.append({
+                    'serverId': server_id,
+                    **active_execution_servers[server_id]
+                })
+        
+        if exec_conflicts:
+            result['reason'] = 'ACTIVE_EXECUTION_CONFLICT'
+            result['details'] = {'executionConflicts': exec_conflicts}
+            print(f"[{correlation_id}] Failed PG '{pg_name}': active execution conflicts")
+            return result
+    
+    # Validate tag-based selection
+    elif server_selection_tags:
+        try:
+            resolved = query_drs_servers_by_tags(region, server_selection_tags)
+            if not resolved:
+                result['reason'] = 'NO_TAG_MATCHES'
+                result['details'] = {'tags': server_selection_tags, 'region': region, 'matchCount': 0}
+                print(f"[{correlation_id}] Failed PG '{pg_name}': no servers match tags")
+                return result
+        except Exception as e:
+            result['reason'] = 'TAG_RESOLUTION_ERROR'
+            result['details'] = {'tags': server_selection_tags, 'region': region, 'error': str(e)}
+            print(f"[{correlation_id}] Failed PG '{pg_name}': tag resolution error {e}")
+            return result
+    else:
+        result['reason'] = 'NO_SELECTION_METHOD'
+        result['details'] = {'message': 'Either SourceServerIds or ServerSelectionTags required'}
+        return result
+    
+    # Create the Protection Group (unless dry run)
+    if not dry_run:
+        try:
+            group_id = str(uuid.uuid4())
+            timestamp = int(time.time())
+            
+            item = {
+                'GroupId': group_id,
+                'GroupName': pg_name,
+                'Description': pg.get('Description', ''),
+                'Region': region,
+                'AccountId': pg.get('AccountId', ''),
+                'Owner': pg.get('Owner', ''),
+                'CreatedDate': timestamp,
+                'LastModifiedDate': timestamp,
+                'Version': 1,
+            }
+            
+            if source_server_ids:
+                item['SourceServerIds'] = source_server_ids
+                item['ServerSelectionTags'] = {}
+            elif server_selection_tags:
+                item['ServerSelectionTags'] = server_selection_tags
+                item['SourceServerIds'] = []
+            
+            if pg.get('LaunchConfig'):
+                item['LaunchConfig'] = pg['LaunchConfig']
+            
+            protection_groups_table.put_item(Item=item)
+            result['details'] = {'groupId': group_id}
+            print(f"[{correlation_id}] Created PG '{pg_name}' with ID {group_id}")
+        except Exception as e:
+            result['reason'] = 'CREATE_ERROR'
+            result['details'] = {'error': str(e)}
+            print(f"[{correlation_id}] Failed to create PG '{pg_name}': {e}")
+            return result
+    else:
+        result['details'] = {'wouldCreate': True}
+        print(f"[{correlation_id}] [DRY RUN] Would create PG '{pg_name}'")
+    
+    result['status'] = 'created'
+    result['reason'] = ''
+    return result
+
+
+def _process_recovery_plan_import(
+    rp: Dict,
+    existing_rps: Dict[str, Dict],
+    available_pg_names: set,
+    failed_pg_names: set,
+    dry_run: bool,
+    correlation_id: str
+) -> Dict:
+    """Process a single Recovery Plan import"""
+    plan_name = rp.get('PlanName', '')
+    waves = rp.get('Waves', [])
+    
+    result = {
+        'type': 'RecoveryPlan',
+        'name': plan_name,
+        'status': 'failed',
+        'reason': '',
+        'details': {}
+    }
+    
+    # Check if already exists
+    if plan_name.lower() in existing_rps:
+        result['status'] = 'skipped'
+        result['reason'] = 'ALREADY_EXISTS'
+        result['details'] = {'existingPlanId': existing_rps[plan_name.lower()].get('PlanId', '')}
+        print(f"[{correlation_id}] Skipping RP '{plan_name}': already exists")
+        return result
+    
+    # Validate all referenced Protection Groups exist
+    missing_pgs = []
+    cascade_failed_pgs = []
+    
+    for wave in waves:
+        pg_name = wave.get('ProtectionGroupName', '')
+        if pg_name:
+            # Check if PG failed import (cascade failure)
+            if pg_name in failed_pg_names:
+                cascade_failed_pgs.append(pg_name)
+            # Check if PG exists (either imported or pre-existing)
+            elif pg_name.lower() not in {n.lower() for n in available_pg_names}:
+                missing_pgs.append(pg_name)
+    
+    if cascade_failed_pgs:
+        result['reason'] = 'CASCADE_FAILURE'
+        result['details'] = {
+            'failedProtectionGroups': cascade_failed_pgs,
+            'message': 'Referenced Protection Groups failed to import'
+        }
+        print(f"[{correlation_id}] Failed RP '{plan_name}': cascade failure from PGs {cascade_failed_pgs}")
+        return result
+    
+    if missing_pgs:
+        result['reason'] = 'MISSING_PROTECTION_GROUP'
+        result['details'] = {
+            'missingProtectionGroups': missing_pgs,
+            'message': 'Referenced Protection Groups do not exist'
+        }
+        print(f"[{correlation_id}] Failed RP '{plan_name}': missing PGs {missing_pgs}")
+        return result
+    
+    # Create the Recovery Plan (unless dry run)
+    if not dry_run:
+        try:
+            plan_id = str(uuid.uuid4())
+            timestamp = int(time.time())
+            
+            item = {
+                'PlanId': plan_id,
+                'PlanName': plan_name,
+                'Description': rp.get('Description', ''),
+                'Waves': waves,
+                'CreatedDate': timestamp,
+                'LastModifiedDate': timestamp,
+                'Version': 1,
+            }
+            
+            recovery_plans_table.put_item(Item=item)
+            result['details'] = {'planId': plan_id}
+            print(f"[{correlation_id}] Created RP '{plan_name}' with ID {plan_id}")
+        except Exception as e:
+            result['reason'] = 'CREATE_ERROR'
+            result['details'] = {'error': str(e)}
+            print(f"[{correlation_id}] Failed to create RP '{plan_name}': {e}")
+            return result
+    else:
+        result['details'] = {'wouldCreate': True}
+        print(f"[{correlation_id}] [DRY RUN] Would create RP '{plan_name}'")
+    
+    result['status'] = 'created'
+    result['reason'] = ''
+    return result
