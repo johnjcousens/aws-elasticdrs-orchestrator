@@ -287,16 +287,17 @@ flowchart TB
 
 Implement the following routes using React Router:
 
-| Route | Component | Description | Status |
-|-------|-----------|-------------|--------|
-| /login | LoginPage | Cognito authentication | Implemented |
-| / | Dashboard | Overview metrics and quick actions | Implemented |
-| /getting-started | GettingStartedPage | Onboarding guide with quick links | Implemented |
-| /protection-groups | ProtectionGroupsPage | Protection Group management | Implemented |
-| /recovery-plans | RecoveryPlansPage | Recovery Plan management | Implemented |
-| /executions | ExecutionsPage | Execution list (Active/History tabs) | Implemented |
-| /executions/:id | ExecutionDetailsPage | Real-time execution monitoring | Implemented |
-| /servers/:id | ServerDetailsPage | DRS source server details and configuration | Phase 2 |
+| Route | Component | Description |
+|-------|-----------|-------------|
+| /login | LoginPage | Cognito authentication |
+| / | Dashboard | Overview metrics and quick actions |
+| /getting-started | GettingStartedPage | Onboarding guide with quick links |
+| /protection-groups | ProtectionGroupsPage | Protection Group management |
+| /recovery-plans | RecoveryPlansPage | Recovery Plan management |
+| /executions | ExecutionsPage | Execution list (Active/History tabs) |
+| /executions/:id | ExecutionDetailsPage | Real-time execution monitoring |
+| /servers/:id | ServerDetailsPage | DRS source server details and configuration |
+| /quotas | QuotasPage | DRS service limits dashboard and monitoring |
 
 ### Authentication Flow
 
@@ -1282,7 +1283,7 @@ The following components shall be implemented to support the application pages. 
 | | ServerListItem | Server row in selection list |
 | | ServerInfoPanel | Read-only server details |
 | | PitPolicyEditor | Point-in-time policy editor |
-| **Form Controls** | RegionSelector | AWS region dropdown (30 DRS regions) |
+| **Form Controls** | RegionSelector | AWS region dropdown (28 commercial + 2 GovCloud DRS regions) |
 | | WaveConfigEditor | Wave configuration form |
 | **Status Display** | StatusBadge | Colored status indicator |
 | | WaveProgress | Wave timeline with server details |
