@@ -4,6 +4,19 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+## [1.5.1] - December 13, 2025
+
+**Documentation Alignment & Unified Specification**
+
+- Removed all MVP/Phase 2 distinctions from requirements and steering documents
+- Updated component count to 33 (was "23 MVP + 9 Phase 2")
+- Updated page count to 9 (added ServerDetailsPage, QuotasPage)
+- Integrated future features into main feature sections as unified specification
+- Verified wireframes in UX_UI_DESIGN_SPECIFICATIONS.md match actual TSX implementations
+- Cross-verified alignment across all three requirements documents (PRD, SRS, UX Specs)
+- Updated .amazonq/rules and .kiro/steering files for consistency
+- Clarified DRS regions: 30 total (28 commercial + 2 GovCloud)
+
 ## [1.5.0] - December 13, 2025
 
 **Recovery Instance Source Tracking** - `51c0031`, `v1.5.0`
