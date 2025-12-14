@@ -1192,14 +1192,14 @@ Authorization: Bearer {id_token}
 
 ```json
 {
-  "WaveId": "wave-0",
+  "WaveId": "wave-1",
   "WaveName": "Database Tier",
   "WaveDescription": "Primary databases",
   "ExecutionOrder": 0,
   "ProtectionGroupId": "pg-uuid",
   "ServerIds": ["s-xxx", "s-yyy"],
   "PauseBeforeWave": false,
-  "Dependencies": [{"DependsOnWaveId": "wave-0"}]
+  "Dependencies": [{"DependsOnWaveId": "wave-1"}]
 }
 ```
 
