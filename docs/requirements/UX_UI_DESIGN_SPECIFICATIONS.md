@@ -287,16 +287,16 @@ flowchart TB
 
 Implement the following routes using React Router:
 
-| Route | Component | Description |
-|-------|-----------|-------------|
-| /login | LoginPage | Cognito authentication |
-| / | Dashboard | Overview metrics and quick actions |
-| /getting-started | GettingStartedPage | Onboarding guide with quick links |
-| /protection-groups | ProtectionGroupsPage | Protection Group management |
-| /recovery-plans | RecoveryPlansPage | Recovery Plan management |
-| /executions | ExecutionsPage | Execution list (Active/History tabs) |
-| /executions/:id | ExecutionDetailsPage | Real-time execution monitoring |
-| /servers/:id | ServerDetailsPage | DRS source server details and configuration |
+| Route | Component | Description | Status |
+|-------|-----------|-------------|--------|
+| /login | LoginPage | Cognito authentication | Implemented |
+| / | Dashboard | Overview metrics and quick actions | Implemented |
+| /getting-started | GettingStartedPage | Onboarding guide with quick links | Implemented |
+| /protection-groups | ProtectionGroupsPage | Protection Group management | Implemented |
+| /recovery-plans | RecoveryPlansPage | Recovery Plan management | Implemented |
+| /executions | ExecutionsPage | Execution list (Active/History tabs) | Implemented |
+| /executions/:id | ExecutionDetailsPage | Real-time execution monitoring | Implemented |
+| /servers/:id | ServerDetailsPage | DRS source server details and configuration | Phase 2 |
 
 ### Authentication Flow
 
@@ -581,6 +581,15 @@ continued development, we recommend Amazon Q Developer.
 - Loading state with spinner
 - Error state with warning indicator
 
+**DRS Regions List** (28 commercial regions):
+
+| Region Group | Regions |
+|--------------|---------|
+| Americas (6) | us-east-1, us-east-2, us-west-1, us-west-2, ca-central-1, sa-east-1 |
+| Europe (8) | eu-west-1, eu-west-2, eu-west-3, eu-central-1, eu-central-2, eu-north-1, eu-south-1, eu-south-2 |
+| Asia Pacific (10) | ap-northeast-1, ap-northeast-2, ap-northeast-3, ap-southeast-1, ap-southeast-2, ap-southeast-3, ap-southeast-4, ap-south-1, ap-south-2, ap-east-1 |
+| Middle East & Africa (4) | me-south-1, me-central-1, af-south-1, il-central-1 |
+
 **Recent Activity Section**:
 
 - Header with "View history" link
@@ -616,8 +625,8 @@ continued development, we recommend Amazon Q Developer.
 
 | Card | Icon | Description | Button |
 |------|------|-------------|--------|
-| Protection Groups | folder | "Group DRS servers for coordinated recovery." | "View Protection Groups" |
-| Recovery Plans | file | "Design multi-wave recovery sequences." | "View Recovery Plans" |
+| Protection Groups | group-active | "Group DRS servers for coordinated recovery." | "View Protection Groups" |
+| Recovery Plans | script | "Design multi-wave recovery sequences." | "View Recovery Plans" |
 | Execution History | status-in-progress | "Monitor and manage recovery executions." | "View Executions" |
 
 **Quick Start Guide** (numbered steps with dividers):
@@ -672,10 +681,18 @@ continued development, we recommend Amazon Q Developer.
 | name | Name | Yes | Group name |
 | description | Description | Yes | Description or "-" |
 | region | Region | Yes | AWS region code |
-| tags | Selection Tags | No | Count of serverSelectionTags or "-" |
-| servers | Servers | Yes | Count of sourceServerIds or resolved server count |
-| createdAt | Created | Yes | DateTimeDisplay (relative format) |
+| tags | Selection Tags | No | Count of serverSelectionTags (e.g., "3 tags") or "-" |
+| createdAt | Created | Yes | DateTimeDisplay (full format) |
 | actions | Actions | No | ButtonDropdown (Edit, Delete) |
+
+**Selection Tags Column Display**:
+
+```typescript
+// Display tag count or dash
+const tags = item.serverSelectionTags || {};
+const tagCount = Object.keys(tags).length;
+return tagCount > 0 ? `${tagCount} tag${tagCount !== 1 ? 's' : ''}` : '-';
+```
 
 **Server Selection Modes**:
 
@@ -690,10 +707,18 @@ Tag-based selection enables dynamic membership where servers are resolved at exe
 
 **Row Actions** (ButtonDropdown):
 
-| Action | Icon | Disabled Condition |
-|--------|------|-------------------|
-| Edit | edit | When group is in active execution |
-| Delete | remove | When group is used in any recovery plan |
+| Action | Icon | Disabled Condition | Disabled Reason |
+|--------|------|-------------------|-----------------|
+| Edit | edit | When group is in active execution | "Cannot edit while execution is running" |
+| Delete | remove | When group is used in any recovery plan | "Remove from recovery plans first" |
+
+**Active Execution Tracking**:
+
+Protection Groups track whether they are part of an active execution:
+- `groupsInActiveExecutions` Set tracks group IDs with running executions
+- Polls executions list to find active statuses: PENDING, POLLING, INITIATED, LAUNCHING, STARTED, IN_PROGRESS, RUNNING, PAUSED, PAUSE_PENDING, CANCELLING
+- Maps recovery plan IDs to their protection group IDs
+- Edit button disabled when group is in active execution
 
 **Delete Confirmation Dialog**:
 
@@ -772,19 +797,62 @@ When a plan has servers that are currently in use by another active execution:
 
 Before starting a drill, the system checks for existing recovery instances:
 - Calls `GET /recovery-plans/{id}/check-existing-instances` API
-- If instances exist, displays warning dialog with:
-  - Count of existing instances and source plan name
-  - Warning message: "Starting a new drill will terminate these existing instances before launching new ones"
-  - Instance details table showing:
-    - Instance ID (i-xxx)
-    - Name tag (from EC2)
-    - Private IP address
-    - Instance type (e.g., t3.medium)
-    - Launch time (formatted date)
-    - State (RUNNING, STOPPED, etc.)
-  - Source execution tracking (which plan/execution created the instances)
-- User can proceed (instances will be terminated) or cancel
-- Helps prevent unexpected costs from orphaned recovery instances
+- If instances exist, displays warning modal
+
+**Existing Instance Warning Modal**:
+
+- Modal size: medium (600px)
+- Header: "Existing Recovery Instances Found"
+- Footer buttons: "Cancel" (link variant) and "Continue with Drill" (primary variant)
+
+**Modal Content Structure**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Existing Recovery Instances Found                                    [X]│
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ⚠ Warning Alert                                                        │
+│  There are N recovery instance(s) from a previous execution that have   │
+│  not been terminated.                                                   │
+│                                                                         │
+│  These instances were created by: **{sourcePlanName}**                  │
+│                                                                         │
+│  Starting a new drill will **terminate these existing instances**       │
+│  before launching new ones. If you want to keep them, cancel and        │
+│  terminate them manually first.                                         │
+│                                                                         │
+│  Existing instances (N):                                                │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ **instance-name-1** (RUNNING)                                    │   │
+│  │ IP: 10.0.1.50 • t3.medium • Launched: Dec 13, 2025, 10:30 AM    │   │
+│  ├─────────────────────────────────────────────────────────────────┤   │
+│  │ **i-0abc123def456** (RUNNING)                                    │   │
+│  │ IP: 10.0.1.51 • t3.large • Launched: Dec 13, 2025, 10:32 AM     │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│  ... and X more (if > 6 instances)                                      │
+│                                                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                        [Cancel]  [Continue with Drill]  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Instance Display Rules**:
+
+- Maximum 6 instances shown in list
+- If more than 6 instances, show "... and X more" overflow message
+- Each instance shows:
+  - Name (from EC2 Name tag) or EC2 Instance ID if no name
+  - State badge (RUNNING, STOPPED, etc.) with success color
+  - Private IP address (if available)
+  - Instance type (e.g., t3.medium)
+  - Launch time (formatted as locale date string)
+- Source plan name shown if `sourcePlanName` field is present in first instance
+
+**User Actions**:
+
+- "Cancel": Closes modal, does not start drill
+- "Continue with Drill": Proceeds with execution (existing instances will be terminated automatically)
 
 **Execution Disabled Logic**:
 
@@ -887,35 +955,92 @@ After successful drill/recovery start:
 - Card-based layout for running/paused executions
 - Each card shows:
   - Recovery Plan name (header)
-  - Invocation source badge (UI/CLI/API/Scheduled/SSM) - top right of card
   - Status badge (Running, Paused, Polling, etc.)
   - Wave progress (Wave X of Y)
-  - Start time
-  - Duration (live updating)
-  - Progress bar (for in-progress executions)
+  - Start time (DateTimeDisplay, full format)
+  - Duration (live updating, format: Xh Xm or Xm Xs)
+  - Progress bar (for in-progress executions, standalone variant)
   - "View Details" button
 - Auto-refresh every 3 seconds when active executions exist
 - Empty state: "No Active Executions" with guidance text
 
+**Active Card Layout**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Recovery Plan Name                                          [Container] │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  [Running Badge]  Wave 2 of 3  Dec 13, 2025, 10:30 AM  Duration: 5m 32s │
+│                                                                         │
+│  Progress                                                         67%   │
+│  ████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │
+│                                                                         │
+│  [View Details]                                                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
 **History Tab**:
 
 - "Clear Completed History" button (top right)
-- TextFilter for searching executions
+- Filter bar with TextFilter and dropdown filters
 - Table with columns:
+
+**Filter Bar Components**:
+
+| Component | Type | Options | Description |
+|-----------|------|---------|-------------|
+| TextFilter | Text input | - | Search by plan name |
+| Source Filter | Select dropdown | All Sources, UI (Manual), CLI, Scheduled, SSM Runbook, Step Functions, API | Filter by invocation source |
+| Mode Filter | Select dropdown | All Modes, Plan-Based, Tag-Based | Filter by selection mode |
+
+**Source Filter Options** (INVOCATION_SOURCE_OPTIONS):
+
+| Value | Label |
+|-------|-------|
+| (empty) | All Sources |
+| UI | UI (Manual) |
+| CLI | CLI |
+| EVENTBRIDGE | Scheduled |
+| SSM | SSM Runbook |
+| STEPFUNCTIONS | Step Functions |
+| API | API |
+
+**Mode Filter Options** (SELECTION_MODE_OPTIONS):
+
+| Value | Label |
+|-------|-------|
+| (empty) | All Modes |
+| PLAN | Plan-Based |
+| TAGS | Tag-Based |
+
+**Table Columns**:
 
 | Column | Width | Sortable | Content |
 |--------|-------|----------|---------|
-| Plan Name | flex | Yes | Recovery plan name |
-| Status | 100px | No | StatusBadge component |
-| Source | 80px | No | InvocationSourceBadge (UI/CLI/API/Scheduled/SSM) |
-| Waves | 80px | No | "X waves" format |
+| Plan Name | 180px | Yes | Recovery plan name |
+| Status | 110px | No | StatusBadge component |
+| Source | 100px | No | InvocationSourceBadge (UI/CLI/API/Scheduled/SSM/Step Functions) |
+| Recovery Type | 110px | No | Badge: "Plan-Based" or "Tag-Based" (blue color) |
+| Type | 70px | No | Badge: "DRILL" (blue) or "RECOVERY" (red) |
+| Waves | 70px | No | "X waves" format |
 | Started | 150px | Yes | DateTimeDisplay (full format) |
 | Completed | 150px | Yes | DateTimeDisplay or "-" |
-| Duration | 100px | No | Calculated duration |
-| Actions | 80px | No | "View" inline-link button |
+| Duration | 80px | No | Calculated duration |
+| Actions | 70px | No | "View" inline-link button with external icon |
 
 - Pagination (10 items per page)
 - Empty state: "No execution history"
+
+**Recovery Type Column Logic**:
+
+```typescript
+// Display based on selectionMode field
+<Badge color="blue">
+  {item.selectionMode === 'TAGS' ? 'Tag-Based' : 'Plan-Based'}
+</Badge>
+```
 
 **Clear History Dialog**:
 
@@ -1000,11 +1125,50 @@ showTerminatedBadge = instancesTerminated && !terminationInProgress;
 | Alert Type | Condition | Content |
 |------------|-----------|---------|
 | Paused Alert | Status = PAUSED | "Execution is paused before starting Wave N. Click Resume to continue." with Resume button |
-| Termination In Progress | terminationInProgress = true | "Terminating N recovery instance(s) via DRS. This may take a few minutes..." with progress bar and DRS job ID |
+| Termination In Progress | terminationInProgress = true | "Terminating N recovery instance(s) via DRS. This may take a few minutes..." with progress bar and DRS job IDs |
 | Termination Success | terminateSuccess message | Green success alert with instance count |
 | Termination Error | terminateError message | Red error alert with error details |
 | Cancel Error | cancelError message | Red error alert |
 | Resume Error | resumeError message | Red error alert |
+
+**Termination In Progress Alert Details**:
+
+When `terminationInProgress` is true, display an info alert with:
+- Header: "Terminating Recovery Instances"
+- Message: "Terminating N recovery instance(s) via DRS. This may take a few minutes..."
+- ProgressBar component with:
+  - status: "in-progress"
+  - label: "Termination Progress"
+  - description: "DRS Job(s): drsjob-xxx, drsjob-yyy" (from terminationJobInfo.jobIds)
+- Polling every 5 seconds to check `instancesTerminated` flag
+- Alert disappears when `instancesTerminated` becomes true
+
+**Termination Job Info State** (terminationJobInfo):
+
+```typescript
+// State for tracking termination progress
+const [terminationJobInfo, setTerminationJobInfo] = useState<{
+  totalInstances: number;  // Count of instances being terminated
+  jobIds: string[];        // DRS job IDs for tracking
+} | null>(null);
+```
+
+This state is populated when termination is initiated and used to:
+- Display instance count in the termination progress alert
+- Show DRS job IDs in the progress bar description
+- Track completion for success message
+
+**Termination Flow**:
+
+1. User clicks "Terminate Instances" button
+2. Confirm dialog shown
+3. On confirm: `terminationInProgress = true`, `terminationJobInfo` populated
+4. API call to terminate instances returns DRS job IDs
+5. Polling starts (every 5 seconds) checking execution for `instancesTerminated` flag
+6. When `instancesTerminated = true`:
+   - `terminationInProgress = false`
+   - Success message shown with instance count
+   - "Instances Terminated" badge appears in header
 
 **Wave Progress Timeline**:
 
@@ -1028,6 +1192,13 @@ showTerminatedBadge = instancesTerminated && !terminationInProgress;
 - DRS Job Events polling: Every 3 seconds (independent)
 - Auto-refresh stops when execution reaches terminal state
 - Termination polling stops when instancesTerminated becomes true
+
+**Instances Terminated Badge**:
+
+When `instancesTerminated` is true and termination is not in progress:
+- Grey Badge displayed in header actions: "Instances Terminated"
+- Replaces the "Terminate Instances" button
+- Visual confirmation that cleanup is complete
 
 **Progress Calculation**:
 
