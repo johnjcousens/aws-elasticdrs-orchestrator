@@ -8,6 +8,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { ApiProvider } from './contexts/ApiContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './components/cloudscape/AppLayout';
@@ -29,6 +30,7 @@ function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
+        <ApiProvider>
         <BrowserRouter>
           <ErrorBoundary>
             <Routes>
@@ -130,6 +132,7 @@ function App() {
           </Routes>
           </ErrorBoundary>
         </BrowserRouter>
+        </ApiProvider>
       </NotificationProvider>
     </AuthProvider>
   );
