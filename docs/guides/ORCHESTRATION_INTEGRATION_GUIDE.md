@@ -1660,6 +1660,244 @@ EXECUTION_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 api_call POST "/executions/${EXECUTION_ID}/cancel" '{}'
 ```
 
+### Configuration Backup and Restore (Complete Walkthrough)
+
+This walkthrough demonstrates a complete export/delete/reimport cycle using direct Lambda invocation (no Cognito token required).
+
+#### Step 1: Set Up Environment
+
+```bash
+# Set Lambda function name and region
+export LAMBDA_FUNCTION="drs-orchestration-api-handler-dev"
+export AWS_REGION="us-east-1"
+
+# Helper function for Lambda invocation
+invoke_api() {
+  local method=$1
+  local path=$2
+  local body=$3
+  local query=$4
+  
+  local payload="{\"httpMethod\":\"$method\",\"path\":\"$path\""
+  
+  # Add pathParameters if path contains an ID
+  if [[ "$path" =~ /([a-f0-9-]{36})$ ]]; then
+    local id="${BASH_REMATCH[1]}"
+    payload="$payload,\"pathParameters\":{\"id\":\"$id\"}"
+  fi
+  
+  # Add queryStringParameters if provided
+  if [ -n "$query" ]; then
+    payload="$payload,\"queryStringParameters\":$query"
+  fi
+  
+  # Add body if provided
+  if [ -n "$body" ]; then
+    payload="$payload,\"body\":$(echo "$body" | jq -Rs .)"
+  fi
+  
+  payload="$payload}"
+  
+  AWS_PAGER="" aws lambda invoke \
+    --function-name "$LAMBDA_FUNCTION" \
+    --payload "$payload" \
+    --cli-binary-format raw-in-base64-out \
+    /tmp/lambda_response.json \
+    --region "$AWS_REGION" > /dev/null 2>&1
+  
+  jq -r '.body' /tmp/lambda_response.json
+}
+```
+
+#### Step 2: Export Current Configuration
+
+```bash
+# Export all Protection Groups and Recovery Plans
+echo "=== Exporting Configuration ==="
+invoke_api "GET" "/config/export" | jq . > drs-config-backup.json
+
+# Verify export contents
+echo "Export metadata:"
+jq '.metadata' drs-config-backup.json
+
+echo "Protection Groups: $(jq '.protectionGroups | length' drs-config-backup.json)"
+echo "Recovery Plans: $(jq '.recoveryPlans | length' drs-config-backup.json)"
+
+# List exported resources
+echo "Protection Groups:"
+jq -r '.protectionGroups[].GroupName' drs-config-backup.json
+
+echo "Recovery Plans:"
+jq -r '.recoveryPlans[].PlanName' drs-config-backup.json
+```
+
+#### Step 3: Delete All Resources (Simulating Disaster)
+
+```bash
+echo "=== Deleting All Resources ==="
+
+# Get Recovery Plan IDs and delete them first (they reference Protection Groups)
+PLAN_IDS=$(invoke_api "GET" "/recovery-plans" | jq -r '.plans[].id')
+for id in $PLAN_IDS; do
+  echo "Deleting Recovery Plan: $id"
+  invoke_api "DELETE" "/recovery-plans/$id"
+done
+
+# Get Protection Group IDs and delete them
+GROUP_IDS=$(invoke_api "GET" "/protection-groups" | jq -r '.groups[].id')
+for id in $GROUP_IDS; do
+  echo "Deleting Protection Group: $id"
+  invoke_api "DELETE" "/protection-groups/$id"
+done
+
+# Verify deletion
+echo "Remaining Protection Groups: $(invoke_api "GET" "/protection-groups" | jq '.groups | length')"
+echo "Remaining Recovery Plans: $(invoke_api "GET" "/recovery-plans" | jq '.plans | length')"
+```
+
+#### Step 4: Validate Import with Dry Run
+
+```bash
+echo "=== Dry Run Import ==="
+CONFIG_JSON=$(cat drs-config-backup.json | jq -c .)
+
+# Dry run to validate without making changes
+invoke_api "POST" "/config/import" "$CONFIG_JSON" '{"dryRun":"true"}' | jq '.summary'
+```
+
+Expected output:
+```json
+{
+  "protectionGroups": { "created": 3, "skipped": 0, "failed": 0 },
+  "recoveryPlans": { "created": 1, "skipped": 0, "failed": 0 }
+}
+```
+
+#### Step 5: Execute Import
+
+```bash
+echo "=== Executing Import ==="
+CONFIG_JSON=$(cat drs-config-backup.json | jq -c .)
+
+# Execute actual import
+RESULT=$(invoke_api "POST" "/config/import" "$CONFIG_JSON")
+echo "$RESULT" | jq '.summary'
+
+# Show created resources
+echo "Created Protection Groups:"
+echo "$RESULT" | jq -r '.created[] | select(.type=="ProtectionGroup") | "  - \(.name) (ID: \(.id))"'
+
+echo "Created Recovery Plans:"
+echo "$RESULT" | jq -r '.created[] | select(.type=="RecoveryPlan") | "  - \(.name) (ID: \(.id))"'
+```
+
+#### Step 6: Verify Restoration
+
+```bash
+echo "=== Verifying Restoration ==="
+
+# List restored Protection Groups
+echo "Protection Groups:"
+invoke_api "GET" "/protection-groups" | jq '.groups[] | {name, region, serverCount: (.sourceServerIds | length)}'
+
+# List restored Recovery Plans
+echo "Recovery Plans:"
+invoke_api "GET" "/recovery-plans" | jq '.plans[] | {name, waveCount: (.waves | length)}'
+
+# Verify LaunchConfig was preserved (check first Protection Group)
+FIRST_PG_ID=$(invoke_api "GET" "/protection-groups" | jq -r '.groups[0].id')
+echo "LaunchConfig for first Protection Group:"
+invoke_api "GET" "/protection-groups/$FIRST_PG_ID" | jq '.launchConfig'
+```
+
+#### Complete Script
+
+Save this as `scripts/config-backup-restore.sh`:
+
+```bash
+#!/bin/bash
+# Configuration Backup and Restore Script
+# Usage: ./config-backup-restore.sh [export|import|restore-test]
+
+set -e
+
+LAMBDA_FUNCTION="${LAMBDA_FUNCTION:-drs-orchestration-api-handler-dev}"
+AWS_REGION="${AWS_REGION:-us-east-1}"
+BACKUP_FILE="${BACKUP_FILE:-drs-config-backup.json}"
+
+invoke_api() {
+  local method=$1
+  local path=$2
+  local body=$3
+  local query=$4
+  
+  local payload="{\"httpMethod\":\"$method\",\"path\":\"$path\""
+  
+  if [[ "$path" =~ /([a-f0-9-]{36})$ ]]; then
+    local id="${BASH_REMATCH[1]}"
+    payload="$payload,\"pathParameters\":{\"id\":\"$id\"}"
+  fi
+  
+  if [ -n "$query" ]; then
+    payload="$payload,\"queryStringParameters\":$query"
+  fi
+  
+  if [ -n "$body" ]; then
+    payload="$payload,\"body\":$(echo "$body" | jq -Rs .)"
+  fi
+  
+  payload="$payload}"
+  
+  AWS_PAGER="" aws lambda invoke \
+    --function-name "$LAMBDA_FUNCTION" \
+    --payload "$payload" \
+    --cli-binary-format raw-in-base64-out \
+    /tmp/lambda_response.json \
+    --region "$AWS_REGION" > /dev/null 2>&1
+  
+  jq -r '.body' /tmp/lambda_response.json
+}
+
+case "$1" in
+  export)
+    echo "Exporting configuration to $BACKUP_FILE..."
+    invoke_api "GET" "/config/export" | jq . > "$BACKUP_FILE"
+    echo "Exported:"
+    echo "  - Protection Groups: $(jq '.protectionGroups | length' "$BACKUP_FILE")"
+    echo "  - Recovery Plans: $(jq '.recoveryPlans | length' "$BACKUP_FILE")"
+    ;;
+    
+  import)
+    if [ ! -f "$BACKUP_FILE" ]; then
+      echo "Error: Backup file $BACKUP_FILE not found"
+      exit 1
+    fi
+    echo "Importing configuration from $BACKUP_FILE..."
+    CONFIG_JSON=$(cat "$BACKUP_FILE" | jq -c .)
+    RESULT=$(invoke_api "POST" "/config/import" "$CONFIG_JSON")
+    echo "$RESULT" | jq '.summary'
+    ;;
+    
+  dry-run)
+    if [ ! -f "$BACKUP_FILE" ]; then
+      echo "Error: Backup file $BACKUP_FILE not found"
+      exit 1
+    fi
+    echo "Dry-run import from $BACKUP_FILE..."
+    CONFIG_JSON=$(cat "$BACKUP_FILE" | jq -c .)
+    invoke_api "POST" "/config/import" "$CONFIG_JSON" '{"dryRun":"true"}' | jq '.summary'
+    ;;
+    
+  *)
+    echo "Usage: $0 [export|import|dry-run]"
+    echo "  export   - Export current configuration to $BACKUP_FILE"
+    echo "  import   - Import configuration from $BACKUP_FILE"
+    echo "  dry-run  - Validate import without making changes"
+    exit 1
+    ;;
+esac
+```
+
 ---
 
 ## SSM Automation Integration
