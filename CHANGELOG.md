@@ -4,6 +4,16 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+## [1.6.1] - December 14, 2025
+
+**Execution History Plan Name Preservation**
+
+- Store `PlanName` directly in execution record at creation time
+- Execution history now displays plan name even if the Recovery Plan is later deleted
+- Updated enrichment logic to use stored `PlanName` first, fallback to lookup for legacy records
+- Shows "Deleted Plan" for legacy executions where the plan no longer exists
+- Backfilled existing execution records with historical plan names
+
 ## [1.6.0] - December 13, 2025
 
 **Configuration Export/Import Feature** - `9a34e74`, `eb3ba49`, `c888b56`, `be7b4e0`, `9acab27`, `e3e7469`, `03db924`
