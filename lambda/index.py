@@ -2367,9 +2367,11 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         print(f"Creating async execution {execution_id} for plan {plan_id}")
         
         # Create initial execution history record with PENDING status
+        # Store PlanName directly so it's preserved even if plan is later deleted
         history_item = {
             'ExecutionId': execution_id,
             'PlanId': plan_id,
+            'PlanName': plan.get('PlanName', 'Unknown'),  # Preserve plan name in execution record
             'ExecutionType': execution_type,
             'Status': 'PENDING',
             'StartTime': timestamp,
@@ -3023,16 +3025,28 @@ def list_executions(query_params: Dict) -> Dict:
         transformed_executions = []
         for execution in executions:
             try:
+                # Use stored PlanName first (preserved even if plan deleted)
+                # Fall back to lookup only if not stored (legacy executions)
+                if execution.get('PlanName'):
+                    execution['RecoveryPlanName'] = execution['PlanName']
+                else:
+                    plan_id = execution.get('PlanId')
+                    if plan_id:
+                        plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
+                        if 'Item' in plan_result:
+                            execution['RecoveryPlanName'] = plan_result['Item'].get('PlanName', 'Unknown')
+                        else:
+                            execution['RecoveryPlanName'] = 'Deleted Plan'
+                    else:
+                        execution['RecoveryPlanName'] = 'Unknown'
+                
+                # Determine selection mode from protection groups
                 plan_id = execution.get('PlanId')
+                selection_mode = 'PLAN'  # Default to plan-based
                 if plan_id:
                     plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
                     if 'Item' in plan_result:
                         plan = plan_result['Item']
-                        execution['RecoveryPlanName'] = plan.get('PlanName', 'Unknown')
-                        
-                        # Determine selection mode from protection groups
-                        # Check if any protection group in the plan uses tag-based selection
-                        selection_mode = 'PLAN'  # Default to plan-based
                         waves = plan.get('Waves', [])
                         pg_ids = set()
                         for wave in waves:
@@ -3052,14 +3066,12 @@ def list_executions(query_params: Dict) -> Dict:
                                         break  # Found tag-based, no need to check more
                             except Exception as pg_err:
                                 print(f"Error checking PG {pg_id}: {str(pg_err)}")
-                        
-                        execution['SelectionMode'] = selection_mode
-                    else:
-                        execution['RecoveryPlanName'] = 'Unknown'
-                        execution['SelectionMode'] = 'PLAN'
+                
+                execution['SelectionMode'] = selection_mode
             except Exception as e:
                 print(f"Error enriching execution {execution.get('ExecutionId')}: {str(e)}")
-                execution['RecoveryPlanName'] = 'Unknown'
+                if not execution.get('RecoveryPlanName'):
+                    execution['RecoveryPlanName'] = 'Unknown'
                 execution['SelectionMode'] = 'PLAN'
             
             # Transform to camelCase for frontend
@@ -3274,15 +3286,23 @@ def get_execution_details(execution_id: str) -> Dict:
         execution = result['Items'][0]
         
         # Enrich with recovery plan details
+        # Use stored PlanName first (preserved even if plan deleted)
         try:
+            if execution.get('PlanName'):
+                execution['RecoveryPlanName'] = execution['PlanName']
+            
             plan_id = execution.get('PlanId')
             if plan_id:
                 plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
                 if 'Item' in plan_result:
                     plan = plan_result['Item']
-                    execution['RecoveryPlanName'] = plan.get('PlanName', 'Unknown')
+                    # Only set from lookup if not already stored
+                    if not execution.get('RecoveryPlanName'):
+                        execution['RecoveryPlanName'] = plan.get('PlanName', 'Unknown')
                     execution['RecoveryPlanDescription'] = plan.get('Description', '')
                     execution['TotalWaves'] = len(plan.get('Waves', []))
+                elif not execution.get('RecoveryPlanName'):
+                    execution['RecoveryPlanName'] = 'Deleted Plan'
         except Exception as e:
             print(f"Error enriching execution with plan details: {str(e)}")
         
