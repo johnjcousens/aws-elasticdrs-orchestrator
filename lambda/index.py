@@ -5813,6 +5813,12 @@ def import_configuration(body: Dict) -> Dict:
         available_pg_names = set(existing_pgs.keys())
         failed_pg_names = set()
         
+        # Build name->ID mapping from existing PGs (case-insensitive keys)
+        pg_name_to_id = {
+            name.lower(): pg.get('GroupId', '') 
+            for name, pg in existing_pgs.items()
+        }
+        
         # Process Protection Groups first (RPs depend on them)
         for pg in import_pgs:
             pg_result = _process_protection_group_import(
@@ -5822,7 +5828,12 @@ def import_configuration(body: Dict) -> Dict:
             if pg_result['status'] == 'created':
                 results['created'].append(pg_result)
                 results['summary']['protectionGroups']['created'] += 1
-                available_pg_names.add(pg.get('GroupName', ''))
+                pg_name = pg.get('GroupName', '')
+                available_pg_names.add(pg_name)
+                # Add newly created PG to name->ID mapping
+                new_pg_id = pg_result.get('details', {}).get('groupId', '')
+                if new_pg_id:
+                    pg_name_to_id[pg_name.lower()] = new_pg_id
             elif pg_result['status'] == 'skipped':
                 results['skipped'].append(pg_result)
                 results['summary']['protectionGroups']['skipped'] += 1
@@ -5832,10 +5843,11 @@ def import_configuration(body: Dict) -> Dict:
                 failed_pg_names.add(pg.get('GroupName', ''))
                 results['success'] = False
         
-        # Process Recovery Plans
+        # Process Recovery Plans (with name->ID resolution)
         for rp in import_rps:
             rp_result = _process_recovery_plan_import(
-                rp, existing_rps, available_pg_names, failed_pg_names, dry_run, correlation_id
+                rp, existing_rps, available_pg_names, failed_pg_names, 
+                pg_name_to_id, dry_run, correlation_id
             )
             
             if rp_result['status'] == 'created':
@@ -6109,10 +6121,15 @@ def _process_recovery_plan_import(
     existing_rps: Dict[str, Dict],
     available_pg_names: set,
     failed_pg_names: set,
+    pg_name_to_id: Dict[str, str],
     dry_run: bool,
     correlation_id: str
 ) -> Dict:
-    """Process a single Recovery Plan import"""
+    """Process a single Recovery Plan import
+    
+    Supports both ProtectionGroupId and ProtectionGroupName in waves.
+    If ProtectionGroupName is provided, resolves it to ProtectionGroupId.
+    """
     plan_name = rp.get('PlanName', '')
     waves = rp.get('Waves', [])
     
@@ -6132,24 +6149,79 @@ def _process_recovery_plan_import(
         print(f"[{correlation_id}] Skipping RP '{plan_name}': already exists")
         return result
     
-    # Validate all referenced Protection Groups exist
+    # Validate and resolve Protection Group references in waves
     missing_pgs = []
     cascade_failed_pgs = []
+    resolved_waves = []
     
     for wave in waves:
+        wave_copy = dict(wave)  # Don't modify original
+        pg_id = wave.get('ProtectionGroupId', '')
         pg_name = wave.get('ProtectionGroupName', '')
-        if pg_name:
+        
+        # Try to resolve ProtectionGroupId
+        resolved_pg_id = None
+        resolved_pg_name = None
+        
+        # Case 1: ProtectionGroupId provided - validate it exists
+        if pg_id:
+            # Check if this ID maps to a known PG name
+            for name, gid in pg_name_to_id.items():
+                if gid == pg_id:
+                    resolved_pg_id = pg_id
+                    resolved_pg_name = name
+                    break
+            
+            # If ID not found in mapping, it might be an old/invalid ID
+            # Try to resolve via ProtectionGroupName if provided
+            if not resolved_pg_id and pg_name:
+                pg_name_lower = pg_name.lower()
+                if pg_name_lower in pg_name_to_id:
+                    resolved_pg_id = pg_name_to_id[pg_name_lower]
+                    resolved_pg_name = pg_name
+                    print(f"[{correlation_id}] Resolved PG '{pg_name}' from name (ID was stale)")
+            
+            # If still not resolved, the ID is invalid
+            if not resolved_pg_id:
+                # Check if we have a ProtectionGroupName to fall back to
+                if not pg_name:
+                    missing_pgs.append(f"ID:{pg_id}")
+                    continue
+        
+        # Case 2: Only ProtectionGroupName provided - resolve to ID
+        if not resolved_pg_id and pg_name:
+            pg_name_lower = pg_name.lower()
+            
             # Check if PG failed import (cascade failure)
             if pg_name in failed_pg_names:
                 cascade_failed_pgs.append(pg_name)
-            # Check if PG exists (either imported or pre-existing)
-            elif pg_name.lower() not in {n.lower() for n in available_pg_names}:
+                continue
+            
+            # Check if PG exists and get its ID
+            if pg_name_lower in pg_name_to_id:
+                resolved_pg_id = pg_name_to_id[pg_name_lower]
+                resolved_pg_name = pg_name
+            else:
                 missing_pgs.append(pg_name)
+                continue
+        
+        # Case 3: Neither provided
+        if not resolved_pg_id and not pg_name and not pg_id:
+            # Wave without PG reference - might be valid for some use cases
+            resolved_waves.append(wave_copy)
+            continue
+        
+        # Update wave with resolved ID
+        if resolved_pg_id:
+            wave_copy['ProtectionGroupId'] = resolved_pg_id
+            if resolved_pg_name:
+                wave_copy['ProtectionGroupName'] = resolved_pg_name
+            resolved_waves.append(wave_copy)
     
     if cascade_failed_pgs:
         result['reason'] = 'CASCADE_FAILURE'
         result['details'] = {
-            'failedProtectionGroups': cascade_failed_pgs,
+            'failedProtectionGroups': list(set(cascade_failed_pgs)),
             'message': 'Referenced Protection Groups failed to import'
         }
         print(f"[{correlation_id}] Failed RP '{plan_name}': cascade failure from PGs {cascade_failed_pgs}")
@@ -6158,7 +6230,7 @@ def _process_recovery_plan_import(
     if missing_pgs:
         result['reason'] = 'MISSING_PROTECTION_GROUP'
         result['details'] = {
-            'missingProtectionGroups': missing_pgs,
+            'missingProtectionGroups': list(set(missing_pgs)),
             'message': 'Referenced Protection Groups do not exist'
         }
         print(f"[{correlation_id}] Failed RP '{plan_name}': missing PGs {missing_pgs}")
@@ -6174,7 +6246,7 @@ def _process_recovery_plan_import(
                 'PlanId': plan_id,
                 'PlanName': plan_name,
                 'Description': rp.get('Description', ''),
-                'Waves': waves,
+                'Waves': resolved_waves,  # Use resolved waves with correct IDs
                 'CreatedDate': timestamp,
                 'LastModifiedDate': timestamp,
                 'Version': 1,
@@ -6189,7 +6261,7 @@ def _process_recovery_plan_import(
             print(f"[{correlation_id}] Failed to create RP '{plan_name}': {e}")
             return result
     else:
-        result['details'] = {'wouldCreate': True}
+        result['details'] = {'wouldCreate': True, 'resolvedWaves': len(resolved_waves)}
         print(f"[{correlation_id}] [DRY RUN] Would create RP '{plan_name}'")
     
     result['status'] = 'created'
