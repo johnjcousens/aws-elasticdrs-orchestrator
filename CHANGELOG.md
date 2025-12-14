@@ -4,7 +4,7 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
-## [1.6.1] - December 14, 2025
+## [1.6.1] - December 13, 2025
 
 **Export/Import Improvements** - `be7b4e0`, `9acab27`, `5b8d1be`, `e3e7469`, `03db924`
 
@@ -21,7 +21,7 @@ Documentation:
 - Documented required vs optional fields for import JSON
 - Added `ServerSelectionTags` explanation for tag-based server discovery
 
-## [1.6.0] - December 14, 2025
+## [1.6.0] - December 13, 2025
 
 **Configuration Export/Import Feature** - `9a34e74`, `eb3ba49`, `c888b56`
 
