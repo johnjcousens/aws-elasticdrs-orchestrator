@@ -4,9 +4,9 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
-## [1.6.0] - December 13, 2025
+## [1.6.0] - December 14, 2025
 
-**Configuration Export/Import Feature**
+**Configuration Export/Import Feature** - `9a34e74`, `eb3ba49`, `c888b56`
 
 New feature to backup and restore Protection Groups and Recovery Plans via Settings modal:
 
@@ -19,6 +19,8 @@ Backend (Lambda):
 - Tag validation for tag-based Protection Groups (verifies tags resolve to servers)
 - Cascade failure handling for Recovery Plans when referenced Protection Groups fail
 - Detailed error reporting with specific failure reasons per resource
+- **LaunchConfig preservation**: Export includes all LaunchConfig settings (subnet, security groups, instance type, DRS settings)
+- **LaunchConfig application on import**: Automatically applies LaunchConfig to DRS source servers when importing Protection Groups
 
 Frontend:
 - Added Settings modal accessible via gear icon in top navigation
@@ -32,13 +34,17 @@ Infrastructure (CloudFormation):
 - Added CORS OPTIONS methods for both endpoints
 - Updated API deployment dependencies
 
+Documentation:
+- Added `docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md` with full specification
+- Updated README Future Enhancements table (item #5 complete)
+
 Files Added:
 - `frontend/src/components/SettingsModal.tsx`
 - `frontend/src/components/ConfigExportPanel.tsx`
 - `frontend/src/components/ConfigImportPanel.tsx`
 - `frontend/src/components/ImportResultsDialog.tsx`
 - `frontend/src/contexts/ApiContext.tsx`
-- `.kiro/specs/config-export-import/` (requirements, design, tasks)
+- `docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md`
 
 ## [1.5.1] - December 13, 2025
 
