@@ -610,6 +610,14 @@ The health endpoint returns:
 }
 ```
 
+### Configuration Export/Import
+
+| Method | Endpoint                      | Description                                      |
+| ------ | ----------------------------- | ------------------------------------------------ |
+| GET    | `/config/export`            | Export all Protection Groups and Recovery Plans  |
+| POST   | `/config/import`            | Import configuration (supports dry-run mode)     |
+| POST   | `/config/import?dryRun=true`| Validate import without making changes           |
+
 ---
 
 ## API Request/Response Examples
@@ -1202,6 +1210,289 @@ GET /ec2/instance-types?region=us-east-1
     {"instanceType": "t3.medium", "vCpus": 2, "memoryGiB": 4},
     {"instanceType": "r5.large", "vCpus": 2, "memoryGiB": 16},
     {"instanceType": "r5.xlarge", "vCpus": 4, "memoryGiB": 32}
+  ]
+}
+```
+
+### Configuration Export/Import
+
+#### Export Configuration
+
+Export all Protection Groups and Recovery Plans to JSON for backup or migration.
+
+```bash
+GET /config/export
+```
+
+**Response (200 OK):**
+```json
+{
+  "metadata": {
+    "schemaVersion": "1.0",
+    "exportedAt": "2025-12-14T10:30:00.000Z",
+    "sourceRegion": "us-east-1",
+    "protectionGroupCount": 3,
+    "recoveryPlanCount": 2
+  },
+  "protectionGroups": [
+    {
+      "name": "Database-Servers",
+      "description": "Primary database servers",
+      "region": "us-east-1",
+      "sourceServerIds": ["s-1234567890abcdef0"],
+      "serverSelectionTags": {},
+      "launchConfig": {
+        "SubnetId": "subnet-12345678",
+        "SecurityGroupIds": ["sg-12345678"],
+        "InstanceType": "r5.xlarge",
+        "CopyPrivateIp": true,
+        "CopyTags": true,
+        "Licensing": {"osByol": false},
+        "TargetInstanceTypeRightSizingMethod": "BASIC",
+        "LaunchDisposition": "STARTED"
+      }
+    },
+    {
+      "name": "App-Servers-HRP",
+      "description": "Application servers by tags",
+      "region": "us-east-1",
+      "sourceServerIds": [],
+      "serverSelectionTags": {
+        "DR-Application": "HRP",
+        "DR-Tier": "Application"
+      },
+      "launchConfig": {
+        "SubnetId": "subnet-app12345",
+        "SecurityGroupIds": ["sg-app12345"],
+        "CopyPrivateIp": true,
+        "CopyTags": true
+      }
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "name": "HRP-Full-Recovery",
+      "description": "Full HRP application recovery",
+      "waves": [
+        {
+          "waveNumber": 1,
+          "protectionGroupName": "Database-Servers",
+          "pauseBeforeWave": false
+        },
+        {
+          "waveNumber": 2,
+          "protectionGroupName": "App-Servers-HRP",
+          "pauseBeforeWave": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+**CLI Example - Export to File:**
+```bash
+# Export configuration to file
+curl -s -H "Authorization: Bearer ${TOKEN}" \
+  "${API_ENDPOINT}/config/export" | jq . > drs-config-backup.json
+
+# Direct Lambda invocation (no Cognito token needed)
+AWS_PAGER="" aws lambda invoke \
+  --function-name drs-orchestration-api-handler-dev \
+  --payload '{"httpMethod":"GET","path":"/config/export"}' \
+  --cli-binary-format raw-in-base64-out \
+  /tmp/response.json \
+  --region us-east-1
+
+jq -r '.body' /tmp/response.json | jq . > drs-config-backup.json
+```
+
+#### Import Configuration (Dry Run)
+
+Validate import without making changes. Use this to preview what will be created or skipped.
+
+```bash
+POST /config/import?dryRun=true
+Content-Type: application/json
+
+{
+  "metadata": { ... },
+  "protectionGroups": [ ... ],
+  "recoveryPlans": [ ... ]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "dryRun": true,
+  "summary": {
+    "protectionGroups": {
+      "total": 3,
+      "created": 2,
+      "skipped": 1,
+      "failed": 0
+    },
+    "recoveryPlans": {
+      "total": 2,
+      "created": 1,
+      "skipped": 1,
+      "failed": 0
+    }
+  },
+  "protectionGroups": [
+    {"name": "Database-Servers", "status": "would_create"},
+    {"name": "App-Servers-HRP", "status": "would_create"},
+    {"name": "Web-Servers", "status": "skipped", "reason": "Name already exists"}
+  ],
+  "recoveryPlans": [
+    {"name": "HRP-Full-Recovery", "status": "would_create"},
+    {"name": "Existing-Plan", "status": "skipped", "reason": "Name already exists"}
+  ]
+}
+```
+
+#### Import Configuration (Execute)
+
+Import configuration and create resources. Existing resources with matching names are skipped (non-destructive).
+
+```bash
+POST /config/import
+Content-Type: application/json
+
+{
+  "metadata": {
+    "schemaVersion": "1.0",
+    "exportedAt": "2025-12-14T10:30:00.000Z",
+    "sourceRegion": "us-east-1"
+  },
+  "protectionGroups": [
+    {
+      "name": "Database-Servers",
+      "description": "Primary database servers",
+      "region": "us-east-1",
+      "sourceServerIds": ["s-1234567890abcdef0"],
+      "launchConfig": {
+        "SubnetId": "subnet-12345678",
+        "SecurityGroupIds": ["sg-12345678"],
+        "InstanceType": "r5.xlarge",
+        "CopyPrivateIp": true,
+        "CopyTags": true,
+        "Licensing": {"osByol": false},
+        "TargetInstanceTypeRightSizingMethod": "BASIC",
+        "LaunchDisposition": "STARTED"
+      }
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "name": "HRP-Full-Recovery",
+      "description": "Full HRP application recovery",
+      "waves": [
+        {
+          "waveNumber": 1,
+          "protectionGroupName": "Database-Servers",
+          "pauseBeforeWave": false
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "dryRun": false,
+  "summary": {
+    "protectionGroups": {
+      "total": 1,
+      "created": 1,
+      "skipped": 0,
+      "failed": 0
+    },
+    "recoveryPlans": {
+      "total": 1,
+      "created": 1,
+      "skipped": 0,
+      "failed": 0
+    }
+  },
+  "protectionGroups": [
+    {
+      "name": "Database-Servers",
+      "status": "created",
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "launchConfigApplied": true
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "name": "HRP-Full-Recovery",
+      "status": "created",
+      "id": "b2c3d4e5-f6a7-8901-bcde-f23456789012"
+    }
+  ]
+}
+```
+
+**CLI Example - Import from File:**
+```bash
+# Import with dry-run validation first
+curl -X POST -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @drs-config-backup.json \
+  "${API_ENDPOINT}/config/import?dryRun=true" | jq .
+
+# Execute import after validation
+curl -X POST -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @drs-config-backup.json \
+  "${API_ENDPOINT}/config/import" | jq .
+
+# Direct Lambda invocation (no Cognito token needed)
+CONFIG_JSON=$(cat drs-config-backup.json | jq -c .)
+AWS_PAGER="" aws lambda invoke \
+  --function-name drs-orchestration-api-handler-dev \
+  --payload "{\"httpMethod\":\"POST\",\"path\":\"/config/import\",\"queryStringParameters\":{\"dryRun\":\"true\"},\"body\":$(echo $CONFIG_JSON | jq -Rs .)}" \
+  --cli-binary-format raw-in-base64-out \
+  /tmp/response.json \
+  --region us-east-1
+
+jq -r '.body' /tmp/response.json | jq .
+```
+
+#### Import Validation Rules
+
+The import process validates:
+
+| Validation | Behavior |
+|------------|----------|
+| **Existing names** | Resources with matching names are skipped (non-destructive) |
+| **Server IDs** | Validates DRS source servers exist in the target region |
+| **Tag-based groups** | Validates tags resolve to at least one server |
+| **Recovery Plan references** | Validates referenced Protection Groups exist or will be created |
+| **LaunchConfig** | Applies LaunchConfig to DRS source servers on successful import |
+
+#### Import Error Handling
+
+If a Protection Group fails to import, any Recovery Plans that reference it will also fail with a cascade error:
+
+```json
+{
+  "protectionGroups": [
+    {
+      "name": "Database-Servers",
+      "status": "failed",
+      "reason": "Server s-invalid123 not found in DRS"
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "name": "HRP-Full-Recovery",
+      "status": "failed",
+      "reason": "Referenced Protection Group 'Database-Servers' failed to import"
+    }
   ]
 }
 ```
