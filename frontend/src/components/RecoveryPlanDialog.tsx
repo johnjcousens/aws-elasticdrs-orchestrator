@@ -166,7 +166,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
           PlanName: name,
           Description: description,
           Waves: waves.map((wave, index) => ({
-            WaveId: `wave-${index}`,
+            WaveId: `wave-${index + 1}`,  // 1-based for user clarity
             WaveName: wave.name,
             WaveDescription: wave.description || '',
             ExecutionOrder: index,
@@ -174,7 +174,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             ServerIds: wave.serverIds,
             PauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
             Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
-              DependsOnWaveId: `wave-${depNum}`
+              DependsOnWaveId: `wave-${depNum + 1}`  // 1-based for user clarity
             }))
           }))
         };
@@ -190,7 +190,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
           PlanName: name,
           Description: description,
           Waves: waves.map((wave, index) => ({
-            WaveId: `wave-${index}`,
+            WaveId: `wave-${index + 1}`,  // 1-based for user clarity
             WaveName: wave.name,
             WaveDescription: wave.description || '',
             ExecutionOrder: index,
@@ -198,7 +198,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             ServerIds: wave.serverIds,
             PauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
             Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
-              DependsOnWaveId: `wave-${depNum}`
+              DependsOnWaveId: `wave-${depNum + 1}`  // 1-based for user clarity
             }))
           }))
         };

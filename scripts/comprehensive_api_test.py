@@ -261,7 +261,7 @@ try:
         rp_name = f"TestRP-{TS}"
         status, rp = test("RP: Create with wave", "POST", "/recovery-plans",
              {"PlanName": rp_name, 
-              "Waves": [{"WaveId": "wave-0", "WaveName": "Wave 1", 
+              "Waves": [{"WaveId": "wave-1", "WaveName": "Wave 1", 
                         "ProtectionGroupId": pg_id, "ServerIds": ["s-test123"]}]},
              expected_status=201)
         

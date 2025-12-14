@@ -6191,6 +6191,8 @@ def _process_recovery_plan_import(
         # Case 2: Only ProtectionGroupName provided - resolve to ID
         if not resolved_pg_id and pg_name:
             pg_name_lower = pg_name.lower()
+            print(f"[{correlation_id}] Resolving PG name '{pg_name}' (lower: '{pg_name_lower}')")
+            print(f"[{correlation_id}] Available PG names in mapping: {list(pg_name_to_id.keys())}")
             
             # Check if PG failed import (cascade failure)
             if pg_name in failed_pg_names:
@@ -6201,7 +6203,9 @@ def _process_recovery_plan_import(
             if pg_name_lower in pg_name_to_id:
                 resolved_pg_id = pg_name_to_id[pg_name_lower]
                 resolved_pg_name = pg_name
+                print(f"[{correlation_id}] Resolved '{pg_name}' -> ID '{resolved_pg_id}'")
             else:
+                print(f"[{correlation_id}] PG name '{pg_name_lower}' NOT FOUND in mapping")
                 missing_pgs.append(pg_name)
                 continue
         
