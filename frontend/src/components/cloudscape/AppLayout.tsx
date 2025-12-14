@@ -16,6 +16,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { SettingsModal } from '../SettingsModal';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -45,6 +46,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const { user, signOut } = useAuth();
   const { notifications } = useNotifications();
   const [navigationOpen, setNavigationOpen] = useState(true);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 
   // Navigation items
   const navigationItems = [
@@ -108,6 +110,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               iconName: 'settings',
               ariaLabel: 'Settings',
               disableUtilityCollapse: false,
+              onClick: () => setSettingsModalVisible(true),
             },
             {
               type: 'menu-dropdown',
@@ -156,6 +159,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         navigationWidth={280}
         contentType="default"
         headerSelector="#top-nav"
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        visible={settingsModalVisible}
+        onDismiss={() => setSettingsModalVisible(false)}
       />
     </>
   );
