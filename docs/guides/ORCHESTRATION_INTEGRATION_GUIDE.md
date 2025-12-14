@@ -1497,6 +1497,108 @@ If a Protection Group fails to import, any Recovery Plans that reference it will
 }
 ```
 
+#### Minimum Import Example
+
+This is the minimum JSON required to create a 3-tier tag-based recovery setup from scratch:
+
+```json
+{
+  "metadata": {
+    "schemaVersion": "1.0"
+  },
+  "protectionGroups": [
+    {
+      "GroupName": "DatabaseServersBasedOnTags",
+      "Region": "us-east-1",
+      "ServerSelectionTags": {"Purpose": "DatabaseServers"},
+      "LaunchConfig": {
+        "SubnetId": "subnet-0c458dee42bb55fde",
+        "SecurityGroupIds": ["sg-06f217dba4afdd97f"],
+        "InstanceType": "t3a.xlarge",
+        "InstanceProfileName": "AWSElasticDisasterRecoveryReplicationServerRole"
+      }
+    },
+    {
+      "GroupName": "AppServersBasedOnTags",
+      "Region": "us-east-1",
+      "ServerSelectionTags": {"Purpose": "AppServers"},
+      "LaunchConfig": {
+        "SubnetId": "subnet-06b0b2cb42c4cf99c",
+        "SecurityGroupIds": ["sg-06f217dba4afdd97f"],
+        "InstanceType": "t3a.large",
+        "InstanceProfileName": "demo-ec2-profile",
+        "LaunchDisposition": "STARTED"
+      }
+    },
+    {
+      "GroupName": "WebServersBasedOnTags",
+      "Region": "us-east-1",
+      "ServerSelectionTags": {"Purpose": "WebServers"},
+      "LaunchConfig": {
+        "SubnetId": "subnet-055e7f7e2db65bd5e",
+        "SecurityGroupIds": ["sg-06f217dba4afdd97f"],
+        "InstanceType": "t3a.large",
+        "InstanceProfileName": "demo-ec2-profile",
+        "LaunchDisposition": "STOPPED"
+      }
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "PlanName": "3TierRecoveryPlan",
+      "Waves": [
+        {
+          "WaveName": "DatabaseWave",
+          "ProtectionGroupName": "DatabaseServersBasedOnTags"
+        },
+        {
+          "WaveName": "AppWave",
+          "ProtectionGroupName": "AppServersBasedOnTags",
+          "PauseBeforeWave": true,
+          "Dependencies": [{"DependsOnWaveId": "wave-1"}]
+        },
+        {
+          "WaveName": "WebWave",
+          "ProtectionGroupName": "WebServersBasedOnTags",
+          "PauseBeforeWave": true,
+          "Dependencies": [{"DependsOnWaveId": "wave-2"}]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Required Fields:**
+
+| Section | Required Fields |
+|---------|-----------------|
+| `metadata` | `schemaVersion` ("1.0") |
+| `protectionGroups[]` | `GroupName`, `Region` |
+| `protectionGroups[].LaunchConfig` | `SubnetId`, `SecurityGroupIds` (minimum for DRS) |
+| `recoveryPlans[]` | `PlanName`, `Waves[]` |
+| `Waves[]` | `WaveName`, `ProtectionGroupName` |
+
+**Optional Fields (auto-defaulted):**
+
+- `Description`, `AccountId`, `Owner` - empty strings
+- `WaveId` - auto-generated (wave-1, wave-2, etc.)
+- `ExecutionOrder` - calculated from array position
+- `PauseBeforeWave` - defaults to false
+- `Dependencies` - empty array
+- `LaunchDisposition` - defaults to DRS default
+- `InstanceType` - uses DRS right-sizing if not specified
+
+**Tag-Based Server Selection:**
+
+The `ServerSelectionTags` field enables dynamic server discovery. Servers are matched by EC2 tags:
+
+```json
+"ServerSelectionTags": {"Purpose": "DatabaseServers"}
+```
+
+This finds all DRS source servers where the EC2 instance has tag `Purpose=DatabaseServers`.
+
 ### Error Responses
 
 All error responses follow this format:
