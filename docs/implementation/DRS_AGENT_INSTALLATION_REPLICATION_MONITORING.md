@@ -91,10 +91,10 @@ flowchart TB
     end
     
     subgraph API["API Gateway + Lambda"]
-        AIE[/POST /agent/install/]
-        AIS[/GET /agent/install/{commandId}/status/]
-        RSS[/GET /servers/{id}/replication-status/]
-        RRS[/POST /recovery-instances/{id}/reverse-replication/]
+        AIE["POST /agent/install"]
+        AIS["GET /agent/install/status"]
+        RSS["GET /servers/replication-status"]
+        RRS["POST /recovery-instances/reverse-replication"]
     end
     
     subgraph AWS["AWS Services"]
