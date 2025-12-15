@@ -1,7 +1,7 @@
 # DR Tagging Taxonomy for AWS DRS Orchestration
 
 **JIRA:** [AWSM-1087](https://healthedge.atlassian.net/browse/AWSM-1087)  
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** December 15, 2025  
 **Status:** Ready for Implementation
 
@@ -31,20 +31,17 @@ This document defines the standardized DR tagging taxonomy for HealthEdge AWS re
 | `dr:rto-target` | Integer (minutes) | Target recovery time objective in minutes. |
 | `dr:rpo-target` | Integer (minutes) | Target recovery point objective in minutes. |
 
-### 1.3 Tier Classification Tag
+### 1.3 Tier-Based Filtering (Using Existing Tags)
 
-| Tag Key | Allowed Values | Required | Description |
-|---------|----------------|----------|-------------|
-| `dr:tier` | `database` \| `application` \| `web` \| `infrastructure` | **Yes** (DR-enabled) | Application tier for recovery ordering. |
+For tier-based Protection Group filtering, use existing operational tags:
 
-| dr:tier Value | Description | Typical Wave |
-|---------------|-------------|--------------|
-| `database` | Database servers (SQL, Oracle, etc.) | Wave 1 |
-| `application` | Application/API servers | Wave 2 |
-| `web` | Web/presentation tier | Wave 3 |
-| `infrastructure` | Supporting infrastructure (AD, DNS, etc.) | Wave 1 |
+| Tag Key | Example Values | Use Case |
+|---------|----------------|----------|
+| `Service` | `Active Directory`, `DNS`, `SQL Server`, `Web Server` | Filter by service/component type |
+| `Application` | `AD`, `DNS`, `PatientPortal`, `CareManagement` | Filter by application |
+| `Customer` | Customer name | Filter by customer for multi-tenant |
 
-> **Note:** The `Purpose` tag is NOT used in HealthEdge AWS accounts (confirmed December 2025). Use `dr:tier` for tier classification.
+> **Note:** The `dr:wave` tag provides recovery ordering. Use `Service` or `Application` tags for tier-based grouping in Protection Groups.
 
 ---
 
@@ -66,8 +63,9 @@ This document defines the standardized DR tagging taxonomy for HealthEdge AWS re
 | `dr:enabled` | ✅ Required | ✅ Required | Identifies DR-enrolled resources |
 | `dr:priority` | ✅ Informational | ✅ RTO-based prioritization | Maps to RTO targets |
 | `dr:wave` | ℹ️ Not used (uses Recovery Plans) | ✅ Tag-driven wave discovery | Wave assignment |
-| `dr:tier` | ✅ Protection Group filtering | ✅ Resource classification | Application tier grouping |
 | `dr:recovery-strategy` | ℹ️ Not used | ✅ Recovery method selection | drs, eks-dns, sql-ag, managed-service |
+| `Service` | ✅ Protection Group filtering | ✅ Resource classification | Service/component type |
+| `Application` | ✅ Protection Group filtering | ✅ Resource classification | Application grouping |
 | `Customer` | ✅ Protection Group filtering | ✅ Multi-tenant scoping | Customer isolation |
 
 ---
@@ -93,48 +91,31 @@ This document defines the standardized DR tagging taxonomy for HealthEdge AWS re
 | (none) | `dr:priority` | Assign based on RTO (critical/high/medium/low) |
 | (none) | `dr:wave` | Assign based on recovery order (1-5) |
 
-### 4.3 Migration Script
-
-```bash
-#!/bin/bash
-# migrate-drs-tags.sh - Migrate legacy DRS tags to dr:x taxonomy
-
-REGION="${1:-us-east-1}"
-DEFAULT_PRIORITY="${2:-medium}"
-DEFAULT_WAVE="${3:-2}"
-
-# Find all EC2 instances with DRS=True
-INSTANCES=$(aws ec2 describe-instances \
-  --filters "Name=tag:DRS,Values=True" \
-  --query 'Reservations[].Instances[].InstanceId' \
-  --output text --region $REGION)
-
-for INSTANCE_ID in $INSTANCES; do
-  echo "Migrating tags for $INSTANCE_ID..."
-  
-  aws ec2 create-tags --resources $INSTANCE_ID \
-    --tags \
-      Key=dr:enabled,Value=true \
-      Key=dr:priority,Value=$DEFAULT_PRIORITY \
-      Key=dr:wave,Value=$DEFAULT_WAVE \
-    --region $REGION
-done
-
-echo "Migration complete. Review and adjust dr:priority and dr:wave values."
-```
-
 ---
 
 ## 5. Sample Tag Sets
 
-### 5.1 Production Database Server (Critical)
+### 5.1 Infrastructure Server - Active Directory (Critical)
+
+```
+BusinessUnit: HRP
+Environment: Production
+Customer: CustomerName
+Application: AD
+Service: Active Directory
+dr:enabled: true
+dr:priority: critical
+dr:wave: 1
+```
+
+### 5.2 Database Server (Critical)
 
 ```
 BusinessUnit: HRP
 Environment: Production
 Customer: CustomerName
 Application: PatientPortal
-dr:tier: database
+Service: SQL Server
 dr:enabled: true
 dr:priority: critical
 dr:wave: 1
@@ -143,14 +124,14 @@ dr:rto-target: 30
 dr:rpo-target: 30
 ```
 
-### 5.2 Production App Server (High)
+### 5.3 Application Server (High)
 
 ```
 BusinessUnit: GuidingCare
 Environment: Production
 Customer: CustomerName
 Application: CareManagement
-dr:tier: application
+Service: Application Server
 dr:enabled: true
 dr:priority: high
 dr:wave: 2
@@ -159,14 +140,14 @@ dr:rto-target: 60
 dr:rpo-target: 30
 ```
 
-### 5.3 Production Web Server (Medium)
+### 5.4 Web Server (Medium)
 
 ```
 BusinessUnit: GuidingCare
 Environment: Production
 Customer: CustomerName
 Application: CareManagement
-dr:tier: web
+Service: Web Server
 dr:enabled: true
 dr:priority: medium
 dr:wave: 3
@@ -175,7 +156,7 @@ dr:rto-target: 120
 dr:rpo-target: 30
 ```
 
-### 5.4 EKS Cluster (DNS Failover)
+### 5.5 EKS Cluster (DNS Failover)
 
 ```
 BusinessUnit: GuidingCare
@@ -188,7 +169,7 @@ dr:recovery-strategy: eks-dns
 dr:rto-target: 30
 ```
 
-### 5.5 Development Server (No DR)
+### 5.6 Development Server (No DR)
 
 ```
 BusinessUnit: GuidingCare
@@ -212,9 +193,19 @@ dr:enabled: false
 **Key Findings:**
 - HRP Production uses legacy `DRS` tag - migration required
 - No `dr:enabled` tag exists in any account yet
-- HRP Production uses `Service` tag instead of `Purpose`
+- HRP Production uses `Service` tag (values: "Active Directory", "DNS")
+- HRP Production uses `Application` tag (values: "AD", "DNS")
 
-### 6.2 HealthEdge AWS Accounts
+### 6.2 HRP Production Current Tags (Available for Protection Group Filtering)
+
+| Tag | Values in Use | Can Filter By |
+|-----|---------------|---------------|
+| `Service` | Active Directory, DNS | Service type |
+| `Application` | AD, DNS | Application |
+| `Customer` | axm, wip, frso, alh, citi, ust, atr, edif | Customer |
+| `DRS` | True, False | DR enrollment |
+
+### 6.3 HealthEdge AWS Accounts
 
 | Account Name | Account ID | Purpose |
 |--------------|------------|---------|
@@ -244,6 +235,7 @@ dr:enabled: false
 | AWS Tagging Strategy | [4836950067](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4836950067) |
 | Tag Types Reference | [4867035088](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4867035088) |
 | DRS Tags | [4930863374](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4930863374) |
+| Tag Management Design | [Tag-Management-Design](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/Tag-Management-Design) |
 
 ### 7.3 Related JIRA
 
@@ -254,5 +246,6 @@ dr:enabled: false
 
 **Document Control:**
 - Created: December 15, 2025
+- Updated: December 15, 2025 - Removed dr:tier (use Service/Application tags instead)
 - Author: Cloud Infrastructure Team
 - Data Sources: Guiding Care DR Implementation (Confluence), AWS Account Tag Analysis
