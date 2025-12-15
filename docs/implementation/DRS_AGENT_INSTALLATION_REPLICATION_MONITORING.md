@@ -4,6 +4,34 @@
 
 This document outlines the implementation plan for integrating DRS agent installation, replication progress monitoring, and reverse replication (failback) visualization into the AWS DRS Orchestration UI.
 
+---
+
+## Related Features
+
+This feature is part of a larger DRS management feature set. Understanding the relationships helps clarify scope boundaries:
+
+| Feature | Relationship | Scope Boundary |
+|---------|--------------|----------------|
+| **#15 Failover & Failback Orchestration** | Complementary | #15 uses agent installation on RECOVERY instances for failback; this feature (#14) covers agent installation on SOURCE servers |
+| **#12 Server Info MVP** | Complementary | #12 displays replication status; this feature provides the agent installation and replication initialization that creates that status |
+| **#17 Source Servers Page** | Complementary | #17 displays servers after agent installation; this feature handles the installation process |
+
+### Scope Clarification
+
+- **This Feature (#14)**: Agent installation on SOURCE servers via SSM, replication initialization monitoring (11 steps), continuous replication status, reverse replication visualization
+- **#15 Failover & Failback**: Agent installation on RECOVERY instances for failback, failback orchestration, re-protection workflow
+- **#12 Server Info MVP**: Read-only display of replication status after agent is installed
+- **#17 Source Servers Page**: List view of servers with replication status summary
+
+### Key Distinction: Agent Installation Targets
+
+| Scenario | Target | Feature |
+|----------|--------|---------|
+| Initial protection setup | Source servers (on-premises or EC2) | This feature (#14) |
+| Failback preparation | Recovery instances in DR region | #15 Failover & Failback |
+
+---
+
 ## Research Findings
 
 ### DRS Data Replication States

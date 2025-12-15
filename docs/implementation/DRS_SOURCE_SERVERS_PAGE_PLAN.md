@@ -732,6 +732,31 @@ const navigationItems = [
 
 ---
 
+## Related Features
+
+This page is part of a larger DRS management feature set. Understanding the relationships helps clarify scope boundaries:
+
+| Feature | Relationship | Scope Boundary |
+|---------|--------------|----------------|
+| **#12 Server Info MVP** | Child/Detail | #12 provides the detailed ServerInfoPanel component displayed when clicking a server row |
+| **#16 DRS Recovery Deep Dive** | Complementary | #16 provides deep dive into recovery operations; this page shows summary in "Last Recovery Result" column and links to #16 for details |
+| **#14 Agent Installation** | Complementary | #14 covers agent installation; this page displays resulting replication status |
+
+### Scope Clarification
+
+- **This Feature (#17)**: Source Servers list page, filtering, sorting, region selection, navigation
+- **#12 Server Info MVP**: Detailed server info panel with tabs (Overview, Replication, Network, Disks)
+- **#16 Recovery Deep Dive**: Point-in-time snapshots, job logs, recovery instance tracking
+- **#14 Agent Installation**: SSM-based agent installation workflow
+
+### Integration Points
+
+1. **Server Row Click** → Opens #12 ServerInfoPanel or navigates to `/source-servers/{id}` details page
+2. **Last Recovery Result Column** → Links to #16 Recovery Deep Dive for job details
+3. **Replication Status Column** → Shows summary; #12 provides detailed disk-level progress
+
+---
+
 ## References
 
 - [AWS DRS DescribeSourceServers API](https://docs.aws.amazon.com/drs/latest/APIReference/API_DescribeSourceServers.html)

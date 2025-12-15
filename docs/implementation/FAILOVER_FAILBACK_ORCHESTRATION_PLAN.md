@@ -13,6 +13,32 @@ This document outlines the implementation plan for automated failover and failba
 
 ---
 
+## Related Features
+
+This feature is part of a larger DRS management feature set. Understanding the relationships helps clarify scope boundaries:
+
+| Feature | Relationship | Scope Boundary |
+|---------|--------------|----------------|
+| **#14 Agent Installation & Replication Monitoring** | Complementary | #14 covers agent installation on SOURCE servers; this feature (#15) covers agent installation on RECOVERY instances for failback |
+| **#16 DRS Recovery Deep Dive** | Complementary | #16 provides recovery job details; this feature orchestrates the failover/failback lifecycle |
+| **#13 Multi-Account Support** | Complementary | #13 enables cross-account orchestration; this feature handles failover/failback within that architecture |
+
+### Scope Clarification
+
+- **This Feature (#15)**: Complete failover/failback lifecycle, agent installation on RECOVERY instances, reverse replication, failback execution, re-protection
+- **#14 Agent Installation**: Agent installation on SOURCE servers, replication initialization monitoring
+- **#16 Recovery Deep Dive**: Point-in-time snapshots, job logs, recovery instance tracking (read-only visibility)
+- **#13 Multi-Account**: Hub-and-spoke architecture, cross-account IAM roles, unified management
+
+### Key Distinction: Agent Installation Targets
+
+| Scenario | Target | Feature |
+|----------|--------|---------|
+| Initial protection setup | Source servers (on-premises or EC2) | #14 Agent Installation |
+| Failback preparation | Recovery instances in DR region | This feature (#15) |
+
+---
+
 ## Research Findings
 
 ### DRS Cross-Region Failback Flow

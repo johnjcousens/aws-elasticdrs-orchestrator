@@ -8,6 +8,31 @@ This implementation plan is based on proven patterns from the [AWS DRS Observabi
 
 ---
 
+## Related Features
+
+This feature is part of a larger DRS management feature set. Understanding the relationships helps clarify scope boundaries:
+
+| Feature | Relationship | Scope Boundary |
+|---------|--------------|----------------|
+| **#13 Multi-Account Support** | Complementary | #13 provides hub-and-spoke orchestration architecture; this feature (#11) provides monitoring/alerting across those accounts |
+| **#18 Extended Source Servers** | Complementary | #18 enables cross-account replication setup; this feature monitors the resulting replication status |
+
+### Scope Clarification
+
+- **This Feature (#11)**: EventBridge events, CloudWatch dashboards, SNS alerting, cross-account metrics collection (monitoring only)
+- **#13 Multi-Account Support**: Hub-and-spoke architecture, cross-account IAM roles, unified management UI, scale beyond 300 servers (orchestration)
+- **#18 Extended Source Servers**: CreateExtendedSourceServer API, cross-account replication setup (configuration)
+
+### Key Distinction: Cross-Account Features
+
+| Feature | Focus | Primary Use Case |
+|---------|-------|------------------|
+| #11 Cross-Account Monitoring | Observability | "Alert me when replication stalls in any account" |
+| #13 Multi-Account Support | Orchestration | "Run a drill across servers in 4 accounts" |
+| #18 Extended Source Servers | Configuration | "Set up cross-account replication for a server" |
+
+---
+
 ## Architecture
 
 ```mermaid
