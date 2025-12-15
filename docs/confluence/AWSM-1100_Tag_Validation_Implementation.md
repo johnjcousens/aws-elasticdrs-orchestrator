@@ -1,7 +1,7 @@
 # Tag Validation Implementation for DR Tags
 
 **JIRA:** [AWSM-1100](https://healthedge.atlassian.net/browse/AWSM-1100)  
-**Version:** 1.0  
+**Version:** 1.2  
 **Date:** December 15, 2025  
 **Status:** Ready for Implementation
 
@@ -9,7 +9,9 @@
 
 ## Executive Summary
 
-This document provides the implementation artifacts for enforcing DR tag compliance across HealthEdge AWS accounts. It includes Tag Policies, Service Control Policies (SCPs), and AWS Config rules to validate the DR tagging taxonomy defined in [AWSM-1087](https://healthedge.atlassian.net/browse/AWSM-1087).
+This document provides the implementation artifacts for enforcing DR tag compliance across HealthEdge AWS accounts. It includes Tag Policies, Service Control Policies (SCPs), and AWS Config rules to validate the DR tagging taxonomy aligned with the **Guiding Care DR Implementation** (authoritative source).
+
+**Authoritative Source:** [Guiding Care DR Implementation](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/5327028252)
 
 ---
 
@@ -52,18 +54,6 @@ Deploy this tag policy at the AWS Organization level to validate DR tag values.
       "enforced_for": {
         "@@assign": ["ec2:instance"]
       }
-    },
-    "dr:tier": {
-      "tag_key": {
-        "@@assign": "dr:tier"
-      },
-      "tag_value": {
-        "@@assign": ["database", "application", "web", "infrastructure"]
-      },
-      "enforced_for": {
-        "@@assign": ["ec2:instance"]
-      },
-      "description": "Application tier for recovery ordering. Replaces deprecated Purpose tag."
     },
     "dr:recovery-strategy": {
       "tag_key": {
@@ -319,17 +309,22 @@ aws ec2 run-instances \
 
 ## 7. Allowed Tag Values Summary
 
-### 7.1 DR Tags
+### 7.1 DR Tags (from Guiding Care DR Implementation)
 
-| Tag Key | Allowed Values |
-|---------|----------------|
-| `dr:enabled` | `true`, `false` |
-| `dr:priority` | `critical`, `high`, `medium`, `low` |
-| `dr:wave` | `1`, `2`, `3`, `4`, `5` |
-| `dr:tier` | `database`, `application`, `web`, `infrastructure` |
-| `dr:recovery-strategy` | `drs`, `eks-dns`, `sql-ag`, `managed-service` |
-| `dr:rto-target` | Integer (minutes) |
-| `dr:rpo-target` | Integer (minutes) |
+| Tag Key | Allowed Values | Required |
+|---------|----------------|----------|
+| `dr:enabled` | `true`, `false` | Yes (Production EC2) |
+| `dr:priority` | `critical`, `high`, `medium`, `low` | Yes (if dr:enabled=true) |
+| `dr:wave` | `1`, `2`, `3`, `4`, `5` | Yes (if dr:enabled=true) |
+| `dr:recovery-strategy` | `drs`, `eks-dns`, `sql-ag`, `managed-service` | Optional |
+| `dr:rto-target` | Integer (minutes) | Optional |
+| `dr:rpo-target` | Integer (minutes) | Optional |
+
+**Priority to RTO Mapping:**
+- `critical`: 30 minutes RTO
+- `high`: 1 hour RTO
+- `medium`: 2 hours RTO
+- `low`: 4 hours RTO
 
 ### 7.2 Environment Tags
 
@@ -370,9 +365,15 @@ aws ec2 run-instances \
 
 ### 9.1 Authoritative Source
 
-| Document | Location |
-|----------|----------|
-| **Guiding Care DR Implementation** | [Confluence CP1/5327028252](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/5327028252) |
+| Document | Location | Author | Date |
+|----------|----------|--------|------|
+| **Guiding Care DR Implementation** | [Confluence CP1/5327028252](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/5327028252) | Chris Falk | December 9, 2025 |
+
+**Key Architecture Elements from Authoritative Source:**
+- Tag-driven resource discovery using AWS Resource Explorer
+- Customer/Environment scoping for multi-tenant operations
+- Wave-based recovery with priority mapping (critical→30min, high→1hr, medium→2hr, low→4hr)
+- Recovery strategies: DRS (EC2), EKS-DNS (containers), SQL-AG (databases), managed-service
 
 ### 9.2 Related Confluence Documents
 
@@ -397,5 +398,6 @@ aws ec2 run-instances \
 
 **Document Control:**
 - Created: December 15, 2025
+- Updated: December 15, 2025 - Aligned with Guiding Care DR Implementation (v1.2)
 - Author: Cloud Infrastructure Team
-- Data Sources: Guiding Care DR Implementation (Confluence), AWS Account Tag Analysis
+- Authoritative Source: Guiding Care DR Implementation (Confluence CP1/5327028252)
