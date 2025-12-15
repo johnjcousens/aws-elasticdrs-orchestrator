@@ -270,29 +270,30 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 #### DRS Integration
 
-| Method | Endpoint                                | Description                            |
-| ------ | --------------------------------------- | -------------------------------------- |
-| GET    | `/drs/source-servers?region={region}` | Discover DRS source servers            |
+| Method | Endpoint                                | Description                              |
+| ------ | --------------------------------------- | ---------------------------------------- |
+| GET    | `/drs/source-servers?region={region}` | Discover DRS source servers              |
 | GET    | `/drs/quotas?region={region}`         | Get DRS service quotas (region required) |
 
 #### EC2 Resources (for Launch Config)
 
-| Method | Endpoint                                | Description                            |
-| ------ | --------------------------------------- | -------------------------------------- |
-| GET    | `/ec2/subnets?region={region}`        | List VPC subnets for dropdown          |
-| GET    | `/ec2/security-groups?region={region}`| List security groups for dropdown      |
-| GET    | `/ec2/instance-profiles?region={region}`| List IAM instance profiles           |
-| GET    | `/ec2/instance-types?region={region}` | List EC2 instance types                |
+| Method | Endpoint                                   | Description                       |
+| ------ | ------------------------------------------ | --------------------------------- |
+| GET    | `/ec2/subnets?region={region}`           | List VPC subnets for dropdown     |
+| GET    | `/ec2/security-groups?region={region}`   | List security groups for dropdown |
+| GET    | `/ec2/instance-profiles?region={region}` | List IAM instance profiles        |
+| GET    | `/ec2/instance-types?region={region}`    | List EC2 instance types           |
 
 #### Health Check
 
-| Method | Endpoint   | Description                    |
-| ------ | ---------- | ------------------------------ |
-| GET    | `/health` | Service health check endpoint  |
+| Method | Endpoint    | Description                   |
+| ------ | ----------- | ----------------------------- |
+| GET    | `/health` | Service health check endpoint |
 
 ### API Request Examples
 
 **Create Protection Group with Launch Config:**
+
 ```bash
 curl -X POST "${API_ENDPOINT}/protection-groups" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -315,6 +316,7 @@ curl -X POST "${API_ENDPOINT}/protection-groups" \
 ```
 
 **Start Drill Execution:**
+
 ```bash
 curl -X POST "${API_ENDPOINT}/executions" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -471,14 +473,14 @@ If recovery jobs fail with `UnauthorizedOperation` errors, verify the Orchestrat
 
 ### Quick Links
 
-| Document                                                                | Description                                   |
-| ----------------------------------------------------------------------- | --------------------------------------------- |
-| [Product Requirements](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD with features and specifications |
-| [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md)         | Step-by-step deployment instructions          |
+| Document                                                                 | Description                                   |
+| ------------------------------------------------------------------------ | --------------------------------------------- |
+| [Product Requirements](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md)  | Complete PRD with features and specifications |
+| [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md)          | Step-by-step deployment instructions          |
 | [Orchestration Integration](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) | CLI, SSM, Step Functions, API integration     |
-| [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)  | System architecture and design decisions      |
-| [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md)                      | DRS API integration patterns                  |
-| [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md)              | Testing procedures and quality assurance      |
+| [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)   | System architecture and design decisions      |
+| [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md)                       | DRS API integration patterns                  |
+| [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md)               | Testing procedures and quality assurance      |
 
 ### Documentation Index
 
@@ -492,33 +494,33 @@ This repository includes comprehensive configuration for Amazon Q Developer to e
 
 #### Amazon Q Rules & Memory Bank
 
-| Document | Purpose |
-|----------|----------|
-| [CI/CD & IaC Workflow](.amazonq/rules/cicd-iac-workflow.md) | Enforce proper Infrastructure as Code workflow |
-| [Deployment Verification](.amazonq/rules/deployment-verification.md) | Verify deployment can be reproduced |
-| [Frontend Design Consistency](.amazonq/rules/frontend-design-consistency.md) | AWS CloudScape design system rules |
-| [Kiro Steering Alignment](.amazonq/rules/kiro-steering-alignment.md) | Complete project guidance alignment |
-| [Update Requirements Workflow](.amazonq/rules/update-requirements-workflow.md) | Automated documentation sync workflow |
-| [Development Guidelines](.amazonq/rules/memory-bank/guidelines.md) | Code quality standards and patterns |
-| [Product Overview](.amazonq/rules/memory-bank/product.md) | Business context and features |
-| [Project Structure](.amazonq/rules/memory-bank/structure.md) | Repository organization |
-| [Technology Stack](.amazonq/rules/memory-bank/tech.md) | Complete tech stack reference |
+| Document                                                                    | Purpose                                        |
+| --------------------------------------------------------------------------- | ---------------------------------------------- |
+| [CI/CD &amp; IaC Workflow](.amazonq/rules/cicd-iac-workflow.md)                | Enforce proper Infrastructure as Code workflow |
+| [Deployment Verification](.amazonq/rules/deployment-verification.md)           | Verify deployment can be reproduced            |
+| [Frontend Design Consistency](.amazonq/rules/frontend-design-consistency.md)   | AWS CloudScape design system rules             |
+| [Kiro Steering Alignment](.amazonq/rules/kiro-steering-alignment.md)           | Complete project guidance alignment            |
+| [Update Requirements Workflow](.amazonq/rules/update-requirements-workflow.md) | Automated documentation sync workflow          |
+| [Development Guidelines](.amazonq/rules/memory-bank/guidelines.md)             | Code quality standards and patterns            |
+| [Product Overview](.amazonq/rules/memory-bank/product.md)                      | Business context and features                  |
+| [Project Structure](.amazonq/rules/memory-bank/structure.md)                   | Repository organization                        |
+| [Technology Stack](.amazonq/rules/memory-bank/tech.md)                         | Complete tech stack reference                  |
 
 #### Kiro Steering Documents
 
-| Document | Purpose |
-|----------|----------|
-| [Product Overview](.kiro/steering/product.md) | Business problem, solution overview, and features |
-| [Project Structure](.kiro/steering/structure.md) | Repository organization and component architecture |
-| [Technology Stack](.kiro/steering/tech.md) | Complete technology stack and development commands |
-| [CI/CD Guide](.kiro/steering/cicd.md) | Deployment architecture and GitLab pipeline |
-| [Frontend Design Consistency](.kiro/steering/frontend-design-consistency.md) | AWS CloudScape design system rules |
-| [Debugging Rules](.kiro/steering/debugging-rules.md) | DRS integration and troubleshooting guide |
-| [CloudScape Best Practices](.kiro/steering/cloudscape-best-practices.md) | CloudScape component usage and patterns |
-| [CloudScape Component Reference](.kiro/steering/cloudscape-component-reference.md) | Quick reference for CloudScape components |
-| [Terminal Rules](.kiro/steering/terminal-rules.md) | Terminal output suppression and connection guidelines |
-| [File Writing Rules](.kiro/steering/file-writing.md) | File creation and editing guidelines |
-| [Update Requirements Workflow](.kiro/steering/update-requirements-workflow.md) | Automated documentation sync workflow (trigger: "update docs", "align docs", "sync docs") |
+| Document                                                                        | Purpose                                                                                   |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [Product Overview](.kiro/steering/product.md)                                      | Business problem, solution overview, and features                                         |
+| [Project Structure](.kiro/steering/structure.md)                                   | Repository organization and component architecture                                        |
+| [Technology Stack](.kiro/steering/tech.md)                                         | Complete technology stack and development commands                                        |
+| [CI/CD Guide](.kiro/steering/cicd.md)                                              | Deployment architecture and GitLab pipeline                                               |
+| [Frontend Design Consistency](.kiro/steering/frontend-design-consistency.md)       | AWS CloudScape design system rules                                                        |
+| [Debugging Rules](.kiro/steering/debugging-rules.md)                               | DRS integration and troubleshooting guide                                                 |
+| [CloudScape Best Practices](.kiro/steering/cloudscape-best-practices.md)           | CloudScape component usage and patterns                                                   |
+| [CloudScape Component Reference](.kiro/steering/cloudscape-component-reference.md) | Quick reference for CloudScape components                                                 |
+| [Terminal Rules](.kiro/steering/terminal-rules.md)                                 | Terminal output suppression and connection guidelines                                     |
+| [File Writing Rules](.kiro/steering/file-writing.md)                               | File creation and editing guidelines                                                      |
+| [Update Requirements Workflow](.kiro/steering/update-requirements-workflow.md)     | Automated documentation sync workflow (trigger: "update docs", "align docs", "sync docs") |
 
 #### Key Benefits
 
@@ -631,11 +633,11 @@ git push origin --tags
 
 These documents are the **authoritative source** for all system specifications. When conflicts exist between other documentation and requirements documents, the requirements documents take precedence.
 
-| Document                                                                         | Description                                                                         |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD with problem statement, features, technical specs, and success metrics |
-| [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) | Functional requirements, API contracts, validation rules |
-| [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) | Component specs (23 MVP + 9 Phase 2), user flows, accessibility |
+| Document                                                                                     | Description                                                                         |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md)             | Complete PRD with problem statement, features, technical specs, and success metrics |
+| [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) | Functional requirements, API contracts, validation rules                            |
+| [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md)                 | Component specs (23 MVP + 9 Phase 2), user flows, accessibility                     |
 
 ### Architecture & Design
 
@@ -658,14 +660,14 @@ These documents are the **authoritative source** for all system specifications. 
 
 ### Deployment & Operations
 
-| Document                                                                       | Description                                                          |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Document                                                                       | Description                                                                                    |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
 | [Solution Handoff Guide](docs/handoff/SOLUTION_HANDOFF_GUIDE.md)                  | **CUSTOMER HANDOFF** - Complete guide for continuing development with Amazon Q Developer |
-| [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment procedures, configuration, and operations        |
-| [Deployment Recovery Guide](docs/guides/DEPLOYMENT_RECOVERY_GUIDE.md)             | **CRITICAL** - How to redeploy from scratch using S3 artifacts |
-| [Deployment Success Summary](docs/guides/DEPLOYMENT_SUCCESS_SUMMARY.md)           | Latest deployment verification and test results                      |
-| [CI/CD Pipeline Guide](docs/guides/CICD_PIPELINE_GUIDE.md)                        | GitLab CI/CD setup and automation workflows                          |
-| [S3 Sync Automation](docs/guides/S3_SYNC_AUTOMATION.md)                           | Automated deployment bucket synchronization                          |
+| [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment procedures, configuration, and operations                                  |
+| [Deployment Recovery Guide](docs/guides/DEPLOYMENT_RECOVERY_GUIDE.md)             | **CRITICAL** - How to redeploy from scratch using S3 artifacts                           |
+| [Deployment Success Summary](docs/guides/DEPLOYMENT_SUCCESS_SUMMARY.md)           | Latest deployment verification and test results                                                |
+| [CI/CD Pipeline Guide](docs/guides/CICD_PIPELINE_GUIDE.md)                        | GitLab CI/CD setup and automation workflows                                                    |
+| [S3 Sync Automation](docs/guides/S3_SYNC_AUTOMATION.md)                           | Automated deployment bucket synchronization                                                    |
 
 ### API & Integration
 
@@ -687,11 +689,11 @@ These documents are the **authoritative source** for all system specifications. 
 
 ### Research & Analysis
 
-| Document | Description |
-|----------|-------------|
-| [DRS Launch Template Settings Research](docs/research/DRS_LAUNCH_TEMPLATE_SETTINGS_RESEARCH.md) | Complete analysis of which launch template settings are safe to edit vs AWS-managed |
-| [DRS Template Manager Analysis](docs/research/DRS_TEMPLATE_MANAGER_ANALYSIS.md) | Analysis of AWS's official DRS template management tool and supported settings |
-| [DRS Configuration Synchronizer Analysis](docs/research/DRS_CONFIGURATION_SYNCHRONIZER_ANALYSIS.md) | Analysis of AWS's enterprise configuration management tool for DRS |
+| Document                                                                                         | Description                                                                         |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| [DRS Launch Template Settings Research](docs/research/DRS_LAUNCH_TEMPLATE_SETTINGS_RESEARCH.md)     | Complete analysis of which launch template settings are safe to edit vs AWS-managed |
+| [DRS Template Manager Analysis](docs/research/DRS_TEMPLATE_MANAGER_ANALYSIS.md)                     | Analysis of AWS's official DRS template management tool and supported settings      |
+| [DRS Configuration Synchronizer Analysis](docs/research/DRS_CONFIGURATION_SYNCHRONIZER_ANALYSIS.md) | Analysis of AWS's enterprise configuration management tool for DRS                  |
 
 ### Troubleshooting
 
@@ -727,27 +729,27 @@ See [CHANGELOG.md](CHANGELOG.md) for complete project history since November 8, 
 
 ## Future Enhancements
 
-| Priority | Feature                                    | LOE | Description                                                                                                                                                                                                                      | Status      | Documentation                                                                          | Completion Date | Git Commits              |
-| -------- | ------------------------------------------ | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- | --------------- | ------------------------ |
-| ~~1~~   | ~~DRS Regional Availability Update~~      | ~~2d~~ | ~~Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud).~~                                                                                                                                 | ✅ Complete | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md)       | Dec 9, 2025     | `fa80b39`, `aed36c0` |
-| ~~2~~   | ~~DRS Service Limits Compliance~~         | ~~3d~~ | ~~Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Includes 48 unit tests ([test docs](docs/validation/DRS_SERVICE_LIMITS_TESTING.md)).~~ | ✅ Complete | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md)      | Dec 9, 2025     | `52c649e`, `06bca16`, `fd578cc`, `b65e25e` |
-| ~~3~~   | ~~**Dual Mode Orchestration**~~         | ~~3-4w~~ | ~~Unified tag-based orchestration supporting UI, CLI, SSM, and Step Functions invocation methods. Tag-based Protection Groups with EC2 tag resolution, tag conflict prevention, InvocationSourceBadge tracking, SSM runbook, execution registry, enhanced orchestration state object for parent Step Function integration.~~ | ✅ Complete | [Implementation Plan](docs/implementation/DUAL_MODE_ORCHESTRATION_DESIGN.md)   | Dec 12, 2025               | `3409505`, `f50658c`                        |
-| ~~4~~    | ~~**EC2 Launch Template & DRS Launch Settings**~~ | ~~1-2w~~ | ~~Full EC2 Launch Template and DRS Launch Settings configuration via UI and API. Includes: Subnet, Security Groups, Instance Profile, Instance Type, Instance Type Right Sizing (BASIC/IN_AWS/NONE), Launch Disposition (STARTED/STOPPED), OS Licensing (BYOL/AWS), Copy Private IP, Transfer Server Tags. Settings applied to all servers in Protection Group.~~ | ✅ Complete | [EC2 Template MVP v2](docs/implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN_V2.md) | Dec 13, 2025 | `2272e5e`, `74ac444`, `a75eb67` |
-| ~~5~~    | ~~**Configuration Export/Import**~~ | ~~2-3d~~ | ~~Full backup and restore of Protection Groups and Recovery Plans via JSON export/import. Includes: one-click export, dry-run validation, non-destructive additive import, server/tag validation, LaunchConfig preservation and automatic application to DRS on import. Uses ProtectionGroupName for cross-environment portability. Access via Settings gear icon.~~ | ✅ Complete | [Config Export/Import Spec](docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md) | Dec 14, 2025 | `9a34e74`, `eb3ba49`, `be7b4e0`, `e3e7469` |
-| 6        | **Scheduled Drills**                 | 3-5d | Automated scheduled drill executions with EventBridge rules and reporting dashboard.                                                                                                                                              | Planned     | -                                                                                      | -               | -                        |
-| 6        | **CodeBuild & CodeCommit Migration** | 4-6d | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline.                                                                  | Planned     | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)         | -               | -                        |
-| 7        | **SNS Notification Integration**     | 1-2w | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty.                                                                                                        | Planned     | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md)        | -               | -                        |
-| 8        | **DRS Tag Synchronization**          | 1-2w | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls. | Planned     | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md)            | -               | -                        |
-| 9        | **Step Functions Visualization**     | 2-3w | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI.                            | Planned     | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md) | -               | -                        |
-| 10       | **SSM Automation Integration**       | 2-3w | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts.                                                                                                     | Planned     | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md)               | -               | -                        |
-| 11       | **Cross-Account DRS Monitoring**     | 2-3w | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards.                                                              | Planned     | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md) | -               | -                        |
-| 12       | **DRS Source Server Management (Remaining)**   | 3-4w | Remaining DRS source server configuration: Server Info dashboard, Tags Management, Disk Settings, Replication Settings, and Post-Launch Actions. EC2 Launch Template and Launch Settings now complete.                                                                            | Planned     | [Server Info MVP](docs/implementation/DRS_SERVER_INFO_MVP_PLAN.md), [Tags MVP](docs/implementation/DRS_TAGS_MVP_PLAN.md), [Disk Settings MVP](docs/implementation/DRS_DISK_SETTINGS_MVP_PLAN.md), [Replication MVP](docs/implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md), [Post-Launch MVP](docs/implementation/DRS_POST_LAUNCH_MVP_PLAN.md)     | -               | -                        |
-| 13       | **Multi-Account Support**            | 4-6w | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI. Scale beyond 300 servers using multiple staging accounts (250/account recommended).       | Planned     | [Implementation Guide](docs/implementation/MULTI_ACCOUNT_DRS_IMPLEMENTATION.md) | -               | -                        |
-| 14       | **DRS Agent Installation & Replication Monitoring** | 8-9w | End-to-end DRS agent installation via SSM with progress tracking, replication initialization visualization (11 steps), continuous replication monitoring, reverse replication & failback management, and unified replication dashboard with aggregate metrics and alerts. | Planned     | [Implementation Plan](docs/implementation/DRS_AGENT_INSTALLATION_REPLICATION_MONITORING.md) | -               | -                        |
-| 15       | **Failover & Failback Orchestration** | 10-12w | Complete DR lifecycle: automatic failover session tracking, agent installation on recovery instances, automatic Protection Group and Recovery Plan mirroring with original region settings (subnet, security groups, etc.), reverse replication monitoring, and one-click failback execution. | Planned     | [Implementation Plan](docs/implementation/FAILOVER_FAILBACK_ORCHESTRATION_PLAN.md), [Spec](.kiro/specs/failover-failback-orchestration/requirements.md) | -               | -                        |
-| 16       | **DRS Recovery Deep Dive Enhancements** | 4w | Enhanced recovery capabilities: point-in-time snapshot selection UI, detailed job log monitoring with event streaming, recovery instance tracking, comprehensive error handling with retry logic. Covers all DRS recovery APIs (StartRecovery, DescribeJobs, DescribeJobLogItems, DescribeRecoverySnapshots, DescribeRecoveryInstances, TerminateRecoveryInstances). | ✅ Documented | [Deep Dive Plan](docs/implementation/DRS_RECOVERY_DEEP_DIVE.md) | -               | -                        |
-| 17       | **DRS Source Servers Page** | 3-4w | Dedicated Source Servers page replicating AWS DRS Console functionality. Displays all DRS source servers with real-time replication status, recovery readiness, last recovery results, and pending actions. Includes server details page with tabs for Overview, Replication, Launch Settings, Recovery History, and Tags. Enables drill/recovery initiation directly from server list. | ✅ Documented | [Implementation Plan](docs/implementation/DRS_SOURCE_SERVERS_PAGE_PLAN.md) | -               | -                        |
-| 17       | **DRS Extended Source Servers & Cross-Account** | 6-8w | Cross-account disaster recovery with Extended Source Servers. Enables production in Account A replicating to staging in Account B. Includes CreateExtendedSourceServer API, cross-account IAM setup, staging area configuration, cross-account recovery orchestration, and multi-account management UI. Scale beyond 300-server limit using multiple target accounts. | ✅ Documented | [Implementation Plan](docs/implementation/DRS_EXTENDED_SOURCE_SERVERS_IMPLEMENTATION.md) | -               | -                        |
+| Priority | Feature                                                   | LOE       | Description                                                                                                                                                                                                                                                                                                                                                                             | Status        | Documentation                                                                                                                                                                                                                                                                                                                      | Completion Date | Git Commits                                        |
+| -------- | --------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | -------------------------------------------------- |
+| ~~1~~   | ~~DRS Regional Availability Update~~                     | ~~2d~~   | ~~Update UI and documentation to reflect all 30 AWS DRS regions (28 commercial + 2 GovCloud).~~                                                                                                                                                                                                                                                                                        | ✅ Complete   | [Implementation Plan](docs/implementation/DRS_REGIONAL_AVAILABILITY_UPDATE_PLAN.md)                                                                                                                                                                                                                                                   | Dec 9, 2025     | `fa80b39`, `aed36c0`                           |
+| ~~2~~   | ~~DRS Service Limits Compliance~~                        | ~~3d~~   | ~~Implement UI validation for AWS DRS hard limits: 300 replicating servers (hard limit), 500 max servers in all jobs, 20 concurrent jobs. Includes 48 unit tests ([test docs](docs/validation/DRS_SERVICE_LIMITS_TESTING.md)).~~                                                                                                                                                          | ✅ Complete   | [Implementation Plan](docs/implementation/DRS_SERVICE_LIMITS_IMPLEMENTATION_PLAN.md)                                                                                                                                                                                                                                                  | Dec 9, 2025     | `52c649e`, `06bca16`, `fd578cc`, `b65e25e` |
+| ~~3~~   | ~~**Dual Mode Orchestration**~~                    | ~~3-4w~~ | ~~Unified tag-based orchestration supporting UI, CLI, SSM, and Step Functions invocation methods. Tag-based Protection Groups with EC2 tag resolution, tag conflict prevention, InvocationSourceBadge tracking, SSM runbook, execution registry, enhanced orchestration state object for parent Step Function integration.~~                                                           | ✅ Complete   | [Implementation Plan](docs/implementation/DUAL_MODE_ORCHESTRATION_DESIGN.md)                                                                                                                                                                                                                                                          | Dec 12, 2025    | `3409505`, `f50658c`                           |
+| ~~4~~   | ~~**EC2 Launch Template & DRS Launch Settings**~~  | ~~1-2w~~ | ~~Full EC2 Launch Template and DRS Launch Settings configuration via UI and API. Includes: Subnet, Security Groups, Instance Profile, Instance Type, Instance Type Right Sizing (BASIC/IN_AWS/NONE), Launch Disposition (STARTED/STOPPED), OS Licensing (BYOL/AWS), Copy Private IP, Transfer Server Tags. Settings applied to all servers in Protection Group.~~                      | ✅ Complete   | [EC2 Template MVP v2](docs/implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN_V2.md)                                                                                                                                                                                                                                                         | Dec 13, 2025    | `2272e5e`, `74ac444`, `a75eb67`              |
+| ~~5~~   | ~~**Configuration Export/Import**~~                | ~~2-3d~~ | ~~Full backup and restore of Protection Groups and Recovery Plans via JSON export/import. Includes: one-click export, dry-run validation, non-destructive additive import, server/tag validation, LaunchConfig preservation and automatic application to DRS on import. Uses ProtectionGroupName for cross-environment portability. Access via Settings gear icon.~~                   | ✅ Complete   | [Config Export/Import Spec](docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md)                                                                                                                                                                                                                                                         | Dec 14, 2025    | `9a34e74`, `eb3ba49`, `be7b4e0`, `e3e7469` |
+| 6        | **Scheduled Drills**                                | 3-5d      | Automated scheduled drill executions with EventBridge rules and reporting dashboard.                                                                                                                                                                                                                                                                                                    | Planned       | -                                                                                                                                                                                                                                                                                                                                  | -               | -                                                  |
+| 6        | **CodeBuild & CodeCommit Migration**                | 4-6d      | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline.                                                                                                                                                                                                                         | Planned       | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)                                                                                                                                                                                                                                                     | -               | -                                                  |
+| 7        | **SNS Notification Integration**                    | 1-2w      | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty.                                                                                                                                                                                                                                                               | Planned       | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md)                                                                                                                                                                                                                                                    | -               | -                                                  |
+| 8        | **DRS Tag Synchronization**                         | 1-2w      | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls.                                                                                                                                                        | Planned       | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md)                                                                                                                                                                                                                                                        | -               | -                                                  |
+| 9        | **Step Functions Visualization**                    | 2-3w      | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI.                                                                                                                                                                                   | Planned       | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md)                                                                                                                                                                                                                                             | -               | -                                                  |
+| 10       | **SSM Automation Integration**                      | 2-3w      | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts.                                                                                                                                                                                                                                                            | Planned       | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md)                                                                                                                                                                                                                                                           | -               | -                                                  |
+| 11       | **Cross-Account DRS Monitoring**                    | 2-3w      | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards. *(Monitoring/alerting only; see #13 for orchestration, #18 for replication setup)*                                                                                                                                  | Planned       | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md)                                                                                                                                                                                                                                             | -               | -                                                  |
+| 12       | **DRS Source Server Management (Remaining)**        | 3-4w      | Remaining DRS source server configuration: Server Info dashboard, Tags Management, Disk Settings, Replication Settings, and Post-Launch Actions. EC2 Launch Template and Launch Settings now complete. *(Detailed config panels; see #17 for Source Servers list page)*                                                                                                                 | Planned       | [Server Info MVP](docs/implementation/DRS_SERVER_INFO_MVP_PLAN.md), [Tags MVP](docs/implementation/DRS_TAGS_MVP_PLAN.md), [Disk Settings MVP](docs/implementation/DRS_DISK_SETTINGS_MVP_PLAN.md), [Replication MVP](docs/implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md), [Post-Launch MVP](docs/implementation/DRS_POST_LAUNCH_MVP_PLAN.md) | -               | -                                                  |
+| 13       | **Multi-Account Support**                           | 4-6w      | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI. Scale beyond 300 servers using multiple staging accounts (250/account recommended). *(Orchestration focus; see #11 for monitoring, #18 for replication setup)*                                                                                   | Planned       | [Implementation Guide](docs/implementation/MULTI_ACCOUNT_DRS_IMPLEMENTATION.md)                                                                                                                                                                                                                                                       | -               | -                                                  |
+| 14       | **DRS Agent Installation & Replication Monitoring** | 8-9w      | End-to-end DRS agent installation via SSM with progress tracking, replication initialization visualization (11 steps), continuous replication monitoring, reverse replication & failback management, and unified replication dashboard with aggregate metrics and alerts. *(SOURCE server agent install; see #15 for RECOVERY instance agent install)*                                  | Planned       | [Implementation Plan](docs/implementation/DRS_AGENT_INSTALLATION_REPLICATION_MONITORING.md)                                                                                                                                                                                                                                           | -               | -                                                  |
+| 15       | **Failover & Failback Orchestration**               | 10-12w    | Complete DR lifecycle: automatic failover session tracking, agent installation on recovery instances, automatic Protection Group and Recovery Plan mirroring with original region settings (subnet, security groups, etc.), reverse replication monitoring, and one-click failback execution. *(RECOVERY instance agent install; see #14 for SOURCE server agent install)*              | Planned       | [Implementation Plan](docs/implementation/FAILOVER_FAILBACK_ORCHESTRATION_PLAN.md), [Spec](.kiro/specs/failover-failback-orchestration/requirements.md)                                                                                                                                                                                  | -               | -                                                  |
+| 16       | **DRS Recovery Deep Dive Enhancements**             | 4w        | Enhanced recovery capabilities: point-in-time snapshot selection UI, detailed job log monitoring with event streaming, recovery instance tracking, comprehensive error handling with retry logic. Covers all DRS recovery APIs (StartRecovery, DescribeJobs, DescribeJobLogItems, DescribeRecoverySnapshots, DescribeRecoveryInstances, TerminateRecoveryInstances).                    | ✅ Documented | [Deep Dive Plan](docs/implementation/DRS_RECOVERY_DEEP_DIVE.md)                                                                                                                                                                                                                                                                       | -               | -                                                  |
+| 17       | **DRS Source Servers Page**                         | 3-4w      | Dedicated Source Servers page replicating AWS DRS Console functionality. Displays all DRS source servers with real-time replication status, recovery readiness, last recovery results, and pending actions. Includes server details page with tabs for Overview, Replication, Launch Settings, Recovery History, and Tags. *(List page; see #12 for detailed config panels)*            | ✅ Documented | [Implementation Plan](docs/implementation/DRS_SOURCE_SERVERS_PAGE_PLAN.md)                                                                                                                                                                                                                                                            | -               | -                                                  |
+| 18       | **DRS Extended Source Servers & Cross-Account**     | 6-8w      | Cross-account disaster recovery with Extended Source Servers. Enables production in Account A replicating to staging in Account B. Includes CreateExtendedSourceServer API, cross-account IAM setup, staging area configuration, cross-account recovery orchestration, and multi-account management UI. *(Replication setup; see #13 for orchestration, #11 for monitoring)*            | ✅ Documented | [Implementation Plan](docs/implementation/DRS_EXTENDED_SOURCE_SERVERS_IMPLEMENTATION.md)                                                                                                                                                                                                                                              | -               | -                                                  |
 
 ## License
 

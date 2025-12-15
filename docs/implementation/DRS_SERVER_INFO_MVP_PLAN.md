@@ -586,6 +586,25 @@ export default ServerInfoPanel;
 
 ---
 
+## Related Features
+
+This MVP is part of a larger DRS management feature set. Understanding the relationships helps clarify scope boundaries:
+
+| Feature | Relationship | Scope Boundary |
+|---------|--------------|----------------|
+| **#17 DRS Source Servers Page** | Container/Parent | #17 provides the list page and navigation; this MVP (#12) provides the detailed server info panel and tabs |
+| **#16 DRS Recovery Deep Dive** | Complementary | #16 provides deep dive into recovery operations (PIT snapshots, job logs); this MVP provides server info and replication status |
+| **#14 Agent Installation & Replication Monitoring** | Complementary | #14 covers agent installation and replication initialization; this MVP displays the resulting replication status |
+
+### Scope Clarification
+
+- **This MVP (#12)**: Read-only server details, replication status display, lifecycle state, recovery readiness indicators
+- **#17 Source Servers Page**: List view, filtering, sorting, navigation to server details
+- **#16 Recovery Deep Dive**: Point-in-time snapshots, job logs, recovery instance tracking
+- **#14 Agent Installation**: SSM-based agent installation, replication initialization steps monitoring
+
+---
+
 ## Future Enhancements
 
 | Feature | Priority | Effort |
