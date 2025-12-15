@@ -2,16 +2,18 @@
 
 ## Executive Summary
 
-Integrate the archived DRS tag synchronization tool into the orchestration UI, enabling users to synchronize EC2 instance tags and instance types to DRS source servers through a visual interface with on-demand and scheduled sync capabilities.
+Integrate the archived DRS tag synchronization tool into the orchestration UI, enabling users to synchronize EC2 instance tags to DRS source servers through a visual interface with on-demand and scheduled sync capabilities.
 
 ## Problem Statement
 
-The archived `drs-synch-ec2-tags-and-instance-type` solution provides automated tag and instance type synchronization via EventBridge scheduled rules, but lacks:
+The archived `drs-synch-ec2-tags-and-instance-type` solution provides automated tag synchronization via EventBridge scheduled rules, but lacks:
 - Visual interface for on-demand synchronization
 - Per-server sync control and status visibility
 - Integration with Protection Group workflows
 - Real-time sync progress monitoring
 - Sync history and audit trail
+
+**Current UI Capability**: The ServerDiscoveryPanel already collects and displays comprehensive server metadata including `drsTags`, `sourceInstanceId`, `sourceIp`, `sourceRegion`, `sourceAccount`, and `nameTag` from EC2 instances. This existing infrastructure can be leveraged for tag sync operations.
 
 ## Proposed Solution
 
@@ -29,12 +31,13 @@ DynamoDB (sync-history) EC2 API
 
 ### Core Features
 
-1. **On-Demand Sync**: Trigger tag/instance type sync from UI
+1. **On-Demand Sync**: Trigger tag sync from UI
 2. **Bulk Operations**: Sync all servers in a Protection Group or region
-3. **Selective Sync**: Choose to sync tags only, instance types only, or both
-4. **Sync History**: Track all sync operations with timestamps and results
-5. **Real-Time Status**: Monitor sync progress with server-level details
-6. **Scheduled Sync**: Configure automatic sync schedules per region
+3. **Sync History**: Track all sync operations with timestamps and results
+4. **Real-Time Status**: Monitor sync progress with server-level details
+5. **Scheduled Sync**: Configure automatic sync schedules per region
+6. **Tag Preview Integration**: Leverage existing tag collection in ServerDiscoveryPanel for sync validation
+7. **Metadata Enrichment**: Add source:* tags (account, region, instance-id) as in archived solution
 
 ## Implementation Plan
 
@@ -49,7 +52,7 @@ DynamoDB (sync-history) EC2 API
 | SyncId (PK) | String | Unique sync operation ID |
 | Timestamp (SK) | Number | Unix timestamp |
 | Region | String | AWS region |
-| SyncType | String | `tags`, `instance-type`, `both` |
+| SyncType | String | `tags` |
 | Status | String | `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | TotalServers | Number | Total servers to sync |
 | SuccessCount | Number | Successfully synced servers |
@@ -191,7 +194,6 @@ def sync_server_instance_type(drs_client, ec2_client, source_server_id, instance
 │ Sync Configuration                      │
 │ ┌─────────────────────────────────────┐ │
 │ │ ☑ Sync Tags                         │ │
-│ │ ☑ Sync Instance Types               │ │
 │ │                                     │ │
 │ │ Schedule: [Daily ▼] at [02:00 ▼]   │ │
 │ │                                     │ │
@@ -211,9 +213,9 @@ def sync_server_instance_type(drs_client, ec2_client, source_server_id, instance
 
 **Location**: `frontend/src/pages/ProtectionGroupDetailsPage.tsx`
 
-**Add Button**: "Sync Tags & Instance Types"
+**Add Button**: "Sync Tags"
 
-**Modal Dialog**:
+**Modal Dialog with Tag Preview**:
 ```
 ┌─────────────────────────────────────────┐
 │ Sync Tags & Instance Types              │
@@ -226,11 +228,22 @@ def sync_server_instance_type(drs_client, ec2_client, source_server_id, instance
 │ ☑ Sync EC2 tags to DRS source servers  │
 │ ☑ Update DRS instance types             │
 │                                         │
+│ Tag Preview (from existing UI data):    │
+│ ┌─────────────────────────────────────┐ │
+│ │ Environment: Production             │ │
+│ │ Application: WebApp                 │ │
+│ │ Tier: Database                      │ │
+│ │ + source:account: 123456789012     │ │
+│ │ + source:region: us-east-1         │ │
+│ │ + source:instance-id: i-1234567    │ │
+│ │ + source:instance-type: r5.xlarge  │ │
+│ └─────────────────────────────────────┘ │
+│                                         │
 │ This will:                              │
 │ • Copy all EC2 tags to DRS servers     │
 │ • Add source:* metadata tags           │
 │ • Update launch template instance types│
-│ • Disable right-sizing                 │
+│ • Disable right-sizing (set to NONE)  │
 │                                         │
 │ [Cancel] [Sync Now]                    │
 └─────────────────────────────────────────┘
@@ -423,11 +436,22 @@ def sync_single_server(drs_client, ec2_client, source_server_id: str, sync_type:
 def get_ec2_instance_details(ec2_client, instance_id: str) -> Dict:
     """Get EC2 instance tags and instance type"""
     
-def update_drs_tags(drs_client, source_server_id: str, tags: Dict) -> bool:
-    """Update DRS source server tags"""
+def update_drs_tags(drs_client, source_server_id: str, tags: Dict, source_account: str, source_region: str, instance_id: str, instance_type: str) -> bool:
+    """Update DRS source server tags including source:* metadata tags"""
+    # Add source metadata tags as in archived solution
+    tags.update({
+        'source:account': source_account,
+        'source:region': source_region,
+        'source:instance-id': instance_id,
+        'source:instance-type': instance_type
+    })
     
 def update_drs_instance_type(drs_client, ec2_client, source_server_id: str, instance_type: str) -> bool:
-    """Update DRS launch template instance type"""
+    """Update DRS launch template instance type and disable right-sizing"""
+    # Set targetInstanceTypeRightSizingMethod to 'NONE' as in archived solution
+    
+def enable_copy_tags_to_recovery(drs_client, source_server_id: str) -> bool:
+    """Enable copyTags in launch configuration as in archived solution"""
     
 def record_sync_history(sync_id: str, results: Dict) -> None:
     """Record sync operation in DynamoDB"""
@@ -506,6 +530,8 @@ export const DRSTagSyncModal: React.FC<DRSTagSyncModalProps> = ({
 - **Audit Trail**: Complete history of all sync operations
 - **Bulk Operations**: Sync entire Protection Groups with one click
 - **Flexible Scheduling**: Configure automatic sync per region
+- **Tag Preview**: See exactly which tags will be synced using existing UI data
+- **Metadata Enrichment**: Automatic source:* tags for complete traceability
 
 ### For Operations
 - **Reduced Manual Work**: Automated tag propagation from EC2 to DRS
@@ -543,10 +569,12 @@ export const DRSTagSyncModal: React.FC<DRSTagSyncModalProps> = ({
 
 ✅ Tag synchronization from EC2 to DRS  
 ✅ Instance type synchronization  
-✅ source:* metadata tags  
-✅ Launch template updates  
-✅ Right-sizing disable  
+✅ source:* metadata tags (account, region, instance-id, instance-type)  
+✅ Launch template version creation and default version update  
+✅ Right-sizing disable (targetInstanceTypeRightSizingMethod = 'NONE')  
+✅ Enable copyTags in launch configuration  
 ✅ Cross-account support (future)  
+✅ Leverage existing ServerDiscoveryPanel tag collection  
 
 ## Future Enhancements
 
@@ -589,9 +617,15 @@ export const DRSTagSyncModal: React.FC<DRSTagSyncModalProps> = ({
 
 This implementation plan transforms the archived EventBridge-scheduled tag sync tool into a fully integrated UI feature with on-demand sync, real-time monitoring, and complete audit trails. The solution maintains all core functionality while adding visual control, bulk operations, and sync history tracking.
 
+**Key Implementation Notes**:
+- Leverage existing `ServerDiscoveryPanel.tsx` tag collection (`drsTags`, `sourceInstanceId`, etc.)
+- Implement exact archived solution logic: source:* metadata tags, launch template versioning, right-sizing disable
+- Use existing server metadata for tag preview before sync
+- Maintain compatibility with archived solution's cross-account patterns
+
 **Recommended Next Steps**:
 1. Review and approve implementation plan
 2. Create feature branch: `feature/drs-tag-sync-ui-integration`
-3. Begin Phase 1: Backend infrastructure
-4. Deploy to dev environment for testing
-5. Gather user feedback and iterate
+3. Begin Phase 1: Backend infrastructure (reuse archived Lambda logic)
+4. Integrate with existing ServerDiscoveryPanel tag display
+5. Deploy to dev environment for testing
