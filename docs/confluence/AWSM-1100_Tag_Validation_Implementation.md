@@ -53,6 +53,18 @@ Deploy this tag policy at the AWS Organization level to validate DR tag values.
         "@@assign": ["ec2:instance"]
       }
     },
+    "dr:tier": {
+      "tag_key": {
+        "@@assign": "dr:tier"
+      },
+      "tag_value": {
+        "@@assign": ["database", "application", "web", "infrastructure"]
+      },
+      "enforced_for": {
+        "@@assign": ["ec2:instance"]
+      },
+      "description": "Application tier for recovery ordering. Replaces deprecated Purpose tag."
+    },
     "dr:recovery-strategy": {
       "tag_key": {
         "@@assign": "dr:recovery-strategy"
@@ -314,6 +326,7 @@ aws ec2 run-instances \
 | `dr:enabled` | `true`, `false` |
 | `dr:priority` | `critical`, `high`, `medium`, `low` |
 | `dr:wave` | `1`, `2`, `3`, `4`, `5` |
+| `dr:tier` | `database`, `application`, `web`, `infrastructure` |
 | `dr:recovery-strategy` | `drs`, `eks-dns`, `sql-ag`, `managed-service` |
 | `dr:rto-target` | Integer (minutes) |
 | `dr:rpo-target` | Integer (minutes) |
