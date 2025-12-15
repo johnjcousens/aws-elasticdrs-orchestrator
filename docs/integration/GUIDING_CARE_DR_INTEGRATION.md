@@ -28,13 +28,13 @@ The **Guiding Care DR Implementation** defines the official DR taxonomy. The Hea
 | `dr:rto-target` | Integer (minutes) | Optional | Target recovery time objective |
 | `dr:rpo-target` | Integer (minutes) | Optional | Target recovery point objective |
 
-### Scoping Tags (Existing)
+### Scoping Tags
 
-| Tag | Values | Purpose |
-|-----|--------|---------|
+| Tag | Values | Description |
+|-----|--------|-------------|
 | `Customer` | Customer identifier | Multi-tenant scoping |
 | `Environment` | Production, NonProduction, etc. | Environment filtering |
-| `Purpose` | `DatabaseServers` \| `AppServers` \| `WebServers` | Application tier classification |
+| `dr:tier` | `database` \| `application` \| `web` \| `infrastructure` | Application tier classification |
 
 ### DR Priority to RTO Mapping
 
@@ -55,8 +55,8 @@ The **Guiding Care DR Implementation** defines the official DR taxonomy. The Hea
 | `dr:recovery-strategy` | ℹ️ Not used | ✅ Recovery method selection | drs, eks-dns, sql-ag, managed-service |
 | `dr:rto-target` | ℹ️ Not used | ✅ RTO tracking | Target in minutes |
 | `dr:rpo-target` | ℹ️ Not used | ✅ RPO tracking | Target in minutes |
-| `Purpose` | ✅ Protection Group filtering | ✅ Resource classification | Existing tag |
-| `Customer` | ✅ Protection Group filtering | ✅ Multi-tenant scoping | Existing tag |
+| `dr:tier` | ✅ Protection Group filtering | ✅ Resource classification | Application tier |
+| `Customer` | ✅ Protection Group filtering | ✅ Multi-tenant scoping | Customer isolation |
 
 ---
 
@@ -74,7 +74,7 @@ protection_group = {
     "GroupName": "CustomerA-Database-Tier",
     "ServerSelectionTags": {
         "dr:enabled": "true",
-        "Purpose": "DatabaseServers",
+        "dr:tier": "database",
         "Customer": "CustomerA"
     }
 }
@@ -114,28 +114,29 @@ drs_resources = resource_explorer.search(
 )
 ```
 
-### 2.3 Use Existing Tags for Tier Classification
+### 2.3 Use dr:tier Tag for Tier Classification
 
-Both systems use the existing `Purpose` tag for tier classification:
+Both systems use the `dr:tier` tag for tier classification:
 
-| Purpose Value | Description | Typical Wave |
+| dr:tier Value | Description | Typical Wave |
 |---------------|-------------|--------------|
-| `DatabaseServers` | Database tier (SQL, Oracle, etc.) | Wave 1 |
-| `AppServers` | Application/API tier | Wave 2 |
-| `WebServers` | Web/presentation tier | Wave 3 |
+| `database` | Database tier (SQL, Oracle, etc.) | Wave 1 |
+| `application` | Application/API tier | Wave 2 |
+| `web` | Web/presentation tier | Wave 3 |
+| `infrastructure` | Supporting infrastructure (AD, DNS) | Wave 1 |
 
 ```json
 {
   "ServerSelectionTags": {
     "dr:enabled": "true",
-    "Purpose": "DatabaseServers",
+    "dr:tier": "database",
     "Customer": "CustomerA",
     "Environment": "Production"
   }
 }
 ```
 
-> **Note:** Use existing tags (`Purpose`, `Customer`, `Environment`, `Application`) for filtering. No need for a separate `dr:tier` tag.
+> **Note:** The `Purpose` tag is NOT used in HealthEdge AWS accounts (confirmed December 2025). Use `dr:tier` for tier classification.
 
 ---
 
@@ -211,8 +212,8 @@ tags = {
     'BusinessUnit': 'GuidingCare',           # Required
     'Owner': 'team@healthedge.com',          # Required
     
-    # Classification Tags (existing)
-    'Purpose': 'AppServers',                 # Recommended - DatabaseServers|AppServers|WebServers
+    # Classification Tags
+    'dr:tier': 'application',                # Recommended - database|application|web|infrastructure
     'Application': 'GuidingCare',            # Recommended
 }
 ```
@@ -223,7 +224,7 @@ tags = {
 # DO NOT USE - These tags are deprecated
 invalid_tags = {
     'DRS': 'True',             # DEPRECATED - Use dr:enabled instead
-    'dr:tier': 'application',  # Use existing Purpose tag instead
+    'Purpose': 'AppServers',   # NOT USED - Use dr:tier instead
 }
 ```
 
@@ -310,9 +311,9 @@ Before DR operations, verify tag compliance:
 - [ ] All DR-enabled resources have `dr:priority` (critical, high, medium, low)
 - [ ] All DR-enabled resources have `dr:wave` (1, 2, 3, 4, 5)
 - [ ] `dr:recovery-strategy` values (if used) are: `drs`, `eks-dns`, `sql-ag`, `managed-service`
-- [ ] `Purpose` values are: `DatabaseServers`, `AppServers`, `WebServers`
+- [ ] `dr:tier` values are: `database`, `application`, `web`, `infrastructure`
 - [ ] No legacy `DRS` tags without corresponding `dr:enabled` tag
-- [ ] No deprecated `dr:tier` tags (use `Purpose` instead)
+- [ ] No deprecated `Purpose` tags (use `dr:tier` instead)
 - [ ] AWS Config rule `dr-tag-compliance` is deployed and reporting
 - [ ] Resource Explorer aggregator configured in us-east-1
 

@@ -31,17 +31,20 @@ This document defines the standardized DR tagging taxonomy for HealthEdge AWS re
 | `dr:rto-target` | Integer (minutes) | Target recovery time objective in minutes. |
 | `dr:rpo-target` | Integer (minutes) | Target recovery point objective in minutes. |
 
-### 1.3 Existing Tags for Tier Classification
+### 1.3 Tier Classification Tag
 
-Use the existing `Purpose` tag for application tier classification:
+| Tag Key | Allowed Values | Required | Description |
+|---------|----------------|----------|-------------|
+| `dr:tier` | `database` \| `application` \| `web` \| `infrastructure` | **Yes** (DR-enabled) | Application tier for recovery ordering. |
 
-| Purpose Value | Description | Typical Wave |
+| dr:tier Value | Description | Typical Wave |
 |---------------|-------------|--------------|
-| `DatabaseServers` | Database servers (SQL, Oracle, etc.) | Wave 1 |
-| `AppServers` | Application/API servers | Wave 2 |
-| `WebServers` | Web/presentation tier | Wave 3 |
+| `database` | Database servers (SQL, Oracle, etc.) | Wave 1 |
+| `application` | Application/API servers | Wave 2 |
+| `web` | Web/presentation tier | Wave 3 |
+| `infrastructure` | Supporting infrastructure (AD, DNS, etc.) | Wave 1 |
 
-> **Note:** No new `dr:tier` tag is needed - use existing `Purpose` tag.
+> **Note:** The `Purpose` tag is NOT used in HealthEdge AWS accounts (confirmed December 2025). Use `dr:tier` for tier classification.
 
 ---
 
@@ -58,13 +61,13 @@ Use the existing `Purpose` tag for application tier classification:
 
 ## 3. Tag Usage by DR System
 
-| Tag | DRS Orchestration (HRP) | Guiding Care DR | Purpose |
-|-----|-------------------------|-----------------|---------|
+| Tag | DRS Orchestration (HRP) | Guiding Care DR | Description |
+|-----|-------------------------|-----------------|-------------|
 | `dr:enabled` | ✅ Required | ✅ Required | Identifies DR-enrolled resources |
 | `dr:priority` | ✅ Informational | ✅ RTO-based prioritization | Maps to RTO targets |
 | `dr:wave` | ℹ️ Not used (uses Recovery Plans) | ✅ Tag-driven wave discovery | Wave assignment |
+| `dr:tier` | ✅ Protection Group filtering | ✅ Resource classification | Application tier grouping |
 | `dr:recovery-strategy` | ℹ️ Not used | ✅ Recovery method selection | drs, eks-dns, sql-ag, managed-service |
-| `Purpose` | ✅ Protection Group filtering | ✅ Resource classification | Application tier grouping |
 | `Customer` | ✅ Protection Group filtering | ✅ Multi-tenant scoping | Customer isolation |
 
 ---
@@ -131,7 +134,7 @@ BusinessUnit: HRP
 Environment: Production
 Customer: CustomerName
 Application: PatientPortal
-Purpose: DatabaseServers
+dr:tier: database
 dr:enabled: true
 dr:priority: critical
 dr:wave: 1
@@ -147,7 +150,7 @@ BusinessUnit: GuidingCare
 Environment: Production
 Customer: CustomerName
 Application: CareManagement
-Purpose: AppServers
+dr:tier: application
 dr:enabled: true
 dr:priority: high
 dr:wave: 2
@@ -163,7 +166,7 @@ BusinessUnit: GuidingCare
 Environment: Production
 Customer: CustomerName
 Application: CareManagement
-Purpose: WebServers
+dr:tier: web
 dr:enabled: true
 dr:priority: medium
 dr:wave: 3

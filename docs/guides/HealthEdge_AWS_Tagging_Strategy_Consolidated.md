@@ -10,7 +10,7 @@
 
 This document is the **source of truth** for HealthEdge's comprehensive AWS tagging strategy, combining business organization, compliance, operational, and disaster recovery requirements into a unified reference. Tags are the building blocks of cloud resource reporting and are functional for auto-scaling, license management, cost allocation, backup management, and DR orchestration.
 
-The DR taxonomy tags (`dr:enabled`, `dr:priority`, `dr:wave`) combined with existing tags like `Purpose` are designed to support multiple DR orchestration systems across business units including HRP, Guiding Care, Wellframe, and Source. All DR solutions must consume tags as defined in this strategy.
+The DR taxonomy tags (`dr:enabled`, `dr:priority`, `dr:wave`, `dr:tier`) are designed to support multiple DR orchestration systems across business units including HRP, Guiding Care, Wellframe, and Source. All DR solutions must consume tags as defined in this strategy.
 
 ---
 
@@ -100,11 +100,12 @@ The DR taxonomy tags (`dr:enabled`, `dr:priority`, `dr:wave`) combined with exis
 | `dr:enabled` | `true` \| `false` | **Yes** (Production EC2) | Identifies resources for DR orchestration. Replaces legacy `DRS` tag. |
 | `dr:priority` | `critical` \| `high` \| `medium` \| `low` | **Yes** (DR-enabled) | Recovery priority classification mapping to RTO targets. |
 | `dr:wave` | `1` \| `2` \| `3` \| `4` \| `5` (integer) | **Yes** (DR-enabled) | Wave number for ordered recovery execution. |
+| `dr:tier` | `database` \| `application` \| `web` \| `infrastructure` | **Yes** (DR-enabled) | Application tier for recovery ordering. |
 | `dr:recovery-strategy` | `drs` \| `eks-dns` \| `sql-ag` \| `managed-service` | Optional | Recovery method for the resource. |
 | `dr:rto-target` | Integer (minutes) | Optional | Target recovery time objective in minutes. |
 | `dr:rpo-target` | Integer (minutes) | Optional | Target recovery point objective in minutes. |
 
-> **Note**: For application tier classification, use the existing `Purpose` tag (DatabaseServers, AppServers, WebServers) instead of creating a new `dr:tier` tag.
+> **Note**: The `Purpose` tag is NOT used in HealthEdge AWS accounts (confirmed December 2025). Use `dr:tier` for tier classification.
 
 #### DR Priority to RTO Mapping (Guiding Care DR Standard)
 
@@ -117,10 +118,10 @@ The DR taxonomy tags (`dr:enabled`, `dr:priority`, `dr:wave`) combined with exis
 
 #### DR Tag Usage by System
 
-| Tag | DRS Orchestration | Guiding Care DR | Purpose |
-|-----|-------------------|-----------------|---------|
+| Tag | DRS Orchestration | Guiding Care DR | Description |
+|-----|-------------------|-----------------|-------------|
 | `dr:enabled` | ✅ Required | ✅ Required | Identifies resources for DR orchestration |
-| `Purpose` | ✅ Protection Group filtering | ✅ Resource classification | Application tier grouping (existing tag) |
+| `dr:tier` | ✅ Protection Group filtering | ✅ Resource classification | Application tier grouping |
 | `dr:priority` | ✅ Informational | ✅ RTO-based prioritization | Maps to RTO targets |
 | `dr:wave` | ℹ️ Not used (waves in Recovery Plans) | ✅ Tag-driven wave discovery | Wave assignment for tag-driven discovery |
 | `dr:recovery-strategy` | ℹ️ Not used | ✅ Recovery method selection | drs, eks-dns, sql-ag, managed-service |
@@ -133,7 +134,7 @@ The DRS Orchestration solution uses **Protection Groups** and **Recovery Plans**
 
 1. **Protection Groups** organize servers by:
    - Explicit server selection (SourceServerIds)
-   - Tag-based selection (`ServerSelectionTags`) - can filter on ANY tag including `dr:enabled`, `Purpose`, `Customer`, `Application`, etc.
+   - Tag-based selection (`ServerSelectionTags`) - can filter on ANY tag including `dr:enabled`, `dr:tier`, `Customer`, `Application`, etc.
 
 2. **Recovery Plans** define wave execution order - waves are configured in the plan, NOT via `dr:wave` tags on servers.
 
@@ -146,22 +147,24 @@ Guiding Care DR uses **tag-driven discovery** via AWS Resource Explorer:
 1. **`dr:enabled`** - Identifies resources for DR orchestration (required)
 2. **`dr:priority`** - Maps to RTO targets for prioritization (required for DR-enabled)
 3. **`dr:wave`** - Enables tag-based wave discovery (required for DR-enabled)
-4. **`dr:recovery-strategy`** - Specifies recovery method (drs, eks-dns, sql-ag, managed-service)
-5. **`dr:rto-target`** / **`dr:rpo-target`** - Explicit RTO/RPO targets in minutes
+4. **`dr:tier`** - Application tier classification (database, application, web, infrastructure)
+5. **`dr:recovery-strategy`** - Specifies recovery method (drs, eks-dns, sql-ag, managed-service)
+6. **`dr:rto-target`** / **`dr:rpo-target`** - Explicit RTO/RPO targets in minutes
 
 > **Note**: DRS Orchestration (HRP) ignores `dr:wave` tags - wave order is defined in Recovery Plans. However, applying `dr:wave` tags enables integration with Guiding Care DR's tag-driven discovery.
 
 #### Tag-Based Protection Group Filtering
 
-Use the existing `Purpose` tag for tier-based server selection:
+Use the `dr:tier` tag for tier-based server selection:
 
-| Purpose Value | Description | Example Protection Group Filter |
+| dr:tier Value | Description | Example Protection Group Filter |
 |---------------|-------------|--------------------------------|
-| `DatabaseServers` | Database servers (SQL, Oracle, etc.) | `{"Purpose": "DatabaseServers", "Customer": "CustomerA"}` |
-| `AppServers` | Application/API servers | `{"Purpose": "AppServers", "Environment": "Production"}` |
-| `WebServers` | Web/presentation tier | `{"Purpose": "WebServers"}` |
+| `database` | Database servers (SQL, Oracle, etc.) | `{"dr:tier": "database", "Customer": "CustomerA"}` |
+| `application` | Application/API servers | `{"dr:tier": "application", "Environment": "Production"}` |
+| `web` | Web/presentation tier | `{"dr:tier": "web"}` |
+| `infrastructure` | Supporting infrastructure (AD, DNS) | `{"dr:tier": "infrastructure"}` |
 
-> **Note**: Use existing tags (`Purpose`, `Application`, `Customer`, `Environment`) for Protection Group filtering. No need for a separate `dr:tier` tag.
+> **Note**: The `Purpose` tag is NOT used in HealthEdge AWS accounts (confirmed December 2025). Use `dr:tier` for tier classification.
 
 ### 1.11 Patient Data Handling Tags (Healthcare-Specific)
 
@@ -258,7 +261,7 @@ Use the existing `Purpose` tag for tier-based server selection:
 | (none) | `dr:priority` | Assign based on RTO requirements (critical/high/medium/low) |
 | (none) | `dr:wave` | Assign based on recovery order (1-5) |
 
-> **Note**: Continue using the existing `Purpose` tag (DatabaseServers, AppServers, WebServers) for tier-based Protection Group filtering. No migration needed for tier classification.
+> **Note**: Use `dr:tier` tag (database, application, web, infrastructure) for tier-based Protection Group filtering. The `Purpose` tag is NOT used in HealthEdge AWS accounts.
 
 #### Migration Script Example
 
@@ -297,14 +300,14 @@ echo "  - dr:wave: 1 (databases), 2 (app servers), 3 (web servers), 4+ (other)"
 
 ### 3.2 DR Tags by Customer and Environment
 
-The DR taxonomy leverages existing `Customer`, `Environment`, and `Purpose` tags for multi-tenant scoping in Protection Groups:
+The DR taxonomy leverages `Customer`, `Environment`, and `dr:tier` tags for multi-tenant scoping in Protection Groups:
 
 ```
 # Example: Production database for CustomerA
 Customer: CustomerA
 Environment: Production
 Application: PatientPortal
-Purpose: DatabaseServers
+dr:tier: database
 dr:enabled: true
 ```
 
@@ -322,9 +325,9 @@ Protection Groups use `ServerSelectionTags` to filter DRS source servers:
 | ServerSelectionTags | Use Case |
 |---------------------|----------|
 | `{"dr:enabled": "true", "Customer": "CustomerA"}` | All DR-enrolled servers for CustomerA |
-| `{"Purpose": "DatabaseServers", "Environment": "Production"}` | All production database servers |
+| `{"dr:tier": "database", "Environment": "Production"}` | All production database servers |
 | `{"Application": "PatientPortal", "dr:enabled": "true"}` | All DR-enrolled PatientPortal servers |
-| `{"Customer": "CustomerA", "Purpose": "WebServers"}` | CustomerA web tier servers |
+| `{"Customer": "CustomerA", "dr:tier": "web"}` | CustomerA web tier servers |
 
 ### 3.3 DRS-Specific Tags (Legacy)
 
@@ -350,17 +353,18 @@ When EC2 instances are replicated to a DR region via AWS DRS, the following tags
 - `Application` - For application grouping
 - `Customer` - For customer identification
 - `DRS` - To confirm DRS enrollment
-- `Purpose` - For protection group filtering (AppServers, WebServers, DatabaseServers)
+- `dr:tier` - For protection group filtering (database, application, web, infrastructure)
 
 ### 3.3 Protection Group Tag Filtering
 
 DRS Protection Groups can filter source servers by tags. Common filter patterns:
 
-| Purpose Tag Value | Description |
-|-------------------|-------------|
-| `AppServers` | Application tier servers |
-| `WebServers` | Web/presentation tier servers |
-| `DatabaseServers` | Database tier servers |
+| dr:tier Value | Description |
+|---------------|-------------|
+| `database` | Database tier servers |
+| `application` | Application tier servers |
+| `web` | Web/presentation tier servers |
+| `infrastructure` | Supporting infrastructure (AD, DNS) |
 
 ---
 
@@ -709,7 +713,7 @@ ComplianceScope: HIPAA
 Customer: CustomerName
 Application: PatientPortal
 Service: UserDatabase
-Purpose: DatabaseServers
+dr:tier: database
 Owner: hrp-database-team@healthedge.com
 Backup: 1h14d
 MonitoringLevel: Critical
@@ -733,7 +737,7 @@ ComplianceScope: HITRUST
 Customer: CustomerName
 Application: CareManagement
 Service: WebFrontend
-Purpose: WebServers
+dr:tier: web
 Owner: guidingcare-team@healthedge.com
 Backup: 1d14d
 MonitoringLevel: Standard
@@ -755,7 +759,7 @@ ComplianceScope: HITRUST
 Customer: CustomerName
 Application: CareManagement
 Service: APIServer
-Purpose: AppServers
+dr:tier: application
 Owner: guidingcare-team@healthedge.com
 Backup: 1d14d
 MonitoringLevel: Standard
@@ -812,7 +816,7 @@ This tagging strategy is the **source of truth** for DR tagging across all Healt
 
 | Business Unit | DR Solution | Primary Approach | Tags Used |
 |---------------|-------------|------------------|-----------|
-| **HRP** | DRS Orchestration | Protection Groups + Recovery Plans | `dr:enabled`, `Purpose`, `Customer` |
+| **HRP** | DRS Orchestration | Protection Groups + Recovery Plans | `dr:enabled`, `dr:tier`, `Customer` |
 | **Guiding Care** | Guiding Care DR (CDK) | Tag-driven discovery via Resource Explorer | `dr:enabled`, `dr:priority`, `dr:wave` |
 | **Wellframe** | TBD | TBD | `dr:enabled` (minimum) |
 | **Source** | TBD | TBD | `dr:enabled` (minimum) |
@@ -825,7 +829,7 @@ The DR tagging strategy supports a layered orchestration architecture where mult
 ┌─────────────────────────────────────────────────────────────┐
 │              HealthEdge DR Tagging Strategy                 │
 │                   (This Document - Source of Truth)         │
-│  - Defines dr:enabled, dr:priority, dr:wave + uses Purpose  │
+│  - Defines dr:enabled, dr:priority, dr:wave, dr:tier        │
 │  - Enforced via Tag Policies, SCPs, AWS Config              │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -835,7 +839,7 @@ The DR tagging strategy supports a layered orchestration architecture where mult
 │   Guiding Care DR (CDK)     │ │   DRS Orchestration (CFN)   │
 │   - Tag-driven discovery    │ │   - Protection Groups       │
 │   - Resource Explorer       │ │   - Recovery Plans          │
-│   - dr:priority, dr:wave    │ │   - Purpose tag filtering   │
+│   - dr:priority, dr:wave    │ │   - dr:tier tag filtering   │
 │   - Bubble test isolation   │ │   - Pause/resume execution  │
 └─────────────────────────────┘ └─────────────────────────────┘
               │                               │
@@ -851,10 +855,10 @@ The DR tagging strategy supports a layered orchestration architecture where mult
 
 ### 9.4 Tag Consumption by System
 
-| Tag | Guiding Care DR | DRS Orchestration | Purpose |
-|-----|-----------------|-------------------|---------|
+| Tag | Guiding Care DR | DRS Orchestration | Description |
+|-----|-----------------|-------------------|-------------|
 | `dr:enabled` | ✅ Resource discovery | ✅ Protection Group filter | DRS enrollment indicator |
-| `Purpose` | ✅ Resource classification | ✅ Protection Group filter | Application tier grouping (existing tag) |
+| `dr:tier` | ✅ Resource classification | ✅ Protection Group filter | Application tier grouping |
 | `dr:priority` | ✅ RTO-based prioritization | ℹ️ Informational | Maps to RTO targets |
 | `dr:wave` | ✅ Tag-driven wave discovery | ℹ️ Not used (uses Recovery Plans) | Wave assignment |
 | `Customer` | ✅ Multi-tenant scoping | ✅ Protection Group filter | Customer isolation |
@@ -883,7 +887,7 @@ critical_resources = [r for r in resources if r.tags.get('dr:priority') == 'crit
   "GroupName": "HRP-CustomerA-Database-Tier",
   "ServerSelectionTags": {
     "dr:enabled": "true",
-    "Purpose": "DatabaseServers",
+    "dr:tier": "database",
     "Customer": "CustomerA",
     "BusinessUnit": "HRP"
   }
@@ -901,7 +905,7 @@ For seamless integration across all DR systems:
    - `Environment` - Required for environment filtering
 
 2. **Recommended for full ecosystem support:**
-   - `Purpose` - Enables tier-based grouping (DatabaseServers, AppServers, WebServers)
+   - `dr:tier` - Enables tier-based grouping (database, application, web, infrastructure)
    - `dr:priority` - Enables RTO-based prioritization (Guiding Care DR)
    - `dr:wave` - Enables tag-driven wave discovery (Guiding Care DR)
 
