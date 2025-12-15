@@ -30,15 +30,45 @@ This feature enables complete disaster recovery lifecycle management through aut
 
 **User Story:** As a DR administrator, I want to install DRS agents on recovery instances via the UI, so that I can enable reverse replication without manual SSH access.
 
+#### Technical Notes
+
+**Agent Uninstallation (Required Before Reinstall)**
+
+Recovery instances from DRS already have the agent installed pointing to the original region. Before installing the agent for reverse replication, the existing agent must be uninstalled:
+
+- **Windows**: `C:\Program Files (x86)\AWS Replication Agent\uninstall_agent_windows.bat`
+- **Linux**: `/var/lib/aws-replication-agent/uninstall_agent_linux.sh`
+
+The agent cannot be reinstalled to point to a different region/account without first uninstalling. Attempting to do so results in error: *"Cannot install agent, as this server was previously installed to replicate into another region or account."*
+
+**SSM Commands for Agent Lifecycle**:
+```powershell
+# Windows - Stop, Uninstall, Reboot
+& "C:\Program Files (x86)\AWS Replication Agent\stopAgent.bat"
+& "C:\Program Files (x86)\AWS Replication Agent\uninstall_agent_windows.bat"
+Remove-Item -Path "C:\Program Files (x86)\AWS Replication Agent" -Recurse -Force
+Restart-Computer -Force
+```
+
+```bash
+# Linux - Stop, Uninstall, Reboot
+sudo /var/lib/aws-replication-agent/stopAgent.sh
+sudo /var/lib/aws-replication-agent/uninstall_agent_linux.sh
+sudo rm -rf /var/lib/aws-replication-agent
+sudo reboot
+```
+
 #### Acceptance Criteria
 
 1. WHEN a user initiates agent installation for a Failover Session THEN the System SHALL verify all recovery instances have SSM agent running
-2. WHEN SSM agent is running THEN the System SHALL execute the `AWSDisasterRecovery-InstallDRAgentOnInstance` SSM document
-3. WHEN executing the SSM document THEN the System SHALL pass the source region as the target for reverse replication
-4. WHEN agent installation is in progress THEN the System SHALL update the session status to `INSTALLING_AGENTS`
-5. WHEN a user requests agent installation status THEN the System SHALL return the SSM command status for each instance
-6. IF agent installation fails on any instance THEN the System SHALL report the specific failure reason and allow retry
-7. WHEN agent installation completes successfully THEN the System SHALL verify new source servers are created in the source region
+2. WHEN SSM agent is running THEN the System SHALL first uninstall any existing DRS agent using the platform-specific uninstall script
+3. WHEN uninstalling the existing agent THEN the System SHALL reboot the instance and wait for SSM connectivity
+4. WHEN the instance is ready THEN the System SHALL execute the `AWSDisasterRecovery-InstallDRAgentOnInstance` SSM document
+5. WHEN executing the SSM document THEN the System SHALL pass the source region as the target for reverse replication
+6. WHEN agent installation is in progress THEN the System SHALL update the session status to `INSTALLING_AGENTS`
+7. WHEN a user requests agent installation status THEN the System SHALL return the SSM command status for each instance
+8. IF agent installation fails on any instance THEN the System SHALL report the specific failure reason and allow retry
+9. WHEN agent installation completes successfully THEN the System SHALL verify new source servers are created in the source region
 
 ### Requirement 3: Automatic Protection Group Mirroring
 
