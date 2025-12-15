@@ -1,7 +1,7 @@
 # Tag Validation Implementation for DR Tags
 
 **JIRA:** [AWSM-1100](https://healthedge.atlassian.net/browse/AWSM-1100)  
-**Version:** 1.2  
+**Version:** 1.3  
 **Date:** December 15, 2025  
 **Status:** Ready for Implementation
 
@@ -189,20 +189,22 @@ Deploy this SCP to enforce core business tags on all supported resources.
 
 ---
 
-## 4. AWS Config Rule for Tag Compliance
+## 4. AWS Config Rules for Tag Compliance
 
-Deploy this CloudFormation template to create an AWS Config rule that detects non-compliant resources.
+Deploy these CloudFormation templates to create AWS Config rules that detect non-compliant resources.
+
+### 4.1 Basic DR Tag Compliance (All EC2)
 
 ```yaml
 AWSTemplateFormatVersion: '2010-09-09'
-Description: AWS Config rule for DR tag compliance
+Description: AWS Config rule for basic DR tag compliance
 
 Resources:
   DRTagComplianceRule:
     Type: AWS::Config::ConfigRule
     Properties:
-      ConfigRuleName: dr-tag-compliance
-      Description: Checks that EC2 instances have required DR tags
+      ConfigRuleName: dr-tag-compliance-basic
+      Description: Checks that EC2 instances have dr:enabled tag
       InputParameters:
         tag1Key: dr:enabled
         tag1Value: "true,false"
@@ -218,8 +220,105 @@ Resources:
 
 Outputs:
   ConfigRuleArn:
-    Description: ARN of the DR tag compliance Config rule
     Value: !GetAtt DRTagComplianceRule.Arn
+```
+
+### 4.2 DR-Enabled Tag Compliance (Custom Rule)
+
+For resources with `dr:enabled=true`, validate that `dr:priority` and `dr:wave` are also present. This requires a custom Config rule since the AWS managed rule doesn't support conditional tag requirements.
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Custom AWS Config rule for DR-enabled tag compliance
+
+Resources:
+  DREnabledComplianceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: dr-enabled-tag-compliance
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          
+          def handler(event, context):
+              config = boto3.client('config')
+              invoking_event = json.loads(event['invokingEvent'])
+              configuration_item = invoking_event['configurationItem']
+              
+              # Get tags
+              tags = configuration_item.get('tags', {})
+              dr_enabled = tags.get('dr:enabled', '').lower()
+              
+              # If dr:enabled=true, check for dr:priority and dr:wave
+              if dr_enabled == 'true':
+                  dr_priority = tags.get('dr:priority', '')
+                  dr_wave = tags.get('dr:wave', '')
+                  
+                  if not dr_priority or dr_priority not in ['critical', 'high', 'medium', 'low']:
+                      compliance = 'NON_COMPLIANT'
+                      annotation = 'Missing or invalid dr:priority tag (required when dr:enabled=true)'
+                  elif not dr_wave or dr_wave not in ['1', '2', '3', '4', '5']:
+                      compliance = 'NON_COMPLIANT'
+                      annotation = 'Missing or invalid dr:wave tag (required when dr:enabled=true)'
+                  else:
+                      compliance = 'COMPLIANT'
+                      annotation = 'All required DR tags present'
+              else:
+                  compliance = 'COMPLIANT'
+                  annotation = 'dr:enabled is not true, additional DR tags not required'
+              
+              config.put_evaluations(
+                  Evaluations=[{
+                      'ComplianceResourceType': configuration_item['resourceType'],
+                      'ComplianceResourceId': configuration_item['resourceId'],
+                      'ComplianceType': compliance,
+                      'Annotation': annotation,
+                      'OrderingTimestamp': configuration_item['configurationItemCaptureTime']
+                  }],
+                  ResultToken=event['resultToken']
+              )
+      Timeout: 60
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSConfigRulesExecutionRole
+
+  DREnabledComplianceRule:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: dr-enabled-tag-compliance
+      Description: Checks that EC2 instances with dr:enabled=true have dr:priority and dr:wave tags
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::EC2::Instance
+      Source:
+        Owner: CUSTOM_LAMBDA
+        SourceIdentifier: !GetAtt DREnabledComplianceLambda.Arn
+        SourceDetails:
+          - EventSource: aws.config
+            MessageType: ConfigurationItemChangeNotification
+    DependsOn: LambdaPermission
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DREnabledComplianceLambda
+      Action: lambda:InvokeFunction
+      Principal: config.amazonaws.com
 ```
 
 ---
@@ -229,12 +328,14 @@ Outputs:
 ### 5.1 Compliant Resource Examples
 
 ```bash
-# Compliant: Production EC2 with all required tags
+# Compliant: Production EC2 with dr:enabled=true (requires dr:priority and dr:wave)
 aws ec2 run-instances \
   --image-id ami-12345678 \
   --instance-type t3.medium \
   --tag-specifications 'ResourceType=instance,Tags=[
     {Key=dr:enabled,Value=true},
+    {Key=dr:priority,Value=critical},
+    {Key=dr:wave,Value=1},
     {Key=Environment,Value=Production},
     {Key=BusinessUnit,Value=HRP},
     {Key=Owner,Value=team@healthedge.com},
@@ -242,7 +343,7 @@ aws ec2 run-instances \
   ]'
 # Result: SUCCESS
 
-# Compliant: Non-production EC2 (dr:enabled=false allowed)
+# Compliant: Non-production EC2 (dr:enabled=false, no dr:priority/dr:wave required)
 aws ec2 run-instances \
   --image-id ami-12345678 \
   --instance-type t3.small \
@@ -278,15 +379,38 @@ aws ec2 run-instances \
   ]'
 # Result: DENIED - Invalid value for 'dr:enabled'. Must be 'true' or 'false'
 
+# Non-compliant: dr:enabled=true but missing dr:priority and dr:wave
+aws ec2 run-instances \
+  --image-id ami-12345678 \
+  --instance-type t3.medium \
+  --tag-specifications 'ResourceType=instance,Tags=[
+    {Key=dr:enabled,Value=true},
+    {Key=Environment,Value=Production},
+    {Key=BusinessUnit,Value=HRP}
+  ]'
+# Result: NON_COMPLIANT (Config rule) - Missing dr:priority and dr:wave tags
+
 # Non-compliant: Invalid dr:priority value
 aws ec2 run-instances \
   --image-id ami-12345678 \
   --instance-type t3.medium \
   --tag-specifications 'ResourceType=instance,Tags=[
     {Key=dr:enabled,Value=true},
-    {Key=dr:priority,Value=urgent}
+    {Key=dr:priority,Value=urgent},
+    {Key=dr:wave,Value=1}
   ]'
-# Result: DENIED - Invalid value for 'dr:priority'. Must be 'critical', 'high', 'medium', or 'low'
+# Result: NON_COMPLIANT - Invalid value for 'dr:priority'. Must be 'critical', 'high', 'medium', or 'low'
+
+# Non-compliant: Invalid dr:wave value
+aws ec2 run-instances \
+  --image-id ami-12345678 \
+  --instance-type t3.medium \
+  --tag-specifications 'ResourceType=instance,Tags=[
+    {Key=dr:enabled,Value=true},
+    {Key=dr:priority,Value=critical},
+    {Key=dr:wave,Value=6}
+  ]'
+# Result: NON_COMPLIANT - Invalid value for 'dr:wave'. Must be '1', '2', '3', '4', or '5'
 ```
 
 ---
@@ -398,6 +522,6 @@ aws ec2 run-instances \
 
 **Document Control:**
 - Created: December 15, 2025
-- Updated: December 15, 2025 - Aligned with Guiding Care DR Implementation (v1.2)
+- Updated: December 15, 2025 - Added conditional tag validation for dr:priority/dr:wave (v1.3)
 - Author: Cloud Infrastructure Team
 - Authoritative Source: Guiding Care DR Implementation (Confluence CP1/5327028252)
