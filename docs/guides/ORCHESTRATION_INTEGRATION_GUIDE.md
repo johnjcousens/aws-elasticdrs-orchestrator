@@ -1510,7 +1510,7 @@ This is the minimum JSON required to create a 3-tier tag-based recovery setup fr
     {
       "GroupName": "DatabaseServersBasedOnTags",
       "Region": "us-east-1",
-      "ServerSelectionTags": {"Purpose": "DatabaseServers"},
+      "ServerSelectionTags": {"dr:tier": "database"},
       "LaunchConfig": {
         "SubnetId": "subnet-0c458dee42bb55fde",
         "SecurityGroupIds": ["sg-06f217dba4afdd97f"],
@@ -1521,7 +1521,7 @@ This is the minimum JSON required to create a 3-tier tag-based recovery setup fr
     {
       "GroupName": "AppServersBasedOnTags",
       "Region": "us-east-1",
-      "ServerSelectionTags": {"Purpose": "AppServers"},
+      "ServerSelectionTags": {"dr:tier": "application"},
       "LaunchConfig": {
         "SubnetId": "subnet-06b0b2cb42c4cf99c",
         "SecurityGroupIds": ["sg-06f217dba4afdd97f"],
@@ -1533,7 +1533,7 @@ This is the minimum JSON required to create a 3-tier tag-based recovery setup fr
     {
       "GroupName": "WebServersBasedOnTags",
       "Region": "us-east-1",
-      "ServerSelectionTags": {"Purpose": "WebServers"},
+      "ServerSelectionTags": {"dr:tier": "web"},
       "LaunchConfig": {
         "SubnetId": "subnet-055e7f7e2db65bd5e",
         "SecurityGroupIds": ["sg-06f217dba4afdd97f"],
@@ -1594,10 +1594,10 @@ This is the minimum JSON required to create a 3-tier tag-based recovery setup fr
 The `ServerSelectionTags` field enables dynamic server discovery. Servers are matched by EC2 tags:
 
 ```json
-"ServerSelectionTags": {"Purpose": "DatabaseServers"}
+"ServerSelectionTags": {"dr:tier": "database"}
 ```
 
-This finds all DRS source servers where the EC2 instance has tag `Purpose=DatabaseServers`.
+This finds all DRS source servers where the EC2 instance has tag `dr:tier=database`.
 
 ### Error Responses
 
@@ -1686,7 +1686,7 @@ api_call GET "/recovery-plans" | jq '.plans[] | {id, name, waveCount}'
 api_call GET "/recovery-plans?nameExact=2-Tier%20Recovery" | jq '.plans[0]'
 
 # Find plans with specific tag
-api_call GET "/recovery-plans?tag=Purpose=DatabaseServers" | jq '.plans'
+api_call GET "/recovery-plans?tag=dr:tier=database" | jq '.plans'
 
 # Find plans ready to execute (no conflicts)
 api_call GET "/recovery-plans?hasConflict=false" | jq '.plans[] | {id, name}'
