@@ -1,46 +1,62 @@
 # Guiding Care DR Integration Compatibility Guide
 
-**Version:** 1.1  
+**Version:** 2.0  
 **Date:** December 15, 2025  
-**Status:** Updated  
-**Purpose:** Ensure Guiding Care DR Implementation aligns with HealthEdge AWS Tagging Strategy
+**Status:** Aligned with Authoritative Source  
+**Purpose:** Ensure DRS Orchestration (HRP) aligns with Guiding Care DR Implementation tagging taxonomy
 
 ---
 
 ## Executive Summary
 
-This document defines how the Guiding Care DR Implementation aligns with the HealthEdge AWS Tagging Strategy. The tagging strategy document is the **source of truth** for all DR tagging taxonomy. Both DRS Orchestration and Guiding Care DR consume tags as defined in that strategy.
+This document defines how DRS Orchestration (HRP) integrates with the **Guiding Care DR Implementation**, which is the **authoritative source** for DR tagging taxonomy across HealthEdge. The HealthEdge AWS Tagging Strategy has been updated to align with Guiding Care DR's tag-driven discovery approach.
 
 ---
 
-## 1. Authoritative Tagging Strategy
+## 1. Authoritative DR Tagging Taxonomy (Guiding Care DR)
 
-The **HealthEdge AWS Tagging Strategy** (v2.1) defines the official DR taxonomy:
+The **Guiding Care DR Implementation** defines the official DR taxonomy. The HealthEdge AWS Tagging Strategy (v2.1) has been updated to align with this authoritative source.
+
+### DR Orchestration Tags
 
 | Tag | Values | Required | Purpose |
 |-----|--------|----------|---------|
-| `dr:enabled` | `true` \| `false` | **Yes** (Production EC2) | DRS enrollment indicator |
-| `Purpose` | `DatabaseServers` \| `AppServers` \| `WebServers` | Recommended | Application tier classification (existing tag) |
-| `dr:priority` | `critical` \| `high` \| `medium` \| `low` | Optional | RTO priority for Guiding Care DR |
-| `dr:wave` | `1` \| `2` \| `3` \| `4` \| `5` | Optional | Tag-driven wave discovery for Guiding Care DR |
+| `dr:enabled` | `true` \| `false` | **Yes** (Production EC2) | Identifies resources for DR orchestration |
+| `dr:priority` | `critical` \| `high` \| `medium` \| `low` | **Yes** (DR-enabled) | Recovery priority classification |
+| `dr:wave` | `1` \| `2` \| `3` \| `4` \| `5` | **Yes** (DR-enabled) | Wave number for ordered recovery |
+| `dr:recovery-strategy` | `drs` \| `eks-dns` \| `sql-ag` \| `managed-service` | Optional | Recovery method for the resource |
+| `dr:rto-target` | Integer (minutes) | Optional | Target recovery time objective |
+| `dr:rpo-target` | Integer (minutes) | Optional | Target recovery point objective |
+
+### Scoping Tags (Existing)
+
+| Tag | Values | Purpose |
+|-----|--------|---------|
+| `Customer` | Customer identifier | Multi-tenant scoping |
+| `Environment` | Production, NonProduction, etc. | Environment filtering |
+| `Purpose` | `DatabaseServers` \| `AppServers` \| `WebServers` | Application tier classification |
+
+### DR Priority to RTO Mapping
+
+| dr:priority | RTO Target | Typical Wave |
+|-------------|------------|--------------|
+| `critical` | 30 minutes | Wave 1 |
+| `high` | 1 hour | Wave 2 |
+| `medium` | 2 hours | Wave 3 |
+| `low` | 4 hours | Wave 4+ |
 
 ### Tag Usage by System
 
-| Tag | DRS Orchestration | Guiding Care DR | Notes |
-|-----|-------------------|-----------------|-------|
-| `dr:enabled` | ✅ Required | ✅ Required | DRS enrollment indicator |
-| `Purpose` | ✅ Protection Group filtering | ✅ Resource classification | Existing tag - no new tag needed |
-| `dr:priority` | ℹ️ Informational only | ✅ RTO-based prioritization | Maps to RTO targets |
-| `dr:wave` | ℹ️ Not used (waves in Recovery Plans) | ✅ Tag-driven wave discovery | For systems using tag-driven discovery |
-
-### Tags NOT Supported
-
-| Tag | Reason | Alternative |
-|-----|--------|-------------|
-| `dr:tier` | Redundant with existing `Purpose` tag | Use `Purpose` (DatabaseServers, AppServers, WebServers) |
-| `dr:rto-target` | RTO is a business requirement, not a resource attribute | Use `dr:priority` for classification |
-| `dr:rpo-target` | RPO is a business requirement, not a resource attribute | Document in Recovery Plan metadata |
-| `dr:recovery-strategy` | Recovery strategy is defined at Recovery Plan level | Configure in Recovery Plan |
+| Tag | DRS Orchestration (HRP) | Guiding Care DR | Notes |
+|-----|-------------------------|-----------------|-------|
+| `dr:enabled` | ✅ Required | ✅ Required | Identifies DR-enrolled resources |
+| `dr:priority` | ✅ Informational | ✅ RTO-based prioritization | Maps to RTO targets |
+| `dr:wave` | ℹ️ Not used (uses Recovery Plans) | ✅ Tag-driven wave discovery | Wave assignment |
+| `dr:recovery-strategy` | ℹ️ Not used | ✅ Recovery method selection | drs, eks-dns, sql-ag, managed-service |
+| `dr:rto-target` | ℹ️ Not used | ✅ RTO tracking | Target in minutes |
+| `dr:rpo-target` | ℹ️ Not used | ✅ RPO tracking | Target in minutes |
+| `Purpose` | ✅ Protection Group filtering | ✅ Resource classification | Existing tag |
+| `Customer` | ✅ Protection Group filtering | ✅ Multi-tenant scoping | Existing tag |
 
 ---
 
@@ -76,17 +92,25 @@ recovery_plan = {
 
 ### 2.2 Guiding Care DR Approach (Tag-Driven Discovery)
 
-Guiding Care DR uses **Resource Explorer** for tag-driven discovery:
+Guiding Care DR uses **AWS Resource Explorer** for tag-driven discovery with aggregator region (us-east-1):
 
 ```python
 # Tag-driven wave discovery using dr:wave
-servers = resource_explorer.search(
-    QueryString="tag:dr:wave:1 AND tag:dr:enabled:true AND tag:BusinessUnit:GuidingCare"
+resources = resource_explorer.search(
+    QueryString='tag.key:dr:enabled tag.value:true tag.key:dr:wave tag.value:1 tag.key:Customer tag.value:CustomerA',
+    ViewArn=view_arn
 )
 
 # Priority-based ordering using dr:priority
-critical_servers = resource_explorer.search(
-    QueryString="tag:dr:priority:critical AND tag:dr:enabled:true"
+critical_resources = resource_explorer.search(
+    QueryString='tag.key:dr:priority tag.value:critical tag.key:dr:enabled tag.value:true',
+    ViewArn=view_arn
+)
+
+# Recovery strategy filtering
+drs_resources = resource_explorer.search(
+    QueryString='tag.key:dr:recovery-strategy tag.value:drs tag.key:dr:enabled tag.value:true',
+    ViewArn=view_arn
 )
 ```
 
@@ -164,37 +188,42 @@ Both systems use the existing `Purpose` tag for tier classification:
 
 ## 4. Tag Synchronization
 
-### 4.1 Tags Guiding Care Must Apply
+### 4.1 Required Tags for DR-Enabled Resources
 
-When Guiding Care provisions EC2 instances for DR:
+Per the Guiding Care DR Implementation (authoritative source):
 
 ```python
-# Required tags (enforced by SCP)
+# Required tags for DR-enabled EC2 instances
 tags = {
-    'dr:enabled': 'true',           # Required for Production
-    'Environment': 'Production',     # Required
-    'BusinessUnit': 'GuidingCare',   # Required
-    'Owner': 'team@healthedge.com',  # Required
-    'Customer': customer_name,       # Required for Production
+    # DR Taxonomy Tags (Guiding Care DR standard)
+    'dr:enabled': 'true',                    # Required - identifies DR resources
+    'dr:priority': 'high',                   # Required - critical|high|medium|low
+    'dr:wave': '2',                          # Required - 1|2|3|4|5
+    'dr:recovery-strategy': 'drs',           # Optional - drs|eks-dns|sql-ag|managed-service
+    'dr:rto-target': '60',                   # Optional - minutes
+    'dr:rpo-target': '30',                   # Optional - minutes
     
-    # Recommended for tier classification and filtering
-    'Purpose': 'AppServers',         # DatabaseServers|AppServers|WebServers
-    'Application': 'GuidingCare',
+    # Scoping Tags (existing)
+    'Customer': customer_name,               # Required for multi-tenant scoping
+    'Environment': 'Production',             # Required
     
-    # Optional - for Guiding Care DR tag-driven discovery
-    'dr:priority': 'high',           # critical|high|medium|low
-    'dr:wave': '2',                  # 1|2|3|4|5
+    # Business Tags (existing)
+    'BusinessUnit': 'GuidingCare',           # Required
+    'Owner': 'team@healthedge.com',          # Required
+    
+    # Classification Tags (existing)
+    'Purpose': 'AppServers',                 # Recommended - DatabaseServers|AppServers|WebServers
+    'Application': 'GuidingCare',            # Recommended
 }
 ```
 
-### 4.2 Tags Guiding Care Must NOT Apply
+### 4.2 Tags NOT Supported
 
 ```python
-# DO NOT USE - These tags are deprecated or not supported
+# DO NOT USE - These tags are deprecated
 invalid_tags = {
-    'dr:tier': 'application',  # Use Purpose tag instead
-    'dr:rto-target': '30min',  # Document in Recovery Plan
-    'dr:rpo-target': '15min',  # Document in Recovery Plan
+    'DRS': 'True',             # DEPRECATED - Use dr:enabled instead
+    'dr:tier': 'application',  # Use existing Purpose tag instead
 }
 ```
 
@@ -247,50 +276,52 @@ execution = response.json()
 
 ---
 
-## 6. Migration Path for Guiding Care DR
+## 6. Migration Path (DRS Tag → dr:x Taxonomy)
 
-### Phase 1: Tag Alignment (Immediate)
+### Phase 1: Dual Tagging (Now - Jan 31, 2026)
 
-1. Remove any `dr:tier` tags - use existing `Purpose` tag instead
-2. Ensure all Production EC2 have `dr:enabled: true`
-3. Add `Purpose` tag (DatabaseServers, AppServers, WebServers) where missing
+1. Apply both legacy `DRS` and new `dr:enabled` tags to all DR-enrolled resources
+2. Add `dr:priority` and `dr:wave` tags to all DR-enabled resources
+3. Optionally add `dr:recovery-strategy`, `dr:rto-target`, `dr:rpo-target`
 
-### Phase 2: Discovery Integration (Q1 2026)
+### Phase 2: Validation (Feb 1-15, 2026)
 
-1. Update Resource Explorer queries to use `dr:enabled` and `Purpose`
-2. Optionally use `dr:priority` and `dr:wave` for Guiding Care-specific discovery
-3. Integrate with DRS Orchestration API for wave execution (optional)
+1. Validate all resources have new `dr:x` tags via AWS Config
+2. Update Resource Explorer queries to use `dr:enabled` (not `DRS`)
+3. Test DRS Orchestration Protection Groups with new tags
 
-### Phase 3: Full Integration (Q2 2026)
+### Phase 3: Deprecation (Feb 16-28, 2026)
 
-1. Guiding Care DR can use either:
-   - Tag-driven discovery (`dr:wave`, `dr:priority`) for standalone operation
-   - DRS Orchestration API for integrated operation
-2. Guiding Care DR focuses on:
-   - Infrastructure provisioning (CDK)
-   - Bubble test network setup
-   - Pre-cached inventory management
-   - Customer-specific customizations
+1. Remove `DRS` tag enforcement from SCPs
+2. Update all automation to use `dr:enabled`
+
+### Phase 4: Cleanup (Mar 1-31, 2026)
+
+1. Remove legacy `DRS` tags from all resources
+2. Full migration to Guiding Care DR tag taxonomy complete
 
 ---
 
 ## 7. Validation Checklist
 
-Before Guiding Care DR deployment, verify:
+Before DR operations, verify tag compliance:
 
-- [ ] No `dr:tier` tags on any resources (use `Purpose` instead)
 - [ ] All Production EC2 have `dr:enabled: true` or `dr:enabled: false`
+- [ ] All DR-enabled resources have `dr:priority` (critical, high, medium, low)
+- [ ] All DR-enabled resources have `dr:wave` (1, 2, 3, 4, 5)
+- [ ] `dr:recovery-strategy` values (if used) are: `drs`, `eks-dns`, `sql-ag`, `managed-service`
 - [ ] `Purpose` values are: `DatabaseServers`, `AppServers`, `WebServers`
-- [ ] `dr:priority` values (if used) are: `critical`, `high`, `medium`, `low`
-- [ ] `dr:wave` values (if used) are: `1`, `2`, `3`, `4`, `5`
-- [ ] Recovery Plans define wave order (for DRS Orchestration integration)
-- [ ] API integration uses DRS Orchestration endpoints (if integrated)
+- [ ] No legacy `DRS` tags without corresponding `dr:enabled` tag
+- [ ] No deprecated `dr:tier` tags (use `Purpose` instead)
+- [ ] AWS Config rule `dr-tag-compliance` is deployed and reporting
+- [ ] Resource Explorer aggregator configured in us-east-1
 
 ---
 
 ## 8. References
 
-- [HealthEdge AWS Tagging Strategy v2.1](../guides/HealthEdge_AWS_Tagging_Strategy_Consolidated.md)
+- **Authoritative Source**: [Guiding Care DR Implementation](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/5327028252) - Chris Falk, December 2025
+- [HealthEdge AWS Tagging Strategy v2.1](../guides/HealthEdge_AWS_Tagging_Strategy_Consolidated.md) - Aligned with Guiding Care DR
 - [DRS Orchestration API Reference](../guides/ORCHESTRATION_INTEGRATION_GUIDE.md)
 - [Product Requirements Document](../requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md)
 
@@ -298,5 +329,6 @@ Before Guiding Care DR deployment, verify:
 
 **Document Control:**
 - Created: December 15, 2025
+- Updated: December 15, 2025 (v2.0 - Aligned with Guiding Care DR authoritative source)
 - Author: DRS Orchestration Team
 - Related JIRA: AWSM-1087, AWSM-1100

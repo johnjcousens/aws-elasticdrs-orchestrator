@@ -93,50 +93,63 @@ The DR taxonomy tags (`dr:enabled`, `dr:priority`, `dr:wave`) combined with exis
 
 ### 1.10 Disaster Recovery (DR) Taxonomy Tags
 
-> **NEW in v2.0** - Standardized DR tagging taxonomy for DRS enrollment and broader DR orchestration ecosystem integration.
+> **NEW in v2.0** - Standardized DR tagging taxonomy aligned with the **Guiding Care DR Implementation** (authoritative source).
 
 | Tag Key | Allowed Values | Required | Description |
 |---------|----------------|----------|-------------|
-| `dr:enabled` | `true` \| `false` | **Yes** (Production EC2) | Indicates resource is enrolled in DRS replication. Replaces legacy `DRS` tag. |
-| `dr:priority` | `critical` \| `high` \| `medium` \| `low` | Optional | RTO priority classification for DR orchestration and reporting. |
-| `dr:wave` | `1` \| `2` \| `3` \| `4` \| `5` (integer) | Optional | Wave assignment for orchestration systems using tag-driven discovery. |
+| `dr:enabled` | `true` \| `false` | **Yes** (Production EC2) | Identifies resources for DR orchestration. Replaces legacy `DRS` tag. |
+| `dr:priority` | `critical` \| `high` \| `medium` \| `low` | **Yes** (DR-enabled) | Recovery priority classification mapping to RTO targets. |
+| `dr:wave` | `1` \| `2` \| `3` \| `4` \| `5` (integer) | **Yes** (DR-enabled) | Wave number for ordered recovery execution. |
+| `dr:recovery-strategy` | `drs` \| `eks-dns` \| `sql-ag` \| `managed-service` | Optional | Recovery method for the resource. |
+| `dr:rto-target` | Integer (minutes) | Optional | Target recovery time objective in minutes. |
+| `dr:rpo-target` | Integer (minutes) | Optional | Target recovery point objective in minutes. |
 
 > **Note**: For application tier classification, use the existing `Purpose` tag (DatabaseServers, AppServers, WebServers) instead of creating a new `dr:tier` tag.
+
+#### DR Priority to RTO Mapping (Guiding Care DR Standard)
+
+| dr:priority | RTO Target | Use Case |
+|-------------|------------|----------|
+| `critical` | 30 minutes | Wave 1 - Databases, core infrastructure |
+| `high` | 1 hour | Wave 2 - Application servers |
+| `medium` | 2 hours | Wave 3 - Web servers, supporting services |
+| `low` | 4 hours | Wave 4+ - Non-critical workloads |
 
 #### DR Tag Usage by System
 
 | Tag | DRS Orchestration | Guiding Care DR | Purpose |
 |-----|-------------------|-----------------|---------|
-| `dr:enabled` | ✅ Required | ✅ Required | DRS enrollment indicator |
+| `dr:enabled` | ✅ Required | ✅ Required | Identifies resources for DR orchestration |
 | `Purpose` | ✅ Protection Group filtering | ✅ Resource classification | Application tier grouping (existing tag) |
-| `dr:priority` | ℹ️ Informational only | ✅ RTO-based prioritization | Maps to RTO targets |
+| `dr:priority` | ✅ Informational | ✅ RTO-based prioritization | Maps to RTO targets |
 | `dr:wave` | ℹ️ Not used (waves in Recovery Plans) | ✅ Tag-driven wave discovery | Wave assignment for tag-driven discovery |
+| `dr:recovery-strategy` | ℹ️ Not used | ✅ Recovery method selection | drs, eks-dns, sql-ag, managed-service |
+| `dr:rto-target` | ℹ️ Not used | ✅ RTO tracking | Target recovery time in minutes |
+| `dr:rpo-target` | ℹ️ Not used | ✅ RPO tracking | Target recovery point in minutes |
 
-#### How DR Tags Work with DRS Orchestration
+#### How DR Tags Work with DRS Orchestration (HRP)
 
 The DRS Orchestration solution uses **Protection Groups** and **Recovery Plans** to manage DR:
 
 1. **Protection Groups** organize servers by:
    - Explicit server selection (SourceServerIds)
-   - Tag-based selection (`ServerSelectionTags`) - can filter on ANY tag including `Purpose`, `Customer`, `Application`, etc.
+   - Tag-based selection (`ServerSelectionTags`) - can filter on ANY tag including `dr:enabled`, `Purpose`, `Customer`, `Application`, etc.
 
-2. **Recovery Plans** define wave execution order - waves are configured in the plan, NOT via tags on servers.
+2. **Recovery Plans** define wave execution order - waves are configured in the plan, NOT via `dr:wave` tags on servers.
 
-3. **RTO/RPO targets** are business requirements documented in Recovery Plans, not enforced via resource tags.
+3. **RTO/RPO targets** are documented in Recovery Plans. The `dr:priority` tag provides informational classification.
 
-#### How DR Tags Work with External Orchestration (e.g., Guiding Care DR)
+#### How DR Tags Work with Guiding Care DR (Authoritative Source)
 
-External orchestration systems may use tag-driven discovery via AWS Resource Explorer:
+Guiding Care DR uses **tag-driven discovery** via AWS Resource Explorer:
 
-1. **`dr:priority`** - Maps to RTO targets for prioritization:
-   - `critical` = 30 min RTO
-   - `high` = 1 hour RTO
-   - `medium` = 2 hour RTO
-   - `low` = 4 hour RTO
+1. **`dr:enabled`** - Identifies resources for DR orchestration (required)
+2. **`dr:priority`** - Maps to RTO targets for prioritization (required for DR-enabled)
+3. **`dr:wave`** - Enables tag-based wave discovery (required for DR-enabled)
+4. **`dr:recovery-strategy`** - Specifies recovery method (drs, eks-dns, sql-ag, managed-service)
+5. **`dr:rto-target`** / **`dr:rpo-target`** - Explicit RTO/RPO targets in minutes
 
-2. **`dr:wave`** - Enables tag-based wave discovery for systems that don't use explicit Recovery Plans.
-
-> **Note**: The DRS Orchestration solution ignores `dr:wave` tags - wave order is defined in Recovery Plans. However, applying `dr:wave` tags enables integration with external orchestration systems that use tag-driven discovery.
+> **Note**: DRS Orchestration (HRP) ignores `dr:wave` tags - wave order is defined in Recovery Plans. However, applying `dr:wave` tags enables integration with Guiding Care DR's tag-driven discovery.
 
 #### Tag-Based Protection Group Filtering
 
@@ -224,23 +237,26 @@ Use the existing `Purpose` tag for tier-based server selection:
 
 ### 3.1 DR Tag Migration Plan (DRS → dr:enabled)
 
-> **IMPORTANT**: The legacy `DRS` tag is deprecated. Migrate to the new `dr:x` taxonomy by Q1 2026.
+> **IMPORTANT**: The legacy `DRS` tag is deprecated per the Guiding Care DR Implementation (authoritative source). Migrate to the new `dr:x` taxonomy by Q1 2026.
 
 #### Migration Timeline
 
 | Phase | Timeline | Actions |
 |-------|----------|---------|
 | **Phase 1: Dual Tagging** | Now - Jan 31, 2026 | Apply both `DRS` and `dr:enabled` tags to all DR-enrolled resources |
-| **Phase 2: Validation** | Feb 1-15, 2026 | Validate all resources have new `dr:x` tags via AWS Config |
-| **Phase 3: Deprecation** | Feb 16-28, 2026 | Remove `DRS` tag enforcement from SCPs |
-| **Phase 4: Cleanup** | Mar 1-31, 2026 | Remove legacy `DRS` tags from all resources |
+| **Phase 2: Full DR Taxonomy** | Jan 15-31, 2026 | Add `dr:priority` and `dr:wave` tags to all DR-enabled resources |
+| **Phase 3: Validation** | Feb 1-15, 2026 | Validate all resources have new `dr:x` tags via AWS Config |
+| **Phase 4: Deprecation** | Feb 16-28, 2026 | Remove `DRS` tag enforcement from SCPs |
+| **Phase 5: Cleanup** | Mar 1-31, 2026 | Remove legacy `DRS` tags from all resources |
 
 #### Migration Mapping
 
-| Legacy Tag | New Tag | Value Mapping |
-|------------|---------|---------------|
+| Legacy Tag | New Tags | Value Mapping |
+|------------|----------|---------------|
 | `DRS: True` | `dr:enabled: true` | Direct mapping |
 | `DRS: False` | `dr:enabled: false` | Direct mapping |
+| (none) | `dr:priority` | Assign based on RTO requirements (critical/high/medium/low) |
+| (none) | `dr:wave` | Assign based on recovery order (1-5) |
 
 > **Note**: Continue using the existing `Purpose` tag (DatabaseServers, AppServers, WebServers) for tier-based Protection Group filtering. No migration needed for tier classification.
 
@@ -248,9 +264,12 @@ Use the existing `Purpose` tag for tier-based server selection:
 
 ```bash
 #!/bin/bash
-# migrate-drs-tags.sh - Migrate legacy DRS tags to dr:enabled
+# migrate-drs-tags.sh - Migrate legacy DRS tags to dr:x taxonomy
+# Aligns with Guiding Care DR Implementation (authoritative source)
 
 REGION="${1:-us-east-1}"
+DEFAULT_PRIORITY="${2:-medium}"
+DEFAULT_WAVE="${3:-2}"
 
 # Find all EC2 instances with DRS=True
 INSTANCES=$(aws ec2 describe-instances \
@@ -261,12 +280,19 @@ INSTANCES=$(aws ec2 describe-instances \
 for INSTANCE_ID in $INSTANCES; do
   echo "Migrating tags for $INSTANCE_ID..."
   
-  # Add new dr:enabled tag
+  # Add new dr:x taxonomy tags
   aws ec2 create-tags --resources $INSTANCE_ID \
-    --tags Key=dr:enabled,Value=true --region $REGION
+    --tags \
+      Key=dr:enabled,Value=true \
+      Key=dr:priority,Value=$DEFAULT_PRIORITY \
+      Key=dr:wave,Value=$DEFAULT_WAVE \
+    --region $REGION
 done
 
-echo "Migration complete. Existing Purpose tags (DatabaseServers, AppServers, WebServers) remain unchanged."
+echo "Migration complete."
+echo "IMPORTANT: Review and adjust dr:priority and dr:wave values per resource."
+echo "  - dr:priority: critical (30min RTO), high (1hr), medium (2hr), low (4hr)"
+echo "  - dr:wave: 1 (databases), 2 (app servers), 3 (web servers), 4+ (other)"
 ```
 
 ### 3.2 DR Tags by Customer and Environment
@@ -403,7 +429,7 @@ For migration planning and assessment:
 
 ### 7.1 Tag Policy for DR Tags
 
-Deploy this tag policy at the Organization level to validate DR tag values:
+Deploy this tag policy at the Organization level to validate DR tag values (aligned with Guiding Care DR Implementation):
 
 ```json
 {
@@ -419,7 +445,6 @@ Deploy this tag policy at the Organization level to validate DR tag values:
         "@@assign": ["ec2:instance"]
       }
     },
-
     "dr:priority": {
       "tag_key": {
         "@@assign": "dr:priority"
@@ -437,6 +462,17 @@ Deploy this tag policy at the Organization level to validate DR tag values:
       },
       "tag_value": {
         "@@assign": ["1", "2", "3", "4", "5"]
+      },
+      "enforced_for": {
+        "@@assign": ["ec2:instance"]
+      }
+    },
+    "dr:recovery-strategy": {
+      "tag_key": {
+        "@@assign": "dr:recovery-strategy"
+      },
+      "tag_value": {
+        "@@assign": ["drs", "eks-dns", "sql-ag", "managed-service"]
       },
       "enforced_for": {
         "@@assign": ["ec2:instance"]
@@ -682,9 +718,12 @@ EncryptionRequired: Yes
 dr:enabled: true
 dr:priority: critical
 dr:wave: 1
+dr:recovery-strategy: drs
+dr:rto-target: 30
+dr:rpo-target: 30
 ```
 
-### 8.2 Production Web Server (DR Enabled - High Priority)
+### 8.2 Production Web Server (DR Enabled - Medium Priority)
 
 ```
 BusinessUnit: GuidingCare
@@ -699,11 +738,14 @@ Owner: guidingcare-team@healthedge.com
 Backup: 1d14d
 MonitoringLevel: Standard
 dr:enabled: true
-dr:priority: high
+dr:priority: medium
 dr:wave: 3
+dr:recovery-strategy: drs
+dr:rto-target: 120
+dr:rpo-target: 30
 ```
 
-### 8.3 Production App Server (DR Enabled - Medium Priority)
+### 8.3 Production App Server (DR Enabled - High Priority)
 
 ```
 BusinessUnit: GuidingCare
@@ -718,11 +760,32 @@ Owner: guidingcare-team@healthedge.com
 Backup: 1d14d
 MonitoringLevel: Standard
 dr:enabled: true
-dr:priority: medium
+dr:priority: high
 dr:wave: 2
+dr:recovery-strategy: drs
+dr:rto-target: 60
+dr:rpo-target: 30
 ```
 
-### 8.4 Development Server (No DR)
+### 8.4 EKS Cluster (DR Enabled - DNS Failover)
+
+```
+BusinessUnit: GuidingCare
+Environment: Production
+DataClassification: PII
+ComplianceScope: HITRUST
+Customer: CustomerName
+Application: CareManagement
+Service: EKSCluster
+Owner: guidingcare-team@healthedge.com
+dr:enabled: true
+dr:priority: critical
+dr:wave: 1
+dr:recovery-strategy: eks-dns
+dr:rto-target: 30
+```
+
+### 8.5 Development Server (No DR)
 
 ```
 BusinessUnit: GuidingCare
