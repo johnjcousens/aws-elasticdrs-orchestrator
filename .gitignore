@@ -39,12 +39,7 @@ playwright.config.ts
 lambda/poller/test_*.py
 lambda/poller/.coverage
 
-# Kiro/IDE configuration (internal)
-.kiro/
-# Exception: Include steering documents for agentic AI coding
-!.kiro/steering/
-# Amazon Q Developer configuration (include for agentic AI coding)
-!.amazonq/
+# Cline memory (internal)
 .cline_memory/
 
 # Internal scripts (not for customers)
