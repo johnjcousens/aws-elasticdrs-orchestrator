@@ -318,10 +318,64 @@ Before DR operations, verify tag compliance:
 
 ---
 
-## 8. References
+## 8. Data Sources and References
 
-- **Authoritative Source**: [Guiding Care DR Implementation](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/5327028252) - Chris Falk, December 2025
-- [HealthEdge AWS Tagging Strategy v2.1](../guides/HealthEdge_AWS_Tagging_Strategy_Consolidated.md) - Aligned with Guiding Care DR
+### 8.1 Authoritative Source Document
+
+| Document | Location | Author | Date |
+|----------|----------|--------|------|
+| **Guiding Care DR Implementation** | [Confluence CP1/5327028252](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/5327028252) | Chris Falk | December 9, 2025 |
+
+This document defines the DR tagging taxonomy (`dr:enabled`, `dr:priority`, `dr:wave`, `dr:recovery-strategy`, `dr:rto-target`, `dr:rpo-target`) and tag-driven discovery approach using AWS Resource Explorer.
+
+### 8.2 AWS Account Tag Analysis (December 15, 2025)
+
+Current tag state observed via read-only AWS API queries:
+
+| Account | Account ID | Profile | EC2 Count | DRS Tag | dr:enabled Tag | Purpose Tag |
+|---------|------------|---------|-----------|---------|----------------|-------------|
+| HRP Production | 538127172524 | `538127172524_AWSAdministratorAccess` | 25 | ✅ Yes (24 True, 1 False) | ❌ Not present | ❌ Not present |
+| Guiding Care Production | 835807883308 | `835807883308_AWSAdministratorAccess` | 0 (us-east-1) | N/A | N/A | N/A |
+| Guiding Care NonProduction | 315237946879 | `315237946879_AWSAdministratorAccess` | 3 | ❌ Not present | ❌ Not present | ❌ Not present |
+
+**Key Findings from HRP Production (538127172524):**
+- Legacy `DRS` tag is in active use (24 instances with `True`, 1 with `False`)
+- No `dr:enabled` tag exists yet - migration required
+- No `Purpose` tag exists - uses `Service` tag instead (values: "Active Directory", "DNS")
+- Uses `Application` tag (values: "AD", "DNS")
+- Uses `Role` tag but values are generic ("WindowsServer")
+
+**Migration Implication:** HRP Production requires dual-tagging phase to add `dr:enabled` alongside existing `DRS` tag before deprecation.
+
+### 8.3 HealthEdge AWS Accounts Reference
+
+| Account Name | Account ID | Email | Purpose |
+|--------------|------------|-------|---------|
+| Guiding Care Development | 480442107714 | aws+guiding-care-development@healthedge.com | Development |
+| Guiding Care NonProduction | 315237946879 | aws+guiding-care-non-production@healthedge.com | QA/Staging |
+| Guiding Care Production | 835807883308 | aws+guiding-care-production@healthedge.com | Production |
+| Guiding Care Shared Services | 096212910625 | aws+guiding-care-shared-services@healthedge.com | Shared Services |
+| HRP Development | 827859360968 | aws+hrp-development@healthedge.com | Development |
+| HRP NonProduction | 769064993134 | aws+hrp-vpn-non-production@healthedge.com | QA/Staging |
+| HRP Production | 538127172524 | aws+hrp-vpn-production@healthedge.com | Production |
+| HRP Shared Services | 211234826829 | aws+hrp-shared-services@healthedge.com | Shared Services |
+
+### 8.4 Confluence Source Documents
+
+| Document | Confluence Page ID | Purpose |
+|----------|-------------------|---------|
+| Guiding Care DR Implementation | [5327028252](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/5327028252) | **Authoritative source** for DR tagging taxonomy |
+| AWS Tagging Strategy | [4836950067](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4836950067) | Original tagging strategy |
+| Tag Types Reference | [4867035088](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4867035088) | Tag key/value definitions |
+| Backup Tagging | [4866998899](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4866998899) | Backup tag strategy |
+| Environment Tags | [4866084104](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4866084104) | Environment classification |
+| Compliance Tags | [4867032393](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4867032393) | HIPAA/HITRUST compliance |
+| DRS Tags | [4930863374](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4930863374) | Original DRS tagging |
+| Migration Tags | [4939415853](https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4939415853) | Migration wave tagging |
+
+### 8.5 Related Documents
+
+- [HealthEdge AWS Tagging Strategy v2.1](../guides/HealthEdge_AWS_Tagging_Strategy_Consolidated.md) - Consolidated and aligned with Guiding Care DR
 - [DRS Orchestration API Reference](../guides/ORCHESTRATION_INTEGRATION_GUIDE.md)
 - [Product Requirements Document](../requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md)
 
@@ -331,4 +385,5 @@ Before DR operations, verify tag compliance:
 - Created: December 15, 2025
 - Updated: December 15, 2025 (v2.0 - Aligned with Guiding Care DR authoritative source)
 - Author: DRS Orchestration Team
+- Data Sources: Guiding Care DR Implementation (Confluence), AWS Account Tag Analysis (read-only queries)
 - Related JIRA: AWSM-1087, AWSM-1100
