@@ -801,6 +801,57 @@ The existing orchestration engine in `lambda/orchestration_stepfunctions.py` can
 
 ---
 
+## DRS Agent Management
+
+### Agent Uninstallation
+
+Recovery instances from DRS already have the agent installed. Before reinstalling the agent to point to a different region (e.g., for reverse replication/failback), the existing agent must be uninstalled.
+
+**Error if not uninstalled first**:
+> "Cannot install agent, as this server was previously installed to replicate into another region or account. To allow installation, first disconnect and delete the previously installed source server."
+
+**Uninstaller Locations**:
+
+| Platform | Uninstall Script Path |
+|----------|----------------------|
+| Windows | `C:\Program Files (x86)\AWS Replication Agent\uninstall_agent_windows.bat` |
+| Linux | `/var/lib/aws-replication-agent/uninstall_agent_linux.sh` |
+
+**Windows Uninstall via SSM**:
+```powershell
+# Stop agent service
+& "C:\Program Files (x86)\AWS Replication Agent\stopAgent.bat"
+
+# Run uninstaller
+Set-Location "C:\Program Files (x86)\AWS Replication Agent"
+& .\uninstall_agent_windows.bat
+
+# Clean up folder
+Remove-Item -Path "C:\Program Files (x86)\AWS Replication Agent" -Recurse -Force
+
+# Reboot to complete cleanup
+Restart-Computer -Force
+```
+
+**Linux Uninstall via SSM**:
+```bash
+# Stop agent
+sudo /var/lib/aws-replication-agent/stopAgent.sh
+
+# Run uninstaller
+sudo /var/lib/aws-replication-agent/uninstall_agent_linux.sh
+
+# Clean up folder
+sudo rm -rf /var/lib/aws-replication-agent
+
+# Reboot
+sudo reboot
+```
+
+**Important**: After uninstalling, the instance must be rebooted before reinstalling the agent. The SSM agent will reconnect after reboot, allowing the new agent installation to proceed.
+
+---
+
 ## Next Steps for Implementation
 
 ### Phase 1: Point-in-Time Recovery (1 week)
