@@ -1,8 +1,8 @@
 # HealthEdge AWS Tagging Strategy - Consolidated Guide
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Date:** December 15, 2025  
-**Status:** Updated with DR Taxonomy and Tag Validation (AWSM-1087, AWSM-1100)
+**Status:** Updated with Guiding Care DR Integration (AWSM-1087, AWSM-1100)
 
 ---
 
@@ -91,12 +91,23 @@ This document consolidates HealthEdge's comprehensive AWS tagging strategy, comb
 
 ### 1.10 Disaster Recovery (DR) Taxonomy Tags
 
-> **NEW in v2.0** - Standardized DR tagging taxonomy for DRS enrollment and Protection Group filtering.
+> **NEW in v2.0** - Standardized DR tagging taxonomy for DRS enrollment, Protection Group filtering, and broader DR orchestration ecosystem integration.
 
 | Tag Key | Allowed Values | Required | Description |
 |---------|----------------|----------|-------------|
 | `dr:enabled` | `true` \| `false` | **Yes** (Production EC2) | Indicates resource is enrolled in DRS replication. Replaces legacy `DRS` tag. |
 | `dr:tier` | `database` \| `application` \| `web` \| `infrastructure` | Recommended | Application tier for Protection Group filtering via `ServerSelectionTags`. |
+| `dr:priority` | `critical` \| `high` \| `medium` \| `low` | Optional | RTO priority classification for broader DR orchestration and reporting. |
+| `dr:wave` | `1` \| `2` \| `3` \| `4` \| `5` (integer) | Optional | Wave assignment for external orchestration systems using tag-driven discovery. |
+
+#### DR Tag Usage by System
+
+| Tag | DRS Orchestration | External Orchestration | Purpose |
+|-----|-------------------|------------------------|---------|
+| `dr:enabled` | ✅ Required | ✅ Required | DRS enrollment indicator |
+| `dr:tier` | ✅ Protection Group filtering | ✅ Resource classification | Application tier grouping |
+| `dr:priority` | ℹ️ Informational only | ✅ RTO-based prioritization | Maps to RTO targets |
+| `dr:wave` | ℹ️ Not used (waves in Recovery Plans) | ✅ Tag-driven wave discovery | External orchestration wave assignment |
 
 #### How DR Tags Work with DRS Orchestration
 
@@ -109,6 +120,20 @@ The DRS Orchestration solution uses **Protection Groups** and **Recovery Plans**
 2. **Recovery Plans** define wave execution order - waves are configured in the plan, NOT via tags on servers.
 
 3. **RTO/RPO targets** are business requirements documented in Recovery Plans, not enforced via resource tags.
+
+#### How DR Tags Work with External Orchestration (e.g., Guiding Care DR)
+
+External orchestration systems may use tag-driven discovery via AWS Resource Explorer:
+
+1. **`dr:priority`** - Maps to RTO targets for prioritization:
+   - `critical` = 30 min RTO
+   - `high` = 1 hour RTO
+   - `medium` = 2 hour RTO
+   - `low` = 4 hour RTO
+
+2. **`dr:wave`** - Enables tag-based wave discovery for systems that don't use explicit Recovery Plans.
+
+> **Note**: The DRS Orchestration solution ignores `dr:wave` tags - wave order is defined in Recovery Plans. However, applying `dr:wave` tags enables integration with external orchestration systems that use tag-driven discovery.
 
 #### Tag-Based Protection Group Filtering
 
@@ -422,6 +447,28 @@ Deploy this tag policy at the Organization level to validate DR tag values:
         "@@assign": ["ec2:instance"]
       }
     },
+    "dr:priority": {
+      "tag_key": {
+        "@@assign": "dr:priority"
+      },
+      "tag_value": {
+        "@@assign": ["critical", "high", "medium", "low"]
+      },
+      "enforced_for": {
+        "@@assign": ["ec2:instance"]
+      }
+    },
+    "dr:wave": {
+      "tag_key": {
+        "@@assign": "dr:wave"
+      },
+      "tag_value": {
+        "@@assign": ["1", "2", "3", "4", "5"]
+      },
+      "enforced_for": {
+        "@@assign": ["ec2:instance"]
+      }
+    },
     "Environment": {
       "tag_key": {
         "@@assign": "Environment"
@@ -643,7 +690,7 @@ aws ec2 run-instances \
 
 ## 8. Sample Tag Sets
 
-### 8.1 Production Database Server (DR Enabled)
+### 8.1 Production Database Server (DR Enabled - Critical)
 
 ```
 BusinessUnit: HRP
@@ -660,9 +707,11 @@ SecurityZone: Restricted
 EncryptionRequired: Yes
 dr:enabled: true
 dr:tier: database
+dr:priority: critical
+dr:wave: 1
 ```
 
-### 8.2 Production Web Server (DR Enabled)
+### 8.2 Production Web Server (DR Enabled - High Priority)
 
 ```
 BusinessUnit: GuidingCare
@@ -677,9 +726,30 @@ Backup: 1d14d
 MonitoringLevel: Standard
 dr:enabled: true
 dr:tier: web
+dr:priority: high
+dr:wave: 3
 ```
 
-### 8.3 Development Server (No DR)
+### 8.3 Production App Server (DR Enabled - Medium Priority)
+
+```
+BusinessUnit: GuidingCare
+Environment: Production
+DataClassification: PII
+ComplianceScope: HITRUST
+Customer: CustomerName
+Application: CareManagement
+Service: APIServer
+Owner: guidingcare-team@healthedge.com
+Backup: 1d14d
+MonitoringLevel: Standard
+dr:enabled: true
+dr:tier: application
+dr:priority: medium
+dr:wave: 2
+```
+
+### 8.4 Development Server (No DR)
 
 ```
 BusinessUnit: GuidingCare
@@ -696,7 +766,114 @@ ExpirationDate: 2025-12-31
 
 ---
 
-## 9. Future Enhancements
+## 9. Integration with Guiding Care DR Ecosystem
+
+### 9.1 Architecture Overview
+
+The DR tagging strategy supports a layered orchestration architecture:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│           Guiding Care DR Implementation (CDK)              │
+│  - Tag-driven discovery via AWS Resource Explorer           │
+│  - Uses dr:enabled, dr:priority, dr:wave for discovery      │
+│  - Multi-region coordination (us-east-1↔us-east-2, etc.)    │
+│  - Bubble test network isolation                            │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│           DRS Orchestration Solution (CloudFormation)       │
+│  - Protection Groups with ServerSelectionTags               │
+│  - Recovery Plans define wave execution order               │
+│  - Uses dr:enabled, dr:tier for filtering                   │
+│  - Pause/resume, real-time monitoring                       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    AWS DRS Service                          │
+│  - Source server replication                                │
+│  - Recovery job execution                                   │
+│  - Launch templates and settings                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Tag Consumption by System
+
+| Tag | Guiding Care DR | DRS Orchestration | AWS DRS |
+|-----|-----------------|-------------------|---------|
+| `dr:enabled` | Resource discovery filter | Protection Group filter | N/A |
+| `dr:tier` | Resource classification | Protection Group filter | N/A |
+| `dr:priority` | RTO-based prioritization | Informational | N/A |
+| `dr:wave` | Tag-driven wave discovery | Ignored (uses Recovery Plans) | N/A |
+| `Customer` | Multi-tenant scoping | Protection Group filter | N/A |
+| `Environment` | Environment filtering | Protection Group filter | N/A |
+
+### 9.3 Integration Points
+
+#### Tag-Driven Discovery (Guiding Care DR)
+
+The Guiding Care DR solution uses AWS Resource Explorer to discover resources by tags:
+
+```python
+# Example: Guiding Care DR tag-driven discovery
+resources = resource_explorer.search(
+    QueryString='tag.key:dr:enabled tag.value:true',
+    ViewArn=view_arn
+)
+
+# Filter by priority for RTO-based ordering
+critical_resources = [r for r in resources if r.tags.get('dr:priority') == 'critical']
+```
+
+#### Protection Group Filtering (DRS Orchestration)
+
+The DRS Orchestration solution uses `ServerSelectionTags` for Protection Groups:
+
+```json
+{
+  "GroupName": "CustomerA-Database-Tier",
+  "ServerSelectionTags": {
+    "dr:enabled": "true",
+    "dr:tier": "database",
+    "Customer": "CustomerA"
+  }
+}
+```
+
+### 9.4 Compatibility Requirements
+
+For seamless integration between systems:
+
+1. **All DR-enrolled EC2 instances MUST have:**
+   - `dr:enabled: true` - Required by both systems
+   - `Customer` - Required for multi-tenant operations
+   - `Environment` - Required for environment filtering
+
+2. **Recommended for full ecosystem support:**
+   - `dr:tier` - Enables tier-based Protection Groups
+   - `dr:priority` - Enables RTO-based prioritization in Guiding Care DR
+   - `dr:wave` - Enables tag-driven wave discovery in Guiding Care DR
+
+3. **Tag synchronization:**
+   - Tags must be synced to DRS source servers for Protection Group filtering
+   - Use DRS Tag Synchronization feature or EventBridge automation
+
+### 9.5 Multi-Region Deployment Alignment
+
+Both systems support the same regional pairs:
+
+| Primary Region | DR Region | Use Case |
+|----------------|-----------|----------|
+| us-east-1 | us-east-2 | East Coast customers |
+| us-west-2 | us-west-1 | West Coast customers |
+
+Tags are region-agnostic and apply to resources in both primary and DR regions.
+
+---
+
+## 10. Future Enhancements
 
 ### 9.1 DRS Tag Synchronization Automation
 
@@ -734,6 +911,6 @@ ExpirationDate: 2025-12-31
 
 **Document Control:**
 - Created: December 15, 2025
-- Updated: December 15, 2025 (v2.0 - DR Taxonomy and Tag Validation)
-- Source: Confluence pages 4836950067, 4867035088, 4866998899, 4866084104, 4867032393, 4930863374, 4939415853
+- Updated: December 15, 2025 (v2.1 - Guiding Care DR Integration)
+- Source: Confluence pages 4836950067, 4867035088, 4866998899, 4866084104, 4867032393, 4930863374, 4939415853, 5327028252
 - JIRA: AWSM-1087 (DR Taxonomy), AWSM-1100 (Tag Validation)
