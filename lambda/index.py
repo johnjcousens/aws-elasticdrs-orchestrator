@@ -5950,15 +5950,6 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
 def delete_target_account(account_id: str) -> Dict:
     """Delete target account configuration"""
     try:
-        current_account_id = get_current_account_id()
-        
-        # Prevent deletion of current account
-        if account_id == current_account_id:
-            return response(400, {
-                'error': 'INVALID_OPERATION', 
-                'message': 'Cannot delete current account configuration'
-            })
-        
         # Check if account exists (use PascalCase for DynamoDB key)
         result = target_accounts_table.get_item(Key={'AccountId': account_id})
         if 'Item' not in result:
@@ -5968,12 +5959,18 @@ def delete_target_account(account_id: str) -> Dict:
             })
         
         # TODO: Check if account is being used in any protection groups or recovery plans
-        # For now, we'll allow deletion
+        # For now, we'll allow deletion of any account (including current account)
+        # This is useful for shared services deployments where the orchestration account
+        # doesn't have DRS and users need to start fresh with target accounts
         
         # Delete the account (use PascalCase for DynamoDB key)
         target_accounts_table.delete_item(Key={'AccountId': account_id})
         
-        print(f"Deleted target account: {account_id}")
+        current_account_id = get_current_account_id()
+        is_current = account_id == current_account_id
+        account_type = "current account" if is_current else "target account"
+        
+        print(f"Deleted {account_type}: {account_id}")
         return response(200, {'message': f'Target account {account_id} deleted successfully'})
         
     except Exception as e:

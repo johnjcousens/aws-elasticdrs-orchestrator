@@ -239,7 +239,6 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           iconName: 'edit',
           ariaLabel: 'Edit account',
           onClick: () => handleOpenModal(item),
-          disabled: item.isCurrentAccount,
         }),
         React.createElement(Button, {
           variant: 'icon',
@@ -247,7 +246,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           ariaLabel: 'Validate account',
           onClick: () => handleValidate(item.accountId),
         }),
-        !item.isCurrentAccount && React.createElement(Button, {
+        React.createElement(Button, {
           variant: 'icon',
           iconName: 'remove',
           ariaLabel: 'Remove account',
@@ -267,7 +266,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       React.createElement(
         'p',
         {},
-        'Configure target accounts for cross-account DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate. If the current account has DRS, add it explicitly as a target account.'
+        'Configure target accounts for DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate.'
       ),
       React.createElement(
         'ul',
@@ -281,14 +280,20 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         React.createElement(
           'li',
           {},
-          React.createElement('strong', {}, 'Staging Account:'),
-          ' Optional trusted account for staging/testing operations'
+          React.createElement('strong', {}, 'Same Account:'),
+          ' If target account is the same as this solution account, no cross-account role is needed'
         ),
         React.createElement(
           'li',
           {},
           React.createElement('strong', {}, 'Cross-Account Role:'),
-          ' IAM role ARN for accessing the target account'
+          ' Required only for accessing different AWS accounts - leave empty for same account'
+        ),
+        React.createElement(
+          'li',
+          {},
+          React.createElement('strong', {}, 'Staging Account:'),
+          ' Optional trusted account for staging/testing operations'
         )
       )
     ),
@@ -433,7 +438,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           FormField,
           {
             label: 'Cross-Account Role ARN',
-            description: 'IAM role ARN for accessing the target account (leave empty for current account)',
+            description: 'Required only for different AWS accounts. Leave empty if target account is the same as this solution account.',
             errorText: formErrors.crossAccountRoleArn,
           },
           React.createElement(Input, {
