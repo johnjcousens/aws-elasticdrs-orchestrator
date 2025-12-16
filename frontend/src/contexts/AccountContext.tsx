@@ -39,6 +39,8 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountsError, setAccountsError] = useState<string | null>(null);
 
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
   const refreshAccounts = async () => {
     // Don't fetch if not authenticated
     if (!isAuthenticated || authLoading) {
@@ -100,8 +102,6 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     const account = availableAccounts.find(acc => acc.accountId === accountId);
     return account?.accountName || accountId;
   };
-
-  const { isAuthenticated, loading: authLoading } = useAuth();
 
   // Load accounts only after authentication is complete and not loading
   useEffect(() => {
