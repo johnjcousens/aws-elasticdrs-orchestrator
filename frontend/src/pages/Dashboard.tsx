@@ -16,8 +16,10 @@ import {
   Spinner,
   PieChart,
   Select,
+  Button,
   type SelectProps,
 } from '@cloudscape-design/components';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
@@ -98,6 +100,7 @@ export const Dashboard: React.FC = () => {
   const [drsQuotas, setDrsQuotas] = useState<DRSQuotaStatus | null>(null);
   const [quotasLoading, setQuotasLoading] = useState(false);
   const [quotasError, setQuotasError] = useState<string | null>(null);
+  const [tagSyncLoading, setTagSyncLoading] = useState(false);
 
   const fetchExecutions = useCallback(async () => {
     try {
@@ -144,6 +147,19 @@ export const Dashboard: React.FC = () => {
       return () => clearInterval(interval);
     }
   }, [selectedRegion, fetchDRSQuotas]);
+
+  const handleTagSync = async () => {
+    setTagSyncLoading(true);
+    try {
+      await apiClient.triggerTagSync();
+      toast.success('Tag sync initiated - EC2 tags will be synced to DRS servers');
+    } catch (err) {
+      console.error('Error triggering tag sync:', err);
+      toast.error('Failed to trigger tag sync');
+    } finally {
+      setTagSyncLoading(false);
+    }
+  };
 
   // Calculate status counts
   const statusCounts = executions.reduce(
@@ -352,12 +368,21 @@ export const Dashboard: React.FC = () => {
                 <Header
                   variant="h2"
                   actions={
-                    <Select
-                      selectedOption={selectedRegion}
-                      onChange={({ detail }) => setSelectedRegion(detail.selectedOption)}
-                      options={DRS_REGIONS}
-                      placeholder="Select region"
-                    />
+                    <SpaceBetween direction="horizontal" size="xs">
+                      <Button
+                        onClick={handleTagSync}
+                        loading={tagSyncLoading}
+                        iconName="refresh"
+                      >
+                        Sync Tags
+                      </Button>
+                      <Select
+                        selectedOption={selectedRegion}
+                        onChange={({ detail }) => setSelectedRegion(detail.selectedOption)}
+                        options={DRS_REGIONS}
+                        placeholder="Select region"
+                      />
+                    </SpaceBetween>
                   }
                 >
                   DRS Capacity
