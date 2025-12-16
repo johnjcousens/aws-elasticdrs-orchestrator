@@ -53,19 +53,8 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       const accounts = await apiClient.getTargetAccounts();
       setAvailableAccounts(accounts);
       
-      // Auto-select current account (where solution is deployed) as default
-      if (!selectedAccount) {
-        const currentAccount = accounts.find((acc: TargetAccount) => acc.isCurrentAccount);
-        if (currentAccount) {
-          const accountOption = {
-            value: currentAccount.accountId,
-            label: currentAccount.accountName 
-              ? `${currentAccount.accountName} (${currentAccount.accountId})`
-              : currentAccount.accountId
-          };
-          setSelectedAccount(accountOption);
-        }
-      }
+      // Don't auto-select any account - let user choose
+      // This supports shared services deployments where orchestration account may not have DRS
     } catch (err: any) {
       console.error('Error fetching accounts:', err);
       
