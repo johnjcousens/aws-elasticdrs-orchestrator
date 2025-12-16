@@ -119,14 +119,85 @@ export const Dashboard: React.FC = () => {
           <Header
             variant="h1"
             description="Real-time execution status and system metrics"
+            actions={
+              <Button 
+                variant="primary" 
+                iconName="settings"
+                onClick={() => navigate('/getting-started')}
+              >
+                Manage Accounts
+              </Button>
+            }
           >
             Dashboard
           </Header>
         }
       >
-        <Container>
-          <Box>Dashboard content will be shown here when accounts are configured.</Box>
-        </Container>
+        <SpaceBetween size="l">
+          <Container
+            header={
+              <Header variant="h2" counter={`(${availableAccounts.length})`}>
+                Target Accounts
+              </Header>
+            }
+          >
+            <SpaceBetween size="m">
+              {availableAccounts.map((account) => (
+                <Box key={account.accountId}>
+                  <SpaceBetween direction="horizontal" size="s">
+                    <Box variant="strong">{account.accountId}</Box>
+                    {account.accountName && (
+                      <Box color="text-body-secondary">({account.accountName})</Box>
+                    )}
+                    {account.isCurrentAccount && (
+                      <Box variant="small" color="text-status-info">Current Account</Box>
+                    )}
+                  </SpaceBetween>
+                </Box>
+              ))}
+            </SpaceBetween>
+          </Container>
+
+          <Container
+            header={<Header variant="h2">Quick Actions</Header>}
+          >
+            <SpaceBetween direction="horizontal" size="m">
+              <Button 
+                variant="primary" 
+                iconName="add-plus"
+                onClick={() => navigate('/protection-groups')}
+              >
+                Create Protection Group
+              </Button>
+              <Button 
+                variant="normal" 
+                iconName="script"
+                onClick={() => navigate('/recovery-plans')}
+              >
+                Create Recovery Plan
+              </Button>
+              <Button 
+                variant="normal" 
+                iconName="status-in-progress"
+                onClick={() => navigate('/executions')}
+              >
+                View Executions
+              </Button>
+            </SpaceBetween>
+          </Container>
+
+          <Container
+            header={<Header variant="h2">System Status</Header>}
+          >
+            <Box color="text-body-secondary">
+              System is ready for disaster recovery orchestration. 
+              {availableAccounts.length === 1 ? 
+                `Connected to ${availableAccounts.length} target account.` : 
+                `Connected to ${availableAccounts.length} target accounts.`
+              }
+            </Box>
+          </Container>
+        </SpaceBetween>
       </ContentLayout>
     </PageTransition>
   );
