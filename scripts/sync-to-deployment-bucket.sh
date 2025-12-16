@@ -302,6 +302,16 @@ fi
 # Build frontend if requested
 if [ "$BUILD_FRONTEND" = true ]; then
     echo "🏗️  Building frontend..."
+    
+    # Always update frontend configuration from CloudFormation stack
+    echo "📝 Updating frontend configuration from CloudFormation stack..."
+    if ./scripts/update-frontend-config.sh "$PARENT_STACK_NAME" "$REGION"; then
+        echo "✅ Frontend configuration updated from stack outputs"
+    else
+        echo "❌ Failed to update frontend configuration from stack"
+        echo "   Falling back to .env.dev if available..."
+    fi
+    
     if [ -f ".env.dev" ]; then
         cd frontend
         ./build.sh
@@ -720,6 +730,15 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
         echo "🚀 Deploying Frontend"
         echo "======================================"
         echo ""
+        
+        # Always update frontend configuration from CloudFormation stack before deployment
+        echo "📝 Updating frontend configuration from CloudFormation stack..."
+        if ./scripts/update-frontend-config.sh "$PARENT_STACK_NAME" "$REGION"; then
+            echo "✅ Frontend configuration updated from stack outputs"
+        else
+            echo "❌ Failed to update frontend configuration from stack"
+            exit 1
+        fi
         
         DEPLOY_START=$(date +%s)
         
