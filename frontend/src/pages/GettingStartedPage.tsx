@@ -119,7 +119,42 @@ export const GettingStartedPage: React.FC = () => {
               </SpaceBetween>
             </Alert>
             
-            <AccountManagementPanel />
+            <AccountManagementPanel 
+              onAccountsChange={(accounts) => {
+                // Show success message and navigation option when accounts are added
+                if (accounts.length > 0) {
+                  // Don't auto-navigate immediately, let user see the success
+                  // They can manually navigate or we'll show a button
+                }
+              }}
+            />
+            
+            {/* Show navigation button when accounts exist */}
+            {availableAccounts.length > 0 && (
+              <Container>
+                <SpaceBetween size="m">
+                  <Alert
+                    type="success"
+                    header="Target Account Configured Successfully!"
+                  >
+                    <SpaceBetween size="m">
+                      <Box>
+                        Great! You've successfully configured a target account. You can now proceed to the dashboard to start creating protection groups and recovery plans.
+                      </Box>
+                      <Box>
+                        <Button 
+                          variant="primary" 
+                          iconName="status-positive"
+                          onClick={() => navigate('/')}
+                        >
+                          Go to Dashboard
+                        </Button>
+                      </Box>
+                    </SpaceBetween>
+                  </Alert>
+                </SpaceBetween>
+              </Container>
+            )}
           </SpaceBetween>
         </ContentLayout>
       </PageTransition>
