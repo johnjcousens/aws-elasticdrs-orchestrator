@@ -1,7 +1,7 @@
 # AWS DRS Orchestration Makefile
 # Provides automation for S3 sync, validation, and deployment
 
-.PHONY: help install lint validate format test clean all sync-s3 sync-s3-build enable-auto-sync disable-auto-sync
+.PHONY: help install lint validate format test clean all sync-s3 sync-s3-build enable-auto-sync disable-auto-sync update-config update-config-v4 deploy-v4 build-deploy-v4
 
 # Default target
 .DEFAULT_GOAL := help
@@ -117,23 +117,21 @@ dev-setup: install ## Set up development environment
 
 create-precommit: ## Create pre-commit configuration
 	@echo "Creating .pre-commit-config.yaml..."
-	@cat > .pre-commit-config.yaml << 'EOF'
-# Pre-commit hooks for CloudFormation template validation
-repos:
-  - repo: local
-    hooks:
-      - id: cfn-lint
-        name: CloudFormation Linter
-        entry: make lint
-        language: system
-        files: '^templates/.*\.yaml$$'
-        pass_filenames: false
-      - id: yaml-check
-        name: YAML Syntax Check
-        entry: python -c "import yaml; yaml.safe_load(open('$$1'))"
-        language: system
-        files: '\.yaml$$'
-EOF
+	@echo "# Pre-commit hooks for CloudFormation template validation" > .pre-commit-config.yaml
+	@echo "repos:" >> .pre-commit-config.yaml
+	@echo "  - repo: local" >> .pre-commit-config.yaml
+	@echo "    hooks:" >> .pre-commit-config.yaml
+	@echo "      - id: cfn-lint" >> .pre-commit-config.yaml
+	@echo "        name: CloudFormation Linter" >> .pre-commit-config.yaml
+	@echo "        entry: make lint" >> .pre-commit-config.yaml
+	@echo "        language: system" >> .pre-commit-config.yaml
+	@echo "        files: '^templates/.*\.yaml$$'" >> .pre-commit-config.yaml
+	@echo "        pass_filenames: false" >> .pre-commit-config.yaml
+	@echo "      - id: yaml-check" >> .pre-commit-config.yaml
+	@echo "        name: YAML Syntax Check" >> .pre-commit-config.yaml
+	@echo "        entry: python -c \"import yaml; yaml.safe_load(open('$$1'))\"" >> .pre-commit-config.yaml
+	@echo "        language: system" >> .pre-commit-config.yaml
+	@echo "        files: '\.yaml$$'" >> .pre-commit-config.yaml
 	@echo "✅ Pre-commit configuration created"
 
 # CI/CD targets
@@ -188,24 +186,62 @@ setup-auto-sync: ## Setup automatic S3 sync (creates hook)
 	@echo "🔧 Setting up automatic S3 sync..."
 	@if [ ! -f .git/hooks/post-push ]; then \
 		echo "Creating post-push hook..."; \
-		cat > .git/hooks/post-push << 'EOF' ;\
-#!/bin/bash
-# Auto-sync to S3 after successful git push
-echo ""
-echo "🔄 Auto-syncing to S3 deployment bucket..."
-echo ""
-./scripts/sync-to-deployment-bucket.sh
-if [ $$? -eq 0 ]; then
-    echo ""
-    echo "✅ S3 sync complete!"
-    echo ""
-else
-    echo ""
-    echo "❌ S3 sync failed"
-    echo ""
-    exit 1
-fi
-EOF
-	; fi
+		echo "#!/bin/bash" > .git/hooks/post-push; \
+		echo "# Auto-sync to S3 after successful git push" >> .git/hooks/post-push; \
+		echo "echo \"\"" >> .git/hooks/post-push; \
+		echo "echo \"🔄 Auto-syncing to S3 deployment bucket...\"" >> .git/hooks/post-push; \
+		echo "echo \"\"" >> .git/hooks/post-push; \
+		echo "./scripts/sync-to-deployment-bucket.sh" >> .git/hooks/post-push; \
+		echo "if [ \$$? -eq 0 ]; then" >> .git/hooks/post-push; \
+		echo "    echo \"\"" >> .git/hooks/post-push; \
+		echo "    echo \"✅ S3 sync complete!\"" >> .git/hooks/post-push; \
+		echo "    echo \"\"" >> .git/hooks/post-push; \
+		echo "else" >> .git/hooks/post-push; \
+		echo "    echo \"\"" >> .git/hooks/post-push; \
+		echo "    echo \"❌ S3 sync failed\"" >> .git/hooks/post-push; \
+		echo "    echo \"\"" >> .git/hooks/post-push; \
+		echo "    exit 1" >> .git/hooks/post-push; \
+		echo "fi" >> .git/hooks/post-push; \
+	fi
 	@chmod +x .git/hooks/post-push
 	@echo "✅ Auto-sync setup complete"
+
+# drs-orch-v4 Stack Specific Targets
+update-config: ## Update frontend configuration from CloudFormation stack
+	@echo "📝 Updating frontend configuration from CloudFormation stack..."
+	@./scripts/update-frontend-config.sh drs-orch-v4 us-east-1
+
+update-config-v4: update-config ## Alias for update-config
+
+deploy-v4: ## Deploy drs-orch-v4 stack with updated configuration
+	@echo "🚀 Deploying drs-orch-v4 stack..."
+	@./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+
+build-deploy-v4: ## Build frontend and deploy drs-orch-v4 stack
+	@echo "🏗️ Building frontend and deploying drs-orch-v4 stack..."
+	@./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+
+deploy-frontend-v4: ## Deploy only frontend for drs-orch-v4 stack
+	@echo "🌐 Deploying frontend for drs-orch-v4 stack..."
+	@./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+
+update-lambda-v4: ## Update Lambda functions for drs-orch-v4 stack
+	@echo "⚡ Updating Lambda functions for drs-orch-v4 stack..."
+	@./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+
+# Prevent configuration drift
+check-config-drift: ## Check if frontend config matches CloudFormation stack
+	@echo "🔍 Checking for configuration drift..."
+	@TEMP_CONFIG=$$(mktemp) && \
+	cp frontend/public/aws-config.json "$$TEMP_CONFIG.backup" && \
+	./scripts/update-frontend-config.sh drs-orch-v4 us-east-1 > /dev/null 2>&1 && \
+	if ! diff -q "$$TEMP_CONFIG.backup" frontend/public/aws-config.json > /dev/null 2>&1; then \
+		echo "❌ Configuration drift detected!"; \
+		echo "Configuration was updated from CloudFormation stack outputs."; \
+		echo "Changes applied automatically."; \
+		rm -f "$$TEMP_CONFIG" "$$TEMP_CONFIG.backup"; \
+		exit 1; \
+	else \
+		echo "✅ Configuration is in sync with CloudFormation stack"; \
+		rm -f "$$TEMP_CONFIG" "$$TEMP_CONFIG.backup"; \
+	fi

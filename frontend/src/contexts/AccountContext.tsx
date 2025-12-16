@@ -69,16 +69,31 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     } catch (err: any) {
       console.error('Error fetching accounts:', err);
       
-      // Handle authentication errors specifically
+      // Handle specific error types with descriptive messages
       if (err?.response?.status === 401 || err?.message?.includes('Unauthorized')) {
-        setAccountsError('Authentication required. Please sign in again.');
+        setAccountsError('Authentication expired. Please sign in again to continue.');
         // Clear accounts when authentication fails
         setAvailableAccounts([]);
         setSelectedAccount(null);
-      } else if (err?.message?.includes('CORS') || err?.message?.includes('No response from server')) {
-        setAccountsError('Connection error. Please check your network and try again.');
+      } else if (err?.response?.status === 403) {
+        setAccountsError('Access denied. You do not have permission to view target accounts.');
+      } else if (err?.response?.status === 404) {
+        setAccountsError('Target accounts service not found. Please contact your administrator.');
+      } else if (err?.response?.status >= 500) {
+        setAccountsError('Server error occurred while loading target accounts. Please try again in a few moments.');
+      } else if (err?.message?.includes('timeout')) {
+        setAccountsError('Request timed out. The server may be busy - please try again.');
+      } else if (err?.message?.includes('CORS')) {
+        setAccountsError('Cross-origin request blocked. Please check your browser settings or contact support.');
+      } else if (err?.message?.includes('No response from server')) {
+        setAccountsError('Unable to reach the server. Please check your internet connection and try again.');
+      } else if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network Error')) {
+        setAccountsError('Network connection failed. Please check your internet connection.');
+      } else if (err?.response?.data?.message) {
+        // Use specific error message from API if available
+        setAccountsError(`Error: ${err.response.data.message}`);
       } else {
-        setAccountsError('Unable to fetch target accounts');
+        setAccountsError('Failed to load target accounts. Please refresh the page and try again.');
       }
     } finally {
       setAccountsLoading(false);
