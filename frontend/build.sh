@@ -20,12 +20,19 @@ if [[ ! "$NODE_VERSION" =~ ^v(2[0-9]|[3-9][0-9]) ]]; then
     exit 1
 fi
 
-# Load environment variables from .env.dev
-if [ -f "../.env.dev" ]; then
-    echo "✅ Loading configuration from .env.dev..."
-    export $(grep -v '^#' ../.env.dev | xargs)
+# Load environment variables from .env.drs-orch-v4 (stack-specific config)
+if [ -f "../.env.drs-orch-v4" ]; then
+    echo "✅ Loading configuration from .env.drs-orch-v4..."
+    set -a  # automatically export all variables
+    source ../.env.drs-orch-v4
+    set +a  # disable automatic export
+elif [ -f "../.env.dev" ]; then
+    echo "⚠️  Fallback: Loading configuration from .env.dev..."
+    set -a  # automatically export all variables
+    source ../.env.dev
+    set +a  # disable automatic export
 else
-    echo "❌ ERROR: .env.dev not found in parent directory"
+    echo "❌ ERROR: Neither .env.drs-orch-v4 nor .env.dev found in parent directory"
     exit 1
 fi
 
