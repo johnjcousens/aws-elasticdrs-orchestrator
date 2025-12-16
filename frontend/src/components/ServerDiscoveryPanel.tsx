@@ -11,26 +11,8 @@ import {
 } from '@cloudscape-design/components';
 import { ServerListItem } from './ServerListItem';
 import apiClient from '../services/api';
+import type { DRSServer } from '../types';
 
-interface DRSServer {
-  sourceServerID: string;
-  hostname: string;
-  nameTag?: string;
-  sourceInstanceId?: string;
-  sourceIp?: string;
-  sourceRegion?: string;
-  sourceAccount?: string;
-  os?: string;
-  state: string;
-  replicationState: string;
-  lagDuration: string;
-  drsTags?: Record<string, string>;
-  assignedToProtectionGroup?: {
-    protectionGroupId: string;
-    protectionGroupName: string;
-  };
-  selectable: boolean;
-}
 
 interface ServerDiscoveryPanelProps {
   region: string;
@@ -71,6 +53,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
         setServers([]);
       } else {
         setDrsInitialized(true);
+
         setServers(response.servers || []);
       }
     } catch (err: any) {

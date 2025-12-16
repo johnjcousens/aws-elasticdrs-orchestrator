@@ -613,6 +613,62 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: true
 
   # ============================================================================
+  # DRS Tag Sync Endpoint - /drs/tag-sync
+  # ============================================================================
+
+  DRSTagSyncResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref DRSResource
+      PathPart: tag-sync
+
+  # Methods - POST /drs/tag-sync
+  DRSTagSyncPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref DRSTagSyncResource
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # CORS - OPTIONS /drs/tag-sync
+  DRSTagSyncOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref DRSTagSyncResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ============================================================================
   # EC2 Resources Endpoints - /ec2/subnets, /ec2/security-groups, etc.
   # ============================================================================
 
@@ -1535,6 +1591,8 @@ Resources:
       - DRSSourceServersOptionsMethod
       - DRSQuotasGetMethod
       - DRSQuotasOptionsMethod
+      - DRSTagSyncPostMethod
+      - DRSTagSyncOptionsMethod
       - EC2SubnetsGetMethod
       - EC2SubnetsOptionsMethod
       - EC2SecurityGroupsGetMethod

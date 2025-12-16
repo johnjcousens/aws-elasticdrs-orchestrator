@@ -29,7 +29,7 @@ LIST_PROFILES=false
 # CloudFormation stack configuration
 PROJECT_NAME="drs-orchestration"
 ENVIRONMENT="dev"
-PARENT_STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}"
+PARENT_STACK_NAME="drs-orch-v4"
 
 # Approved top-level directories (directories synced by this script)
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
@@ -418,7 +418,7 @@ echo ""
 
 # Helper function to get Lambda function name
 get_lambda_function_name() {
-    local function_name="${PROJECT_NAME}-api-handler-${ENVIRONMENT}"
+    local function_name="drsorchv4-api-handler-test"
     echo "$function_name"
 }
 
@@ -473,14 +473,42 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         LAMBDA_FUNCTION=$(get_lambda_function_name)
         
-        # Create minimal zip with just index.py
-        echo "📦 Creating minimal Lambda package..."
+        # Create proper Lambda package with dependencies
+        echo "📦 Creating Lambda package with dependencies..."
         cd "$PROJECT_ROOT/lambda"
         rm -f /tmp/lambda-quick.zip
-        zip -q /tmp/lambda-quick.zip index.py
-        if [ -d "poller" ]; then
-            zip -qr /tmp/lambda-quick.zip poller/
+        
+        # First, add dependencies from package/ directory (at root level of zip)
+        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+            echo "  Adding dependencies from package/..."
+            cd package
+            zip -qr /tmp/lambda-quick.zip .
+            cd ..
+        else
+            # Initialize empty zip
+            echo "  No package/ dependencies found, creating minimal package..."
+            touch /tmp/empty_placeholder
+            zip -q /tmp/lambda-quick.zip /tmp/empty_placeholder
+            zip -qd /tmp/lambda-quick.zip empty_placeholder 2>/dev/null || true
+            rm -f /tmp/empty_placeholder
         fi
+        
+        # Add Lambda code files at root level
+        echo "  Adding Lambda code files..."
+        zip -qg /tmp/lambda-quick.zip index.py
+        if [ -f "requirements.txt" ]; then
+            zip -qg /tmp/lambda-quick.zip requirements.txt
+        fi
+        if [ -d "poller" ]; then
+            zip -qrg /tmp/lambda-quick.zip poller/
+        fi
+        if [ -f "orchestration_stepfunctions.py" ]; then
+            zip -qg /tmp/lambda-quick.zip orchestration_stepfunctions.py
+        fi
+        if [ -f "build_and_deploy.py" ]; then
+            zip -qg /tmp/lambda-quick.zip build_and_deploy.py
+        fi
+        
         cd "$PROJECT_ROOT"
         
         echo "⚡ Updating Lambda function code..."
@@ -523,29 +551,35 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         cd "$PROJECT_ROOT/lambda"
         
-        # Lambda function mappings: local file -> function name suffix
+        # Lambda function mappings: local file -> actual function name
         declare -A LAMBDA_FUNCTIONS=(
-            ["index.py"]="api-handler"
-            ["orchestration_stepfunctions.py"]="orchestration-stepfunctions"
-            ["build_and_deploy.py"]="frontend-builder"
-            ["poller/execution_finder.py"]="execution-finder"
-            ["poller/execution_poller.py"]="execution-poller"
+            ["index.py"]="drsorchv4-api-handler-test"
+            ["orchestration_stepfunctions.py"]="drsorchv4-orchestration-stepfunctions-test"
+            ["build_and_deploy.py"]="drsorchv4-frontend-builder-test"
+            ["poller/execution_finder.py"]="drsorchv4-execution-finder-test"
+            ["poller/execution_poller.py"]="drsorchv4-execution-poller-test"
         )
         
         for local_file in "${!LAMBDA_FUNCTIONS[@]}"; do
-            func_suffix="${LAMBDA_FUNCTIONS[$local_file]}"
-            func_name="${PROJECT_NAME}-${func_suffix}-${ENVIRONMENT}"
+            func_name="${LAMBDA_FUNCTIONS[$local_file]}"
             
             if [ -f "$local_file" ]; then
                 echo "📦 Packaging $func_suffix..."
                 rm -f /tmp/lambda-${func_suffix}.zip
                 
+                # First, add dependencies from package/ directory (at root level of zip)
+                if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+                    cd package
+                    zip -qr /tmp/lambda-${func_suffix}.zip .
+                    cd ..
+                fi
+                
                 # Create zip based on file location
                 if [[ "$local_file" == poller/* ]]; then
                     # For poller functions, include the poller directory structure
-                    zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
+                    zip -qg /tmp/lambda-${func_suffix}.zip "$local_file" 2>/dev/null || zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
                 else
-                    zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
+                    zip -qg /tmp/lambda-${func_suffix}.zip "$local_file" 2>/dev/null || zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
                 fi
                 
                 echo "⚡ Updating $func_name..."

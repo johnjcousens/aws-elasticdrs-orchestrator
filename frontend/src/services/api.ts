@@ -129,32 +129,34 @@ class ApiClient {
    * Generic GET request
    */
   private async get<T>(path: string, params?: Record<string, any>): Promise<T> {
-    const response = await this.axiosInstance.get<T>(path, { params });
-    return response.data;
+    const response = await this.axiosInstance.get<any>(path, { params });
+    
+    // API Gateway returns data directly (not in Lambda proxy format)
+    return response.data as T;
   }
 
   /**
    * Generic POST request
    */
   private async post<T>(path: string, data?: any): Promise<T> {
-    const response = await this.axiosInstance.post<T>(path, data);
-    return response.data;
+    const response = await this.axiosInstance.post<any>(path, data);
+    return response.data as T;
   }
 
   /**
    * Generic PUT request
    */
   private async put<T>(path: string, data?: any): Promise<T> {
-    const response = await this.axiosInstance.put<T>(path, data);
-    return response.data;
+    const response = await this.axiosInstance.put<any>(path, data);
+    return response.data as T;
   }
 
   /**
    * Generic DELETE request
    */
   private async delete<T>(path: string): Promise<T> {
-    const response = await this.axiosInstance.delete<T>(path);
-    return response.data;
+    const response = await this.axiosInstance.delete<any>(path);
+    return response.data as T;
   }
 
   // ============================================================================
@@ -522,14 +524,32 @@ class ApiClient {
     currentProtectionGroupId?: string,
     filterByProtectionGroup?: string
   ): Promise<any> {
-    const params = new URLSearchParams({ region });
+    const queryParams: Record<string, string> = { region };
     if (currentProtectionGroupId) {
-      params.append('currentProtectionGroupId', currentProtectionGroupId);
+      queryParams.currentProtectionGroupId = currentProtectionGroupId;
     }
     if (filterByProtectionGroup) {
-      params.append('filterByProtectionGroup', filterByProtectionGroup);
+      queryParams.filterByProtectionGroup = filterByProtectionGroup;
     }
-    return this.get<any>(`/drs/source-servers?${params.toString()}`);
+    
+    console.log('API client making request to:', '/drs/source-servers', 'with params:', queryParams);
+    const response = await this.get<any>('/drs/source-servers', queryParams);
+    
+    console.log('API listDRSSourceServers raw response:', response);
+    console.log('Response type:', typeof response);
+    console.log('Response keys:', Object.keys(response || {}));
+    console.log('First server from API:', response?.servers?.[0]);
+    console.log('First server hardware from API:', response?.servers?.[0]?.hardware);
+    console.log('Hardware field types:', {
+      totalCores: typeof response?.servers?.[0]?.hardware?.totalCores,
+      ramGiB: typeof response?.servers?.[0]?.hardware?.ramGiB,
+      totalDiskGiB: typeof response?.servers?.[0]?.hardware?.totalDiskGiB,
+      totalCoresValue: response?.servers?.[0]?.hardware?.totalCores,
+      ramGiBValue: response?.servers?.[0]?.hardware?.ramGiB,
+      totalDiskGiBValue: response?.servers?.[0]?.hardware?.totalDiskGiB
+    });
+    
+    return response;
   }
 
   /**
@@ -544,6 +564,14 @@ class ApiClient {
    */
   public async getDRSQuotas(region: string): Promise<any> {
     return this.get<any>(`/drs/quotas?region=${region}`);
+  }
+
+  /**
+   * Trigger on-demand DRS tag synchronization
+   * Syncs EC2 instance tags to DRS source servers across all regions
+   */
+  public async triggerTagSync(): Promise<{ message: string; functionName: string; statusCode: number }> {
+    return this.post<{ message: string; functionName: string; statusCode: number }>('/drs/tag-sync', {});
   }
 
   // ============================================================================
