@@ -7,6 +7,7 @@ import json
 import os
 import uuid
 import time
+import re
 from datetime import datetime, timezone
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
@@ -23,6 +24,7 @@ lambda_client = boto3.client('lambda')
 PROTECTION_GROUPS_TABLE = os.environ['PROTECTION_GROUPS_TABLE']
 RECOVERY_PLANS_TABLE = os.environ['RECOVERY_PLANS_TABLE']
 EXECUTION_HISTORY_TABLE = os.environ['EXECUTION_HISTORY_TABLE']
+TARGET_ACCOUNTS_TABLE = os.environ['TARGET_ACCOUNTS_TABLE']
 STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN', '')
 
 # All 28 commercial AWS regions where DRS is available
@@ -70,6 +72,7 @@ INVALID_REPLICATION_STATES = [
 protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
 execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
+target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE)
 
 
 def get_cognito_user_from_event(event: Dict) -> Dict:
@@ -93,6 +96,9 @@ class DecimalEncoder(json.JSONEncoder):
         if isinstance(obj, Decimal):
             return int(obj) if obj % 1 == 0 else float(obj)
         return super(DecimalEncoder, self).default(obj)
+
+
+
 
 
 def response(status_code: int, body: Any, headers: Optional[Dict] = None) -> Dict:
@@ -647,15 +653,73 @@ def validate_server_replication_states(region: str, server_ids: List[str]) -> Di
         }
 
 
-def get_drs_account_capacity(region: str) -> Dict:
+def get_drs_regional_capacity(region: str) -> Dict:
     """
-    Get current DRS account capacity metrics.
-    Returns capacity info including replicating server count vs 300 hard limit.
+    Get DRS capacity metrics for a specific region.
+    Returns regional server counts for debugging/monitoring.
     """
     try:
         regional_drs = boto3.client('drs', region_name=region)
         
-        # Count all source servers and replicating servers
+        # Count all source servers and replicating servers in this region
+        total_servers = 0
+        replicating_servers = 0
+        
+        paginator = regional_drs.get_paginator('describe_source_servers')
+        
+        for page in paginator.paginate():
+            for server in page.get('items', []):
+                total_servers += 1
+                replication_state = server.get('dataReplicationInfo', {}).get('dataReplicationState', '')
+                if replication_state in ['CONTINUOUS', 'INITIAL_SYNC', 'RESCAN', 'CREATING_SNAPSHOT']:
+                    replicating_servers += 1
+        
+        return {
+            'region': region,
+            'totalSourceServers': total_servers,
+            'replicatingServers': replicating_servers,
+            'status': 'OK'
+        }
+        
+    except Exception as e:
+        error_str = str(e)
+        print(f"Error getting regional capacity for {region}: {e}")
+        
+        # Check for common uninitialized/access errors
+        if ('UninitializedAccountException' in error_str or 
+            'not initialized' in error_str.lower() or
+            'UnrecognizedClientException' in error_str):
+            return {
+                'region': region,
+                'totalSourceServers': 0,
+                'replicatingServers': 0,
+                'status': 'NOT_INITIALIZED'
+            }
+        elif 'AccessDeniedException' in error_str or 'not authorized' in error_str.lower():
+            return {
+                'region': region,
+                'totalSourceServers': None,
+                'replicatingServers': None,
+                'status': 'ACCESS_DENIED'
+            }
+        
+        return {
+            'region': region,
+            'error': error_str,
+            'status': 'ERROR'
+        }
+
+
+def get_drs_account_capacity(region: str) -> Dict:
+    """
+    Get current DRS account capacity metrics for a specific region.
+    Returns capacity info including replicating server count vs 300 hard limit.
+    Note: DRS limits are account-wide, but this shows regional usage for the selected region.
+    """
+    try:
+        regional_drs = boto3.client('drs', region_name=region)
+        
+        # Count all source servers and replicating servers in this region
         total_servers = 0
         replicating_servers = 0
         
@@ -671,16 +735,16 @@ def get_drs_account_capacity(region: str) -> Dict:
         # Determine capacity status
         if replicating_servers >= DRS_LIMITS['MAX_REPLICATING_SERVERS']:
             status = 'CRITICAL'
-            message = f"Account at hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+            message = f"Account at hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
         elif replicating_servers >= DRS_LIMITS['CRITICAL_REPLICATING_THRESHOLD']:
             status = 'WARNING'
-            message = f"Approaching hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+            message = f"Approaching hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
         elif replicating_servers >= DRS_LIMITS['WARNING_REPLICATING_THRESHOLD']:
             status = 'INFO'
-            message = f"Monitor capacity: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+            message = f"Monitor capacity: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
         else:
             status = 'OK'
-            message = f"Capacity OK: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers"
+            message = f"Capacity OK: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
         
         return {
             'totalSourceServers': total_servers,
@@ -770,7 +834,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         if path == '/health':
             return response(200, {'status': 'healthy', 'service': 'drs-orchestration-api'})
         elif path.startswith('/protection-groups'):
-            return handle_protection_groups(http_method, path_parameters, body)
+            return handle_protection_groups(http_method, path_parameters, body, query_parameters)
         elif '/execute' in path and path.startswith('/recovery-plans'):
             # Handle /recovery-plans/{planId}/execute endpoint
             plan_id = path_parameters.get('id')
@@ -792,8 +856,12 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return handle_drs_source_servers(query_parameters)
         elif path.startswith('/drs/quotas'):
             return handle_drs_quotas(query_parameters)
+        elif path.startswith('/drs/accounts'):
+            return handle_drs_accounts(query_parameters)
+        elif path.startswith('/accounts/targets'):
+            return handle_target_accounts(path, http_method, body, query_parameters)
         elif path == '/drs/tag-sync' and http_method == 'POST':
-            return handle_drs_tag_sync()
+            return handle_drs_tag_sync(body)
         elif path.startswith('/ec2/'):
             return handle_ec2_resources(path, query_parameters)
         elif path.startswith('/config'):
@@ -812,9 +880,10 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
 # Protection Groups Handlers
 # ============================================================================
 
-def handle_protection_groups(method: str, path_params: Dict, body: Dict) -> Dict:
+def handle_protection_groups(method: str, path_params: Dict, body: Dict, query_params: Dict = None) -> Dict:
     """Route Protection Groups requests"""
     group_id = path_params.get('id')
+    query_params = query_params or {}
     
     # Handle /protection-groups/resolve endpoint (POST with tags to preview servers)
     if method == 'POST' and group_id == 'resolve':
@@ -823,7 +892,7 @@ def handle_protection_groups(method: str, path_params: Dict, body: Dict) -> Dict
     if method == 'POST':
         return create_protection_group(body)
     elif method == 'GET' and not group_id:
-        return get_protection_groups()
+        return get_protection_groups(query_params)
     elif method == 'GET' and group_id:
         return get_protection_group(group_id)
     elif method == 'PUT' and group_id:
@@ -1202,9 +1271,12 @@ def create_protection_group(body: Dict) -> Dict:
         return response(500, {'error': str(e)})
 
 
-def get_protection_groups() -> Dict:
-    """List all Protection Groups"""
+def get_protection_groups(query_params: Dict = None) -> Dict:
+    """List all Protection Groups with optional account filtering"""
     try:
+        query_params = query_params or {}
+        account_id = query_params.get('accountId')
+        
         result = protection_groups_table.scan()
         groups = result.get('Items', [])
         
@@ -1214,6 +1286,19 @@ def get_protection_groups() -> Dict:
                 ExclusiveStartKey=result['LastEvaluatedKey']
             )
             groups.extend(result.get('Items', []))
+        
+        # Filter by account if specified
+        if account_id:
+            # For now, implement client-side filtering based on region or stored account info
+            # In future, could add AccountId field to DynamoDB schema
+            filtered_groups = []
+            for group in groups:
+                # Check if group has account info or matches current account
+                group_account = group.get('AccountId')
+                if group_account == account_id or not group_account:
+                    # Include groups that match account or have no account specified (legacy)
+                    filtered_groups.append(group)
+            groups = filtered_groups
         
         # Transform to camelCase (no server enrichment - tags are resolved at execution time)
         camelcase_groups = [transform_pg_to_camelcase(group) for group in groups]
@@ -1648,6 +1733,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
     """List all Recovery Plans with latest execution history and conflict info
     
     Query Parameters:
+        accountId: Filter by target account ID
         name: Filter by plan name (case-insensitive partial match)
         nameExact: Filter by exact plan name (case-insensitive)
         tag: Filter by tag key=value (plans with protection groups having this tag)
@@ -1661,6 +1747,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         plans = result.get('Items', [])
         
         # Apply filters
+        account_id = query_params.get('accountId')
         name_filter = query_params.get('name', '').lower()
         name_exact_filter = query_params.get('nameExact', '').lower()
         tag_filter = query_params.get('tag', '')  # Format: key=value
@@ -1733,6 +1820,15 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         # Apply filters to plans
         filtered_plans = []
         for plan in plans:
+            # Account filter - check if plan targets the specified account
+            if account_id:
+                # For now, implement client-side filtering based on stored account info
+                # In future, could add AccountId field to DynamoDB schema
+                plan_account = plan.get('AccountId')
+                if plan_account and plan_account != account_id:
+                    continue
+                # If no account specified in plan, include it (legacy plans)
+            
             # Name filter (partial match, case-insensitive)
             if name_filter:
                 plan_name = plan.get('PlanName', '').lower()
@@ -3017,10 +3113,11 @@ def get_execution_history(plan_id: str) -> Dict:
 
 
 def list_executions(query_params: Dict) -> Dict:
-    """List all executions with optional pagination"""
+    """List all executions with optional pagination and account filtering"""
     try:
         limit = int(query_params.get('limit', 50))
         next_token = query_params.get('nextToken')
+        account_id = query_params.get('accountId')
         
         # Scan execution history table
         scan_args = {
@@ -3033,6 +3130,17 @@ def list_executions(query_params: Dict) -> Dict:
         result = execution_history_table.scan(**scan_args)
         
         executions = result.get('Items', [])
+        
+        # Filter by account if specified
+        if account_id:
+            filtered_executions = []
+            for execution in executions:
+                # Check if execution has account info or matches current account
+                exec_account = execution.get('AccountId')
+                if exec_account == account_id or not exec_account:
+                    # Include executions that match account or have no account specified (legacy)
+                    filtered_executions.append(execution)
+            executions = filtered_executions
         
         # Sort by StartTime descending (most recent first)
         executions.sort(key=lambda x: x.get('StartTime', 0), reverse=True)
@@ -5409,13 +5517,21 @@ def has_circular_dependencies(graph: Dict[str, List[str]]) -> bool:
 # ============================================================================
 
 def handle_drs_quotas(query_params: Dict) -> Dict:
-    """Get DRS account quotas and current usage for a region"""
+    """Get DRS account quotas and current usage for an account"""
     try:
-        region = query_params.get('region')
-        if not region:
-            return response(400, {'error': 'MISSING_FIELD', 'message': 'region query parameter is required'})
+        account_id = query_params.get('accountId')
+        if not account_id:
+            return response(400, {'error': 'MISSING_FIELD', 'message': 'accountId query parameter is required'})
         
-        # Get account capacity
+        # For now, we only support current account
+        current_account_id = get_current_account_id()
+        if account_id != current_account_id:
+            return response(400, {'error': 'INVALID_ACCOUNT', 'message': f'Account {account_id} not accessible. Only current account {current_account_id} is supported.'})
+        
+        # Use provided region for regional operations (jobs, etc.)
+        region = query_params.get('region', os.environ.get('AWS_REGION', 'us-east-1'))
+        
+        # Get account capacity for the specified region
         capacity = get_drs_account_capacity(region)
         
         # Get concurrent jobs info
@@ -5424,10 +5540,15 @@ def handle_drs_quotas(query_params: Dict) -> Dict:
         # Get servers in active jobs
         servers_in_jobs = validate_servers_in_all_jobs(region, 0)
         
+        # Get account name (optional)
+        account_name = get_account_name(account_id)
+        
         return response(200, {
-            'region': region,
+            'accountId': account_id,
+            'accountName': account_name,
+            'region': region,  # Region queried for current usage
             'limits': DRS_LIMITS,
-            'capacity': capacity,
+            'capacity': capacity,  # Regional DRS capacity for selected region
             'concurrentJobs': {
                 'current': jobs_info.get('currentJobs'),
                 'max': jobs_info.get('maxJobs'),
@@ -5446,20 +5567,491 @@ def handle_drs_quotas(query_params: Dict) -> Dict:
         return response(500, {'error': str(e)})
 
 
-def handle_drs_tag_sync() -> Dict:
+def handle_drs_accounts(query_params: Dict) -> Dict:
+    """Get available DRS accounts"""
+    try:
+        # For now, only return current account
+        # In future, this will query cross-account roles
+        current_account_id = get_current_account_id()
+        account_name = get_account_name(current_account_id)
+        
+        accounts = [{
+            'accountId': current_account_id,
+            'accountName': account_name,
+            'isCurrentAccount': True
+        }]
+        
+        return response(200, accounts)
+        
+    except Exception as e:
+        print(f"Error getting DRS accounts: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': str(e)})
+
+
+def get_current_account_id() -> str:
+    """Get current AWS account ID"""
+    try:
+        sts_client = boto3.client('sts')
+        return sts_client.get_caller_identity()['Account']
+    except Exception as e:
+        print(f"Error getting account ID: {e}")
+        return "unknown"
+
+
+def get_account_name(account_id: str) -> str:
+    """Get account name/alias if available"""
+    try:
+        # Try to get account alias
+        iam_client = boto3.client('iam')
+        aliases = iam_client.list_account_aliases()['AccountAliases']
+        if aliases:
+            return aliases[0]
+        
+        # Try to get account name from Organizations (if available)
+        try:
+            org_client = boto3.client('organizations')
+            account = org_client.describe_account(AccountId=account_id)
+            return account['Account']['Name']
+        except:
+            # Organizations not available or no permissions
+            pass
+        
+        # Fallback to account ID
+        return None
+        
+    except Exception as e:
+        print(f"Error getting account name: {e}")
+        return None
+
+
+def transform_target_account_to_camelcase(account: Dict) -> Dict:
+    """Transform Target Account from DynamoDB PascalCase to frontend camelCase"""
+    current_account_id = get_current_account_id()
+    
+    return {
+        'accountId': account.get('AccountId') or account.get('accountId'),
+        'accountName': account.get('AccountName') or account.get('accountName'),
+        'isCurrentAccount': account.get('AccountId', account.get('accountId')) == current_account_id,
+        'status': account.get('Status') or account.get('status', 'active'),
+        'stagingAccountId': account.get('StagingAccountId') or account.get('stagingAccountId'),
+        'crossAccountRoleArn': account.get('CrossAccountRoleArn') or account.get('crossAccountRoleArn'),
+        'createdAt': account.get('CreatedAt') or account.get('createdAt'),
+        'lastValidated': account.get('LastValidated') or account.get('lastValidated')
+    }
+
+
+def transform_target_account_from_camelcase(camel_account: Dict) -> Dict:
+    """Transform Target Account from frontend camelCase to DynamoDB PascalCase"""
+    pascal_account = {}
+    
+    if camel_account.get('accountId'):
+        pascal_account['AccountId'] = camel_account['accountId']
+    if camel_account.get('accountName'):
+        pascal_account['AccountName'] = camel_account['accountName']
+    if camel_account.get('status'):
+        pascal_account['Status'] = camel_account['status']
+    if camel_account.get('stagingAccountId'):
+        pascal_account['StagingAccountId'] = camel_account['stagingAccountId']
+    if camel_account.get('crossAccountRoleArn'):
+        pascal_account['CrossAccountRoleArn'] = camel_account['crossAccountRoleArn']
+    if camel_account.get('createdAt'):
+        pascal_account['CreatedAt'] = camel_account['createdAt']
+    if camel_account.get('lastValidated'):
+        pascal_account['LastValidated'] = camel_account['lastValidated']
+    
+    return pascal_account
+
+
+def handle_target_accounts(path: str, http_method: str, body: Dict = None, query_params: Dict = None) -> Dict:
+    """Handle target account management operations"""
+    try:
+        # Parse path to get account ID if present
+        path_parts = path.split('/')
+        account_id = None
+        action = None
+        
+        if len(path_parts) >= 4:  # /accounts/targets/{accountId}
+            account_id = path_parts[3]
+            if len(path_parts) >= 5:  # /accounts/targets/{accountId}/{action}
+                action = path_parts[4]
+        
+        if http_method == 'GET' and not account_id:
+            # GET /accounts/targets - List all target accounts
+            return get_target_accounts()
+        elif http_method == 'POST' and not account_id:
+            # POST /accounts/targets - Create new target account
+            return create_target_account(body)
+        elif http_method == 'PUT' and account_id:
+            # PUT /accounts/targets/{accountId} - Update target account
+            return update_target_account(account_id, body)
+        elif http_method == 'DELETE' and account_id:
+            # DELETE /accounts/targets/{accountId} - Delete target account
+            return delete_target_account(account_id)
+        elif http_method == 'POST' and account_id and action == 'validate':
+            # POST /accounts/targets/{accountId}/validate - Validate target account
+            return validate_target_account(account_id)
+        else:
+            return response(404, {'error': 'NOT_FOUND', 'message': 'Endpoint not found'})
+            
+    except Exception as e:
+        print(f"Error in target accounts handler: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': str(e)})
+
+
+def get_target_accounts() -> Dict:
+    """Get all configured target accounts"""
+    try:
+        # Get current account info
+        current_account_id = get_current_account_id()
+        current_account_name = get_account_name(current_account_id)
+        
+        # Scan target accounts table
+        result = target_accounts_table.scan()
+        accounts = result.get('Items', [])
+        
+        # Handle pagination
+        while 'LastEvaluatedKey' in result:
+            result = target_accounts_table.scan(
+                ExclusiveStartKey=result['LastEvaluatedKey']
+            )
+            accounts.extend(result.get('Items', []))
+        
+        # If no accounts configured, add current account as default
+        if not accounts:
+            default_account = {
+                'AccountId': current_account_id,  # DynamoDB expects PascalCase
+                'AccountName': current_account_name,
+                'Status': 'active',
+                'CreatedAt': datetime.utcnow().isoformat() + 'Z',
+                'LastValidated': datetime.utcnow().isoformat() + 'Z'
+            }
+            
+            # Store default account in DynamoDB
+            target_accounts_table.put_item(Item=default_account)
+            accounts = [default_account]
+        
+        # Transform all accounts to camelCase for frontend
+        camel_accounts = []
+        for account in accounts:
+            camel_account = transform_target_account_to_camelcase(account)
+            camel_accounts.append(camel_account)
+        
+        return response(200, camel_accounts)
+        
+    except Exception as e:
+        print(f"Error getting target accounts: {e}")
+        return response(500, {'error': str(e)})
+
+
+def create_target_account(body: Dict) -> Dict:
+    """Create a new target account configuration"""
+    try:
+        if not body:
+            return response(400, {'error': 'MISSING_BODY', 'message': 'Request body is required'})
+        
+        account_id = body.get('accountId')
+        if not account_id:
+            return response(400, {'error': 'MISSING_FIELD', 'message': 'accountId is required'})
+        
+        # Validate account ID format
+        if not re.match(r'^\d{12}$', account_id):
+            return response(400, {'error': 'INVALID_FORMAT', 'message': 'accountId must be 12 digits'})
+        
+        # Check if account already exists (use PascalCase for DynamoDB key)
+        try:
+            existing = target_accounts_table.get_item(Key={'AccountId': account_id})
+            if 'Item' in existing:
+                return response(400, {
+                    'error': 'ACCOUNT_EXISTS', 
+                    'message': f'Target account {account_id} already exists'
+                })
+        except Exception as e:
+            print(f"Error checking existing account: {e}")
+        
+        # Get current account info
+        current_account_id = get_current_account_id()
+        account_name = body.get('accountName', '')
+        
+        # If no name provided, try to get account name
+        if not account_name:
+            if account_id == current_account_id:
+                account_name = get_account_name(account_id)
+            else:
+                account_name = f"Account {account_id}"
+        
+        # Validate staging account ID if provided
+        if body.get('stagingAccountId'):
+            staging_account_id = body.get('stagingAccountId')
+            if not re.match(r'^\d{12}$', staging_account_id):
+                return response(400, {'error': 'INVALID_FORMAT', 'message': 'stagingAccountId must be 12 digits'})
+        
+        # Transform from camelCase to PascalCase for DynamoDB
+        now = datetime.utcnow().isoformat() + 'Z'
+        body_with_timestamps = {
+            **body,
+            'createdAt': now,
+            'lastValidated': now,
+            'status': 'active'
+        }
+        
+        account_item = transform_target_account_from_camelcase(body_with_timestamps)
+        
+        # Store in DynamoDB
+        target_accounts_table.put_item(Item=account_item)
+        
+        # Transform back to camelCase for response
+        camel_account = transform_target_account_to_camelcase(account_item)
+        
+        print(f"Created target account: {account_id}")
+        return response(201, camel_account)
+        
+    except Exception as e:
+        print(f"Error creating target account: {e}")
+        return response(500, {'error': str(e)})
+
+
+def update_target_account(account_id: str, body: Dict) -> Dict:
+    """Update target account configuration"""
+    try:
+        if not body:
+            return response(400, {'error': 'MISSING_BODY', 'message': 'Request body is required'})
+        
+        # Check if account exists (use PascalCase for DynamoDB key)
+        result = target_accounts_table.get_item(Key={'AccountId': account_id})
+        if 'Item' not in result:
+            return response(404, {'error': 'NOT_FOUND', 'message': f'Target account {account_id} not found'})
+        
+        existing_account = result['Item']
+        
+        # Validate staging account ID if provided
+        if 'stagingAccountId' in body and body['stagingAccountId']:
+            staging_account_id = body['stagingAccountId']
+            if not re.match(r'^\d{12}$', staging_account_id):
+                return response(400, {'error': 'INVALID_FORMAT', 'message': 'stagingAccountId must be 12 digits'})
+        
+        # Build update expression (using PascalCase for DynamoDB)
+        update_expression = "SET LastValidated = :lastValidated"
+        expression_values = {
+            ':lastValidated': datetime.utcnow().isoformat() + 'Z'
+        }
+        expression_names = {}
+        
+        # Update account name if provided
+        if 'accountName' in body:
+            update_expression += ", AccountName = :accountName"
+            expression_values[':accountName'] = body['accountName']
+        
+        # Update status if provided
+        if 'status' in body and body['status'] in ['active', 'inactive']:
+            update_expression += ", #status = :status"
+            expression_values[':status'] = body['status']
+            expression_names['#status'] = 'Status'
+        
+        # Update staging account if provided
+        if 'stagingAccountId' in body:
+            staging_account_id = body['stagingAccountId']
+            if staging_account_id:
+                update_expression += ", StagingAccountId = :stagingAccountId"
+                expression_values[':stagingAccountId'] = staging_account_id
+            else:
+                # Remove staging account
+                update_expression += " REMOVE StagingAccountId"
+        
+        # Update cross-account role ARN if provided
+        if 'crossAccountRoleArn' in body:
+            cross_account_role = body['crossAccountRoleArn']
+            if cross_account_role:
+                update_expression += ", CrossAccountRoleArn = :crossAccountRoleArn"
+                expression_values[':crossAccountRoleArn'] = cross_account_role
+            else:
+                # Remove cross-account role
+                update_expression += " REMOVE CrossAccountRoleArn"
+        
+        # Perform update
+        update_args = {
+            'Key': {'AccountId': account_id},  # Use PascalCase for DynamoDB key
+            'UpdateExpression': update_expression,
+            'ExpressionAttributeValues': expression_values,
+            'ReturnValues': 'ALL_NEW'
+        }
+        
+        if expression_names:
+            update_args['ExpressionAttributeNames'] = expression_names
+        
+        result = target_accounts_table.update_item(**update_args)
+        updated_account = result['Attributes']
+        
+        # Transform to camelCase for response
+        camel_account = transform_target_account_to_camelcase(updated_account)
+        
+        print(f"Updated target account: {account_id}")
+        return response(200, camel_account)
+        
+    except Exception as e:
+        print(f"Error updating target account: {e}")
+        return response(500, {'error': str(e)})
+
+
+def delete_target_account(account_id: str) -> Dict:
+    """Delete target account configuration"""
+    try:
+        current_account_id = get_current_account_id()
+        
+        # Prevent deletion of current account
+        if account_id == current_account_id:
+            return response(400, {
+                'error': 'INVALID_OPERATION', 
+                'message': 'Cannot delete current account configuration'
+            })
+        
+        # Check if account exists (use PascalCase for DynamoDB key)
+        result = target_accounts_table.get_item(Key={'AccountId': account_id})
+        if 'Item' not in result:
+            return response(404, {
+                'error': 'NOT_FOUND', 
+                'message': f'Target account {account_id} not found'
+            })
+        
+        # TODO: Check if account is being used in any protection groups or recovery plans
+        # For now, we'll allow deletion
+        
+        # Delete the account (use PascalCase for DynamoDB key)
+        target_accounts_table.delete_item(Key={'AccountId': account_id})
+        
+        print(f"Deleted target account: {account_id}")
+        return response(200, {'message': f'Target account {account_id} deleted successfully'})
+        
+    except Exception as e:
+        print(f"Error deleting target account: {e}")
+        return response(500, {'error': str(e)})
+
+
+def validate_target_account(account_id: str) -> Dict:
+    """Validate target account access and permissions"""
+    try:
+        current_account_id = get_current_account_id()
+        
+        # Check if account exists in our configuration (use PascalCase for DynamoDB key)
+        result = target_accounts_table.get_item(Key={'AccountId': account_id})
+        if 'Item' not in result:
+            return response(404, {
+                'error': 'NOT_FOUND', 
+                'message': f'Target account {account_id} not found'
+            })
+        
+        account_config = result['Item']
+        validation_results = {
+            'accountId': account_id,
+            'validationResults': [],
+            'overallStatus': 'active',
+            'lastValidated': datetime.utcnow().isoformat() + 'Z'
+        }
+        
+        if account_id == current_account_id:
+            # Validate current account by checking DRS access
+            try:
+                # Test DRS access in multiple regions
+                test_regions = ['us-east-1', 'us-west-2', 'eu-west-1']
+                for region in test_regions:
+                    try:
+                        drs_client = boto3.client('drs', region_name=region)
+                        drs_client.describe_source_servers(maxResults=1)
+                        validation_results['validationResults'].append({
+                            'region': region,
+                            'service': 'DRS',
+                            'status': 'success',
+                            'message': 'DRS access validated'
+                        })
+                    except Exception as region_error:
+                        validation_results['validationResults'].append({
+                            'region': region,
+                            'service': 'DRS',
+                            'status': 'warning',
+                            'message': f'DRS access issue: {str(region_error)}'
+                        })
+                
+            except Exception as drs_error:
+                validation_results['overallStatus'] = 'error'
+                validation_results['validationResults'].append({
+                    'service': 'DRS',
+                    'status': 'error',
+                    'message': f'DRS validation failed: {str(drs_error)}'
+                })
+        else:
+            # Cross-account validation
+            cross_account_role = account_config.get('CrossAccountRoleArn')
+            if not cross_account_role:
+                validation_results['overallStatus'] = 'error'
+                validation_results['validationResults'].append({
+                    'service': 'IAM',
+                    'status': 'error',
+                    'message': 'Cross-account role ARN not configured'
+                })
+            else:
+                # TODO: Implement cross-account role assumption and validation
+                validation_results['validationResults'].append({
+                    'service': 'IAM',
+                    'status': 'warning',
+                    'message': 'Cross-account validation not yet implemented'
+                })
+        
+        # Update last validated timestamp in DynamoDB (use PascalCase for DynamoDB)
+        try:
+            target_accounts_table.update_item(
+                Key={'AccountId': account_id},
+                UpdateExpression='SET LastValidated = :lastValidated',
+                ExpressionAttributeValues={
+                    ':lastValidated': validation_results['lastValidated']
+                }
+            )
+        except Exception as update_error:
+            print(f"Warning: Could not update lastValidated timestamp: {update_error}")
+        
+        return response(200, validation_results)
+        
+    except Exception as e:
+        print(f"Error validating target account: {e}")
+        return response(500, {'error': str(e)})
+
+
+def handle_drs_tag_sync(body: Dict = None) -> Dict:
     """Sync EC2 instance tags to DRS source servers across all regions.
     
     Runs synchronously - syncs tags from EC2 instances to their DRS source servers.
+    Supports account-based operations for future multi-account support.
     """
     try:
+        # Get account ID from request body (for future multi-account support)
+        target_account_id = None
+        if body and isinstance(body, dict):
+            target_account_id = body.get('accountId')
+        
+        # For now, validate that we can only sync current account
+        current_account_id = get_current_account_id()
+        if target_account_id and target_account_id != current_account_id:
+            return response(400, {
+                'error': 'INVALID_ACCOUNT', 
+                'message': f'Cannot sync tags for account {target_account_id}. Only current account {current_account_id} is supported.'
+            })
+        
+        # Use current account if no account specified
+        account_id = target_account_id or current_account_id
+        account_name = get_account_name(account_id)
+        
         total_synced = 0
         total_servers = 0
         total_failed = 0
         regions_with_servers = []
         
+        print(f"Starting tag sync for account {account_id} ({account_name or 'Unknown'})")
+        
         for region in DRS_REGIONS:
             try:
-                result = sync_tags_in_region(region)
+                result = sync_tags_in_region(region, account_id)
                 if result['total'] > 0:
                     regions_with_servers.append(region)
                     total_servers += result['total']
@@ -5471,7 +6063,9 @@ def handle_drs_tag_sync() -> Dict:
                 print(f"Tag sync {region}: skipped - {e}")
         
         summary = {
-            'message': 'Tag sync complete',
+            'message': f'Tag sync complete for account {account_id}',
+            'accountId': account_id,
+            'accountName': account_name,
             'total_regions': len(DRS_REGIONS),
             'regions_with_servers': len(regions_with_servers),
             'total_servers': total_servers,
@@ -5491,8 +6085,13 @@ def handle_drs_tag_sync() -> Dict:
         return response(500, {'error': str(e)})
 
 
-def sync_tags_in_region(drs_region: str) -> dict:
-    """Sync EC2 tags to all DRS source servers in a single region."""
+def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
+    """Sync EC2 tags to all DRS source servers in a single region.
+    
+    Args:
+        drs_region: AWS region to sync tags in
+        account_id: AWS account ID (for future multi-account support)
+    """
     drs_client = boto3.client('drs', region_name=drs_region)
     ec2_clients = {}
     

@@ -30,6 +30,10 @@ export function DRSQuotaStatusPanel({ quotas, compact = false }: Props): React.R
     );
   }
 
+  const accountDisplay = quotas.accountName 
+    ? `${quotas.accountName} (${quotas.accountId})`
+    : quotas.accountId;
+
   const replicatingPct = (quotas.capacity.replicatingServers / quotas.capacity.maxReplicatingServers) * 100;
   const replicatingDesc = quotas.capacity.replicatingServers + ' / ' + quotas.capacity.maxReplicatingServers;
   const replicatingStatus = getProgressStatus(quotas.capacity.replicatingServers, quotas.capacity.maxReplicatingServers);
@@ -48,6 +52,16 @@ export function DRSQuotaStatusPanel({ quotas, compact = false }: Props): React.R
 
   return (
     <SpaceBetween size="m">
+      <SpaceBetween direction="horizontal" size="m">
+        <Box>
+          <Box variant="awsui-key-label">Account</Box>
+          <Box variant="awsui-value-large">{accountDisplay}</Box>
+        </Box>
+        <Box>
+          <Box variant="awsui-key-label">Region</Box>
+          <Box variant="awsui-value-large">{quotas.region}</Box>
+        </Box>
+      </SpaceBetween>
       <Box>
         <StatusIndicator type={getCapacityStatusType(quotas.capacity.status)}>
           {quotas.capacity.message}

@@ -29,6 +29,8 @@ export interface DRSCapacity {
 }
 
 export interface DRSQuotaStatus {
+  accountId: string;
+  accountName?: string;
   region: string;
   limits: DRSLimits;
   capacity: DRSCapacity;
@@ -43,6 +45,12 @@ export interface DRSQuotaStatus {
   };
 }
 
+export interface DRSAccount {
+  accountId: string;
+  accountName?: string;
+  isCurrentAccount: boolean;
+}
+
 // DRS hard limits (matching backend constants)
 export const DRS_LIMITS: DRSLimits = {
   MAX_SERVERS_PER_JOB: 100,
@@ -55,10 +63,17 @@ export const DRS_LIMITS: DRSLimits = {
 };
 
 /**
- * Fetch DRS quotas and current usage for a region
+ * Fetch DRS quotas and current usage for an account
  */
-export const getDRSQuotas = async (region: string): Promise<DRSQuotaStatus> => {
-  return apiClient.getDRSQuotas(region);
+export const getDRSQuotas = async (accountId: string, region?: string): Promise<DRSQuotaStatus> => {
+  return apiClient.getDRSQuotas(accountId, region);
+};
+
+/**
+ * Fetch available DRS accounts (target accounts)
+ */
+export const getDRSAccounts = async (): Promise<DRSAccount[]> => {
+  return apiClient.getTargetAccounts();
 };
 
 /**

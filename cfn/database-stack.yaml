@@ -102,6 +102,41 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # Target Accounts Table
+  TargetAccountsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-target-accounts-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: AccountId
+          AttributeType: S
+        - AttributeName: Status
+          AttributeType: S
+        - AttributeName: LastValidated
+          AttributeType: S
+      KeySchema:
+        - AttributeName: AccountId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: Status
+              KeyType: HASH
+            - AttributeName: LastValidated
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
 Outputs:
   ProtectionGroupsTableName:
     Description: 'DynamoDB table name for Protection Groups'
@@ -138,3 +173,15 @@ Outputs:
     Value: !GetAtt ExecutionHistoryTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTableArn'
+
+  TargetAccountsTableName:
+    Description: 'DynamoDB table name for Target Accounts'
+    Value: !Ref TargetAccountsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-TargetAccountsTableName'
+
+  TargetAccountsTableArn:
+    Description: 'DynamoDB table ARN for Target Accounts'
+    Value: !GetAtt TargetAccountsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-TargetAccountsTableArn'

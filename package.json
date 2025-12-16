@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "puppeteer": "^24.33.0"
+  },
+  "devDependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.2.1"
+  }
+}

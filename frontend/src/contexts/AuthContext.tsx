@@ -100,6 +100,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
 
+      // Check if we're in local development mode
+      const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if (isLocalDev) {
+        // Mock authentication for local development
+        console.log('🔧 Local development mode - using mock authentication');
+        setAuthState({
+          isAuthenticated: true,
+          user: {
+            username: 'local-dev-user',
+            email: 'dev@localhost.com',
+          },
+          loading: false,
+          error: undefined,
+        });
+        return;
+      }
+
       // Get current authenticated user
       const user = await getCurrentUser();
       
@@ -160,6 +178,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
 
+      // Check if we're in local development mode
+      const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if (isLocalDev) {
+        // Mock sign-in for local development
+        console.log('🔧 Local development mode - mock sign-in successful');
+        setAuthState({
+          isAuthenticated: true,
+          user: {
+            username: username,
+            email: `${username}@localhost.com`,
+          },
+          loading: false,
+          error: undefined,
+        });
+        
+        // Return mock successful sign-in result
+        return {
+          isSignedIn: true,
+          nextStep: { signInStep: 'DONE' }
+        } as SignInOutput;
+      }
+
       const signInInput: SignInInput = {
         username,
         password,
@@ -191,6 +232,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const handleSignOut = async (): Promise<void> => {
     try {
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
+
+      // Check if we're in local development mode
+      const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if (isLocalDev) {
+        // Mock sign-out for local development
+        console.log('🔧 Local development mode - mock sign-out');
+        clearLogoutTimer();
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          loading: false,
+          error: undefined,
+        });
+        return;
+      }
 
       await signOut();
 

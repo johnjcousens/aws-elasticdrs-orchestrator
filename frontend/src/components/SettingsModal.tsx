@@ -14,6 +14,7 @@ import {
 } from '@cloudscape-design/components';
 import { ConfigExportPanel } from './ConfigExportPanel';
 import { ConfigImportPanel } from './ConfigImportPanel';
+import AccountManagementPanel from './AccountManagementPanel';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -24,7 +25,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   visible,
   onDismiss,
 }) => {
-  const [activeTab, setActiveTab] = useState('export');
+  const [activeTab, setActiveTab] = useState('accounts');
 
   return (
     <Modal
@@ -38,6 +39,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           activeTabId={activeTab}
           onChange={({ detail }) => setActiveTab(detail.activeTabId)}
           tabs={[
+            {
+              id: 'accounts',
+              label: 'Account Management',
+              content: (
+                <Box padding={{ top: 'm' }}>
+                  <AccountManagementPanel />
+                </Box>
+              ),
+            },
             {
               id: 'export',
               label: 'Export Configuration',

@@ -26,6 +26,10 @@ Parameters:
     Type: String
     Description: 'DynamoDB table name for Execution History'
 
+  TargetAccountsTableName:
+    Type: String
+    Description: 'DynamoDB table name for Target Accounts'
+
   FrontendBucketName:
     Type: String
     Default: ''
@@ -77,6 +81,7 @@ Resources:
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}'
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*'
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TargetAccountsTableName}'
         - PolicyName: StepFunctionsAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -240,6 +245,7 @@ Resources:
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}'
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
                   - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*'
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TargetAccountsTableName}'
         - PolicyName: DRSAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -569,6 +575,7 @@ Resources:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
           STATE_MACHINE_ARN: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
       Tags:
