@@ -51,6 +51,30 @@ class ApiClient {
   }
 
   /**
+   * Get user-friendly message for HTTP status codes
+   */
+  private getStatusCodeMessage(status: number): string {
+    switch (status) {
+      case 400:
+        return 'Invalid request. Please check your input and try again.';
+      case 401:
+        return 'Authentication required. Please sign in again.';
+      case 403:
+        return 'Access denied. You do not have permission for this action.';
+      case 404:
+        return 'Resource not found. The requested item may have been deleted.';
+      case 409:
+        return 'Conflict occurred. The resource may have been modified by another user.';
+      case 422:
+        return 'Invalid data provided. Please check your input.';
+      case 429:
+        return 'Too many requests. Please wait a moment and try again.';
+      default:
+        return `Request failed with status ${status}. Please try again or contact support.`;
+    }
+  }
+
+  /**
    * Setup request and response interceptors
    */
   private setupInterceptors(): void {
@@ -118,19 +142,61 @@ class ApiClient {
             (versionError as any).currentVersion = data?.currentVersion;
             throw versionError;
           } else if (status >= 500) {
-            // Server error
+            // Server error - provide specific messages based on status code
             console.error('Server error:', data);
+            let serverErrorMessage = data?.message;
+            
+            if (!serverErrorMessage) {
+              switch (status) {
+                case 500:
+                  serverErrorMessage = 'Internal server error occurred. Please try again in a few moments.';
+                  break;
+                case 502:
+                  serverErrorMessage = 'Service temporarily unavailable. Please try again shortly.';
+                  break;
+                case 503:
+                  serverErrorMessage = 'Service is currently under maintenance. Please try again later.';
+                  break;
+                case 504:
+                  serverErrorMessage = 'Server timeout occurred. Please try again.';
+                  break;
+                default:
+                  serverErrorMessage = `Server error (${status}). Please contact support if this persists.`;
+              }
+            }
+            
+            throw new Error(serverErrorMessage);
           }
 
-          throw new Error(data?.message || `API Error: ${status}`);
+          // Provide specific error message or fallback with status code
+          const errorMessage = data?.message || this.getStatusCodeMessage(status);
+          throw new Error(errorMessage);
         } else if (error.request) {
           // Request made but no response received
           console.error('No response from server:', error.request);
-          throw new Error('No response from server. Please check your connection.');
+          
+          // Provide more specific error messages based on error type
+          if (error.code === 'ECONNABORTED') {
+            throw new Error('Request timed out. The server may be busy - please try again.');
+          } else if (error.code === 'ERR_NETWORK') {
+            throw new Error('Network connection failed. Please check your internet connection.');
+          } else if (error.code === 'ERR_INTERNET_DISCONNECTED') {
+            throw new Error('No internet connection. Please check your network and try again.');
+          } else {
+            throw new Error('Unable to reach the server. Please check your internet connection and try again.');
+          }
         } else {
           // Something else happened
           console.error('Request error:', error.message);
-          throw error;
+          
+          // Provide more descriptive error for common issues
+          if (error.message?.includes('CORS')) {
+            throw new Error('Cross-origin request blocked. Please contact your administrator.');
+          } else if (error.message?.includes('timeout')) {
+            throw new Error('Request timed out. Please try again.');
+          } else {
+            throw error;
+          }
         }
       }
     );
