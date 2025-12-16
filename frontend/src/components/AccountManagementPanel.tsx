@@ -267,7 +267,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       React.createElement(
         'p',
         {},
-        'Configure target accounts for cross-account DRS orchestration. The current account (where this solution is deployed) is automatically included as the default target account.'
+        'Configure target accounts for cross-account DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate. If the current account has DRS, add it explicitly as a target account.'
       ),
       React.createElement(
         'ul',
