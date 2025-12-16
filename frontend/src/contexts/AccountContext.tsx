@@ -40,6 +40,12 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   const [accountsError, setAccountsError] = useState<string | null>(null);
 
   const refreshAccounts = async () => {
+    // Don't fetch if not authenticated
+    if (!isAuthenticated || authLoading) {
+      setAccountsLoading(false);
+      return;
+    }
+
     setAccountsLoading(true);
     setAccountsError(null);
     
@@ -60,9 +66,20 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
           setSelectedAccount(accountOption);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching accounts:', err);
-      setAccountsError('Unable to fetch target accounts');
+      
+      // Handle authentication errors specifically
+      if (err?.response?.status === 401 || err?.message?.includes('Unauthorized')) {
+        setAccountsError('Authentication required. Please sign in again.');
+        // Clear accounts when authentication fails
+        setAvailableAccounts([]);
+        setSelectedAccount(null);
+      } else if (err?.message?.includes('CORS') || err?.message?.includes('No response from server')) {
+        setAccountsError('Connection error. Please check your network and try again.');
+      } else {
+        setAccountsError('Unable to fetch target accounts');
+      }
     } finally {
       setAccountsLoading(false);
     }
@@ -80,14 +97,25 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return account?.accountName || accountId;
   };
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
 
-  // Load accounts only after authentication
+  // Load accounts only after authentication is complete and not loading
   useEffect(() => {
-    if (isAuthenticated) {
-      refreshAccounts();
+    if (isAuthenticated && !authLoading) {
+      // Add a small delay to ensure auth token is fully available
+      const timer = setTimeout(() => {
+        refreshAccounts();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    } else if (!isAuthenticated && !authLoading) {
+      // Clear accounts when not authenticated
+      setAvailableAccounts([]);
+      setSelectedAccount(null);
+      setAccountsLoading(false);
+      setAccountsError(null);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authLoading]);
 
   const contextValue: AccountContextType = {
     selectedAccount,
