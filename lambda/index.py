@@ -25,6 +25,20 @@ RECOVERY_PLANS_TABLE = os.environ['RECOVERY_PLANS_TABLE']
 EXECUTION_HISTORY_TABLE = os.environ['EXECUTION_HISTORY_TABLE']
 STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN', '')
 
+# All 28 commercial AWS regions where DRS is available
+DRS_REGIONS = [
+    # Americas (6)
+    'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'ca-central-1', 'sa-east-1',
+    # Europe (8)
+    'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-central-2',
+    'eu-north-1', 'eu-south-1', 'eu-south-2',
+    # Asia Pacific (10)
+    'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3', 'ap-southeast-1',
+    'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-south-1', 'ap-south-2', 'ap-east-1',
+    # Middle East & Africa (4)
+    'me-south-1', 'me-central-1', 'af-south-1', 'il-central-1',
+]
+
 # DRS Service Limits (from AWS Service Quotas)
 # Reference: https://docs.aws.amazon.com/general/latest/gr/drs.html
 DRS_LIMITS = {
@@ -778,6 +792,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return handle_drs_source_servers(query_parameters)
         elif path.startswith('/drs/quotas'):
             return handle_drs_quotas(query_parameters)
+        elif path == '/drs/tag-sync' and http_method == 'POST':
+            return handle_drs_tag_sync()
         elif path.startswith('/ec2/'):
             return handle_ec2_resources(path, query_parameters)
         elif path.startswith('/config'):
@@ -826,27 +842,27 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
     Request body:
     {
         "region": "us-east-1",
-        "tags": {"DR-Application": "HRP", "DR-Tier": "Database"}
+        "ServerSelectionTags": {"DR-Application": "HRP", "DR-Tier": "Database"}
     }
     
     Returns list of servers matching ALL specified tags.
     """
     try:
         region = body.get('region')
-        tags = body.get('tags', {})
+        tags = body.get('ServerSelectionTags') or body.get('tags', {})
         
         if not region:
             return response(400, {'error': 'region is required'})
         
         if not tags or not isinstance(tags, dict):
-            return response(400, {'error': 'tags must be a non-empty object'})
+            return response(400, {'error': 'ServerSelectionTags must be a non-empty object'})
         
         # Query DRS for servers matching tags
         resolved_servers = query_drs_servers_by_tags(region, tags)
         
         return response(200, {
             'region': region,
-            'tags': tags,
+            'ServerSelectionTags': tags,
             'resolvedServers': resolved_servers,
             'serverCount': len(resolved_servers),
             'resolvedAt': int(time.time())
@@ -4365,19 +4381,62 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             source_props = item.get('sourceProperties', {})
             ident_hints = source_props.get('identificationHints', {})
             hostname = ident_hints.get('hostname', 'Unknown')
+            fqdn = ident_hints.get('fqdn', '')
             
             # Extract source instance details
             source_instance_id = ident_hints.get('awsInstanceID', '')
             if source_instance_id:
                 source_instance_ids.append(source_instance_id)
             
-            # Extract source IP from network interfaces
+            # Extract network interfaces (all of them)
             network_interfaces = source_props.get('networkInterfaces', [])
             source_ip = ''
+            source_mac = ''
+            all_network_interfaces = []
             if network_interfaces:
-                ips = network_interfaces[0].get('ips', [])
+                # Primary interface
+                primary_nic = network_interfaces[0]
+                ips = primary_nic.get('ips', [])
                 if ips:
                     source_ip = ips[0]
+                source_mac = primary_nic.get('macAddress', '')
+                
+                # All interfaces for detailed view
+                for nic in network_interfaces:
+                    all_network_interfaces.append({
+                        'ips': nic.get('ips', []),
+                        'macAddress': nic.get('macAddress', ''),
+                        'isPrimary': nic.get('isPrimary', False)
+                    })
+            
+            # Extract hardware info - CPU
+            cpus = source_props.get('cpus', [])
+            cpu_info = []
+            total_cores = 0
+            for cpu in cpus:
+                cpu_info.append({
+                    'modelName': cpu.get('modelName', 'Unknown'),
+                    'cores': cpu.get('cores', 0)
+                })
+                total_cores += cpu.get('cores', 0)
+            
+            # Extract hardware info - RAM
+            ram_bytes = source_props.get('ramBytes', 0)
+            ram_gib = round(ram_bytes / (1024 ** 3), 1) if ram_bytes else 0
+            
+            # Extract hardware info - Disks
+            disks = source_props.get('disks', [])
+            disk_info = []
+            total_disk_bytes = 0
+            for disk in disks:
+                disk_bytes = disk.get('bytes', 0)
+                total_disk_bytes += disk_bytes
+                disk_info.append({
+                    'deviceName': disk.get('deviceName', 'Unknown'),
+                    'bytes': disk_bytes,
+                    'sizeGiB': round(disk_bytes / (1024 ** 3), 1) if disk_bytes else 0
+                })
+            total_disk_gib = round(total_disk_bytes / (1024 ** 3), 1) if total_disk_bytes else 0
             
             # Extract OS info
             os_info = source_props.get('os', {})
@@ -4416,9 +4475,11 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
             servers.append({
                 'sourceServerID': server_id,
                 'hostname': hostname,
+                'fqdn': fqdn,
                 'nameTag': '',  # Will be populated from EC2 below
                 'sourceInstanceId': source_instance_id,
                 'sourceIp': source_ip,
+                'sourceMac': source_mac,
                 'sourceRegion': source_region,
                 'sourceAccount': source_account,
                 'os': os_string,
@@ -4426,6 +4487,16 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
                 'replicationState': rep_state,
                 'lagDuration': lag_duration,
                 'lastSeen': lifecycle.get('lastSeenByServiceDateTime', ''),
+                # Hardware details
+                'hardware': {
+                    'cpus': cpu_info,
+                    'totalCores': total_cores,
+                    'ramBytes': ram_bytes,
+                    'ramGiB': ram_gib,
+                    'disks': disk_info,
+                    'totalDiskGiB': total_disk_gib
+                },
+                'networkInterfaces': all_network_interfaces,
                 'drsTags': drs_tags,  # DRS resource tags for tag-based selection
                 'assignedToProtectionGroup': None,  # Will be populated below
                 'selectable': True  # Will be updated below
@@ -4523,13 +4594,16 @@ def list_source_servers(region: str, current_pg_id: Optional[str] = None) -> Dic
                     break  # First matching tag-based PG wins
         
         # 5. Return enhanced server list
+        from datetime import datetime
         return response(200, {
             'region': region,
             'initialized': True,
             'servers': servers,
             'totalCount': len(servers),
             'availableCount': sum(1 for s in servers if s['selectable']),
-            'assignedCount': sum(1 for s in servers if not s['selectable'])
+            'assignedCount': sum(1 for s in servers if not s['selectable']),
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'hardwareDataIncluded': len([s for s in servers if s.get('hardware')]) > 0
         })
         
     except Exception as e:
@@ -5370,6 +5444,116 @@ def handle_drs_quotas(query_params: Dict) -> Dict:
         import traceback
         traceback.print_exc()
         return response(500, {'error': str(e)})
+
+
+def handle_drs_tag_sync() -> Dict:
+    """Sync EC2 instance tags to DRS source servers across all regions.
+    
+    Runs synchronously - syncs tags from EC2 instances to their DRS source servers.
+    """
+    try:
+        total_synced = 0
+        total_servers = 0
+        total_failed = 0
+        regions_with_servers = []
+        
+        for region in DRS_REGIONS:
+            try:
+                result = sync_tags_in_region(region)
+                if result['total'] > 0:
+                    regions_with_servers.append(region)
+                    total_servers += result['total']
+                    total_synced += result['synced']
+                    total_failed += result['failed']
+                    print(f"Tag sync {region}: {result['synced']}/{result['total']} synced")
+            except Exception as e:
+                # Log but continue - don't fail entire sync for one region
+                print(f"Tag sync {region}: skipped - {e}")
+        
+        summary = {
+            'message': 'Tag sync complete',
+            'total_regions': len(DRS_REGIONS),
+            'regions_with_servers': len(regions_with_servers),
+            'total_servers': total_servers,
+            'total_synced': total_synced,
+            'total_failed': total_failed,
+            'regions': regions_with_servers
+        }
+        
+        print(f"Tag sync complete: {total_synced}/{total_servers} servers synced across {len(regions_with_servers)} regions")
+        
+        return response(200, summary)
+        
+    except Exception as e:
+        print(f"Error in tag sync: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': str(e)})
+
+
+def sync_tags_in_region(drs_region: str) -> dict:
+    """Sync EC2 tags to all DRS source servers in a single region."""
+    drs_client = boto3.client('drs', region_name=drs_region)
+    ec2_clients = {}
+    
+    # Get all DRS source servers
+    source_servers = []
+    paginator = drs_client.get_paginator('describe_source_servers')
+    for page in paginator.paginate(filters={}, maxResults=200):
+        source_servers.extend(page.get('items', []))
+    
+    synced = 0
+    failed = 0
+    
+    for server in source_servers:
+        try:
+            instance_id = server.get('sourceProperties', {}).get('identificationHints', {}).get('awsInstanceID')
+            source_server_id = server['sourceServerID']
+            server_arn = server['arn']
+            source_region = server.get('sourceCloudProperties', {}).get('originRegion', drs_region)
+            
+            if not instance_id:
+                continue
+            
+            # Skip disconnected servers
+            replication_state = server.get('dataReplicationInfo', {}).get('dataReplicationState', '')
+            if replication_state == 'DISCONNECTED':
+                continue
+            
+            # Get or create EC2 client for source region
+            if source_region not in ec2_clients:
+                ec2_clients[source_region] = boto3.client('ec2', region_name=source_region)
+            ec2_client = ec2_clients[source_region]
+            
+            # Get EC2 instance tags
+            try:
+                ec2_response = ec2_client.describe_instances(InstanceIds=[instance_id])
+                if not ec2_response['Reservations']:
+                    continue
+                instance = ec2_response['Reservations'][0]['Instances'][0]
+                ec2_tags = {tag['Key']: tag['Value'] for tag in instance.get('Tags', []) if not tag['Key'].startswith('aws:')}
+            except Exception:
+                continue
+            
+            if not ec2_tags:
+                continue
+            
+            # Sync tags to DRS source server
+            drs_client.tag_resource(resourceArn=server_arn, tags=ec2_tags)
+            
+            # Enable copyTags in launch configuration
+            try:
+                drs_client.update_launch_configuration(sourceServerID=source_server_id, copyTags=True)
+            except Exception:
+                pass
+            
+            synced += 1
+            
+        except Exception as e:
+            failed += 1
+            print(f"Failed to sync server {server.get('sourceServerID', 'unknown')}: {e}")
+    
+    return {'total': len(source_servers), 'synced': synced, 'failed': failed, 'region': drs_region}
 
 
 # ============================================================================

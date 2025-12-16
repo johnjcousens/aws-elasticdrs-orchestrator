@@ -322,23 +322,7 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-FrontendBucket'
 
-  SSMHealthCheckDocument:
-    Description: 'SSM Health Check Document Name'
-    Value: !GetAtt FrontendStack.Outputs.SSMHealthCheckDocument
-    Export:
-      Name: !Sub '${AWS::StackName}-HealthCheckDocument'
 
-  SSMAppStartupDocument:
-    Description: 'SSM Application Startup Document Name'
-    Value: !GetAtt FrontendStack.Outputs.SSMAppStartupDocument
-    Export:
-      Name: !Sub '${AWS::StackName}-AppStartupDocument'
-
-  SSMNetworkValidationDocument:
-    Description: 'SSM Network Validation Document Name'
-    Value: !GetAtt FrontendStack.Outputs.SSMNetworkValidationDocument
-    Export:
-      Name: !Sub '${AWS::StackName}-NetworkValidationDocument'
 
   # General Outputs
   Region:
