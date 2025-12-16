@@ -811,13 +811,18 @@ def get_drs_account_capacity(region: str) -> Dict:
 def lambda_handler(event: Dict, context: Any) -> Dict:
     """Main Lambda handler - routes requests to appropriate functions"""
     print(f"Received event: {json.dumps(event)}")
+    print("Lambda handler started")
     
     try:
+        print("Entering try block")
+        
         # Check if this is a worker invocation (async execution)
         if event.get('worker'):
             print("Worker mode detected - executing background task")
             execute_recovery_plan_worker(event)
             return {'statusCode': 200, 'body': 'Worker completed'}
+        
+        print("Not worker mode, processing API Gateway request")
         
         # Normal API Gateway request handling
         http_method = event.get('httpMethod', '')
@@ -826,18 +831,43 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         query_parameters = event.get('queryStringParameters') or {}
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
         
+        print(f"Extracted values - Method: {http_method}, Path: {path}")
+        
         # Handle OPTIONS requests for CORS
         if http_method == 'OPTIONS':
+            print("Handling OPTIONS request")
             return response(200, {'message': 'OK'})
+        
+        print(f"Checking authentication for path: {path}")
+        
+        # Skip authentication check for health endpoint
+        if path != '/health':
+            # Validate authentication - check for Cognito authorizer context
+            auth_context = event.get('requestContext', {}).get('authorizer', {})
+            claims = auth_context.get('claims', {})
+            print(f"Auth validation - path: {path}, auth_context: {auth_context}, claims: {claims}")
+            
+            # If no claims or essential fields missing, return 401 with CORS headers
+            if not claims or not claims.get('email') or not claims.get('sub'):
+                print("Authentication validation failed - missing or invalid Cognito claims")
+                return response(401, {
+                    'error': 'Unauthorized', 
+                    'message': 'Valid authentication required'
+                })
+        
+        print("Authentication passed, proceeding to routing")
         
         # Route to appropriate handler
         print(f"Routing request - Method: {http_method}, Path: '{path}'")
         
         if path == '/health':
+            print("Matched /health route")
             return response(200, {'status': 'healthy', 'service': 'drs-orchestration-api'})
         elif path.startswith('/protection-groups'):
+            print("Matched /protection-groups route")
             return handle_protection_groups(http_method, path_parameters, body, query_parameters)
         elif '/execute' in path and path.startswith('/recovery-plans'):
+            print("Matched /recovery-plans execute route")
             # Handle /recovery-plans/{planId}/execute endpoint
             plan_id = path_parameters.get('id')
             body['PlanId'] = plan_id
@@ -845,18 +875,23 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
                 body['InitiatedBy'] = 'system'
             return execute_recovery_plan(body)
         elif '/check-existing-instances' in path and path.startswith('/recovery-plans'):
+            print("Matched /recovery-plans check-existing-instances route")
             # Handle /recovery-plans/{planId}/check-existing-instances endpoint
             plan_id = path_parameters.get('id')
             return check_existing_recovery_instances(plan_id)
         elif path.startswith('/recovery-plans'):
+            print("Matched /recovery-plans route")
             return handle_recovery_plans(http_method, path_parameters, query_parameters, body)
         elif path.startswith('/executions'):
+            print("Matched /executions route")
             # Pass full path for action routing (cancel, pause, resume)
             path_parameters['_full_path'] = path
             return handle_executions(http_method, path_parameters, query_parameters, body)
         elif path.startswith('/drs/source-servers'):
+            print("Matched /drs/source-servers route")
             return handle_drs_source_servers(query_parameters)
         elif path.startswith('/drs/quotas'):
+            print("Matched /drs/quotas route")
             return handle_drs_quotas(query_parameters)
         elif path.startswith('/drs/accounts'):
             print(f"Matched /drs/accounts route, calling handle_drs_accounts")
@@ -864,13 +899,26 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         elif path.startswith('/accounts/targets'):
             return handle_target_accounts(path, http_method, body, query_parameters)
         elif path == '/drs/tag-sync' and http_method == 'POST':
+            print("Matched /drs/tag-sync route")
             return handle_drs_tag_sync(body)
         elif path.startswith('/ec2/'):
+            print("Matched /ec2/ route")
             return handle_ec2_resources(path, query_parameters)
         elif path.startswith('/config'):
+            print("Matched /config route")
             return handle_config(http_method, path, body, query_parameters)
         else:
-            print(f"No route matched for path: '{path}'")
+            print(f"No route matched for path: '{path}' - checking all conditions:")
+            print(f"  path == '/health': {path == '/health'}")
+            print(f"  path.startswith('/protection-groups'): {path.startswith('/protection-groups')}")
+            print(f"  path.startswith('/recovery-plans'): {path.startswith('/recovery-plans')}")
+            print(f"  path.startswith('/executions'): {path.startswith('/executions')}")
+            print(f"  path.startswith('/drs/source-servers'): {path.startswith('/drs/source-servers')}")
+            print(f"  path.startswith('/drs/quotas'): {path.startswith('/drs/quotas')}")
+            print(f"  path.startswith('/drs/accounts'): {path.startswith('/drs/accounts')}")
+            print(f"  path.startswith('/accounts/targets'): {path.startswith('/accounts/targets')}")
+            print(f"  path.startswith('/ec2/'): {path.startswith('/ec2/')}")
+            print(f"  path.startswith('/config'): {path.startswith('/config')}")
             return response(404, {'error': 'Not Found', 'path': path})
             
     except Exception as e:
@@ -5677,6 +5725,7 @@ def handle_target_accounts(path: str, http_method: str, body: Dict = None, query
     try:
         # Parse path to get account ID if present
         path_parts = path.split('/')
+        print(f"Target accounts handler - path: '{path}', parts: {path_parts}, method: {http_method}")
         account_id = None
         action = None
         
@@ -5716,6 +5765,10 @@ def get_target_accounts() -> Dict:
         # Get current account info
         current_account_id = get_current_account_id()
         current_account_name = get_account_name(current_account_id)
+        
+        # Use account ID as fallback if name is not available
+        if current_account_name is None:
+            current_account_name = current_account_id
         
         # Scan target accounts table
         result = target_accounts_table.scan()
