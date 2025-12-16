@@ -1,17 +1,15 @@
+/**
+ * Region Selector Component
+ * 
+ * Provides AWS region selection UI for DRS operations.
+ * Shows all 28 commercial AWS regions where DRS is available.
+ */
+
 import React from 'react';
-import { FormField, Select, type SelectProps } from '@cloudscape-design/components';
+import { Select, type SelectProps } from '@cloudscape-design/components';
 
-interface RegionSelectorProps {
-  value: string;
-  onChange: (region: string) => void;
-  disabled?: boolean;
-  error?: boolean;
-  helperText?: string;
-}
-
-// All 28 AWS DRS-supported commercial regions (verified December 2025)
-// Reference: https://docs.aws.amazon.com/general/latest/gr/drs.html
-const AWS_REGIONS = [
+// All 28 commercial AWS regions where DRS is available (verified December 2025)
+const DRS_REGIONS: SelectProps.Option[] = [
   // Americas (6)
   { value: 'us-east-1', label: 'us-east-1 (N. Virginia)' },
   { value: 'us-east-2', label: 'us-east-2 (Ohio)' },
@@ -46,33 +44,72 @@ const AWS_REGIONS = [
   { value: 'il-central-1', label: 'il-central-1 (Tel Aviv)' },
 ];
 
+interface RegionSelectorProps {
+  // New interface (preferred)
+  selectedRegion?: SelectProps.Option | null;
+  onRegionChange?: (region: SelectProps.Option | null) => void;
+  
+  // Legacy interface (backward compatibility)
+  value?: string;
+  onChange?: (value: string) => void;
+  error?: boolean;
+  helperText?: string;
+  
+  placeholder?: string;
+  disabled?: boolean;
+}
+
 export const RegionSelector: React.FC<RegionSelectorProps> = ({
+  // New interface
+  selectedRegion,
+  onRegionChange,
+  
+  // Legacy interface
   value,
   onChange,
-  disabled = false,
-  error = false,
-  helperText
+  error,
+  helperText,
+  
+  placeholder = "Select region",
+  disabled = false
 }) => {
-  const selectedOption = AWS_REGIONS.find(r => r.value === value) || null;
-
-  return (
-    <FormField
-      label="AWS Region"
-      constraintText={helperText}
-      errorText={error ? helperText : undefined}
-    >
+  // Determine which interface is being used
+  const isLegacyInterface = value !== undefined || onChange !== undefined;
+  
+  if (isLegacyInterface) {
+    // Legacy interface: value is string, onChange expects string
+    const selectedOption = value ? DRS_REGIONS.find(r => r.value === value) || null : null;
+    
+    return (
       <Select
         selectedOption={selectedOption}
         onChange={({ detail }) => {
-          if (detail.selectedOption) {
-            onChange(detail.selectedOption.value || '');
+          if (onChange) {
+            onChange(detail.selectedOption?.value || '');
           }
         }}
-        options={AWS_REGIONS}
+        options={DRS_REGIONS}
+        placeholder={placeholder}
         disabled={disabled}
-        placeholder="Select a region"
-        selectedAriaLabel="Selected"
+        invalid={error}
+        expandToViewport
       />
-    </FormField>
-  );
+    );
+  } else {
+    // New interface: selectedRegion is SelectProps.Option, onRegionChange expects SelectProps.Option
+    return (
+      <Select
+        selectedOption={selectedRegion || null}
+        onChange={({ detail }) => {
+          if (onRegionChange) {
+            onRegionChange(detail.selectedOption);
+          }
+        }}
+        options={DRS_REGIONS}
+        placeholder={placeholder}
+        disabled={disabled}
+        expandToViewport
+      />
+    );
+  }
 };

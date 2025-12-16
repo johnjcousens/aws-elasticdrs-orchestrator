@@ -9,6 +9,7 @@ import React, { createContext, useContext, useState, useEffect, type ReactNode }
 import type { SelectProps } from '@cloudscape-design/components';
 import apiClient from '../services/api';
 import type { TargetAccount } from '../components/AccountManagementPanel';
+import { useAuth } from './AuthContext';
 
 interface AccountContextType {
   // Account selection
@@ -79,10 +80,14 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return account?.accountName || accountId;
   };
 
-  // Load accounts on mount
+  const { isAuthenticated } = useAuth();
+
+  // Load accounts only after authentication
   useEffect(() => {
-    refreshAccounts();
-  }, []);
+    if (isAuthenticated) {
+      refreshAccounts();
+    }
+  }, [isAuthenticated]);
 
   const contextValue: AccountContextType = {
     selectedAccount,

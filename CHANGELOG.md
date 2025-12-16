@@ -4,6 +4,19 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+### Fixed
+
+**Dashboard Multi-Account Support Fixes** - December 16, 2025
+
+- Fixed DRS accounts API endpoint routing issue in Lambda function
+- Added enhanced debug logging for DRS accounts endpoint
+- Fixed `getDRSAccounts()` in drsQuotaService to call correct API endpoint (`/drs/accounts` instead of `/accounts/targets`)
+- Moved AccountSelector to top right corner of Dashboard page header
+- Restored RegionSelector to DRS Capacity section with backward compatibility
+- Updated Dashboard to use region-based DRS quota fetching
+- Fixed "Unable to fetch target accounts" error on dashboard
+- Fixed DRS capacity showing correct replicating server count for selected region
+
 ## [1.6.2] - December 15, 2025
 
 **DRS Tag Synchronization Feature** - `8f8f26e`
