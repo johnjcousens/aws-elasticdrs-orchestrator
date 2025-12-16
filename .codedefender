@@ -11,3 +11,7 @@ docs/reference/ZERTO_RESEARCH_AND_API_ANALYSIS.md
 docs/guides/DRS_RECOVERY_AND_FAILBACK_COMPLETE_GUIDE.md
 docs/troubleshooting/IAM_ROLE_ANALYSIS_DRS_PERMISSIONS.md
 docs/troubleshooting/CLOUDFORMATION_DEPLOYMENT_ISSUES.md
+
+# Node modules with fake/test keys in compiled JavaScript
+node_modules/@tootallnate/quickjs-emscripten/dist/generated/emscripten-module.WASM_RELEASE_SYNC.js
+node_modules/@tootallnate/quickjs-emscripten/dist/generated/emscripten-module.WASM_RELEASE_SYNC.js.map
