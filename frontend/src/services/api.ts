@@ -62,12 +62,23 @@ class ApiClient {
         config.baseURL = apiEndpoint;
 
         try {
-          // Get the current authentication session
-          const session = await fetchAuthSession();
-          const token = session.tokens?.idToken?.toString();
+          // Check if we're in local development mode
+          const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          
+          if (isLocalDev) {
+            // Use mock token for local development
+            console.log('🔧 Local development mode - using mock token');
+            if (config.headers) {
+              config.headers.Authorization = 'Bearer mock-local-dev-token';
+            }
+          } else {
+            // Get the current authentication session for production
+            const session = await fetchAuthSession();
+            const token = session.tokens?.idToken?.toString();
 
-          if (token && config.headers) {
-            config.headers.Authorization = `Bearer ${token}`;
+            if (token && config.headers) {
+              config.headers.Authorization = `Bearer ${token}`;
+            }
           }
         } catch (error) {
           console.error('Error fetching auth token:', error);
@@ -166,8 +177,8 @@ class ApiClient {
   /**
    * List all protection groups
    */
-  public async listProtectionGroups(): Promise<ProtectionGroup[]> {
-    const response = await this.get<{ groups: ProtectionGroup[]; count: number }>('/protection-groups');
+  public async listProtectionGroups(params?: { accountId?: string }): Promise<ProtectionGroup[]> {
+    const response = await this.get<{ groups: ProtectionGroup[]; count: number }>('/protection-groups', params);
     // API returns {groups: [...], count: N}
     return response.groups || [];
   }
@@ -247,8 +258,8 @@ class ApiClient {
   /**
    * List all recovery plans
    */
-  public async listRecoveryPlans(): Promise<RecoveryPlan[]> {
-    const response = await this.get<{ plans: RecoveryPlan[]; count: number }>('/recovery-plans');
+  public async listRecoveryPlans(params?: { accountId?: string }): Promise<RecoveryPlan[]> {
+    const response = await this.get<{ plans: RecoveryPlan[]; count: number }>('/recovery-plans', params);
     // API returns {plans: [...], count: N}
     return response.plans || [];
   }
@@ -338,6 +349,7 @@ class ApiClient {
   public async listExecutions(params?: {
     limit?: number;
     nextToken?: string;
+    accountId?: string;
   }): Promise<PaginatedResponse<ExecutionListItem>> {
     return this.get<PaginatedResponse<ExecutionListItem>>('/executions', params);
   }
@@ -560,18 +572,55 @@ class ApiClient {
    * - Concurrent jobs count vs limit (20 hard limit)
    * - Servers in active jobs vs limit (500 hard limit)
    * 
-   * @param region - AWS region to check quotas for
+   * @param accountId - AWS account ID to check quotas for
+   * @param region - Optional AWS region (defaults to current region)
    */
-  public async getDRSQuotas(region: string): Promise<any> {
-    return this.get<any>(`/drs/quotas?region=${region}`);
+  public async getDRSQuotas(accountId: string, region?: string): Promise<any> {
+    const params = new URLSearchParams({ accountId });
+    if (region) {
+      params.append('region', region);
+    }
+    return this.get<any>(`/drs/quotas?${params.toString()}`);
+  }
+
+  /**
+   * Get available DRS accounts
+   */
+  public async getDRSAccounts(): Promise<any> {
+    return this.get<any>('/drs/accounts');
+  }
+
+  /**
+   * Target Account Management
+   */
+  public async getTargetAccounts(): Promise<any> {
+    return this.get<any>('/accounts/targets');
+  }
+
+  public async createTargetAccount(accountData: any): Promise<any> {
+    return this.post<any>('/accounts/targets', accountData);
+  }
+
+  public async updateTargetAccount(accountId: string, accountData: any): Promise<any> {
+    return this.put<any>(`/accounts/targets/${accountId}`, accountData);
+  }
+
+  public async deleteTargetAccount(accountId: string): Promise<any> {
+    return this.delete<any>(`/accounts/targets/${accountId}`);
+  }
+
+  public async validateTargetAccount(accountId: string): Promise<any> {
+    return this.post<any>(`/accounts/targets/${accountId}/validate`, {});
   }
 
   /**
    * Trigger on-demand DRS tag synchronization
    * Syncs EC2 instance tags to DRS source servers across all regions
+   * @param accountId - AWS account ID to sync tags for
    */
-  public async triggerTagSync(): Promise<{ message: string; functionName: string; statusCode: number }> {
-    return this.post<{ message: string; functionName: string; statusCode: number }>('/drs/tag-sync', {});
+  public async triggerTagSync(accountId?: string): Promise<{ message: string; functionName: string; statusCode: number }> {
+    const body = accountId ? { accountId } : {};
+    return this.post<{ message: string; functionName: string; statusCode: number }>('/drs/tag-sync', body);
   }
 
   // ============================================================================

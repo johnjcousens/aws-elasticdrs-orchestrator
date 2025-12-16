@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ApiProvider } from './contexts/ApiContext';
+import { AccountProvider } from './contexts/AccountContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './components/cloudscape/AppLayout';
@@ -31,6 +32,7 @@ function App() {
     <AuthProvider>
       <NotificationProvider>
         <ApiProvider>
+          <AccountProvider>
         <BrowserRouter>
           <ErrorBoundary>
             <Routes>
@@ -132,6 +134,7 @@ function App() {
           </Routes>
           </ErrorBoundary>
         </BrowserRouter>
+          </AccountProvider>
         </ApiProvider>
       </NotificationProvider>
     </AuthProvider>

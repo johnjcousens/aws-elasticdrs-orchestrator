@@ -20,6 +20,7 @@ import {
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useAccount } from '../contexts/AccountContext';
 import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
@@ -35,6 +36,7 @@ import apiClient from '../services/api';
  */
 export const ProtectionGroupsPage: React.FC = () => {
   const { addNotification } = useNotifications();
+  const { getCurrentAccountId } = useAccount();
   const [groups, setGroups] = useState<ProtectionGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,8 @@ export const ProtectionGroupsPage: React.FC = () => {
 
   const fetchRecoveryPlansForGroupCheck = async () => {
     try {
-      const plans = await apiClient.listRecoveryPlans();
+      const accountId = getCurrentAccountId();
+      const plans = await apiClient.listRecoveryPlans(accountId ? { accountId } : undefined);
       const usedGroupIds = new Set<string>();
       const activeGroupIds = new Set<string>();
       
@@ -92,7 +95,8 @@ export const ProtectionGroupsPage: React.FC = () => {
       
       // Check for active executions
       try {
-        const executionsResponse = await apiClient.listExecutions();
+        const accountId = getCurrentAccountId();
+        const executionsResponse = await apiClient.listExecutions(accountId ? { accountId } : undefined);
         const executions = executionsResponse.items || [];
         const activeStatuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
         executions.forEach((exec: { status?: string; recoveryPlanId?: string }) => {
@@ -116,7 +120,8 @@ export const ProtectionGroupsPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiClient.listProtectionGroups();
+      const accountId = getCurrentAccountId();
+      const data = await apiClient.listProtectionGroups(accountId ? { accountId } : undefined);
       setGroups(data);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to load protection groups';

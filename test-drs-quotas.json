@@ -1,0 +1,20 @@
+{
+  "httpMethod": "GET",
+  "path": "/drs/quotas",
+  "queryStringParameters": {
+    "accountId": "***REMOVED***",
+    "region": "us-east-1"
+  },
+  "headers": {
+    "Authorization": "Bearer mock-token"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "email": "test@example.com",
+        "sub": "test-user-id",
+        "cognito:username": "testuser"
+      }
+    }
+  }
+}
