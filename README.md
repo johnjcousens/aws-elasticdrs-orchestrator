@@ -24,8 +24,9 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 ### Protection Groups
 
 - **Automatic Server Discovery**: Real-time DRS source server discovery across all AWS DRS-supported regions
+- **Hardware Information Display**: Comprehensive server details including CPU cores, RAM (GiB), and IP address displayed in clean format during server selection
 - **Tag-Based Server Selection**: Define Protection Groups using EC2 instance tags (e.g., `DR-Application=HRP`, `DR-Tier=Database`)
-- **Visual Server Selection**: Intuitive interface with assignment status indicators
+- **Visual Server Selection**: Intuitive interface with assignment status indicators and detailed hardware specifications
 - **Conflict Prevention**: Single server per group constraint prevents recovery conflicts; tag conflicts detected automatically
 - **Real-Time Search**: Filter servers by hostname, Server ID, or Protection Group name
 
@@ -402,6 +403,42 @@ The solution uses a modular nested stack architecture for maintainability:
 
 **CRITICAL**: Always sync to S3 before deployment. The S3 bucket is the source of truth for all deployments.
 
+#### Stack Configuration
+
+The deployment script has been updated to use the correct stack name:
+
+- **Stack Name**: `drs-orch-v4` (not `drs-orchestration-dev`)
+- **Lambda Functions**: `drsorchv4-*-test` naming pattern
+- **Frontend Bucket**: `drsorchv4-fe-777788889999-test`
+- **CloudFront Distribution**: `E33R91LABVLR0`
+
+#### Deployment Verification
+
+After deployment, verify the correct resources are updated:
+
+```bash
+# Check CloudFront URL matches your environment
+aws cloudformation describe-stacks \
+  --stack-name drs-orch-v4 \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+  --output text
+
+# Verify Lambda function was updated
+aws lambda get-function \
+  --function-name drsorchv4-api-handler-test \
+  --query 'Configuration.LastModified' \
+  --output text
+
+# Check frontend bucket sync
+aws s3 ls s3://drsorchv4-fe-777788889999-test/assets/ | head -5
+```
+
+#### Recent Updates
+
+**December 16, 2025**: Enhanced DRS Source Server Display with detailed hardware information in Protection Group creation. The server discovery panel now shows comprehensive hardware details including CPU cores, RAM (GiB), and IP address in a clean format: "FQDN | CPU: X cores | RAM: X GiB | IP: X.X.X.X". Backend Lambda extracts hardware info from DRS source server metadata and EC2 instance details.
+
+**December 15, 2025**: Updated deployment scripts to use correct stack name `drs-orch-v4` instead of `drs-orchestration-dev`. This resolves deployment mismatches where code was being deployed to the wrong CloudFormation stack and CloudFront distribution.
+
 ### Frontend Development
 
 ```bash
@@ -736,10 +773,11 @@ See [CHANGELOG.md](CHANGELOG.md) for complete project history since November 8, 
 | ~~3~~   | ~~**Dual Mode Orchestration**~~                    | ~~3-4w~~ | ~~Unified tag-based orchestration supporting UI, CLI, SSM, and Step Functions invocation methods. Tag-based Protection Groups with EC2 tag resolution, tag conflict prevention, InvocationSourceBadge tracking, SSM runbook, execution registry, enhanced orchestration state object for parent Step Function integration.~~                                                           | ✅ Complete   | [Implementation Plan](docs/implementation/DUAL_MODE_ORCHESTRATION_DESIGN.md)                                                                                                                                                                                                                                                          | Dec 12, 2025    | `3409505`, `f50658c`                           |
 | ~~4~~   | ~~**EC2 Launch Template & DRS Launch Settings**~~  | ~~1-2w~~ | ~~Full EC2 Launch Template and DRS Launch Settings configuration via UI and API. Includes: Subnet, Security Groups, Instance Profile, Instance Type, Instance Type Right Sizing (BASIC/IN_AWS/NONE), Launch Disposition (STARTED/STOPPED), OS Licensing (BYOL/AWS), Copy Private IP, Transfer Server Tags. Settings applied to all servers in Protection Group.~~                      | ✅ Complete   | [EC2 Template MVP v2](docs/implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN_V2.md)                                                                                                                                                                                                                                                         | Dec 13, 2025    | `2272e5e`, `74ac444`, `a75eb67`              |
 | ~~5~~   | ~~**Configuration Export/Import**~~                | ~~2-3d~~ | ~~Full backup and restore of Protection Groups and Recovery Plans via JSON export/import. Includes: one-click export, dry-run validation, non-destructive additive import, server/tag validation, LaunchConfig preservation and automatic application to DRS on import. Uses ProtectionGroupName for cross-environment portability. Access via Settings gear icon.~~                   | ✅ Complete   | [Config Export/Import Spec](docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md)                                                                                                                                                                                                                                                         | Dec 14, 2025    | `9a34e74`, `eb3ba49`, `be7b4e0`, `e3e7469` |
+| ~~6~~   | ~~**DRS Source Server Hardware Display**~~         | ~~4h~~   | ~~Enhanced Protection Group creation with detailed hardware information display. Shows CPU cores, RAM (GiB), and IP address in clean format "FQDN \| CPU: X cores \| RAM: X GiB \| IP: X.X.X.X" during server selection. Backend extracts hardware details from DRS source server metadata and EC2 instance information.~~        | ✅ Complete   | Frontend: `ServerListItem.tsx`, Backend: `lambda/index.py` (lines 4380-4550)                                                                                                                                                                                                                                                         | Dec 16, 2025    | `b63511c`                                   |
 | 6        | **Scheduled Drills**                                | 3-5d      | Automated scheduled drill executions with EventBridge rules and reporting dashboard.                                                                                                                                                                                                                                                                                                    | Planned       | -                                                                                                                                                                                                                                                                                                                                  | -               | -                                                  |
 | 6        | **CodeBuild & CodeCommit Migration**                | 4-6d      | Migrate from GitLab CI/CD to AWS-native CodePipeline + CodeBuild with CodeCommit repository, leveraging proven patterns from archived DR orchestrator pipeline.                                                                                                                                                                                                                         | Planned       | [Implementation Plan](docs/implementation/CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)                                                                                                                                                                                                                                                     | -               | -                                                  |
 | 7        | **SNS Notification Integration**                    | 1-2w      | Real-time notifications for execution status changes, DRS events, and system health via Email, SMS, Slack, and PagerDuty.                                                                                                                                                                                                                                                               | Planned       | [Implementation Plan](docs/implementation/SNS_NOTIFICATION_IMPLEMENTATION_PLAN.md)                                                                                                                                                                                                                                                    | -               | -                                                  |
-| 8        | **DRS Tag Synchronization**                         | 1-2w      | Synchronize EC2 instance tags and instance types to DRS source servers through UI with on-demand sync, bulk operations, real-time progress monitoring, and sync history. Integrates archived tag sync tool with visual controls.                                                                                                                                                        | Planned       | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md)                                                                                                                                                                                                                                                        | -               | -                                                  |
+| ~~8~~   | ~~**DRS Tag Synchronization**~~                     | ~~1d~~   | ~~Scheduled Lambda syncs EC2 instance tags to DRS source servers across all 28 DRS regions. Enables `copyTags=True` in launch configuration so tags propagate to recovery instances. Includes API endpoint `/drs/tag-sync` for manual sync and comprehensive error handling for disconnected servers.~~                                                                                | ✅ Complete   | [Implementation Plan](docs/implementation/DRS_TAG_SYNC_IMPLEMENTATION_PLAN.md), `lambda/drs_tag_sync.py`, API: `/drs/tag-sync`                                                                                                                                                                                                       | Dec 14, 2025    | `e3e7469`, `be7b4e0`                           |
 | 9        | **Step Functions Visualization**                    | 2-3w      | Real-time visualization of Step Functions state machine execution with state timeline, current state indicator, detailed state input/output data, and CloudWatch Logs integration directly in the UI.                                                                                                                                                                                   | Planned       | [Implementation Plan](docs/implementation/STEP_FUNCTIONS_VISUALIZATION_IMPLEMENTATION.md)                                                                                                                                                                                                                                             | -               | -                                                  |
 | 10       | **SSM Automation Integration**                      | 2-3w      | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts.                                                                                                                                                                                                                                                            | Planned       | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md)                                                                                                                                                                                                                                                           | -               | -                                                  |
 | 11       | **Cross-Account DRS Monitoring**                    | 2-3w      | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards. *(Monitoring/alerting only; see #13 for orchestration, #18 for replication setup)*                                                                                                                                  | Planned       | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md)                                                                                                                                                                                                                                             | -               | -                                                  |
