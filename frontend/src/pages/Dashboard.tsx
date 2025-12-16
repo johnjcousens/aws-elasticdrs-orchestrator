@@ -6,6 +6,7 @@ import {
   Header,
   Button,
   Alert,
+  Spinner,
 } from '@cloudscape-design/components';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
@@ -14,10 +15,37 @@ import { useAccount } from '../contexts/AccountContext';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { availableAccounts } = useAccount();
+  const { availableAccounts, accountsLoading } = useAccount();
   
-  // Check if no target accounts are configured
-  const hasNoAccounts = availableAccounts.length === 0;
+  // Check if no target accounts are configured (only after loading is complete)
+  const hasNoAccounts = !accountsLoading && availableAccounts.length === 0;
+
+  // Show loading state while accounts are being fetched
+  if (accountsLoading) {
+    return (
+      <PageTransition>
+        <ContentLayout
+          header={
+            <Header
+              variant="h1"
+              description="Real-time execution status and system metrics"
+            >
+              Dashboard
+            </Header>
+          }
+        >
+          <Container>
+            <Box textAlign="center" padding="xxl">
+              <Spinner size="large" />
+              <Box variant="p" color="text-body-secondary" margin={{ top: 's' }}>
+                Loading dashboard...
+              </Box>
+            </Box>
+          </Container>
+        </ContentLayout>
+      </PageTransition>
+    );
+  }
 
   // Empty state when no target accounts are configured
   if (hasNoAccounts) {
