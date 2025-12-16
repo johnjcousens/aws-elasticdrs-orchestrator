@@ -831,6 +831,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return response(200, {'message': 'OK'})
         
         # Route to appropriate handler
+        print(f"Routing request - Method: {http_method}, Path: '{path}'")
+        
         if path == '/health':
             return response(200, {'status': 'healthy', 'service': 'drs-orchestration-api'})
         elif path.startswith('/protection-groups'):
@@ -857,6 +859,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         elif path.startswith('/drs/quotas'):
             return handle_drs_quotas(query_parameters)
         elif path.startswith('/drs/accounts'):
+            print(f"Matched /drs/accounts route, calling handle_drs_accounts")
             return handle_drs_accounts(query_parameters)
         elif path.startswith('/accounts/targets'):
             return handle_target_accounts(path, http_method, body, query_parameters)
@@ -867,6 +870,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         elif path.startswith('/config'):
             return handle_config(http_method, path, body, query_parameters)
         else:
+            print(f"No route matched for path: '{path}'")
             return response(404, {'error': 'Not Found', 'path': path})
             
     except Exception as e:
@@ -5569,22 +5573,26 @@ def handle_drs_quotas(query_params: Dict) -> Dict:
 
 def handle_drs_accounts(query_params: Dict) -> Dict:
     """Get available DRS accounts"""
+    print(f"DEBUG: handle_drs_accounts called with query_params: {query_params}")
     try:
         # For now, only return current account
         # In future, this will query cross-account roles
         current_account_id = get_current_account_id()
+        print(f"DEBUG: Current account ID: {current_account_id}")
         account_name = get_account_name(current_account_id)
+        print(f"DEBUG: Account name: {account_name}")
         
         accounts = [{
             'accountId': current_account_id,
-            'accountName': account_name,
+            'accountName': account_name or current_account_id,
             'isCurrentAccount': True
         }]
         
+        print(f"DEBUG: Returning accounts: {accounts}")
         return response(200, accounts)
         
     except Exception as e:
-        print(f"Error getting DRS accounts: {e}")
+        print(f"ERROR: handle_drs_accounts failed: {e}")
         import traceback
         traceback.print_exc()
         return response(500, {'error': str(e)})
