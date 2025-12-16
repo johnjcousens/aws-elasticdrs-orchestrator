@@ -1,209 +1,89 @@
-/**
- * Dashboard Page Component
- *
- * Operational dashboard showing execution status, metrics, and system health.
- */
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import {
   Box,
   SpaceBetween,
   Container,
   Header,
-  ColumnLayout,
-  StatusIndicator,
-  Link,
-  Spinner,
-  PieChart,
   Button,
+  Alert,
 } from '@cloudscape-design/components';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
-import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
-import { AccountSelector } from '../components/AccountSelector';
-import { RegionSelector } from '../components/RegionSelector';
 import { useAccount } from '../contexts/AccountContext';
-import apiClient from '../services/api';
-import type { ExecutionListItem } from '../types';
-import type { DRSQuotaStatus } from '../services/drsQuotaService';
-import type { SelectProps } from '@cloudscape-design/components';
-
-// Status colors for the pie chart
-const STATUS_COLORS: Record<string, string> = {
-  completed: '#037f0c',
-  in_progress: '#0972d3',
-  pending: '#5f6b7a',
-  failed: '#d91515',
-  rolled_back: '#ff9900',
-  cancelled: '#5f6b7a',
-  paused: '#5f6b7a',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  completed: 'Completed',
-  in_progress: 'In Progress',
-  pending: 'Pending',
-  failed: 'Failed',
-  rolled_back: 'Rolled Back',
-  cancelled: 'Cancelled',
-  paused: 'Paused',
-};
-
-// Default region for DRS quota display
-const DEFAULT_REGION = 'us-east-1';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { selectedAccount, availableAccounts, getCurrentAccountId, getCurrentAccountName } = useAccount();
+  const { availableAccounts } = useAccount();
   
-  const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // DRS Quota state
-  const [drsQuotas, setDrsQuotas] = useState<DRSQuotaStatus | null>(null);
-  const [quotasLoading, setQuotasLoading] = useState(false);
-  const [quotasError, setQuotasError] = useState<string | null>(null);
-  const [tagSyncLoading, setTagSyncLoading] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState<SelectProps.Option | null>({
-    value: DEFAULT_REGION,
-    label: 'us-east-1 (N. Virginia)'
-  });
+  // Check if no target accounts are configured
+  const hasNoAccounts = availableAccounts.length === 0;
 
-  const fetchExecutions = useCallback(async () => {
-    const accountId = getCurrentAccountId();
-    if (!accountId) {
-      setLoading(false);
-      return;
-    }
+  // Empty state when no target accounts are configured
+  if (hasNoAccounts) {
+    return (
+      <PageTransition>
+        <ContentLayout
+          header={
+            <Header
+              variant="h1"
+              description="Real-time execution status and system metrics"
+            >
+              Dashboard
+            </Header>
+          }
+        >
+          <Container>
+            <SpaceBetween size="l">
+              <Alert
+                type="info"
+                header="No Target Accounts Configured"
+              >
+                <SpaceBetween size="m">
+                  <Box>
+                    To get started with AWS DRS Orchestration, you need to configure at least one target account where your DRS source servers are located.
+                  </Box>
+                  
+                  <Box variant="h3">Setup Options:</Box>
+                  
+                  <SpaceBetween size="s">
+                    <Box>
+                      <Box variant="strong">Same Account Setup (Recommended for single account):</Box>
+                      <Box color="text-body-secondary">
+                        If your DRS source servers are in the same AWS account as this orchestration solution, 
+                        simply add your current account without specifying a cross-account role ARN. 
+                        Leave the role field empty - no additional IAM configuration needed.
+                      </Box>
+                    </Box>
+                    
+                    <Box>
+                      <Box variant="strong">Cross-Account Setup (For multi-account environments):</Box>
+                      <Box color="text-body-secondary">
+                        If your DRS source servers are in different AWS accounts, you'll need to create 
+                        cross-account IAM roles with DRS permissions and specify the role ARN when adding each account.
+                      </Box>
+                    </Box>
+                  </SpaceBetween>
+                  
+                  <Box>
+                    <Button 
+                      variant="primary" 
+                      iconName="add-plus"
+                      onClick={() => navigate('/getting-started')}
+                    >
+                      Get Started
+                    </Button>
+                  </Box>
+                </SpaceBetween>
+              </Alert>
+            </SpaceBetween>
+          </Container>
+        </ContentLayout>
+      </PageTransition>
+    );
+  }
 
-    try {
-      // Pass accountId to API call for multi-account support
-      const response = await apiClient.listExecutions({ 
-        limit: 100,
-        accountId 
-      });
-      setExecutions(response.items || []);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load executions');
-      console.error('Error fetching executions:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [getCurrentAccountId]);
-
-  const fetchDRSQuotas = useCallback(async (accountId: string, region: string) => {
-    setQuotasLoading(true);
-    setQuotasError(null);
-    try {
-      const quotas = await apiClient.getDRSQuotas(accountId, region);
-      setDrsQuotas(quotas);
-    } catch (err) {
-      console.error('Error fetching DRS quotas:', err);
-      setQuotasError('Unable to fetch DRS capacity');
-      setDrsQuotas(null);
-    } finally {
-      setQuotasLoading(false);
-    }
-  }, []);
-
-  // Fetch executions when account changes
-  useEffect(() => {
-    fetchExecutions();
-    const interval = setInterval(fetchExecutions, 30000);
-    return () => clearInterval(interval);
-  }, [fetchExecutions]);
-
-  // Fetch DRS quotas on account/region change and auto-refresh every 30 seconds
-  useEffect(() => {
-    const accountId = getCurrentAccountId();
-    const region = selectedRegion?.value;
-    if (accountId && region) {
-      fetchDRSQuotas(accountId, region);
-      const interval = setInterval(() => {
-        fetchDRSQuotas(accountId, region);
-      }, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedAccount, selectedRegion, fetchDRSQuotas, getCurrentAccountId]);
-
-  const handleTagSync = async () => {
-    const accountId = getCurrentAccountId();
-    if (!accountId) {
-      toast.error('Please select a target account first');
-      return;
-    }
-
-    setTagSyncLoading(true);
-    try {
-      await apiClient.triggerTagSync(accountId);
-      const accountName = getCurrentAccountName();
-      const accountDisplay = accountName ? `${accountName} (${accountId})` : accountId;
-      toast.success(`Tag sync initiated for account ${accountDisplay} - EC2 tags will be synced to DRS servers`);
-    } catch (err) {
-      console.error('Error triggering tag sync:', err);
-      toast.error('Failed to trigger tag sync');
-    } finally {
-      setTagSyncLoading(false);
-    }
-  };
-
-  // Calculate status counts
-  const statusCounts = executions.reduce(
-    (acc, exec) => {
-      const status = exec.status || 'pending';
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  // Active executions (non-terminal)
-  const activeStatuses = ['pending', 'in_progress', 'paused'];
-  const activeExecutions = executions.filter((e) =>
-    activeStatuses.includes(e.status)
-  );
-  const completedCount = statusCounts['completed'] || 0;
-  const failedCount = statusCounts['failed'] || 0;
-  const rolledBackCount = statusCounts['rolled_back'] || 0;
-
-  // Pie chart data
-  const pieData = Object.entries(statusCounts)
-    .filter(([, count]) => count > 0)
-    .map(([status, count]) => ({
-      title: STATUS_LABELS[status] || status,
-      value: count,
-      color: STATUS_COLORS[status] || '#5f6b7a',
-    }));
-
-  // Success rate calculation
-  const totalCompleted = completedCount + failedCount + rolledBackCount;
-  const successRate =
-    totalCompleted > 0
-      ? Math.round((completedCount / totalCompleted) * 100)
-      : 0;
-
-  const getStatusType = (
-    status: string
-  ): 'success' | 'error' | 'warning' | 'in-progress' | 'stopped' => {
-    switch (status) {
-      case 'completed':
-        return 'success';
-      case 'failed':
-        return 'error';
-      case 'rolled_back':
-        return 'warning';
-      case 'cancelled':
-      case 'paused':
-        return 'stopped';
-      default:
-        return 'in-progress';
-    }
-  };
-
+  // Regular dashboard when accounts are configured
   return (
     <PageTransition>
       <ContentLayout
@@ -211,238 +91,14 @@ export const Dashboard: React.FC = () => {
           <Header
             variant="h1"
             description="Real-time execution status and system metrics"
-            actions={
-              <AccountSelector placeholder="Select target account" />
-            }
           >
             Dashboard
           </Header>
         }
       >
-        {loading ? (
-          <Box textAlign="center" padding="xxl">
-            <Spinner size="large" />
-          </Box>
-        ) : error ? (
-          <Container>
-            <StatusIndicator type="error">{error}</StatusIndicator>
-          </Container>
-        ) : (
-          <SpaceBetween size="l">
-            <ColumnLayout columns={4} variant="text-grid">
-              <Container>
-                <Box variant="awsui-key-label">Active Executions</Box>
-                <Box variant="awsui-value-large">
-                  <span
-                    style={{
-                      color:
-                        activeExecutions.length > 0 ? '#0972d3' : '#5f6b7a',
-                    }}
-                  >
-                    {activeExecutions.length}
-                  </span>
-                </Box>
-              </Container>
-              <Container>
-                <Box variant="awsui-key-label">Completed</Box>
-                <Box variant="awsui-value-large">
-                  <span style={{ color: '#037f0c' }}>{completedCount}</span>
-                </Box>
-              </Container>
-              <Container>
-                <Box variant="awsui-key-label">Failed</Box>
-                <Box variant="awsui-value-large">
-                  <span
-                    style={{ color: failedCount > 0 ? '#d91515' : '#5f6b7a' }}
-                  >
-                    {failedCount}
-                  </span>
-                </Box>
-              </Container>
-              <Container>
-                <Box variant="awsui-key-label">Success Rate</Box>
-                <Box variant="awsui-value-large">
-                  <span
-                    style={{
-                      color:
-                        successRate >= 80
-                          ? '#037f0c'
-                          : successRate >= 50
-                            ? '#ff9900'
-                            : '#d91515',
-                    }}
-                  >
-                    {successRate}%
-                  </span>
-                </Box>
-              </Container>
-            </ColumnLayout>
-
-            <ColumnLayout columns={2}>
-              <Container header={<Header variant="h2">Execution Status</Header>}>
-                {pieData.length > 0 ? (
-                  <PieChart
-                    data={pieData}
-                    detailPopoverContent={(datum) => [
-                      { key: 'Count', value: datum.value },
-                      {
-                        key: 'Percentage',
-                        value: `${Math.round((datum.value / executions.length) * 100)}%`,
-                      },
-                    ]}
-                    segmentDescription={(datum) => `${datum.value} executions`}
-                    size="medium"
-                    variant="donut"
-                    innerMetricDescription="total"
-                    innerMetricValue={executions.length.toString()}
-                    hideFilter
-                    hideLegend={false}
-                    empty={
-                      <Box textAlign="center" color="inherit">
-                        No execution data
-                      </Box>
-                    }
-                  />
-                ) : (
-                  <Box textAlign="center" padding="l" color="text-body-secondary">
-                    No executions yet.{' '}
-                    <Link onFollow={() => navigate('/recovery-plans')}>
-                      Create a Recovery Plan
-                    </Link>{' '}
-                    to get started.
-                  </Box>
-                )}
-              </Container>
-
-              <Container
-                header={
-                  <Header
-                    variant="h2"
-                    counter={`(${activeExecutions.length})`}
-                    actions={
-                      <Link onFollow={() => navigate('/executions')}>
-                        View all
-                      </Link>
-                    }
-                  >
-                    Active Executions
-                  </Header>
-                }
-              >
-                {activeExecutions.length > 0 ? (
-                  <SpaceBetween size="s">
-                    {activeExecutions.slice(0, 5).map((exec) => (
-                      <Box key={exec.executionId} padding="s">
-                        <SpaceBetween direction="horizontal" size="xs">
-                          <StatusIndicator type={getStatusType(exec.status)}>
-                            {STATUS_LABELS[exec.status] || exec.status}
-                          </StatusIndicator>
-                          <Link
-                            onFollow={() =>
-                              navigate(`/executions/${exec.executionId}`)
-                            }
-                          >
-                            {exec.recoveryPlanName || exec.recoveryPlanId}
-                          </Link>
-                        </SpaceBetween>
-                      </Box>
-                    ))}
-                  </SpaceBetween>
-                ) : (
-                  <Box textAlign="center" padding="l" color="text-body-secondary">
-                    No active executions
-                  </Box>
-                )}
-              </Container>
-            </ColumnLayout>
-
-            <Container
-              header={
-                <Header
-                  variant="h2"
-                  actions={
-                    <SpaceBetween direction="horizontal" size="xs">
-                      <Button
-                        onClick={handleTagSync}
-                        loading={tagSyncLoading}
-                        disabled={!selectedAccount}
-                        iconName="refresh"
-                      >
-                        Sync Tags
-                      </Button>
-                      <RegionSelector
-                        selectedRegion={selectedRegion}
-                        onRegionChange={setSelectedRegion}
-                        placeholder="Select region"
-                      />
-                    </SpaceBetween>
-                  }
-                >
-                  DRS Capacity by Region
-                </Header>
-              }
-            >
-              {quotasLoading ? (
-                <Box textAlign="center" padding="l">
-                  <Spinner /> Loading DRS capacity...
-                </Box>
-              ) : quotasError ? (
-                <StatusIndicator type="warning">{quotasError}</StatusIndicator>
-              ) : drsQuotas ? (
-                <DRSQuotaStatusPanel quotas={drsQuotas} />
-              ) : (
-                <Box textAlign="center" padding="l" color="text-body-secondary">
-                  Select a region to view DRS capacity
-                </Box>
-              )}
-            </Container>
-
-            <Container
-              header={
-                <Header
-                  variant="h2"
-                  actions={
-                    <Link onFollow={() => navigate('/executions')}>
-                      View history
-                    </Link>
-                  }
-                >
-                  Recent Activity
-                </Header>
-              }
-            >
-              {executions.length > 0 ? (
-                <SpaceBetween size="xs">
-                  {executions.slice(0, 5).map((exec) => (
-                    <Box key={exec.executionId} padding="xs">
-                      <SpaceBetween direction="horizontal" size="m">
-                        <StatusIndicator type={getStatusType(exec.status)}>
-                          {STATUS_LABELS[exec.status] || exec.status}
-                        </StatusIndicator>
-                        <Link
-                          onFollow={() =>
-                            navigate(`/executions/${exec.executionId}`)
-                          }
-                        >
-                          {exec.recoveryPlanName || exec.recoveryPlanId}
-                        </Link>
-                        <Box color="text-body-secondary" fontSize="body-s">
-                          {exec.startTime
-                            ? new Date(Number(exec.startTime) * 1000).toLocaleString()
-                            : 'Not started'}
-                        </Box>
-                      </SpaceBetween>
-                    </Box>
-                  ))}
-                </SpaceBetween>
-              ) : (
-                <Box textAlign="center" padding="l" color="text-body-secondary">
-                  No execution history yet
-                </Box>
-              )}
-            </Container>
-          </SpaceBetween>
-        )}
+        <Container>
+          <Box>Dashboard content will be shown here when accounts are configured.</Box>
+        </Container>
       </ContentLayout>
     </PageTransition>
   );
