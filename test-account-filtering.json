@@ -1,0 +1,19 @@
+{
+  "httpMethod": "GET",
+  "path": "/protection-groups",
+  "queryStringParameters": {
+    "accountId": "438465159935"
+  },
+  "headers": {
+    "Authorization": "Bearer mock-token"
+  },
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "email": "test@example.com",
+        "sub": "test-user-id",
+        "cognito:username": "testuser"
+      }
+    }
+  }
+}

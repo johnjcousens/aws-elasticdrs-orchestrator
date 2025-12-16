@@ -125,6 +125,7 @@ Resources:
         ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
+        TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
         NotificationTopicArn: ''
       Tags:
         - Key: Project
@@ -245,6 +246,18 @@ Outputs:
     Value: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTableArn'
+
+  TargetAccountsTableName:
+    Description: 'DynamoDB table for Target Accounts'
+    Value: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
+    Export:
+      Name: !Sub '${AWS::StackName}-TargetAccountsTable'
+
+  TargetAccountsTableArn:
+    Description: 'DynamoDB table ARN for Target Accounts'
+    Value: !GetAtt DatabaseStack.Outputs.TargetAccountsTableArn
+    Export:
+      Name: !Sub '${AWS::StackName}-TargetAccountsTableArn'
 
   # Lambda Stack Outputs
   ApiHandlerFunctionArn:

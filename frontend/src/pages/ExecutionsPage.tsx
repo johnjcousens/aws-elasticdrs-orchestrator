@@ -20,6 +20,7 @@ import type { SelectProps } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { formatDistanceToNow } from 'date-fns';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useAccount } from '../contexts/AccountContext';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
@@ -53,6 +54,7 @@ const SELECTION_MODE_OPTIONS: SelectProps.Option[] = [
 export const ExecutionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
+  const { getCurrentAccountId } = useAccount();
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -81,7 +83,8 @@ export const ExecutionsPage: React.FC = () => {
   const fetchExecutions = async () => {
     try {
       if (loading) setErrorMsg(null);
-      const response = await apiClient.listExecutions();
+      const accountId = getCurrentAccountId();
+      const response = await apiClient.listExecutions(accountId ? { accountId } : undefined);
       setExecutions(response.items);
       setLastRefresh(new Date());
     } catch (err: unknown) {

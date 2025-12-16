@@ -4,6 +4,114 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+## [1.6.2] - December 15, 2025
+
+**DRS Tag Synchronization Feature** - `8f8f26e`
+
+Complete implementation of DRS tag synchronization across all 28 commercial AWS regions:
+
+Backend Implementation:
+
+- Added `lambda/drs_tag_sync.py` (165 lines) - Complete tag synchronization Lambda function
+- Cross-region DRS source server discovery and EC2 instance tag synchronization
+- Smart tag filtering: excludes AWS-managed tags (aws:*, AWS:*) and common system tags
+- Comprehensive error handling with detailed failure reporting per server
+- Support for all 28 commercial DRS regions with automatic region validation
+- Batch processing with progress tracking and detailed sync results
+- Added `/drs/tag-sync` API endpoint in API Gateway with CORS support
+- Integrated tag sync handler in main Lambda function (`lambda/index.py`)
+
+API Features:
+
+- `POST /drs/tag-sync` endpoint with region parameter support
+- Returns detailed sync results: success count, failure count, error details per server
+- Validates region parameter and returns appropriate error codes
+- Comprehensive error handling for DRS and EC2 API failures
+
+Technical Implementation:
+
+- Uses DRS `describe_source_servers` to discover all source servers in region
+- Extracts EC2 instance ID from `sourceProperties.identificationHints.awsInstanceID`
+- Queries EC2 `describe_instances` to get current instance tags
+- Applies filtered tags to DRS source server using `tag_resource`
+- Handles pagination for large server inventories
+- Implements retry logic for transient API failures
+
+**Enhanced Hardware Display in Protection Groups** - `8f8f26e`
+
+Comprehensive hardware information display in server discovery panel:
+
+Frontend Enhancements:
+
+- Updated `ServerListItem.tsx` with clean hardware display layout
+- Format: "FQDN | CPU: X cores | RAM: X GiB | IP: X.X.X.X"
+- FQDN column expanded to 2x width, no label prefix for cleaner appearance
+- Hardware info extracted from DRS source server properties
+- Responsive layout with proper column sizing
+
+Backend Implementation:
+
+- Enhanced hardware extraction in `lambda/index.py` (lines 4380-4550)
+- Extracts CPU cores from `sourceProperties.cpus[0].cores`
+- Calculates RAM in GiB from `sourceProperties.ramBytes` with proper conversion
+- Calculates total disk space in GiB from `sourceProperties.disks` array
+- Handles missing or malformed hardware data gracefully
+- Returns hardware info in server discovery API responses
+
+**Deployment Infrastructure Fixes** - `8f8f26e`
+
+Critical deployment script corrections for proper stack targeting:
+
+Script Updates:
+
+- Fixed `scripts/sync-to-deployment-bucket.sh` to target correct CloudFormation stack `drs-orch-v4`
+- Updated Lambda function name patterns to match actual deployment: `drsorchv4-*-test`
+- Corrected frontend bucket name: `drsorchv4-fe-438465159935-test`
+- Fixed CloudFront distribution ID: `E33R91LABVLR0`
+- Added proper stack configuration validation
+
+Documentation Updates:
+
+- Updated `README.md` deployment workflow section with correct stack names
+- Added stack configuration details and deployment verification commands
+- Added "Recent Updates" section documenting deployment fixes
+- Clarified S3 deployment bucket as source of truth for all deployments
+
+Deployment Verification:
+
+- Successfully deployed hardware display enhancements to production
+- Verified CloudFront distribution serves updated frontend: `https://dl4xl2uad0eil.cloudfront.net/protection-groups`
+- Confirmed Lambda functions updated with latest code
+- All deployment artifacts synced to S3 deployment bucket
+
+**Git Repository Management** - `8f8f26e`
+
+Comprehensive commit and tagging for feature release:
+
+Commit Details:
+
+- 12 files changed: 688 insertions, 258 deletions
+- Comprehensive 100+ line commit message documenting all changes
+- Detailed technical implementation notes and file-by-file changes
+- Cross-references to related documentation and deployment procedures
+
+Tag Creation:
+
+- Created annotated tag: `tag-sync-prototype-28-regions`
+- Detailed tag description with feature summary and technical highlights
+- References commit hash `8f8f26e` for easy lookup
+- Prepared for future release and deployment tracking
+
+Files Modified:
+
+- `lambda/index.py` - Hardware extraction and tag sync integration
+- `lambda/drs_tag_sync.py` - Complete tag synchronization implementation
+- `frontend/src/components/ServerListItem.tsx` - Hardware display UI
+- `scripts/sync-to-deployment-bucket.sh` - Deployment script fixes
+- `README.md` - Documentation updates and deployment procedures
+- `cfn/api-stack.yaml` - API Gateway tag sync endpoint
+- Multiple supporting files for complete feature implementation
+
 ## [1.6.1] - December 14, 2025
 
 **Execution History Plan Name Preservation**
@@ -21,6 +129,7 @@ All notable changes to the AWS DRS Orchestration Solution project.
 Complete backup and restore capability for Protection Groups and Recovery Plans:
 
 Backend (Lambda):
+
 - Added `GET /config/export` endpoint - exports all Protection Groups and Recovery Plans to JSON
 - Added `POST /config/import` endpoint - imports configuration with validation and dry-run support
 - Export includes metadata (schemaVersion, exportedAt, sourceRegion)
@@ -37,6 +146,7 @@ Backend (Lambda):
 - Orphaned PG references in waves are gracefully handled (removed from export if PG doesn't exist)
 
 Frontend:
+
 - Added Settings modal accessible via gear icon in top navigation
 - Export tab: One-click download of configuration as JSON file
 - Import tab: File picker with preview, dry-run validation, and detailed results
@@ -44,11 +154,13 @@ Frontend:
 - Created ApiContext for centralized API state management
 
 Infrastructure (CloudFormation):
+
 - Added `/config/export` and `/config/import` API Gateway resources
 - Added CORS OPTIONS methods for both endpoints
 - Updated API deployment dependencies
 
 Documentation:
+
 - Added `docs/implementation/CONFIG_EXPORT_IMPORT_SPEC.md` with full specification
 - Added minimum import example to ORCHESTRATION_INTEGRATION_GUIDE.md
 - Documented required vs optional fields for import JSON
@@ -56,6 +168,7 @@ Documentation:
 - Updated README Future Enhancements table (item #5 complete)
 
 Files Added:
+
 - `frontend/src/components/SettingsModal.tsx`
 - `frontend/src/components/ConfigExportPanel.tsx`
 - `frontend/src/components/ConfigImportPanel.tsx`
@@ -79,18 +192,21 @@ Files Added:
 New API endpoint and enhanced UI for tracking existing recovery instances before starting drills:
 
 API Changes:
+
 - Added `GET /recovery-plans/{planId}/check-existing-instances` endpoint
 - Returns existing recovery instances with source execution and plan tracking
 - Enriched response with EC2 details: Name tag, private IP, instance type, launch time
 - Fixed execution history lookup to correctly search `Waves[].ServerStatuses[].SourceServerId`
 
 Frontend Changes:
+
 - Enhanced warning dialog shows detailed instance information before drill
 - Displays: instance name, private IP, instance type, launch time
 - Updated warning message: clarifies drill will TERMINATE existing instances (not create additional)
 - Shows source plan name that created the instances
 
 Code Cleanup:
+
 - Removed unused `get_protection_group_servers_legacy` function (~110 lines)
 - Deleted `cfn/api-stack.yaml.bak` backup file
 
@@ -99,12 +215,14 @@ Code Cleanup:
 Complete DRS Launch Settings configuration for Protection Groups via UI and API:
 
 EC2 Launch Template Settings:
+
 - Subnet selection (target VPC subnet for recovery instances)
 - Security Groups (one or more security groups)
 - Instance Profile (IAM instance profile for recovery instance permissions)
 - Instance Type (specific EC2 instance type override)
 
 DRS Launch Configuration Settings:
+
 - Instance Type Right Sizing (BASIC/IN_AWS/NONE)
 - Launch Disposition (STARTED/STOPPED)
 - OS Licensing (BYOL/AWS-provided)
@@ -112,6 +230,7 @@ DRS Launch Configuration Settings:
 - Transfer Server Tags (propagate EC2 tags to recovery instance)
 
 Frontend Changes:
+
 - New `LaunchConfigSection.tsx` component with dropdowns for all settings
 - Updated `LaunchConfig` interface with all DRS fields
 - Fixed conditional rendering of ServerDiscoveryPanel (prevents API calls when on Tags tab)
@@ -119,11 +238,13 @@ Frontend Changes:
 - Fixed broken JSX in LoginPage.tsx
 
 Backend Changes:
+
 - `apply_launch_config_to_servers()` now passes all DRS settings: `targetInstanceTypeRightSizingMethod`, `launchDisposition`, `licensing`
 - Enhanced version description tracking for audit trails
 - `query_drs_servers_by_tags()` returns full server details for tag preview
 
 Documentation:
+
 - Added comprehensive API Request/Response Examples section to ORCHESTRATION_INTEGRATION_GUIDE.md
 - Added LaunchConfig Field Reference table
 - Updated README with EC2 Launch Configuration section and API examples
@@ -131,6 +252,7 @@ Documentation:
 **EC2 Launch Template Configuration (Backend)** - `74ac444`, `a75eb67`
 
 EC2 Launch Settings Backend Implementation:
+
 - Added 4 new EC2 API endpoints for launch configuration dropdowns:
   - `GET /ec2/subnets?region={region}` - List VPC subnets
   - `GET /ec2/security-groups?region={region}` - List security groups
@@ -146,24 +268,28 @@ EC2 Launch Settings Backend Implementation:
 **Comprehensive API Testing & Error Handling** - `d61e282`
 
 API Error Handling Improvements:
+
 - Standardized error codes across all API endpoints (MISSING_FIELD, INVALID_NAME, etc.)
 - Reduced max name length from 256 to 64 characters for Protection Groups and Recovery Plans
 - Added `/health` endpoint returning `{"status": "healthy", "service": "drs-orchestration-api"}`
 - DRS quotas endpoint now requires `region` parameter (returns 400 if missing)
 
 Optimistic Locking Implementation:
+
 - Added `version` field to Protection Groups and Recovery Plans for concurrency control
 - Version increments on each update; stale version updates return 409 VERSION_CONFLICT
 - Frontend detects version conflicts and prompts user to refresh before retrying
 - Works for all clients (UI, CLI, SDK, IAM role invocations)
 
 Comprehensive API Test Suite:
+
 - Created `scripts/comprehensive_api_test.py` with 51 tests covering all API operations
 - Tests: Protection Groups CRUD, Recovery Plans CRUD, Executions, DRS Integration, Tag Resolution
 - Validates optimistic locking, error handling, and referential integrity
 - All 51 tests passing
 
 Auto-Refresh for All Pages:
+
 - Protection Groups page: 30-second auto-refresh
 - Recovery Plans page: 30-second auto-refresh (plans) + 5-second (execution status)
 - Dashboard: 30-second auto-refresh (already existed)

@@ -10,7 +10,12 @@
       // Create a promise that resolves when config is loaded
       window.configReady = new Promise(async (resolve) => {
         try {
-          const response = await fetch('/aws-config.json');
+          // Check if we're in local development mode
+          const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          const configFile = isLocalDev ? '/aws-config.local.json' : '/aws-config.json';
+          
+          console.log(`🔧 Loading config from: ${configFile}`);
+          const response = await fetch(configFile);
           const config = await response.json();
           
           window.AWS_CONFIG = {
