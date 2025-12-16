@@ -5781,19 +5781,9 @@ def get_target_accounts() -> Dict:
             )
             accounts.extend(result.get('Items', []))
         
-        # If no accounts configured, add current account as default
-        if not accounts:
-            default_account = {
-                'AccountId': current_account_id,  # DynamoDB expects PascalCase
-                'AccountName': current_account_name,
-                'Status': 'active',
-                'CreatedAt': datetime.utcnow().isoformat() + 'Z',
-                'LastValidated': datetime.utcnow().isoformat() + 'Z'
-            }
-            
-            # Store default account in DynamoDB
-            target_accounts_table.put_item(Item=default_account)
-            accounts = [default_account]
+        # Return empty list if no accounts configured
+        # Users must explicitly add target accounts (including current account if it has DRS)
+        # This supports deployment in shared services accounts that don't have DRS
         
         # Transform all accounts to camelCase for frontend
         camel_accounts = []
