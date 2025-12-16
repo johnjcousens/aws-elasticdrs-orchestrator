@@ -25,6 +25,7 @@ import {
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useAccount } from '../contexts/AccountContext';
 import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
@@ -44,6 +45,7 @@ export const RecoveryPlansPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addNotification } = useNotifications();
+  const { getCurrentAccountId } = useAccount();
   const [plans, setPlans] = useState<RecoveryPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +142,8 @@ export const RecoveryPlansPage: React.FC = () => {
   
   const checkInProgressExecutions = async () => {
     try {
-      const response = await apiClient.listExecutions();
+      const accountId = getCurrentAccountId();
+      const response = await apiClient.listExecutions(accountId ? { accountId } : undefined);
       const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
       const activeExecutions = response.items.filter((exec) => activeStatuses.includes(exec.status.toUpperCase()));
       const plansWithActiveExecution = new Set<string>(activeExecutions.map((exec) => exec.recoveryPlanId));
@@ -163,7 +166,8 @@ export const RecoveryPlansPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiClient.listRecoveryPlans();
+      const accountId = getCurrentAccountId();
+      const data = await apiClient.listRecoveryPlans(accountId ? { accountId } : undefined);
       setPlans(data);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load recovery plans';
