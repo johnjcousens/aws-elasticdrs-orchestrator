@@ -7,8 +7,8 @@
 
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { SelectProps } from '@cloudscape-design/components';
-import { getDRSAccounts } from '../services/drsQuotaService';
-import type { DRSAccount } from '../services/drsQuotaService';
+import apiClient from '../services/api';
+import type { TargetAccount } from '../components/AccountManagementPanel';
 
 interface AccountContextType {
   // Account selection
@@ -16,7 +16,7 @@ interface AccountContextType {
   setSelectedAccount: (account: SelectProps.Option | null) => void;
   
   // Available accounts
-  availableAccounts: DRSAccount[];
+  availableAccounts: TargetAccount[];
   accountsLoading: boolean;
   accountsError: string | null;
   
@@ -34,7 +34,7 @@ interface AccountProviderProps {
 
 export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
   const [selectedAccount, setSelectedAccount] = useState<SelectProps.Option | null>(null);
-  const [availableAccounts, setAvailableAccounts] = useState<DRSAccount[]>([]);
+  const [availableAccounts, setAvailableAccounts] = useState<TargetAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountsError, setAccountsError] = useState<string | null>(null);
 
@@ -43,12 +43,12 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     setAccountsError(null);
     
     try {
-      const accounts = await getDRSAccounts();
+      const accounts = await apiClient.getTargetAccounts();
       setAvailableAccounts(accounts);
       
       // Auto-select current account (where solution is deployed) as default
       if (!selectedAccount) {
-        const currentAccount = accounts.find(acc => acc.isCurrentAccount);
+        const currentAccount = accounts.find((acc: TargetAccount) => acc.isCurrentAccount);
         if (currentAccount) {
           const accountOption = {
             value: currentAccount.accountId,

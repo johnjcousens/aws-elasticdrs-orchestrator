@@ -45,11 +45,7 @@ export interface DRSQuotaStatus {
   };
 }
 
-export interface DRSAccount {
-  accountId: string;
-  accountName?: string;
-  isCurrentAccount: boolean;
-}
+
 
 // DRS hard limits (matching backend constants)
 export const DRS_LIMITS: DRSLimits = {
@@ -69,12 +65,7 @@ export const getDRSQuotas = async (accountId: string, region?: string): Promise<
   return apiClient.getDRSQuotas(accountId, region);
 };
 
-/**
- * Fetch available DRS accounts (target accounts)
- */
-export const getDRSAccounts = async (): Promise<DRSAccount[]> => {
-  return apiClient.getTargetAccounts();
-};
+
 
 /**
  * Validate wave size against DRS limit

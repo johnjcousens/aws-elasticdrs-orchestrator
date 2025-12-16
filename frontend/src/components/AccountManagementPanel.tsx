@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Container,
   Header,
@@ -15,6 +15,7 @@ import {
 } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import apiClient from '../services/api';
+import { useAccount } from '../contexts/AccountContext';
 
 export interface TargetAccount {
   accountId: string;
@@ -34,9 +35,7 @@ interface AccountManagementPanelProps {
 const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   onAccountsChange,
 }) => {
-  const [accounts, setAccounts] = useState<TargetAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { availableAccounts: accounts, accountsLoading: loading, accountsError: error, refreshAccounts } = useAccount();
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TargetAccount | null>(null);
   
@@ -51,24 +50,10 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  const fetchAccounts = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.getTargetAccounts();
-      setAccounts(response);
-      onAccountsChange?.(response);
-    } catch (err) {
-      console.error('Error fetching target accounts:', err);
-      setError('Failed to load target accounts');
-    } finally {
-      setLoading(false);
-    }
-  }, [onAccountsChange]);
-
-  useEffect(() => {
-    fetchAccounts();
-  }, [fetchAccounts]);
+  // Notify parent component when accounts change
+  React.useEffect(() => {
+    onAccountsChange?.(accounts);
+  }, [accounts, onAccountsChange]);
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -113,7 +98,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         toast.success('Target account added successfully');
       }
       
-      await fetchAccounts();
+      await refreshAccounts();
       handleCloseModal();
     } catch (err: any) {
       console.error('Error saving target account:', err);
@@ -129,7 +114,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     try {
       await apiClient.deleteTargetAccount(accountId);
       toast.success('Target account removed successfully');
-      await fetchAccounts();
+      await refreshAccounts();
     } catch (err: any) {
       console.error('Error deleting target account:', err);
       toast.error(err.message || 'Failed to remove target account');
@@ -140,7 +125,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     try {
       await apiClient.validateTargetAccount(accountId);
       toast.success('Account validation successful');
-      await fetchAccounts();
+      await refreshAccounts();
     } catch (err: any) {
       console.error('Error validating target account:', err);
       toast.error(err.message || 'Account validation failed');
@@ -311,8 +296,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       Alert,
       {
         type: 'error',
-        dismissible: true,
-        onDismiss: () => setError(null),
+        dismissible: false,
       },
       error
     ),
