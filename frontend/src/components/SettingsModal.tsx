@@ -27,6 +27,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('accounts');
 
+  // Only render modal content when visible to prevent unnecessary API calls
+  if (!visible) {
+    return (
+      <Modal
+        visible={false}
+        onDismiss={onDismiss}
+        header="Settings"
+        size="large"
+      />
+    );
+  }
+
   return (
     <Modal
       visible={visible}

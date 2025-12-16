@@ -45,7 +45,9 @@
       },
       "disabled": false,
       "autoApprove": [
-        "research_aws_service"
+        "research_aws_service",
+        "find_best_practices",
+        "research_library_documentation"
       ]
     },
     "cfn-linter": {
