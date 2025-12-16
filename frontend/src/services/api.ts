@@ -583,12 +583,7 @@ class ApiClient {
     return this.get<any>(`/drs/quotas?${params.toString()}`);
   }
 
-  /**
-   * Get available DRS accounts
-   */
-  public async getDRSAccounts(): Promise<any> {
-    return this.get<any>('/drs/accounts');
-  }
+
 
   /**
    * Target Account Management
