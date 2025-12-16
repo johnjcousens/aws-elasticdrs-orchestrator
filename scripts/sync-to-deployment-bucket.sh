@@ -27,8 +27,8 @@ AWS_PROFILE="***REMOVED***_AdministratorAccess"
 LIST_PROFILES=false
 
 # CloudFormation stack configuration
-PROJECT_NAME="drs-orchestration"
-ENVIRONMENT="dev"
+PROJECT_NAME="drsorchv4"
+ENVIRONMENT="test"
 PARENT_STACK_NAME="drs-orch-v4"
 
 # Approved top-level directories (directories synced by this script)
@@ -747,7 +747,6 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
             aws s3 sync frontend/dist/ s3://$FRONTEND_BUCKET/ \
                 $PROFILE_FLAG \
                 --delete \
-                --exclude "aws-config.json" \
                 --region $REGION \
                
             echo "  ✅ Frontend files synced to $FRONTEND_BUCKET"

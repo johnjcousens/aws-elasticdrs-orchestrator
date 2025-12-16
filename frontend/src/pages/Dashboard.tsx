@@ -23,10 +23,12 @@ import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
 import { AccountSelector } from '../components/AccountSelector';
+import { RegionSelector } from '../components/RegionSelector';
 import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
 import type { DRSQuotaStatus } from '../services/drsQuotaService';
+import type { SelectProps } from '@cloudscape-design/components';
 
 // Status colors for the pie chart
 const STATUS_COLORS: Record<string, string> = {
@@ -65,6 +67,10 @@ export const Dashboard: React.FC = () => {
   const [quotasLoading, setQuotasLoading] = useState(false);
   const [quotasError, setQuotasError] = useState<string | null>(null);
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState<SelectProps.Option | null>({
+    value: DEFAULT_REGION,
+    label: 'us-east-1 (N. Virginia)'
+  });
 
   const fetchExecutions = useCallback(async () => {
     const accountId = getCurrentAccountId();
@@ -89,11 +95,11 @@ export const Dashboard: React.FC = () => {
     }
   }, [getCurrentAccountId]);
 
-  const fetchDRSQuotas = useCallback(async (accountId: string) => {
+  const fetchDRSQuotas = useCallback(async (accountId: string, region: string) => {
     setQuotasLoading(true);
     setQuotasError(null);
     try {
-      const quotas = await apiClient.getDRSQuotas(accountId);
+      const quotas = await apiClient.getDRSQuotas(accountId, region);
       setDrsQuotas(quotas);
     } catch (err) {
       console.error('Error fetching DRS quotas:', err);
@@ -111,17 +117,18 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
-  // Fetch DRS quotas on account change and auto-refresh every 30 seconds
+  // Fetch DRS quotas on account/region change and auto-refresh every 30 seconds
   useEffect(() => {
     const accountId = getCurrentAccountId();
-    if (accountId) {
-      fetchDRSQuotas(accountId);
+    const region = selectedRegion?.value;
+    if (accountId && region) {
+      fetchDRSQuotas(accountId, region);
       const interval = setInterval(() => {
-        fetchDRSQuotas(accountId);
+        fetchDRSQuotas(accountId, region);
       }, 30000);
       return () => clearInterval(interval);
     }
-  }, [selectedAccount, fetchDRSQuotas, getCurrentAccountId]);
+  }, [selectedAccount, selectedRegion, fetchDRSQuotas, getCurrentAccountId]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -204,6 +211,9 @@ export const Dashboard: React.FC = () => {
           <Header
             variant="h1"
             description="Real-time execution status and system metrics"
+            actions={
+              <AccountSelector placeholder="Select target account" />
+            }
           >
             Dashboard
           </Header>
@@ -360,11 +370,15 @@ export const Dashboard: React.FC = () => {
                       >
                         Sync Tags
                       </Button>
-                      <AccountSelector placeholder="Select target account" />
+                      <RegionSelector
+                        selectedRegion={selectedRegion}
+                        onRegionChange={setSelectedRegion}
+                        placeholder="Select region"
+                      />
                     </SpaceBetween>
                   }
                 >
-                  DRS Capacity by Target Account
+                  DRS Capacity by Region
                 </Header>
               }
             >
@@ -378,7 +392,7 @@ export const Dashboard: React.FC = () => {
                 <DRSQuotaStatusPanel quotas={drsQuotas} />
               ) : (
                 <Box textAlign="center" padding="l" color="text-body-secondary">
-                  Select a target account to view DRS capacity
+                  Select a region to view DRS capacity
                 </Box>
               )}
             </Container>
