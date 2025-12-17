@@ -92,6 +92,10 @@ Resources:
               - Variable: '$.status'
                 StringEquals: 'timeout'
                 Next: 'PlanTimeout'
+              # Check for paused (PauseBeforeWave) - CRITICAL: must check before wave_completed
+              - Variable: '$.status'
+                StringEquals: 'paused'
+                Next: 'WaitForResume'
               # Check if all waves completed (after wave completion)
               - Variable: '$.all_waves_completed'
                 BooleanEquals: true
@@ -123,7 +127,7 @@ Resources:
                 action: 'store_task_token'
                 application.$: '$'
                 taskToken.$: '$$.Task.Token'
-                AccountContext.$: '$.AccountContext'
+                AccountContext.$: '$.account_context'
             # NOTE: No OutputPath here - callback output is returned directly at root level
             TimeoutSeconds: 31536000  # 1 year max timeout for pause/resume
             Next: 'ResumeWavePlan'
@@ -141,7 +145,7 @@ Resources:
               Payload:
                 action: 'resume_wave'
                 application.$: '$'
-                AccountContext.$: '$.AccountContext'
+                AccountContext.$: '$.account_context'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:

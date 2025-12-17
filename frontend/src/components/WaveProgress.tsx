@@ -476,7 +476,11 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({ waves, currentWave, 
     setLoadingLogs(prev => ({ ...prev, [waveNumber]: true }));
     try {
       const result = await apiClient.getJobLogs(executionId, jobId);
-      const waveLogs = result.jobLogs.find(l => l.waveNumber === waveNumber);
+      
+      // Find logs by wave number first, then by jobId as fallback
+      const waveLogs = result.jobLogs.find(l => l.waveNumber === waveNumber) 
+        || result.jobLogs.find(l => l.jobId === jobId);
+      
       if (waveLogs) {
         setJobLogs(prev => ({ ...prev, [waveNumber]: waveLogs }));
       }
@@ -661,7 +665,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({ waves, currentWave, 
                     <Box textAlign="center" padding="s">
                       <Spinner /> Loading job events...
                     </Box>
-                  ) : waveJobLogs && waveJobLogs.events.length > 0 ? (
+                  ) : waveJobLogs?.events?.length ? (
                     <JobEventsTimeline events={waveJobLogs.events} />
                   ) : (
                     <Box color="text-status-inactive" padding="s">

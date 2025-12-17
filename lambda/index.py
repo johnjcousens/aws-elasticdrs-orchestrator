@@ -323,6 +323,61 @@ def response(status_code: int, body: Any, headers: Optional[Dict] = None) -> Dic
 ACTIVE_EXECUTION_STATUSES = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 
                              'IN_PROGRESS', 'RUNNING', 'PAUSED', 'CANCELLING']
 
+# DRS job statuses that indicate servers are still being processed
+DRS_ACTIVE_JOB_STATUSES = ['PENDING', 'STARTED']
+
+
+def get_servers_in_active_drs_jobs(region: str, account_context: Optional[Dict] = None) -> Dict[str, Dict]:
+    """
+    Query DRS for servers currently being processed by active LAUNCH jobs.
+    This catches conflicts even when DynamoDB execution records are stale/failed.
+    
+    Returns dict mapping server_id -> {jobId, jobStatus, jobType}
+    """
+    servers_in_drs_jobs = {}
+    
+    try:
+        # Get DRS client for the appropriate account/region
+        drs_client = create_drs_client(region, account_context)
+        print(f"[DRS Job Check] Querying DRS jobs in region {region}")
+        
+        # Get all jobs (no filter = all jobs)
+        # Note: describe_jobs without filters returns recent jobs
+        jobs_response = drs_client.describe_jobs(maxResults=100)
+        
+        jobs_found = jobs_response.get('items', [])
+        print(f"[DRS Job Check] Found {len(jobs_found)} total jobs in {region}")
+        
+        for job in jobs_found:
+            job_id = job.get('jobID')
+            job_status = job.get('status', '')
+            job_type = job.get('type', '')
+            
+            print(f"[DRS Job Check] Job {job_id}: type={job_type}, status={job_status}")
+            
+            # Only check active LAUNCH jobs (not TERMINATE, CREATE_CONVERTED_SNAPSHOT, etc.)
+            if job_type == 'LAUNCH' and job_status in DRS_ACTIVE_JOB_STATUSES:
+                # Get servers participating in this job
+                for server in job.get('participatingServers', []):
+                    server_id = server.get('sourceServerID')
+                    if server_id:
+                        servers_in_drs_jobs[server_id] = {
+                            'jobId': job_id,
+                            'jobStatus': job_status,
+                            'jobType': job_type,
+                            'launchStatus': server.get('launchStatus', 'UNKNOWN')
+                        }
+                        print(f"[DRS Job Check] Server {server_id} in active job {job_id}")
+        
+        print(f"[DRS Job Check] Found {len(servers_in_drs_jobs)} servers in active DRS jobs in {region}")
+        return servers_in_drs_jobs
+        
+    except Exception as e:
+        print(f"[DRS Job Check] Error checking DRS jobs in {region}: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
 
 def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
     """Get all active executions for a specific recovery plan"""
@@ -551,54 +606,105 @@ def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict, account_co
         return []
 
 
-def check_server_conflicts(plan: Dict) -> List[Dict]:
+def check_server_conflicts(plan: Dict, account_context: Optional[Dict] = None) -> List[Dict]:
     """
-    Check if any servers in the plan are currently in active executions.
+    Check if any servers in the plan are currently in active executions OR active DRS jobs.
     Returns list of conflicts with details.
     
     For tag-based Protection Groups, resolves servers at check time.
+    Also checks DRS directly for active LAUNCH jobs (catches stale DynamoDB records).
     """
+    print(f"[Conflict Check] Starting conflict check for plan {plan.get('PlanId')}")
+    print(f"[Conflict Check] Account context: {account_context}")
+    
     servers_in_use = get_servers_in_active_executions()
+    print(f"[Conflict Check] Servers in active executions: {list(servers_in_use.keys())}")
+    
     conflicts = []
     pg_cache = {}
+    checked_regions = set()
+    drs_servers_by_region = {}
     
     for wave in plan.get('Waves', []):
         wave_name = wave.get('WaveName', 'Unknown')
         
         # Get Protection Group ID for this wave
         pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
+        print(f"[Conflict Check] Wave '{wave_name}' has PG: {pg_id}")
         
         if pg_id:
+            # Get PG to find region
+            if pg_id not in pg_cache:
+                try:
+                    pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+                    pg_cache[pg_id] = pg_result.get('Item', {})
+                except Exception as e:
+                    print(f"[Conflict Check] Error fetching PG {pg_id}: {e}")
+                    pg_cache[pg_id] = {}
+            
+            pg = pg_cache.get(pg_id, {})
+            region = pg.get('Region', 'us-east-1')
+            print(f"[Conflict Check] PG {pg_id} is in region {region}")
+            
+            # Check DRS jobs for this region (once per region)
+            if region not in checked_regions:
+                checked_regions.add(region)
+                print(f"[Conflict Check] Checking DRS jobs in region {region}")
+                drs_servers_by_region[region] = get_servers_in_active_drs_jobs(region, account_context)
+                print(f"[Conflict Check] DRS servers in {region}: {list(drs_servers_by_region[region].keys())}")
+            
             # Resolve servers from Protection Group tags
             server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+            print(f"[Conflict Check] Resolved {len(server_ids)} servers from PG {pg_id}: {server_ids}")
             
             for server_id in server_ids:
+                # Check DynamoDB execution conflicts
                 if server_id in servers_in_use:
                     conflict_info = servers_in_use[server_id]
+                    print(f"[Conflict Check] Server {server_id} has execution conflict")
                     conflicts.append({
                         'serverId': server_id,
                         'waveName': wave_name,
                         'conflictingExecutionId': conflict_info['executionId'],
                         'conflictingPlanId': conflict_info['planId'],
                         'conflictingWaveName': conflict_info.get('waveName'),
-                        'conflictingStatus': conflict_info.get('executionStatus')
+                        'conflictingStatus': conflict_info.get('executionStatus'),
+                        'conflictSource': 'execution'
+                    })
+                # Check DRS job conflicts (even if not in DynamoDB)
+                elif server_id in drs_servers_by_region.get(region, {}):
+                    drs_info = drs_servers_by_region[region][server_id]
+                    print(f"[Conflict Check] Server {server_id} has DRS job conflict: {drs_info['jobId']}")
+                    conflicts.append({
+                        'serverId': server_id,
+                        'waveName': wave_name,
+                        'conflictingJobId': drs_info['jobId'],
+                        'conflictingJobStatus': drs_info['jobStatus'],
+                        'conflictingLaunchStatus': drs_info.get('launchStatus'),
+                        'conflictSource': 'drs_job'
                     })
     
+    print(f"[Conflict Check] Total conflicts found: {len(conflicts)}")
     return conflicts
 
 
 def get_plans_with_conflicts() -> Dict[str, Dict]:
     """
-    Get all recovery plans that have server conflicts with active executions.
+    Get all recovery plans that have server conflicts with active executions OR active DRS jobs.
     Returns dict mapping plan_id -> conflict info for plans that cannot be executed.
     
     This is used by the frontend to gray out Drill/Recovery buttons.
     For tag-based Protection Groups, resolves servers at check time.
+    Also checks DRS directly for active LAUNCH jobs.
     """
     servers_in_use = get_servers_in_active_executions()
     
-    if not servers_in_use:
-        return {}
+    # Also get servers in active DRS jobs (per region, cached)
+    drs_servers_by_region = {}
+    
+    if not servers_in_use and not drs_servers_by_region:
+        # Will populate drs_servers_by_region lazily per region below
+        pass
     
     # Get all recovery plans
     try:
@@ -645,14 +751,56 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:
                             conflicting_plan_id = conflict_info['planId']
                             conflicting_status = conflict_info.get('executionStatus')
         
-        if conflicting_servers:
+        # Also check DRS jobs for this plan's regions
+        drs_conflicting_servers = []
+        drs_conflicting_job_id = None
+        pg_metadata_cache = {}  # Separate cache for PG metadata (region, etc.)
+        
+        for wave in plan.get('Waves', []):
+            pg_id = wave.get('ProtectionGroupId') or (wave.get('ProtectionGroupIds', []) or [None])[0]
+            if pg_id:
+                # Get PG metadata (region) - use separate cache since pg_cache stores server IDs
+                if pg_id not in pg_metadata_cache:
+                    try:
+                        pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+                        pg_metadata_cache[pg_id] = pg_result.get('Item', {})
+                    except Exception:
+                        pg_metadata_cache[pg_id] = {}
+                
+                pg_metadata = pg_metadata_cache.get(pg_id, {})
+                region = pg_metadata.get('Region', 'us-east-1')
+                
+                # Lazy load DRS jobs per region
+                if region not in drs_servers_by_region:
+                    drs_servers_by_region[region] = get_servers_in_active_drs_jobs(region)
+                
+                server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+                for server_id in server_ids:
+                    # Skip if already in execution conflict
+                    if server_id not in conflicting_servers and server_id in drs_servers_by_region.get(region, {}):
+                        drs_info = drs_servers_by_region[region][server_id]
+                        drs_conflicting_servers.append(server_id)
+                        drs_conflicting_job_id = drs_info['jobId']
+        
+        all_conflicting = list(set(conflicting_servers + drs_conflicting_servers))
+        
+        if all_conflicting:
+            # Build reason message
+            if conflicting_servers and drs_conflicting_servers:
+                reason = f'{len(set(conflicting_servers))} server(s) in execution, {len(set(drs_conflicting_servers))} in DRS jobs'
+            elif drs_conflicting_servers:
+                reason = f'{len(set(drs_conflicting_servers))} server(s) being processed by DRS job {drs_conflicting_job_id}'
+            else:
+                reason = f'{len(set(conflicting_servers))} server(s) in use by another execution'
+            
             plans_with_conflicts[plan_id] = {
                 'hasConflict': True,
-                'conflictingServers': list(set(conflicting_servers)),  # Dedupe
+                'conflictingServers': all_conflicting,
                 'conflictingExecutionId': conflicting_execution_id,
                 'conflictingPlanId': conflicting_plan_id,
                 'conflictingStatus': conflicting_status,
-                'reason': f'{len(set(conflicting_servers))} server(s) in use by another execution'
+                'conflictingDrsJobId': drs_conflicting_job_id,
+                'reason': reason
             }
     
     return plans_with_conflicts
@@ -2653,6 +2801,10 @@ def handle_executions(method: str, path_params: Dict, query_params: Dict, body: 
         return resume_execution(execution_id)
     elif execution_id and '/terminate-instances' in full_path:
         return terminate_recovery_instances(execution_id)
+    elif execution_id and '/termination-status' in full_path:
+        job_ids = query_params.get('jobIds', '')
+        region = query_params.get('region', 'us-west-2')
+        return get_termination_job_status(execution_id, job_ids, region)
     elif execution_id and '/job-logs' in full_path:
         job_id = query_params.get('jobId')
         return get_job_log_items(execution_id, job_id)
@@ -2743,26 +2895,55 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 'planId': plan_id
             })
         
-        # BLOCK: Check for server conflicts with other running executions
-        server_conflicts = check_server_conflicts(plan)
+        # BLOCK: Check for server conflicts with other running executions OR active DRS jobs
+        # Parse account context from request
+        account_context = body.get('AccountContext') or body.get('accountContext')
+        server_conflicts = check_server_conflicts(plan, account_context)
         if server_conflicts:
-            # Group conflicts by execution
+            # Separate execution conflicts from DRS job conflicts
+            execution_conflicts = [c for c in server_conflicts if c.get('conflictSource') == 'execution']
+            drs_job_conflicts = [c for c in server_conflicts if c.get('conflictSource') == 'drs_job']
+            
+            # Group execution conflicts by execution
             conflict_executions = {}
-            for conflict in server_conflicts:
-                exec_id = conflict['conflictingExecutionId']
-                if exec_id not in conflict_executions:
+            for conflict in execution_conflicts:
+                exec_id = conflict.get('conflictingExecutionId')
+                if exec_id and exec_id not in conflict_executions:
                     conflict_executions[exec_id] = {
                         'executionId': exec_id,
-                        'planId': conflict['conflictingPlanId'],
+                        'planId': conflict.get('conflictingPlanId'),
                         'servers': []
                     }
-                conflict_executions[exec_id]['servers'].append(conflict['serverId'])
+                if exec_id:
+                    conflict_executions[exec_id]['servers'].append(conflict['serverId'])
+            
+            # Group DRS job conflicts by job
+            conflict_drs_jobs = {}
+            for conflict in drs_job_conflicts:
+                job_id = conflict.get('conflictingJobId')
+                if job_id and job_id not in conflict_drs_jobs:
+                    conflict_drs_jobs[job_id] = {
+                        'jobId': job_id,
+                        'jobStatus': conflict.get('conflictingJobStatus'),
+                        'servers': []
+                    }
+                if job_id:
+                    conflict_drs_jobs[job_id]['servers'].append(conflict['serverId'])
+            
+            # Build appropriate error message
+            if drs_job_conflicts and not execution_conflicts:
+                message = f'{len(drs_job_conflicts)} server(s) are being processed by active DRS jobs'
+            elif execution_conflicts and not drs_job_conflicts:
+                message = f'{len(execution_conflicts)} server(s) are already in active executions'
+            else:
+                message = f'{len(server_conflicts)} server(s) are in use (executions: {len(execution_conflicts)}, DRS jobs: {len(drs_job_conflicts)})'
             
             return response(409, {
                 'error': 'SERVER_CONFLICT',
-                'message': f'{len(server_conflicts)} server(s) are already in active executions',
+                'message': message,
                 'conflicts': server_conflicts,
-                'conflictingExecutions': list(conflict_executions.values())
+                'conflictingExecutions': list(conflict_executions.values()),
+                'conflictingDrsJobs': list(conflict_drs_jobs.values())
             })
         
         # ============================================================
@@ -2838,6 +3019,12 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         
         # Create initial execution history record with PENDING status
         # Store PlanName directly so it's preserved even if plan is later deleted
+        # Determine account context early so we can store it for resume
+        account_context = body.get('AccountContext') or body.get('accountContext')
+        if not account_context:
+            # Derive from plan if not provided in request
+            account_context = determine_target_account_context(plan)
+        
         history_item = {
             'ExecutionId': execution_id,
             'PlanId': plan_id,
@@ -2847,7 +3034,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             'StartTime': timestamp,
             'InitiatedBy': body['InitiatedBy'],
             'Waves': [],
-            'TotalWaves': len(plan.get('Waves', []))  # Store total wave count for UI display
+            'TotalWaves': len(plan.get('Waves', [])),  # Store total wave count for UI display
+            'AccountContext': account_context  # Store for resume operations
         }
         
         # Store execution history immediately
@@ -4182,6 +4370,11 @@ def resume_execution(execution_id: str) -> Dict:
             print(f"Error loading plan waves: {plan_error}")
             return response(500, {'error': f'Failed to load recovery plan: {str(plan_error)}'})
         
+        # Get account context from execution record (stored when execution started)
+        # This is needed for cross-account DRS operations on resume
+        account_context = execution.get('AccountContext', {})
+        print(f"Account context for resume: {account_context}")
+        
         resume_state = {
             'plan_id': plan_id,
             'execution_id': execution_id,
@@ -4199,7 +4392,8 @@ def resume_execution(execution_id: str) -> Dict:
             'region': None,
             'server_ids': [],
             'error': None,
-            'paused_before_wave': paused_before_wave
+            'paused_before_wave': paused_before_wave,
+            'account_context': account_context  # Include for cross-account DRS operations
         }
         
         print(f"Resume state: {json.dumps(resume_state, cls=DecimalEncoder)}")
@@ -4273,8 +4467,7 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
         execution = result['Items'][0]
         waves = execution.get('Waves', [])
         
-        # Get region and account context from execution
-        region = execution.get('Region', 'us-east-1')
+        # Get account context from execution (region is per-wave)
         account_context = execution.get('AccountContext', {})
         
         all_job_logs = []
@@ -4282,6 +4475,9 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
         for wave in waves:
             wave_job_id = wave.get('JobId') or wave.get('jobId')
             wave_number = wave.get('WaveNumber', wave.get('waveNumber', 0))
+            
+            # Get region from wave first, then execution, then default
+            wave_region = wave.get('Region') or wave.get('region') or execution.get('Region', 'us-east-1')
             
             # Skip if no job ID or if specific job requested and doesn't match
             if not wave_job_id:
@@ -4291,7 +4487,8 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
             
             try:
                 # Create regional DRS client with cross-account support
-                drs_client = create_drs_client(region, account_context)
+                # Use wave-specific region since DRS jobs are regional
+                drs_client = create_drs_client(wave_region, account_context)
                 
                 # Get job log items from DRS
                 log_response = drs_client.describe_job_log_items(jobID=wave_job_id)
@@ -4687,6 +4884,108 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         
     except Exception as e:
         print(f"Error terminating recovery instances: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': str(e)})
+
+
+def get_termination_job_status(execution_id: str, job_ids_str: str, region: str) -> Dict:
+    """Get status of DRS termination jobs for progress tracking.
+    
+    Args:
+        execution_id: The execution ID
+        job_ids_str: Comma-separated list of DRS job IDs
+        region: AWS region where DRS jobs are running
+    
+    Returns:
+        Job status with progress information
+    """
+    try:
+        if not job_ids_str:
+            return response(400, {'error': 'jobIds parameter required'})
+        
+        job_ids = [j.strip() for j in job_ids_str.split(',') if j.strip()]
+        if not job_ids:
+            return response(400, {'error': 'No valid job IDs provided'})
+        
+        print(f"Getting termination job status for {len(job_ids)} jobs in {region}: {job_ids}")
+        
+        drs_client = boto3.client('drs', region_name=region)
+        
+        jobs_response = drs_client.describe_jobs(
+            filters={'jobIDs': job_ids}
+        )
+        
+        jobs = jobs_response.get('items', [])
+        print(f"Found {len(jobs)} jobs")
+        
+        # Calculate overall progress
+        total_servers = 0
+        completed_servers = 0
+        all_completed = True
+        any_failed = False
+        job_details = []
+        
+        for job in jobs:
+            job_id = job.get('jobID', '')
+            status = job.get('status', 'UNKNOWN')
+            job_type = job.get('type', '')
+            participating = job.get('participatingServers', [])
+            
+            job_total = len(participating)
+            job_completed = 0
+            job_failed = 0
+            
+            for server in participating:
+                launch_status = server.get('launchStatus', '')
+                # For TERMINATE jobs: TERMINATED = success, TERMINATE_FAILED = failure
+                if launch_status in ['TERMINATED', 'TERMINATE_COMPLETED']:
+                    job_completed += 1
+                elif launch_status in ['TERMINATE_FAILED', 'FAILED']:
+                    job_failed += 1
+                    any_failed = True
+            
+            total_servers += job_total
+            completed_servers += job_completed
+            
+            # Job is complete if status is COMPLETED
+            if status not in ['COMPLETED']:
+                all_completed = False
+            
+            job_details.append({
+                'jobId': job_id,
+                'status': status,
+                'type': job_type,
+                'totalServers': job_total,
+                'completedServers': job_completed,
+                'failedServers': job_failed
+            })
+        
+        # Calculate percentage
+        progress_percent = 0
+        if total_servers > 0:
+            progress_percent = int((completed_servers / total_servers) * 100)
+        
+        # If all jobs completed, set to 100%
+        if all_completed:
+            progress_percent = 100
+        
+        result = {
+            'executionId': execution_id,
+            'jobs': job_details,
+            'totalServers': total_servers,
+            'completedServers': completed_servers,
+            'progressPercent': progress_percent,
+            'allCompleted': all_completed,
+            'anyFailed': any_failed
+        }
+        
+        print(f"Termination progress: {progress_percent}% ({completed_servers}/{total_servers})")
+        
+        return response(200, result)
+        
+    except Exception as e:
+        print(f"Error getting termination job status: {str(e)}")
         import traceback
         traceback.print_exc()
         return response(500, {'error': str(e)})

@@ -49,6 +49,16 @@ def get_execution_history_table():
     return _execution_history_table
 
 
+def get_account_context(state: Dict) -> Dict:
+    """
+    Get account context from state, handling both PascalCase and snake_case.
+    
+    Initial execution uses PascalCase (AccountContext) from Step Functions input.
+    Resume uses snake_case (account_context) from SendTaskSuccess output.
+    """
+    return state.get('AccountContext') or state.get('account_context', {})
+
+
 def create_drs_client(region: str, account_context: Dict = None):
     """
     Create DRS client with optional cross-account access
@@ -427,7 +437,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         if selection_tags:
             # Resolve servers by tags at execution time
             print(f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}")
-            account_context = state.get('AccountContext', {})
+            account_context = get_account_context(state)
             server_ids = query_drs_servers_by_tags(region, selection_tags, account_context)
             print(f"Resolved {len(server_ids)} servers from tags")
         else:
@@ -444,7 +454,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         print(f"Region: {region}, Servers: {server_ids}, isDrill: {is_drill}")
         
         # Create DRS client with cross-account support
-        account_context = state.get('AccountContext', {})
+        account_context = get_account_context(state)
         drs_client = create_drs_client(region, account_context)
         source_servers = [{'sourceServerID': sid} for sid in server_ids]
         
@@ -554,7 +564,7 @@ def update_wave_status(event: Dict) -> Dict:
     
     try:
         # Create DRS client with cross-account support
-        account_context = state.get('AccountContext', {})
+        account_context = get_account_context(state)
         drs_client = create_drs_client(region, account_context)
         job_response = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
         
