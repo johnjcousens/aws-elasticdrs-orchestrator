@@ -309,6 +309,39 @@ export const RecoveryPlansPage: React.FC = () => {
           addNotification('error', `${unhealthyCount} server(s) have unhealthy replication state and cannot be recovered.`);
           break;
         }
+        case 'SERVER_CONFLICT': {
+          // Server is already in use by another execution or DRS job
+          const conflictData = errorData as {
+            conflicts?: Array<{ serverId: string; conflictSource?: string; executionId?: string; jobId?: string }>;
+            conflictingExecutions?: Array<{ executionId: string; planId: string; servers: string[] }>;
+            conflictingDrsJobs?: Array<{ jobId: string; servers: string[] }>;
+            message?: string;
+          };
+          
+          // Build a user-friendly message
+          let conflictMessage = '';
+          
+          if (conflictData.conflictingDrsJobs?.length && !conflictData.conflictingExecutions?.length) {
+            // Only DRS job conflicts
+            const jobCount = conflictData.conflictingDrsJobs.length;
+            const serverCount = conflictData.conflictingDrsJobs.reduce((sum, j) => sum + j.servers.length, 0);
+            conflictMessage = `Cannot start: ${serverCount} server(s) are being processed by ${jobCount} active DRS job(s). Wait for jobs to complete or terminate recovery instances first.`;
+          } else if (conflictData.conflictingExecutions?.length && !conflictData.conflictingDrsJobs?.length) {
+            // Only execution conflicts
+            const execCount = conflictData.conflictingExecutions.length;
+            const serverCount = conflictData.conflictingExecutions.reduce((sum, e) => sum + e.servers.length, 0);
+            conflictMessage = `Cannot start: ${serverCount} server(s) are in ${execCount} active execution(s). Complete or cancel those executions first.`;
+          } else if (conflictData.conflictingExecutions?.length && conflictData.conflictingDrsJobs?.length) {
+            // Both types of conflicts
+            conflictMessage = `Cannot start: Servers are in use by active executions and DRS jobs. Wait for them to complete first.`;
+          } else {
+            // Fallback to API message
+            conflictMessage = conflictData.message || 'Cannot start: One or more servers are already in use by another drill or recovery operation.';
+          }
+          
+          addNotification('error', conflictMessage);
+          break;
+        }
         default:
           addNotification('error', error.message || errorData.message || 'Failed to execute recovery plan');
       }
@@ -361,6 +394,48 @@ export const RecoveryPlansPage: React.FC = () => {
           <Table
           {...collectionProps}
           columnDefinitions={[
+            {
+              id: 'actions',
+              header: 'Actions',
+              width: 70,
+              cell: (item) => {
+                const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
+                const hasServerConflict = item.hasServerConflict === true;
+                const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
+                
+                let drillDescription = 'Test recovery without failover';
+                const recoveryDescription = 'Coming soon - actual failover operation';
+                if (hasServerConflict && item.conflictInfo?.reason) {
+                  drillDescription = `Blocked: ${item.conflictInfo.reason}`;
+                }
+                
+                return (
+                  <ButtonDropdown
+                    items={[
+                      { id: 'drill', text: 'Run Drill', iconName: 'check', description: drillDescription, disabled: isExecutionDisabled },
+                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: recoveryDescription, disabled: true },
+                      { id: 'divider', text: '-', disabled: true },
+                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: hasInProgressExecution },
+                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: hasInProgressExecution },
+                    ]}
+                    onItemClick={({ detail }) => {
+                      if (detail.id === 'drill') {
+                        handleExecute(item, 'DRILL');
+                      } else if (detail.id === 'recovery') {
+                        handleExecute(item, 'RECOVERY');
+                      } else if (detail.id === 'edit') {
+                        handleEdit(item);
+                      } else if (detail.id === 'delete') {
+                        handleDelete(item);
+                      }
+                    }}
+                    expandToViewport
+                    variant="icon"
+                    ariaLabel="Actions"
+                  />
+                );
+              },
+            },
             {
               id: 'name',
               header: 'Plan Name',
@@ -439,48 +514,6 @@ export const RecoveryPlansPage: React.FC = () => {
                   return <span style={{ color: '#5f6b7a' }}>Unknown</span>;
                 }
                 return <DateTimeDisplay value={item.createdAt} format="full" />;
-              },
-            },
-            {
-              id: 'actions',
-              header: 'Actions',
-              width: 150,
-              cell: (item) => {
-                const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
-                const hasServerConflict = item.hasServerConflict === true;
-                const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
-                
-                let drillDescription = 'Test recovery without failover';
-                const recoveryDescription = 'Coming soon - actual failover operation';
-                if (hasServerConflict && item.conflictInfo?.reason) {
-                  drillDescription = `Blocked: ${item.conflictInfo.reason}`;
-                }
-                
-                return (
-                  <ButtonDropdown
-                    items={[
-                      { id: 'drill', text: 'Run Drill', iconName: 'check', description: drillDescription, disabled: isExecutionDisabled },
-                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: recoveryDescription, disabled: true },
-                      { id: 'divider', text: '-', disabled: true },
-                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: hasInProgressExecution },
-                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: hasInProgressExecution },
-                    ]}
-                    onItemClick={({ detail }) => {
-                      if (detail.id === 'drill') {
-                        handleExecute(item, 'DRILL');
-                      } else if (detail.id === 'recovery') {
-                        handleExecute(item, 'RECOVERY');
-                      } else if (detail.id === 'edit') {
-                        handleEdit(item);
-                      } else if (detail.id === 'delete') {
-                        handleDelete(item);
-                      }
-                    }}
-                    expandToViewport
-                    variant="icon"
-                    ariaLabel="Actions"
-                  />
-                );
               },
             },
           ]}
