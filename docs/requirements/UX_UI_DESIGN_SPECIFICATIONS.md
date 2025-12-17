@@ -2,9 +2,9 @@
 
 ## AWS DRS Orchestration System
 
-**Version**: 1.5  
-**Date**: December 2025  
-**Status**: Design Specification
+**Version**: 1.6  
+**Date**: December 17, 2025  
+**Status**: Multi-Account Prototype 1.0 Complete
 
 ---
 
@@ -272,7 +272,7 @@ The application shall use CloudScape AppLayout with the following structure:
 ```mermaid
 flowchart TB
     subgraph AppShell ["Application Shell"]
-        TopNav["Top Navigation Bar<br/>Logo, App Name, User Menu"]
+        TopNav["Top Navigation Bar<br/>Logo, App Name, Account Selector, User Menu"]
         SideNav["Side Navigation<br/>Dashboard, Getting Started,<br/>Protection Groups, Recovery Plans, History"]
         Content["Content Area<br/>Page Components"]
         Notifications["Flashbar Notifications"]
@@ -282,6 +282,21 @@ flowchart TB
     SideNav --> Content
     Content --> Notifications
 ```
+
+**Top Navigation Components**:
+
+- **AWS Logo**: Standard AWS branding (left side)
+- **Application Title**: "Elastic Disaster Recovery Orchestrator" (left side)
+- **Account Selector**: AccountSelector component for multi-account switching (right side utilities)
+- **User Menu**: Standard user profile dropdown with sign out (right side utilities)
+
+**Account Selector Integration**:
+
+- Positioned in CloudScape TopNavigation utilities section
+- Uses ButtonDropdown component with `user-profile` icon
+- Shows current selected account name or "Select Account" placeholder
+- Dropdown lists all available accounts with selection indicators
+- Integrates with AccountContext for state management and persistence
 
 ### Route Structure
 
@@ -528,6 +543,13 @@ continued development, we recommend Amazon Q Developer.
 - Shall show DRS capacity for the selected region
 - Shall auto-refresh data every 30 seconds
 - Shall provide quick navigation to active executions
+- Shall enforce account selection for multi-account scenarios
+
+**Account Enforcement**:
+- Wrapped with AccountRequiredWrapper component
+- Single account: Automatically accessible (no enforcement)
+- Multiple accounts: Requires account selection before showing dashboard content
+- No accounts: Shows setup wizard to add first account
 
 **Layout**: Metric cards row + two-column layout + DRS capacity + recent activity
 
@@ -653,6 +675,13 @@ continued development, we recommend Amazon Q Developer.
 - Shall support two server selection modes: tag-based (dynamic) and explicit server IDs (static)
 - Shall prevent deletion of groups used in Recovery Plans
 - Shall prevent editing of groups with active executions
+- Shall enforce account selection for multi-account scenarios
+
+**Account Enforcement**:
+- Wrapped with AccountRequiredWrapper component
+- All Protection Group operations scoped to selected target account
+- Account switching refreshes Protection Groups list for new account context
+- Create/Edit dialogs use selected account for server discovery and validation
 
 **Layout**: Full-width table with header actions
 
@@ -739,6 +768,14 @@ Protection Groups track whether they are part of an active execution:
 - Shall detect and prevent execution when servers are in use by other active executions
 - Shall track and display execution status for each plan
 - Shall prevent editing/deletion of plans with active executions
+- Shall enforce account selection for multi-account scenarios
+
+**Account Enforcement**:
+- Wrapped with AccountRequiredWrapper component
+- All Recovery Plan operations scoped to selected target account
+- Protection Group references filtered to selected account
+- Execution operations (Run Drill/Recovery) use selected account context
+- Server conflict detection performed within selected account scope
 
 **Layout**: Full-width table with header actions
 
@@ -928,6 +965,14 @@ After successful drill/recovery start:
 - Shall auto-refresh active executions every 3 seconds
 - Shall allow clearing of completed execution history
 - Shall provide navigation to detailed execution view
+- Shall enforce account selection for multi-account scenarios
+
+**Account Enforcement**:
+- Wrapped with AccountRequiredWrapper component
+- Execution lists filtered to selected target account
+- Active execution monitoring scoped to selected account
+- Clear History operation affects only selected account's executions
+- Real-time updates and polling performed within selected account context
 
 **Layout**: Tabbed interface with Active and History views
 
@@ -1271,6 +1316,9 @@ The following components shall be implemented to support the application pages. 
 | | ProtectedRoute | Auth-gated route wrapper |
 | | AppLayout | CloudScape app shell wrapper |
 | | ContentLayout | CloudScape page content wrapper |
+| **Multi-Account** | AccountSelector | Top navigation account dropdown |
+| | AccountRequiredWrapper | Account enforcement wrapper |
+| | AccountManagementPanel | Settings panel for account management |
 | **Dialogs** | ProtectionGroupDialog | Create/edit protection groups |
 | | RecoveryPlanDialog | Create/edit recovery plans |
 | | ConfirmDialog | Confirmation prompts |
@@ -1294,7 +1342,7 @@ The following components shall be implemented to support the application pages. 
 | **Execution** | ExecutionDetails | Execution summary panel |
 | **Launch Config** | LaunchConfigSection | DRS launch settings + EC2 template config |
 
-**Total: 33 Components**
+**Total: 36 Components**
 
 
 ---
@@ -1777,6 +1825,192 @@ interface PostLaunchSettingsEditorProps {
 - Fetches Command-type documents from SSM
 - Shows document name, owner, and description
 - Supports custom document names via autosuggest
+
+### AccountSelector
+
+**Purpose**: Top navigation account dropdown for multi-account switching
+
+**Props**:
+
+```typescript
+interface AccountSelectorProps {
+  // No props - uses AccountContext internally
+}
+```
+
+**Behavior**:
+
+- Displays current selected account name in top navigation
+- Shows dropdown with all available accounts when clicked
+- Allows switching between accounts with full page context update
+- Integrates with CloudScape TopNavigation utilities section
+- Uses AccountContext for state management
+
+**Visual Design**:
+
+- CloudScape ButtonDropdown component with account icon
+- Current account name displayed as button text
+- Dropdown items show account names with selection indicator
+- Positioned in top navigation utilities section (right side)
+- Icon: `user-profile` from CloudScape icon set
+
+**Account Display Logic**:
+
+```typescript
+// Button text shows current account or placeholder
+const buttonText = selectedAccount?.name || 'Select Account';
+
+// Dropdown items with current selection indicator
+const dropdownItems = accounts.map(account => ({
+  id: account.id,
+  text: account.name,
+  iconName: account.id === selectedAccount?.id ? 'check' : undefined
+}));
+```
+
+**Integration Points**:
+
+- Uses `useAccountContext()` hook for account state
+- Calls `selectAccount(accountId)` on item selection
+- Triggers page-wide context updates when account changes
+- Persists selection to localStorage via AccountContext
+
+### AccountRequiredWrapper
+
+**Purpose**: Page-level enforcement wrapper that blocks features when no target account is selected
+
+**Props**:
+
+```typescript
+interface AccountRequiredWrapperProps {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+```
+
+**Enforcement Logic**:
+
+- **Single Account**: Automatically allows access (no enforcement needed)
+- **Multiple Accounts**: Requires explicit account selection before showing content
+- **No Accounts**: Shows setup wizard to add first account
+
+**Behavior**:
+
+- Wraps page content and conditionally renders based on account selection state
+- Uses AccountContext to determine if enforcement is needed
+- Shows fallback UI when account selection is required
+- Automatically allows access when single account exists (auto-selected)
+
+**Fallback UI** (when account selection required):
+
+```typescript
+// Default fallback when no account selected (multiple accounts scenario)
+<Container>
+  <Box textAlign="center" padding="xxl">
+    <SpaceBetween size="m">
+      <StatusIndicator type="warning">
+        No Target Account Selected
+      </StatusIndicator>
+      <Box variant="p" color="text-body-secondary">
+        Please select a target AWS account from the dropdown in the top navigation 
+        to access this feature.
+      </Box>
+    </SpaceBetween>
+  </Box>
+</Container>
+```
+
+**Usage Pattern**:
+
+```typescript
+// Wrap protected pages
+<AccountRequiredWrapper>
+  <ProtectionGroupsPage />
+</AccountRequiredWrapper>
+```
+
+**Enforcement States**:
+
+| Account Count | Selected Account | Behavior |
+|---------------|------------------|----------|
+| 0 | N/A | Show setup wizard |
+| 1 | Auto-selected | Allow access (no enforcement) |
+| Multiple | None | Show fallback UI (block access) |
+| Multiple | Selected | Allow access |
+
+### AccountManagementPanel
+
+**Purpose**: Settings panel for account management with default account preference
+
+**Props**:
+
+```typescript
+interface AccountManagementPanelProps {
+  // No props - uses AccountContext internally
+}
+```
+
+**Layout Structure**:
+
+Maintains existing 3-tab structure in settings:
+1. **Account Management** (enhanced)
+2. **Export Configuration** (unchanged)
+3. **Import Configuration** (unchanged)
+
+**Account Management Tab Enhancements**:
+
+- **Existing Features**: Account list, add/edit/delete account functionality
+- **New Feature**: Default Account preference dropdown
+
+**Default Account Section**:
+
+```typescript
+// Added to existing Account Management tab
+<FormField 
+  label="Default Account"
+  description="Account to use when the application starts"
+>
+  <Select
+    selectedOption={defaultAccountOption}
+    onChange={({ detail }) => handleDefaultAccountChange(detail.selectedOption)}
+    options={accountOptions}
+    placeholder="Select default account"
+  />
+</FormField>
+```
+
+**Auto-Default Logic**:
+
+- When only one account exists, automatically set as default in UI
+- Default preference persisted via AccountContext to localStorage
+- Dropdown shows current default with visual indicator
+- "None" option available for multi-account scenarios
+
+**Integration with Existing Panel**:
+
+- Seamlessly integrated into existing AccountManagementPanel component
+- Maintains all existing account CRUD functionality
+- Uses same styling and layout patterns as existing settings
+- No disruption to Export/Import Configuration tabs
+
+**Default Account Options**:
+
+```typescript
+const accountOptions = [
+  { value: '', label: 'None' },
+  ...accounts.map(account => ({
+    value: account.id,
+    label: account.name
+  }))
+];
+```
+
+**Behavior**:
+
+- Default account preference automatically applied on app startup
+- Single account scenarios show account as default (read-only)
+- Multi-account scenarios allow changing default preference
+- Changes immediately reflected in AccountContext state
 
 
 ### WaveConfigEditor
@@ -2313,6 +2547,90 @@ flowchart TD
     M --> N[Success Toast]
 ```
 
+### Flow 12: Multi-Account Setup (First Time User)
+
+```mermaid
+flowchart TD
+    A[Login] --> B[No Accounts Exist]
+    B --> C[Setup Wizard Displayed]
+    C --> D[Add First Account Form]
+    D --> E[Enter Account Details]
+    E --> F[Save Account]
+    F --> G[Account Auto-Selected as Default]
+    G --> H[Navigate to Dashboard]
+    H --> I[Full Feature Access]
+```
+
+### Flow 13: Single Account Auto-Selection
+
+```mermaid
+flowchart TD
+    A[Login] --> B[One Account Exists]
+    B --> C[Account Auto-Selected]
+    C --> D[Default Preference Set]
+    D --> E[Navigate to Dashboard]
+    E --> F[Full Feature Access]
+    F --> G[Account Shown in Navigation]
+```
+
+### Flow 14: Multi-Account Selection Required
+
+```mermaid
+flowchart TD
+    A[Login] --> B[Multiple Accounts Exist]
+    B --> C[No Default Account Set]
+    C --> D[Navigate to Protected Page]
+    D --> E[AccountRequiredWrapper Blocks Access]
+    E --> F[Warning: No Target Account Selected]
+    F --> G[User Clicks Account Selector]
+    G --> H[Select Account from Dropdown]
+    H --> I[Page Content Loads]
+    I --> J[Full Feature Access]
+```
+
+### Flow 15: Account Switching
+
+```mermaid
+flowchart TD
+    A[User on Any Page] --> B[Click Account Selector]
+    B --> C[Dropdown Shows All Accounts]
+    C --> D[Select Different Account]
+    D --> E[AccountContext Updates]
+    E --> F[Page Context Refreshes]
+    F --> G[Data Reloads for New Account]
+    G --> H[Navigation Shows New Account]
+```
+
+### Flow 16: Set Default Account Preference
+
+```mermaid
+flowchart TD
+    A[Settings Page] --> B[Account Management Tab]
+    B --> C[Default Account Dropdown]
+    C --> D[Select Preferred Account]
+    D --> E[Save Preference]
+    E --> F[localStorage Updated]
+    F --> G[Future Logins Use Default]
+    G --> H[Success Toast Confirmation]
+```
+
+### Flow 17: Account Enforcement Scenarios
+
+```mermaid
+flowchart TD
+    A[Page Load] --> B{Account Count?}
+    B -->|0 Accounts| C[Show Setup Wizard]
+    B -->|1 Account| D[Auto-Select Account]
+    B -->|Multiple| E{Default Set?}
+    E -->|Yes| F[Use Default Account]
+    E -->|No| G{Account Selected?}
+    G -->|Yes| H[Allow Access]
+    G -->|No| I[Block with Warning]
+    D --> H
+    F --> H
+    C --> J[Guide User to Add Account]
+    I --> K[Prompt to Select Account]
+```
 
 ---
 
