@@ -89,7 +89,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 ### EC2 Launch Configuration
 
 - **Launch Template Management**: Configure EC2 launch settings per Protection Group
-- **Instance Type Selection**: Choose instance types for recovery instances
+- **Complete Instance Type Support** 🆕: Access to ALL available EC2 instance types supported by DRS in each region (968+ types including modern families like m6a, m7i, c7g, r7i, and all current-generation instances)
 - **Network Configuration**: Select subnets and security groups for recovery
 - **IAM Instance Profiles**: Assign instance profiles to recovery instances
 - **DRS Launch Settings**:
@@ -469,6 +469,8 @@ aws s3 ls s3://drsorchv4-fe-***REMOVED***-test/assets/ | head -5
 ```
 
 #### Recent Updates
+
+**December 17, 2025**: **Complete EC2 Instance Type Support Enhancement** - Enhanced EC2 Launch Configuration to display ALL available instance types supported by DRS in each region (968+ types for us-west-2). Users can now select from the complete range of modern instance families including m6a, m7i, c7g, r7i, and all other current-generation types. Resolved browser caching issues that previously limited selection to a small subset of common instances.
 
 **December 17, 2025**: **Multi-Account Prototype 1.0 Released** - Complete multi-account management system with enhanced tag-based server selection. All artifacts synced to S3 deployment bucket and ready for production deployment using master CloudFormation template. See [v1.7.0 Release Notes](CHANGELOG.md#170---december-17-2025) for complete details.
 
