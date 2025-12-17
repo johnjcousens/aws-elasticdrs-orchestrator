@@ -597,6 +597,29 @@ class ApiClient {
   }
 
   /**
+   * Get termination job status for progress tracking
+   */
+  public async getTerminationStatus(executionId: string, jobIds: string[], region: string): Promise<{
+    executionId: string;
+    jobs: Array<{
+      jobId: string;
+      status: string;
+      type: string;
+      totalServers: number;
+      completedServers: number;
+      failedServers: number;
+    }>;
+    totalServers: number;
+    completedServers: number;
+    progressPercent: number;
+    allCompleted: boolean;
+    anyFailed: boolean;
+  }> {
+    const jobIdsParam = jobIds.join(',');
+    return this.get(`/executions/${executionId}/termination-status?jobIds=${jobIdsParam}&region=${region}`);
+  }
+
+  /**
    * Delete all completed executions (bulk operation)
    * 
    * Safely removes only terminal state executions:
