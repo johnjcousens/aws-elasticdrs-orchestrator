@@ -49,7 +49,9 @@ export const ExecutionDetailsPage: React.FC = () => {
   const [terminationJobInfo, setTerminationJobInfo] = useState<{
     totalInstances: number;
     jobIds: string[];
+    region?: string;
   } | null>(null);
+  const [terminationProgress, setTerminationProgress] = useState<number>(0);
 
   // Fetch execution details
   const fetchExecution = async (silent = false) => {
@@ -120,6 +122,7 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     if (isTerminated) {
       setTerminationInProgress(false);
+      setTerminationProgress(100);
       // NOW show the success message - termination is actually complete
       const instanceCount = terminationJobInfo?.totalInstances || 0;
       if (instanceCount > 0) {
@@ -131,12 +134,45 @@ export const ExecutionDetailsPage: React.FC = () => {
       return;
     }
 
-    const interval = setInterval(() => {
-      fetchExecution(true); // Silent refresh to check termination status
-    }, 5000); // Poll every 5 seconds
+    // Poll for termination job status if we have job IDs
+    const pollTerminationStatus = async () => {
+      if (terminationJobInfo?.jobIds?.length && executionId) {
+        try {
+          const region = terminationJobInfo.region || 'us-west-2';
+          const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
+          
+          if (statusResult.progressPercent !== undefined) {
+            setTerminationProgress(statusResult.progressPercent);
+          }
+          
+          // Check if all jobs completed
+          if (statusResult.allCompleted) {
+            setTerminationInProgress(false);
+            setTerminationProgress(100);
+            const instanceCount = terminationJobInfo?.totalInstances || statusResult.totalServers || 0;
+            if (statusResult.anyFailed) {
+              setTerminateSuccess(`Terminated ${statusResult.completedServers} of ${instanceCount} recovery instance(s). Some failed.`);
+            } else {
+              setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
+            }
+            setTerminationJobInfo(null);
+            // Refresh execution to update UI
+            fetchExecution(true);
+          }
+        } catch (err) {
+          console.error('Error polling termination status:', err);
+        }
+      }
+      // Also refresh execution status
+      fetchExecution(true);
+    };
+
+    const interval = setInterval(pollTerminationStatus, 3000); // Poll every 3 seconds
+    // Initial poll
+    pollTerminationStatus();
 
     return () => clearInterval(interval);
-  }, [terminationInProgress, execution, terminationJobInfo]);
+  }, [terminationInProgress, execution, terminationJobInfo, executionId]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
@@ -196,10 +232,14 @@ export const ExecutionDetailsPage: React.FC = () => {
         // Store job info for progress tracking
         const resultAny = result as any;
         const jobIds = (resultAny.jobs || []).map((j: any) => j.jobId).filter(Boolean);
+        // Get region from first job or execution
+        const region = (resultAny.jobs?.[0]?.region) || (execution as any)?.drsRegion || 'us-west-2';
         setTerminationJobInfo({
           totalInstances: result.totalTerminated,
-          jobIds: jobIds
+          jobIds: jobIds,
+          region: region
         });
+        setTerminationProgress(0); // Reset progress
         // Keep terminationInProgress true - polling will detect when complete
         // Do NOT show success message yet - wait for actual completion
       } else if (result.totalFailed > 0) {
@@ -349,7 +389,13 @@ export const ExecutionDetailsPage: React.FC = () => {
     execution.status === 'launching' ||
     execution.status === 'initiated' ||
     (execution.status as string) === 'RUNNING' ||
-    (execution.status as string) === 'STARTED'
+    (execution.status as string) === 'STARTED' ||
+    (execution.status as string) === 'PAUSED' ||
+    (execution.status as string) === 'PENDING' ||
+    (execution.status as string) === 'IN_PROGRESS' ||
+    (execution.status as string) === 'POLLING' ||
+    (execution.status as string) === 'LAUNCHING' ||
+    (execution.status as string) === 'INITIATED'
   );
 
   // Check if instances have already been terminated
@@ -566,10 +612,11 @@ export const ExecutionDetailsPage: React.FC = () => {
                     : 'Terminating recovery instances from DRS. This may take a few minutes...'}
                 </div>
                 <ProgressBar
-                  status="in-progress"
+                  value={terminationProgress}
+                  status={terminationProgress >= 100 ? "success" : "in-progress"}
                   label="Termination Progress"
                   description={terminationJobInfo?.jobIds?.length 
-                    ? `DRS Job${terminationJobInfo.jobIds.length > 1 ? 's' : ''}: ${terminationJobInfo.jobIds.join(', ')}`
+                    ? `DRS Job${terminationJobInfo.jobIds.length > 1 ? 's' : ''}: ${terminationJobInfo.jobIds.join(', ')} - ${terminationProgress}%`
                     : 'Waiting for DRS to terminate instances...'}
                 />
               </SpaceBetween>
