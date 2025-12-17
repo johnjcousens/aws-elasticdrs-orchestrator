@@ -24,7 +24,7 @@ lambda_client = boto3.client('lambda')
 PROTECTION_GROUPS_TABLE = os.environ['PROTECTION_GROUPS_TABLE']
 RECOVERY_PLANS_TABLE = os.environ['RECOVERY_PLANS_TABLE']
 EXECUTION_HISTORY_TABLE = os.environ['EXECUTION_HISTORY_TABLE']
-TARGET_ACCOUNTS_TABLE = os.environ['TARGET_ACCOUNTS_TABLE']
+TARGET_ACCOUNTS_TABLE = os.environ.get('TARGET_ACCOUNTS_TABLE', '')
 STATE_MACHINE_ARN = os.environ.get('STATE_MACHINE_ARN', '')
 
 # All 28 commercial AWS regions where DRS is available
@@ -72,7 +72,11 @@ INVALID_REPLICATION_STATES = [
 protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
 recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
 execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
-target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE)
+# Initialize target accounts table only if environment variable is set
+if TARGET_ACCOUNTS_TABLE:
+    target_accounts_table = dynamodb.Table(TARGET_ACCOUNTS_TABLE)
+else:
+    target_accounts_table = None
 
 
 def get_cognito_user_from_event(event: Dict) -> Dict:
@@ -6548,7 +6552,7 @@ def get_ec2_instance_profiles(query_params: Dict) -> Dict:
 
 
 def get_ec2_instance_types(query_params: Dict) -> Dict:
-    """Get common EC2 instance types for dropdown selection."""
+    """Get ALL EC2 instance types available in the specified region for DRS launch settings."""
     region = query_params.get('region')
     
     if not region:
@@ -6557,30 +6561,37 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
     try:
         ec2 = boto3.client('ec2', region_name=region)
         
-        # Filter to common families for DRS recovery
-        common_families = ['t3', 't3a', 'm5', 'm5a', 'm6i', 'r5', 'r5a', 'r6i', 'c5', 'c5a', 'c6i']
-        
         types = []
         paginator = ec2.get_paginator('describe_instance_types')
         
-        for page in paginator.paginate(
-            Filters=[{'Name': 'instance-type', 'Values': [f'{f}.*' for f in common_families]}]
-        ):
+        # Get ALL instance types available in the region (no filtering)
+        # DRS can use any instance type that's available in the target region
+        for page in paginator.paginate():
             for it in page['InstanceTypes']:
+                instance_type = it['InstanceType']
                 vcpus = it['VCpuInfo']['DefaultVCpus']
                 mem_gb = round(it['MemoryInfo']['SizeInMiB'] / 1024)
+                
+                # Skip bare metal instances as they're typically not used for DRS recovery
+                # and can cause confusion in the dropdown
+                if '.metal' in instance_type:
+                    continue
+                
                 types.append({
-                    'value': it['InstanceType'],
-                    'label': f"{it['InstanceType']} ({vcpus} vCPU, {mem_gb} GB)",
+                    'value': instance_type,
+                    'label': f"{instance_type} ({vcpus} vCPU, {mem_gb} GB)",
                     'vcpus': vcpus,
                     'memoryGb': mem_gb
                 })
         
-        # Sort by family then by vcpus
+        # Sort by family then by vcpus for better organization
         types.sort(key=lambda x: (x['value'].split('.')[0], x['vcpus']))
+        
+        print(f"Retrieved {len(types)} instance types for region {region}")
         return response(200, {'instanceTypes': types})
+        
     except Exception as e:
-        print(f'Error getting instance types: {e}')
+        print(f'Error getting instance types for region {region}: {e}')
         return response(500, {'error': str(e)})
 
 
