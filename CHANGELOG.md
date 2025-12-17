@@ -4,6 +4,29 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+### Enhanced
+
+**Complete EC2 Instance Type Support Enhancement** - `5b0e6db` - December 17, 2025
+
+- **Complete Instance Type Coverage**: Enhanced EC2 Launch Configuration to display ALL 968+ EC2 instance types available in each region
+- **Modern Instance Families**: Full access to m6a, m7i, c7g, r7i, and all current-generation instance types
+- **Regional Accuracy**: Instance types dynamically loaded per selected AWS region
+- **Browser Cache Resolution**: Resolved caching issues that previously limited selection to subset of common instances
+- **User Experience**: Users can now select optimal instance types for their specific disaster recovery workloads
+- **AWS Console Parity**: Consistent with AWS DRS Console instance type selection experience
+- **Future-Proof**: Automatically includes new instance types as AWS releases them
+
+**Complete EC2 Instance Type Support for DRS Launch Settings** - `3c46624` - December 17, 2025
+
+- Enhanced `get_ec2_instance_types` function to return ALL available EC2 instance types in each region (968+ types)
+- Removed filtering that limited selection to only "common" instance families
+- Added support for all modern instance families including m6a, m7i, c7i, r7i series
+- Maintained usability by excluding only bare metal instances (.metal)
+- Improved organization with sorting by family and vCPU count
+- Resolved browser caching issue that was preventing updated API responses
+- Users now have complete flexibility in selecting instance types for DRS launch configurations
+- Future-proof: automatically includes new instance types as AWS releases them
+
 ### Documentation
 
 **UX/UI Design Specifications Multi-Account Prototype 1.0 Complete** - `e03bb44` - December 17, 2025
