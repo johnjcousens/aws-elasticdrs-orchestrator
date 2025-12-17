@@ -1,9 +1,9 @@
 # Product Requirements Document
 # AWS DRS Orchestration Solution
 
-**Version**: 1.5  
-**Date**: December 2025  
-**Status**: Requirements Definition  
+**Version**: 1.6  
+**Date**: December 17, 2025  
+**Status**: Multi-Account Prototype 1.0 Complete  
 **Document Owner**: AWS DRS Orchestration Team
 
 ---
@@ -199,11 +199,62 @@ Real-time validation and enforcement of AWS DRS service limits to prevent API er
 
 ---
 
-### 5. DRS Source Server Management
+### 5. Multi-Account Management
+
+Complete multi-account management system with enforcement logic, auto-selection, and seamless account switching for enterprise-scale DRS orchestration.
+
+**Capabilities**:
+- **Account Context System**: Centralized account state management with localStorage persistence
+- **Auto-Selection**: Single accounts automatically selected as default for seamless user experience
+- **Account Selector**: Top navigation dropdown for intuitive account switching with full page context updates
+- **Setup Wizard**: Guided first-time account configuration for new users
+- **Default Preferences**: Persistent default account selection integrated into existing 3-tab settings panel
+- **Page-Level Enforcement**: Features blocked until target account selected (multi-account scenarios only)
+- **Settings Integration**: Default account preference seamlessly integrated without disrupting existing 3-tab structure
+
+**Account Context Behavior**:
+- **Single Account**: Automatically selected as default, no enforcement needed
+- **No Accounts**: Setup wizard guides user to add first account
+- **Multiple Accounts**: User must explicitly select account, enforcement blocks features until selection
+- **Account Switching**: Full page context updates with proper state management
+
+**UI Components**:
+- AccountSelector component in top navigation following AWS Console patterns
+- AccountRequiredWrapper component for consistent enforcement across protected pages
+- AccountManagementPanel with default account preference dropdown (maintains existing 3-tab structure)
+- Setup wizard for first-time account configuration
+
+**API Endpoints**:
+- `GET /accounts/targets` - List available target accounts
+- `POST /accounts/targets` - Add new target account
+- `PUT /accounts/targets/{id}` - Update account configuration
+- `DELETE /accounts/targets/{id}` - Remove target account
+
+### 6. Enhanced Tag-Based Server Selection
+
+Fixed and enhanced tag-based server selection with DRS source server tags and complete hardware details.
+
+**Capabilities**:
+- **DRS Source Server Tags**: Queries actual DRS source server tags (not EC2 instance tags)
+- **Complete Hardware Details**: CPU cores, RAM, disks, FQDN, OS info, network interfaces displayed in tag preview
+- **Regional Support**: Full support for all 30 DRS-supported regions with us-west-2 testing validation
+- **Preview Enhancement**: Tag preview shows identical detailed information as manual server selection
+- **Clean UX**: Removed confusing non-functional checkboxes from tag preview for cleaner interface
+
+**Tag Query Enhancement**:
+- Uses DRS `list_tags_for_resource` API instead of EC2 instance tags
+- Comprehensive server hardware information collection from DRS source properties
+- Field consistency: `sourceServerID` naming alignment across frontend and backend
+- Regional flexibility with proper error handling
+
+**API Endpoints**:
+- `POST /drs/query-servers-by-tags` - Query DRS source servers by tags with hardware details
+
+### 7. DRS Source Server Management
 
 Complete DRS source server configuration management from the UI without navigating to AWS Console.
 
-#### 5.1 Server Info & Recovery Dashboard
+#### 7.1 Server Info & Recovery Dashboard
 
 Read-only visibility into DRS source server details, replication state, recovery readiness, and lifecycle information.
 
@@ -227,7 +278,7 @@ Read-only visibility into DRS source server details, replication state, recovery
 **API Endpoints**:
 - `GET /drs/source-servers/{id}?region={region}` - Get full server details
 
-#### 5.2 DRS Launch Settings
+#### 7.2 DRS Launch Settings
 
 The system shall configure DRS launch settings for recovery instances at the Protection Group level.
 
@@ -244,7 +295,7 @@ The system shall configure DRS launch settings for recovery instances at the Pro
 - `POST /protection-groups` - Create Protection Group with LaunchConfig
 - `PUT /protection-groups/{id}` - Update LaunchConfig (applies to all servers)
 
-#### 5.3 EC2 Launch Template
+#### 7.3 EC2 Launch Template
 
 The system shall configure EC2 launch template settings for recovery instances at the Protection Group level.
 
@@ -262,7 +313,7 @@ The system shall configure EC2 launch template settings for recovery instances a
 - `GET /ec2/instance-profiles?region={region}` - List IAM instance profiles
 - `GET /ec2/instance-types?region={region}` - List EC2 instance types
 
-#### 5.4 Tags Management
+#### 7.4 Tags Management
 
 View, add, edit, and delete tags on DRS source servers.
 
@@ -284,7 +335,7 @@ View, add, edit, and delete tags on DRS source servers.
 - `PUT /drs/source-servers/{id}/tags` - Add/update tags
 - `DELETE /drs/source-servers/{id}/tags` - Remove tags
 
-#### 5.5 Disk Settings
+#### 7.5 Disk Settings
 
 Configure per-disk settings for DRS source servers.
 
@@ -308,7 +359,7 @@ Configure per-disk settings for DRS source servers.
 - `GET /drs/source-servers/{id}/disks?region={region}` - Get disk configuration
 - `PUT /drs/source-servers/{id}/disks` - Update disk configuration
 
-#### 5.6 Replication Settings
+#### 7.6 Replication Settings
 
 Configure replication settings for DRS source servers.
 
@@ -338,7 +389,7 @@ Configure replication settings for DRS source servers.
 - `PUT /drs/source-servers/{id}/replication` - Update replication configuration
 - `GET /drs/staging-resources?region={region}` - Get available subnets and security groups
 
-#### 5.7 Post-Launch Settings
+#### 7.7 Post-Launch Settings
 
 Configure post-launch actions for recovery instances.
 
@@ -356,7 +407,7 @@ Configure post-launch actions for recovery instances.
 - `GET /ssm/documents?region={region}` - List available SSM documents
 - `GET /s3/buckets?region={region}` - List available S3 buckets
 
-### 5. User Interface
+### 8. User Interface
 
 React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 
@@ -395,7 +446,8 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 - ConflictDetector, ExecutionControls, JobEventsTimeline
 - ServerInfoPanel, LaunchSettingsEditor, EC2TemplateEditor
 - TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor
-- TagSyncManager, MultiAccountManager, NotificationCenter
+- TagSyncManager, NotificationCenter
+- **AccountSelector**, **AccountRequiredWrapper**, **AccountManagementPanel** (Multi-Account Prototype 1.0)
 
 ---
 

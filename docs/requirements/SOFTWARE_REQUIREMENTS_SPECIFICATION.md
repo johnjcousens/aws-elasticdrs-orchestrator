@@ -1,9 +1,9 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 1.5  
-**Date**: December 2025  
-**Status**: Requirements Specification
+**Version**: 1.6  
+**Date**: December 17, 2025  
+**Status**: Multi-Account Prototype 1.0 Complete
 
 ---
 
@@ -35,12 +35,14 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - Real-time Execution Monitoring (3-second auto-refresh, DRS job events)
 - Loading State Management (prevents multiple operations)
 - AWS DRS Regional Support (30 regions: 28 commercial + 2 GovCloud)
+- **Multi-Account Management** (account context, enforcement, auto-selection, account switching)
+- **Enhanced Tag-Based Server Selection** (DRS source server tags, hardware details)
 - EC2 Launch Template & DRS Launch Settings (Protection Group level configuration)
 - DRS Source Server Management (Server Info, tags, disks, replication, post-launch)
 - DRS Tag Synchronization (EC2 to DRS tag sync with bulk operations)
 - SSM Automation Integration (pre/post-wave automation)
 - Step Functions Visualization (real-time state machine monitoring)
-- Multi-Account Support (cross-account orchestration, scale beyond 300 servers)
+- Cross-Account Orchestration (hub-and-spoke architecture, scale beyond 300 servers)
 - Cross-Account DRS Monitoring (centralized monitoring and alerting)
 - SNS Notification Integration (real-time notifications via multiple channels)
 - Scheduled Drills (automated recurring drill execution)
@@ -843,9 +845,101 @@ The system shall provide real-time Step Functions execution visualization:
 
 ---
 
-### FR-10: Multi-Account Support
+### FR-10: Multi-Account Management
 
-#### FR-10.1: Cross-Account Orchestration
+#### FR-10.1: Account Context System
+**Priority**: Critical
+
+The system shall provide centralized account state management with:
+- Account context persistence via localStorage
+- Auto-selection for single account scenarios
+- Enforcement logic for multi-account scenarios
+- Account switching with full page context updates
+
+**API**: `GET /accounts/targets`
+```json
+{
+  "accounts": [
+    {
+      "id": "123456789012",
+      "name": "Production Account",
+      "region": "us-east-1",
+      "isDefault": true
+    }
+  ]
+}
+```
+
+#### FR-10.2: Account Selector Component
+**Priority**: Critical
+
+The system shall provide account selection via:
+- Top navigation dropdown following AWS Console patterns
+- Real-time account switching with context preservation
+- Visual indication of currently selected account
+- Integration with existing navigation structure
+
+#### FR-10.3: Account Enforcement
+**Priority**: Critical
+
+The system shall enforce account selection by:
+- Blocking protected pages when no account selected (multi-account scenarios only)
+- Displaying AccountRequiredWrapper for consistent enforcement
+- Auto-selecting single accounts as default (no enforcement needed)
+- Showing setup wizard when no accounts exist
+
+#### FR-10.4: Settings Integration
+**Priority**: High
+
+The system shall integrate account preferences by:
+- Adding default account dropdown to existing 3-tab settings panel
+- Maintaining existing AccountManagementPanel structure
+- Persisting default account selection across sessions
+- Auto-setting single account as default preference
+
+### FR-11: Enhanced Tag-Based Server Selection
+
+#### FR-11.1: DRS Source Server Tag Querying
+**Priority**: Critical
+
+The system shall query DRS source server tags by:
+- Using DRS `list_tags_for_resource` API (not EC2 instance tags)
+- Collecting comprehensive server hardware information
+- Supporting all 30 DRS-supported regions
+- Providing detailed error handling for API failures
+
+**API**: `POST /drs/query-servers-by-tags`
+```json
+{
+  "region": "us-west-2",
+  "tags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Database"
+  }
+}
+```
+
+#### FR-11.2: Hardware Details Display
+**Priority**: High
+
+The system shall display complete hardware information by:
+- Showing CPU cores, RAM (GiB), disks, FQDN, OS info
+- Matching manual server selection display format
+- Providing expandable details menu for additional information
+- Maintaining consistent ServerListItem component interface
+
+#### FR-11.3: Clean Tag Preview UX
+**Priority**: Medium
+
+The system shall provide clean tag preview by:
+- Removing non-functional checkboxes from tag preview
+- Maintaining normal server appearance (no graying out)
+- Showing identical information as manual selection
+- Using `showCheckbox={false}` prop for ServerListItem
+
+### FR-12: Cross-Account Orchestration
+
+#### FR-12.1: Cross-Account Recovery Orchestration
 **Priority**: Low
 
 The system shall orchestrate recovery across multiple AWS accounts:
@@ -864,9 +958,9 @@ The system shall manage multiple DRS accounts:
 
 ---
 
-### FR-11: Cross-Account DRS Monitoring
+### FR-13: Cross-Account DRS Monitoring
 
-#### FR-11.1: Centralized Monitoring
+#### FR-13.1: Centralized Monitoring
 **Priority**: Low
 
 The system shall provide centralized DRS monitoring:
@@ -877,9 +971,9 @@ The system shall provide centralized DRS monitoring:
 
 ---
 
-### FR-12: SNS Notification Integration
+### FR-14: SNS Notification Integration
 
-#### FR-12.1: Real-Time Notifications
+#### FR-14.1: Real-Time Notifications
 **Priority**: Low
 
 The system shall send real-time notifications:
@@ -892,9 +986,9 @@ The system shall send real-time notifications:
 
 ---
 
-### FR-13: Scheduled Drills
+### FR-15: Scheduled Drills
 
-#### FR-13.1: Automated Drill Scheduling
+#### FR-15.1: Automated Drill Scheduling
 **Priority**: Low
 
 The system shall support automated drill scheduling:
@@ -905,9 +999,9 @@ The system shall support automated drill scheduling:
 
 ---
 
-### FR-14: CodeBuild & CodeCommit Migration
+### FR-16: CodeBuild & CodeCommit Migration
 
-#### FR-14.1: AWS-Native CI/CD
+#### FR-16.1: AWS-Native CI/CD
 **Priority**: Low
 
 The system shall migrate to AWS-native CI/CD:
@@ -918,9 +1012,9 @@ The system shall migrate to AWS-native CI/CD:
 
 ---
 
-### FR-15: Authentication
+### FR-17: Authentication
 
-#### FR-15.1: User Authentication
+#### FR-17.1: User Authentication
 **Priority**: Critical
 
 The system shall authenticate users via AWS Cognito:
@@ -929,7 +1023,7 @@ The system shall authenticate users via AWS Cognito:
 - Token refresh support via Amplify
 - Session management with 45-minute auto-logout
 
-#### FR-15.2: API Authorization
+#### FR-17.2: API Authorization
 **Priority**: Critical
 
 The system shall authorize API requests:
