@@ -270,46 +270,55 @@ curl -H "Authorization: Bearer $TOKEN" \
   https://your-api-endpoint.execute-api.us-east-1.amazonaws.com/prod/protection-groups
 ```
 
-### Endpoints
+### Core Endpoints
 
 #### Protection Groups
 
-| Method | Endpoint                    | Description                  |
-| ------ | --------------------------- | ---------------------------- |
-| GET    | `/protection-groups`      | List all protection groups   |
-| POST   | `/protection-groups`      | Create protection group      |
-| GET    | `/protection-groups/{id}` | Get protection group details |
-| PUT    | `/protection-groups/{id}` | Update protection group      |
-| DELETE | `/protection-groups/{id}` | Delete protection group      |
+| Method | Endpoint                         | Description                           |
+| ------ | -------------------------------- | ------------------------------------- |
+| GET    | `/protection-groups`           | List all protection groups            |
+| POST   | `/protection-groups`           | Create protection group               |
+| GET    | `/protection-groups/{id}`      | Get protection group details          |
+| PUT    | `/protection-groups/{id}`      | Update protection group               |
+| DELETE | `/protection-groups/{id}`      | Delete protection group               |
+| POST   | `/protection-groups/resolve`   | Preview servers matching tags         |
 
 #### Recovery Plans
 
-| Method | Endpoint                 | Description               |
-| ------ | ------------------------ | ------------------------- |
-| GET    | `/recovery-plans`      | List all recovery plans   |
-| POST   | `/recovery-plans`      | Create recovery plan      |
-| GET    | `/recovery-plans/{id}` | Get recovery plan details |
-| PUT    | `/recovery-plans/{id}` | Update recovery plan      |
-| DELETE | `/recovery-plans/{id}` | Delete recovery plan      |
+| Method | Endpoint                                      | Description                           |
+| ------ | --------------------------------------------- | ------------------------------------- |
+| GET    | `/recovery-plans`                           | List all recovery plans               |
+| POST   | `/recovery-plans`                           | Create recovery plan                  |
+| GET    | `/recovery-plans/{id}`                      | Get recovery plan details             |
+| PUT    | `/recovery-plans/{id}`                      | Update recovery plan                  |
+| DELETE | `/recovery-plans/{id}`                      | Delete recovery plan                  |
+| POST   | `/recovery-plans/{id}/execute`              | Execute recovery plan                 |
+| GET    | `/recovery-plans/{id}/check-existing-instances` | Check for existing recovery instances |
 
 #### Executions
 
-| Method | Endpoint                                 | Description                   |
-| ------ | ---------------------------------------- | ----------------------------- |
-| GET    | `/executions`                          | List execution history        |
-| POST   | `/executions`                          | Start new execution           |
-| GET    | `/executions/{id}`                     | Get execution details         |
-| POST   | `/executions/{id}/pause`               | Pause execution between waves |
-| POST   | `/executions/{id}/resume`              | Resume paused execution       |
-| POST   | `/executions/{id}/cancel`              | Cancel running execution      |
-| POST   | `/executions/{id}/terminate-instances` | Terminate recovery instances  |
+| Method | Endpoint                                 | Description                           |
+| ------ | ---------------------------------------- | ------------------------------------- |
+| GET    | `/executions`                          | List execution history                |
+| POST   | `/executions`                          | Start new execution                   |
+| GET    | `/executions/{id}`                     | Get execution details                 |
+| POST   | `/executions/{id}/pause`               | Pause execution between waves         |
+| POST   | `/executions/{id}/resume`              | Resume paused execution               |
+| POST   | `/executions/{id}/cancel`              | Cancel running execution              |
+| POST   | `/executions/{id}/terminate-instances` | Terminate recovery instances          |
+| GET    | `/executions/{id}/job-logs`            | Get DRS job logs for execution        |
+| DELETE | `/executions`                          | Delete completed executions (bulk)    |
 
-#### DRS Integration
+### DRS Integration
+
+#### DRS Source Servers
 
 | Method | Endpoint                                | Description                              |
 | ------ | --------------------------------------- | ---------------------------------------- |
 | GET    | `/drs/source-servers?region={region}` | Discover DRS source servers              |
 | GET    | `/drs/quotas?region={region}`         | Get DRS service quotas (region required) |
+| GET    | `/drs/accounts?region={region}`       | Get DRS account information              |
+| POST   | `/drs/tag-sync`                       | Sync EC2 tags to DRS source servers     |
 
 #### EC2 Resources (for Launch Config)
 
@@ -320,15 +329,35 @@ curl -H "Authorization: Bearer $TOKEN" \
 | GET    | `/ec2/instance-profiles?region={region}` | List IAM instance profiles        |
 | GET    | `/ec2/instance-types?region={region}`    | List EC2 instance types           |
 
+### Multi-Account Management
+
+#### Target Accounts
+
+| Method | Endpoint                    | Description                    |
+| ------ | --------------------------- | ------------------------------ |
+| GET    | `/accounts/targets`       | List target accounts           |
+| POST   | `/accounts/targets`       | Add target account             |
+| PUT    | `/accounts/targets/{id}`  | Update target account          |
+| DELETE | `/accounts/targets/{id}`  | Remove target account          |
+
+### Configuration Management
+
+#### Config Export/Import
+
+| Method | Endpoint           | Description                           |
+| ------ | ------------------ | ------------------------------------- |
+| GET    | `/config/export` | Export all Protection Groups and Plans |
+| POST   | `/config/import` | Import Protection Groups and Plans     |
+
 #### Health Check
 
 | Method | Endpoint    | Description                   |
 | ------ | ----------- | ----------------------------- |
 | GET    | `/health` | Service health check endpoint |
 
-### API Request Examples
+### Request/Response Examples
 
-**Create Protection Group with Launch Config:**
+#### Create Protection Group with Tag-Based Selection
 
 ```bash
 curl -X POST "${API_ENDPOINT}/protection-groups" \
@@ -337,7 +366,10 @@ curl -X POST "${API_ENDPOINT}/protection-groups" \
   -d '{
     "GroupName": "Database-Servers",
     "Region": "us-east-1",
-    "SourceServerIds": ["s-1234567890abcdef0"],
+    "ServerSelectionTags": {
+      "DR-Application": "HRP",
+      "DR-Tier": "Database"
+    },
     "LaunchConfig": {
       "SubnetId": "subnet-12345678",
       "SecurityGroupIds": ["sg-12345678"],
@@ -351,18 +383,179 @@ curl -X POST "${API_ENDPOINT}/protection-groups" \
   }'
 ```
 
-**Start Drill Execution:**
+#### Preview Servers Matching Tags
+
+```bash
+curl -X POST "${API_ENDPOINT}/protection-groups/resolve" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "region": "us-east-1",
+    "ServerSelectionTags": {
+      "DR-Application": "HRP",
+      "DR-Tier": "Database"
+    }
+  }'
+```
+
+#### Create Recovery Plan with Multi-Wave Configuration
+
+```bash
+curl -X POST "${API_ENDPOINT}/recovery-plans" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "PlanName": "Multi-Tier-Application",
+    "Description": "3-tier application recovery",
+    "Waves": [
+      {
+        "WaveName": "Database Tier",
+        "WaveNumber": 1,
+        "ProtectionGroupId": "pg-database-uuid",
+        "PauseBeforeWave": false
+      },
+      {
+        "WaveName": "Application Tier",
+        "WaveNumber": 2,
+        "ProtectionGroupId": "pg-application-uuid",
+        "PauseBeforeWave": true,
+        "DependsOn": [1]
+      },
+      {
+        "WaveName": "Web Tier",
+        "WaveNumber": 3,
+        "ProtectionGroupId": "pg-web-uuid",
+        "PauseBeforeWave": false,
+        "DependsOn": [2]
+      }
+    ]
+  }'
+```
+
+#### Start Drill Execution
 
 ```bash
 curl -X POST "${API_ENDPOINT}/executions" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "recoveryPlanId": "plan-uuid-here",
-    "executionType": "DRILL",
-    "initiatedBy": "cli-automation"
+    "PlanId": "plan-uuid-here",
+    "ExecutionType": "DRILL",
+    "InitiatedBy": "cli-automation"
   }'
 ```
+
+#### Pause Execution
+
+```bash
+curl -X POST "${API_ENDPOINT}/executions/{execution-id}/pause" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+#### Resume Paused Execution
+
+```bash
+curl -X POST "${API_ENDPOINT}/executions/{execution-id}/resume" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+#### Terminate Recovery Instances
+
+```bash
+curl -X POST "${API_ENDPOINT}/executions/{execution-id}/terminate-instances" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json"
+```
+
+#### Get DRS Service Quotas
+
+```bash
+curl -X GET "${API_ENDPOINT}/drs/quotas?region=us-east-1" \
+  -H "Authorization: Bearer ${TOKEN}"
+```
+
+#### Export Configuration
+
+```bash
+curl -X GET "${API_ENDPOINT}/config/export" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -o drs-orchestration-config.json
+```
+
+#### Import Configuration
+
+```bash
+curl -X POST "${API_ENDPOINT}/config/import" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d @drs-orchestration-config.json
+```
+
+### Query Parameters
+
+#### List Protection Groups
+- `accountId`: Filter by target account ID
+
+#### List Recovery Plans
+- `accountId`: Filter by target account ID
+- `name`: Filter by plan name (partial match)
+- `nameExact`: Filter by exact plan name
+- `tag`: Filter by tag key=value
+- `hasConflict`: Filter by conflict status (true/false)
+- `status`: Filter by last execution status
+
+#### List Executions
+- `limit`: Number of results (max 100)
+- `nextToken`: Pagination token
+- `accountId`: Filter by target account ID
+
+#### DRS Source Servers
+- `region`: AWS region (required)
+- `accountId`: Target account ID
+
+### Error Codes
+
+| Code | Description | HTTP Status |
+|------|-------------|-------------|
+| `MISSING_FIELD` | Required field missing | 400 |
+| `INVALID_NAME` | Name validation failed | 400 |
+| `PG_NAME_EXISTS` | Protection Group name exists | 409 |
+| `RP_NAME_EXISTS` | Recovery Plan name exists | 409 |
+| `VERSION_CONFLICT` | Optimistic locking conflict | 409 |
+| `SERVER_CONFLICT` | Server already assigned | 409 |
+| `TAG_CONFLICT` | Tags already in use | 409 |
+| `PLAN_ALREADY_EXECUTING` | Plan has active execution | 409 |
+| `EXECUTION_NOT_FOUND` | Execution not found | 404 |
+| `WAVE_SIZE_LIMIT_EXCEEDED` | Wave exceeds 100 servers | 400 |
+| `CONCURRENT_JOBS_LIMIT_EXCEEDED` | DRS job limit reached | 429 |
+| `UNHEALTHY_SERVER_REPLICATION` | Server replication unhealthy | 400 |
+
+### Response Format
+
+All API responses follow this structure:
+
+```json
+{
+  "statusCode": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  },
+  "body": {
+    // Response data in camelCase format
+  }
+}
+```
+
+### Data Formats
+
+- **Timestamps**: Unix timestamps in seconds
+- **UUIDs**: Standard UUID format for IDs
+- **Field Names**: camelCase in responses, PascalCase in DynamoDB
+- **Status Values**: UPPERCASE strings
+- **Regions**: AWS region codes (e.g., "us-east-1")
 
 For complete API documentation including all endpoints, request/response examples, error codes, and integration patterns (CLI, SSM, Step Functions, EventBridge, Python SDK), see the [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md).
 
@@ -553,6 +746,8 @@ If recovery jobs fail with `UnauthorizedOperation` errors, verify the Orchestrat
 | ------------------------------------------------------------------------ | --------------------------------------------- |
 | [Product Requirements](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md)  | Complete PRD with features and specifications |
 | [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md)          | Step-by-step deployment instructions          |
+| [Multi-Account Setup Guide](MULTI_ACCOUNT_SETUP_GUIDE.md) 🆕               | Complete multi-account hub and spoke setup    |
+| [Multi-Account Implementation Status](MULTI_ACCOUNT_IMPLEMENTATION_STATUS.md) 🆕 | Implementation status and bug fixes |
 | [Orchestration Integration](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) | CLI, SSM, Step Functions, API integration     |
 | [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)   | System architecture and design decisions      |
 | [API Reference](docs/guides/AWS_DRS_API_REFERENCE.md)                       | DRS API integration patterns                  |

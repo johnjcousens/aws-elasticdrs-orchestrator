@@ -15,13 +15,17 @@ Parameters:
   OrchestrationLambdaArn:
     Type: String
     Description: 'ARN of the orchestration Lambda function'
+  
+  ApiHandlerFunctionName:
+    Type: String
+    Description: 'Name of the API handler Lambda function'
 
 Resources:
   # Step Functions State Machine - Archive pattern: Lambda owns ALL state via OutputPath
   DRSOrchestrationStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
-      StateMachineName: !Sub '${ProjectName}-state-machine-${Environment}'
+      StateMachineName: !Sub '${ProjectName}-orchestration-${Environment}'
       RoleArn: !GetAtt StateMachineRole.Arn
       Definition:
         Comment: 'DRS Recovery Plan Orchestration - Archive pattern with OutputPath (Lambda owns state)'
@@ -38,6 +42,7 @@ Resources:
                 execution.$: '$.Execution.Id'
                 plan.$: '$.Plan'
                 isDrill.$: '$.IsDrill'
+                AccountContext.$: '$.AccountContext'
             OutputPath: '$.Payload'
             Next: 'DetermineWavePlanState'
             Retry:
@@ -105,7 +110,7 @@ Resources:
           WaitForWaveUpdate:
             Type: Wait
             SecondsPath: '$.current_wave_update_time'
-            Next: 'UpdateWaveStatus'
+            Next: 'TransformForUpdate'
           
           # Pause state: Wait for external resume signal (callback pattern)
           # SendTaskSuccess output becomes the state (no Payload wrapper for callbacks)
@@ -118,6 +123,7 @@ Resources:
                 action: 'store_task_token'
                 application.$: '$'
                 taskToken.$: '$$.Task.Token'
+                AccountContext.$: '$.AccountContext'
             # NOTE: No OutputPath here - callback output is returned directly at root level
             TimeoutSeconds: 31536000  # 1 year max timeout for pause/resume
             Next: 'ResumeWavePlan'
@@ -135,6 +141,7 @@ Resources:
               Payload:
                 action: 'resume_wave'
                 application.$: '$'
+                AccountContext.$: '$.AccountContext'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:
@@ -146,15 +153,22 @@ Resources:
                 MaxAttempts: 6
                 BackoffRate: 2
           
-          # Step 5: Poll DRS job status - Lambda returns FULL state
+          # Step 5: Transform data for Lambda compatibility
+          TransformForUpdate:
+            Type: Pass
+            Parameters:
+              action: 'update_wave_status'
+              application.$: '$'
+              AccountContext.$: '$.AccountContext'
+            Next: 'UpdateWaveStatus'
+          
+          # Step 6: Poll DRS job status - Lambda returns FULL state
           UpdateWaveStatus:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
             Parameters:
               FunctionName: !Ref OrchestrationLambdaArn
-              Payload:
-                action: 'update_wave_status'
-                application.$: '$'
+              Payload.$: '$'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:

@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Cross-account role for DRS Orchestration operations'
+
+Parameters:
+  SourceAccountNumber:
+    Description: 'AWS Account ID where DRS Orchestration is deployed (hub account)'
+    Type: String
+    AllowedPattern: '[0-9]{12}'
+    ConstraintDescription: 'Must be a valid 12-digit AWS account ID'
+  
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+    Default: 'test'
+    AllowedValues: ['dev', 'test', 'qa', 'prod']
+  
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+    Default: 'drs-orchestration'
+
+Resources:
+  # Cross-account role that hub account can assume
+  DRSOrchestrationCrossAccountRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-cross-account-role-${Environment}'
+      Description: 'Role for DRS Orchestration hub account to perform DRS operations'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${SourceAccountNumber}:role/${ProjectName}-orchestration-role-${Environment}'
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Sub '${ProjectName}-${Environment}-${AWS::AccountId}'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSElasticDisasterRecoveryConsoleFullAccess'
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-cross-account-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DRS Operations
+              - Sid: DRSOperations
+                Effect: Allow
+                Action:
+                  - 'drs:DescribeJobs'
+                  - 'drs:DescribeJobLogItems'
+                  - 'drs:DescribeSourceServers'
+                  - 'drs:DescribeRecoveryInstances'
+                  - 'drs:StartRecovery'
+                  - 'drs:TerminateRecoveryInstances'
+                  - 'drs:GetLaunchConfiguration'
+                  - 'drs:UpdateLaunchConfiguration'
+                  - 'drs:GetReplicationConfiguration'
+                  - 'drs:UpdateReplicationConfiguration'
+                  - 'drs:TagResource'
+                  - 'drs:UntagResource'
+                  - 'drs:ListTagsForResource'
+                Resource: '*'
+              
+              # EC2 Operations (required by DRS during recovery)
+              - Sid: EC2Operations
+                Effect: Allow
+                Action:
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:DescribeInstanceStatus'
+                  - 'ec2:DescribeInstanceTypes'
+                  - 'ec2:DescribeInstanceTypeOfferings'
+                  - 'ec2:DescribeAccountAttributes'
+                  - 'ec2:DescribeLaunchTemplates'
+                  - 'ec2:DescribeLaunchTemplateVersions'
+                  - 'ec2:DescribeAvailabilityZones'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DescribeVolumes'
+                  - 'ec2:DescribeVolumeAttribute'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:GetEbsDefaultKmsKeyId'
+                  - 'ec2:GetEbsEncryptionByDefault'
+                Resource: '*'
+              
+              # EC2 Write Operations (required by DRS)
+              - Sid: EC2WriteOperations
+                Effect: Allow
+                Action:
+                  - 'ec2:RunInstances'
+                  - 'ec2:StartInstances'
+                  - 'ec2:StopInstances'
+                  - 'ec2:TerminateInstances'
+                  - 'ec2:CreateVolume'
+                  - 'ec2:AttachVolume'
+                  - 'ec2:DetachVolume'
+                  - 'ec2:DeleteVolume'
+                  - 'ec2:ModifyVolume'
+                  - 'ec2:CreateLaunchTemplate'
+                  - 'ec2:CreateLaunchTemplateVersion'
+                  - 'ec2:ModifyLaunchTemplate'
+                  - 'ec2:DeleteLaunchTemplate'
+                  - 'ec2:DeleteLaunchTemplateVersions'
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:ModifyNetworkInterfaceAttribute'
+                  - 'ec2:CreateTags'
+                Resource: '*'
+              
+              # IAM Operations (for instance profiles)
+              - Sid: IAMOperations
+                Effect: Allow
+                Action:
+                  - 'iam:ListInstanceProfiles'
+                  - 'iam:PassRole'
+                Resource: '*'
+              
+              # SSM Operations (for post-launch automation)
+              - Sid: SSMOperations
+                Effect: Allow
+                Action:
+                  - 'ssm:ListDocuments'
+                  - 'ssm:DescribeDocument'
+                  - 'ssm:StartAutomationExecution'
+                  - 'ssm:DescribeAutomationExecutions'
+                  - 'ssm:GetAutomationExecution'
+                  - 'ssm:StopAutomationExecution'
+                Resource: '*'
+              
+              # S3 Operations (for post-launch logs)
+              - Sid: S3Operations
+                Effect: Allow
+                Action:
+                  - 's3:ListAllMyBuckets'
+                  - 's3:GetBucketLocation'
+                Resource: '*'
+
+Outputs:
+  CrossAccountRoleArn:
+    Description: 'ARN of the cross-account role for DRS Orchestration'
+    Value: !GetAtt DRSOrchestrationCrossAccountRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-cross-account-role-arn-${Environment}'
+  
+  CrossAccountRoleName:
+    Description: 'Name of the cross-account role'
+    Value: !Ref DRSOrchestrationCrossAccountRole
+    Export:
+      Name: !Sub '${ProjectName}-cross-account-role-name-${Environment}'
+  
+  ExternalId:
+    Description: 'External ID for secure cross-account access'
+    Value: !Sub '${ProjectName}-${Environment}-${AWS::AccountId}'
+    Export:
+      Name: !Sub '${ProjectName}-external-id-${Environment}'

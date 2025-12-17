@@ -100,12 +100,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
 
-      // Check if we're in local development mode
+      // Check if we're in local development mode AND using localhost API
       const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
+      const isUsingLocalAPI = apiEndpoint.includes('localhost') || apiEndpoint.includes('127.0.0.1');
       
-      if (isLocalDev) {
-        // Mock authentication for local development
-        console.log('🔧 Local development mode - using mock authentication');
+      if (isLocalDev && isUsingLocalAPI) {
+        // Mock authentication only when using local API
+        console.log('🔧 Local development mode with local API - using mock authentication');
         setAuthState({
           isAuthenticated: true,
           user: {
@@ -178,12 +180,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
 
-      // Check if we're in local development mode
+      // Check if we're in local development mode AND using localhost API
       const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
+      const isUsingLocalAPI = apiEndpoint.includes('localhost') || apiEndpoint.includes('127.0.0.1');
       
-      if (isLocalDev) {
-        // Mock sign-in for local development
-        console.log('🔧 Local development mode - mock sign-in successful');
+      if (isLocalDev && isUsingLocalAPI) {
+        // Mock sign-in only when using local API
+        console.log('🔧 Local development mode with local API - mock sign-in successful');
         setAuthState({
           isAuthenticated: true,
           user: {
