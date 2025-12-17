@@ -4,6 +4,111 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+## [1.7.0] - December 17, 2025
+
+### 🎉 **MILESTONE: Multi-Account Prototype 1.0** - `905a682`
+
+**Tag**: `v1.0.0-multi-account-prototype`
+
+This milestone release introduces comprehensive multi-account support and fixes critical tag-based server selection functionality, establishing the foundation for enterprise-scale disaster recovery orchestration.
+
+### Major Features
+
+**Multi-Account Management & Enforcement**
+
+- **Account Context System**: Complete account management with enforcement logic and persistent state
+- **Auto-Selection**: Single accounts automatically selected as default for seamless user experience
+- **Account Selector**: Top navigation dropdown for intuitive account switching with full page context updates
+- **Setup Wizard**: Guided first-time account configuration for new users
+- **Default Preferences**: Persistent default account selection integrated into existing 3-tab settings panel
+- **Page-Level Enforcement**: Features blocked until target account selected (multi-account scenarios only)
+- **Settings Integration**: Default account preference seamlessly integrated without disrupting existing 3-tab structure
+
+**Enhanced Tag-Based Server Selection**
+
+- **DRS Source Server Tags**: Fixed critical issue - now queries actual DRS source server tags (not EC2 instance tags)
+- **Complete Hardware Details**: CPU cores, RAM, disks, FQDN, OS info, network interfaces displayed in tag preview
+- **Regional Support**: Full support for all 30 DRS-supported regions with us-west-2 testing validation
+- **Preview Enhancement**: Tag preview shows identical detailed information as manual server selection
+- **Clean UX**: Removed confusing non-functional checkboxes from tag preview for cleaner interface
+
+### Technical Improvements
+
+**Backend (Lambda)**
+
+- **Enhanced API**: `query_drs_servers_by_tags` completely rewritten to use DRS `list_tags_for_resource` API
+- **Hardware Discovery**: Added comprehensive server hardware information collection from DRS source properties
+- **Field Consistency**: Fixed `sourceServerId` → `sourceServerID` naming alignment across frontend and backend
+- **Regional Flexibility**: Support for any DRS-supported region configuration with proper error handling
+
+**Frontend (React + CloudScape)**
+
+- **Account Context**: Centralized account state management with localStorage persistence and auto-selection logic
+- **Component Integration**: Account selector integrated into top navigation following AWS Console patterns
+- **Settings Enhancement**: Default account preference added to existing AccountManagementPanel (maintains 3-tab structure)
+- **Page Wrappers**: AccountRequiredWrapper component for consistent enforcement across all protected pages
+- **Type Safety**: Enhanced TypeScript interfaces for server data structures and API responses
+
+**Infrastructure**
+
+- **S3 Deployment**: All artifacts synced to deployment bucket for reproducible deployments
+- **CloudFormation Ready**: Master template deployment with all latest enhancements included
+- **Build Optimization**: Frontend build with code splitting and performance optimization
+
+### Bug Fixes
+
+- Fixed tag-based server selection querying wrong tag source (EC2 instance tags vs DRS source server tags)
+- Fixed missing hardware details in tag preview matching manual selection display
+- Fixed field name inconsistency (`sourceServerId` vs `sourceServerID`) in API responses
+- Fixed account selection persistence across browser sessions
+- Fixed navigation context switching between accounts with proper state management
+
+### UX Improvements
+
+- Clean tag preview interface without confusing non-functional checkboxes
+- Intuitive account selector positioned in familiar top navigation location
+- Automatic default account selection for single-account scenarios (no user action required)
+- Consistent server information display across all selection methods (manual and tag-based)
+- Seamless account switching with full page context updates and state preservation
+
+### Files Changed
+
+**Core Components (23 files changed, 1,421 insertions, 515 deletions)**
+
+- `frontend/src/contexts/AccountContext.tsx` - Account management state and enforcement logic
+- `frontend/src/components/AccountSelector.tsx` - Navigation account dropdown component
+- `frontend/src/components/AccountRequiredWrapper.tsx` - Page-level enforcement wrapper
+- `frontend/src/components/AccountManagementPanel.tsx` - Settings integration with default preference
+- `lambda/index.py` - Enhanced tag query function and hardware discovery
+- `frontend/src/components/ProtectionGroupDialog.tsx` - Tag preview improvements
+- `frontend/src/components/ServerListItem.tsx` - Checkbox visibility control
+- `frontend/src/services/api.ts` - API type definitions and service methods
+- `frontend/src/types/index.ts` - Enhanced server interfaces and type definitions
+
+**Page Integration**
+
+- `frontend/src/pages/Dashboard.tsx` - Account enforcement integration
+- `frontend/src/pages/ProtectionGroupsPage.tsx` - Account enforcement integration
+- `frontend/src/pages/RecoveryPlansPage.tsx` - Account enforcement integration
+- `frontend/src/pages/ExecutionsPage.tsx` - Account enforcement integration
+- `frontend/src/components/cloudscape/AppLayout.tsx` - Navigation integration
+
+### Deployment
+
+All components synced to S3 deployment bucket and ready for production deployment using the master CloudFormation template at: `s3://aws-drs-orchestration/cfn/master-template.yaml`
+
+### Testing
+
+- Verified tag-based selection with us-west-2 DRS servers (6 servers with various tags)
+- Confirmed hardware details match manual selection display exactly
+- Tested account switching and enforcement across all protected pages
+- Validated single-account auto-selection behavior
+- Confirmed S3 deployment artifact integrity and completeness
+
+### Breaking Changes
+
+None - All changes are backward compatible and enhance existing functionality without disrupting current workflows.
+
 ### Fixed
 
 **Dashboard Multi-Account Support Fixes** - December 16, 2025
