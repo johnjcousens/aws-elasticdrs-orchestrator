@@ -1,0 +1,16 @@
+{
+  "httpMethod": "GET",
+  "path": "/executions/0459e28c-4ee0-4e8f-8fb8-371b357fb536/job-logs",
+  "pathParameters": {
+    "executionId": "0459e28c-4ee0-4e8f-8fb8-371b357fb536"
+  },
+  "queryStringParameters": null,
+  "requestContext": {
+    "authorizer": {
+      "claims": {
+        "email": "test@example.com",
+        "sub": "test-user"
+      }
+    }
+  }
+}
