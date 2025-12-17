@@ -6,6 +6,29 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
+[![Release](https://img.shields.io/badge/Release-Multi--Account%20Prototype%201.0-brightgreen)](https://github.com/your-repo/releases/tag/v1.0.0-multi-account-prototype)
+
+## 🎉 **Multi-Account Prototype 1.0 Released!**
+
+**Latest Release**: [v1.7.0 - Multi-Account Prototype 1.0](CHANGELOG.md#170---december-17-2025) (December 17, 2025)  
+**Git Tag**: `v1.0.0-multi-account-prototype`
+
+### 🚀 **What's New**
+
+- **Multi-Account Management**: Complete account management system with enforcement and auto-selection
+- **Enhanced Tag-Based Selection**: Fixed DRS source server tag querying with full hardware details
+- **Account Selector**: Intuitive account switching in top navigation
+- **Settings Integration**: Default account preferences in existing 3-tab settings panel
+- **Production Ready**: All artifacts deployed to S3 and ready for CloudFormation deployment
+
+### 🎯 **Key Achievements**
+
+- **23 files changed**: 1,421 insertions, 515 deletions
+- **Complete testing**: Tag selection with us-west-2 DRS servers validated
+- **Backward compatible**: No breaking changes to existing functionality
+- **Enterprise scale**: Foundation for managing DRS across multiple AWS accounts
+
+**[View Complete Release Notes →](CHANGELOG.md#170---december-17-2025)**
 
 ## Overview
 
@@ -21,14 +44,26 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ## Key Features
 
+### Multi-Account Management 🆕
+
+- **Account Context System**: Complete account management with enforcement logic and persistent state
+- **Auto-Selection**: Single accounts automatically selected as default for seamless user experience
+- **Account Selector**: Top navigation dropdown for intuitive account switching with full page context updates
+- **Setup Wizard**: Guided first-time account configuration for new users
+- **Default Preferences**: Persistent default account selection integrated into existing 3-tab settings panel
+- **Page-Level Enforcement**: Features blocked until target account selected (multi-account scenarios only)
+- **Enterprise Scale**: Foundation for managing DRS across multiple AWS accounts
+
 ### Protection Groups
 
 - **Automatic Server Discovery**: Real-time DRS source server discovery across all AWS DRS-supported regions
+- **Enhanced Tag-Based Selection** 🆕: Fixed to query DRS source server tags (not EC2 instance tags) with complete hardware details
 - **Hardware Information Display**: Comprehensive server details including CPU cores, RAM (GiB), and IP address displayed in clean format during server selection
-- **Tag-Based Server Selection**: Define Protection Groups using EC2 instance tags (e.g., `DR-Application=HRP`, `DR-Tier=Database`)
+- **Tag-Based Server Selection**: Define Protection Groups using DRS source server tags (e.g., `DR-Application=HRP`, `DR-Tier=Database`)
 - **Visual Server Selection**: Intuitive interface with assignment status indicators and detailed hardware specifications
 - **Conflict Prevention**: Single server per group constraint prevents recovery conflicts; tag conflicts detected automatically
 - **Real-Time Search**: Filter servers by hostname, Server ID, or Protection Group name
+- **Clean UX** 🆕: Removed confusing non-functional checkboxes from tag preview for cleaner interface
 
 ### Recovery Plans
 
@@ -435,6 +470,8 @@ aws s3 ls s3://drsorchv4-fe-***REMOVED***-test/assets/ | head -5
 
 #### Recent Updates
 
+**December 17, 2025**: **Multi-Account Prototype 1.0 Released** - Complete multi-account management system with enhanced tag-based server selection. All artifacts synced to S3 deployment bucket and ready for production deployment using master CloudFormation template. See [v1.7.0 Release Notes](CHANGELOG.md#170---december-17-2025) for complete details.
+
 **December 16, 2025**: Enhanced DRS Source Server Display with detailed hardware information in Protection Group creation. The server discovery panel now shows comprehensive hardware details including CPU cores, RAM (GiB), and IP address in a clean format: "FQDN | CPU: X cores | RAM: X GiB | IP: X.X.X.X". Backend Lambda extracts hardware info from DRS source server metadata and EC2 instance details.
 
 **December 15, 2025**: Updated deployment scripts to use correct stack name `drs-orch-v4` instead of `drs-orchestration-dev`. This resolves deployment mismatches where code was being deployed to the wrong CloudFormation stack and CloudFront distribution.
@@ -589,10 +626,11 @@ The repository uses Git tags to mark significant milestones. These tags capture 
 
 ### Available Tags
 
-| Tag                 | Description                                                               | Date             |
-| ------------------- | ------------------------------------------------------------------------- | ---------------- |
-| `mvp-demo-ready`  | MVP Demo Ready - Complete working state with all core features functional | December 9, 2025 |
-| `future-plans-v1` | All future implementation plans documented                                | December 9, 2025 |
+| Tag                                | Description                                                               | Date              |
+| ---------------------------------- | ------------------------------------------------------------------------- | ----------------- |
+| `v1.0.0-multi-account-prototype` | **Multi-Account Prototype 1.0** - Complete multi-account management system with enhanced tag-based selection | December 17, 2025 |
+| `mvp-demo-ready`                 | MVP Demo Ready - Complete working state with all core features functional | December 9, 2025  |
+| `future-plans-v1`                | All future implementation plans documented                                | December 9, 2025  |
 
 ### View All Tags
 
@@ -782,7 +820,8 @@ See [CHANGELOG.md](CHANGELOG.md) for complete project history since November 8, 
 | 10       | **SSM Automation Integration**                      | 2-3w      | Pre-wave and post-wave SSM automation document execution including manual approval gates, health checks, and custom scripts.                                                                                                                                                                                                                                                            | Planned       | [Implementation Plan](docs/implementation/SSM_AUTOMATION_IMPLEMENTATION.md)                                                                                                                                                                                                                                                           | -               | -                                                  |
 | 11       | **Cross-Account DRS Monitoring**                    | 2-3w      | Centralized monitoring and alerting for DRS across multiple AWS accounts with dynamic account management, cross-account metrics collection, and unified dashboards. *(Monitoring/alerting only; see #13 for orchestration, #18 for replication setup)*                                                                                                                                  | Planned       | [Implementation Plan](docs/implementation/CROSS_ACCOUNT_DRS_MONITORING_IMPLEMENTATION.md)                                                                                                                                                                                                                                             | -               | -                                                  |
 | 12       | **DRS Source Server Management (Remaining)**        | 3-4w      | Remaining DRS source server configuration: Server Info dashboard, Tags Management, Disk Settings, Replication Settings, and Post-Launch Actions. EC2 Launch Template and Launch Settings now complete. *(Detailed config panels; see #17 for Source Servers list page)*                                                                                                                 | Planned       | [Server Info MVP](docs/implementation/DRS_SERVER_INFO_MVP_PLAN.md), [Tags MVP](docs/implementation/DRS_TAGS_MVP_PLAN.md), [Disk Settings MVP](docs/implementation/DRS_DISK_SETTINGS_MVP_PLAN.md), [Replication MVP](docs/implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md), [Post-Launch MVP](docs/implementation/DRS_POST_LAUNCH_MVP_PLAN.md) | -               | -                                                  |
-| 13       | **Multi-Account Support**                           | 4-6w      | Orchestrate recovery across multiple AWS accounts with hub-and-spoke architecture, cross-account IAM roles, and unified management UI. Scale beyond 300 servers using multiple staging accounts (250/account recommended). *(Foundation complete: account management UI, cross-account DRS operations, account-based capacity monitoring. Remaining: cross-account orchestration, federated recovery plans)*                                                                                   | 🔄 In Progress | [Implementation Guide](docs/implementation/MULTI_ACCOUNT_DRS_IMPLEMENTATION.md), Account Management: `AccountManagementPanel.tsx`, Backend: `lambda/index.py` (target accounts CRUD), Dashboard: account-based DRS capacity display | -               | `[current-session]`                           |
+| ~~13~~   | ~~**Multi-Account Support (Foundation)**~~          | ~~4-6w~~ | ~~Complete multi-account management system with account context, enforcement logic, auto-selection for single accounts, account selector in top navigation, settings integration with default preferences, and page-level enforcement for multi-account scenarios. Foundation for enterprise-scale DRS management across multiple AWS accounts.~~                                                                                                                                                | ✅ Complete   | [Multi-Account Prototype 1.0](CHANGELOG.md#170---december-17-2025), Account Management: `AccountManagementPanel.tsx`, Context: `AccountContext.tsx`, Selector: `AccountSelector.tsx`, Enforcement: `AccountRequiredWrapper.tsx` | Dec 17, 2025   | `905a682` (v1.0.0-multi-account-prototype)    |
+| 13       | **Cross-Account Orchestration**                     | 3-4w      | Cross-account recovery orchestration with hub-and-spoke architecture, cross-account IAM roles, and federated recovery plans. Scale beyond 300 servers using multiple staging accounts (250/account recommended). *(Builds on Multi-Account Foundation completed in v1.7.0)*                                                                                                                | Planned       | [Implementation Guide](docs/implementation/MULTI_ACCOUNT_DRS_IMPLEMENTATION.md), Foundation: Multi-Account Prototype 1.0 (v1.7.0)                                                                                                                                                                                                   | -               | -                                                  |
 | 14       | **DRS Agent Installation & Replication Monitoring** | 8-9w      | End-to-end DRS agent installation via SSM with progress tracking, replication initialization visualization (11 steps), continuous replication monitoring, reverse replication & failback management, and unified replication dashboard with aggregate metrics and alerts. *(SOURCE server agent install; see #15 for RECOVERY instance agent install)*                                  | Planned       | [Implementation Plan](docs/implementation/DRS_AGENT_INSTALLATION_REPLICATION_MONITORING.md)                                                                                                                                                                                                                                           | -               | -                                                  |
 | 15       | **Failover & Failback Orchestration**               | 10-12w    | Complete DR lifecycle: automatic failover session tracking, agent installation on recovery instances, automatic Protection Group and Recovery Plan mirroring with original region settings (subnet, security groups, etc.), reverse replication monitoring, and one-click failback execution. *(RECOVERY instance agent install; see #14 for SOURCE server agent install)*              | Planned       | [Implementation Plan](docs/implementation/FAILOVER_FAILBACK_ORCHESTRATION_PLAN.md), [Spec](.kiro/specs/failover-failback-orchestration/requirements.md)                                                                                                                                                                                  | -               | -                                                  |
 | 16       | **DRS Recovery Deep Dive Enhancements**             | 4w        | Enhanced recovery capabilities: point-in-time snapshot selection UI, detailed job log monitoring with event streaming, recovery instance tracking, comprehensive error handling with retry logic. Covers all DRS recovery APIs (StartRecovery, DescribeJobs, DescribeJobLogItems, DescribeRecoverySnapshots, DescribeRecoveryInstances, TerminateRecoveryInstances).                    | ✅ Documented | [Deep Dive Plan](docs/implementation/DRS_RECOVERY_DEEP_DIVE.md)                                                                                                                                                                                                                                                                       | -               | -                                                  |
