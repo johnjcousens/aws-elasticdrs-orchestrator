@@ -102,6 +102,198 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(obj)
 
 
+# ============================================================================
+# Cross-Account Support Functions
+# ============================================================================
+
+def determine_target_account_context(plan: Dict) -> Dict:
+    """
+    Determine the target account context for multi-account hub and spoke architecture.
+    
+    This function determines which target account to use for DRS operations by:
+    1. Checking Protection Groups in the Recovery Plan for AccountId
+    2. Falling back to default target account from settings (if implemented)
+    3. Using current account as final fallback
+    
+    Args:
+        plan: Recovery Plan dictionary containing Waves with ProtectionGroupId references
+    
+    Returns:
+        Dict with AccountId, AssumeRoleName, and isCurrentAccount for cross-account access
+    """
+    try:
+        # FIX #1: Better current account detection with environment variable fallback
+        try:
+            current_account_id = get_current_account_id()
+            if current_account_id == "unknown":
+                # In test environment, use environment variable fallback
+                current_account_id = os.environ.get('AWS_ACCOUNT_ID')
+                if not current_account_id:
+                    raise ValueError("Unable to determine current account ID and no AWS_ACCOUNT_ID environment variable set")
+                print(f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}")
+        except Exception as e:
+            # In test environment, use environment variable fallback
+            current_account_id = os.environ.get('AWS_ACCOUNT_ID')
+            if not current_account_id:
+                raise ValueError(f"Unable to determine current account ID: {e}")
+            print(f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}")
+        
+        waves = plan.get('Waves', [])
+        
+        # Collect unique account IDs from all Protection Groups in the plan
+        all_target_account_ids = set()
+        
+        for wave in waves:
+            pg_id = wave.get('ProtectionGroupId')
+            if not pg_id:
+                continue
+                
+            try:
+                # Get Protection Group to check its AccountId
+                pg_result = protection_groups_table.get_item(Key={'GroupId': pg_id})
+                if 'Item' in pg_result:
+                    pg = pg_result['Item']
+                    account_id = pg.get('AccountId')
+                    if account_id and account_id.strip():
+                        all_target_account_ids.add(account_id.strip())
+                        print(f"Found target account {account_id} from Protection Group {pg_id}")
+            except Exception as e:
+                print(f"Error getting Protection Group {pg_id}: {e}")
+                continue
+        
+        # FIX #2: Enforce mixed account validation - throw exception instead of warning
+        if len(all_target_account_ids) > 1:
+            raise ValueError(
+                f"Recovery Plan contains Protection Groups from multiple accounts: {all_target_account_ids}. "
+                f"Multi-account Recovery Plans are not supported. "
+                f"Please create separate Recovery Plans for each account."
+            )
+        
+        # Check if all protection groups are in current account
+        if not all_target_account_ids or (len(all_target_account_ids) == 1 and current_account_id in all_target_account_ids):
+            # All protection groups are in current account (or no protection groups found)
+            print(f"All Protection Groups are in current account {current_account_id}")
+            return {
+                'AccountId': current_account_id,
+                'AssumeRoleName': None,  # No role assumption needed for current account
+                'isCurrentAccount': True
+            }
+        
+        # Single cross-account target
+        target_account_id = next(iter(all_target_account_ids))
+        
+        # Get target account configuration from target accounts table
+        if target_accounts_table:
+            try:
+                account_result = target_accounts_table.get_item(Key={'AccountId': target_account_id})
+                if 'Item' in account_result:
+                    account_config = account_result['Item']
+                    assume_role_name = account_config.get('AssumeRoleName') or account_config.get('CrossAccountRoleArn', '').split('/')[-1]
+                    
+                    print(f"Using target account {target_account_id} with role {assume_role_name}")
+                    return {
+                        'AccountId': target_account_id,
+                        'AssumeRoleName': assume_role_name,
+                        'isCurrentAccount': False
+                    }
+                else:
+                    print(f"WARNING: Target account {target_account_id} not found in target accounts table")
+            except Exception as e:
+                print(f"Error getting target account configuration for {target_account_id}: {e}")
+        
+        # Fallback: target account found but no configuration - assume standard role name
+        print(f"Using target account {target_account_id} with default role name")
+        return {
+            'AccountId': target_account_id,
+            'AssumeRoleName': 'DRSOrchestrationCrossAccountRole',  # Default role name
+            'isCurrentAccount': False
+        }
+        
+    except Exception as e:
+        print(f"Error determining target account context: {e}")
+        # Re-raise the exception instead of silently falling back
+        raise
+
+
+def create_drs_client(region: str, account_context: Optional[Dict] = None):
+    """
+    Create DRS client with optional cross-account role assumption.
+    
+    Args:
+        region: AWS region for the DRS client
+        account_context: Optional dict with AccountId and AssumeRoleName for cross-account access
+    
+    Returns:
+        boto3 DRS client configured for the target account
+    """
+    # If no account context provided or it's current account, use current account
+    if not account_context or account_context.get('isCurrentAccount', True):
+        print(f"Creating DRS client for current account in region {region}")
+        return boto3.client('drs', region_name=region)
+    
+    # FIX #3: Improved cross-account role validation and error handling
+    account_id = account_context.get('AccountId')
+    assume_role_name = account_context.get('AssumeRoleName')
+    
+    if not account_id:
+        raise ValueError("Cross-account operation requires AccountId in account_context")
+    
+    if not assume_role_name:
+        raise ValueError(
+            f"Cross-account operation requires AssumeRoleName for account {account_id}. "
+            f"Please ensure the target account is registered with a valid cross-account role."
+        )
+    
+    print(f"Creating cross-account DRS client for account {account_id} using role {assume_role_name}")
+    
+    try:
+        # Assume role in target account
+        sts_client = boto3.client('sts', region_name=region)
+        role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
+        session_name = f"drs-orchestration-{int(time.time())}"
+        
+        print(f"Assuming role: {role_arn}")
+        
+        assumed_role = sts_client.assume_role(
+            RoleArn=role_arn,
+            RoleSessionName=session_name,
+            DurationSeconds=3600  # 1 hour
+        )
+        
+        credentials = assumed_role['Credentials']
+        
+        # Create DRS client with assumed role credentials
+        drs_client = boto3.client(
+            'drs',
+            region_name=region,
+            aws_access_key_id=credentials['AccessKeyId'],
+            aws_secret_access_key=credentials['SecretAccessKey'],
+            aws_session_token=credentials['SessionToken']
+        )
+        
+        print(f"Successfully created cross-account DRS client for account {account_id}")
+        return drs_client
+        
+    except Exception as e:
+        # FIX #3: Don't fall back silently - raise clear error messages
+        error_msg = f"Failed to assume cross-account role for account {account_id}: {e}"
+        
+        if "AccessDenied" in str(e):
+            error_msg += (
+                f"\n\nPossible causes:\n"
+                f"1. Cross-account role '{assume_role_name}' does not exist in account {account_id}\n"
+                f"2. Trust relationship not configured to allow this hub account\n"
+                f"3. Insufficient permissions on the cross-account role\n"
+                f"4. Role ARN: {role_arn}\n\n"
+                f"Please verify the cross-account role is deployed and configured correctly."
+            )
+        elif "InvalidUserID.NotFound" in str(e):
+            error_msg += f"\n\nThe role '{assume_role_name}' does not exist in account {account_id}."
+        
+        print(f"Cross-account role assumption failed: {error_msg}")
+        raise RuntimeError(error_msg)
+
+
 
 
 
@@ -313,7 +505,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:
     return servers_in_use
 
 
-def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict) -> List[str]:
+def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict, account_context: Optional[Dict] = None) -> List[str]:
     """
     Resolve a Protection Group to server IDs for conflict checking.
     Handles both tag-based and explicit server ID selection.
@@ -333,9 +525,16 @@ def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict) -> List[st
         selection_tags = pg.get('ServerSelectionTags', {})
         source_server_ids = pg.get('SourceServerIds', [])
         
+        # Extract account context from Protection Group if not provided
+        if not account_context and pg.get('AccountId'):
+            account_context = {
+                'AccountId': pg.get('AccountId'),
+                'AssumeRoleName': pg.get('AssumeRoleName')
+            }
+        
         if selection_tags:
             # Resolve servers by tags
-            resolved = query_drs_servers_by_tags(region, selection_tags)
+            resolved = query_drs_servers_by_tags(region, selection_tags, account_context)
             server_ids = [s.get('sourceServerID') for s in resolved if s.get('sourceServerID')]
         elif source_server_ids:
             # Use explicit server IDs
@@ -982,8 +1181,16 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
         if not tags or not isinstance(tags, dict):
             return response(400, {'error': 'ServerSelectionTags must be a non-empty object'})
         
+        # Extract account context from request body
+        account_context = None
+        if body.get('AccountId'):
+            account_context = {
+                'AccountId': body.get('AccountId'),
+                'AssumeRoleName': body.get('AssumeRoleName')
+            }
+        
         # Query DRS for servers matching tags
-        resolved_servers = query_drs_servers_by_tags(region, tags)
+        resolved_servers = query_drs_servers_by_tags(region, tags, account_context)
         
         return response(200, {
             'region': region,
@@ -1000,16 +1207,21 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
         return response(500, {'error': str(e)})
 
 
-def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
+def query_drs_servers_by_tags(region: str, tags: Dict[str, str], account_context: Optional[Dict] = None) -> List[Dict]:
     """
     Query DRS source servers that have ALL specified tags.
     Uses AND logic - DRS source server must have all tags to be included.
     
     This queries the DRS source server tags directly, not EC2 instance tags.
     Returns full server details matching the dynamic server discovery format.
+    
+    Args:
+        region: AWS region to query
+        tags: Dictionary of tag key-value pairs to match
+        account_context: Optional dict with AccountId and AssumeRoleName for cross-account access
     """
     try:
-        regional_drs = boto3.client('drs', region_name=region)
+        regional_drs = create_drs_client(region, account_context)
         
         # Get all source servers in the region
         all_servers = []
@@ -1063,17 +1275,8 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
             }
             display_state = state_mapping.get(rep_state, rep_state)
             
-            # Get DRS source server tags
-            server_arn = server.get('arn', '')
-            drs_tags = {}
-            
-            if server_arn:
-                try:
-                    tags_response = regional_drs.list_tags_for_resource(resourceArn=server_arn)
-                    drs_tags = tags_response.get('tags', {})
-                except Exception as e:
-                    print(f"Warning: Could not fetch DRS tags for server {server.get('sourceServerID')}: {str(e)}")
-                    drs_tags = {}
+            # Get DRS source server tags directly from server object
+            drs_tags = server.get('tags', {})
             
             # Check if DRS server has ALL required tags with matching values
             # Use case-insensitive matching and strip whitespace for robustness
@@ -1200,15 +1403,9 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
         if len(matching_servers) == 0 and all_servers:
             print("Sample of available DRS tags:")
             for i, server in enumerate(all_servers[:3]):
-                server_arn = server.get('arn', '')
-                if server_arn:
-                    try:
-                        tags_response = regional_drs.list_tags_for_resource(resourceArn=server_arn)
-                        sample_tags = tags_response.get('tags', {})
-                        if sample_tags:
-                            print(f"  Server {server.get('sourceServerID')}: {list(sample_tags.keys())}")
-                    except Exception:
-                        pass
+                sample_tags = server.get('tags', {})
+                if sample_tags:
+                    print(f"  Server {server.get('sourceServerID')}: {list(sample_tags.keys())}")
         
         return matching_servers
         
@@ -1332,6 +1529,7 @@ def create_protection_group(body: Dict) -> Dict:
             'Description': body.get('Description', ''),
             'Region': region,
             'AccountId': body.get('AccountId', ''),
+            'AssumeRoleName': body.get('AssumeRoleName', ''),
             'Owner': body.get('Owner', ''),
             'CreatedDate': timestamp,
             'LastModifiedDate': timestamp,
@@ -1366,7 +1564,14 @@ def create_protection_group(body: Dict) -> Dict:
             
             # If using tags, resolve servers first
             if has_tags and not server_ids_to_apply:
-                resolved = query_drs_servers_by_tags(region, selection_tags)
+                # Create account context for cross-account access
+                account_context = None
+                if body.get('AccountId'):
+                    account_context = {
+                        'AccountId': body.get('AccountId'),
+                        'AssumeRoleName': body.get('AssumeRoleName')
+                    }
+                resolved = query_drs_servers_by_tags(region, selection_tags, account_context)
                 server_ids_to_apply = [s.get('sourceServerID') for s in resolved if s.get('sourceServerID')]
             
             # Apply LaunchConfig to DRS/EC2 immediately
@@ -1639,7 +1844,14 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             
             # If using tags, resolve servers first
             if not server_ids and existing_group.get('ServerSelectionTags'):
-                resolved = query_drs_servers_by_tags(region, existing_group['ServerSelectionTags'])
+                # Extract account context from existing group
+                account_context = None
+                if existing_group.get('AccountId'):
+                    account_context = {
+                        'AccountId': existing_group.get('AccountId'),
+                        'AssumeRoleName': existing_group.get('AssumeRoleName')
+                    }
+                resolved = query_drs_servers_by_tags(region, existing_group['ServerSelectionTags'], account_context)
                 server_ids = [s.get('sourceServerID') for s in resolved if s.get('sourceServerID')]
             
             # Apply LaunchConfig to DRS/EC2 immediately
@@ -2275,7 +2487,14 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 print(f"PG {pg_id} has selection tags: {selection_tags}")
                 if selection_tags:
                     try:
-                        resolved = query_drs_servers_by_tags(pg_region, selection_tags)
+                        # Extract account context from Protection Group
+                        account_context = None
+                        if pg.get('AccountId'):
+                            account_context = {
+                                'AccountId': pg.get('AccountId'),
+                                'AssumeRoleName': pg.get('AssumeRoleName')
+                            }
+                        resolved = query_drs_servers_by_tags(pg_region, selection_tags, account_context)
                         print(f"Resolved {len(resolved)} servers from tags")
                         for server in resolved:
                             server_id = server.get('sourceServerID')
@@ -2708,6 +2927,9 @@ def execute_with_step_functions(execution_id: str, plan_id: str, plan: Dict, is_
         else:
             print(f"Starting NEW Step Functions execution for {execution_id}")
         
+        # Determine target account context for multi-account hub and spoke architecture
+        account_context = determine_target_account_context(plan)
+        
         # Prepare Step Functions input
         # Step Functions input format for step-functions-stack.yaml state machine
         # Uses 'Plan' (singular) not 'Plans' (array)
@@ -2720,7 +2942,8 @@ def execute_with_step_functions(execution_id: str, plan_id: str, plan: Dict, is_
                 'Waves': plan.get('Waves', [])
             },
             'IsDrill': is_drill,
-            'ResumeFromWave': resume_from_wave  # None for new executions, wave index for resume
+            'ResumeFromWave': resume_from_wave,  # None for new executions, wave index for resume
+            'AccountContext': account_context
         }
         
         # For resumed executions, use a unique name suffix to avoid conflicts
@@ -4050,6 +4273,10 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
         execution = result['Items'][0]
         waves = execution.get('Waves', [])
         
+        # Get region and account context from execution
+        region = execution.get('Region', 'us-east-1')
+        account_context = execution.get('AccountContext', {})
+        
         all_job_logs = []
         
         for wave in waves:
@@ -4063,8 +4290,11 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
                 continue
             
             try:
+                # Create regional DRS client with cross-account support
+                drs_client = create_drs_client(region, account_context)
+                
                 # Get job log items from DRS
-                log_response = drs.describe_job_log_items(jobID=wave_job_id)
+                log_response = drs_client.describe_job_log_items(jobID=wave_job_id)
                 log_items = log_response.get('items', [])
                 
                 # Transform log items for frontend
@@ -4903,7 +5133,14 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
             })
         
         # 2. Resolve servers by tags
-        resolved_servers = query_drs_servers_by_tags(region, selection_tags)
+        # Extract account context from Protection Group
+        account_context = None
+        if pg.get('AccountId'):
+            account_context = {
+                'AccountId': pg.get('AccountId'),
+                'AssumeRoleName': pg.get('AssumeRoleName')
+            }
+        resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
         
         if not resolved_servers:
             return response(200, {
@@ -7004,7 +7241,14 @@ def _process_protection_group_import(
     # Validate tag-based selection
     elif server_selection_tags:
         try:
-            resolved = query_drs_servers_by_tags(region, server_selection_tags)
+            # Extract account context from request body if available
+            account_context = None
+            if body and body.get('AccountId'):
+                account_context = {
+                    'AccountId': body.get('AccountId'),
+                    'AssumeRoleName': body.get('AssumeRoleName')
+                }
+            resolved = query_drs_servers_by_tags(region, server_selection_tags, account_context)
             if not resolved:
                 result['reason'] = 'NO_TAG_MATCHES'
                 result['details'] = {'tags': server_selection_tags, 'region': region, 'matchCount': 0}
@@ -7059,7 +7303,14 @@ def _process_protection_group_import(
                 if source_server_ids:
                     server_ids_to_apply = source_server_ids
                 elif server_selection_tags:
-                    resolved = query_drs_servers_by_tags(region, server_selection_tags)
+                    # Extract account context from request body if available
+                    account_context = None
+                    if body and body.get('AccountId'):
+                        account_context = {
+                            'AccountId': body.get('AccountId'),
+                            'AssumeRoleName': body.get('AssumeRoleName')
+                        }
+                    resolved = query_drs_servers_by_tags(region, server_selection_tags, account_context)
                     server_ids_to_apply = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
                 
                 if server_ids_to_apply:

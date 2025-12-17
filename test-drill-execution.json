@@ -1,0 +1,8 @@
+{
+  "httpMethod": "POST",
+  "path": "/executions",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"planId\": \"52b783f8-d8f6-473a-a57c-f1745e19b71e\", \"isDrill\": true, \"invocationSource\": \"CLI\"}"
+}

@@ -148,6 +148,7 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
+        ApiHandlerFunctionName: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionName
       Tags:
         - Key: Project
           Value: !Ref ProjectName

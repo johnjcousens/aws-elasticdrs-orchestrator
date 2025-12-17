@@ -90,10 +90,16 @@ class ApiClient {
           const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
           
           if (isLocalDev) {
-            // Use mock token for local development
-            console.log('🔧 Local development mode - using mock token');
-            if (config.headers) {
-              config.headers.Authorization = 'Bearer mock-local-dev-token';
+            // For local development, we still need to get real tokens since we're hitting the real API
+            // The local config now points to the real API endpoint
+            console.log('🔧 Local development mode - getting real auth token for deployed API');
+            const session = await fetchAuthSession();
+            const token = session.tokens?.idToken?.toString();
+
+            if (token && config.headers) {
+              config.headers.Authorization = `Bearer ${token}`;
+            } else {
+              console.warn('No auth token available in local dev mode');
             }
           } else {
             // Get the current authentication session for production
