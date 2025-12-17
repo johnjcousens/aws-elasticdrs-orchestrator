@@ -6,6 +6,7 @@ interface ServerListItemProps {
   server: DRSServer;
   selected: boolean;
   onToggle: () => void;
+  showCheckbox?: boolean; // Optional prop to control checkbox visibility
 }
 
 const getStateStatus = (state: string): 'success' | 'info' | 'error' | 'warning' | 'stopped' | 'pending' | 'in-progress' | 'loading' => {
@@ -26,7 +27,8 @@ const getStateStatus = (state: string): 'success' | 'info' | 'error' | 'warning'
 export const ServerListItem: React.FC<ServerListItemProps> = ({
   server,
   selected,
-  onToggle
+  onToggle,
+  showCheckbox = true // Default to showing checkbox for backward compatibility
 }) => {
   const [expanded, setExpanded] = useState(false);
   
@@ -62,19 +64,21 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
       style={{
         padding: '16px',
         borderBottom: '1px solid #e9ebed',
-        opacity: selectable ? 1 : 0.6,
-        backgroundColor: selectable ? 'transparent' : '#f9f9f9',
+        opacity: showCheckbox ? (selectable ? 1 : 0.6) : 1, // Full opacity when no checkbox
+        backgroundColor: showCheckbox ? (selectable ? 'transparent' : '#f9f9f9') : 'transparent',
         transition: 'background-color 0.2s ease',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-        <div style={{ paddingTop: '2px' }}>
-          <Checkbox
-            checked={selected}
-            disabled={!selectable}
-            onChange={(e) => { e.stopPropagation(); onToggle(); }}
-          />
-        </div>
+        {showCheckbox && (
+          <div style={{ paddingTop: '2px' }}>
+            <Checkbox
+              checked={selected}
+              disabled={!selectable}
+              onChange={(e) => { e.stopPropagation(); onToggle(); }}
+            />
+          </div>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Primary: Name and status */}
           <div 
