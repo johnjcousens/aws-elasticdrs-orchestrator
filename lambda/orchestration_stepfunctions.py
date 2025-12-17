@@ -49,6 +49,51 @@ def get_execution_history_table():
     return _execution_history_table
 
 
+def create_drs_client(region: str, account_context: Dict = None):
+    """
+    Create DRS client with optional cross-account access
+    
+    Args:
+        region: AWS region for DRS operations
+        account_context: Dict containing accountId and assumeRoleName for cross-account access
+    
+    Returns:
+        boto3 DRS client
+    """
+    if account_context and account_context.get('accountId'):
+        account_id = account_context['accountId']
+        role_name = account_context.get('assumeRoleName', 'drs-orchestration-cross-account-role')
+        
+        print(f"Creating cross-account DRS client for account {account_id} in region {region}")
+        
+        # Assume role in target account
+        sts_client = boto3.client('sts', region_name=region)
+        session_name = f"drs-orchestration-{int(time.time())}"
+        
+        try:
+            assumed_role = sts_client.assume_role(
+                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",
+                RoleSessionName=session_name
+            )
+            
+            credentials = assumed_role['Credentials']
+            print(f"Successfully assumed role {role_name} in account {account_id}")
+            
+            return boto3.client(
+                'drs',
+                region_name=region,
+                aws_access_key_id=credentials['AccessKeyId'],
+                aws_secret_access_key=credentials['SecretAccessKey'],
+                aws_session_token=credentials['SessionToken']
+            )
+        except Exception as e:
+            print(f"Failed to assume role {role_name} in account {account_id}: {e}")
+            raise
+    
+    # Default: use current account credentials
+    return boto3.client('drs', region_name=region)
+
+
 # DRS job status constants
 DRS_JOB_STATUS_COMPLETE_STATES = ['COMPLETED']
 DRS_JOB_STATUS_WAIT_STATES = ['PENDING', 'STARTED']
@@ -77,6 +122,12 @@ def handler(event, context):
     
     action = event.get('action')
     
+    # Extract account context for multi-account support
+    account_context = event.get('AccountContext', {})
+    account_id = account_context.get('accountId')
+    if account_id:
+        print(f"Operating in account context: {account_id}")
+    
     if action == 'begin':
         return begin_wave_plan(event)
     elif action == 'update_wave_status':
@@ -97,6 +148,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     plan = event.get('plan', {})
     execution_id = event.get('execution')
     is_drill = event.get('isDrill', True)
+    account_context = event.get('AccountContext', {})
     
     plan_id = plan.get('PlanId')
     waves = plan.get('Waves', [])
@@ -113,6 +165,7 @@ def begin_wave_plan(event: Dict) -> Dict:
         'plan_name': plan.get('PlanName', ''),
         'execution_id': execution_id,
         'is_drill': is_drill,
+        'AccountContext': account_context,  # Step Functions expects uppercase
         
         # Wave tracking
         'waves': waves,
@@ -263,20 +316,21 @@ def resume_wave(event: Dict) -> Dict:
     return state
 
 
-def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[str]:
+def query_drs_servers_by_tags(region: str, tags: Dict[str, str], account_context: Dict = None) -> List[str]:
     """
-    Query DRS source servers whose SOURCE EC2 INSTANCES match ALL specified tags.
-    Returns list of source server IDs.
+    Query DRS source servers that have ALL specified tags.
+    Uses AND logic - DRS source server must have all tags to be included.
     
-    This queries EC2 instance tags (rich tagging), not DRS resource tags.
+    This queries the DRS source server tags directly, not EC2 instance tags.
+    Returns list of source server IDs for orchestration.
     """
     try:
-        drs_client = boto3.client('drs', region_name=region)
-        ec2_client = boto3.client('ec2', region_name=region)
+        # Create DRS client with cross-account support
+        regional_drs = create_drs_client(region, account_context)
         
         # Get all source servers in the region
         all_servers = []
-        paginator = drs_client.get_paginator('describe_source_servers')
+        paginator = regional_drs.get_paginator('describe_source_servers')
         
         for page in paginator.paginate():
             all_servers.extend(page.get('items', []))
@@ -285,58 +339,49 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[str]:
             print("No DRS source servers found in region")
             return []
         
-        # Build map of instance_id -> server_id
-        instance_to_server = {}
-        instance_ids = []
+        # Filter servers that match ALL specified tags
+        matching_server_ids = []
         
         for server in all_servers:
-            source_props = server.get('sourceProperties', {})
-            ident_hints = source_props.get('identificationHints', {})
-            instance_id = ident_hints.get('awsInstanceID', '')
+            server_id = server.get('sourceServerID', '')
             
-            if instance_id:
-                instance_ids.append(instance_id)
-                instance_to_server[instance_id] = server.get('sourceServerID')
-        
-        if not instance_ids:
-            print("No source EC2 instances found for DRS servers")
-            return []
-        
-        # Query EC2 for instance tags (batch in groups of 200)
-        instance_tags_map = {}
-        for i in range(0, len(instance_ids), 200):
-            batch = instance_ids[i:i+200]
-            try:
-                ec2_response = ec2_client.describe_instances(InstanceIds=batch)
-                for reservation in ec2_response.get('Reservations', []):
-                    for instance in reservation.get('Instances', []):
-                        inst_id = instance.get('InstanceId', '')
-                        # Convert EC2 tag list to dict
-                        inst_tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
-                        instance_tags_map[inst_id] = inst_tags
-            except Exception as e:
-                print(f"Warning: Could not fetch EC2 tags for batch: {str(e)}")
-        
-        # Filter servers whose source EC2 instances match ALL specified tags
-        matching_server_ids = []
-        for instance_id, server_id in instance_to_server.items():
-            ec2_tags = instance_tags_map.get(instance_id, {})
+            # Get DRS source server tags directly from server object
+            drs_tags = server.get('tags', {})
             
-            # Check if EC2 instance has ALL required tags with matching values
+            # Check if DRS server has ALL required tags with matching values
+            # Use case-insensitive matching and strip whitespace for robustness
             matches_all = True
             for tag_key, tag_value in tags.items():
-                if ec2_tags.get(tag_key) != tag_value:
+                # Normalize tag key and value (strip whitespace, case-insensitive)
+                normalized_required_key = tag_key.strip()
+                normalized_required_value = tag_value.strip().lower()
+                
+                # Check if any DRS tag matches (case-insensitive)
+                found_match = False
+                for drs_key, drs_value in drs_tags.items():
+                    normalized_drs_key = drs_key.strip()
+                    normalized_drs_value = drs_value.strip().lower()
+                    
+                    if normalized_drs_key == normalized_required_key and normalized_drs_value == normalized_required_value:
+                        found_match = True
+                        break
+                
+                if not found_match:
                     matches_all = False
+                    print(f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}")
                     break
             
             if matches_all:
                 matching_server_ids.append(server_id)
         
-        print(f"Found {len(matching_server_ids)} servers matching EC2 tags: {tags}")
+        print(f"Tag matching results:")
+        print(f"  - Total DRS servers: {len(all_servers)}")
+        print(f"  - Servers matching tags {tags}: {len(matching_server_ids)}")
+        
         return matching_server_ids
         
     except Exception as e:
-        print(f"Error querying DRS servers by EC2 tags: {str(e)}")
+        print(f"Error querying DRS servers by DRS tags: {str(e)}")
         raise
 
 
@@ -382,7 +427,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         if selection_tags:
             # Resolve servers by tags at execution time
             print(f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}")
-            server_ids = query_drs_servers_by_tags(region, selection_tags)
+            account_context = state.get('AccountContext', {})
+            server_ids = query_drs_servers_by_tags(region, selection_tags, account_context)
             print(f"Resolved {len(server_ids)} servers from tags")
         else:
             # Fallback: Check if wave has explicit ServerIds (legacy support)
@@ -397,7 +443,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         print(f"Starting DRS recovery for wave {wave_number} ({wave_name})")
         print(f"Region: {region}, Servers: {server_ids}, isDrill: {is_drill}")
         
-        drs_client = boto3.client('drs', region_name=region)
+        # Create DRS client with cross-account support
+        account_context = state.get('AccountContext', {})
+        drs_client = create_drs_client(region, account_context)
         source_servers = [{'sourceServerID': sid} for sid in server_ids]
         
         response = drs_client.start_recovery(
@@ -505,7 +553,9 @@ def update_wave_status(event: Dict) -> Dict:
         return state
     
     try:
-        drs_client = boto3.client('drs', region_name=region)
+        # Create DRS client with cross-account support
+        account_context = state.get('AccountContext', {})
+        drs_client = create_drs_client(region, account_context)
         job_response = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
         
         if not job_response.get('items'):

@@ -45,9 +45,17 @@ Parameters:
     Description: 'SNS topic ARN for notifications'
     Default: ''
 
+  StateMachineArn:
+    Type: String
+    Description: 'Step Functions State Machine ARN for orchestration'
+    Default: ''
+
+
+
 Conditions:
   HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
   HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, '']]
+  HasStateMachineArn: !Not [!Equals [!Ref StateMachineArn, '']]
 
 Resources:
   # IAM Role for API Handler Lambda
@@ -577,7 +585,10 @@ Resources:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
-          STATE_MACHINE_ARN: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
+          STATE_MACHINE_ARN: !If 
+            - HasStateMachineArn
+            - !Ref StateMachineArn
+            - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
