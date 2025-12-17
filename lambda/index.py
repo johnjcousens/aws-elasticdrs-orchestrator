@@ -332,7 +332,7 @@ def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict) -> List[st
         if selection_tags:
             # Resolve servers by tags
             resolved = query_drs_servers_by_tags(region, selection_tags)
-            server_ids = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+            server_ids = [s.get('sourceServerID') for s in resolved if s.get('sourceServerID')]
         elif source_server_ids:
             # Use explicit server IDs
             server_ids = source_server_ids
@@ -998,15 +998,14 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
 
 def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
     """
-    Query DRS source servers whose SOURCE EC2 INSTANCES match ALL specified tags.
-    Uses AND logic - source EC2 instance must have all tags to be included.
+    Query DRS source servers that have ALL specified tags.
+    Uses AND logic - DRS source server must have all tags to be included.
     
-    This queries the EC2 instance tags (rich tagging), not DRS resource tags.
+    This queries the DRS source server tags directly, not EC2 instance tags.
     Returns full server details matching the dynamic server discovery format.
     """
     try:
         regional_drs = boto3.client('drs', region_name=region)
-        ec2_client = boto3.client('ec2', region_name=region)
         
         # Get all source servers in the region
         all_servers = []
@@ -1018,9 +1017,8 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
         if not all_servers:
             return []
         
-        # Build map of instance_id -> full server info
-        instance_to_server = {}
-        instance_ids = []
+        # Filter servers that match ALL specified tags
+        matching_servers = []
         
         for server in all_servers:
             source_props = server.get('sourceProperties', {})
@@ -1061,68 +1059,153 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
             }
             display_state = state_mapping.get(rep_state, rep_state)
             
-            if instance_id:
-                instance_ids.append(instance_id)
-                instance_to_server[instance_id] = {
-                    'sourceServerId': server.get('sourceServerID'),
-                    'hostname': hostname,
-                    'sourceInstanceId': instance_id,
-                    'sourceIp': source_ip,
-                    'sourceRegion': source_region,
-                    'sourceAccount': source_account,
-                    'state': display_state,
-                    'replicationState': rep_state,
-                    'lagDuration': lag_duration
-                }
-        
-        if not instance_ids:
-            print("No source EC2 instances found for DRS servers")
-            return []
-        
-        # Query EC2 for instance tags (batch in groups of 200)
-        instance_tags_map = {}
-        for i in range(0, len(instance_ids), 200):
-            batch = instance_ids[i:i+200]
-            try:
-                ec2_response = ec2_client.describe_instances(InstanceIds=batch)
-                for reservation in ec2_response.get('Reservations', []):
-                    for instance in reservation.get('Instances', []):
-                        inst_id = instance.get('InstanceId', '')
-                        # Convert EC2 tag list to dict
-                        inst_tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
-                        instance_tags_map[inst_id] = inst_tags
-            except Exception as e:
-                print(f"Warning: Could not fetch EC2 tags for batch: {str(e)}")
-        
-        # Filter servers whose source EC2 instances match ALL specified tags
-        matching_servers = []
-        for instance_id, server_info in instance_to_server.items():
-            ec2_tags = instance_tags_map.get(instance_id, {})
+            # Get DRS source server tags
+            server_arn = server.get('arn', '')
+            drs_tags = {}
             
-            # Check if EC2 instance has ALL required tags with matching values
+            if server_arn:
+                try:
+                    tags_response = regional_drs.list_tags_for_resource(resourceArn=server_arn)
+                    drs_tags = tags_response.get('tags', {})
+                except Exception as e:
+                    print(f"Warning: Could not fetch DRS tags for server {server.get('sourceServerID')}: {str(e)}")
+                    drs_tags = {}
+            
+            # Check if DRS server has ALL required tags with matching values
+            # Use case-insensitive matching and strip whitespace for robustness
             matches_all = True
             for tag_key, tag_value in tags.items():
-                if ec2_tags.get(tag_key) != tag_value:
+                # Normalize tag key and value (strip whitespace, case-insensitive)
+                normalized_required_key = tag_key.strip()
+                normalized_required_value = tag_value.strip().lower()
+                
+                # Check if any DRS tag matches (case-insensitive)
+                found_match = False
+                for drs_key, drs_value in drs_tags.items():
+                    normalized_drs_key = drs_key.strip()
+                    normalized_drs_value = drs_value.strip().lower()
+                    
+                    if normalized_drs_key == normalized_required_key and normalized_drs_value == normalized_required_value:
+                        found_match = True
+                        break
+                
+                if not found_match:
                     matches_all = False
+                    print(f"Server {server.get('sourceServerID')} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}")
                     break
             
             if matches_all:
-                # Return full server details matching dynamic UI format
+                # Extract hardware info - CPU
+                cpus = source_props.get('cpus', [])
+                cpu_info = []
+                total_cores = 0
+                
+                # Debug: Log the source properties structure for this server
+                print(f"DEBUG: Server {server.get('sourceServerID')} source properties keys: {list(source_props.keys())}")
+                print(f"DEBUG: CPUs data: {cpus}")
+                print(f"DEBUG: RAM bytes: {source_props.get('ramBytes', 'NOT_FOUND')}")
+                print(f"DEBUG: Disks data: {source_props.get('disks', 'NOT_FOUND')}")
+                
+                for cpu in cpus:
+                    cpu_info.append({
+                        'modelName': cpu.get('modelName', 'Unknown'),
+                        'cores': cpu.get('cores', 0)
+                    })
+                    total_cores += cpu.get('cores', 0)
+                
+                # Extract hardware info - RAM
+                ram_bytes = source_props.get('ramBytes', 0)
+                ram_gib = round(ram_bytes / (1024 ** 3), 1) if ram_bytes else 0
+                
+                # Extract hardware info - Disks
+                disks = source_props.get('disks', [])
+                disk_info = []
+                total_disk_bytes = 0
+                for disk in disks:
+                    disk_bytes = disk.get('bytes', 0)
+                    total_disk_bytes += disk_bytes
+                    disk_info.append({
+                        'deviceName': disk.get('deviceName', 'Unknown'),
+                        'bytes': disk_bytes,
+                        'sizeGiB': round(disk_bytes / (1024 ** 3), 1) if disk_bytes else 0
+                    })
+                total_disk_gib = round(total_disk_bytes / (1024 ** 3), 1) if total_disk_bytes else 0
+                
+                # Extract OS info
+                os_info = source_props.get('os', {})
+                os_string = os_info.get('fullString', '')
+                
+                # Extract FQDN
+                fqdn = ident_hints.get('fqdn', '')
+                
+                # Extract MAC address from first network interface
+                source_mac = ''
+                if network_interfaces:
+                    source_mac = network_interfaces[0].get('macAddress', '')
+                
+                # Extract all network interfaces
+                all_network_interfaces = []
+                for nic in network_interfaces:
+                    all_network_interfaces.append({
+                        'ips': nic.get('ips', []),
+                        'macAddress': nic.get('macAddress', ''),
+                        'isPrimary': nic.get('isPrimary', False)
+                    })
+                
+                # Extract lifecycle info
+                lifecycle = server.get('lifeCycle', {})
+                last_seen = lifecycle.get('lastSeenByServiceDateTime', '')
+                
+                # Return full server details matching dynamic UI format with hardware details
                 matching_servers.append({
-                    'sourceServerId': server_info['sourceServerId'],
-                    'hostname': server_info['hostname'],
-                    'nameTag': ec2_tags.get('Name', ''),
-                    'sourceInstanceId': server_info['sourceInstanceId'],
-                    'sourceIp': server_info['sourceIp'],
-                    'sourceRegion': server_info['sourceRegion'],
-                    'sourceAccount': server_info['sourceAccount'],
-                    'state': server_info['state'],
-                    'replicationState': server_info['replicationState'],
-                    'lagDuration': server_info['lagDuration'],
-                    'tags': ec2_tags  # All EC2 instance tags
+                    'sourceServerID': server.get('sourceServerID', ''),
+                    'hostname': hostname,
+                    'fqdn': fqdn,
+                    'nameTag': drs_tags.get('Name', ''),
+                    'sourceInstanceId': instance_id,
+                    'sourceIp': source_ip,
+                    'sourceMac': source_mac,
+                    'sourceRegion': source_region,
+                    'sourceAccount': source_account,
+                    'os': os_string,
+                    'state': display_state,
+                    'replicationState': rep_state,
+                    'lagDuration': lag_duration,
+                    'lastSeen': last_seen,
+                    # Hardware details matching ServerListItem expectations
+                    'hardware': {
+                        'cpus': cpu_info,
+                        'totalCores': total_cores,
+                        'ramBytes': ram_bytes,
+                        'ramGiB': ram_gib,
+                        'disks': disk_info,
+                        'totalDiskGiB': total_disk_gib
+                    },
+                    'networkInterfaces': all_network_interfaces,
+                    'drsTags': drs_tags,  # DRS resource tags for tag-based selection
+                    'tags': drs_tags,  # All DRS source server tags (for compatibility)
+                    'assignedToProtectionGroup': None,  # Will be populated if needed
+                    'selectable': True  # Always selectable in tag preview
                 })
         
-        print(f"Found {len(matching_servers)} servers matching EC2 tags: {tags}")
+        print(f"Tag matching results:")
+        print(f"  - Total DRS servers: {len(all_servers)}")
+        print(f"  - Servers matching tags {tags}: {len(matching_servers)}")
+        
+        # Debug: Show sample of available tags if no matches found
+        if len(matching_servers) == 0 and all_servers:
+            print("Sample of available DRS tags:")
+            for i, server in enumerate(all_servers[:3]):
+                server_arn = server.get('arn', '')
+                if server_arn:
+                    try:
+                        tags_response = regional_drs.list_tags_for_resource(resourceArn=server_arn)
+                        sample_tags = tags_response.get('tags', {})
+                        if sample_tags:
+                            print(f"  Server {server.get('sourceServerID')}: {list(sample_tags.keys())}")
+                    except Exception:
+                        pass
+        
         return matching_servers
         
     except Exception as e:
@@ -1130,7 +1213,7 @@ def query_drs_servers_by_tags(region: str, tags: Dict[str, str]) -> List[Dict]:
         if 'UninitializedAccountException' in error_str:
             print(f"DRS not initialized in region {region}")
             return []
-        print(f"Error querying DRS servers by EC2 tags: {error_str}")
+        print(f"Error querying DRS servers by tags: {error_str}")
         raise
 
 
@@ -1280,7 +1363,7 @@ def create_protection_group(body: Dict) -> Dict:
             # If using tags, resolve servers first
             if has_tags and not server_ids_to_apply:
                 resolved = query_drs_servers_by_tags(region, selection_tags)
-                server_ids_to_apply = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+                server_ids_to_apply = [s.get('sourceServerID') for s in resolved if s.get('sourceServerID')]
             
             # Apply LaunchConfig to DRS/EC2 immediately
             if server_ids_to_apply and launch_config:
@@ -1553,7 +1636,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             # If using tags, resolve servers first
             if not server_ids and existing_group.get('ServerSelectionTags'):
                 resolved = query_drs_servers_by_tags(region, existing_group['ServerSelectionTags'])
-                server_ids = [s.get('sourceServerId') for s in resolved if s.get('sourceServerId')]
+                server_ids = [s.get('sourceServerID') for s in resolved if s.get('sourceServerID')]
             
             # Apply LaunchConfig to DRS/EC2 immediately
             if server_ids and launch_config:
@@ -2191,7 +2274,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                         resolved = query_drs_servers_by_tags(pg_region, selection_tags)
                         print(f"Resolved {len(resolved)} servers from tags")
                         for server in resolved:
-                            server_id = server.get('sourceServerId')
+                            server_id = server.get('sourceServerID')
                             if server_id:
                                 all_server_ids.add(server_id)
                                 print(f"Added server {server_id} to check list")
