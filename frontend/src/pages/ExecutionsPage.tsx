@@ -24,6 +24,7 @@ import { useAccount } from '../contexts/AccountContext';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
+import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { CardSkeleton } from '../components/CardSkeleton';
 import { PageTransition } from '../components/PageTransition';
 import { StatusBadge } from '../components/StatusBadge';
@@ -231,7 +232,8 @@ export const ExecutionsPage: React.FC = () => {
           </Header>
         }
       >
-        <SpaceBetween size="l">
+        <AccountRequiredWrapper pageName="Executions">
+          <SpaceBetween size="l">
           {errorMsg && executions.length > 0 && (
             <Alert type="error" dismissible onDismiss={() => setErrorMsg(null)}>
               {errorMsg}
@@ -401,6 +403,7 @@ export const ExecutionsPage: React.FC = () => {
             </SpaceBetween>
           </Modal>
         </SpaceBetween>
+        </AccountRequiredWrapper>
       </ContentLayout>
     </PageTransition>
   );

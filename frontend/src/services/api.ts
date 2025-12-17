@@ -299,17 +299,47 @@ class ApiClient {
     region: string;
     tags: Record<string, string>;
     resolvedServers: Array<{
-      sourceServerId: string;
+      sourceServerID: string;  // Fixed: uppercase 'ID' to match DRSServer interface
       hostname: string;
+      fqdn?: string;
       nameTag?: string;
       sourceInstanceId?: string;
       sourceIp?: string;
+      sourceMac?: string;
       sourceRegion?: string;
       sourceAccount?: string;
+      os?: string;
       state?: string;
       replicationState: string;
       lagDuration?: string;
+      lastSeen?: string;
+      hardware?: {
+        cpus?: Array<{
+          modelName: string;
+          cores: number;
+        }>;
+        totalCores?: number;
+        ramBytes?: number;
+        ramGiB?: number;
+        disks?: Array<{
+          deviceName: string;
+          bytes: number;
+          sizeGiB: number;
+        }>;
+        totalDiskGiB?: number;
+      };
+      networkInterfaces?: Array<{
+        ips: string[];
+        macAddress: string;
+        isPrimary: boolean;
+      }>;
+      drsTags?: Record<string, string>;
       tags: Record<string, string>;
+      assignedToProtectionGroup?: {
+        protectionGroupId: string;
+        protectionGroupName: string;
+      } | null;
+      selectable?: boolean;
     }>;
     serverCount: number;
     resolvedAt: number;

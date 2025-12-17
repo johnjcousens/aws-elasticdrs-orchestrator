@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Header,
@@ -12,7 +12,9 @@ import {
   StatusIndicator,
   Alert,
   TextContent,
+  Select,
 } from '@cloudscape-design/components';
+import type { SelectProps } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import apiClient from '../services/api';
 import { useAccount } from '../contexts/AccountContext';
@@ -35,9 +37,14 @@ interface AccountManagementPanelProps {
 const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   onAccountsChange,
 }) => {
-  const { availableAccounts: accounts, accountsLoading: loading, accountsError: error, refreshAccounts } = useAccount();
+  const [accounts, setAccounts] = useState<TargetAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TargetAccount | null>(null);
+  
+  // Get account context for default account management
+  const { defaultAccountId, setDefaultAccountId, applyDefaultAccount } = useAccount();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -48,6 +55,33 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     crossAccountRoleArn: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const refreshAccounts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fetchedAccounts = await apiClient.getTargetAccounts();
+      setAccounts(fetchedAccounts);
+      onAccountsChange?.(fetchedAccounts);
+      
+      // Auto-set default account if only one account exists and no default is set
+      if (fetchedAccounts.length === 1 && !defaultAccountId) {
+        const singleAccount = fetchedAccounts[0];
+        setDefaultAccountId(singleAccount.accountId);
+        // Apply the default account selection immediately
+        applyDefaultAccount(singleAccount.accountId);
+      }
+    } catch (err: any) {
+      console.error('Error fetching accounts:', err);
+      setError(err.message || 'Failed to load target accounts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshAccounts();
+  }, []);
   const [saving, setSaving] = useState(false);
 
   // Notify parent component when accounts change
@@ -158,16 +192,45 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     setFormErrors({});
   };
 
+  // Handle default account selection
+  const handleDefaultAccountChange = ({ detail }: { detail: { selectedOption: SelectProps.Option | null } }) => {
+    const accountId = detail.selectedOption?.value || null;
+    setDefaultAccountId(accountId);
+    
+    // Apply the new default immediately if no account is currently selected
+    if (accountId) {
+      applyDefaultAccount(accountId);
+      toast.success('Default account updated');
+    } else {
+      toast.success('Default account cleared');
+    }
+  };
+
+  // Create options for default account selector
+  const defaultAccountOptions: SelectProps.Option[] = [
+    { value: '', label: 'No default account' },
+    ...accounts.map(account => ({
+      value: account.accountId,
+      label: account.accountName 
+        ? `${account.accountName} (${account.accountId})`
+        : account.accountId,
+    })),
+  ];
+
+  const selectedDefaultOption = defaultAccountId 
+    ? defaultAccountOptions.find(opt => opt.value === defaultAccountId) || null
+    : defaultAccountOptions[0];
+
   const getStatusIndicator = (status: string) => {
     switch (status) {
       case 'active':
-        return React.createElement(StatusIndicator, { type: 'success' }, 'Active');
+        return <StatusIndicator type="success">Active</StatusIndicator>;
       case 'pending':
-        return React.createElement(StatusIndicator, { type: 'pending' }, 'Pending');
+        return <StatusIndicator type="pending">Pending</StatusIndicator>;
       case 'error':
-        return React.createElement(StatusIndicator, { type: 'error' }, 'Error');
+        return <StatusIndicator type="error">Error</StatusIndicator>;
       default:
-        return React.createElement(StatusIndicator, { type: 'info' }, 'Unknown');
+        return <StatusIndicator type="info">Unknown</StatusIndicator>;
     }
   };
 
@@ -175,15 +238,15 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     {
       id: 'accountId',
       header: 'Account ID',
-      cell: (item: TargetAccount) => React.createElement(
-        Box,
-        {},
-        item.accountId,
-        item.isCurrentAccount && React.createElement(
-          Box,
-          { variant: 'small', color: 'text-body-secondary' },
-          ' (Current)'
-        )
+      cell: (item: TargetAccount) => (
+        <Box>
+          {item.accountId}
+          {item.isCurrentAccount && (
+            <Box variant="small" color="text-body-secondary">
+              {' '}(Current)
+            </Box>
+          )}
+        </Box>
       ),
       sortingField: 'accountId',
       width: 150,
@@ -200,15 +263,15 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       header: 'Staging Account',
       cell: (item: TargetAccount) => {
         if (!item.stagingAccountId) return '-';
-        return React.createElement(
-          Box,
-          {},
-          item.stagingAccountId,
-          item.stagingAccountName && React.createElement(
-            Box,
-            { variant: 'small', color: 'text-body-secondary' },
-            item.stagingAccountName
-          )
+        return (
+          <Box>
+            {item.stagingAccountId}
+            {item.stagingAccountName && (
+              <Box variant="small" color="text-body-secondary">
+                {item.stagingAccountName}
+              </Box>
+            )}
+          </Box>
         );
       },
       width: 200,
@@ -231,224 +294,219 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     {
       id: 'actions',
       header: 'Actions',
-      cell: (item: TargetAccount) => React.createElement(
-        SpaceBetween,
-        { direction: 'horizontal', size: 'xs' },
-        React.createElement(Button, {
-          variant: 'icon',
-          iconName: 'edit',
-          ariaLabel: 'Edit account',
-          onClick: () => handleOpenModal(item),
-        }),
-        React.createElement(Button, {
-          variant: 'icon',
-          iconName: 'refresh',
-          ariaLabel: 'Validate account',
-          onClick: () => handleValidate(item.accountId),
-        }),
-        React.createElement(Button, {
-          variant: 'icon',
-          iconName: 'remove',
-          ariaLabel: 'Remove account',
-          onClick: () => handleDelete(item.accountId),
-        })
+      cell: (item: TargetAccount) => (
+        <SpaceBetween direction="horizontal" size="xs">
+          <Button
+            variant="icon"
+            iconName="edit"
+            ariaLabel="Edit account"
+            onClick={() => handleOpenModal(item)}
+          />
+          <Button
+            variant="icon"
+            iconName="refresh"
+            ariaLabel="Validate account"
+            onClick={() => handleValidate(item.accountId)}
+          />
+          <Button
+            variant="icon"
+            iconName="remove"
+            ariaLabel="Remove account"
+            onClick={() => handleDelete(item.accountId)}
+          />
+        </SpaceBetween>
       ),
       width: 120,
     },
   ];
-  return React.createElement(
-    SpaceBetween,
-    { size: 'l' },
-    React.createElement(
-      TextContent,
-      {},
-      React.createElement('h3', {}, 'Target Account Management'),
-      React.createElement(
-        'p',
-        {},
-        'Configure target accounts for DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate.'
-      ),
-      React.createElement(
-        'ul',
-        {},
-        React.createElement(
-          'li',
-          {},
-          React.createElement('strong', {}, 'Target Account:'),
-          ' AWS account containing DRS source servers to orchestrate'
-        ),
-        React.createElement(
-          'li',
-          {},
-          React.createElement('strong', {}, 'Same Account:'),
-          ' If target account is the same as this solution account, no cross-account role is needed'
-        ),
-        React.createElement(
-          'li',
-          {},
-          React.createElement('strong', {}, 'Cross-Account Role:'),
-          ' Required only for accessing different AWS accounts - leave empty for same account'
-        ),
-        React.createElement(
-          'li',
-          {},
-          React.createElement('strong', {}, 'Staging Account:'),
-          ' Optional trusted account for staging/testing operations'
-        )
-      )
-    ),
-    error && React.createElement(
-      Alert,
-      {
-        type: 'error',
-        dismissible: false,
-      },
-      error
-    ),
-    React.createElement(
-      Container,
-      {
-        header: React.createElement(
-          Header,
-          {
-            variant: 'h2',
-            counter: `(${accounts.length})`,
-            actions: React.createElement(
-              Button,
-              {
-                variant: 'primary',
-                iconName: 'add-plus',
-                onClick: () => handleOpenModal(),
-              },
-              'Add Target Account'
-            ),
-          },
-          'Target Accounts'
-        ),
-      },
-      React.createElement(Table, {
-        items: accounts,
-        columnDefinitions: columnDefinitions,
-        loading: loading,
-        loadingText: 'Loading target accounts...',
-        empty: React.createElement(
-          Box,
-          { textAlign: 'center', color: 'inherit' },
-          React.createElement(
-            SpaceBetween,
-            { size: 'm' },
-            React.createElement('b', {}, 'No target accounts configured'),
-            React.createElement('p', {}, 'Add target accounts to enable cross-account DRS orchestration.'),
-            React.createElement(
-              Button,
-              {
-                variant: 'primary',
-                onClick: () => handleOpenModal(),
-              },
-              'Add Target Account'
-            )
-          )
-        ),
-        sortingDisabled: true,
-      })
-    ),
-    React.createElement(
-      Modal,
-      {
-        visible: modalVisible,
-        onDismiss: handleCloseModal,
-        header: editingAccount ? 'Edit Target Account' : 'Add Target Account',
-        footer: React.createElement(
-          Box,
-          { float: 'right' },
-          React.createElement(
-            SpaceBetween,
-            { direction: 'horizontal', size: 'xs' },
-            React.createElement(Button, { onClick: handleCloseModal }, 'Cancel'),
-            React.createElement(
-              Button,
-              {
-                variant: 'primary',
-                onClick: handleSave,
-                loading: saving,
-              },
-              editingAccount ? 'Update' : 'Add'
-            )
-          )
-        ),
-        size: 'medium',
-      },
-      React.createElement(
-        SpaceBetween,
-        { size: 'l' },
-        React.createElement(
-          FormField,
-          {
-            label: 'Account ID',
-            description: '12-digit AWS account ID',
-            errorText: formErrors.accountId,
-          },
-          React.createElement(Input, {
-            value: formData.accountId,
-            onChange: ({ detail }) => setFormData(prev => ({ ...prev, accountId: detail.value })),
-            placeholder: '123456789012',
-            disabled: !!editingAccount,
-          })
-        ),
-        React.createElement(
-          FormField,
-          {
-            label: 'Account Name',
-            description: 'Optional friendly name for the account',
-            errorText: formErrors.accountName,
-          },
-          React.createElement(Input, {
-            value: formData.accountName,
-            onChange: ({ detail }) => setFormData(prev => ({ ...prev, accountName: detail.value })),
-            placeholder: 'Production Account',
-          })
-        ),
-        React.createElement(
-          FormField,
-          {
-            label: 'Staging Account ID',
-            description: 'Optional staging account for testing operations',
-            errorText: formErrors.stagingAccountId,
-          },
-          React.createElement(Input, {
-            value: formData.stagingAccountId,
-            onChange: ({ detail }) => setFormData(prev => ({ ...prev, stagingAccountId: detail.value })),
-            placeholder: '123456789013',
-          })
-        ),
-        React.createElement(
-          FormField,
-          {
-            label: 'Staging Account Name',
-            description: 'Optional friendly name for the staging account',
-            errorText: formErrors.stagingAccountName,
-          },
-          React.createElement(Input, {
-            value: formData.stagingAccountName,
-            onChange: ({ detail }) => setFormData(prev => ({ ...prev, stagingAccountName: detail.value })),
-            placeholder: 'Staging Account',
-          })
-        ),
-        React.createElement(
-          FormField,
-          {
-            label: 'Cross-Account Role ARN',
-            description: 'Required only for different AWS accounts. Leave empty if target account is the same as this solution account.',
-            errorText: formErrors.crossAccountRoleArn,
-          },
-          React.createElement(Input, {
-            value: formData.crossAccountRoleArn,
-            onChange: ({ detail }) => setFormData(prev => ({ ...prev, crossAccountRoleArn: detail.value })),
-            placeholder: 'arn:aws:iam::123456789012:role/DRSOrchestrationCrossAccountRole',
-          })
-        )
-      )
-    )
+
+  return (
+    <SpaceBetween size="l">
+      <TextContent>
+        <h3>Target Account Management</h3>
+        <p>
+          Configure target accounts for DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate.
+        </p>
+        <ul>
+          <li>
+            <strong>Target Account:</strong> AWS account containing DRS source servers to orchestrate
+          </li>
+          <li>
+            <strong>Same Account:</strong> If target account is the same as this solution account, no cross-account role is needed
+          </li>
+          <li>
+            <strong>Cross-Account Role:</strong> Required only for accessing different AWS accounts - leave empty for same account
+          </li>
+          <li>
+            <strong>Staging Account:</strong> Optional trusted account for staging/testing operations
+          </li>
+        </ul>
+      </TextContent>
+
+      {error && (
+        <Alert type="error" dismissible={false}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Default Account Preference */}
+      <Container
+        header={
+          <Header variant="h2">
+            Default Account Preference
+          </Header>
+        }
+      >
+        <SpaceBetween size="m">
+          <TextContent>
+            <p>
+              Set a preferred default account to make selection easier. For security, you must still 
+              explicitly select an account each session - this preference just highlights your 
+              preferred choice in the account selector dropdown.
+            </p>
+          </TextContent>
+          
+          <FormField
+            label="Default Account Preference"
+            description="Choose your preferred default account. Note: You will still need to explicitly select an account each session for security - this just makes selection easier by highlighting your preferred choice."
+          >
+            <Select
+              selectedOption={selectedDefaultOption}
+              onChange={handleDefaultAccountChange}
+              options={defaultAccountOptions}
+              placeholder="Select default account"
+              disabled={loading || accounts.length === 0}
+            />
+          </FormField>
+        </SpaceBetween>
+      </Container>
+
+      <Container
+        header={
+          <Header
+            variant="h2"
+            counter={`(${accounts.length})`}
+            actions={
+              <Button
+                variant="primary"
+                iconName="add-plus"
+                onClick={() => handleOpenModal()}
+              >
+                Add Target Account
+              </Button>
+            }
+          >
+            Target Accounts
+          </Header>
+        }
+      >
+        <Table
+          items={accounts}
+          columnDefinitions={columnDefinitions}
+          loading={loading}
+          loadingText="Loading target accounts..."
+          empty={
+            <Box textAlign="center" color="inherit">
+              <SpaceBetween size="m">
+                <b>No target accounts configured</b>
+                <p>Add target accounts to enable cross-account DRS orchestration.</p>
+                <Button
+                  variant="primary"
+                  onClick={() => handleOpenModal()}
+                >
+                  Add Target Account
+                </Button>
+              </SpaceBetween>
+            </Box>
+          }
+          sortingDisabled={true}
+        />
+      </Container>
+
+      <Modal
+        visible={modalVisible}
+        onDismiss={handleCloseModal}
+        header={editingAccount ? 'Edit Target Account' : 'Add Target Account'}
+        footer={
+          <Box float="right">
+            <SpaceBetween direction="horizontal" size="xs">
+              <Button onClick={handleCloseModal}>Cancel</Button>
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                loading={saving}
+              >
+                {editingAccount ? 'Update' : 'Add'}
+              </Button>
+            </SpaceBetween>
+          </Box>
+        }
+        size="medium"
+      >
+        <SpaceBetween size="l">
+          <FormField
+            label="Account ID"
+            description="12-digit AWS account ID"
+            errorText={formErrors.accountId}
+          >
+            <Input
+              value={formData.accountId}
+              onChange={({ detail }) => setFormData(prev => ({ ...prev, accountId: detail.value }))}
+              placeholder="123456789012"
+              disabled={!!editingAccount}
+            />
+          </FormField>
+
+          <FormField
+            label="Account Name"
+            description="Optional friendly name for the account"
+            errorText={formErrors.accountName}
+          >
+            <Input
+              value={formData.accountName}
+              onChange={({ detail }) => setFormData(prev => ({ ...prev, accountName: detail.value }))}
+              placeholder="Production Account"
+            />
+          </FormField>
+
+          <FormField
+            label="Staging Account ID"
+            description="Optional staging account for testing operations"
+            errorText={formErrors.stagingAccountId}
+          >
+            <Input
+              value={formData.stagingAccountId}
+              onChange={({ detail }) => setFormData(prev => ({ ...prev, stagingAccountId: detail.value }))}
+              placeholder="123456789013"
+            />
+          </FormField>
+
+          <FormField
+            label="Staging Account Name"
+            description="Optional friendly name for the staging account"
+            errorText={formErrors.stagingAccountName}
+          >
+            <Input
+              value={formData.stagingAccountName}
+              onChange={({ detail }) => setFormData(prev => ({ ...prev, stagingAccountName: detail.value }))}
+              placeholder="Staging Account"
+            />
+          </FormField>
+
+          <FormField
+            label="Cross-Account Role ARN"
+            description="Required only for different AWS accounts. Leave empty if target account is the same as this solution account."
+            errorText={formErrors.crossAccountRoleArn}
+          >
+            <Input
+              value={formData.crossAccountRoleArn}
+              onChange={({ detail }) => setFormData(prev => ({ ...prev, crossAccountRoleArn: detail.value }))}
+              placeholder="arn:aws:iam::123456789012:role/DRSOrchestrationCrossAccountRole"
+            />
+          </FormField>
+        </SpaceBetween>
+      </Modal>
+    </SpaceBetween>
   );
 };
 

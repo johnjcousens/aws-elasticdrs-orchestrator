@@ -27,6 +27,7 @@ import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { ProtectionGroupDialog } from '../components/ProtectionGroupDialog';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
+import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import apiClient from '../services/api';
 
 /**
@@ -221,7 +222,8 @@ export const ProtectionGroupsPage: React.FC = () => {
           </Header>
         }
       >
-        <Table
+        <AccountRequiredWrapper pageName="Protection Groups">
+          <Table
           {...collectionProps}
           columnDefinitions={[
             {
@@ -330,6 +332,7 @@ export const ProtectionGroupsPage: React.FC = () => {
           onClose={handleDialogClose}
           onSave={handleDialogSave}
         />
+        </AccountRequiredWrapper>
       </ContentLayout>
     </PageTransition>
   );

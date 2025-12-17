@@ -17,6 +17,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { SettingsModal } from '../SettingsModal';
+import { AccountSelector } from '../AccountSelector';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -128,6 +129,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               },
             },
           ]}
+          search={<AccountSelector />}
         />
       </div>
 
