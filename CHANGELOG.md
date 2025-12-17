@@ -4,6 +4,15 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+### Documentation
+
+**README Multi-Account Prototype 1.0 Update** - `f94301b` - December 17, 2025
+
+- Updated Repository Snapshots section with `v1.0.0-multi-account-prototype` tag
+- Added Recent Updates entry highlighting Multi-Account Prototype 1.0 release
+- Referenced complete v1.7.0 changelog for detailed release information
+- Maintained existing documentation structure and formatting consistency
+
 ## [1.7.0] - December 17, 2025
 
 ### 🎉 **MILESTONE: Multi-Account Prototype 1.0** - `905a682`
