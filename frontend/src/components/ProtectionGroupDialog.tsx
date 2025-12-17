@@ -28,6 +28,7 @@ import {
 import { RegionSelector } from './RegionSelector';
 import { ServerDiscoveryPanel } from './ServerDiscoveryPanel';
 import { LaunchConfigSection } from './LaunchConfigSection';
+import { ServerListItem } from './ServerListItem';
 import apiClient from '../services/api';
 import type { ProtectionGroup, ResolvedServer, LaunchConfig } from '../types';
 
@@ -497,55 +498,23 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                       
                       {previewServers.length > 0 ? (
                         <div style={{ maxHeight: '400px', overflow: 'auto', border: '1px solid #e9ebed', borderRadius: '8px' }}>
-                          {previewServers.map((server) => {
-                            const displayName = server.nameTag || server.hostname;
-                            const displayTags = Object.entries(server.tags || {}).filter(([k]) => k !== 'Name');
-                            const getStateStatus = (state?: string) => {
-                              switch (state) {
-                                case 'READY_FOR_RECOVERY': return 'success';
-                                case 'SYNCING': case 'INITIATED': return 'in-progress';
-                                case 'DISCONNECTED': case 'STOPPED': return 'error';
-                                default: return 'pending';
-                              }
-                            };
-                            return (
-                              <div key={server.sourceServerId} style={{ padding: '12px 16px', borderBottom: '1px solid #e9ebed' }}>
-                                {/* Primary: Name with status */}
-                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                                  <span style={{ fontWeight: 600, marginRight: '8px' }}>{displayName}</span>
-                                  <StatusIndicator type={getStateStatus(server.state)}>
-                                    {server.state || server.replicationState}
-                                  </StatusIndicator>
-                                </div>
-                                {/* Secondary: Hostname, Instance ID, IP */}
-                                <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '2px' }}>
-                                  <span style={{ marginRight: '12px' }}><strong>Hostname:</strong> {server.hostname || 'N/A'}</span>
-                                  <span style={{ marginRight: '12px' }}><strong>Instance:</strong> {server.sourceInstanceId || 'N/A'}</span>
-                                  <span><strong>IP:</strong> {server.sourceIp || 'N/A'}</span>
-                                </div>
-                                {/* Tertiary: Region/Account */}
-                                <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '2px' }}>
-                                  <span style={{ marginRight: '12px' }}><strong>Source Region:</strong> {server.sourceRegion || 'N/A'}</span>
-                                  <span><strong>Account:</strong> {server.sourceAccount || 'N/A'}</span>
-                                </div>
-                                {/* Tags */}
-                                {displayTags.length > 0 && (
-                                  <div style={{ fontSize: '11px', color: '#0972d3', marginBottom: '4px' }}>
-                                    <strong>Tags:</strong>{' '}
-                                    {displayTags.map(([key, value]) => (
-                                      <span key={key} style={{ backgroundColor: '#f2f8fd', padding: '1px 6px', borderRadius: '3px', marginRight: '4px' }}>
-                                        {key}={value}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                                {/* DRS Server ID */}
-                                <div style={{ fontSize: '11px', color: '#879596' }}>
-                                  DRS ID: {server.sourceServerId}
-                                </div>
-                              </div>
-                            );
-                          })}
+                          {previewServers.map((server) => (
+                            <ServerListItem
+                              key={server.sourceServerID}
+                              server={{
+                                ...server,
+                                state: server.state || 'UNKNOWN',
+                                replicationState: server.replicationState || 'UNKNOWN',
+                                lagDuration: server.lagDuration || 'UNKNOWN',
+                                lastSeen: server.lastSeen || '',
+                                assignedToProtectionGroup: server.assignedToProtectionGroup || null,
+                                selectable: true // Keep servers looking normal
+                              }}
+                              selected={false} // Preview mode - no selection
+                              onToggle={() => {}} // No-op for preview
+                              showCheckbox={false} // Hide checkbox for tag preview
+                            />
+                          ))}
                         </div>
                       ) : !previewError && (
                         <Box textAlign="center" color="text-body-secondary" padding="s">

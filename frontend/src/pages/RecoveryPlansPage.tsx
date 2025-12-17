@@ -26,6 +26,7 @@ import { useCollection } from '@cloudscape-design/collection-hooks';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useAccount } from '../contexts/AccountContext';
+import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { PageTransition } from '../components/PageTransition';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
@@ -356,7 +357,8 @@ export const RecoveryPlansPage: React.FC = () => {
           </Header>
         }
       >
-        <Table
+        <AccountRequiredWrapper pageName="Recovery Plans">
+          <Table
           {...collectionProps}
           columnDefinitions={[
             {
@@ -583,6 +585,7 @@ export const RecoveryPlansPage: React.FC = () => {
             </Box>
           </SpaceBetween>
         </Modal>
+        </AccountRequiredWrapper>
       </ContentLayout>
     </PageTransition>
   );

@@ -2,7 +2,7 @@
  * Settings Modal Component
  * 
  * Provides configuration export/import functionality accessed via the Settings gear icon.
- * Contains tabs for Export and Import operations.
+ * Contains tabs for Account Management, Export, and Import.
  */
 
 import React, { useState } from 'react';
@@ -26,18 +26,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onDismiss,
 }) => {
   const [activeTab, setActiveTab] = useState('accounts');
-
-  // Only render modal content when visible to prevent unnecessary API calls
-  if (!visible) {
-    return (
-      <Modal
-        visible={false}
-        onDismiss={onDismiss}
-        header="Settings"
-        size="large"
-      />
-    );
-  }
 
   return (
     <Modal

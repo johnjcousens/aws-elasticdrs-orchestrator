@@ -1,59 +1,84 @@
 /**
  * Account Selector Component
  * 
- * Provides account selection UI that integrates with AccountContext.
- * Can be used in headers, toolbars, or anywhere account selection is needed.
+ * Provides account selection dropdown in the top navigation.
+ * Shows current account or prompts user to select one.
  */
 
 import React from 'react';
-import { Select, StatusIndicator, type SelectProps } from '@cloudscape-design/components';
+import {
+  Select,
+  Box,
+  StatusIndicator,
+  SpaceBetween,
+} from '@cloudscape-design/components';
+import type { SelectProps } from '@cloudscape-design/components';
 import { useAccount } from '../contexts/AccountContext';
 
-interface AccountSelectorProps {
-  placeholder?: string;
-  disabled?: boolean;
-  variant?: 'default' | 'compact';
-}
-
-export const AccountSelector: React.FC<AccountSelectorProps> = ({
-  placeholder = "Select account",
-  disabled = false,
-  variant = 'default'
-}) => {
+export const AccountSelector: React.FC = () => {
   const {
     selectedAccount,
     setSelectedAccount,
     availableAccounts,
     accountsLoading,
-    accountsError
+    accountsError,
+    hasSelectedAccount,
+    getAccountSelectionMessage,
   } = useAccount();
 
-  if (accountsError) {
-    return (
-      <StatusIndicator type="error">
-        {accountsError}
-      </StatusIndicator>
-    );
-  }
-
+  // Convert accounts to select options
   const accountOptions: SelectProps.Option[] = availableAccounts.map(account => ({
     value: account.accountId,
     label: account.accountName 
       ? `${account.accountName} (${account.accountId})`
       : account.accountId,
-    description: account.isCurrentAccount ? 'Default (Solution Deployed Here)' : 'Target Account'
+    description: account.isCurrentAccount ? 'Current account' : undefined,
   }));
 
+  const handleSelectionChange = ({ detail }: { detail: { selectedOption: SelectProps.Option } }) => {
+    setSelectedAccount(detail.selectedOption);
+  };
+
+  if (accountsLoading) {
+    return (
+      <Box>
+        <StatusIndicator type="loading">Loading accounts...</StatusIndicator>
+      </Box>
+    );
+  }
+
+  if (accountsError) {
+    return (
+      <Box>
+        <StatusIndicator type="error">Account error</StatusIndicator>
+      </Box>
+    );
+  }
+
+  if (availableAccounts.length === 0) {
+    return (
+      <Box>
+        <StatusIndicator type="warning">No accounts</StatusIndicator>
+      </Box>
+    );
+  }
+
+  // Always show the dropdown, even for single accounts
+  // This ensures users can see which account is selected and change it if needed
+
   return (
-    <Select
-      selectedOption={selectedAccount}
-      onChange={({ detail }) => setSelectedAccount(detail.selectedOption)}
-      options={accountOptions}
-      placeholder={placeholder}
-      disabled={disabled || accountsLoading || availableAccounts.length === 0}
-      loadingText="Loading accounts..."
-      statusType={accountsLoading ? "loading" : undefined}
-      expandToViewport={variant === 'compact'}
-    />
+    <Box>
+      <Select
+        selectedOption={selectedAccount}
+        onChange={handleSelectionChange}
+        options={accountOptions}
+        placeholder="Select target account"
+        statusType={hasSelectedAccount ? "finished" : "pending"}
+        ariaLabel="Select target account"
+        expandToViewport={true}
+        disabled={false}
+        triggerVariant="option"
+      />
+    </Box>
   );
 };
