@@ -53,8 +53,17 @@ const STATUS_LABELS: Record<string, string> = {
   paused: 'Paused',
 };
 
-// Default region for DRS quota display
-const DEFAULT_REGION = 'us-east-1';
+// Common regions to check for finding the busiest region
+const COMMON_REGIONS = [
+  { value: 'us-east-1', label: 'us-east-1 (N. Virginia)' },
+  { value: 'us-east-2', label: 'us-east-2 (Ohio)' },
+  { value: 'us-west-2', label: 'us-west-2 (Oregon)' },
+  { value: 'eu-west-1', label: 'eu-west-1 (Ireland)' },
+  { value: 'eu-central-1', label: 'eu-central-1 (Frankfurt)' },
+  { value: 'ap-northeast-1', label: 'ap-northeast-1 (Tokyo)' },
+  { value: 'ap-southeast-1', label: 'ap-southeast-1 (Singapore)' },
+  { value: 'ap-southeast-2', label: 'ap-southeast-2 (Sydney)' },
+];
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -69,10 +78,8 @@ export const Dashboard: React.FC = () => {
   const [quotasLoading, setQuotasLoading] = useState(false);
   const [quotasError, setQuotasError] = useState<string | null>(null);
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState<SelectProps.Option | null>({
-    value: DEFAULT_REGION,
-    label: 'us-east-1 (N. Virginia)'
-  });
+  const [selectedRegion, setSelectedRegion] = useState<SelectProps.Option | null>(null);
+  const [initialRegionDetected, setInitialRegionDetected] = useState(false);
 
   const fetchExecutions = useCallback(async () => {
     const accountId = getCurrentAccountId();
@@ -112,6 +119,51 @@ export const Dashboard: React.FC = () => {
     }
   }, []);
 
+  // Find the region with the most replicating servers
+  const detectBusiestRegion = useCallback(async (accountId: string) => {
+    setQuotasLoading(true);
+    try {
+      // Fetch quotas for common regions in parallel
+      const results = await Promise.allSettled(
+        COMMON_REGIONS.map(async (region) => {
+          const quotas = await apiClient.getDRSQuotas(accountId, region.value);
+          return { region, quotas };
+        })
+      );
+
+      // Find region with most replicating servers
+      let busiestRegion = COMMON_REGIONS[0];
+      let maxServers = 0;
+      let busiestQuotas: DRSQuotaStatus | null = null;
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const { region, quotas } = result.value;
+          const serverCount = quotas.capacity?.replicatingServers || 0;
+          if (serverCount > maxServers) {
+            maxServers = serverCount;
+            busiestRegion = region;
+            busiestQuotas = quotas;
+          }
+        }
+      }
+
+      // Set the busiest region as default
+      setSelectedRegion(busiestRegion);
+      if (busiestQuotas) {
+        setDrsQuotas(busiestQuotas);
+      }
+      setInitialRegionDetected(true);
+    } catch (err) {
+      console.error('Error detecting busiest region:', err);
+      // Fall back to us-east-1
+      setSelectedRegion(COMMON_REGIONS[0]);
+      setInitialRegionDetected(true);
+    } finally {
+      setQuotasLoading(false);
+    }
+  }, []);
+
   // Fetch executions when account changes
   useEffect(() => {
     fetchExecutions();
@@ -119,18 +171,33 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
-  // Fetch DRS quotas on account/region change and auto-refresh every 30 seconds
+  // Detect busiest region on account change (only once per account)
+  useEffect(() => {
+    const accountId = getCurrentAccountId();
+    if (accountId && !initialRegionDetected) {
+      detectBusiestRegion(accountId);
+    }
+  }, [selectedAccount, getCurrentAccountId, initialRegionDetected, detectBusiestRegion]);
+
+  // Reset region detection when account changes
+  useEffect(() => {
+    setInitialRegionDetected(false);
+    setSelectedRegion(null);
+    setDrsQuotas(null);
+  }, [selectedAccount]);
+
+  // Fetch DRS quotas on region change (after initial detection) and auto-refresh every 30 seconds
   useEffect(() => {
     const accountId = getCurrentAccountId();
     const region = selectedRegion?.value;
-    if (accountId && region) {
+    if (accountId && region && initialRegionDetected) {
       fetchDRSQuotas(accountId, region);
       const interval = setInterval(() => {
         fetchDRSQuotas(accountId, region);
       }, 30000);
       return () => clearInterval(interval);
     }
-  }, [selectedAccount, selectedRegion, fetchDRSQuotas, getCurrentAccountId]);
+  }, [selectedRegion, fetchDRSQuotas, getCurrentAccountId, initialRegionDetected]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -165,8 +232,17 @@ export const Dashboard: React.FC = () => {
     {} as Record<string, number>
   );
 
-  // Active executions (non-terminal)
-  const activeStatuses = ['pending', 'in_progress', 'paused'];
+  // Active executions (non-terminal) - check both lowercase and uppercase
+  const activeStatuses = [
+    'pending', 'PENDING',
+    'in_progress', 'IN_PROGRESS',
+    'paused', 'PAUSED',
+    'running', 'RUNNING',
+    'polling', 'POLLING',
+    'initiated', 'INITIATED',
+    'launching', 'LAUNCHING',
+    'started', 'STARTED',
+  ];
   const activeExecutions = executions.filter((e) =>
     activeStatuses.includes(e.status)
   );
