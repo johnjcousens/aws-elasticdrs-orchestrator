@@ -663,6 +663,8 @@ aws s3 ls s3://drsorchv4-fe-438465159935-test/assets/ | head -5
 
 #### Recent Updates
 
+**December 20, 2025**: **Dashboard Auto-Detect Busiest DRS Region** - Dashboard DRS Capacity panel now automatically detects and displays the region with the most replicating servers instead of defaulting to us-east-1. Checks 8 common regions in parallel on initial load and selects the busiest one as the default view.
+
 **December 17, 2025**: **Complete EC2 Instance Type Support Enhancement** - Enhanced EC2 Launch Configuration to display ALL available instance types supported by DRS in each region (968+ types for us-west-2). Users can now select from the complete range of modern instance families including m6a, m7i, c7g, r7i, and all other current-generation types. Resolved browser caching issues that previously limited selection to a small subset of common instances.
 
 **December 17, 2025**: **Multi-Account Prototype 1.0 Released** - Complete multi-account management system with enhanced tag-based server selection. All artifacts synced to S3 deployment bucket and ready for production deployment using master CloudFormation template. See [v1.7.0 Release Notes](CHANGELOG.md#170---december-17-2025) for complete details.
