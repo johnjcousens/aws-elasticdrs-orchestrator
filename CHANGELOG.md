@@ -6,6 +6,13 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### Enhanced
 
+**Dashboard Auto-Detect Busiest DRS Region** - `718a26c` - December 20, 2025
+
+- Dashboard DRS Capacity panel now automatically detects and displays the region with the most replicating servers
+- Checks 8 common regions in parallel on initial load (us-east-1, us-east-2, us-west-2, eu-west-1, eu-central-1, ap-northeast-1, ap-southeast-1, ap-southeast-2)
+- Selects the busiest region as the default view instead of always defaulting to us-east-1
+- Resets detection when account changes to ensure accurate region selection per account
+
 **Complete EC2 Instance Type Support Enhancement** - `5b0e6db` - December 17, 2025
 
 - **Complete Instance Type Coverage**: Enhanced EC2 Launch Configuration to display ALL 968+ EC2 instance types available in each region
