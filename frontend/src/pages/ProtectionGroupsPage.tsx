@@ -227,6 +227,33 @@ export const ProtectionGroupsPage: React.FC = () => {
           {...collectionProps}
           columnDefinitions={[
             {
+              id: 'actions',
+              header: 'Actions',
+              width: 70,
+              cell: (item) => {
+                const isInRecoveryPlan = groupsInRecoveryPlans.has(item.protectionGroupId);
+                const isInActiveExecution = groupsInActiveExecutions.has(item.protectionGroupId);
+                return (
+                  <ButtonDropdown
+                    items={[
+                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: isInActiveExecution, disabledReason: 'Cannot edit while execution is running' },
+                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: isInRecoveryPlan, disabledReason: 'Remove from recovery plans first' },
+                    ]}
+                    onItemClick={({ detail }) => {
+                      if (detail.id === 'edit') {
+                        handleEdit(item);
+                      } else if (detail.id === 'delete') {
+                        handleDelete(item);
+                      }
+                    }}
+                    expandToViewport
+                    variant="icon"
+                    ariaLabel="Actions"
+                  />
+                );
+              },
+            },
+            {
               id: 'name',
               header: 'Name',
               cell: (item) => item.name,
@@ -258,33 +285,6 @@ export const ProtectionGroupsPage: React.FC = () => {
               header: 'Created',
               cell: (item) => <DateTimeDisplay value={item.createdAt} format="full" />,
               sortingField: 'createdAt',
-            },
-            {
-              id: 'actions',
-              header: 'Actions',
-              width: 120,
-              cell: (item) => {
-                const isInRecoveryPlan = groupsInRecoveryPlans.has(item.protectionGroupId);
-                const isInActiveExecution = groupsInActiveExecutions.has(item.protectionGroupId);
-                return (
-                  <ButtonDropdown
-                    items={[
-                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: isInActiveExecution, disabledReason: 'Cannot edit while execution is running' },
-                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: isInRecoveryPlan, disabledReason: 'Remove from recovery plans first' },
-                    ]}
-                    onItemClick={({ detail }) => {
-                      if (detail.id === 'edit') {
-                        handleEdit(item);
-                      } else if (detail.id === 'delete') {
-                        handleDelete(item);
-                      }
-                    }}
-                    expandToViewport
-                    variant="icon"
-                    ariaLabel="Actions"
-                  />
-                );
-              },
             },
           ]}
           items={items}
