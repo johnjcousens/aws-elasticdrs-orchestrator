@@ -8,18 +8,16 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 **DRS Termination Job Progress Tracking** - December 21, 2025
 
-- **Fixed termination status tracking**: Corrected handling of DRS TERMINATE job status when `participatingServers` array is empty
-- **DRS API Behavior**: AWS DRS clears the `participatingServers` array when a TERMINATE job completes, causing progress to show 0%
-- **Solution**: Now checks job `status` field directly - if all jobs show `COMPLETED`, progress is set to 100%
-- **Removed invalid status**: Removed check for non-existent `TERMINATE_COMPLETED` launchStatus value (only valid values are: PENDING, IN_PROGRESS, LAUNCHED, FAILED, TERMINATED)
-- **Enhanced logging**: Added debug logging for job status and server launchStatus values during termination tracking
+- Fixed termination status tracking when `participatingServers` array is empty
+- Now checks job `status` field directly - if all jobs show `COMPLETED`, progress is set to 100%
+- Removed check for non-existent `TERMINATE_COMPLETED` launchStatus value
 
-**Cancelled Execution UI Auto-Refresh** - December 21, 2025
+### Code Cleanup
 
-- **Fixed polling for CANCELLING status**: ExecutionDetailsPage now continues polling when execution transitions to `CANCELLING` state
-- **Root cause**: Polling stopped when status changed to `CANCELLING` because it wasn't in the `isActive` status list
-- **Solution**: Added `cancelling` and `CANCELLING` to the polling status check
-- **UX improvement**: Cancel button now disabled during `CANCELLING` state to prevent duplicate cancel requests
+**ExecutionDetailsPage Cleanup** - December 21, 2025
+
+- Removed debug console.log statements from termination polling
+- Simplified status handling code
 
 ### Enhanced
 
