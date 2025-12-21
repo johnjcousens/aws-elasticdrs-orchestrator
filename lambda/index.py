@@ -3748,6 +3748,36 @@ def list_executions(query_params: Dict) -> Dict:
                     execution['RecoveryPlanName'] = 'Unknown'
                 execution['SelectionMode'] = 'PLAN'
             
+            # For CANCELLED/CANCELLING executions, check if any wave has active DRS jobs
+            # This helps frontend show them in "Active" section instead of "History"
+            exec_status = execution.get('Status', '').upper()
+            print(f"Checking execution {execution.get('ExecutionId')} with status {exec_status}")
+            if exec_status in ['CANCELLED', 'CANCELLING']:
+                has_active_jobs = False
+                waves = execution.get('Waves', [])
+                print(f"  Found {len(waves)} waves to check for active jobs")
+                for wave in waves:
+                    job_id = wave.get('JobId')
+                    print(f"  Wave JobId: {job_id}, Region: {wave.get('Region')}")
+                    if job_id:
+                        region = wave.get('Region', 'us-east-1')
+                        try:
+                            drs_client = create_drs_client(region)
+                            job_response = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
+                            jobs = job_response.get('items', [])
+                            job_status = jobs[0].get('status') if jobs else 'NOT_FOUND'
+                            print(f"  DRS job {job_id} status: {job_status}")
+                            if jobs and jobs[0].get('status') in ['PENDING', 'STARTED']:
+                                has_active_jobs = True
+                                print(f"  Found active DRS job!")
+                                break
+                        except Exception as job_err:
+                            print(f"Error checking job {job_id}: {job_err}")
+                execution['HasActiveDrsJobs'] = has_active_jobs
+                print(f"  HasActiveDrsJobs set to: {has_active_jobs}")
+            else:
+                execution['HasActiveDrsJobs'] = False
+            
             # Transform to camelCase for frontend
             transformed_executions.append(transform_execution_to_camelcase(execution))
         
@@ -4393,7 +4423,7 @@ def resume_execution(execution_id: str) -> Dict:
             'server_ids': [],
             'error': None,
             'paused_before_wave': paused_before_wave,
-            'account_context': account_context  # Include for cross-account DRS operations
+            'AccountContext': account_context  # PascalCase to match Step Functions expectations
         }
         
         print(f"Resume state: {json.dumps(resume_state, cls=DecimalEncoder)}")
@@ -4608,7 +4638,8 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                         source_server_ids_by_region[region].append(srv_id)
             
             # Only process waves that have a job ID (were actually launched)
-            if job_id and wave_status in ['COMPLETED', 'LAUNCHED', 'PARTIAL']:
+            # Include STARTED status since recovery instances may exist even if wave is still in progress
+            if job_id and wave_status in ['COMPLETED', 'LAUNCHED', 'PARTIAL', 'STARTED', 'IN_PROGRESS', 'RUNNING']:
                 try:
                     drs_client = boto3.client('drs', region_name=region)
                     
@@ -4932,18 +4963,40 @@ def get_termination_job_status(execution_id: str, job_ids_str: str, region: str)
             job_type = job.get('type', '')
             participating = job.get('participatingServers', [])
             
+            print(f"Job {job_id}: status={status}, type={job_type}, servers={len(participating)}")
+            
             job_total = len(participating)
             job_completed = 0
             job_failed = 0
             
+            # DRS clears participatingServers when job completes
+            # If job is COMPLETED with empty servers, treat as all completed
+            if status == 'COMPLETED' and job_total == 0:
+                print(f"Job {job_id} COMPLETED with empty participatingServers - using totalInstances from request")
+                # Job completed successfully - all servers terminated
+                # We don't know exact count, but job is done
+                job_details.append({
+                    'jobId': job_id,
+                    'status': status,
+                    'type': job_type,
+                    'totalServers': 0,
+                    'completedServers': 0,
+                    'failedServers': 0,
+                    'jobCompleted': True
+                })
+                continue
+            
             for server in participating:
                 launch_status = server.get('launchStatus', '')
-                # For TERMINATE jobs: TERMINATED = success, TERMINATE_FAILED = failure
-                if launch_status in ['TERMINATED', 'TERMINATE_COMPLETED']:
+                # DRS launchStatus values: PENDING, IN_PROGRESS, LAUNCHED, FAILED, TERMINATED
+                # For TERMINATE jobs: TERMINATED = success, FAILED = failure
+                if launch_status == 'TERMINATED':
                     job_completed += 1
-                elif launch_status in ['TERMINATE_FAILED', 'FAILED']:
+                elif launch_status == 'FAILED':
                     job_failed += 1
                     any_failed = True
+                # Log for debugging
+                print(f"  Server launchStatus: {launch_status}")
             
             total_servers += job_total
             completed_servers += job_completed
@@ -4967,8 +5020,10 @@ def get_termination_job_status(execution_id: str, job_ids_str: str, region: str)
             progress_percent = int((completed_servers / total_servers) * 100)
         
         # If all jobs completed, set to 100%
-        if all_completed:
+        # This handles the case where DRS clears participatingServers on completion
+        if all_completed or all(j.get('status') == 'COMPLETED' for j in jobs):
             progress_percent = 100
+            all_completed = True
         
         result = {
             'executionId': execution_id,
@@ -4999,9 +5054,10 @@ def delete_completed_executions() -> Dict:
     - COMPLETED executions
     - PARTIAL executions (some servers failed)
     - FAILED executions
-    - CANCELLED executions
+    - CANCELLED executions (only if no active DRS jobs)
     
     Active executions (PENDING, POLLING, INITIATED, LAUNCHING, IN_PROGRESS, RUNNING) are preserved.
+    Cancelled executions with active DRS jobs are also preserved to prevent orphaned jobs.
     """
     try:
         print("Starting bulk delete of completed executions")
@@ -5010,7 +5066,7 @@ def delete_completed_executions() -> Dict:
         # Only delete truly completed executions, NOT active ones
         terminal_states = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'TIMEOUT']
         # Active states to preserve (never delete)
-        active_states = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED']
+        active_states = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'CANCELLING']
         
         # Scan for all executions
         scan_result = execution_history_table.scan()
@@ -5031,13 +5087,54 @@ def delete_completed_executions() -> Dict:
             if ex.get('Status', '').upper() in terminal_states
         ]
         
-        print(f"Found {len(completed_executions)} completed executions to delete")
+        # For CANCELLED executions, check if they have active DRS jobs
+        # This prevents deleting executions that still have running DRS jobs
+        safe_to_delete = []
+        skipped_with_active_jobs = []
         
-        # Delete completed executions (DynamoDB requires ExecutionId + PlanId for delete)
+        for ex in completed_executions:
+            status = ex.get('Status', '').upper()
+            if status == 'CANCELLED':
+                # Check if any wave has an active DRS job
+                has_active_job = False
+                for wave in ex.get('Waves', []):
+                    job_id = wave.get('JobId')
+                    if job_id:
+                        # Get region from wave or default
+                        region = wave.get('Region', 'us-east-1')
+                        try:
+                            drs_client = create_drs_client(region)
+                            job_response = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
+                            jobs = job_response.get('items', [])
+                            if jobs:
+                                job_status = jobs[0].get('status', '')
+                                if job_status in ['PENDING', 'STARTED']:
+                                    has_active_job = True
+                                    print(f"Execution {ex.get('ExecutionId')} has active DRS job {job_id} (status: {job_status})")
+                                    break
+                        except Exception as e:
+                            print(f"Error checking DRS job {job_id}: {e}")
+                            # If we can't check, be safe and skip
+                            has_active_job = True
+                            break
+                
+                if has_active_job:
+                    skipped_with_active_jobs.append(ex.get('ExecutionId'))
+                else:
+                    safe_to_delete.append(ex)
+            else:
+                safe_to_delete.append(ex)
+        
+        if skipped_with_active_jobs:
+            print(f"Skipping {len(skipped_with_active_jobs)} cancelled executions with active DRS jobs: {skipped_with_active_jobs}")
+        
+        print(f"Found {len(safe_to_delete)} executions safe to delete")
+        
+        # Delete safe executions (DynamoDB requires ExecutionId + PlanId for delete)
         deleted_count = 0
         failed_deletes = []
         
-        for execution in completed_executions:
+        for execution in safe_to_delete:
             execution_id = execution.get('ExecutionId')
             plan_id = execution.get('PlanId')
             
@@ -5068,14 +5165,23 @@ def delete_completed_executions() -> Dict:
             'deletedCount': deleted_count,
             'totalScanned': len(all_executions),
             'completedFound': len(completed_executions),
+            'safeToDelete': len(safe_to_delete),
+            'skippedWithActiveJobs': len(skipped_with_active_jobs),
             'activePreserved': len(all_executions) - len(completed_executions)
         }
         
+        if skipped_with_active_jobs:
+            result['skippedExecutionIds'] = skipped_with_active_jobs
+            result['warning'] = f'{len(skipped_with_active_jobs)} cancelled execution(s) skipped due to active DRS jobs'
+        
         if failed_deletes:
             result['failedDeletes'] = failed_deletes
-            result['warning'] = f'{len(failed_deletes)} execution(s) failed to delete'
+            if 'warning' in result:
+                result['warning'] += f'; {len(failed_deletes)} execution(s) failed to delete'
+            else:
+                result['warning'] = f'{len(failed_deletes)} execution(s) failed to delete'
         
-        print(f"Bulk delete completed: {deleted_count} deleted, {len(failed_deletes)} failed")
+        print(f"Bulk delete completed: {deleted_count} deleted, {len(skipped_with_active_jobs)} skipped (active jobs), {len(failed_deletes)} failed")
         return response(200, result)
         
     except Exception as e:
@@ -5914,7 +6020,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
     
     # Transform waves array to camelCase
     waves = []
-    for wave in execution.get('Waves', []):
+    for i, wave in enumerate(execution.get('Waves', [])):
         # Transform servers array to camelCase
         # FIX: DynamoDB stores ServerStatuses (from Step Functions) or ServerIds (legacy)
         servers = []
@@ -5997,6 +6103,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                     })
         
         waves.append({
+            'waveNumber': wave.get('WaveNumber', i),  # Include wave number for frontend
             'waveName': wave.get('WaveName'),
             'protectionGroupId': wave.get('ProtectionGroupId'),
             'region': wave.get('Region'),
@@ -6043,7 +6150,8 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         'totalWaves': total_waves,  # Use stored value from execution creation
         'errorMessage': execution.get('ErrorMessage'),
         'pausedBeforeWave': execution.get('PausedBeforeWave'),  # Wave number paused before (0-indexed)
-        'selectionMode': execution.get('SelectionMode', 'PLAN')  # TAGS or PLAN based on protection group config
+        'selectionMode': execution.get('SelectionMode', 'PLAN'),  # TAGS or PLAN based on protection group config
+        'hasActiveDrsJobs': execution.get('HasActiveDrsJobs', False)  # True if cancelled execution has active DRS jobs
     }
 
 

@@ -126,13 +126,26 @@ export const ExecutionsPage: React.FC = () => {
 
   const activeExecutions = executions.filter((e) => {
     const status = e.status.toUpperCase();
-    return ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'PAUSED', 'RUNNING'].includes(status);
+    // Include standard active statuses
+    if (['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'PAUSED', 'RUNNING'].includes(status)) {
+      return true;
+    }
+    // Also include CANCELLED/CANCELLING executions that still have active DRS jobs
+    if (['CANCELLED', 'CANCELLING'].includes(status) && e.hasActiveDrsJobs) {
+      return true;
+    }
+    return false;
   });
 
   const historyExecutions = executions.filter((e) => {
     const status = e.status.toUpperCase();
     const isTerminal = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'ROLLED_BACK', 'TIMEOUT'].includes(status);
     if (!isTerminal) return false;
+    
+    // Exclude CANCELLED executions that still have active DRS jobs (they show in Active)
+    if (['CANCELLED', 'CANCELLING'].includes(status) && e.hasActiveDrsJobs) {
+      return false;
+    }
     
     // Apply source filter
     if (sourceFilter?.value && (e as any).invocationSource !== sourceFilter.value) {
@@ -306,6 +319,7 @@ export const ExecutionsPage: React.FC = () => {
                     <Table
                       {...collectionProps}
                       columnDefinitions={[
+                        { id: 'actions', header: 'Actions', cell: (item) => <Button variant="inline-link" iconName="external" onClick={() => handleViewDetails(item)}>View</Button>, width: 70 },
                         { id: 'plan', header: 'Plan Name', cell: (item) => item.recoveryPlanName || '-', sortingField: 'recoveryPlanName', width: 180 },
                         { id: 'status', header: 'Status', cell: (item) => <StatusBadge status={item.status} />, width: 110 },
                         { 
@@ -346,8 +360,6 @@ export const ExecutionsPage: React.FC = () => {
                         { id: 'waves', header: 'Waves', cell: (item) => (item.totalWaves > 0 ? `${item.totalWaves} waves` : '-'), width: 70 },
                         { id: 'started', header: 'Started', cell: (item) => <DateTimeDisplay value={item.startTime} format="full" />, width: 150 },
                         { id: 'completed', header: 'Completed', cell: (item) => (item.endTime ? <DateTimeDisplay value={item.endTime} format="full" /> : '-'), width: 150 },
-                        { id: 'duration', header: 'Duration', cell: (item) => calculateDuration(item), width: 80 },
-                        { id: 'actions', header: 'Actions', cell: (item) => <Button variant="inline-link" iconName="external" onClick={() => handleViewDetails(item)}>View</Button>, width: 70 },
                       ]}
                       items={items}
                       loading={loading}
