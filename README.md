@@ -77,7 +77,8 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Real-Time Dashboard**: Live execution progress with wave-level status tracking
 - **Invocation Source Tracking**: Track execution origin (UI, CLI, API, EVENTBRIDGE, SSM, STEPFUNCTIONS)
 - **Pause/Resume Control**: Pause executions between waves for validation and resume when ready
-- **Instance Termination**: Terminate recovery instances after successful testing
+- **Instance Termination**: Terminate recovery instances after successful testing with accurate progress tracking
+- **Termination Progress** 🆕: Fixed progress tracking to correctly show 100% when DRS TERMINATE jobs complete
 - **DRS Job Events**: Real-time DRS job event monitoring with 3-second auto-refresh and collapsible view
 - **Loading State Management**: Prevents multiple button clicks during operations with visual feedback
 - **Execution History**: Complete audit trail of all recovery executions with source badges

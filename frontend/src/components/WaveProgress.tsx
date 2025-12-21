@@ -42,6 +42,8 @@ interface WaveProgressProps {
   currentWave?: number;
   totalWaves?: number;  // Total waves from recovery plan (not just executed waves)
   executionId?: string; // For fetching job logs
+  executionStatus?: string; // Execution status (for capping wave duration on cancelled executions)
+  executionEndTime?: string | number; // Execution end time (for capping wave duration)
 }
 
 /**
@@ -163,15 +165,37 @@ const parseTimestamp = (timestamp: string | number | undefined): Date | null => 
 
 /**
  * Calculate wave duration
+ * For cancelled/cancelling executions, caps the wave duration at the execution end time
+ * to avoid showing misleading durations when waves continue after cancellation
  */
-const calculateWaveDuration = (wave: WaveExecution): string => {
+const calculateWaveDuration = (
+  wave: WaveExecution, 
+  executionStatus?: string, 
+  executionEndTime?: string | number
+): string => {
   if (!wave.startTime) return '-';
   
   const start = parseTimestamp(wave.startTime);
   if (!start) return '-';
   
-  const end = wave.endTime ? parseTimestamp(wave.endTime) : new Date();
+  let end = wave.endTime ? parseTimestamp(wave.endTime) : new Date();
   if (!end) return '-';
+  
+  // For cancelled/cancelling executions, cap wave duration at execution end time
+  // This applies to ALL waves (in-progress or completed) to show accurate duration
+  // at the time of cancellation, not the time waves actually finished
+  const isCancelledOrCancelling = executionStatus && 
+    ['cancelled', 'cancelling'].includes(executionStatus.toLowerCase());
+  
+  if (isCancelledOrCancelling && executionEndTime) {
+    const execEnd = parseTimestamp(executionEndTime);
+    if (execEnd) {
+      // Cap at execution end time for all waves
+      if (end.getTime() > execEnd.getTime()) {
+        end = execEnd;
+      }
+    }
+  }
   
   const durationMs = end.getTime() - start.getTime();
   
@@ -372,6 +396,9 @@ const ServerStatusRow: React.FC<{ server: ServerExecution }> = ({ server }) => {
 
 /**
  * Calculate overall progress percentage
+ * 
+ * For cancelled executions, only count waves that actually ran (not cancelled waves).
+ * This gives a more accurate representation of what was accomplished before cancellation.
  */
 /**
  * Calculate progress using job logs for accurate DRS phase detection
@@ -380,12 +407,24 @@ const calculateOverallProgressWithLogs = (
   waves: WaveExecution[], 
   planTotalWaves?: number,
   jobLogs?: Record<number, WaveJobLogs>
-): { percentage: number; completedWaves: number; totalWaves: number } => {
-  if (!waves || waves.length === 0) return { percentage: 0, completedWaves: 0, totalWaves: planTotalWaves || 0 };
+): { percentage: number; completedWaves: number; totalWaves: number; activeWaves: number } => {
+  if (!waves || waves.length === 0) return { percentage: 0, completedWaves: 0, totalWaves: planTotalWaves || 0, activeWaves: 0 };
   
   const totalWaves = planTotalWaves || waves.length;
   const completedWaves = waves.filter(w => ['completed', 'COMPLETED'].includes(w.status)).length;
-  const waveWeight = 100 / totalWaves;
+  
+  // Count waves that are actually running (not cancelled/pending)
+  const activeWaves = waves.filter(w => {
+    const status = (w.status || '').toUpperCase();
+    return ['STARTED', 'IN_PROGRESS', 'POLLING', 'LAUNCHING', 'INITIATED'].includes(status);
+  }).length;
+  
+  // Count cancelled waves (these shouldn't contribute to progress)
+  const cancelledWaves = waves.filter(w => ['cancelled', 'CANCELLED'].includes(w.status)).length;
+  
+  // If all non-completed waves are cancelled, show progress based on completed waves only
+  const effectiveWaves = totalWaves - cancelledWaves;
+  const waveWeight = effectiveWaves > 0 ? 100 / effectiveWaves : 0;
   
   // DRS phase weights (must sum to 1.0)
   const phaseProgress: Record<string, number> = {
@@ -405,6 +444,11 @@ const calculateOverallProgressWithLogs = (
     const status = (wave.status || 'pending').toUpperCase();
     const waveNum = wave.waveNumber ?? 0;
     const waveJobLogs = jobLogs?.[waveNum];
+    
+    // Skip cancelled waves - they don't contribute to progress
+    if (status === 'CANCELLED') {
+      continue;
+    }
     
     let wavePhaseProgress = 0;
     
@@ -452,7 +496,8 @@ const calculateOverallProgressWithLogs = (
   return { 
     percentage: Math.min(Math.round(totalProgress), 100), 
     completedWaves, 
-    totalWaves 
+    totalWaves,
+    activeWaves
   };
 };
 
@@ -461,7 +506,14 @@ const calculateOverallProgressWithLogs = (
  * 
  * Visualizes execution progress through waves with expandable server details.
  */
-export const WaveProgress: React.FC<WaveProgressProps> = ({ waves, currentWave, totalWaves: planTotalWaves, executionId }) => {
+export const WaveProgress: React.FC<WaveProgressProps> = ({ 
+  waves, 
+  currentWave, 
+  totalWaves: planTotalWaves, 
+  executionId,
+  executionStatus,
+  executionEndTime
+}) => {
   const hasWaves = waves && waves.length > 0;
   
   // State for job logs
@@ -617,11 +669,11 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({ waves, currentWave, 
                   <div style={{ fontSize: '13px', color: '#5f6b7a', marginTop: '4px' }}>
                     {statusDescription}
                   </div>
-                  {wave.startTime && (
+                  {wave.startTime && !['cancelled', 'CANCELLED', 'skipped', 'SKIPPED', 'pending', 'PENDING'].includes(wave.status) && (
                     <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
                       Started {formatRelativeTime(wave.startTime)}
                       {' • '}
-                      Duration: {calculateWaveDuration(wave)}
+                      Duration: {calculateWaveDuration(wave, executionStatus, executionEndTime)}
                       {wave.jobId && (
                         <span> • Job: <code style={{ fontSize: '11px' }}>{wave.jobId}</code></span>
                       )}

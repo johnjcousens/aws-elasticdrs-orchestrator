@@ -34,7 +34,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Main Lambda handler for Execution Poller.
     
-    Invoked by Execution Finder for each execution in POLLING status.
+    Invoked by Execution Finder for each execution in POLLING or CANCELLING status.
     Polls DRS job status and updates DynamoDB.
     
     Args:
@@ -69,8 +69,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 })
             }
         
-        # Check if execution has timed out
-        if has_execution_timed_out(execution, start_time):
+        # Check if execution is being cancelled
+        execution_status = execution.get('Status', 'POLLING')
+        is_cancelling = execution_status == 'CANCELLING'
+        
+        if is_cancelling:
+            logger.info(f"Execution {execution_id} is CANCELLING - polling in-progress waves only")
+        
+        # Check if execution has timed out (skip timeout for CANCELLING - we want to finalize)
+        if not is_cancelling and has_execution_timed_out(execution, start_time):
             logger.warning(f"Execution {execution_id} has timed out (>{TIMEOUT_THRESHOLD_SECONDS}s)")
             handle_timeout(execution_id, plan_id, execution)
             return {
@@ -85,15 +92,48 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Poll wave status from DRS
         waves = execution.get('Waves', [])
         updated_waves = []
-        all_waves_complete = True
+        all_active_waves_complete = True
+        waves_polled = 0
+        
+        # Statuses that indicate a wave is in-progress and needs polling
+        IN_PROGRESS_STATUSES = {'IN_PROGRESS', 'POLLING', 'LAUNCHING', 'INITIATED', 'STARTED', 'PENDING'}
         
         for wave in waves:
-            updated_wave = poll_wave_status(wave, execution_type)
-            updated_waves.append(updated_wave)
+            wave_status = wave.get('Status', '')
             
-            # Check if wave is complete
-            if updated_wave.get('Status') not in COMPLETED_STATUSES:
-                all_waves_complete = False
+            # For CANCELLING executions, only poll waves that are in-progress
+            if is_cancelling:
+                if wave_status in IN_PROGRESS_STATUSES:
+                    logger.info(f"Polling in-progress wave {wave.get('WaveId')} (status: {wave_status})")
+                    updated_wave = poll_wave_status(wave, execution_type)
+                    waves_polled += 1
+                    
+                    # Set EndTime on wave if it just completed
+                    if updated_wave.get('Status') in COMPLETED_STATUSES and not updated_wave.get('EndTime'):
+                        updated_wave['EndTime'] = int(datetime.now(timezone.utc).timestamp())
+                        logger.info(f"Wave {wave.get('WaveId')} completed, set EndTime")
+                    
+                    updated_waves.append(updated_wave)
+                    
+                    # Check if this wave is still in progress
+                    if updated_wave.get('Status') not in COMPLETED_STATUSES:
+                        all_active_waves_complete = False
+                else:
+                    # Wave already completed or cancelled - keep as-is
+                    updated_waves.append(wave)
+            else:
+                # Normal polling - poll all waves
+                updated_wave = poll_wave_status(wave, execution_type)
+                
+                # Set EndTime on wave if it just completed
+                if updated_wave.get('Status') in COMPLETED_STATUSES and not updated_wave.get('EndTime'):
+                    updated_wave['EndTime'] = int(datetime.now(timezone.utc).timestamp())
+                
+                updated_waves.append(updated_wave)
+                
+                # Check if wave is complete
+                if updated_wave.get('Status') not in COMPLETED_STATUSES:
+                    all_active_waves_complete = False
         
         # Update execution in DynamoDB
         update_execution_waves(execution_id, plan_id, updated_waves)
@@ -102,18 +142,31 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         update_last_polled_time(execution_id, plan_id)
         
         # Check if execution is complete
-        if all_waves_complete:
-            logger.info(f"All waves complete for execution {execution_id}")
-            finalize_execution(execution_id, plan_id, updated_waves)
-            
-            return {
-                'statusCode': 200,
-                'body': json.dumps({
-                    'ExecutionId': execution_id,
-                    'Status': 'COMPLETED',
-                    'message': 'Execution completed successfully'
-                })
-            }
+        if all_active_waves_complete:
+            if is_cancelling:
+                logger.info(f"All in-progress waves complete for CANCELLING execution {execution_id}")
+                finalize_execution(execution_id, plan_id, updated_waves, final_status='CANCELLED')
+                
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps({
+                        'ExecutionId': execution_id,
+                        'Status': 'CANCELLED',
+                        'message': 'Cancelled execution finalized after in-progress waves completed'
+                    })
+                }
+            else:
+                logger.info(f"All waves complete for execution {execution_id}")
+                finalize_execution(execution_id, plan_id, updated_waves)
+                
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps({
+                        'ExecutionId': execution_id,
+                        'Status': 'COMPLETED',
+                        'message': 'Execution completed successfully'
+                    })
+                }
         
         # Record polling metrics
         record_poller_metrics(execution_id, execution_type, updated_waves)
@@ -122,8 +175,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'statusCode': 200,
             'body': json.dumps({
                 'ExecutionId': execution_id,
-                'Status': 'POLLING',
-                'WavesPolled': len(updated_waves),
+                'Status': execution_status,
+                'WavesPolled': waves_polled if is_cancelling else len(updated_waves),
                 'message': 'Polling in progress'
             })
         }
@@ -536,7 +589,7 @@ def update_last_polled_time(execution_id: str, plan_id: str) -> None:
         logger.error(f"Error updating last polled time: {str(e)}", exc_info=True)
         # Non-critical error, don't raise
 
-def finalize_execution(execution_id: str, plan_id: str, waves: List[Dict[str, Any]]) -> None:
+def finalize_execution(execution_id: str, plan_id: str, waves: List[Dict[str, Any]], final_status: Optional[str] = None) -> None:
     """
     Mark execution as complete.
     
@@ -547,15 +600,19 @@ def finalize_execution(execution_id: str, plan_id: str, waves: List[Dict[str, An
         execution_id: Execution ID
         plan_id: Plan ID
         waves: Final wave records
+        final_status: Optional override for final status (e.g., 'CANCELLED')
     """
     try:
         # Determine overall status
-        if all(w.get('Status') == 'COMPLETED' for w in waves):
-            final_status = 'COMPLETED'
+        if final_status:
+            # Use provided final status (e.g., CANCELLED)
+            status = final_status
+        elif all(w.get('Status') == 'COMPLETED' for w in waves):
+            status = 'COMPLETED'
         elif any(w.get('Status') == 'FAILED' for w in waves):
-            final_status = 'FAILED'
+            status = 'FAILED'
         else:
-            final_status = 'COMPLETED_WITH_WARNINGS'
+            status = 'COMPLETED_WITH_WARNINGS'
         
         end_time = int(datetime.now(timezone.utc).timestamp())
         
@@ -571,13 +628,13 @@ def finalize_execution(execution_id: str, plan_id: str, waves: List[Dict[str, An
                 '#status': 'Status'
             },
             ExpressionAttributeValues={
-                ':status': {'S': final_status},
+                ':status': {'S': status},
                 ':end_time': {'N': str(end_time)},
                 ':waves': {'L': [format_wave_for_dynamodb(w) for w in waves]}
             }
         )
         
-        logger.info(f"Execution {execution_id} finalized with status {final_status}")
+        logger.info(f"Execution {execution_id} finalized with status {status}")
         
     except Exception as e:
         logger.error(f"Error finalizing execution: {str(e)}", exc_info=True)

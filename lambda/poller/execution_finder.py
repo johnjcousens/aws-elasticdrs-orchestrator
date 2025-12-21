@@ -105,41 +105,50 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 def query_polling_executions() -> List[Dict[str, Any]]:
     """
-    Query DynamoDB StatusIndex GSI for executions with Status=POLLING.
+    Query DynamoDB StatusIndex GSI for executions that need polling.
+    
+    Queries for:
+    - Status=POLLING: Active executions being monitored
+    - Status=CANCELLING: Cancelled executions with in-progress waves that need final status update
     
     CRITICAL: Status is a reserved keyword in DynamoDB.
     MUST use ExpressionAttributeNames to avoid ValidationException.
     
     Returns:
-        List of execution records in POLLING status
+        List of execution records that need polling
     """
-    try:
-        # CRITICAL: Use expression attribute names for reserved keyword "Status"
-        response = dynamodb.query(
-            TableName=EXECUTION_HISTORY_TABLE,
-            IndexName=STATUS_INDEX_NAME,
-            KeyConditionExpression='#status = :status',
-            ExpressionAttributeNames={
-                '#status': 'Status'  # Required: Status is reserved keyword
-            },
-            ExpressionAttributeValues={
-                ':status': {'S': 'POLLING'}
-            }
-        )
-        
-        logger.info(f"DynamoDB query returned {response['Count']} items")
-        
-        # Parse DynamoDB items to Python dicts
-        executions = []
-        for item in response.get('Items', []):
-            execution = parse_dynamodb_item(item)
-            executions.append(execution)
-        
-        return executions
-        
-    except Exception as e:
-        logger.error(f"Error querying StatusIndex: {str(e)}", exc_info=True)
-        raise
+    executions = []
+    
+    # Statuses that need polling
+    statuses_to_poll = ['POLLING', 'CANCELLING']
+    
+    for status in statuses_to_poll:
+        try:
+            # CRITICAL: Use expression attribute names for reserved keyword "Status"
+            response = dynamodb.query(
+                TableName=EXECUTION_HISTORY_TABLE,
+                IndexName=STATUS_INDEX_NAME,
+                KeyConditionExpression='#status = :status',
+                ExpressionAttributeNames={
+                    '#status': 'Status'  # Required: Status is reserved keyword
+                },
+                ExpressionAttributeValues={
+                    ':status': {'S': status}
+                }
+            )
+            
+            logger.info(f"DynamoDB query for {status} returned {response['Count']} items")
+            
+            # Parse DynamoDB items to Python dicts
+            for item in response.get('Items', []):
+                execution = parse_dynamodb_item(item)
+                executions.append(execution)
+            
+        except Exception as e:
+            logger.error(f"Error querying StatusIndex for {status}: {str(e)}", exc_info=True)
+            raise
+    
+    return executions
 
 def parse_dynamodb_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """

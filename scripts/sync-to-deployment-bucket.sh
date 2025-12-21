@@ -572,6 +572,8 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         for local_file in "${!LAMBDA_FUNCTIONS[@]}"; do
             func_name="${LAMBDA_FUNCTIONS[$local_file]}"
+            # Extract suffix from filename (e.g., "index.py" -> "index", "poller/execution_finder.py" -> "execution_finder")
+            func_suffix=$(basename "$local_file" .py)
             
             if [ -f "$local_file" ]; then
                 echo "📦 Packaging $func_suffix..."

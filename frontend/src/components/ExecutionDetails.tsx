@@ -340,6 +340,8 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
                 waves={execution.waveExecutions || []} 
                 totalWaves={execution.totalWaves}
                 executionId={execution.executionId}
+                executionStatus={execution.status}
+                executionEndTime={execution.endTime}
               />
             </Container>
           </SpaceBetween>
