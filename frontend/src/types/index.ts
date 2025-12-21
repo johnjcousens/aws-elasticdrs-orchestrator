@@ -270,6 +270,7 @@ export type ExecutionStatus =
   | 'failed'
   | 'rolled_back'
   | 'cancelled'
+  | 'cancelling'
   | 'paused';
 
 export interface Execution {
@@ -395,6 +396,7 @@ export interface ExecutionListItem {
   executedBy?: string;
   executionType?: 'DRILL' | 'RECOVERY';  // Execution type (DRILL or RECOVERY)
   selectionMode?: 'TAGS' | 'PLAN';  // Server selection mode (tag-based or plan-based)
+  hasActiveDrsJobs?: boolean;  // True if cancelled execution still has active DRS jobs
   
   // Unified orchestration fields
   invocationSource?: InvocationSource;

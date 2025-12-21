@@ -96,11 +96,13 @@ export const ExecutionDetailsPage: React.FC = () => {
       execution.status === 'polling' ||
       execution.status === 'launching' ||
       execution.status === 'initiated' ||
+      execution.status === 'cancelling' ||
       (execution.status as string) === 'RUNNING' ||
       (execution.status as string) === 'STARTED' ||
       (execution.status as string) === 'POLLING' ||
       (execution.status as string) === 'LAUNCHING' ||
-      (execution.status as string) === 'INITIATED';
+      (execution.status as string) === 'INITIATED' ||
+      (execution.status as string) === 'CANCELLING';
 
     if (!isActive) return;
 
@@ -136,12 +138,17 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     // Poll for termination job status if we have job IDs
     const pollTerminationStatus = async () => {
+      console.log('[Termination Poll] terminationJobInfo:', terminationJobInfo);
+      console.log('[Termination Poll] jobIds:', terminationJobInfo?.jobIds);
       if (terminationJobInfo?.jobIds?.length && executionId) {
         try {
           const region = terminationJobInfo.region || 'us-west-2';
+          console.log('[Termination Poll] Calling getTerminationStatus with jobIds:', terminationJobInfo.jobIds, 'region:', region);
           const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
+          console.log('[Termination Poll] Status result:', statusResult);
           
           if (statusResult.progressPercent !== undefined) {
+            console.log('[Termination Poll] Setting progress to:', statusResult.progressPercent);
             setTerminationProgress(statusResult.progressPercent);
           }
           
@@ -232,8 +239,11 @@ export const ExecutionDetailsPage: React.FC = () => {
         // Store job info for progress tracking
         const resultAny = result as any;
         const jobIds = (resultAny.jobs || []).map((j: any) => j.jobId).filter(Boolean);
+        console.log('[Terminate] API result:', result);
+        console.log('[Terminate] Extracted jobIds:', jobIds);
         // Get region from first job or execution
         const region = (resultAny.jobs?.[0]?.region) || (execution as any)?.drsRegion || 'us-west-2';
+        console.log('[Terminate] Setting terminationJobInfo with region:', region);
         setTerminationJobInfo({
           totalInstances: result.totalTerminated,
           jobIds: jobIds,
@@ -396,6 +406,10 @@ export const ExecutionDetailsPage: React.FC = () => {
     (execution.status as string) === 'POLLING' ||
     (execution.status as string) === 'LAUNCHING' ||
     (execution.status as string) === 'INITIATED'
+  ) && !(
+    // Don't allow cancel if already cancelling
+    execution.status === 'cancelling' ||
+    (execution.status as string) === 'CANCELLING'
   );
 
   // Check if instances have already been terminated
@@ -751,6 +765,8 @@ export const ExecutionDetailsPage: React.FC = () => {
               waves={mapWavesToWaveExecutions(execution)} 
               totalWaves={execution.totalWaves} 
               executionId={execution.executionId}
+              executionStatus={execution.status}
+              executionEndTime={execution.endTime}
             />
           </Container>
         </SpaceBetween>
