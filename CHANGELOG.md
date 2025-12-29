@@ -6,6 +6,13 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### Fixed
 
+**Terminate-Instances API Error Handling** - December 29, 2025
+
+- Changed terminate-instances API response from 400 Bad Request to 200 OK when no recovery instances exist
+- Provides better user experience for executions cancelled before any instances were launched
+- Returns structured response with clear messaging: "No recovery instances to terminate"
+- Maintains API consistency and prevents confusing error messages in browser console
+
 **ExecutionDetailsPage Cancellation Status Handling** - December 29, 2025
 
 - Added 'cancelling' status to polling list to keep UI updates active during cancellation
