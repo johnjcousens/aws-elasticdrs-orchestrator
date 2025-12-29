@@ -410,22 +410,27 @@ export const ExecutionDetailsPage: React.FC = () => {
   );
 
   // Check if recovery instances can be terminated
-  // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated
+  // Only enabled when execution has completed waves with launched recovery instances
   const canTerminate = execution && (() => {
-    const terminalStatuses = [
-      'completed', 'cancelled', 'failed', 'partial',
-      'COMPLETED', 'CANCELLED', 'FAILED', 'PARTIAL'
-    ];
-    const isTerminal = terminalStatuses.includes(execution.status as string);
-    
-    // Check if any wave has a jobId (meaning recovery instances were launched)
-    const waves = (execution as any).waves || execution.waveExecutions || [];
-    const hasJobId = waves.some((wave: any) => wave.jobId || wave.JobId);
-    
     // Don't show button if already terminated
     if (instancesAlreadyTerminated) return false;
     
-    return isTerminal && hasJobId;
+    // Check if any wave has actually launched recovery instances
+    // A wave must be completed/launched AND have a job ID to have recovery instances
+    const waves = (execution as any).waves || execution.waveExecutions || [];
+    const hasLaunchedInstances = waves.some((wave: any) => {
+      const waveStatus = (wave.status || wave.Status || '').toLowerCase();
+      const hasJobId = wave.jobId || wave.JobId;
+      
+      // Wave must have completed launch process to have recovery instances
+      const launchCompleted = [
+        'completed', 'launched', 'partial', 'failed'
+      ].includes(waveStatus);
+      
+      return hasJobId && launchCompleted;
+    });
+    
+    return hasLaunchedInstances;
   })();
   
   // Show terminated status badge instead of button when already terminated

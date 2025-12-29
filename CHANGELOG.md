@@ -6,6 +6,13 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### Fixed
 
+**Terminate-Instances Button Visibility Logic** - December 29, 2025
+
+- Fixed terminate button showing for executions with active/in-progress waves
+- Button now only appears when waves have actually completed launch and have recovery instances
+- Prevents showing terminate button for executions where Wave 1 is still converting/launching
+- Improved user experience by hiding inappropriate actions
+
 **Terminate-Instances API Error Handling** - December 29, 2025
 
 - Changed terminate-instances API response from 400 Bad Request to 200 OK when no recovery instances exist
