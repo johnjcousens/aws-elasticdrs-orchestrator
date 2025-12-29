@@ -6,6 +6,21 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### Fixed
 
+**CRITICAL: Cross-Account Terminate Instances Support** - December 29, 2025
+
+- Fixed terminate instances functionality to work with cross-account executions
+- Terminate function now uses the same account context as the original execution
+- Calls `determine_target_account_context()` to get proper account/role information from Recovery Plan
+- Uses `create_drs_client()` with cross-account credentials instead of current account only
+- Prevents silent failures when trying to terminate instances in different AWS accounts
+- Maintains backward compatibility for single-account deployments
+
+**Technical Details:**
+- Updated `terminate_recovery_instances()` function to retrieve Recovery Plan and determine account context
+- Integrated existing cross-account infrastructure (`determine_target_account_context`, `create_drs_client`)
+- Creates DRS clients with proper assumed role credentials for target accounts
+- Ensures terminate works consistently with the execution logic that created the instances
+
 **CRITICAL: InstancesTerminated Flag Timing Issue** - December 29, 2025
 
 - Fixed critical bug where `InstancesTerminated` flag was set when termination was **initiated**, not **completed**
