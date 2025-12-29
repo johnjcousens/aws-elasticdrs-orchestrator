@@ -26,18 +26,36 @@ All notable changes to the AWS DRS Orchestration Solution project.
 - Updated canCancel logic to prevent duplicate cancel requests while cancellation is in progress
 - Added executionStatus and executionEndTime props to WaveProgress component for proper status display
 
+**Terminate-Instances Progress Bar Fix** - December 29, 2025
+
+- Fixed termination progress bar staying at 0% throughout the process
+- Enhanced Lambda backend logic to handle DRS clearing `participatingServers` array on job completion
+- Added fallback progress calculation using job status when server list is empty
+- Progress now starts at 10% and properly tracks to 100% completion
+- Improved user experience with accurate visual feedback during instance termination
+
+**Terminate-Instances Button Logic Enhancement** - December 29, 2025
+
+- Fixed button showing inappropriately when instances already terminated
+- Added comprehensive validation to ensure recovery instances actually exist before showing button
+- Enhanced detection of completed jobs with launched instances by checking job events
+- Fixed edge case where Wave 1 shows `status=started` but job actually completed with launched instances
+- Added special handling for cancelled executions with job IDs
+- Improved console logging for debugging button visibility logic
+
+### Code Cleanup
+
+**ExecutionDetailsPage Debug Cleanup** - December 29, 2025
+
+- Removed debug console.log statements from terminate button visibility logic
+- Cleaned up termination status polling console output
+- Simplified debugging code for production deployment
+
 **DRS Termination Job Progress Tracking** - December 21, 2025
 
 - Fixed termination status tracking when `participatingServers` array is empty
 - Now checks job `status` field directly - if all jobs show `COMPLETED`, progress is set to 100%
 - Removed check for non-existent `TERMINATE_COMPLETED` launchStatus value
-
-### Code Cleanup
-
-**ExecutionDetailsPage Cleanup** - December 21, 2025
-
-- Removed debug console.log statements from termination polling
-- Simplified status handling code
 
 ### Enhanced
 
