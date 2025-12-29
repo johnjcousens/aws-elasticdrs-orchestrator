@@ -6,6 +6,22 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### Fixed
 
+**CRITICAL: InstancesTerminated Flag Timing Issue** - December 29, 2025
+
+- Fixed critical bug where `InstancesTerminated` flag was set when termination was **initiated**, not **completed**
+- Lambda function now only sets `InstancesTerminated=True` when DRS termination jobs are actually **completed**
+- Added monitoring logic in `get_termination_job_status` to detect job completion and update flag correctly
+- Removed frontend workaround logic that was calling API to check instance existence
+- Fixed terminate button showing after instances were already terminated
+- Simplified frontend terminate button logic to rely on backend `InstancesTerminated` flag
+- Enhanced Lambda logging for termination job monitoring and completion detection
+
+**Technical Details:**
+- Modified `terminate_recovery_instances` function to store job info without setting completion flag
+- Enhanced `get_termination_job_status` function to update `InstancesTerminated=True` when all jobs complete
+- Removed `instancesExistCheck` workaround from frontend ExecutionDetailsPage
+- Fixed DynamoDB query to use composite key (ExecutionId + PlanId) correctly
+
 **Terminate-Instances Button Visibility Logic** - December 29, 2025
 
 - Fixed terminate button showing for executions with active/in-progress waves
