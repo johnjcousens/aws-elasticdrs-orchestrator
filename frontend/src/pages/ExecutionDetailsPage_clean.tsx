@@ -39,19 +39,11 @@ export const ExecutionDetailsPage: React.FC = () => {
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [resuming, setResuming] = useState(false);
-  const [resumeInProgress, setResumeInProgress] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const [terminateDialogOpen, setTerminateDialogOpen] = useState(false);
   const [terminating, setTerminating] = useState(false);
-  const [terminationInProgress, setTerminationInProgress] = useState(false);
   const [terminateError, setTerminateError] = useState<string | null>(null);
   const [terminateSuccess, setTerminateSuccess] = useState<string | null>(null);
-  const [terminationJobInfo, setTerminationJobInfo] = useState<{
-    totalInstances: number;
-    jobIds: string[];
-    region?: string;
-  } | null>(null);
-  const [terminationProgress, setTerminationProgress] = useState<number>(0);
 
   // Fetch execution details
   const fetchExecution = async (silent = false) => {
@@ -64,11 +56,6 @@ export const ExecutionDetailsPage: React.FC = () => {
       }
       const data = await apiClient.getExecution(executionId);
       setExecution(data);
-      
-      // Reset resumeInProgress when execution is no longer paused
-      if (data.status !== 'paused' && resumeInProgress) {
-        setResumeInProgress(false);
-      }
     } catch (err: any) {
       setError(err.message || 'Failed to load execution details');
     } finally {
@@ -96,13 +83,11 @@ export const ExecutionDetailsPage: React.FC = () => {
       execution.status === 'polling' ||
       execution.status === 'launching' ||
       execution.status === 'initiated' ||
-      execution.status === 'cancelling' ||
       (execution.status as string) === 'RUNNING' ||
       (execution.status as string) === 'STARTED' ||
       (execution.status as string) === 'POLLING' ||
       (execution.status as string) === 'LAUNCHING' ||
-      (execution.status as string) === 'INITIATED' ||
-      (execution.status as string) === 'CANCELLING';
+      (execution.status as string) === 'INITIATED';
 
     if (!isActive) return;
 
@@ -112,79 +97,6 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [execution]);
-
-  // Polling while termination is in progress
-  useEffect(() => {
-    if (!terminationInProgress || !execution) return;
-
-    // Check if instances are now terminated
-    const isTerminated = 
-      (execution as any).instancesTerminated === true ||
-      (execution as any).InstancesTerminated === true;
-
-    if (isTerminated) {
-      setTerminationInProgress(false);
-      setTerminationProgress(100);
-      // NOW show the success message - termination is actually complete
-      const instanceCount = terminationJobInfo?.totalInstances || 0;
-      if (instanceCount > 0) {
-        setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
-      } else {
-        setTerminateSuccess('All recovery instances have been terminated.');
-      }
-      setTerminationJobInfo(null);
-      return;
-    }
-
-    // Poll for termination job status if we have job IDs
-    const pollTerminationStatus = async () => {
-      if (terminationJobInfo?.jobIds?.length && executionId) {
-        try {
-          const region = terminationJobInfo.region || 'us-west-2';
-          const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
-          
-          // Update progress - handle case where DRS clears participatingServers on completion
-          if (statusResult.progressPercent !== undefined) {
-            setTerminationProgress(statusResult.progressPercent);
-          } else if (statusResult.allCompleted) {
-            // If all jobs completed but no progress percent, set to 100%
-            setTerminationProgress(100);
-          } else {
-            // Calculate progress based on job completion status
-            const completedJobs = statusResult.jobs?.filter(j => j.status === 'COMPLETED').length || 0;
-            const totalJobs = statusResult.jobs?.length || 1;
-            const jobProgress = Math.round((completedJobs / totalJobs) * 100);
-            setTerminationProgress(jobProgress);
-          }
-          
-          // Check if all jobs completed
-          if (statusResult.allCompleted) {
-            setTerminationInProgress(false);
-            setTerminationProgress(100);
-            const instanceCount = terminationJobInfo?.totalInstances || statusResult.totalServers || 0;
-            if (statusResult.anyFailed) {
-              setTerminateSuccess(`Terminated ${statusResult.completedServers} of ${instanceCount} recovery instance(s). Some failed.`);
-            } else {
-              setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
-            }
-            setTerminationJobInfo(null);
-            // Refresh execution to update UI
-            fetchExecution(true);
-          }
-        } catch (err) {
-          console.error('Error polling termination status:', err);
-        }
-      }
-      // Also refresh execution status
-      fetchExecution(true);
-    };
-
-    const interval = setInterval(pollTerminationStatus, 3000); // Poll every 3 seconds
-    // Initial poll
-    pollTerminationStatus();
-
-    return () => clearInterval(interval);
-  }, [terminationInProgress, execution, terminationJobInfo, executionId]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
@@ -204,19 +116,16 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   const handleResumeExecution = async () => {
-    if (!executionId || resuming || resumeInProgress) return;
+    if (!executionId || resuming) return;
 
     setResuming(true);
-    setResumeInProgress(true);
     setResumeError(null);
 
     try {
       await apiClient.resumeExecution(executionId);
       await fetchExecution();
-      // Keep resumeInProgress true - status polling will update when execution resumes
     } catch (err: any) {
       setResumeError(err.message || 'Failed to resume execution');
-      setResumeInProgress(false); // Only reset on error so button can be retried
     } finally {
       setResuming(false);
     }
@@ -226,43 +135,29 @@ export const ExecutionDetailsPage: React.FC = () => {
     if (!executionId) return;
 
     setTerminating(true);
-    setTerminationInProgress(true);
     setTerminateError(null);
     setTerminateSuccess(null);
-    setTerminateDialogOpen(false);
-    setTerminationJobInfo(null);
 
     try {
       const result = await apiClient.terminateRecoveryInstances(executionId);
+      setTerminateDialogOpen(false);
       
       // Handle "already terminated" response
       if (result.alreadyTerminated) {
         setTerminateSuccess('Recovery instances have already been terminated.');
-        setTerminationInProgress(false);
       } else if (result.totalTerminated > 0) {
-        // Termination INITIATED (not completed) - DRS job created
-        // Store job info for progress tracking
-        const resultAny = result as any;
-        const jobIds = (resultAny.jobs || []).map((j: any) => j.jobId).filter(Boolean);
-        // Get region from first job or execution
-        const region = (resultAny.jobs?.[0]?.region) || (execution as any)?.drsRegion || 'us-west-2';
-        setTerminationJobInfo({
-          totalInstances: result.totalTerminated,
-          jobIds: jobIds,
-          region: region
-        });
-        setTerminationProgress(10); // Start with 10% to show progress has begun
-        // Keep terminationInProgress true - polling will detect when complete
-        // Do NOT show success message yet - wait for actual completion
+        setTerminateSuccess(
+          `Successfully terminated ${result.totalTerminated} recovery instance(s)` +
+          (result.totalFailed > 0 ? `. ${result.totalFailed} failed.` : '')
+        );
       } else if (result.totalFailed > 0) {
         setTerminateError(`Failed to terminate ${result.totalFailed} instance(s). They may have already been terminated.`);
-        setTerminationInProgress(false);
       } else {
         setTerminateSuccess('No recovery instances to terminate.');
-        setTerminationInProgress(false);
       }
       await fetchExecution();
     } catch (err: any) {
+      setTerminateDialogOpen(false);
       // Check if error indicates already terminated
       const errorMsg = err.message || '';
       if (errorMsg.includes('No recovery instances') || errorMsg.includes('already')) {
@@ -271,7 +166,6 @@ export const ExecutionDetailsPage: React.FC = () => {
       } else {
         setTerminateError(err.message || 'Failed to terminate recovery instances');
       }
-      setTerminationInProgress(false);
     } finally {
       setTerminating(false);
     }
@@ -401,110 +295,33 @@ export const ExecutionDetailsPage: React.FC = () => {
     execution.status === 'launching' ||
     execution.status === 'initiated' ||
     (execution.status as string) === 'RUNNING' ||
-    (execution.status as string) === 'STARTED' ||
-    (execution.status as string) === 'PAUSED' ||
-    (execution.status as string) === 'PENDING' ||
-    (execution.status as string) === 'IN_PROGRESS' ||
-    (execution.status as string) === 'POLLING' ||
-    (execution.status as string) === 'LAUNCHING' ||
-    (execution.status as string) === 'INITIATED'
-  ) && !(
-    execution.status === 'cancelling' ||
-    (execution.status as string) === 'CANCELLING'
+    (execution.status as string) === 'STARTED'
   );
 
   // Check if instances have already been terminated
   const instancesAlreadyTerminated = execution && (
     (execution as any).instancesTerminated === true ||
-    (execution as any).InstancesTerminated === true ||
-    // If termination completed successfully, consider instances terminated
-    (!terminationInProgress && terminateSuccess && terminateSuccess.includes('terminated'))
+    (execution as any).InstancesTerminated === true
   );
 
   // Check if recovery instances can be terminated
+  // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated
   const canTerminate = execution && (() => {
+    const terminalStatuses = [
+      'completed', 'cancelled', 'failed', 'partial',
+      'COMPLETED', 'CANCELLED', 'FAILED', 'PARTIAL'
+    ];
+    const isTerminal = terminalStatuses.includes(execution.status as string);
+    
+    // Check if any wave has a jobId (meaning recovery instances were launched)
+    const waves = (execution as any).waves || execution.waveExecutions || [];
+    const hasJobId = waves.some((wave: any) => wave.jobId || wave.JobId);
+    
     // Don't show button if already terminated
-    if (instancesAlreadyTerminated) {
-      return false;
-    }
+    if (instancesAlreadyTerminated) return false;
     
-    // Don't show button if termination just completed successfully
-    if (!terminationInProgress && terminateSuccess) {
-      return false;
-    }
-    
-    // Get waves from execution data
-    const waves = (execution as any).waves || execution.waveExecutions || [];
-    
-    // Simple check: if execution is completed and any wave has a job ID, show terminate button
-    // This covers the most common case where all waves completed successfully
-    if (execution.status?.toLowerCase() === 'completed') {
-      return waves.some((wave: any) => {
-        return wave.jobId || wave.JobId;
-      });
-    }
-    
-    // For non-completed executions, check if any wave has launched instances
-    return waves.some((wave: any) => {
-      const hasJobId = wave.jobId || wave.JobId;
-      if (!hasJobId) return false;
-      
-      // Check job events for instance launched
-      const jobEvents = wave.jobEvents || wave.JobEvents || [];
-      const hasInstanceLaunched = jobEvents.some((event: any) => {
-        const eventText = (event.event || event.Event || event.eventType || event.EventType || '').toLowerCase();
-        return eventText.includes('instance launched');
-      });
-      
-      return hasInstanceLaunched;
-    });
+    return isTerminal && hasJobId;
   })();
-
-  // Check if there are actually any recovery instances to terminate
-  const hasRecoveryInstances = execution && (() => {
-    const waves = (execution as any).waves || execution.waveExecutions || [];
-    
-    // Look for waves that have recovery instances (EC2 instances that were launched)
-    return waves.some((wave: any) => {
-      const hasJobId = wave.jobId || wave.JobId;
-      if (!hasJobId) return false;
-      
-      // Check if wave has server statuses with recovery instance IDs
-      const serverStatuses = wave.serverStatuses || wave.ServerStatuses || [];
-      const hasRecoveryInstanceIds = serverStatuses.some((server: any) => {
-        const recoveryInstanceId = server.recoveredInstanceId || server.instanceId || server.ec2InstanceId;
-        return recoveryInstanceId && recoveryInstanceId.startsWith('i-');
-      });
-      
-      if (hasRecoveryInstanceIds) {
-        return true;
-      }
-      
-      // Check job events for "Instance Launched" events (indicates recovery instances exist)
-      const jobEvents = wave.jobEvents || wave.JobEvents || [];
-      const hasInstanceLaunchedEvents = jobEvents.some((event: any) => {
-        const eventText = (event.event || event.Event || event.eventType || event.EventType || '').toLowerCase();
-        return eventText.includes('instance launched') || eventText.includes('instance_launched');
-      });
-      
-      if (hasInstanceLaunchedEvents) {
-        return true;
-      }
-      
-      return false;
-    });
-  })();
-
-  console.log('Terminate button logic:', {
-    executionId: execution?.executionId,
-    executionStatus: execution?.status,
-    instancesTerminated: (execution as any)?.instancesTerminated,
-    InstancesTerminated: (execution as any)?.InstancesTerminated,
-    instancesAlreadyTerminated,
-    terminationInProgress,
-    terminateSuccess,
-    canTerminate: canTerminate
-  });
   
   // Show terminated status badge instead of button when already terminated
   const showTerminatedBadge = execution && instancesAlreadyTerminated;
@@ -611,19 +428,16 @@ export const ExecutionDetailsPage: React.FC = () => {
                 >
                   Refresh
                 </Button>
-                {isPaused && !resumeInProgress && (
+                {isPaused && (
                   <Button
                     onClick={handleResumeExecution}
-                    disabled={resuming || resumeInProgress}
+                    disabled={resuming}
                     loading={resuming}
                     variant="primary"
                     iconName="caret-right-filled"
                   >
                     Resume Execution
                   </Button>
-                )}
-                {resumeInProgress && (
-                  <Badge color="blue">Resuming...</Badge>
                 )}
                 {canCancel && (
                   <Button
@@ -634,7 +448,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                     Cancel Execution
                   </Button>
                 )}
-                {canTerminate && !instancesAlreadyTerminated && !terminationInProgress && (
+                {canTerminate && (
                   <Button
                     onClick={() => setTerminateDialogOpen(true)}
                     disabled={terminating}
@@ -643,10 +457,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                     Terminate Instances
                   </Button>
                 )}
-                {terminationInProgress && (
-                  <Badge color="blue">Terminating...</Badge>
-                )}
-                {showTerminatedBadge && !terminationInProgress && (
+                {showTerminatedBadge && (
                   <Badge color="grey">Instances Terminated</Badge>
                 )}
               </SpaceBetween>
@@ -685,24 +496,8 @@ export const ExecutionDetailsPage: React.FC = () => {
             </Alert>
           )}
 
-          {/* Termination In Progress */}
-          {terminationInProgress && (
-            <Alert type="info" header="Terminating Recovery Instances">
-              <div>
-                {terminationJobInfo 
-                  ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes...`
-                  : 'Terminating recovery instances from DRS. This may take a few minutes...'}
-                {terminationJobInfo?.jobIds?.length && (
-                  <div style={{ marginTop: '8px', fontSize: '14px', color: '#5f6b7a' }}>
-                    DRS Job{terminationJobInfo.jobIds.length > 1 ? 's' : ''}: {terminationJobInfo.jobIds.join(', ')}
-                  </div>
-                )}
-              </div>
-            </Alert>
-          )}
-
           {/* Paused Before Wave Alert */}
-          {isPaused && !resumeInProgress && (
+          {isPaused && (
             <Alert
               type="info"
               header="Execution Paused"
@@ -710,7 +505,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                 <Button
                   onClick={handleResumeExecution}
                   loading={resuming}
-                  disabled={resuming || resumeInProgress}
+                  disabled={resuming}
                 >
                   Resume Execution
                 </Button>
@@ -719,13 +514,6 @@ export const ExecutionDetailsPage: React.FC = () => {
               {pausedBeforeWave !== undefined
                 ? `Execution is paused before starting Wave ${pausedBeforeWave + 1}. Click Resume to continue.`
                 : 'Execution is paused. Click Resume to continue with the next wave.'}
-            </Alert>
-          )}
-
-          {/* Resume In Progress Alert */}
-          {resumeInProgress && (
-            <Alert type="info" header="Resuming Execution">
-              Execution is resuming. The next wave will start shortly...
             </Alert>
           )}
 
@@ -829,8 +617,6 @@ export const ExecutionDetailsPage: React.FC = () => {
               waves={mapWavesToWaveExecutions(execution)} 
               totalWaves={execution.totalWaves} 
               executionId={execution.executionId}
-              executionStatus={execution.status}
-              executionEndTime={execution.endTime}
             />
           </Container>
         </SpaceBetween>
