@@ -143,8 +143,18 @@ export const ExecutionDetailsPage: React.FC = () => {
           const region = terminationJobInfo.region || 'us-west-2';
           const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
           
+          // Update progress - handle case where DRS clears participatingServers on completion
           if (statusResult.progressPercent !== undefined) {
             setTerminationProgress(statusResult.progressPercent);
+          } else if (statusResult.allCompleted) {
+            // If all jobs completed but no progress percent, set to 100%
+            setTerminationProgress(100);
+          } else {
+            // Calculate progress based on job completion status
+            const completedJobs = statusResult.jobs?.filter(j => j.status === 'COMPLETED').length || 0;
+            const totalJobs = statusResult.jobs?.length || 1;
+            const jobProgress = Math.round((completedJobs / totalJobs) * 100);
+            setTerminationProgress(jobProgress);
           }
           
           // Check if all jobs completed
@@ -241,7 +251,7 @@ export const ExecutionDetailsPage: React.FC = () => {
           jobIds: jobIds,
           region: region
         });
-        setTerminationProgress(0); // Reset progress
+        setTerminationProgress(10); // Start with 10% to show progress has begun
         // Keep terminationInProgress true - polling will detect when complete
         // Do NOT show success message yet - wait for actual completion
       } else if (result.totalFailed > 0) {
@@ -409,33 +419,121 @@ export const ExecutionDetailsPage: React.FC = () => {
     (execution as any).InstancesTerminated === true
   );
 
+  // Check if there are actually any recovery instances to terminate
+  const hasRecoveryInstances = execution && (() => {
+    const waves = (execution as any).waves || execution.waveExecutions || [];
+    
+    // Look for waves that have recovery instances (EC2 instances that were launched)
+    return waves.some((wave: any) => {
+      const hasJobId = wave.jobId || wave.JobId;
+      if (!hasJobId) return false;
+      
+      // Check if wave has server statuses with recovery instance IDs
+      const serverStatuses = wave.serverStatuses || wave.ServerStatuses || [];
+      const hasRecoveryInstanceIds = serverStatuses.some((server: any) => {
+        const recoveryInstanceId = server.recoveredInstanceId || server.instanceId || server.ec2InstanceId;
+        return recoveryInstanceId && recoveryInstanceId.startsWith('i-');
+      });
+      
+      if (hasRecoveryInstanceIds) {
+        return true;
+      }
+      
+      // Check job events for "Instance Launched" events (indicates recovery instances exist)
+      const jobEvents = wave.jobEvents || wave.JobEvents || [];
+      const hasInstanceLaunchedEvents = jobEvents.some((event: any) => {
+        const eventText = (event.event || event.Event || event.eventType || event.EventType || '').toLowerCase();
+        return eventText.includes('instance launched') || eventText.includes('instance_launched');
+      });
+      
+      if (hasInstanceLaunchedEvents) {
+        return true;
+      }
+      
+      return false;
+    });
+  })();
+
   // Check if recovery instances can be terminated
   // Only enabled when execution has completed waves with launched recovery instances
   const canTerminate = execution && (() => {
     // Don't show button if already terminated
-    if (instancesAlreadyTerminated) return false;
+    if (instancesAlreadyTerminated) {
+      return false;
+    }
     
-    // Don't show button if execution is still actively running waves
-    const isActiveExecution = [
-      'in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated'
-    ].includes(execution.status?.toLowerCase() || '');
+    // Don't show button if there are no recovery instances to terminate
+    if (!hasRecoveryInstances) {
+      return false;
+    }
     
     // Check if any wave has actually launched recovery instances
     const waves = (execution as any).waves || execution.waveExecutions || [];
+    
     const hasLaunchedInstances = waves.some((wave: any) => {
       const waveStatus = (wave.status || wave.Status || '').toLowerCase();
       const hasJobId = wave.jobId || wave.JobId;
+      const waveNumber = wave.waveNumber ?? wave.WaveNumber ?? 'undefined';
       
-      if (!hasJobId) return false;
-      
-      // For active executions, only show button if wave is truly completed (not just started)
-      if (isActiveExecution) {
-        // Wave must be fully completed for active executions
-        const waveCompleted = ['completed', 'launched'].includes(waveStatus);
-        if (!waveCompleted) return false;
+      if (!hasJobId) {
+        return false;
       }
       
-      // Wave must have completed launch process OR have launched instances
+      // Check if this wave shows "Job Completed" and "Instance Launched" events
+      // This indicates recovery instances were successfully created
+      const jobEvents = wave.jobEvents || wave.JobEvents || [];
+      const hasJobCompleted = jobEvents.some((event: any) => {
+        const eventText = (event.event || event.Event || event.eventType || event.EventType || '').toLowerCase();
+        return eventText.includes('job completed') || eventText.includes('job_completed');
+      });
+      const hasInstanceLaunched = jobEvents.some((event: any) => {
+        const eventText = (event.event || event.Event || event.eventType || event.EventType || '').toLowerCase();
+        return eventText.includes('instance launched') || eventText.includes('instance_launched');
+      });
+      
+      // If we have job events indicating completion and instance launch, show terminate button
+      // This handles cases where wave status is still "started" but job actually completed
+      if (hasJobCompleted && hasInstanceLaunched) {
+        return true;
+      }
+      
+      // Special case: For cancelled executions with job ID and "started" status,
+      // assume instances may exist if the job was running
+      if (execution.status?.toLowerCase() === 'cancelled' && waveStatus === 'started' && hasJobId) {
+        return true;
+      }
+      
+      // For waves with job ID but status "started", check if they have launched instances
+      // by looking at server statuses or other indicators
+      if (waveStatus === 'started' && hasJobId) {
+        // Check server statuses for launched instances
+        const serverStatuses = wave.serverStatuses || wave.ServerStatuses || [];
+        const hasLaunchedServers = serverStatuses.some((server: any) => {
+          const launchStatus = (server.launchStatus || server.LaunchStatus || '').toLowerCase();
+          return launchStatus === 'launched';
+        });
+        
+        if (hasLaunchedServers) {
+          return true;
+        }
+        
+        // If no server statuses but we have a job ID and it's been running for a while,
+        // and the execution is cancelled (meaning it was interrupted), assume instances may exist
+        if (execution.status?.toLowerCase() === 'cancelled') {
+          return true;
+        }
+      }
+      
+      // Don't show terminate button for waves that are still actively launching
+      // Only exclude if wave is currently in progress (not completed or failed)
+      const isWaveInProgress = ['pending', 'polling', 'launching', 'initiated', 'in_progress', 'running'].includes(waveStatus);
+      
+      // For waves that are still in progress, don't show terminate button yet
+      if (isWaveInProgress) {
+        return false;
+      }
+      
+      // Wave must have completed launch process (including partial completion or failure)
       const launchCompleted = [
         'completed', 'launched', 'partial', 'failed'
       ].includes(waveStatus);
