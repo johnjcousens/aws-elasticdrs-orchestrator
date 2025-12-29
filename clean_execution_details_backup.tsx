@@ -96,13 +96,11 @@ export const ExecutionDetailsPage: React.FC = () => {
       execution.status === 'polling' ||
       execution.status === 'launching' ||
       execution.status === 'initiated' ||
-      execution.status === 'cancelling' ||
       (execution.status as string) === 'RUNNING' ||
       (execution.status as string) === 'STARTED' ||
       (execution.status as string) === 'POLLING' ||
       (execution.status as string) === 'LAUNCHING' ||
-      (execution.status as string) === 'INITIATED' ||
-      (execution.status as string) === 'CANCELLING';
+      (execution.status as string) === 'INITIATED';
 
     if (!isActive) return;
 
@@ -143,18 +141,8 @@ export const ExecutionDetailsPage: React.FC = () => {
           const region = terminationJobInfo.region || 'us-west-2';
           const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
           
-          // Update progress - handle case where DRS clears participatingServers on completion
           if (statusResult.progressPercent !== undefined) {
             setTerminationProgress(statusResult.progressPercent);
-          } else if (statusResult.allCompleted) {
-            // If all jobs completed but no progress percent, set to 100%
-            setTerminationProgress(100);
-          } else {
-            // Calculate progress based on job completion status
-            const completedJobs = statusResult.jobs?.filter(j => j.status === 'COMPLETED').length || 0;
-            const totalJobs = statusResult.jobs?.length || 1;
-            const jobProgress = Math.round((completedJobs / totalJobs) * 100);
-            setTerminationProgress(jobProgress);
           }
           
           // Check if all jobs completed
@@ -251,7 +239,7 @@ export const ExecutionDetailsPage: React.FC = () => {
           jobIds: jobIds,
           region: region
         });
-        setTerminationProgress(10); // Start with 10% to show progress has begun
+        setTerminationProgress(0); // Reset progress
         // Keep terminationInProgress true - polling will detect when complete
         // Do NOT show success message yet - wait for actual completion
       } else if (result.totalFailed > 0) {
@@ -408,103 +396,32 @@ export const ExecutionDetailsPage: React.FC = () => {
     (execution.status as string) === 'POLLING' ||
     (execution.status as string) === 'LAUNCHING' ||
     (execution.status as string) === 'INITIATED'
-  ) && !(
-    execution.status === 'cancelling' ||
-    (execution.status as string) === 'CANCELLING'
   );
 
   // Check if instances have already been terminated
   const instancesAlreadyTerminated = execution && (
     (execution as any).instancesTerminated === true ||
-    (execution as any).InstancesTerminated === true ||
-    // If termination completed successfully, consider instances terminated
-    (!terminationInProgress && terminateSuccess && terminateSuccess.includes('terminated'))
+    (execution as any).InstancesTerminated === true
   );
 
   // Check if recovery instances can be terminated
+  // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated
   const canTerminate = execution && (() => {
+    const terminalStatuses = [
+      'completed', 'cancelled', 'failed', 'partial',
+      'COMPLETED', 'CANCELLED', 'FAILED', 'PARTIAL'
+    ];
+    const isTerminal = terminalStatuses.includes(execution.status as string);
+    
+    // Check if any wave has a jobId (meaning recovery instances were launched)
+    const waves = (execution as any).waves || execution.waveExecutions || [];
+    const hasJobId = waves.some((wave: any) => wave.jobId || wave.JobId);
+    
     // Don't show button if already terminated
-    if (instancesAlreadyTerminated) {
-      return false;
-    }
+    if (instancesAlreadyTerminated) return false;
     
-    // Don't show button if termination just completed successfully
-    if (!terminationInProgress && terminateSuccess) {
-      return false;
-    }
-    
-    // Get waves from execution data
-    const waves = (execution as any).waves || execution.waveExecutions || [];
-    
-    // Simple check: if execution is completed and any wave has a job ID, show terminate button
-    // This covers the most common case where all waves completed successfully
-    if (execution.status?.toLowerCase() === 'completed') {
-      return waves.some((wave: any) => {
-        return wave.jobId || wave.JobId;
-      });
-    }
-    
-    // For non-completed executions, check if any wave has launched instances
-    return waves.some((wave: any) => {
-      const hasJobId = wave.jobId || wave.JobId;
-      if (!hasJobId) return false;
-      
-      // Check job events for instance launched
-      const jobEvents = wave.jobEvents || wave.JobEvents || [];
-      const hasInstanceLaunched = jobEvents.some((event: any) => {
-        const eventText = (event.event || event.Event || event.eventType || event.EventType || '').toLowerCase();
-        return eventText.includes('instance launched');
-      });
-      
-      return hasInstanceLaunched;
-    });
+    return isTerminal && hasJobId;
   })();
-
-  // Check if there are actually any recovery instances to terminate
-  const hasRecoveryInstances = execution && (() => {
-    const waves = (execution as any).waves || execution.waveExecutions || [];
-    
-    // Look for waves that have recovery instances (EC2 instances that were launched)
-    return waves.some((wave: any) => {
-      const hasJobId = wave.jobId || wave.JobId;
-      if (!hasJobId) return false;
-      
-      // Check if wave has server statuses with recovery instance IDs
-      const serverStatuses = wave.serverStatuses || wave.ServerStatuses || [];
-      const hasRecoveryInstanceIds = serverStatuses.some((server: any) => {
-        const recoveryInstanceId = server.recoveredInstanceId || server.instanceId || server.ec2InstanceId;
-        return recoveryInstanceId && recoveryInstanceId.startsWith('i-');
-      });
-      
-      if (hasRecoveryInstanceIds) {
-        return true;
-      }
-      
-      // Check job events for "Instance Launched" events (indicates recovery instances exist)
-      const jobEvents = wave.jobEvents || wave.JobEvents || [];
-      const hasInstanceLaunchedEvents = jobEvents.some((event: any) => {
-        const eventText = (event.event || event.Event || event.eventType || event.EventType || '').toLowerCase();
-        return eventText.includes('instance launched') || eventText.includes('instance_launched');
-      });
-      
-      if (hasInstanceLaunchedEvents) {
-        return true;
-      }
-      
-      return false;
-    });
-  })();
-
-  console.log('Terminate button logic:', {
-    executionId: execution?.executionId,
-    executionStatus: execution?.status,
-    instancesTerminated: (execution as any)?.instancesTerminated,
-    InstancesTerminated: (execution as any)?.InstancesTerminated,
-    instancesAlreadyTerminated,
-    terminationInProgress,
-    terminateSuccess,
-    canTerminate: canTerminate
-  });
   
   // Show terminated status badge instead of button when already terminated
   const showTerminatedBadge = execution && instancesAlreadyTerminated;
@@ -634,7 +551,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                     Cancel Execution
                   </Button>
                 )}
-                {canTerminate && !instancesAlreadyTerminated && !terminationInProgress && (
+                {canTerminate && !terminationInProgress && (
                   <Button
                     onClick={() => setTerminateDialogOpen(true)}
                     disabled={terminating}
@@ -688,16 +605,21 @@ export const ExecutionDetailsPage: React.FC = () => {
           {/* Termination In Progress */}
           {terminationInProgress && (
             <Alert type="info" header="Terminating Recovery Instances">
-              <div>
-                {terminationJobInfo 
-                  ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes...`
-                  : 'Terminating recovery instances from DRS. This may take a few minutes...'}
-                {terminationJobInfo?.jobIds?.length && (
-                  <div style={{ marginTop: '8px', fontSize: '14px', color: '#5f6b7a' }}>
-                    DRS Job{terminationJobInfo.jobIds.length > 1 ? 's' : ''}: {terminationJobInfo.jobIds.join(', ')}
-                  </div>
-                )}
-              </div>
+              <SpaceBetween size="s">
+                <div>
+                  {terminationJobInfo 
+                    ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes...`
+                    : 'Terminating recovery instances from DRS. This may take a few minutes...'}
+                </div>
+                <ProgressBar
+                  value={terminationProgress}
+                  status={terminationProgress >= 100 ? "success" : "in-progress"}
+                  label="Termination Progress"
+                  description={terminationJobInfo?.jobIds?.length 
+                    ? `DRS Job${terminationJobInfo.jobIds.length > 1 ? 's' : ''}: ${terminationJobInfo.jobIds.join(', ')} - ${terminationProgress}%`
+                    : 'Waiting for DRS to terminate instances...'}
+                />
+              </SpaceBetween>
             </Alert>
           )}
 
@@ -829,8 +751,6 @@ export const ExecutionDetailsPage: React.FC = () => {
               waves={mapWavesToWaveExecutions(execution)} 
               totalWaves={execution.totalWaves} 
               executionId={execution.executionId}
-              executionStatus={execution.status}
-              executionEndTime={execution.endTime}
             />
           </Container>
         </SpaceBetween>
