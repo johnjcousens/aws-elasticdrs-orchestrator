@@ -415,19 +415,39 @@ export const ExecutionDetailsPage: React.FC = () => {
     // Don't show button if already terminated
     if (instancesAlreadyTerminated) return false;
     
+    // Don't show button if execution is still actively running waves
+    const isActiveExecution = [
+      'in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated'
+    ].includes(execution.status?.toLowerCase() || '');
+    
     // Check if any wave has actually launched recovery instances
-    // A wave must be completed/launched AND have a job ID to have recovery instances
     const waves = (execution as any).waves || execution.waveExecutions || [];
     const hasLaunchedInstances = waves.some((wave: any) => {
       const waveStatus = (wave.status || wave.Status || '').toLowerCase();
       const hasJobId = wave.jobId || wave.JobId;
       
-      // Wave must have completed launch process to have recovery instances
+      if (!hasJobId) return false;
+      
+      // For active executions, only show button if wave is truly completed (not just started)
+      if (isActiveExecution) {
+        // Wave must be fully completed for active executions
+        const waveCompleted = ['completed', 'launched'].includes(waveStatus);
+        if (!waveCompleted) return false;
+      }
+      
+      // Wave must have completed launch process OR have launched instances
       const launchCompleted = [
         'completed', 'launched', 'partial', 'failed'
       ].includes(waveStatus);
       
-      return hasJobId && launchCompleted;
+      // Also check if wave has server statuses indicating launched instances
+      const serverStatuses = wave.serverStatuses || wave.ServerStatuses || [];
+      const hasLaunchedServers = serverStatuses.some((server: any) => {
+        const launchStatus = (server.launchStatus || server.LaunchStatus || '').toLowerCase();
+        return launchStatus === 'launched';
+      });
+      
+      return launchCompleted || hasLaunchedServers;
     });
     
     return hasLaunchedInstances;
