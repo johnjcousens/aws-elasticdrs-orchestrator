@@ -4980,9 +4980,10 @@ def get_termination_job_status(execution_id: str, job_ids_str: str, region: str)
             # DRS clears participatingServers when job completes
             # If job is COMPLETED with empty servers, treat as all completed
             if status == 'COMPLETED' and job_total == 0:
-                print(f"Job {job_id} COMPLETED with empty participatingServers - using totalInstances from request")
+                print(f"Job {job_id} COMPLETED with empty participatingServers - job finished successfully")
                 # Job completed successfully - all servers terminated
-                # We don't know exact count, but job is done
+                # Don't add to job_details here, let the final logic handle it
+                # The all_completed check will set progress to 100%
                 job_details.append({
                     'jobId': job_id,
                     'status': status,
