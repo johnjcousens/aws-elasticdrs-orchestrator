@@ -4585,6 +4585,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
     3. Terminate the EC2 instances
     
     Only works for executions that have launched recovery instances.
+    Supports cross-account executions by using the same account context as the original execution.
     """
     try:
         # Get execution details
@@ -4601,7 +4602,23 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
             })
         
         execution = result['Items'][0]
+        plan_id = execution.get('PlanId')
         waves = execution.get('Waves', [])
+        
+        # Get the Recovery Plan to determine account context (for cross-account support)
+        account_context = None
+        if plan_id:
+            try:
+                plan_result = recovery_plans_table.get_item(Key={'PlanId': plan_id})
+                if 'Item' in plan_result:
+                    plan = plan_result['Item']
+                    account_context = determine_target_account_context(plan)
+                    print(f"Using account context for terminate: {account_context}")
+                else:
+                    print(f"WARNING: Recovery Plan {plan_id} not found, using current account")
+            except Exception as e:
+                print(f"ERROR: Could not get Recovery Plan {plan_id} for account context: {e}")
+                print("Falling back to current account for terminate operation")
         
         if not waves:
             return response(400, {
@@ -4641,7 +4658,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
             # Include STARTED status since recovery instances may exist even if wave is still in progress
             if job_id and wave_status in ['COMPLETED', 'LAUNCHED', 'PARTIAL', 'STARTED', 'IN_PROGRESS', 'RUNNING']:
                 try:
-                    drs_client = boto3.client('drs', region_name=region)
+                    drs_client = create_drs_client(region, account_context)
                     
                     # Get recovery instances from DRS job
                     job_response = drs_client.describe_jobs(
@@ -4705,7 +4722,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                 print(f"Querying recovery instances for {len(source_ids)} source servers in {region}: {source_ids}")
                 
                 try:
-                    drs_client = boto3.client('drs', region_name=region)
+                    drs_client = create_drs_client(region, account_context)
                     
                     # Query recovery instances by source server IDs
                     ri_response = drs_client.describe_recovery_instances(
@@ -4824,7 +4841,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         
         for region, recovery_instance_ids in recovery_instances_by_region.items():
             try:
-                drs_client = boto3.client('drs', region_name=region)
+                drs_client = create_drs_client(region, account_context)
                 
                 print(f"Calling DRS TerminateRecoveryInstances for {len(recovery_instance_ids)} instances in {region}: {recovery_instance_ids}")
                 
@@ -4878,24 +4895,25 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         
         print(f"Terminated {len(terminated)} recovery instances via DRS API")
         
-        # Store termination job info for monitoring (do NOT set InstancesTerminated=True yet)
+        # Update execution with termination info (set flag immediately when termination initiated)
         try:
             plan_id = execution.get('PlanId')
-            print(f"Updating execution {execution_id} with PlanId {plan_id} - storing termination job info")
+            print(f"Updating execution {execution_id} with PlanId {plan_id} - setting InstancesTerminated=True")
             
             update_response = execution_history_table.update_item(
                 Key={'ExecutionId': execution_id, 'PlanId': plan_id},
-                UpdateExpression='SET TerminationInitiatedAt = :timestamp, TerminateJobs = :jobs',
+                UpdateExpression='SET InstancesTerminated = :terminated, InstancesTerminatedAt = :timestamp, TerminateJobs = :jobs',
                 ExpressionAttributeValues={
+                    ':terminated': True,
                     ':timestamp': int(time.time()),
                     ':jobs': jobs_created
                 },
                 ReturnValues='ALL_NEW'
             )
-            print(f"Successfully stored termination job info for monitoring")
+            print(f"Successfully updated execution record. InstancesTerminated = {update_response.get('Attributes', {}).get('InstancesTerminated')}")
             
         except Exception as e:
-            print(f"ERROR: Could not update execution with termination job info: {str(e)}")
+            print(f"ERROR: Could not update execution with termination status: {str(e)}")
             import traceback
             traceback.print_exc()
         
@@ -5051,40 +5069,6 @@ def get_termination_job_status(execution_id: str, job_ids_str: str, region: str)
         }
         
         print(f"Termination progress: {progress_percent}% ({completed_servers}/{total_servers})")
-        
-        # If all termination jobs are completed, update the execution record
-        if all_completed:
-            try:
-                print(f"All termination jobs completed for execution {execution_id} - setting InstancesTerminated=True")
-                
-                # Query execution using ExecutionId (table has composite key ExecutionId + PlanId)
-                execution_result = execution_history_table.query(
-                    KeyConditionExpression=Key('ExecutionId').eq(execution_id),
-                    Limit=1
-                )
-                
-                if 'Items' in execution_result and len(execution_result['Items']) > 0:
-                    execution = execution_result['Items'][0]
-                    plan_id = execution.get('PlanId')
-                    
-                    # Update execution with completion flag
-                    update_response = execution_history_table.update_item(
-                        Key={'ExecutionId': execution_id, 'PlanId': plan_id},
-                        UpdateExpression='SET InstancesTerminated = :terminated, InstancesTerminatedAt = :timestamp',
-                        ExpressionAttributeValues={
-                            ':terminated': True,
-                            ':timestamp': int(time.time())
-                        },
-                        ReturnValues='ALL_NEW'
-                    )
-                    print(f"Successfully set InstancesTerminated=True for execution {execution_id}")
-                else:
-                    print(f"Could not find execution {execution_id} to update termination status")
-                    
-            except Exception as e:
-                print(f"ERROR: Could not update execution termination completion status: {str(e)}")
-                import traceback
-                traceback.print_exc()
         
         return response(200, result)
         
