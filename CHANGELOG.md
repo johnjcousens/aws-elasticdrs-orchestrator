@@ -6,6 +6,12 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ### Fixed
 
+**ExecutionDetailsPage Cancellation Status Handling** - December 29, 2025
+
+- Added 'cancelling' status to polling list to keep UI updates active during cancellation
+- Updated canCancel logic to prevent duplicate cancel requests while cancellation is in progress
+- Added executionStatus and executionEndTime props to WaveProgress component for proper status display
+
 **DRS Termination Job Progress Tracking** - December 21, 2025
 
 - Fixed termination status tracking when `participatingServers` array is empty
