@@ -4789,9 +4789,17 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                         instances_by_region[server_region].append(instance_id)
         
         if not instances_to_terminate:
-            return response(400, {
-                'error': 'No recovery instances found',
-                'reason': 'This execution has no recovery instances to terminate. Instances may not have been launched yet, may have already been terminated, or the DRS job data is unavailable.'
+            return response(200, {
+                'executionId': execution_id,
+                'message': 'No recovery instances to terminate',
+                'reason': 'This execution has no recovery instances to terminate. Instances may not have been launched yet, may have already been terminated, or the execution was cancelled before launch.',
+                'terminated': [],
+                'failed': [],
+                'jobs': [],
+                'totalFound': 0,
+                'totalTerminated': 0,
+                'totalFailed': 0,
+                'noInstancesFound': True
             })
         
         print(f"Found {len(instances_to_terminate)} recovery instances to terminate")
