@@ -96,11 +96,13 @@ export const ExecutionDetailsPage: React.FC = () => {
       execution.status === 'polling' ||
       execution.status === 'launching' ||
       execution.status === 'initiated' ||
+      execution.status === 'cancelling' ||
       (execution.status as string) === 'RUNNING' ||
       (execution.status as string) === 'STARTED' ||
       (execution.status as string) === 'POLLING' ||
       (execution.status as string) === 'LAUNCHING' ||
-      (execution.status as string) === 'INITIATED';
+      (execution.status as string) === 'INITIATED' ||
+      (execution.status as string) === 'CANCELLING';
 
     if (!isActive) return;
 
@@ -396,6 +398,9 @@ export const ExecutionDetailsPage: React.FC = () => {
     (execution.status as string) === 'POLLING' ||
     (execution.status as string) === 'LAUNCHING' ||
     (execution.status as string) === 'INITIATED'
+  ) && !(
+    execution.status === 'cancelling' ||
+    (execution.status as string) === 'CANCELLING'
   );
 
   // Check if instances have already been terminated
@@ -751,6 +756,8 @@ export const ExecutionDetailsPage: React.FC = () => {
               waves={mapWavesToWaveExecutions(execution)} 
               totalWaves={execution.totalWaves} 
               executionId={execution.executionId}
+              executionStatus={execution.status}
+              executionEndTime={execution.endTime}
             />
           </Container>
         </SpaceBetween>
