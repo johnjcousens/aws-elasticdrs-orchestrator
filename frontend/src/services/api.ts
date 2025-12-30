@@ -92,7 +92,6 @@ class ApiClient {
           if (isLocalDev) {
             // For local development, we still need to get real tokens since we're hitting the real API
             // The local config now points to the real API endpoint
-            console.log('🔧 Local development mode - getting real auth token for deployed API');
             const session = await fetchAuthSession();
             const token = session.tokens?.idToken?.toString();
 
@@ -669,22 +668,7 @@ class ApiClient {
       queryParams.filterByProtectionGroup = filterByProtectionGroup;
     }
     
-    console.log('API client making request to:', '/drs/source-servers', 'with params:', queryParams);
     const response = await this.get<any>('/drs/source-servers', queryParams);
-    
-    console.log('API listDRSSourceServers raw response:', response);
-    console.log('Response type:', typeof response);
-    console.log('Response keys:', Object.keys(response || {}));
-    console.log('First server from API:', response?.servers?.[0]);
-    console.log('First server hardware from API:', response?.servers?.[0]?.hardware);
-    console.log('Hardware field types:', {
-      totalCores: typeof response?.servers?.[0]?.hardware?.totalCores,
-      ramGiB: typeof response?.servers?.[0]?.hardware?.ramGiB,
-      totalDiskGiB: typeof response?.servers?.[0]?.hardware?.totalDiskGiB,
-      totalCoresValue: response?.servers?.[0]?.hardware?.totalCores,
-      ramGiBValue: response?.servers?.[0]?.hardware?.ramGiB,
-      totalDiskGiBValue: response?.servers?.[0]?.hardware?.totalDiskGiB
-    });
     
     return response;
   }
