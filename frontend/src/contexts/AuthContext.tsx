@@ -19,8 +19,24 @@ import type { SignInInput, SignInOutput } from 'aws-amplify/auth';
 import { awsConfig } from '../aws-config';
 import type { User, AuthState } from '../types';
 
-// Configure Amplify
-Amplify.configure(awsConfig);
+// Configure Amplify with explicit region validation
+const amplifyConfig = {
+  Auth: {
+    Cognito: {
+      region: awsConfig.Auth?.Cognito?.region || 'us-east-1',
+      userPoolId: awsConfig.Auth?.Cognito?.userPoolId,
+      userPoolClientId: awsConfig.Auth?.Cognito?.userPoolClientId,
+      identityPoolId: awsConfig.Auth?.Cognito?.identityPoolId,
+      loginWith: {
+        email: true
+      }
+    }
+  },
+  API: awsConfig.API
+};
+
+console.log('🔧 Amplify configuration:', JSON.stringify(amplifyConfig, null, 2));
+Amplify.configure(amplifyConfig);
 
 interface AuthContextType extends AuthState {
   signIn: (username: string, password: string) => Promise<SignInOutput>;

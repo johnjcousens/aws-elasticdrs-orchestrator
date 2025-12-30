@@ -62,18 +62,23 @@ const defaultConfig = {
 // Function to get config - checks window.AWS_CONFIG dynamically
 function getAwsConfig() {
   if (window.AWS_CONFIG) {
-    return window.AWS_CONFIG;
+    // Validate and sanitize the region to prevent corruption
+    const config = { ...window.AWS_CONFIG };
+    if (config.Auth?.Cognito?.region) {
+      // Ensure region is valid - if corrupted, fall back to us-east-1
+      const region = config.Auth.Cognito.region;
+      if (!region.match(/^[a-z]{2}-[a-z]+-\d+$/)) {
+        console.warn(`⚠️ Invalid region detected: "${region}", falling back to us-east-1`);
+        config.Auth.Cognito.region = 'us-east-1';
+      }
+    }
+    return config;
   }
   return defaultConfig;
 }
 
-// Export as getter property so it always gets fresh value
-export const awsConfig = new Proxy({} as typeof defaultConfig, {
-  get(_target, prop) {
-    const config = getAwsConfig();
-    return config[prop as keyof typeof config];
-  }
-});
+// Export the actual config object (not a proxy to avoid issues)
+export const awsConfig = getAwsConfig();
 
 // Log config status only in development mode
 if (import.meta.env.DEV) {
