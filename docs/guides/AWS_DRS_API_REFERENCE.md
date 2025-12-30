@@ -1,1247 +1,1137 @@
-# AWS Elastic Disaster Recovery (DRS) REST API Reference
+# AWS DRS Orchestration REST API Reference
 
-A comprehensive reference for AWS DRS REST API endpoints used in disaster recovery orchestration.
+A comprehensive reference for the AWS DRS Orchestration Solution REST API endpoints.
 
 > **Last Updated**: December 2024  
-> **API Version**: 2020-02-26  
-> **Official Documentation**: [AWS DRS API Reference](https://docs.aws.amazon.com/drs/latest/APIReference/Welcome.html)
+> **API Version**: 1.0  
+> **Base URL**: `https://{api-id}.execute-api.{region}.amazonaws.com/prod`
 
 ## Overview
 
-AWS Elastic Disaster Recovery (DRS) provides REST APIs for managing source servers, replication, recovery operations, failback, and source network protection. This document covers all key endpoints used in the DRS Orchestration Solution.
+The AWS DRS Orchestration Solution provides a comprehensive REST API for managing disaster recovery operations through Protection Groups, Recovery Plans, and Executions. This API enables programmatic access to all orchestration features including multi-wave recovery, pause/resume capabilities, and cross-account management.
 
 ## Authentication
 
-All DRS API calls require AWS Signature Version 4 authentication:
+All API requests require a valid Cognito JWT token in the Authorization header:
 
-```python
-import boto3
-drs_client = boto3.client('drs', region_name='us-east-1')
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  https://your-api-endpoint.execute-api.us-east-1.amazonaws.com/prod/protection-groups
+```
+
+### Getting a Token
+
+```bash
+# Using AWS CLI
+TOKEN=$(aws cognito-idp initiate-auth \
+  --client-id {client-id} \
+  --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME={email},PASSWORD={password} \
+  --query 'AuthenticationResult.IdToken' \
+  --output text)
 ```
 
 ## Base URL Structure
 
 ```text
-https://drs.{region}.amazonaws.com/
+https://{api-gateway-id}.execute-api.{region}.amazonaws.com/prod
 ```
 
-## Complete API Reference
+## API Categories
 
-### API Categories
-
-| Category | APIs |
-|----------|------|
-| Service Initialization | InitializeService |
-| Source Server Management | DescribeSourceServers, DeleteSourceServer, DisconnectSourceServer, RetryDataReplication, StartReplication, StopReplication |
-| Recovery Operations | StartRecovery, DescribeJobs, DescribeJobLogItems, DeleteJob |
-| Recovery Instances | DescribeRecoveryInstances, DeleteRecoveryInstance, DisconnectRecoveryInstance, TerminateRecoveryInstances |
-| Failback Operations | StartFailbackLaunch, StopFailback, ReverseReplication, GetFailbackReplicationConfiguration, UpdateFailbackReplicationConfiguration |
-| Launch Configuration | GetLaunchConfiguration, UpdateLaunchConfiguration, CreateLaunchConfigurationTemplate, DescribeLaunchConfigurationTemplates, UpdateLaunchConfigurationTemplate, DeleteLaunchConfigurationTemplate |
-| Launch Actions | PutLaunchAction, ListLaunchActions, DeleteLaunchAction |
-| Replication Configuration | GetReplicationConfiguration, UpdateReplicationConfiguration, CreateReplicationConfigurationTemplate, DescribeReplicationConfigurationTemplates, UpdateReplicationConfigurationTemplate, DeleteReplicationConfigurationTemplate |
-| Recovery Snapshots | DescribeRecoverySnapshots |
-| Source Networks | CreateSourceNetwork, DescribeSourceNetworks, DeleteSourceNetwork, StartSourceNetworkRecovery, StartSourceNetworkReplication, StopSourceNetworkReplication, AssociateSourceNetworkStack, ExportSourceNetworkCfnTemplate |
-| Cross-Account | CreateExtendedSourceServer, ListExtensibleSourceServers, ListStagingAccounts |
-| Tagging | TagResource, UntagResource, ListTagsForResource |
+| Category | Description | Endpoints |
+|----------|-------------|-----------|
+| **Protection Groups** | Manage logical groupings of DRS source servers | 6 endpoints |
+| **Recovery Plans** | Define multi-wave recovery sequences | 6 endpoints |
+| **Executions** | Monitor and control recovery operations | 9 endpoints |
+| **DRS Integration** | Direct AWS DRS service integration | 4 endpoints |
+| **EC2 Resources** | Launch configuration management | 4 endpoints |
+| **Multi-Account** | Cross-account orchestration | 5 endpoints |
+| **Configuration** | Export/import and health checks | 3 endpoints |
 
 ---
 
-## Service Initialization
+## Protection Groups API
 
-### InitializeService
+Protection Groups organize DRS source servers into logical units for coordinated recovery.
 
-**Endpoint**: `POST /InitializeService`
+### List Protection Groups
 
-**Purpose**: Initialize Elastic Disaster Recovery service in the account. Must be called before using any other DRS APIs.
+**Endpoint**: `GET /protection-groups`
 
-**Request**: No request body required.
+**Purpose**: Retrieve all protection groups with optional filtering.
 
-**Response**: HTTP 204 (No Content) on success.
+**Query Parameters**:
+- `accountId` (string) - Filter by target account ID
+- `region` (string) - Filter by AWS region
+- `name` (string) - Filter by group name (partial match)
+- `hasConflict` (boolean) - Filter by conflict status
 
-**Python Example**:
-
-```python
-drs_client.initialize_service()
-```
-
----
-
-## Source Server Management
-
-### DescribeSourceServers
-
-**Endpoint**: `POST /DescribeSourceServers`
-
-**Purpose**: Retrieve all DRS source servers in the current region.
-
-**Request**:
-
-```json
-{
-    "filters": {
-        "sourceServerIDs": ["s-1234567890abcdef0"],
-        "isArchived": false,
-        "replicationTypes": ["AGENT_BASED"],
-        "stagingAccountIDs": ["123456789012"]
-    },
-    "maxResults": 200,
-    "nextToken": "string"
-}
+**Request Example**:
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "${API_ENDPOINT}/protection-groups?region=us-east-1&hasConflict=false"
 ```
 
 **Response**:
-
 ```json
 {
-    "items": [
-        {
-            "sourceServerID": "s-1234567890abcdef0",
-            "arn": "arn:aws:drs:us-east-1:123456789012:source-server/s-1234567890abcdef0",
-            "tags": {
-                "Environment": "Production"
-            },
-            "dataReplicationInfo": {
-                "dataReplicationState": "CONTINUOUS",
-                "lagDuration": "PT5M",
-                "replicatedDisks": [
-                    {
-                        "deviceName": "/dev/sda1",
-                        "totalStorageBytes": 107374182400,
-                        "replicatedStorageBytes": 107374182400,
-                        "backloggedStorageBytes": 0
-                    }
-                ]
-            },
-            "lifeCycle": {
-                "addedToServiceDateTime": "2024-01-15T10:00:00Z",
-                "firstByteDateTime": "2024-01-15T10:05:00Z"
-            },
-            "sourceProperties": {
-                "hostname": "web-server-01",
-                "recommendedInstanceType": "m5.large",
-                "os": {
-                    "fullString": "Ubuntu 20.04.3 LTS"
-                }
-            },
-            "replicationTypes": ["AGENT_BASED"],
-            "isArchived": false
-        }
-    ],
-    "nextToken": "string"
-}
-```
-
-### DeleteSourceServer
-
-**Endpoint**: `POST /DeleteSourceServer`
-
-**Purpose**: Deletes a single source server by ID. The source server must be disconnected first.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0"
-}
-```
-
-### DisconnectSourceServer
-
-**Endpoint**: `POST /DisconnectSourceServer`
-
-**Purpose**: Disconnects a specific source server from DRS. Data replication is stopped.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0"
-}
-```
-
-### StartReplication
-
-**Endpoint**: `POST /StartReplication`
-
-**Purpose**: Starts replication for a source server. Used after stopping replication or for initial start.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0"
-}
-```
-
-### StopReplication
-
-**Endpoint**: `POST /StopReplication`
-
-**Purpose**: Stops the replication for a source server.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0"
-}
-```
-
-### RetryDataReplication
-
-**Endpoint**: `POST /RetryDataReplication`
-
-**Purpose**: Retries data replication for a source server that has failed replication.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0"
-}
-```
-
----
-
-## Recovery Job Management
-
-### StartRecovery
-
-**Endpoint**: `POST /StartRecovery`
-
-**Purpose**: Launches Recovery Instances for specified Source Servers. Supports point-in-time or on-demand snapshots.
-
-**Request**:
-
-```json
-{
-    "sourceServers": [
-        {
-            "sourceServerID": "s-1234567890abcdef0",
-            "recoverySnapshotID": "snap-1234567890abcdef0"
-        }
-    ],
-    "isDrill": false,
-    "tags": {
-        "RecoveryPlan": "WebApp-Recovery",
-        "Wave": "1"
-    }
-}
-```
-
-**Response** (HTTP 202):
-
-```json
-{
-    "job": {
-        "jobID": "drsjob-1234567890abcdef0",
-        "arn": "arn:aws:drs:us-east-1:123456789012:job/drsjob-1234567890abcdef0",
-        "type": "LAUNCH",
-        "initiatedBy": "START_RECOVERY",
-        "creationDateTime": "2024-01-15T14:30:00Z",
-        "status": "PENDING",
-        "participatingServers": [
-            {
-                "sourceServerID": "s-1234567890abcdef0",
-                "recoveryInstanceID": "i-0987654321fedcba0",
-                "launchStatus": "PENDING"
-            }
-        ],
-        "tags": {
-            "RecoveryPlan": "WebApp-Recovery"
-        }
-    }
-}
-```
-
-**Launch Status Values**: `PENDING`, `IN_PROGRESS`, `LAUNCHED`, `FAILED`, `TERMINATED`
-
-### DescribeJobs
-
-**Endpoint**: `POST /DescribeJobs`
-
-**Purpose**: List and monitor recovery jobs with filtering options.
-
-**Request**:
-
-```json
-{
-    "filters": {
-        "jobIDs": ["drsjob-1234567890abcdef0"],
-        "fromDate": "2024-01-15T00:00:00Z",
-        "toDate": "2024-01-15T23:59:59Z"
-    },
-    "maxResults": 50,
-    "nextToken": "string"
-}
-```
-
-**Job Status Values**: `PENDING`, `STARTED`, `COMPLETED`, `PARTIALLY_SUCCEEDED`, `FAILED`
-
-**Job Types**: `LAUNCH`, `TERMINATE`, `CREATE_CONVERTED_SNAPSHOT`
-
-### DescribeJobLogItems
-
-**Endpoint**: `POST /DescribeJobLogItems`
-
-**Purpose**: Retrieves detailed job log with pagination. Essential for debugging recovery failures.
-
-**Request**:
-
-```json
-{
-    "jobID": "drsjob-1234567890abcdef0",
-    "maxResults": 100,
-    "nextToken": "string"
-}
-```
-
-**Response**:
-
-```json
-{
-    "items": [
-        {
-            "logDateTime": "2024-01-15T14:30:00Z",
-            "event": "JOB_START",
-            "eventData": {
-                "sourceServerID": "s-1234567890abcdef0",
-                "targetInstanceID": "i-0987654321fedcba0",
-                "conversionServerID": "i-conv123456789",
-                "rawError": ""
-            }
-        }
-    ],
-    "nextToken": "string"
-}
-```
-
-**Event Types**: `JOB_START`, `SERVER_SKIPPED`, `CLEANUP_START`, `CLEANUP_END`, `CLEANUP_FAIL`, `SNAPSHOT_START`, `SNAPSHOT_END`, `SNAPSHOT_FAIL`, `USING_PREVIOUS_SNAPSHOT`, `USING_PREVIOUS_SNAPSHOT_FAILED`, `CONVERSION_START`, `CONVERSION_END`, `CONVERSION_FAIL`, `LAUNCH_START`, `LAUNCH_FAILED`, `JOB_CANCEL`, `JOB_END`
-
-### DeleteJob
-
-**Endpoint**: `POST /DeleteJob`
-
-**Purpose**: Deletes a single job by ID.
-
-**Request**:
-
-```json
-{
-    "jobID": "drsjob-1234567890abcdef0"
-}
-```
-
----
-
-## Recovery Instance Management
-
-### DescribeRecoveryInstances
-
-**Endpoint**: `POST /DescribeRecoveryInstances`
-
-**Purpose**: Get information about launched recovery instances.
-
-**Request**:
-
-```json
-{
-    "filters": {
-        "recoveryInstanceIDs": ["i-0987654321fedcba0"],
-        "sourceServerIDs": ["s-1234567890abcdef0"]
-    },
-    "maxResults": 200,
-    "nextToken": "string"
-}
-```
-
-**Response**:
-
-```json
-{
-    "items": [
-        {
-            "recoveryInstanceID": "i-0987654321fedcba0",
-            "arn": "arn:aws:drs:us-east-1:123456789012:recovery-instance/i-0987654321fedcba0",
-            "sourceServerID": "s-1234567890abcdef0",
-            "ec2InstanceID": "i-0987654321fedcba0",
-            "ec2InstanceState": {
-                "name": "running"
-            },
-            "jobID": "drsjob-1234567890abcdef0",
-            "isDrill": false,
-            "failback": {
-                "state": "FAILBACK_NOT_STARTED",
-                "agentLastSeenByServiceDateTime": "2024-01-15T14:45:00Z"
-            },
-            "dataReplicationInfo": {
-                "dataReplicationState": "NOT_STARTED"
-            }
-        }
-    ],
-    "nextToken": "string"
-}
-```
-
-**Failback States**: `FAILBACK_NOT_STARTED`, `FAILBACK_IN_PROGRESS`, `FAILBACK_READY_FOR_LAUNCH`, `FAILBACK_COMPLETED`, `FAILBACK_ERROR`, `FAILBACK_NOT_READY_FOR_REPLICATION`, `FAILBACK_LAUNCH_STATE_NOT_AVAILABLE`
-
-### TerminateRecoveryInstances
-
-**Endpoint**: `POST /TerminateRecoveryInstances`
-
-**Purpose**: Terminate recovery instances (for drills or failback completion).
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceIDs": ["i-0987654321fedcba0", "i-0987654321fedcba1"]
-}
-```
-
-**Response**: Returns a job object tracking the termination.
-
-### DeleteRecoveryInstance
-
-**Endpoint**: `POST /DeleteRecoveryInstance`
-
-**Purpose**: Deletes a single recovery instance by ID.
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceID": "i-0987654321fedcba0"
-}
-```
-
-### DisconnectRecoveryInstance
-
-**Endpoint**: `POST /DisconnectRecoveryInstance`
-
-**Purpose**: Disconnect a recovery instance from DRS.
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceID": "i-0987654321fedcba0"
-}
-```
-
----
-
-## Failback Operations
-
-### StartFailbackLaunch
-
-**Endpoint**: `POST /StartFailbackLaunch`
-
-**Purpose**: Initiates failback for recovery instances. Runs conversion and reboots the machine to complete failback.
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceIDs": ["i-0987654321fedcba0"],
-    "tags": {
-        "FailbackType": "Planned"
-    }
-}
-```
-
-**Response**: Returns a job object tracking the failback launch.
-
-### StopFailback
-
-**Endpoint**: `POST /StopFailback`
-
-**Purpose**: Stops the failback process for a recovery instance. Changes state back to `FAILBACK_NOT_STARTED`.
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceID": "i-0987654321fedcba0"
-}
-```
-
-### ReverseReplication
-
-**Endpoint**: `POST /ReverseReplication`
-
-**Purpose**: Start replication to origin/target region. For recovery instances on target region, starts replication back to origin. For failback instances on origin region, starts replication to target region to re-protect them.
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceID": "i-0987654321fedcba0"
-}
-```
-
-**Response**:
-
-```json
-{
-    "reversedDirectionSourceServerArn": "arn:aws:drs:us-east-1:123456789012:source-server/s-newserver12345678"
-}
-```
-
-### GetFailbackReplicationConfiguration
-
-**Endpoint**: `POST /GetFailbackReplicationConfiguration`
-
-**Purpose**: Get failback replication configuration for a recovery instance.
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceID": "i-0987654321fedcba0"
-}
-```
-
-### UpdateFailbackReplicationConfiguration
-
-**Endpoint**: `POST /UpdateFailbackReplicationConfiguration`
-
-**Purpose**: Update failback replication configuration settings.
-
-**Request**:
-
-```json
-{
-    "recoveryInstanceID": "i-0987654321fedcba0",
-    "bandwidthThrottling": 0,
-    "name": "failback-config",
-    "usePrivateIP": true
-}
-```
-
----
-
-## Launch Configuration
-
-### GetLaunchConfiguration
-
-**Endpoint**: `POST /GetLaunchConfiguration`
-
-**Purpose**: Retrieve launch configuration for a source server.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0"
-}
-```
-
-**Response**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0",
-    "name": "web-server-01-launch-config",
-    "ec2LaunchTemplateID": "lt-1234567890abcdef0",
-    "launchDisposition": "STARTED",
-    "targetInstanceTypeRightSizingMethod": "BASIC",
-    "copyPrivateIp": false,
-    "copyTags": true,
-    "licensing": {
-        "osByol": false
-    },
-    "bootMode": "LEGACY_BIOS",
-    "postLaunchEnabled": true
-}
-```
-
-**Launch Disposition Values**: `STOPPED`, `STARTED`
-
-**Right Sizing Methods**: `NONE`, `BASIC`, `IN_AWS`
-
-**Boot Modes**: `LEGACY_BIOS`, `UEFI`, `USE_SOURCE`
-
-### UpdateLaunchConfiguration
-
-**Endpoint**: `POST /UpdateLaunchConfiguration`
-
-**Purpose**: Modify launch configuration for a source server.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0",
-    "launchDisposition": "STARTED",
-    "targetInstanceTypeRightSizingMethod": "BASIC",
-    "copyPrivateIp": false,
-    "copyTags": true,
-    "postLaunchEnabled": true
-}
-```
-
-### CreateLaunchConfigurationTemplate
-
-**Endpoint**: `POST /CreateLaunchConfigurationTemplate`
-
-**Purpose**: Create a launch configuration template for consistent settings across source servers.
-
-**Request**:
-
-```json
-{
-    "launchDisposition": "STARTED",
-    "targetInstanceTypeRightSizingMethod": "BASIC",
-    "copyPrivateIp": false,
-    "copyTags": true,
-    "postLaunchEnabled": true,
-    "tags": {
+  "protectionGroups": [
+    {
+      "groupId": "pg-12345678-1234-1234-1234-123456789012",
+      "groupName": "Database-Servers",
+      "description": "Production database servers for HRP application",
+      "region": "us-east-1",
+      "accountId": "123456789012",
+      "serverSelectionTags": {
+        "DR-Application": "HRP",
+        "DR-Tier": "Database",
         "Environment": "Production"
-    }
-}
-```
-
-### DescribeLaunchConfigurationTemplates
-
-**Endpoint**: `POST /DescribeLaunchConfigurationTemplates`
-
-**Purpose**: List launch configuration templates.
-
-**Request**:
-
-```json
-{
-    "launchConfigurationTemplateIDs": ["lct-1234567890abcdef0"],
-    "maxResults": 50,
-    "nextToken": "string"
-}
-```
-
----
-
-## Launch Actions
-
-### PutLaunchAction
-
-**Endpoint**: `POST /PutLaunchAction`
-
-**Purpose**: Create or update a launch action (SSM document execution after recovery).
-
-**Request**:
-
-```json
-{
-    "resourceId": "s-1234567890abcdef0",
-    "actionId": "12345678-1234-1234-1234-123456789012",
-    "actionCode": "AWS-RunShellScript",
-    "actionVersion": "$DEFAULT",
-    "name": "health-check",
-    "description": "Post-launch health check",
-    "category": "VALIDATION",
-    "order": 1,
-    "active": true,
-    "optional": false,
-    "parameters": {
-        "commands": {
-            "type": "STATIC",
-            "value": "systemctl status apache2"
+      },
+      "resolvedServers": [
+        {
+          "sourceServerID": "s-1234567890abcdef0",
+          "hostname": "db-primary-01.example.com",
+          "replicationState": "CONTINUOUS",
+          "lifecycleState": "READY_FOR_LAUNCH"
         }
+      ],
+      "serverCount": 2,
+      "hasConflict": false,
+      "createdDate": 1703875200,
+      "lastModifiedDate": 1703875200,
+      "version": 1
     }
+  ],
+  "totalCount": 1
 }
 ```
 
-**Category Values**: `MONITORING`, `VALIDATION`, `CONFIGURATION`, `SECURITY`, `OTHER`
+### Create Protection Group
 
-### ListLaunchActions
+**Endpoint**: `POST /protection-groups`
 
-**Endpoint**: `POST /ListLaunchActions`
+**Purpose**: Create a new protection group with tag-based or explicit server selection.
 
-**Purpose**: List launch actions for a source server or template.
-
-**Request**:
-
+**Request Body**:
 ```json
 {
-    "resourceId": "s-1234567890abcdef0",
-    "filters": {
-        "actionIds": ["12345678-1234-1234-1234-123456789012"]
-    },
-    "maxResults": 50,
-    "nextToken": "string"
+  "GroupName": "Database-Servers",
+  "Description": "Production database servers for HRP application",
+  "Region": "us-east-1",
+  "AccountId": "123456789012",
+  "AssumeRoleName": "DRSOrchestrationCrossAccountRole",
+  "ServerSelectionTags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Database",
+    "Environment": "Production"
+  },
+  "LaunchConfig": {
+    "SubnetId": "subnet-12345678",
+    "SecurityGroupIds": ["sg-12345678", "sg-87654321"],
+    "InstanceType": "r5.xlarge",
+    "IamInstanceProfileName": "EC2-DRS-Instance-Profile",
+    "CopyPrivateIp": true,
+    "CopyTags": true,
+    "Licensing": {"osByol": false},
+    "TargetInstanceTypeRightSizingMethod": "BASIC",
+    "LaunchDisposition": "STARTED"
+  }
 }
 ```
 
-### DeleteLaunchAction
+**Response**: Returns the created protection group with generated `groupId` and timestamps.
 
-**Endpoint**: `POST /DeleteLaunchAction`
+### Get Protection Group
 
-**Purpose**: Delete a launch action.
+**Endpoint**: `GET /protection-groups/{id}`
 
-**Request**:
+**Purpose**: Retrieve detailed information about a specific protection group.
 
+**Path Parameters**:
+- `id` (string, required) - Protection group ID
+
+**Response**: Returns complete protection group details including resolved servers and launch configuration.
+
+### Update Protection Group
+
+**Endpoint**: `PUT /protection-groups/{id}`
+
+**Purpose**: Update protection group with optimistic locking.
+
+**Request Body**: Same as create, plus:
 ```json
 {
-    "resourceId": "s-1234567890abcdef0",
-    "actionId": "12345678-1234-1234-1234-123456789012"
+  "Version": 2
 }
 ```
 
----
+**Response**: Returns updated protection group with incremented version.
 
-## Replication Configuration
+### Delete Protection Group
 
-### GetReplicationConfiguration
+**Endpoint**: `DELETE /protection-groups/{id}`
 
-**Endpoint**: `POST /GetReplicationConfiguration`
+**Purpose**: Delete protection group (blocked if used in recovery plans).
 
-**Purpose**: Retrieve replication settings for a source server.
-
-**Request**:
-
+**Response**:
 ```json
 {
-    "sourceServerID": "s-1234567890abcdef0"
+  "message": "Protection group deleted successfully",
+  "groupId": "pg-12345678-1234-1234-1234-123456789012"
+}
+```
+
+### Preview Server Resolution
+
+**Endpoint**: `POST /protection-groups/resolve`
+
+**Purpose**: Preview servers matching tags in real-time without creating a group.
+
+**Request Body**:
+```json
+{
+  "region": "us-east-1",
+  "AccountId": "123456789012",
+  "AssumeRoleName": "DRSOrchestrationCrossAccountRole",
+  "ServerSelectionTags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Database"
+  }
 }
 ```
 
 **Response**:
-
 ```json
 {
-    "sourceServerID": "s-1234567890abcdef0",
-    "name": "web-server-01-replication",
-    "stagingAreaSubnetId": "subnet-1234567890abcdef0",
-    "associateDefaultSecurityGroup": true,
-    "securityGroupIDs": ["sg-1234567890abcdef0"],
-    "replicationServerInstanceType": "t3.small",
-    "useDedicatedReplicationServer": false,
-    "defaultLargeStagingDiskType": "GP3",
-    "ebsEncryption": "DEFAULT",
-    "bandwidthThrottling": 0,
-    "dataPlaneRouting": "PRIVATE_IP",
-    "createPublicIP": false,
-    "pitPolicy": [
-        {
-            "ruleID": 1,
-            "interval": 10,
-            "retentionDuration": 60,
-            "units": "MINUTE",
-            "enabled": true
-        }
-    ]
-}
-```
-
-**Data Plane Routing**: `PRIVATE_IP`, `PUBLIC_IP`
-
-**EBS Encryption**: `DEFAULT`, `CUSTOM`
-
-**Staging Disk Types**: `GP2`, `GP3`, `ST1`, `AUTO`
-
-### UpdateReplicationConfiguration
-
-**Endpoint**: `POST /UpdateReplicationConfiguration`
-
-**Purpose**: Modify replication settings for a source server.
-
-**Request**:
-
-```json
-{
-    "sourceServerID": "s-1234567890abcdef0",
-    "stagingAreaSubnetId": "subnet-1234567890abcdef0",
-    "replicationServerInstanceType": "t3.small",
-    "bandwidthThrottling": 100,
-    "dataPlaneRouting": "PRIVATE_IP"
-}
-```
-
----
-
-## Recovery Snapshots
-
-### DescribeRecoverySnapshots
-
-**Endpoint**: `POST /DescribeRecoverySnapshots`
-
-**Purpose**: List available recovery snapshots for point-in-time recovery.
-
-**Request**:
-
-```json
-{
-    "filters": {
-        "sourceServerID": "s-1234567890abcdef0",
-        "fromDateTime": "2024-01-15T00:00:00Z",
-        "toDateTime": "2024-01-15T23:59:59Z"
-    },
-    "order": "DESC",
-    "maxResults": 50,
-    "nextToken": "string"
-}
-```
-
-**Response**:
-
-```json
-{
-    "items": [
-        {
-            "sourceServerID": "s-1234567890abcdef0",
-            "snapshotID": "pit-1234567890abcdef0",
-            "expectedTimestamp": "2024-01-15T14:00:00Z",
-            "timestamp": "2024-01-15T14:00:15Z",
-            "ebsSnapshots": ["snap-0987654321fedcba0"]
-        }
-    ],
-    "nextToken": "string"
-}
-```
-
----
-
-## Source Network Management
-
-### CreateSourceNetwork
-
-**Endpoint**: `POST /CreateSourceNetwork`
-
-**Purpose**: Create a Source Network resource for VPC-level disaster recovery.
-
-**Request**:
-
-```json
-{
-    "vpcID": "vpc-1234567890abcdef0",
-    "originAccountID": "123456789012",
-    "originRegion": "us-east-1",
-    "tags": {
+  "region": "us-east-1",
+  "ServerSelectionTags": {
+    "DR-Application": "HRP",
+    "DR-Tier": "Database"
+  },
+  "resolvedServers": [
+    {
+      "sourceServerID": "s-1234567890abcdef0",
+      "hostname": "db-primary-01.example.com",
+      "replicationState": "CONTINUOUS",
+      "lifecycleState": "READY_FOR_LAUNCH",
+      "tags": {
+        "DR-Application": "HRP",
+        "DR-Tier": "Database",
         "Environment": "Production"
+      }
     }
+  ],
+  "serverCount": 1,
+  "resolvedAt": 1703875200
+}
+```
+
+---
+
+## Recovery Plans API
+
+Recovery Plans define multi-wave recovery sequences with dependency management.
+
+### List Recovery Plans
+
+**Endpoint**: `GET /recovery-plans`
+
+**Purpose**: Retrieve all recovery plans with execution history and conflict information.
+
+**Query Parameters**:
+- `accountId` (string) - Filter by target account ID
+- `name` (string) - Filter by plan name (partial match)
+- `nameExact` (string) - Filter by exact plan name
+- `tag` (string) - Filter by protection group tags (format: key=value)
+- `hasConflict` (boolean) - Filter by server conflict status
+- `status` (string) - Filter by last execution status
+
+**Response**:
+```json
+{
+  "recoveryPlans": [
+    {
+      "PlanId": "rp-12345678-1234-1234-1234-123456789012",
+      "PlanName": "HRP-Multi-Tier-DR",
+      "Description": "Complete HRP application disaster recovery",
+      "Waves": [
+        {
+          "WaveName": "Database Tier",
+          "WaveNumber": 1,
+          "ProtectionGroupId": "pg-database-uuid",
+          "PauseBeforeWave": false,
+          "DependsOn": []
+        }
+      ],
+      "LastExecutionStatus": "COMPLETED",
+      "LastExecutionDate": 1703875200,
+      "ExecutionCount": 5,
+      "HasConflict": false,
+      "CreatedDate": 1703875200,
+      "Version": 1
+    }
+  ],
+  "totalCount": 1
+}
+```
+
+### Create Recovery Plan
+
+**Endpoint**: `POST /recovery-plans`
+
+**Purpose**: Create recovery plan with multi-wave configuration and dependency validation.
+
+**Request Body**:
+```json
+{
+  "PlanName": "HRP-Multi-Tier-DR",
+  "Description": "Complete HRP application disaster recovery with dependency management",
+  "Waves": [
+    {
+      "WaveName": "Database Tier",
+      "WaveNumber": 1,
+      "ProtectionGroupId": "pg-database-uuid",
+      "PauseBeforeWave": false,
+      "DependsOn": []
+    },
+    {
+      "WaveName": "Application Tier",
+      "WaveNumber": 2,
+      "ProtectionGroupId": "pg-application-uuid",
+      "PauseBeforeWave": true,
+      "DependsOn": [1]
+    },
+    {
+      "WaveName": "Web Tier",
+      "WaveNumber": 3,
+      "ProtectionGroupId": "pg-web-uuid",
+      "PauseBeforeWave": false,
+      "DependsOn": [2]
+    }
+  ]
+}
+```
+
+**Validation Rules**:
+- Wave numbers must be sequential starting from 1
+- Dependencies must reference existing wave numbers
+- Circular dependencies are detected and rejected
+- Protection group IDs must exist and be valid
+
+### Get Recovery Plan
+
+**Endpoint**: `GET /recovery-plans/{id}`
+
+**Purpose**: Retrieve detailed recovery plan with wave dependencies and execution history.
+
+### Update Recovery Plan
+
+**Endpoint**: `PUT /recovery-plans/{id}`
+
+**Purpose**: Update recovery plan with validation and optimistic locking.
+
+### Delete Recovery Plan
+
+**Endpoint**: `DELETE /recovery-plans/{id}`
+
+**Purpose**: Delete recovery plan (blocked if has active executions).
+
+### Execute Recovery Plan
+
+**Endpoint**: `POST /recovery-plans/{id}/execute`
+
+**Purpose**: Start recovery plan execution in drill or recovery mode.
+
+**Request Body**:
+```json
+{
+  "ExecutionType": "DRILL",
+  "InitiatedBy": "user@example.com",
+  "Description": "Monthly DR drill for HRP application"
 }
 ```
 
 **Response**:
-
 ```json
 {
-    "sourceNetworkID": "sn-1234567890abcdef0"
+  "executionId": "exec-12345678-1234-1234-1234-123456789012",
+  "stepFunctionExecutionArn": "arn:aws:states:us-east-1:123456789012:execution:drs-orchestration:exec-12345678",
+  "status": "PENDING",
+  "message": "Execution started successfully"
 }
 ```
 
-### DescribeSourceNetworks
+### Check Existing Recovery Instances
 
-**Endpoint**: `POST /DescribeSourceNetworks`
+**Endpoint**: `GET /recovery-plans/{id}/check-existing-instances`
 
-**Purpose**: List source networks.
+**Purpose**: Check for existing recovery instances before execution to prevent conflicts.
 
-**Request**:
-
+**Response**:
 ```json
 {
-    "filters": {
-        "sourceNetworkIDs": ["sn-1234567890abcdef0"],
-        "originAccountID": "123456789012",
-        "originRegion": "us-east-1"
+  "hasExistingInstances": true,
+  "existingInstances": [
+    {
+      "sourceServerID": "s-1234567890abcdef0",
+      "recoveryInstanceID": "i-0987654321fedcba0",
+      "ec2InstanceState": "running",
+      "jobID": "drsjob-previous-execution"
+    }
+  ],
+  "recommendation": "Terminate existing instances before starting new execution"
+}
+```
+
+---
+
+## Executions API
+
+Executions provide monitoring and control of recovery operations with real-time status updates.
+
+### List Executions
+
+**Endpoint**: `GET /executions`
+
+**Purpose**: Retrieve execution history with advanced filtering and pagination.
+
+**Query Parameters**:
+- `planId` (string) - Filter by recovery plan ID
+- `status` (string) - Filter by execution status
+- `executionType` (string) - Filter by DRILL or RECOVERY
+- `initiatedBy` (string) - Filter by who started the execution
+- `startDate` (string) - Filter by start date (MM-DD-YYYY format)
+- `endDate` (string) - Filter by end date (MM-DD-YYYY format)
+- `dateRange` (string) - Quick filters: today, yesterday, thisWeek, lastWeek, thisMonth, lastMonth
+- `limit` (number) - Limit number of results (default: 50)
+- `sortBy` (string) - Sort field: StartTime, EndTime, Status (default: StartTime)
+- `sortOrder` (string) - Sort direction: asc, desc (default: desc)
+
+**Response**:
+```json
+{
+  "executions": [
+    {
+      "ExecutionId": "exec-12345678-1234-1234-1234-123456789012",
+      "PlanId": "rp-12345678-1234-1234-1234-123456789012",
+      "PlanName": "HRP-Multi-Tier-DR",
+      "ExecutionType": "DRILL",
+      "Status": "COMPLETED",
+      "InitiatedBy": "user@example.com",
+      "StartTime": 1703875200,
+      "EndTime": 1703878800,
+      "Duration": 3600,
+      "CurrentWave": 3,
+      "TotalWaves": 3,
+      "WaveStatuses": [
+        {"WaveNumber": 1, "Status": "COMPLETED", "StartTime": 1703875200, "EndTime": 1703876400},
+        {"WaveNumber": 2, "Status": "COMPLETED", "StartTime": 1703876400, "EndTime": 1703877600},
+        {"WaveNumber": 3, "Status": "COMPLETED", "StartTime": 1703877600, "EndTime": 1703878800}
+      ],
+      "RecoveryInstancesLaunched": 6,
+      "StepFunctionExecutionArn": "arn:aws:states:us-east-1:123456789012:execution:drs-orchestration:exec-12345678"
+    }
+  ],
+  "totalCount": 1,
+  "hasMore": false
+}
+```
+
+### Create Execution
+
+**Endpoint**: `POST /executions`
+
+**Purpose**: Start new execution (alternative to recovery-plans execute endpoint).
+
+### Get Execution Details
+
+**Endpoint**: `GET /executions/{id}`
+
+**Purpose**: Retrieve detailed execution status with real-time wave progress.
+
+**Response**:
+```json
+{
+  "ExecutionId": "exec-12345678-1234-1234-1234-123456789012",
+  "PlanId": "rp-12345678-1234-1234-1234-123456789012",
+  "PlanName": "HRP-Multi-Tier-DR",
+  "ExecutionType": "DRILL",
+  "Status": "IN_PROGRESS",
+  "InitiatedBy": "user@example.com",
+  "StartTime": 1703875200,
+  "CurrentWave": 2,
+  "TotalWaves": 3,
+  "WaveDetails": [
+    {
+      "WaveNumber": 1,
+      "WaveName": "Database Tier",
+      "Status": "COMPLETED",
+      "StartTime": 1703875200,
+      "EndTime": 1703876400,
+      "ServersLaunched": 2,
+      "DRSJobId": "drsjob-wave1-12345678"
     },
-    "maxResults": 50,
-    "nextToken": "string"
+    {
+      "WaveNumber": 2,
+      "WaveName": "Application Tier",
+      "Status": "PAUSED",
+      "PauseReason": "Manual approval required before application tier launch",
+      "TaskToken": "AAAAKgAAAAIAAA..."
+    }
+  ],
+  "StepFunctionExecutionArn": "arn:aws:states:us-east-1:123456789012:execution:drs-orchestration:exec-12345678",
+  "CanPause": false,
+  "CanResume": true,
+  "CanCancel": true
 }
 ```
 
-### StartSourceNetworkRecovery
+### Pause Execution
 
-**Endpoint**: `POST /StartSourceNetworkRecovery`
+**Endpoint**: `POST /executions/{id}/pause`
 
-**Purpose**: Start recovery for source networks (VPC-level recovery).
+**Purpose**: Pause execution between waves using Step Functions waitForTaskToken.
 
-**Request**:
-
+**Response**:
 ```json
 {
-    "sourceNetworks": [
+  "message": "Execution paused successfully",
+  "status": "PAUSED",
+  "pausedAt": 1703876400
+}
+```
+
+### Resume Execution
+
+**Endpoint**: `POST /executions/{id}/resume`
+
+**Purpose**: Resume paused execution by sending task success to Step Functions.
+
+**Response**:
+```json
+{
+  "message": "Execution resumed successfully",
+  "status": "IN_PROGRESS",
+  "resumedAt": 1703876500
+}
+```
+
+### Cancel Execution
+
+**Endpoint**: `POST /executions/{id}/cancel`
+
+**Purpose**: Cancel running execution and stop Step Functions state machine.
+
+### Terminate Recovery Instances
+
+**Endpoint**: `POST /executions/{id}/terminate-instances`
+
+**Purpose**: Terminate recovery instances after drill completion for cost management.
+
+**Response**:
+```json
+{
+  "message": "Termination initiated for 6 recovery instances",
+  "terminationJobId": "drsjob-terminate-12345678",
+  "instancesTerminated": [
+    "i-0987654321fedcba0",
+    "i-0987654321fedcba1"
+  ]
+}
+```
+
+### Get Job Logs
+
+**Endpoint**: `GET /executions/{id}/job-logs`
+
+**Purpose**: Retrieve DRS job logs for execution with real-time updates.
+
+**Query Parameters**:
+- `waveNumber` (number) - Filter logs by specific wave
+- `limit` (number) - Limit number of log entries (default: 100)
+
+**Response**:
+```json
+{
+  "executionId": "exec-12345678-1234-1234-1234-123456789012",
+  "jobLogs": [
+    {
+      "waveNumber": 1,
+      "jobId": "drsjob-wave1-12345678",
+      "logEntries": [
         {
-            "sourceNetworkID": "sn-1234567890abcdef0",
-            "cfnStackName": "recovered-vpc-stack"
+          "logDateTime": "2024-01-15T14:30:00Z",
+          "event": "JOB_START",
+          "eventData": {
+            "sourceServerID": "s-1234567890abcdef0",
+            "targetInstanceID": "i-0987654321fedcba0"
+          }
         }
-    ],
-    "deployAsNew": false,
-    "tags": {
-        "RecoveryType": "VPC"
+      ]
     }
+  ],
+  "totalEntries": 25
 }
 ```
 
-### StartSourceNetworkReplication
+### Bulk Delete Executions
 
-**Endpoint**: `POST /StartSourceNetworkReplication`
+**Endpoint**: `DELETE /executions`
 
-**Purpose**: Start replication for a source network.
+**Purpose**: Delete multiple selected executions.
 
-**Request**:
-
+**Request Body**:
 ```json
 {
-    "sourceNetworkID": "sn-1234567890abcdef0"
-}
-```
-
-### StopSourceNetworkReplication
-
-**Endpoint**: `POST /StopSourceNetworkReplication`
-
-**Purpose**: Stop replication for a source network.
-
-**Request**:
-
-```json
-{
-    "sourceNetworkID": "sn-1234567890abcdef0"
-}
-```
-
-### ExportSourceNetworkCfnTemplate
-
-**Endpoint**: `POST /ExportSourceNetworkCfnTemplate`
-
-**Purpose**: Export CloudFormation template for a source network.
-
-**Request**:
-
-```json
-{
-    "sourceNetworkID": "sn-1234567890abcdef0"
+  "executionIds": [
+    "exec-12345678-1234-1234-1234-123456789012",
+    "exec-87654321-4321-4321-4321-210987654321"
+  ]
 }
 ```
 
 ---
 
-## Cross-Account Operations
+## DRS Integration API
 
-### CreateExtendedSourceServer
+Direct integration with AWS DRS service for server discovery and quota management.
 
-**Endpoint**: `POST /CreateExtendedSourceServer`
+### Discover DRS Source Servers
 
-**Purpose**: Create an extended source server for cross-account replication.
+**Endpoint**: `GET /drs/source-servers`
 
-**Request**:
+**Purpose**: Discover DRS source servers across all 28 commercial regions with advanced filtering.
 
-```json
-{
-    "sourceServerArn": "arn:aws:drs:us-east-1:123456789012:source-server/s-1234567890abcdef0",
-    "tags": {
-        "CrossAccount": "true"
-    }
-}
+**Query Parameters**:
+- `region` (string, required) - Target AWS region
+- `accountId` (string) - Target account ID for cross-account access
+- `tags` (string) - Filter by server tags (JSON object)
+- `replicationState` (string) - Filter by replication state
+- `lifecycleState` (string) - Filter by lifecycle state
+- `hostname` (string) - Filter by hostname (partial match)
+- `includeArchived` (boolean) - Include archived servers (default: false)
+
+**Request Example**:
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "${API_ENDPOINT}/drs/source-servers?region=us-east-1&replicationState=CONTINUOUS"
 ```
 
-### ListExtensibleSourceServers
-
-**Endpoint**: `POST /ListExtensibleSourceServers`
-
-**Purpose**: List source servers available for extension from staging accounts.
-
-**Request**:
-
+**Response**:
 ```json
 {
-    "stagingAccountID": "123456789012",
-    "maxResults": 50,
-    "nextToken": "string"
-}
-```
-
-### ListStagingAccounts
-
-**Endpoint**: `POST /ListStagingAccounts`
-
-**Purpose**: List staging accounts for cross-account replication.
-
-**Request**:
-
-```json
-{
-    "maxResults": 50,
-    "nextToken": "string"
-}
-```
-
----
-
-## Tagging
-
-### TagResource
-
-**Endpoint**: `POST /TagResource`
-
-**Purpose**: Add or update tags on a DRS resource.
-
-**Request**:
-
-```json
-{
-    "resourceArn": "arn:aws:drs:us-east-1:123456789012:source-server/s-1234567890abcdef0",
-    "tags": {
+  "region": "us-east-1",
+  "sourceServers": [
+    {
+      "sourceServerID": "s-1234567890abcdef0",
+      "hostname": "web-server-01.example.com",
+      "replicationState": "CONTINUOUS",
+      "lifecycleState": "READY_FOR_LAUNCH",
+      "lastSeenByServiceDateTime": "2024-01-15T14:30:00Z",
+      "tags": {
         "Environment": "Production",
-        "Application": "WebApp"
+        "Application": "WebApp",
+        "DR-Tier": "Web"
+      },
+      "sourceProperties": {
+        "recommendedInstanceType": "m5.large",
+        "os": {
+          "fullString": "Ubuntu 20.04.3 LTS"
+        },
+        "cpus": [
+          {
+            "cores": 2,
+            "modelName": "Intel(R) Xeon(R) CPU E5-2676 v3 @ 2.40GHz"
+          }
+        ],
+        "ramBytes": 8589934592,
+        "disks": [
+          {
+            "deviceName": "/dev/sda1",
+            "bytes": 107374182400
+          }
+        ]
+      },
+      "dataReplicationInfo": {
+        "dataReplicationState": "CONTINUOUS",
+        "lagDuration": "PT5M",
+        "replicatedDisks": [
+          {
+            "deviceName": "/dev/sda1",
+            "totalStorageBytes": 107374182400,
+            "replicatedStorageBytes": 107374182400,
+            "backloggedStorageBytes": 0
+          }
+        ]
+      }
     }
+  ],
+  "serverCount": 1,
+  "queriedAt": 1703875200
 }
 ```
 
-### UntagResource
+### Get DRS Service Quotas
 
-**Endpoint**: `DELETE /UntagResource`
+**Endpoint**: `GET /drs/quotas`
 
-**Purpose**: Remove tags from a DRS resource.
+**Purpose**: Retrieve DRS service quotas and current usage for capacity planning.
 
-**Request Parameters**:
+**Query Parameters**:
+- `region` (string, required) - Target AWS region
+- `accountId` (string) - Target account ID for cross-account access
 
-- `resourceArn` (query): ARN of the resource
-- `tagKeys` (query): List of tag keys to remove
+**Response**:
+```json
+{
+  "region": "us-east-1",
+  "quotas": {
+    "replicatingServers": {
+      "limit": 300,
+      "current": 45,
+      "available": 255,
+      "utilizationPercent": 15,
+      "status": "OK"
+    },
+    "sourceServers": {
+      "limit": 4000,
+      "current": 120,
+      "available": 3880,
+      "utilizationPercent": 3,
+      "status": "OK"
+    },
+    "concurrentJobs": {
+      "limit": 20,
+      "current": 0,
+      "available": 20,
+      "utilizationPercent": 0,
+      "status": "OK"
+    },
+    "serversPerJob": {
+      "limit": 100,
+      "description": "Maximum servers per recovery job"
+    },
+    "serversInAllJobs": {
+      "limit": 500,
+      "current": 0,
+      "available": 500,
+      "utilizationPercent": 0,
+      "status": "OK"
+    }
+  },
+  "warnings": [],
+  "recommendations": [
+    "Current usage is well within limits",
+    "Consider enabling replication for additional servers"
+  ],
+  "queriedAt": 1703875200
+}
+```
 
-### ListTagsForResource
+### Get DRS Account Information
 
-**Endpoint**: `GET /ListTagsForResource`
+**Endpoint**: `GET /drs/accounts`
 
-**Purpose**: List all tags for a DRS resource.
+**Purpose**: Retrieve DRS account initialization status and configuration.
 
-**Request Parameters**:
+**Query Parameters**:
+- `region` (string, required) - Target AWS region
+- `includeCapacity` (boolean) - Include detailed capacity metrics (default: false)
 
-- `resourceArn` (query): ARN of the resource
+**Response**:
+```json
+{
+  "region": "us-east-1",
+  "accountId": "123456789012",
+  "drsInitialized": true,
+  "initializationDate": "2024-01-01T00:00:00Z",
+  "defaultReplicationConfiguration": {
+    "stagingAreaSubnetId": "subnet-12345678",
+    "replicationServerInstanceType": "t3.small",
+    "defaultLargeStagingDiskType": "GP3",
+    "ebsEncryption": "DEFAULT"
+  },
+  "capacity": {
+    "totalSourceServers": 120,
+    "replicatingServers": 45,
+    "readyForLaunch": 40,
+    "initialSync": 3,
+    "disconnected": 2
+  },
+  "queriedAt": 1703875200
+}
+```
+
+### Sync EC2 Tags to DRS
+
+**Endpoint**: `POST /drs/tag-sync`
+
+**Purpose**: Synchronize EC2 instance tags to DRS source servers across all regions.
+
+**Request Body**:
+```json
+{
+  "regions": ["us-east-1", "us-west-2"],
+  "accountId": "123456789012",
+  "sourceServerIds": ["s-1234567890abcdef0"],
+  "dryRun": false
+}
+```
+
+**Response**:
+```json
+{
+  "syncResults": [
+    {
+      "region": "us-east-1",
+      "sourceServerID": "s-1234567890abcdef0",
+      "status": "SUCCESS",
+      "tagsAdded": 3,
+      "tagsUpdated": 1,
+      "tagsRemoved": 0,
+      "syncedTags": {
+        "Environment": "Production",
+        "Application": "WebApp",
+        "DR-Tier": "Web"
+      }
+    }
+  ],
+  "totalServersProcessed": 1,
+  "successCount": 1,
+  "failureCount": 0,
+  "syncedAt": 1703875200
+}
+```
+
+---
+
+## EC2 Resources API
+
+Provides EC2 resource information for launch configuration management.
+
+### List VPC Subnets
+
+**Endpoint**: `GET /ec2/subnets`
+
+**Purpose**: Retrieve VPC subnets for launch configuration.
+
+**Query Parameters**:
+- `region` (string, required) - Target AWS region
+- `accountId` (string) - Target account ID for cross-account access
+- `vpcId` (string) - Filter by VPC ID
+
+**Response**:
+```json
+{
+  "region": "us-east-1",
+  "subnets": [
+    {
+      "SubnetId": "subnet-12345678",
+      "VpcId": "vpc-12345678",
+      "AvailabilityZone": "us-east-1a",
+      "CidrBlock": "10.0.1.0/24",
+      "State": "available",
+      "MapPublicIpOnLaunch": false,
+      "Tags": [
+        {"Key": "Name", "Value": "Private Subnet 1A"}
+      ]
+    }
+  ],
+  "subnetCount": 1
+}
+```
+
+### List Security Groups
+
+**Endpoint**: `GET /ec2/security-groups`
+
+**Purpose**: Retrieve security groups for launch configuration.
+
+### List IAM Instance Profiles
+
+**Endpoint**: `GET /ec2/instance-profiles`
+
+**Purpose**: Retrieve IAM instance profiles for EC2 instances.
+
+### List EC2 Instance Types
+
+**Endpoint**: `GET /ec2/instance-types`
+
+**Purpose**: Retrieve available EC2 instance types for right-sizing.
+
+---
+
+## Multi-Account Management API
+
+Manages cross-account orchestration capabilities.
+
+### List Target Accounts
+
+**Endpoint**: `GET /accounts/targets`
+
+**Purpose**: Retrieve registered target accounts for cross-account orchestration.
+
+**Response**:
+```json
+{
+  "targetAccounts": [
+    {
+      "accountId": "123456789012",
+      "accountName": "Production Account",
+      "crossAccountRoleName": "DRSOrchestrationCrossAccountRole",
+      "regions": ["us-east-1", "us-west-2"],
+      "status": "ACTIVE",
+      "lastValidated": 1703875200,
+      "createdDate": 1703875200
+    }
+  ],
+  "totalCount": 1
+}
+```
+
+### Register Target Account
+
+**Endpoint**: `POST /accounts/targets`
+
+**Purpose**: Register new target account with cross-account role.
+
+**Request Body**:
+```json
+{
+  "accountId": "123456789012",
+  "accountName": "Production Account",
+  "crossAccountRoleName": "DRSOrchestrationCrossAccountRole",
+  "regions": ["us-east-1", "us-west-2"],
+  "description": "Production workloads account"
+}
+```
+
+### Update Target Account
+
+**Endpoint**: `PUT /accounts/targets/{id}`
+
+**Purpose**: Update target account configuration.
+
+### Delete Target Account
+
+**Endpoint**: `DELETE /accounts/targets/{id}`
+
+**Purpose**: Unregister target account.
+
+### Validate Cross-Account Access
+
+**Endpoint**: `GET /accounts/targets/{id}/validate`
+
+**Purpose**: Validate cross-account role access and permissions.
+
+**Response**:
+```json
+{
+  "accountId": "123456789012",
+  "validationStatus": "SUCCESS",
+  "permissions": {
+    "drs:DescribeSourceServers": true,
+    "drs:StartRecovery": true,
+    "ec2:DescribeInstances": true,
+    "ec2:RunInstances": true
+  },
+  "validatedAt": 1703875200,
+  "message": "All required permissions are available"
+}
+```
+
+---
+
+## Configuration Management API
+
+Handles configuration export/import and health monitoring.
+
+### Export Configuration
+
+**Endpoint**: `GET /config/export`
+
+**Purpose**: Export all Protection Groups and Recovery Plans as JSON/YAML.
+
+**Query Parameters**:
+- `includeExecutions` (boolean) - Include execution history (default: false)
+- `accountId` (string) - Export only resources for specific account
+- `format` (string) - Export format: json, yaml (default: json)
+
+**Response**:
+```json
+{
+  "exportMetadata": {
+    "exportedAt": 1703875200,
+    "version": "1.0",
+    "totalProtectionGroups": 5,
+    "totalRecoveryPlans": 3,
+    "totalExecutions": 25
+  },
+  "protectionGroups": [...],
+  "recoveryPlans": [...],
+  "executions": [...]
+}
+```
+
+### Import Configuration
+
+**Endpoint**: `POST /config/import`
+
+**Purpose**: Import Protection Groups and Recovery Plans from JSON/YAML.
+
+**Request Body**:
+```json
+{
+  "importData": {
+    "protectionGroups": [...],
+    "recoveryPlans": [...]
+  },
+  "options": {
+    "overwriteExisting": false,
+    "validateOnly": false,
+    "skipConflicts": true
+  }
+}
+```
+
+### Health Check
+
+**Endpoint**: `GET /health`
+
+**Purpose**: Service health check endpoint (no authentication required).
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "service": "drs-orchestration-api",
+  "version": "1.0",
+  "timestamp": 1703875200,
+  "dependencies": {
+    "dynamodb": "healthy",
+    "stepfunctions": "healthy",
+    "drs": "healthy"
+  }
+}
+```
+
+---
+
+## Status Values Reference
+
+### Execution Status Values
+
+| Status | Description |
+|--------|-------------|
+| `PENDING` | Execution queued, not yet started |
+| `POLLING` | Checking for existing recovery instances |
+| `INITIATED` | Step Functions execution started |
+| `LAUNCHING` | DRS recovery jobs in progress |
+| `STARTED` | First wave launched successfully |
+| `IN_PROGRESS` | Multiple waves executing |
+| `RUNNING` | All waves launched, monitoring completion |
+| `PAUSED` | Execution paused between waves |
+| `COMPLETED` | All waves completed successfully |
+| `PARTIAL` | Some waves completed, others failed |
+| `FAILED` | Execution failed |
+| `CANCELLED` | Execution cancelled by user |
+
+### DRS Replication States
+
+| State | Description | Ready for Recovery |
+|-------|-------------|-------------------|
+| `CONTINUOUS` | Continuous replication active | ✅ Yes |
+| `INITIAL_SYNC` | Initial data sync in progress | ✅ Yes |
+| `RESCAN` | Rescanning disks | ✅ Yes |
+| `BACKLOG` | Replication has backlog | ⚠️ Caution |
+| `CREATING_SNAPSHOT` | Creating recovery snapshot | ⚠️ Caution |
+| `PAUSED` | Replication paused | ❌ No |
+| `STALLED` | Replication stalled | ❌ No |
+| `DISCONNECTED` | Agent disconnected | ❌ No |
+| `STOPPED` | Replication stopped | ❌ No |
+
+### DRS Lifecycle States
+
+| State | Description |
+|-------|-------------|
+| `READY_FOR_LAUNCH` | Server ready for recovery |
+| `PENDING_INSTALLATION` | DRS agent installation pending |
+| `INSTALLATION_IN_PROGRESS` | Installing DRS agent |
+| `INSTALLATION_ERROR` | Agent installation failed |
+| `AGENT_NOT_SEEN` | Agent not communicating |
+| `FAILBACK_IN_PROGRESS` | Failback operation in progress |
+| `FAILBACK_READY_FOR_LAUNCH` | Ready for failback launch |
+| `FAILBACK_COMPLETED` | Failback completed |
 
 ---
 
 ## Error Handling
 
-### Common Error Responses
-
-| Error Code | HTTP Status | Description |
-|------------|-------------|-------------|
-| ValidationException | 400 | Input validation failed |
-| UninitializedAccountException | 400 | DRS not initialized in account |
-| AccessDeniedException | 403 | Insufficient permissions |
-| ResourceNotFoundException | 404 | Resource not found |
-| ConflictException | 409 | Conflict with current state |
-| ServiceQuotaExceededException | 402 | Service quota exceeded |
-| ThrottlingException | 429 | Rate limit exceeded |
-| InternalServerException | 500 | Internal server error |
-
-**Example Error Response**:
+### Standard Error Response Format
 
 ```json
 {
-    "__type": "ValidationException",
-    "message": "1 validation error detected: Value null at 'sourceServerID' failed to satisfy constraint: Member must not be null.",
-    "fieldList": [
-        {
-            "name": "sourceServerID",
-            "message": "Member must not be null"
-        }
-    ],
-    "reason": "FIELD_VALIDATION_FAILED"
+  "error": "ValidationException",
+  "message": "Invalid protection group ID format",
+  "details": {
+    "field": "groupId",
+    "provided": "invalid-id",
+    "expected": "UUID format: pg-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  },
+  "timestamp": 1703875200,
+  "requestId": "12345678-1234-1234-1234-123456789012"
 }
 ```
 
----
+### Common HTTP Status Codes
 
-## Python SDK Examples
+| Status Code | Error Type | Description |
+|-------------|------------|-------------|
+| 400 | Bad Request | Invalid request parameters or body |
+| 401 | Unauthorized | Missing or invalid authentication token |
+| 403 | Forbidden | Insufficient permissions for operation |
+| 404 | Not Found | Resource not found |
+| 409 | Conflict | Resource conflict (e.g., server already in use) |
+| 422 | Unprocessable Entity | Validation failed |
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Internal Server Error | Unexpected server error |
+| 502 | Bad Gateway | AWS service unavailable |
+| 503 | Service Unavailable | Service temporarily unavailable |
 
-### Basic Client Setup
+### Error Categories
 
-```python
-import boto3
-from botocore.exceptions import ClientError
-import time
+#### Validation Errors (400)
+- Invalid UUID format
+- Missing required fields
+- Invalid enum values
+- Circular dependencies in recovery plans
 
-# Initialize DRS client
-drs_client = boto3.client('drs', region_name='us-east-1')
+#### Authentication Errors (401)
+- Missing Authorization header
+- Invalid or expired JWT token
+- Token signature verification failed
 
-def handle_drs_error(func):
-    """Decorator for DRS API error handling"""
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except ClientError as e:
-            error_code = e.response['Error']['Code']
-            error_message = e.response['Error']['Message']
-            print(f"DRS API Error [{error_code}]: {error_message}")
-            raise
-    return wrapper
-```
+#### Permission Errors (403)
+- Insufficient IAM permissions
+- Cross-account role assumption failed
+- DRS service not initialized
 
-### List All Source Servers with Pagination
+#### Resource Errors (404)
+- Protection group not found
+- Recovery plan not found
+- Execution not found
+- DRS source server not found
 
-```python
-@handle_drs_error
-def list_all_source_servers(filters=None):
-    """Get all DRS source servers with pagination"""
-    servers = []
-    next_token = None
-    
-    while True:
-        params = {'maxResults': 200}
-        if next_token:
-            params['nextToken'] = next_token
-        if filters:
-            params['filters'] = filters
-            
-        response = drs_client.describe_source_servers(**params)
-        servers.extend(response.get('items', []))
-        
-        next_token = response.get('nextToken')
-        if not next_token:
-            break
-    
-    return servers
-```
+#### Conflict Errors (409)
+- Server already assigned to another protection group
+- Active execution prevents plan deletion
+- Version mismatch (optimistic locking)
 
-### Start Recovery with Monitoring
-
-```python
-@handle_drs_error
-def start_recovery_with_monitoring(source_server_ids, is_drill=False, snapshot_ids=None):
-    """Start recovery and monitor progress until completion"""
-    
-    # Prepare source servers for recovery
-    source_servers = []
-    for i, server_id in enumerate(source_server_ids):
-        server_config = {'sourceServerID': server_id}
-        if snapshot_ids and i < len(snapshot_ids):
-            server_config['recoverySnapshotID'] = snapshot_ids[i]
-        source_servers.append(server_config)
-    
-    # Start recovery
-    response = drs_client.start_recovery(
-        sourceServers=source_servers,
-        isDrill=is_drill,
-        tags={'RecoveryType': 'Drill' if is_drill else 'Recovery'}
-    )
-    
-    job_id = response['job']['jobID']
-    print(f"Recovery job started: {job_id}")
-    
-    # Monitor job progress
-    while True:
-        job_response = drs_client.describe_jobs(
-            filters={'jobIDs': [job_id]}
-        )
-        
-        if not job_response['items']:
-            break
-            
-        job = job_response['items'][0]
-        status = job['status']
-        
-        # Check participating servers status
-        for server in job.get('participatingServers', []):
-            print(f"  Server {server['sourceServerID']}: {server['launchStatus']}")
-        
-        print(f"Job {job_id} status: {status}")
-        
-        if status in ['COMPLETED', 'PARTIALLY_SUCCEEDED', 'FAILED']:
-            break
-            
-        time.sleep(30)
-    
-    return job
-```
-
-### Get Job Log Items for Debugging
-
-```python
-@handle_drs_error
-def get_job_logs(job_id):
-    """Get all log items for a job"""
-    logs = []
-    next_token = None
-    
-    while True:
-        params = {'jobID': job_id, 'maxResults': 100}
-        if next_token:
-            params['nextToken'] = next_token
-            
-        response = drs_client.describe_job_log_items(**params)
-        logs.extend(response.get('items', []))
-        
-        next_token = response.get('nextToken')
-        if not next_token:
-            break
-    
-    # Print formatted logs
-    for log in logs:
-        print(f"[{log['logDateTime']}] {log['event']}")
-        if log.get('eventData', {}).get('rawError'):
-            print(f"  Error: {log['eventData']['rawError']}")
-    
-    return logs
-```
-
-### Retry with Exponential Backoff
-
-```python
-import random
-
-def retry_with_backoff(func, max_retries=3):
-    """Retry function with exponential backoff for throttling"""
-    for attempt in range(max_retries):
-        try:
-            return func()
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ThrottlingException':
-                if attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) + random.uniform(0, 1)
-                    print(f"Throttled, waiting {wait_time:.2f}s before retry...")
-                    time.sleep(wait_time)
-                    continue
-            raise
-    raise Exception(f"Max retries ({max_retries}) exceeded")
-```
-
-### Complete Recovery Workflow Example
-
-```python
-def execute_drill_workflow(protection_group_servers):
-    """Execute a complete drill workflow"""
-    
-    # 1. Start drill recovery
-    print("Starting drill recovery...")
-    job = start_recovery_with_monitoring(
-        source_server_ids=protection_group_servers,
-        is_drill=True
-    )
-    
-    if job['status'] != 'COMPLETED':
-        print(f"Drill failed with status: {job['status']}")
-        get_job_logs(job['jobID'])
-        return False
-    
-    # 2. Get recovery instances
-    print("Getting recovery instances...")
-    recovery_instances = []
-    for server in job.get('participatingServers', []):
-        if server.get('recoveryInstanceID'):
-            recovery_instances.append(server['recoveryInstanceID'])
-    
-    print(f"Recovery instances launched: {recovery_instances}")
-    
-    # 3. Verify instances are running (add your validation logic)
-    response = drs_client.describe_recovery_instances(
-        filters={'recoveryInstanceIDs': recovery_instances}
-    )
-    
-    for instance in response.get('items', []):
-        print(f"Instance {instance['recoveryInstanceID']}: {instance['ec2InstanceState']['name']}")
-    
-    # 4. Terminate drill instances
-    print("Terminating drill instances...")
-    terminate_response = drs_client.terminate_recovery_instances(
-        recoveryInstanceIDs=recovery_instances
-    )
-    
-    print(f"Termination job: {terminate_response['job']['jobID']}")
-    return True
-```
+#### Service Errors (502/503)
+- AWS DRS service unavailable
+- DynamoDB throttling
+- Step Functions execution limit reached
 
 ---
 
@@ -1249,82 +1139,243 @@ def execute_drill_workflow(protection_group_servers):
 
 ### API Rate Limits
 
-| API | Rate Limit |
-|-----|------------|
-| DescribeSourceServers | 10 requests/second |
-| DescribeJobs | 10 requests/second |
-| DescribeRecoveryInstances | 10 requests/second |
-| StartRecovery | 2 requests/second |
-| TerminateRecoveryInstances | 2 requests/second |
-| Other APIs | 5 requests/second |
+| Endpoint Category | Rate Limit | Burst Limit |
+|------------------|------------|-------------|
+| Protection Groups | 10 req/sec | 20 req |
+| Recovery Plans | 10 req/sec | 20 req |
+| Executions | 5 req/sec | 10 req |
+| DRS Integration | 5 req/sec | 10 req |
+| Configuration | 2 req/sec | 5 req |
 
 ### Best Practices
 
-1. **Initialize Service First**: Always call `InitializeService` before using other DRS APIs in a new account/region.
+#### 1. Authentication
+- Cache JWT tokens and refresh before expiration
+- Implement token refresh logic for long-running applications
+- Use service accounts for automated systems
 
-2. **Use Pagination**: Always handle `nextToken` for large result sets to avoid missing data.
+#### 2. Error Handling
+- Implement exponential backoff for rate limit errors (429)
+- Retry transient errors (502, 503) with jitter
+- Log error details for debugging
 
-3. **Implement Retry Logic**: Use exponential backoff for `ThrottlingException` errors.
+#### 3. Pagination
+- Use appropriate page sizes for list operations
+- Implement cursor-based pagination for large datasets
+- Cache results when appropriate
 
-4. **Batch Operations**: Group multiple servers in single recovery jobs when possible (max 200 servers per job).
+#### 4. Performance
+- Use specific filters to reduce response sizes
+- Batch operations when possible
+- Monitor API response times
 
-5. **Monitor Job Status**: Poll job status rather than assuming immediate completion. Recovery can take 15-45 minutes.
+#### 5. Security
+- Never log authentication tokens
+- Use HTTPS for all API calls
+- Validate all input parameters
 
-6. **Tag Resources**: Use consistent tagging for tracking, automation, and cost allocation.
-
-7. **Handle Errors Gracefully**: Implement proper error handling for all API calls, especially for long-running operations.
-
-8. **Use Job Logs for Debugging**: When recovery fails, always check `DescribeJobLogItems` for detailed error information.
-
-9. **Validate Before Recovery**: Check source server replication state is `CONTINUOUS` before starting recovery.
-
-10. **Clean Up Drill Instances**: Always terminate drill recovery instances after testing to avoid unnecessary costs.
-
----
-
-## Data Replication States
-
-| State | Description |
-|-------|-------------|
-| `STOPPED` | Replication is stopped |
-| `INITIATING` | Replication is being initiated |
-| `INITIAL_SYNC` | Initial data sync in progress |
-| `BACKLOG` | Replication has backlog |
-| `CREATING_SNAPSHOT` | Creating recovery snapshot |
-| `CONTINUOUS` | Continuous replication active (ready for recovery) |
-| `PAUSED` | Replication paused |
-| `RESCAN` | Rescanning disks |
-| `STALLED` | Replication stalled |
-| `DISCONNECTED` | Agent disconnected |
+#### 6. Monitoring
+- Track API usage and error rates
+- Set up alerts for high error rates
+- Monitor execution success rates
 
 ---
 
-## Job Event Types Reference
+## SDK Examples
 
-| Event | Description |
-|-------|-------------|
-| `JOB_START` | Job has started |
-| `JOB_END` | Job completed |
-| `JOB_CANCEL` | Job was cancelled |
-| `SERVER_SKIPPED` | Server was skipped |
-| `SNAPSHOT_START` | Snapshot creation started |
-| `SNAPSHOT_END` | Snapshot creation completed |
-| `SNAPSHOT_FAIL` | Snapshot creation failed |
-| `USING_PREVIOUS_SNAPSHOT` | Using existing snapshot |
-| `CONVERSION_START` | Conversion started |
-| `CONVERSION_END` | Conversion completed |
-| `CONVERSION_FAIL` | Conversion failed |
-| `LAUNCH_START` | Instance launch started |
-| `LAUNCH_FAILED` | Instance launch failed |
-| `CLEANUP_START` | Cleanup started |
-| `CLEANUP_END` | Cleanup completed |
-| `CLEANUP_FAIL` | Cleanup failed |
+### Python SDK Example
+
+```python
+import requests
+import json
+from typing import Dict, List, Optional
+
+class DRSOrchestrationClient:
+    def __init__(self, base_url: str, token: str):
+        self.base_url = base_url.rstrip('/')
+        self.headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+    
+    def create_protection_group(self, group_data: Dict) -> Dict:
+        """Create a new protection group"""
+        response = requests.post(
+            f"{self.base_url}/protection-groups",
+            headers=self.headers,
+            json=group_data
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def list_protection_groups(self, filters: Optional[Dict] = None) -> List[Dict]:
+        """List protection groups with optional filters"""
+        params = filters or {}
+        response = requests.get(
+            f"{self.base_url}/protection-groups",
+            headers=self.headers,
+            params=params
+        )
+        response.raise_for_status()
+        return response.json()['protectionGroups']
+    
+    def execute_recovery_plan(self, plan_id: str, execution_type: str = 'DRILL') -> Dict:
+        """Execute a recovery plan"""
+        response = requests.post(
+            f"{self.base_url}/recovery-plans/{plan_id}/execute",
+            headers=self.headers,
+            json={'ExecutionType': execution_type}
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def monitor_execution(self, execution_id: str) -> Dict:
+        """Get detailed execution status"""
+        response = requests.get(
+            f"{self.base_url}/executions/{execution_id}",
+            headers=self.headers
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def discover_drs_servers(self, region: str, filters: Optional[Dict] = None) -> List[Dict]:
+        """Discover DRS source servers in a region"""
+        params = {'region': region}
+        if filters:
+            params.update(filters)
+        
+        response = requests.get(
+            f"{self.base_url}/drs/source-servers",
+            headers=self.headers,
+            params=params
+        )
+        response.raise_for_status()
+        return response.json()['sourceServers']
+
+# Usage example
+client = DRSOrchestrationClient(
+    base_url='https://api-id.execute-api.us-east-1.amazonaws.com/prod',
+    token='your-jwt-token'
+)
+
+# Create protection group
+pg_data = {
+    'GroupName': 'Web-Servers',
+    'Region': 'us-east-1',
+    'ServerSelectionTags': {'Tier': 'Web', 'Environment': 'Prod'}
+}
+protection_group = client.create_protection_group(pg_data)
+
+# Execute recovery plan
+execution = client.execute_recovery_plan(
+    plan_id='rp-12345678-1234-1234-1234-123456789012',
+    execution_type='DRILL'
+)
+
+# Monitor execution
+status = client.monitor_execution(execution['executionId'])
+print(f"Execution status: {status['Status']}")
+```
+
+### JavaScript/Node.js SDK Example
+
+```javascript
+class DRSOrchestrationClient {
+    constructor(baseUrl, token) {
+        this.baseUrl = baseUrl.replace(/\/$/, '');
+        this.headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+    }
+
+    async createProtectionGroup(groupData) {
+        const response = await fetch(`${this.baseUrl}/protection-groups`, {
+            method: 'POST',
+            headers: this.headers,
+            body: JSON.stringify(groupData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+        
+        return response.json();
+    }
+
+    async executeRecoveryPlan(planId, executionType = 'DRILL') {
+        const response = await fetch(`${this.baseUrl}/recovery-plans/${planId}/execute`, {
+            method: 'POST',
+            headers: this.headers,
+            body: JSON.stringify({ ExecutionType: executionType })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+        
+        return response.json();
+    }
+
+    async monitorExecution(executionId) {
+        const response = await fetch(`${this.baseUrl}/executions/${executionId}`, {
+            headers: this.headers
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+        
+        return response.json();
+    }
+}
+
+// Usage
+const client = new DRSOrchestrationClient(
+    'https://api-id.execute-api.us-east-1.amazonaws.com/prod',
+    'your-jwt-token'
+);
+
+// Execute and monitor drill
+async function runDrill() {
+    try {
+        const execution = await client.executeRecoveryPlan(
+            'rp-12345678-1234-1234-1234-123456789012',
+            'DRILL'
+        );
+        
+        console.log(`Drill started: ${execution.executionId}`);
+        
+        // Poll for completion
+        let status;
+        do {
+            await new Promise(resolve => setTimeout(resolve, 30000)); // Wait 30s
+            status = await client.monitorExecution(execution.executionId);
+            console.log(`Status: ${status.Status}, Wave: ${status.CurrentWave}/${status.TotalWaves}`);
+        } while (['PENDING', 'IN_PROGRESS', 'PAUSED'].includes(status.Status));
+        
+        console.log(`Drill completed with status: ${status.Status}`);
+    } catch (error) {
+        console.error('Drill failed:', error.message);
+    }
+}
+```
 
 ---
 
 ## Related Resources
 
-- [AWS DRS User Guide](https://docs.aws.amazon.com/drs/latest/userguide/what-is-drs.html)
-- [AWS DRS API Reference](https://docs.aws.amazon.com/drs/latest/APIReference/Welcome.html)
-- [AWS DRS Pricing](https://aws.amazon.com/disaster-recovery/pricing/)
-- [boto3 DRS Documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/drs.html)
+- [AWS DRS Orchestration User Guide](../README.md)
+- [Deployment and Operations Guide](DEPLOYMENT_AND_OPERATIONS_GUIDE.md)
+- [AWS DRS Service Documentation](https://docs.aws.amazon.com/drs/latest/userguide/)
+- [AWS DRS Service API Reference](https://docs.aws.amazon.com/drs/latest/APIReference/)
+- [CloudScape Design System](https://cloudscape.design/)
+- [AWS Step Functions Documentation](https://docs.aws.amazon.com/step-functions/)
+
+---
+
+## Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | December 2024 | Initial comprehensive API reference |
