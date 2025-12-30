@@ -47,11 +47,14 @@ s3://{deployment-bucket}/
 │   ├── execution-finder.zip
 │   ├── execution-poller.zip
 │   └── frontend-builder.zip
-└── frontend/                     # Frontend build artifacts
-    └── dist/
-        ├── index.html
-        ├── assets/
-        └── aws-config.json
+├── frontend/                     # Frontend build artifacts
+│   └── dist/
+│       ├── index.html
+│       ├── assets/
+│       └── aws-config.json
+├── scripts/                      # Deployment and automation scripts
+├── ssm-documents/                # SSM automation documents
+└── docs/                         # Documentation (synced for reference)
 ```
 
 ## Current Process
@@ -63,6 +66,13 @@ s3://{deployment-bucket}/
 2. `./scripts/sync-to-deployment-bucket.sh` (sync to S3)
 3. `./scripts/sync-to-deployment-bucket.sh --update-lambda-code` (fast ~5s)
 4. `./scripts/sync-to-deployment-bucket.sh --deploy-cfn` (full deployment 5-10min)
+
+**Advanced Options**:
+- `--dry-run` - Preview changes without executing
+- `--profile PROFILE` - Use specific AWS profile
+- `--update-lambda-api-handler` - Update specific Lambda function
+- `--update-frontend-config` - Update frontend configuration only
+- `--cleanup-orphans` - Remove unused S3 objects
 
 **GitLab CI/CD**: Automated pipeline for main/dev branches, manual production
 
@@ -272,105 +282,43 @@ if __name__ == '__main__':
 
 ## Sync Script
 
-Create a comprehensive sync script:
+The actual sync script (`./scripts/sync-to-deployment-bucket.sh`) provides comprehensive deployment capabilities:
+
+### Available Arguments
 
 ```bash
-#!/bin/bash
-# scripts/sync-to-deployment-bucket.sh
+# Basic operations
+./scripts/sync-to-deployment-bucket.sh                    # Sync all to S3
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn       # Deploy CloudFormation
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # Update all Lambda functions
 
-set -e
+# Advanced operations
+./scripts/sync-to-deployment-bucket.sh --dry-run          # Preview changes
+./scripts/sync-to-deployment-bucket.sh --profile prod     # Use specific AWS profile
+./scripts/sync-to-deployment-bucket.sh --cleanup-orphans  # Remove unused S3 objects
 
-BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orchestration}"
-REGION="${AWS_REGION:-us-east-1}"
-STACK_NAME="${STACK_NAME:-drs-orchestration-test}"
+# Individual Lambda updates (faster for development)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-api-handler
+./scripts/sync-to-deployment-bucket.sh --update-lambda-orchestration
+./scripts/sync-to-deployment-bucket.sh --update-lambda-execution-finder
+./scripts/sync-to-deployment-bucket.sh --update-lambda-execution-poller
+./scripts/sync-to-deployment-bucket.sh --update-lambda-frontend-builder
 
-# Parse arguments
-BUILD_FRONTEND=false
-DEPLOY_FRONTEND=false
-UPDATE_LAMBDA=false
-DEPLOY_CFN=false
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --build-frontend) BUILD_FRONTEND=true ;;
-        --deploy-frontend) DEPLOY_FRONTEND=true ;;
-        --update-lambda-code) UPDATE_LAMBDA=true ;;
-        --deploy-cfn) DEPLOY_CFN=true ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
-    esac
-    shift
-done
-
-echo "=== Syncing to S3 Deployment Bucket ==="
-
-# Sync CloudFormation templates
-echo "Syncing CloudFormation templates..."
-aws s3 sync cfn/ s3://$BUCKET/cfn/ --delete --region $REGION
-
-# Package and sync Lambda
-echo "Packaging Lambda functions..."
-cd lambda
-zip -r api-handler.zip index.py package/ -x "*.pyc" -x "__pycache__/*"
-aws s3 cp api-handler.zip s3://$BUCKET/lambda/ --region $REGION
-cd ..
-
-# Build frontend if requested
-if [ "$BUILD_FRONTEND" = true ]; then
-    echo "Building frontend..."
-    cd frontend
-    npm run build
-    cd ..
-fi
-
-# Sync frontend to deployment bucket
-echo "Syncing frontend to deployment bucket..."
-aws s3 sync frontend/dist/ s3://$BUCKET/frontend/dist/ --delete --region $REGION
-
-# Update Lambda code if requested
-if [ "$UPDATE_LAMBDA" = true ]; then
-    echo "Updating Lambda function code..."
-    FUNCTION_NAME=$(aws cloudformation describe-stacks --stack-name $STACK_NAME \
-        --query 'Stacks[0].Outputs[?OutputKey==`ApiHandlerFunctionName`].OutputValue' \
-        --output text --region $REGION)
-    
-    aws lambda update-function-code \
-        --function-name $FUNCTION_NAME \
-        --s3-bucket $BUCKET \
-        --s3-key lambda/api-handler.zip \
-        --region $REGION
-fi
-
-# Deploy CloudFormation if requested
-if [ "$DEPLOY_CFN" = true ]; then
-    echo "Deploying CloudFormation stack..."
-    aws cloudformation deploy \
-        --template-url https://$BUCKET.s3.$REGION.amazonaws.com/cfn/master-template.yaml \
-        --stack-name $STACK_NAME \
-        --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-        --region $REGION
-fi
-
-# Deploy frontend if requested
-if [ "$DEPLOY_FRONTEND" = true ]; then
-    echo "Deploying frontend..."
-    FE_BUCKET=$(aws cloudformation describe-stacks --stack-name $STACK_NAME \
-        --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
-        --output text --region $REGION)
-    DIST_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME \
-        --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
-        --output text --region $REGION)
-    
-    aws s3 sync frontend/dist/ s3://$FE_BUCKET/ --delete --exclude "aws-config.json" --region $REGION
-    aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*" --region $REGION
-fi
-
-echo "=== Sync Complete ==="
-
-# Verify
-echo "Verifying S3 artifacts..."
-AWS_PAGER="" aws s3 ls s3://$BUCKET/cfn/ --region $REGION
-AWS_PAGER="" aws s3 ls s3://$BUCKET/lambda/ --region $REGION
+# Frontend operations
+./scripts/sync-to-deployment-bucket.sh --build-frontend   # Build frontend first
+./scripts/sync-to-deployment-bucket.sh --deploy-frontend  # Deploy to CloudFront
+./scripts/sync-to-deployment-bucket.sh --update-frontend-config  # Update config only
 ```
+
+### Key Features
+
+- **AWS Profile Support**: Use `--profile` for different AWS accounts/environments
+- **Dry Run Mode**: Preview all changes with `--dry-run` before execution
+- **Individual Lambda Updates**: Update specific functions for faster development cycles
+- **Git Integration**: Automatically tags deployments with git commit hash
+- **Comprehensive Validation**: Checks stack status, validates parameters, handles errors
+- **Progress Reporting**: Detailed output with timing and status indicators
+- **Orphan Cleanup**: Removes unused S3 objects to keep bucket clean
 
 ## Makefile
 
@@ -458,6 +406,8 @@ flowchart LR
 - execution-finder.zip (poller/execution_finder.py)
 - execution-poller.zip (poller/execution_poller.py)
 - frontend-builder.zip (build_and_deploy.py)
+
+**Individual Lambda Updates**: The sync script supports updating individual Lambda functions for faster development cycles, avoiding full stack deployments when only specific functions change.
 
 **Test Jobs**: Currently disabled until tests/ directory is committed to git.
 
