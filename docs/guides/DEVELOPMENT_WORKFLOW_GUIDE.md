@@ -207,7 +207,7 @@ The repository uses Git tags to mark significant milestones:
 
 | Tag                                | Description                                                               | Date              |
 | ---------------------------------- | ------------------------------------------------------------------------- | ----------------- |
-| `v2.0.0-production-ready` | **Production Ready v2.0** - Complete multi-account management system | December 30, 2025 |
+| `v2.0.0-mvp-drill-prototype` | **MVP Drill Only Prototype v2.0** - Core drill functionality with comprehensive documentation | December 30, 2025 |
 | `mvp-demo-ready`                 | MVP Demo Ready - Complete working state with all core features | December 9, 2025  |
 
 ### Create a New Tag
@@ -266,6 +266,6 @@ If deployment fails, see the [Deployment Recovery Guide](DEPLOYMENT_RECOVERY_GUI
 
 **December 17, 2025**: Complete EC2 Instance Type Support Enhancement - Enhanced EC2 Launch Configuration to display ALL available instance types supported by DRS.
 
-**December 17, 2025**: Production Ready v2.0 Released - Complete multi-account management system with enhanced tag-based server selection.
+**December 17, 2025**: MVP Drill Only Prototype v2.0 Released - Core drill functionality with comprehensive documentation.
 
 For complete development setup including local environment configuration, see the [Local Development Guide](LOCAL_DEVELOPMENT.md).
