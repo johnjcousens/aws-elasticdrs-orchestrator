@@ -76,12 +76,14 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 - **Real-Time Dashboard**: Live execution progress with wave-level status tracking
 - **Invocation Source Tracking**: Track execution origin (UI, CLI, API, EVENTBRIDGE, SSM, STEPFUNCTIONS)
+- **Enhanced History Management** 🆕: Improved History page with selective deletion, fixed invocation source filtering, and descriptive search functionality
+- **Date Range Filtering** 🆕: Comprehensive date filtering for execution history with American date format (MM-DD-YYYY), quick filter buttons (Last Hour, Today, Last Week, etc.), and custom date range selection
 - **Pause/Resume Control**: Pause executions between waves for validation and resume when ready
 - **Instance Termination**: Terminate recovery instances after successful testing with accurate progress tracking
 - **Termination Progress** 🆕: Fixed progress tracking to correctly show 100% when DRS TERMINATE jobs complete
 - **DRS Job Events**: Real-time DRS job event monitoring with 3-second auto-refresh and collapsible view
 - **Loading State Management**: Prevents multiple button clicks during operations with visual feedback
-- **Execution History**: Complete audit trail of all recovery executions with source badges
+- **Execution History**: Complete audit trail of all recovery executions with source badges and selective cleanup
 - **CloudWatch Integration**: Deep-link to CloudWatch Logs for troubleshooting
 - **Auto-Refresh**: All pages auto-refresh (30s for lists, 3-5s for active executions)
 - **Existing Instance Detection**: Pre-drill check warns about existing recovery instances with source plan tracking
@@ -308,7 +310,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 | POST   | `/executions/{id}/cancel`              | Cancel running execution              |
 | POST   | `/executions/{id}/terminate-instances` | Terminate recovery instances          |
 | GET    | `/executions/{id}/job-logs`            | Get DRS job logs for execution        |
-| DELETE | `/executions`                          | Delete completed executions (bulk)    |
+| DELETE | `/executions`                          | Delete selected executions (with body containing `{"executionIds": ["id1", "id2"]}`) |
 
 ### DRS Integration
 
@@ -468,6 +470,17 @@ curl -X POST "${API_ENDPOINT}/executions/{execution-id}/resume" \
 curl -X POST "${API_ENDPOINT}/executions/{execution-id}/terminate-instances" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json"
+```
+
+#### Delete Selected Executions
+
+```bash
+curl -X DELETE "${API_ENDPOINT}/executions" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "executionIds": ["exec-uuid-1", "exec-uuid-2", "exec-uuid-3"]
+  }'
 ```
 
 #### Get DRS Service Quotas
@@ -663,6 +676,14 @@ aws s3 ls s3://drsorchv4-fe-438465159935-test/assets/ | head -5
 ```
 
 #### Recent Updates
+
+**December 30, 2025**: **History Page Enhancements and Critical Bug Fixes** - Major improvements to execution history management and status reporting:
+- **Selective Deletion**: Enhanced Clear History functionality with multi-selection support and selective deletion API (`DELETE /executions` with execution IDs array)
+- **Invocation Source Filter Fix**: Fixed broken invocation source dropdown that wasn't filtering executions properly due to undefined value handling
+- **Search Improvement**: Updated search placeholder from vague "Find executions" to descriptive "Search by plan name, execution ID, or status"
+- **Critical Wave Status Bug Fix**: Fixed execution poller logic that incorrectly marked failed waves as "Successfully completed" when DRS jobs completed but recovery instances failed to launch
+- **Console Cleanup**: Removed excessive authentication debugging logs that were cluttering browser console
+- **API Enhancement**: Improved JWT token handling and CORS configuration for better reliability
 
 **December 20, 2025**: **Dashboard Auto-Detect Busiest DRS Region** - Dashboard DRS Capacity panel now automatically detects and displays the region with the most replicating servers instead of defaulting to us-east-1. Checks 8 common regions in parallel on initial load and selects the busiest one as the default view.
 
