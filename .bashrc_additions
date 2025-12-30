@@ -1,8 +1,0 @@
-# Prevent terminal crashes from large outputs
-export AWS_PAGER=""
-export PAGER=""
-export LESS="-R"
-
-# Limit output for common commands
-alias aws='aws --no-cli-pager'
-alias git='git --no-pager'

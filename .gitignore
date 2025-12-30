@@ -131,3 +131,48 @@ archive/
 # -------------------------
 
 diagrams/
+
+# -------------------------
+# TEMPORARY/DEBUG FILES (PREVENT ACCUMULATION)
+# -------------------------
+
+# Debug files
+debug-*
+*debug*
+mock-*
+
+# Test files at root level (tests should be in tests/ directory)
+test-*
+*test*.json
+*test*.py
+*test*.js
+*test*.sh
+
+# Response files
+*response*.json
+*-response.json
+
+# Temporary markdown files
+DRILL_*.md
+MULTI_ACCOUNT_*.md
+CONFLICT_*.md
+EXECUTION_*.md
+FINAL_*.md
+UI_*.md
+CHECKPOINT_*.md
+
+# Backup files
+*.backup
+*_backup.*
+*_fresh.*
+
+# Root level package files (should be in frontend/)
+/package.json
+/package-lock.json
+
+# Environment files (except template)
+/.env.*
+!/.env.test.template
+
+# Temporary directories
+temp/
