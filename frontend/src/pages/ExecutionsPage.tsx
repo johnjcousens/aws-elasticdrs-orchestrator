@@ -14,11 +14,12 @@ import {
   TextFilter,
   Alert,
   Modal,
-  Select,
+  DateInput,
+  FormField,
+  ButtonDropdown,
 } from '@cloudscape-design/components';
-import type { SelectProps } from '@cloudscape-design/components';
 import { useCollection } from '@cloudscape-design/collection-hooks';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isWithinInterval, subDays, subHours, subMinutes, startOfDay, endOfDay, parse } from 'date-fns';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useAccount } from '../contexts/AccountContext';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
@@ -34,24 +35,6 @@ import type { InvocationSource, InvocationDetails } from '../components/Invocati
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
 
-// Invocation source filter options
-const INVOCATION_SOURCE_OPTIONS: SelectProps.Option[] = [
-  { value: '', label: 'All Sources' },
-  { value: 'UI', label: 'UI (Manual)' },
-  { value: 'CLI', label: 'CLI' },
-  { value: 'EVENTBRIDGE', label: 'Scheduled' },
-  { value: 'SSM', label: 'SSM Runbook' },
-  { value: 'STEPFUNCTIONS', label: 'Step Functions' },
-  { value: 'API', label: 'API' },
-];
-
-// Selection mode filter options
-const SELECTION_MODE_OPTIONS: SelectProps.Option[] = [
-  { value: '', label: 'All Modes' },
-  { value: 'PLAN', label: 'Plan-Based' },
-  { value: 'TAGS', label: 'Tag-Based' },
-];
-
 export const ExecutionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
@@ -64,9 +47,37 @@ export const ExecutionsPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<SelectProps.Option | null>(null);
-  const [modeFilter, setModeFilter] = useState<SelectProps.Option | null>(null);
   const [selectedItems, setSelectedItems] = useState<ExecutionListItem[]>([]);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  // Helper function to set quick date ranges
+  const setQuickDateRange = (minutes?: number, hours?: number, days?: number) => {
+    const now = new Date();
+    const end = format(now, 'MM-dd-yyyy');
+    
+    let start: Date;
+    if (minutes) {
+      start = subMinutes(now, minutes);
+    } else if (hours) {
+      start = subHours(now, hours);
+    } else if (days) {
+      start = subDays(now, days);
+    } else {
+      // Clear filter
+      setStartDate('');
+      setEndDate('');
+      return;
+    }
+    
+    setStartDate(format(start, 'MM-dd-yyyy'));
+    setEndDate(end);
+  };
+
+  const clearDateFilter = () => {
+    setStartDate('');
+    setEndDate('');
+  };
 
   useEffect(() => {
     fetchExecutions();
@@ -190,19 +201,37 @@ export const ExecutionsPage: React.FC = () => {
       return false;
     }
     
-    // Apply source filter
-    if (sourceFilter?.value) {
-      const executionSource = e.invocationSource || 'UI'; // Default to 'UI' if not set
-      if (executionSource !== sourceFilter.value) {
-        return false;
+    // Apply date range filter
+    if (startDate || endDate) {
+      if (!e.startTime) return false;
+      
+      // Handle Unix timestamps (seconds) vs JavaScript timestamps (milliseconds)
+      let startTimeMs: number = typeof e.startTime === 'number' ? e.startTime : parseInt(e.startTime as string);
+      if (startTimeMs < 10000000000) {
+        startTimeMs = startTimeMs * 1000; // Convert seconds to milliseconds
       }
-    }
-    
-    // Apply selection mode filter
-    if (modeFilter?.value) {
-      const executionMode = e.selectionMode || 'PLAN'; // Default to 'PLAN' if not set
-      if (executionMode !== modeFilter.value) {
-        return false;
+      
+      const executionDate = new Date(startTimeMs);
+      if (isNaN(executionDate.getTime())) return false;
+      
+      // Check if execution date is within the selected range
+      if (startDate && endDate) {
+        const filterStartDate = startOfDay(parse(startDate, 'MM-dd-yyyy', new Date()));
+        const filterEndDate = endOfDay(parse(endDate, 'MM-dd-yyyy', new Date()));
+        
+        if (!isWithinInterval(executionDate, { start: filterStartDate, end: filterEndDate })) {
+          return false;
+        }
+      } else if (startDate) {
+        const filterStartDate = startOfDay(parse(startDate, 'MM-dd-yyyy', new Date()));
+        if (executionDate < filterStartDate) {
+          return false;
+        }
+      } else if (endDate) {
+        const filterEndDate = endOfDay(parse(endDate, 'MM-dd-yyyy', new Date()));
+        if (executionDate > filterEndDate) {
+          return false;
+        }
       }
     }
     
@@ -370,6 +399,91 @@ export const ExecutionsPage: React.FC = () => {
                         </Button>
                       </SpaceBetween>
                     )}
+                    
+                    {/* Date Range Filter */}
+                    <Container>
+                      <SpaceBetween size="m">
+                        <Header variant="h3">Filter by Date Range</Header>
+                        
+                        {/* Quick Filter Buttons */}
+                        <SpaceBetween direction="horizontal" size="xs">
+                          <ButtonDropdown
+                            items={[
+                              { id: 'last-hour', text: 'Last Hour' },
+                              { id: 'last-6-hours', text: 'Last 6 Hours' },
+                              { id: 'today', text: 'Today' },
+                              { id: 'last-3-days', text: 'Last 3 Days' },
+                              { id: 'last-week', text: 'Last Week' },
+                              { id: 'last-month', text: 'Last Month' },
+                            ]}
+                            onItemClick={({ detail }) => {
+                              switch (detail.id) {
+                                case 'last-hour':
+                                  setQuickDateRange(undefined, 1);
+                                  break;
+                                case 'last-6-hours':
+                                  setQuickDateRange(undefined, 6);
+                                  break;
+                                case 'today':
+                                  setQuickDateRange(undefined, undefined, 1);
+                                  break;
+                                case 'last-3-days':
+                                  setQuickDateRange(undefined, undefined, 3);
+                                  break;
+                                case 'last-week':
+                                  setQuickDateRange(undefined, undefined, 7);
+                                  break;
+                                case 'last-month':
+                                  setQuickDateRange(undefined, undefined, 30);
+                                  break;
+                              }
+                            }}
+                          >
+                            Quick Filters
+                          </ButtonDropdown>
+                          
+                          {(startDate || endDate) && (
+                            <Button 
+                              variant="normal" 
+                              onClick={clearDateFilter}
+                              iconName="close"
+                            >
+                              Clear Filter
+                            </Button>
+                          )}
+                        </SpaceBetween>
+                        
+                        {/* Custom Date Range */}
+                        <SpaceBetween direction="horizontal" size="m">
+                          <FormField label="From Date">
+                            <DateInput
+                              value={startDate}
+                              onChange={({ detail }) => setStartDate(detail.value)}
+                              placeholder="MM-DD-YYYY"
+                            />
+                          </FormField>
+                          <FormField label="To Date">
+                            <DateInput
+                              value={endDate}
+                              onChange={({ detail }) => setEndDate(detail.value)}
+                              placeholder="MM-DD-YYYY"
+                            />
+                          </FormField>
+                        </SpaceBetween>
+                        
+                        {(startDate || endDate) && (
+                          <Box color="text-body-secondary" fontSize="body-s">
+                            {startDate && endDate 
+                              ? `Showing executions from ${startDate} to ${endDate}`
+                              : startDate 
+                                ? `Showing executions from ${startDate} onwards`
+                                : `Showing executions up to ${endDate}`
+                            }
+                          </Box>
+                        )}
+                      </SpaceBetween>
+                    </Container>
+                    
                     <Table
                       {...collectionProps}
                       columnDefinitions={[
@@ -429,7 +543,13 @@ export const ExecutionsPage: React.FC = () => {
                       }
                       header={
                         <Header
-                          counter={selectedItems.length > 0 ? `(${selectedItems.length}/${items.length} selected)` : `(${items.length})`}
+                          counter={
+                            selectedItems.length > 0 
+                              ? `(${selectedItems.length}/${items.length} selected)` 
+                              : (startDate || endDate)
+                                ? `(${items.length} of ${historyExecutions.length} filtered)`
+                                : `(${items.length})`
+                          }
                           actions={
                             <SpaceBetween direction="horizontal" size="xs">
                               <Button 
@@ -446,21 +566,7 @@ export const ExecutionsPage: React.FC = () => {
                         </Header>
                       }
                       filter={
-                        <SpaceBetween direction="horizontal" size="xs">
-                          <TextFilter {...filterProps} filteringPlaceholder="Search by plan name, execution ID, or status" countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`} />
-                          <Select
-                            selectedOption={sourceFilter}
-                            onChange={({ detail }) => setSourceFilter(detail.selectedOption)}
-                            options={INVOCATION_SOURCE_OPTIONS}
-                            placeholder="Filter by source"
-                          />
-                          <Select
-                            selectedOption={modeFilter}
-                            onChange={({ detail }) => setModeFilter(detail.selectedOption)}
-                            options={SELECTION_MODE_OPTIONS}
-                            placeholder="Filter by mode"
-                          />
-                        </SpaceBetween>
+                        <TextFilter {...filterProps} filteringPlaceholder="Search by plan name or status" countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`} />
                       }
                       pagination={<Pagination {...paginationProps} />}
                       variant="full-page"
