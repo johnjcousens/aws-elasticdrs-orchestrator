@@ -4,6 +4,29 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+### Enhanced
+
+**History Page Date Filtering System** - December 30, 2025
+
+- **Intuitive Date Range Filtering**: Added comprehensive date filtering for execution history with American date format (MM-DD-YYYY)
+- **Quick Filter Buttons**: ButtonDropdown with preset ranges (Last Hour, Last 6 Hours, Today, Last 3 Days, Last Week, Last Month)
+- **Custom Date Range**: Separate DateInput fields for flexible start and end date selection
+- **Visual Feedback**: Clear indication of active date range with easy "Clear Filter" button
+- **Proper Date Handling**: Robust Unix timestamp conversion and date parsing with `date-fns` library
+- **Search Bar Enhancement**: Widened search bar for better readability and updated placeholder text
+- **UI Simplification**: Removed redundant filter dropdowns to reduce interface clutter
+- **American Format**: MM-DD-YYYY date format throughout for American audience preference
+
+**Technical Implementation:**
+- Uses `date-fns` functions: `parse()`, `format()`, `isWithinInterval()`, `startOfDay()`, `endOfDay()`
+- Handles Unix timestamp conversion (seconds to milliseconds) for JavaScript Date objects
+- Filters apply only to History tab (completed executions) with proper status filtering
+- Maintains existing search functionality alongside new date filtering
+- Clean code with unused imports removed (`DateRangePickerProps`, `parseISO`)
+
+**Files Modified:**
+- `frontend/src/pages/ExecutionsPage.tsx` - Complete date filtering system implementation
+
 ### Fixed
 
 **History Page Execution Deletion and Console Logging Cleanup** - December 30, 2025
