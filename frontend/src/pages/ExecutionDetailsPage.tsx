@@ -391,7 +391,17 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   // Check if execution can be cancelled
-  const canCancel = execution && (
+  // Cannot cancel if on the final wave
+  
+  const currentWave = execution?.currentWave ?? 1;
+  const totalWaves = execution?.totalWaves ?? 1;
+  
+  // Check if we're on the final wave
+  const isOnFinalWave = currentWave >= totalWaves;
+  
+
+  
+  const canCancel = execution && !isOnFinalWave && (
     execution.status === 'in_progress' || 
     execution.status === 'pending' ||
     execution.status === 'paused' ||
@@ -412,6 +422,8 @@ export const ExecutionDetailsPage: React.FC = () => {
     execution.status === 'cancelling' ||
     (execution.status as string) === 'CANCELLING'
   );
+
+
 
   // Check if instances have already been terminated
   const instancesAlreadyTerminated = execution && (
@@ -524,6 +536,8 @@ export const ExecutionDetailsPage: React.FC = () => {
       </PageTransition>
     );
   }
+
+
 
   return (
     <PageTransition>

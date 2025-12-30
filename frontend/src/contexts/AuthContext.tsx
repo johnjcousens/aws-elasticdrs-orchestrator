@@ -26,7 +26,6 @@ const amplifyConfig = {
       region: awsConfig.Auth?.Cognito?.region || 'us-east-1',
       userPoolId: awsConfig.Auth?.Cognito?.userPoolId,
       userPoolClientId: awsConfig.Auth?.Cognito?.userPoolClientId,
-      identityPoolId: awsConfig.Auth?.Cognito?.identityPoolId,
       loginWith: {
         email: true
       }
@@ -35,7 +34,6 @@ const amplifyConfig = {
   API: awsConfig.API
 };
 
-console.log('🔧 Amplify configuration:', JSON.stringify(amplifyConfig, null, 2));
 Amplify.configure(amplifyConfig);
 
 interface AuthContextType extends AuthState {
@@ -76,7 +74,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     
     const timer = setTimeout(() => {
-      console.log('Auto-logout: Session expired');
       handleSignOut();
     }, AUTO_LOGOUT_TIME);
     
@@ -123,7 +120,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (isLocalDev && isUsingLocalAPI) {
         // Mock authentication only when using local API
-        console.log('🔧 Local development mode with local API - using mock authentication');
         setAuthState({
           isAuthenticated: true,
           user: {
@@ -203,7 +199,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (isLocalDev && isUsingLocalAPI) {
         // Mock sign-in only when using local API
-        console.log('🔧 Local development mode with local API - mock sign-in successful');
         setAuthState({
           isAuthenticated: true,
           user: {
@@ -258,7 +253,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (isLocalDev) {
         // Mock sign-out for local development
-        console.log('🔧 Local development mode - mock sign-out');
         clearLogoutTimer();
         setAuthState({
           isAuthenticated: false,
