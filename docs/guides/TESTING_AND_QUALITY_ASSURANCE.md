@@ -2,7 +2,7 @@
 
 **Version**: 2.1
 **Date**: December 2025
-**Status**: Production Ready
+**Status**: MVP Drill Only Prototype
 
 ---
 

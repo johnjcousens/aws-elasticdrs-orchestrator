@@ -37,7 +37,7 @@ All notable changes to the AWS DRS Orchestration Solution project.
 - **Data Consistency Fix**: Resolved issue where executions appeared in UI but couldn't be found in database during deletion
 - **Authentication Fix**: Resolved JWT token authentication issues with selective deletion endpoint
 - **Console Cleanup**: Removed excessive debugging logs from authentication and API request interceptors
-- **Production Ready**: Cleaned browser console output while preserving essential error logging
+- **MVP Drill Only Prototype**: Core drill functionality with comprehensive documentation
 
 **Technical Details:**
 - Enhanced `delete_executions_by_ids()` Lambda function to handle array of execution IDs

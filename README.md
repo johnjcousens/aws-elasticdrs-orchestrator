@@ -6,16 +6,16 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
-[![Release](https://img.shields.io/badge/Release-Production%20Ready%20v2.0-brightgreen)](https://github.com/your-repo/releases/tag/v2.0.0-production-ready)
+[![Release](https://img.shields.io/badge/Release-MVP%20Drill%20Only%20Prototype%20v2.0-orange)](https://github.com/your-repo/releases/tag/v2.0.0-mvp-drill-prototype)
 
-## 🎉 **Production Ready v2.0!**
+## 🚧 **MVP Drill Only Prototype v2.0**
 
-**Latest Version**: v2.0 - Production Ready (December 30, 2025)  
-**Git Tag**: `v2.0.0-production-ready`
+**Latest Version**: v2.0 - MVP Drill Only Prototype (December 30, 2025)  
+**Git Tag**: `v2.0.0-mvp-drill-prototype`
 
 ### 🚀 **What's New in v2.0**
 
-- **Production Ready**: Complete feature implementation with full documentation alignment
+- **MVP Drill Only Prototype**: Core drill functionality with comprehensive documentation
 - **Multi-Account Management**: Complete account management system with enforcement and auto-selection
 - **Enhanced Tag-Based Selection**: Fixed DRS source server tag querying with full hardware details
 - **Account Selector**: Intuitive account switching in top navigation
@@ -345,7 +345,7 @@ The repository uses Git tags to mark significant milestones:
 
 | Tag | Description | Date |
 |-----|-------------|------|
-| `v2.0.0-production-ready` | **Production Ready v2.0** - Complete multi-account management system | December 30, 2025 |
+| `v2.0.0-mvp-drill-prototype` | **MVP Drill Only Prototype v2.0** - Core drill functionality with comprehensive documentation | December 30, 2025 |
 | `mvp-demo-ready` | MVP Demo Ready - Complete working state with all core features | December 9, 2025 |
 
 ### Rollback to a Tag
