@@ -343,11 +343,11 @@ For detailed implementation plans, see:
 
 The repository uses Git tags to mark significant milestones:
 
-| Tag | Description | Date |
-|-----|-------------|------|
-| `MVP-DRILL-PROTOTYPE` | **MVP Drill Prototype Complete** - Complete disaster recovery orchestration platform with multi-account support, tag-based selection, and comprehensive drill capabilities | December 30, 2025 |
-| `v2.0.0-mvp-drill-prototype` | **MVP Drill Only Prototype v2.0** - Core drill functionality with comprehensive documentation | December 30, 2025 |
-| `mvp-demo-ready` | MVP Demo Ready - Complete working state with all core features | December 9, 2025 |
+| Tag | Description | Date | Commit |
+|-----|-------------|------|--------|
+| `MVP-DRILL-PROTOTYPE` | **MVP Drill Prototype Complete** - Complete disaster recovery orchestration platform with multi-account support, tag-based selection, and comprehensive drill capabilities | December 30, 2025 | `a34c5b7` |
+| `v2.0.0-mvp-drill-prototype` | **MVP Drill Only Prototype v2.0** - Core drill functionality with comprehensive documentation | December 30, 2025 | - |
+| `mvp-demo-ready` | MVP Demo Ready - Complete working state with all core features | December 9, 2025 | - |
 
 ### Rollback to a Tag
 
