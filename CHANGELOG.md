@@ -4,6 +4,56 @@ All notable changes to the AWS DRS Orchestration Solution project.
 
 ## [Unreleased]
 
+### Fixed
+
+**History Page Execution Deletion and Console Logging Cleanup** - December 30, 2025
+
+- **Enhanced Selective Deletion**: Fixed History page Clear History button to support multi-selection with granular deletion
+- **Improved User Experience**: Button now shows selected count ("Clear History (3)") and is disabled when no items selected
+- **API Enhancement**: Added `DELETE /executions` endpoint with body support for selective deletion by execution IDs
+- **Data Consistency Fix**: Resolved issue where executions appeared in UI but couldn't be found in database during deletion
+- **Authentication Fix**: Resolved JWT token authentication issues with selective deletion endpoint
+- **Console Cleanup**: Removed excessive debugging logs from authentication and API request interceptors
+- **Production Ready**: Cleaned browser console output while preserving essential error logging
+
+**Technical Details:**
+- Enhanced `delete_executions_by_ids()` Lambda function to handle array of execution IDs
+- Fixed DynamoDB composite key handling for ExecutionHistoryTable (`ExecutionId` + `PlanId`)
+- Updated frontend table with `selectionType="multi"` for checkbox selection
+- Improved confirmation dialog to show selected execution count
+- Removed verbose JWT token validation and API debugging logs from production build
+
+**Files Modified:**
+- `frontend/src/pages/ExecutionsPage.tsx` - Multi-selection table and improved Clear History button
+- `frontend/src/services/api.ts` - Cleaned authentication debugging logs and enhanced deleteExecutions method
+- `frontend/src/contexts/AuthContext.tsx` - Removed auth session debugging logs
+- `lambda/index.py` - Enhanced selective deletion with proper error handling
+- `cfn/api-stack.yaml` - Added DELETE /executions endpoint with CORS support
+
+**History Page Search Enhancement** - December 30, 2025
+
+- **Improved Search Placeholder**: Changed vague "Find executions" to descriptive "Search by plan name, execution ID, or status"
+- **Better User Guidance**: Users now understand exactly what fields are searchable
+- **Enhanced Discoverability**: Clear indication of search capabilities reduces user confusion
+
+**History Page Filter Fixes** - December 30, 2025
+
+- **Invocation Source Filter**: Fixed dropdown filter that wasn't working due to undefined value handling
+- **Selection Mode Filter**: Fixed similar issue with undefined selectionMode values
+- **Robust Filtering**: Added proper default value handling for optional fields in ExecutionListItem
+- **Consistent Behavior**: All dropdown filters now work reliably across different execution types
+
+**DRS Execution Wave Status Reporting Bug Fix** - December 30, 2025
+
+- **Critical Bug Fixed**: Wave 3 was incorrectly marked as "Successfully completed" when DRS recovery actually failed
+- **Root Cause**: Polling logic fell back to DRS job status ('COMPLETED') even when servers never reached 'LAUNCHED' status
+- **Solution**: Added explicit detection for scenario where DRS job completes but instances fail to launch
+- **Status Accuracy**: Modified `poll_wave_status()` to mark wave as 'FAILED' when `drs_status == 'COMPLETED'` but `not all_launched`
+- **User Clarity**: Execution history now accurately reflects actual recovery outcomes
+
+**Files Modified:**
+- `lambda/poller/execution_poller.py` - Enhanced wave status detection logic
+
 ### Removed
 
 **Frontend Debug Logging Cleanup** - December 29, 2025

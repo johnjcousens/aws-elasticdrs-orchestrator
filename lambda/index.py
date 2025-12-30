@@ -2808,6 +2808,10 @@ def handle_executions(method: str, path_params: Dict, query_params: Dict, body: 
     elif execution_id and '/job-logs' in full_path:
         job_id = query_params.get('jobId')
         return get_job_log_items(execution_id, job_id)
+    elif method == 'POST' and '/delete' in full_path and body and 'executionIds' in body:
+        # Delete specific executions by IDs (selective operation) - NEW POST route
+        execution_ids = body.get('executionIds', [])
+        return delete_executions_by_ids(execution_ids)
     elif method == 'POST' and not execution_id:
         return execute_recovery_plan(body)
     elif method == 'GET' and execution_id:
@@ -2815,6 +2819,10 @@ def handle_executions(method: str, path_params: Dict, query_params: Dict, body: 
     elif method == 'GET':
         # List all executions with optional pagination
         return list_executions(query_params)
+    elif method == 'DELETE' and not execution_id and body and 'executionIds' in body:
+        # Delete specific executions by IDs (selective operation) - LEGACY DELETE route
+        execution_ids = body.get('executionIds', [])
+        return delete_executions_by_ids(execution_ids)
     elif method == 'DELETE' and not execution_id:
         # Delete completed executions only (bulk operation)
         return delete_completed_executions()
@@ -5224,6 +5232,162 @@ def delete_completed_executions() -> Dict:
         return response(500, {
             'error': 'DELETE_FAILED',
             'message': f'Failed to delete completed executions: {str(e)}'
+        })
+
+
+def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
+    """
+    Delete specific executions by their IDs
+    
+    Safe operation that only removes terminal state executions:
+    - COMPLETED, PARTIAL, FAILED, CANCELLED (without active DRS jobs)
+    
+    Active executions are preserved and reported as errors.
+    
+    Args:
+        execution_ids: List of execution IDs to delete
+    
+    Returns:
+        Dict with deletion results including counts and any failures
+    """
+    try:
+        print(f"Starting selective delete of {len(execution_ids)} executions")
+        
+        if not execution_ids:
+            return response(400, {
+                'error': 'MISSING_EXECUTION_IDS',
+                'message': 'No execution IDs provided for deletion'
+            })
+        
+        # Define terminal states that are safe to delete
+        terminal_states = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'TIMEOUT']
+        active_states = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'CANCELLING']
+        
+        deleted_count = 0
+        failed_deletes = []
+        active_executions_skipped = []
+        not_found = []
+        
+        for execution_id in execution_ids:
+            try:
+                # First, find the execution to get its PlanId and Status
+                # We need to scan since we only have ExecutionId
+                print(f"Searching for execution: {execution_id}")
+                
+                scan_result = execution_history_table.scan(
+                    FilterExpression=Attr('ExecutionId').eq(execution_id)
+                )
+                
+                executions = scan_result.get('Items', [])
+                if not executions:
+                    not_found.append(execution_id)
+                    print(f"Execution {execution_id} not found")
+                    continue
+                
+                execution = executions[0]
+                plan_id = execution.get('PlanId')
+                status = execution.get('Status', '').upper()
+                
+                # Check if execution is in terminal state
+                if status in active_states:
+                    active_executions_skipped.append({
+                        'executionId': execution_id,
+                        'status': status,
+                        'reason': 'Execution is still active'
+                    })
+                    print(f"Skipping active execution {execution_id} (status: {status})")
+                    continue
+                
+                # For CANCELLED executions, check if they have active DRS jobs
+                if status == 'CANCELLED':
+                    has_active_job = False
+                    for wave in execution.get('Waves', []):
+                        job_id = wave.get('JobId')
+                        if job_id:
+                            region = wave.get('Region', 'us-east-1')
+                            try:
+                                drs_client = create_drs_client(region)
+                                job_response = drs_client.describe_jobs(filters={'jobIDs': [job_id]})
+                                jobs = job_response.get('items', [])
+                                if jobs:
+                                    job_status = jobs[0].get('status', '')
+                                    if job_status in ['PENDING', 'STARTED']:
+                                        has_active_job = True
+                                        print(f"Execution {execution_id} has active DRS job {job_id} (status: {job_status})")
+                                        break
+                            except Exception as e:
+                                print(f"Error checking DRS job {job_id}: {e}")
+                                has_active_job = True
+                                break
+                    
+                    if has_active_job:
+                        active_executions_skipped.append({
+                            'executionId': execution_id,
+                            'status': status,
+                            'reason': 'Has active DRS jobs'
+                        })
+                        continue
+                
+                # Safe to delete - execution is in terminal state
+                if not plan_id:
+                    failed_deletes.append({
+                        'executionId': execution_id,
+                        'error': 'Missing PlanId - cannot delete'
+                    })
+                    continue
+                
+                # Delete the execution
+                execution_history_table.delete_item(
+                    Key={
+                        'ExecutionId': execution_id,
+                        'PlanId': plan_id
+                    }
+                )
+                deleted_count += 1
+                print(f"Deleted execution: {execution_id}")
+                
+            except Exception as delete_error:
+                error_msg = str(delete_error)
+                print(f"Failed to delete execution {execution_id}: {error_msg}")
+                failed_deletes.append({
+                    'executionId': execution_id,
+                    'error': error_msg
+                })
+        
+        # Build response
+        result = {
+            'message': f'Processed {len(execution_ids)} execution deletion requests',
+            'deletedCount': deleted_count,
+            'totalRequested': len(execution_ids),
+            'notFound': len(not_found),
+            'activeSkipped': len(active_executions_skipped),
+            'failed': len(failed_deletes)
+        }
+        
+        if not_found:
+            result['notFoundIds'] = not_found
+        
+        if active_executions_skipped:
+            result['activeExecutionsSkipped'] = active_executions_skipped
+            result['warning'] = f'{len(active_executions_skipped)} active execution(s) skipped'
+        
+        if failed_deletes:
+            result['failedDeletes'] = failed_deletes
+            if 'warning' in result:
+                result['warning'] += f'; {len(failed_deletes)} execution(s) failed to delete'
+            else:
+                result['warning'] = f'{len(failed_deletes)} execution(s) failed to delete'
+        
+        print(f"Selective delete completed: {deleted_count} deleted, {len(active_executions_skipped)} skipped (active), {len(failed_deletes)} failed, {len(not_found)} not found")
+        return response(200, result)
+        
+    except Exception as e:
+        print(f"Error deleting executions by IDs: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'DELETE_FAILED',
+            'message': f'Failed to delete executions: {str(e)}'
         })
 
 

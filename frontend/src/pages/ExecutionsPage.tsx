@@ -66,6 +66,7 @@ export const ExecutionsPage: React.FC = () => {
   const [clearing, setClearing] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SelectProps.Option | null>(null);
   const [modeFilter, setModeFilter] = useState<SelectProps.Option | null>(null);
+  const [selectedItems, setSelectedItems] = useState<ExecutionListItem[]>([]);
 
   useEffect(() => {
     fetchExecutions();
@@ -112,12 +113,54 @@ export const ExecutionsPage: React.FC = () => {
   const handleConfirmClear = async () => {
     setClearing(true);
     try {
-      const result = await apiClient.deleteCompletedExecutions();
-      addNotification('success', `Cleared ${result.deletedCount} completed executions`);
+      if (selectedItems.length === 0) {
+        addNotification('error', 'No executions selected for deletion');
+        return;
+      }
+
+      // Debug: Log selected items and their statuses
+      console.log('Selected items for deletion:', selectedItems.map(item => ({
+        executionId: item.executionId,
+        status: item.status,
+        recoveryPlanName: item.recoveryPlanName
+      })));
+
+      // Delete selected executions by ID
+      const executionIds = selectedItems.map(item => item.executionId);
+      console.log('Calling deleteExecutions with IDs:', executionIds);
+      
+      const result = await apiClient.deleteExecutions(executionIds);
+      console.log('Delete result:', result);
+      
+      // Show detailed results to user
+      if (result.deletedCount > 0) {
+        addNotification('success', `Deleted ${result.deletedCount} selected executions`);
+      }
+      
+      if (result.activeSkipped > 0) {
+        addNotification('warning', `Skipped ${result.activeSkipped} active executions (cannot delete while running)`);
+      }
+      
+      if (result.notFound > 0) {
+        addNotification('warning', `${result.notFound} executions not found`);
+      }
+      
+      if (result.failed > 0) {
+        addNotification('error', `Failed to delete ${result.failed} executions`);
+      }
+      
+      // Show overall summary
+      const totalProcessed = result.deletedCount + result.activeSkipped + result.notFound + result.failed;
+      if (totalProcessed === 0) {
+        addNotification('warning', 'No executions were processed');
+      }
+      
       setClearDialogOpen(false);
+      setSelectedItems([]);
       await fetchExecutions();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to clear history';
+      console.error('Delete executions error:', err);
+      const msg = err instanceof Error ? err.message : 'Failed to delete selected executions';
       addNotification('error', msg);
     } finally {
       setClearing(false);
@@ -148,13 +191,19 @@ export const ExecutionsPage: React.FC = () => {
     }
     
     // Apply source filter
-    if (sourceFilter?.value && (e as any).invocationSource !== sourceFilter.value) {
-      return false;
+    if (sourceFilter?.value) {
+      const executionSource = e.invocationSource || 'UI'; // Default to 'UI' if not set
+      if (executionSource !== sourceFilter.value) {
+        return false;
+      }
     }
     
     // Apply selection mode filter
-    if (modeFilter?.value && (e as any).selectionMode !== modeFilter.value) {
-      return false;
+    if (modeFilter?.value) {
+      const executionMode = e.selectionMode || 'PLAN'; // Default to 'PLAN' if not set
+      if (executionMode !== modeFilter.value) {
+        return false;
+      }
     }
     
     return true;
@@ -207,6 +256,7 @@ export const ExecutionsPage: React.FC = () => {
       filtering: { empty: 'No execution history', noMatch: 'No executions match the filter' },
       pagination: { pageSize: 10 },
       sorting: {},
+      selection: {},
     }
   );
 
@@ -310,11 +360,15 @@ export const ExecutionsPage: React.FC = () => {
                 content: (
                   <SpaceBetween size="m">
                     {historyExecutions.length > 0 && (
-                      <Box float="right">
-                        <Button variant="normal" onClick={handleClearHistory} disabled={clearing}>
-                          Clear Completed History
+                      <SpaceBetween direction="horizontal" size="xs">
+                        <Button 
+                          variant="normal" 
+                          onClick={handleClearHistory} 
+                          disabled={clearing || selectedItems.length === 0}
+                        >
+                          Clear History ({selectedItems.length})
                         </Button>
-                      </Box>
+                      </SpaceBetween>
                     )}
                     <Table
                       {...collectionProps}
@@ -328,8 +382,8 @@ export const ExecutionsPage: React.FC = () => {
                           cell: (item) => (
                             <span style={{ whiteSpace: 'nowrap' }}>
                               <InvocationSourceBadge 
-                                source={((item as any).invocationSource || 'UI') as InvocationSource} 
-                                details={(item as any).invocationDetails as InvocationDetails}
+                                source={(item.invocationSource || 'UI') as InvocationSource} 
+                                details={item.invocationDetails as InvocationDetails}
                               />
                             </span>
                           ),
@@ -364,15 +418,36 @@ export const ExecutionsPage: React.FC = () => {
                       items={items}
                       loading={loading}
                       loadingText="Loading execution history"
+                      selectedItems={selectedItems}
+                      onSelectionChange={({ detail }) => setSelectedItems(detail.selectedItems)}
+                      selectionType="multi"
                       empty={
                         <Box textAlign="center" color="inherit">
                           <b>No execution history</b>
                           <Box padding={{ bottom: 's' }} variant="p" color="inherit">Completed executions will appear here</Box>
                         </Box>
                       }
+                      header={
+                        <Header
+                          counter={selectedItems.length > 0 ? `(${selectedItems.length}/${items.length} selected)` : `(${items.length})`}
+                          actions={
+                            <SpaceBetween direction="horizontal" size="xs">
+                              <Button 
+                                variant="normal" 
+                                onClick={handleClearHistory} 
+                                disabled={clearing || selectedItems.length === 0}
+                              >
+                                Clear History ({selectedItems.length})
+                              </Button>
+                            </SpaceBetween>
+                          }
+                        >
+                          Execution History
+                        </Header>
+                      }
                       filter={
                         <SpaceBetween direction="horizontal" size="xs">
-                          <TextFilter {...filterProps} filteringPlaceholder="Find executions" countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`} />
+                          <TextFilter {...filterProps} filteringPlaceholder="Search by plan name, execution ID, or status" countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`} />
                           <Select
                             selectedOption={sourceFilter}
                             onChange={({ detail }) => setSourceFilter(detail.selectedOption)}
@@ -399,18 +474,18 @@ export const ExecutionsPage: React.FC = () => {
           <Modal
             visible={clearDialogOpen}
             onDismiss={() => setClearDialogOpen(false)}
-            header="Clear Completed History?"
+            header="Delete Selected Executions?"
             footer={
               <Box float="right">
                 <SpaceBetween direction="horizontal" size="xs">
                   <Button onClick={() => setClearDialogOpen(false)} disabled={clearing}>Cancel</Button>
-                  <Button variant="primary" onClick={handleConfirmClear} disabled={clearing} loading={clearing}>Clear History</Button>
+                  <Button variant="primary" onClick={handleConfirmClear} disabled={clearing} loading={clearing}>Delete Selected</Button>
                 </SpaceBetween>
               </Box>
             }
           >
             <SpaceBetween size="m">
-              <Box>This will permanently delete all completed execution records ({historyExecutions.length} items). Active executions will not be affected.</Box>
+              <Box>This will permanently delete {selectedItems.length} selected execution record{selectedItems.length !== 1 ? 's' : ''}. Active executions will not be affected.</Box>
               <Alert type="warning">This action cannot be undone.</Alert>
             </SpaceBetween>
           </Modal>

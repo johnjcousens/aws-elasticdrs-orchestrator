@@ -81,36 +81,74 @@ class ApiClient {
     // Request interceptor - Set baseURL dynamically and add auth token
     this.axiosInstance.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
+        // Wait for AWS config to be loaded if available
+        if (window.configReady) {
+          await window.configReady;
+        }
+
         // Read endpoint fresh on each request (after window.AWS_CONFIG is loaded)
         const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
         config.baseURL = apiEndpoint;
 
         try {
-          // Check if we're in local development mode
-          const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          // Get the current authentication session
+          const session = await fetchAuthSession();
+
+          // Extract token (only idToken is available in AWS Amplify v6)
+          let token = null;
           
-          if (isLocalDev) {
-            // For local development, we still need to get real tokens since we're hitting the real API
-            // The local config now points to the real API endpoint
-            const session = await fetchAuthSession();
-            const token = session.tokens?.idToken?.toString();
-
-            if (token && config.headers) {
-              config.headers.Authorization = `Bearer ${token}`;
-            } else {
-              console.warn('No auth token available in local dev mode');
-            }
-          } else {
-            // Get the current authentication session for production
-            const session = await fetchAuthSession();
-            const token = session.tokens?.idToken?.toString();
-
-            if (token && config.headers) {
-              config.headers.Authorization = `Bearer ${token}`;
-            }
+          if (session.tokens?.idToken) {
+            token = session.tokens.idToken.toString();
           }
-        } catch (error) {
-          console.error('Error fetching auth token:', error);
+
+          if (token && config.headers) {
+            // Validate token format before sending
+            if (typeof token !== 'string' || token.trim().length === 0) {
+              console.error('Invalid token format:', {
+                type: typeof token,
+                length: token?.length,
+                sample: token?.substring(0, 50) + '...'
+              });
+              throw new Error('Invalid authentication token format');
+            }
+
+            // Ensure clean token (remove any whitespace/newlines)
+            const cleanToken = token.trim().replace(/\s+/g, '');
+            
+            // Validate JWT format (should have 3 parts separated by dots)
+            const tokenParts = cleanToken.split('.');
+            if (tokenParts.length !== 3) {
+              console.error('Invalid JWT format - expected 3 parts, got:', {
+                parts: tokenParts.length,
+                tokenStart: cleanToken.substring(0, 50),
+                tokenEnd: cleanToken.substring(cleanToken.length - 50)
+              });
+              throw new Error('Invalid JWT token format');
+            }
+
+            // Additional validation: check each part is base64-like
+            const base64Pattern = /^[A-Za-z0-9+/=_-]+$/;
+            for (let i = 0; i < tokenParts.length; i++) {
+              if (!base64Pattern.test(tokenParts[i])) {
+                console.error(`JWT part ${i + 1} contains invalid characters:`, tokenParts[i].substring(0, 20));
+                throw new Error(`Invalid JWT token format - part ${i + 1} contains invalid characters`);
+              }
+            }
+
+            config.headers.Authorization = `Bearer ${cleanToken}`;
+          } else {
+            console.warn('No auth token available:', {
+              hasSession: !!session,
+              hasTokens: !!session.tokens,
+              tokenKeys: session.tokens ? Object.keys(session.tokens) : null
+            });
+          }
+        } catch (error: any) {
+          console.error('Error fetching auth token:', {
+            error: error?.message || 'Unknown error',
+            stack: error?.stack,
+            name: error?.name
+          });
           throw error;
         }
 
@@ -236,8 +274,9 @@ class ApiClient {
   /**
    * Generic DELETE request
    */
-  private async delete<T>(path: string): Promise<T> {
-    const response = await this.axiosInstance.delete<any>(path);
+  private async delete<T>(path: string, data?: any): Promise<T> {
+    const config = data ? { data } : {};
+    const response = await this.axiosInstance.delete<any>(path, config);
     return response.data as T;
   }
 
@@ -642,6 +681,61 @@ class ApiClient {
       completedFound: number;
       activePreserved: number;
     }>('/executions');
+  }
+
+  /**
+   * Delete specific executions by their IDs (selective operation)
+   * 
+   * Safely removes only terminal state executions:
+   * - COMPLETED, PARTIAL, FAILED, CANCELLED (without active DRS jobs)
+   * 
+   * Active executions are preserved and reported in the response.
+   * 
+   * @param executionIds - Array of execution IDs to delete
+   * @returns Summary of deletion operation including counts and any failures
+   */
+  public async deleteExecutions(executionIds: string[]): Promise<{
+    message: string;
+    deletedCount: number;
+    totalRequested: number;
+    notFound: number;
+    activeSkipped: number;
+    failed: number;
+    notFoundIds?: string[];
+    activeExecutionsSkipped?: Array<{
+      executionId: string;
+      status: string;
+      reason: string;
+    }>;
+    failedDeletes?: Array<{
+      executionId: string;
+      error: string;
+    }>;
+    warning?: string;
+  }> {
+    // Use DELETE /executions with body instead of POST /executions/delete
+    // This should work since the Lambda function handles both routes
+    const result = await this.delete<{
+      message: string;
+      deletedCount: number;
+      totalRequested: number;
+      notFound: number;
+      activeSkipped: number;
+      failed: number;
+      notFoundIds?: string[];
+      activeExecutionsSkipped?: Array<{
+        executionId: string;
+        status: string;
+        reason: string;
+      }>;
+      failedDeletes?: Array<{
+        executionId: string;
+        error: string;
+      }>;
+      warning?: string;
+    }>('/executions', { executionIds });
+    
+    return result;
   }
 
   // ============================================================================
