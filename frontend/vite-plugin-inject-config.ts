@@ -20,7 +20,6 @@ export function injectConfigScript(): Plugin {
     transformIndexHtml(html: string) {
       // Skip injection in dev mode - aws-config.js only exists in CloudFormation S3
       if (process.env.NODE_ENV !== 'production') {
-        console.log('ℹ Skipping aws-config.js injection in dev mode (uses aws-config.json instead)');
         return html;
       }
 
@@ -31,11 +30,11 @@ export function injectConfigScript(): Plugin {
         '<script src="/assets/aws-config.js"></script>\n    $1'
       );
 
-      // Log for verification during build
+      // Build-time injection completed
       if (transformed !== html) {
-        console.log('✓ Injected aws-config.js script tag into index.html');
+        // Successfully injected
       } else {
-        console.warn('⚠ Could not find module script tag to inject aws-config.js');
+        // Could not find injection point
       }
 
       return transformed;
