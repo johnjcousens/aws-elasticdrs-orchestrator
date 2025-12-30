@@ -398,7 +398,7 @@ flowchart LR
 - Frontend deployment with CloudFormation integration
 - AWS credential configuration with session token support
 
-**Current Status**: Production ready with automated deployment to test environment and manual production deployment.
+**Current Status**: MVP drill only prototype with automated deployment to test environment and manual production deployment.
 
 **Lambda Packages Built**:
 - api-handler.zip (index.py)
