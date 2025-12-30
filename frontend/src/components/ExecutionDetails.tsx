@@ -177,11 +177,23 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
   };
 
   // Check if execution can be cancelled
-  const canCancel = execution && (
+  // Cannot cancel if on the final wave
+  
+  const currentWave = execution?.currentWave ?? 1;
+  const totalWaves = execution?.totalWaves ?? 1;
+  
+  // Check if we're on the final wave
+  const isOnFinalWave = currentWave >= totalWaves;
+  
+
+  
+  const canCancel = execution && !isOnFinalWave && (
     execution.status === 'in_progress' || 
     execution.status === 'pending' ||
     execution.status === 'paused'
   );
+
+
 
   return (
     <>

@@ -81,10 +81,4 @@ function getAwsConfig() {
 export const awsConfig = getAwsConfig();
 
 // Log config status only in development mode
-if (import.meta.env.DEV) {
-  if (window.AWS_CONFIG) {
-    console.log('✅ AWS Config loaded from CloudFormation');
-  } else {
-    console.log('⚠️ Using default AWS config (local dev)');
-  }
-}
+// Development mode logging removed for production
