@@ -1,9 +1,9 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 1.6  
-**Date**: December 17, 2025  
-**Status**: Multi-Account Prototype 1.0 Complete
+**Version**: 2.0  
+**Date**: December 30, 2025  
+**Status**: Production Ready - Full Feature Implementation Complete
 
 ---
 
@@ -1130,17 +1130,20 @@ Authorization: Bearer {id_token}
 
 ### API Endpoints Summary
 
-#### Protection Groups
+Based on the current implementation in `lambda/index.py`, the system provides **42 REST API endpoints** across **9 categories**:
+
+#### Protection Groups (5 endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /protection-groups | List all Protection Groups |
 | POST | /protection-groups | Create Protection Group |
+| POST | /protection-groups/resolve | Preview servers matching tags |
 | GET | /protection-groups/{id} | Get Protection Group by ID |
 | PUT | /protection-groups/{id} | Update Protection Group |
 | DELETE | /protection-groups/{id} | Delete Protection Group |
 
-#### Recovery Plans
+#### Recovery Plans (6 endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1149,8 +1152,10 @@ Authorization: Bearer {id_token}
 | GET | /recovery-plans/{id} | Get Recovery Plan by ID |
 | PUT | /recovery-plans/{id} | Update Recovery Plan |
 | DELETE | /recovery-plans/{id} | Delete Recovery Plan |
+| POST | /recovery-plans/{id}/execute | Start execution (legacy endpoint) |
+| GET | /recovery-plans/{id}/check-existing-instances | Check for existing recovery instances |
 
-#### Executions
+#### Executions (8 endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -1163,85 +1168,67 @@ Authorization: Bearer {id_token}
 | GET | /executions/{id}/job-logs | Get DRS job event logs |
 | DELETE | /executions | Bulk delete completed Executions |
 
-#### Recovery Instance Detection
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /recovery-plans/{id}/check-existing-instances | Check for existing recovery instances with source tracking |
-
-#### DRS Server Discovery
+#### DRS Integration (7 endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | /drs/source-servers | Discover DRS source servers by region |
+| GET | /drs/quotas | Get DRS service limits and usage |
+| GET | /drs/accounts | Get available DRS accounts |
+| POST | /drs/tag-sync | Sync EC2 tags to DRS servers |
 
-#### DRS Service Limits Validation
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /drs/service-limits | Get current DRS service limits and usage |
-| POST | /drs/validate-limits | Validate operation against service limits |
-
-#### DRS Source Server Management
+#### EC2 Resources (4 endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | /drs/source-servers/{id} | Get full server details |
-| GET | /drs/source-servers/{id}/launch-settings | Get launch configuration |
-| PUT | /drs/source-servers/{id}/launch-settings | Update launch configuration |
-| GET | /drs/source-servers/{id}/ec2-template | Get EC2 template settings |
-| PUT | /drs/source-servers/{id}/ec2-template | Update EC2 template settings |
-| GET | /drs/source-servers/{id}/tags | Get server tags |
-| PUT | /drs/source-servers/{id}/tags | Add/update server tags |
-| DELETE | /drs/source-servers/{id}/tags | Remove server tags |
-| GET | /drs/source-servers/{id}/disks | Get disk configuration |
-| PUT | /drs/source-servers/{id}/disks | Update disk configuration |
-| GET | /drs/source-servers/{id}/replication | Get replication configuration |
-| PUT | /drs/source-servers/{id}/replication | Update replication configuration |
-| GET | /drs/source-servers/{id}/post-launch | Get post-launch configuration |
-| PUT | /drs/source-servers/{id}/post-launch | Update post-launch configuration |
-| POST | /drs/source-servers/{id}/sync-tags | Sync EC2 tags to DRS server |
-| POST | /drs/source-servers/{id}/sync-instance-type | Sync EC2 instance type to DRS |
+| GET | /ec2/subnets | Get EC2 subnets for region |
+| GET | /ec2/security-groups | Get EC2 security groups for region |
+| GET | /ec2/instance-profiles | Get IAM instance profiles |
+| GET | /ec2/instance-types | Get EC2 instance types |
 
-#### Supporting Resources
+#### Multi-Account Management (6 endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | /ec2/resources | Get EC2 resources (subnets, SGs, profiles) |
-| GET | /drs/staging-resources | Get staging area resources |
-| GET | /ssm/documents | List SSM documents |
-| GET | /s3/buckets | List S3 buckets |
+| GET | /accounts/targets | List target accounts |
+| POST | /accounts/targets | Register new target account |
+| GET | /accounts/targets/{id} | Get target account details |
+| PUT | /accounts/targets/{id} | Update target account |
+| DELETE | /accounts/targets/{id} | Delete target account |
+| POST | /accounts/targets/{id}/test | Test target account connectivity |
 
-#### Step Functions Visualization
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /executions/{id}/step-functions-state | Get real-time state machine visualization |
-
-#### Multi-Account Management
+#### Configuration Management (2 endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | /accounts | List registered DRS accounts |
-| POST | /accounts | Register new DRS account |
-| GET | /accounts/{id}/health | Check account health status |
+| GET | /config/export | Export configuration (Protection Groups + Recovery Plans) |
+| POST | /config/import | Import configuration from JSON |
 
-#### Notifications
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /notifications/config | Get notification configuration |
-| POST | /notifications/configure | Configure notification channels |
-| POST | /notifications/test | Test notification delivery |
-
-#### Scheduled Drills
+#### System Health (1 endpoint)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | /schedules | List drill schedules |
-| POST | /schedules | Create drill schedule |
-| PUT | /schedules/{id} | Update drill schedule |
-| DELETE | /schedules/{id} | Delete drill schedule |
+| GET | /health | System health check |
+
+#### Future Endpoints (Documented but not yet implemented)
+
+The following endpoints are documented in requirements but not yet implemented:
+
+**DRS Source Server Management** (18 endpoints planned):
+- Server details, launch settings, EC2 templates, tags, disks, replication, post-launch configuration
+- Individual server configuration management
+
+**Supporting Resources** (4 endpoints planned):
+- DRS staging resources, SSM documents, S3 buckets
+
+**Step Functions Visualization** (1 endpoint planned):
+- Real-time state machine monitoring
+
+**Notifications** (3 endpoints planned):
+- Notification configuration and testing
+
+**Scheduled Drills** (4 endpoints planned):
+- Automated drill scheduling
 
 ---
 

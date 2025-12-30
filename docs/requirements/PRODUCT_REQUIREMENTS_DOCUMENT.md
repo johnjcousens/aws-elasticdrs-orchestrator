@@ -1,30 +1,33 @@
 # Product Requirements Document
 # AWS DRS Orchestration Solution
 
-**Version**: 1.6  
-**Date**: December 17, 2025  
-**Status**: Multi-Account Prototype 1.0 Complete  
+**Version**: 2.0  
+**Date**: December 30, 2025  
+**Status**: Production Ready - Full Feature Implementation Complete  
 **Document Owner**: AWS DRS Orchestration Team
 
 ---
 
 ## Executive Summary
 
-AWS DRS Orchestration will be an enterprise-grade, serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution will enable organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, comprehensive DRS source server management, and complete audit trails.
+AWS DRS Orchestration is a production-ready, enterprise-grade serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, comprehensive DRS source server management, multi-account support, tag-based server selection, and complete audit trails.
 
 ### Problem Statement
 
-AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences. Organizations need wave-based execution, dependency management, pause/resume controls, automated monitoring capabilities, and centralized DRS source server configuration management.
+AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences. Organizations need wave-based execution, dependency management, pause/resume controls, automated monitoring capabilities, centralized DRS source server configuration management, multi-account orchestration, and flexible server selection methods.
 
 ### Solution Overview
 
-AWS DRS Orchestration will provide complete orchestration and management on top of AWS DRS:
-- Protection Groups for logical server organization with automatic DRS discovery
+AWS DRS Orchestration provides complete orchestration and management on top of AWS DRS:
+- Protection Groups for logical server organization with tag-based or explicit server selection
 - Recovery Plans with wave-based execution and multi-Protection Group support per wave
-- Step Functions-driven automation with pause/resume capability
+- Step Functions-driven automation with pause/resume capability and existing instance detection
 - Complete DRS source server management (launch settings, EC2 templates, tags, disks, replication, post-launch)
-- React 19 + CloudScape Design System UI with real-time updates
-- Complete REST API for automation and DevOps integration
+- Multi-account hub-and-spoke architecture with centralized management
+- React 19 + CloudScape Design System UI with real-time updates and 32 components
+- Complete REST API with 42 endpoints for automation and DevOps integration
+- Tag synchronization between EC2 instances and DRS source servers
+- DRS service limits validation and quota monitoring
 
 ---
 
@@ -61,7 +64,11 @@ AWS DRS Orchestration will provide complete orchestration and management on top 
 
 ### 1. Protection Groups
 
-Logical organization of DRS source servers with automatic discovery and conflict detection.
+Logical organization of DRS source servers with tag-based or explicit server selection, automatic discovery, and conflict detection.
+
+**Server Selection Modes**:
+- **Tag-Based Selection**: Dynamic server selection using EC2 tags - servers matching ALL specified tags are resolved at execution time
+- **Explicit Server Selection**: Static selection - explicitly choose specific DRS source servers
 
 **Capabilities**:
 - Auto-discovery of DRS source servers across all 30 AWS DRS-supported regions
@@ -70,18 +77,24 @@ Logical organization of DRS source servers with automatic discovery and conflict
 - Real-time search and filtering in server discovery panel
 - Conflict detection prevents duplicate server assignments
 - Server validation against DRS API (prevents fake/invalid server IDs)
+- Tag-based server selection with preview functionality
+- Launch configuration settings applied to all servers in the group
 
 **UI Components**:
 - CloudScape Table with CRUD operations, sorting, filtering, pagination
-- ProtectionGroupDialog modal with RegionSelector and ServerDiscoveryPanel
+- ProtectionGroupDialog modal with tabbed server selection (Tags vs Servers)
+- RegionSelector with all 30 DRS regions
+- ServerDiscoveryPanel with search and filtering
 - ServerSelector with checkbox selection and assignment status badges
+- LaunchConfigSection for DRS launch settings configuration
 
 **API Endpoints**:
-- `GET /protection-groups` - List all groups with server details
-- `POST /protection-groups` - Create group (validates name uniqueness, server existence, conflicts)
+- `GET /protection-groups` - List all groups with server details and selection mode
+- `POST /protection-groups` - Create group with tag-based or explicit server selection
 - `GET /protection-groups/{id}` - Get single group with enriched server details
 - `PUT /protection-groups/{id}` - Update group (blocked during active executions)
 - `DELETE /protection-groups/{id}` - Delete group (blocked if referenced by any Recovery Plan)
+- `POST /protection-groups/resolve` - Preview servers matching specified tags
 - `GET /drs/source-servers?region={region}` - Discover DRS servers with assignment status
 
 ### 2. Recovery Plans
@@ -201,9 +214,15 @@ Real-time validation and enforcement of AWS DRS service limits to prevent API er
 
 ### 5. Multi-Account Management
 
-Complete multi-account management system with enforcement logic, auto-selection, and seamless account switching for enterprise-scale DRS orchestration.
+Production-ready multi-account management system with hub-and-spoke architecture, account enforcement, auto-selection, and seamless account switching for enterprise-scale DRS orchestration.
+
+**Architecture**:
+- **Hub Account**: Central orchestration account running the DRS Orchestration solution
+- **Spoke Accounts**: Target accounts containing DRS source servers and recovery resources
+- **Cross-Account IAM Roles**: Secure access via AssumeRole with least-privilege permissions
 
 **Capabilities**:
+- **Account Registration**: Add target accounts with cross-account role configuration
 - **Account Context System**: Centralized account state management with localStorage persistence
 - **Auto-Selection**: Single accounts automatically selected as default for seamless user experience
 - **Account Selector**: Top navigation dropdown for intuitive account switching with full page context updates
@@ -211,6 +230,7 @@ Complete multi-account management system with enforcement logic, auto-selection,
 - **Default Preferences**: Persistent default account selection integrated into existing 3-tab settings panel
 - **Page-Level Enforcement**: Features blocked until target account selected (multi-account scenarios only)
 - **Settings Integration**: Default account preference seamlessly integrated without disrupting existing 3-tab structure
+- **Account Health Monitoring**: Real-time validation of cross-account role access and DRS service availability
 
 **Account Context Behavior**:
 - **Single Account**: Automatically selected as default, no enforcement needed
@@ -218,17 +238,25 @@ Complete multi-account management system with enforcement logic, auto-selection,
 - **Multiple Accounts**: User must explicitly select account, enforcement blocks features until selection
 - **Account Switching**: Full page context updates with proper state management
 
+**Cross-Account Security**:
+- IAM roles with least-privilege DRS and EC2 permissions
+- Secure credential management via AWS STS AssumeRole
+- Account isolation and validation
+- Audit trail of cross-account operations
+
 **UI Components**:
 - AccountSelector component in top navigation following AWS Console patterns
 - AccountRequiredWrapper component for consistent enforcement across protected pages
 - AccountManagementPanel with default account preference dropdown (maintains existing 3-tab structure)
 - Setup wizard for first-time account configuration
+- Account health status indicators
 
 **API Endpoints**:
-- `GET /accounts/targets` - List available target accounts
-- `POST /accounts/targets` - Add new target account
+- `GET /accounts/targets` - List available target accounts with health status
+- `POST /accounts/targets` - Add new target account with role validation
 - `PUT /accounts/targets/{id}` - Update account configuration
 - `DELETE /accounts/targets/{id}` - Remove target account
+- `GET /accounts/targets/{id}/health` - Check account health and role access
 
 ### 6. Enhanced Tag-Based Server Selection
 
@@ -249,6 +277,48 @@ Fixed and enhanced tag-based server selection with DRS source server tags and co
 
 **API Endpoints**:
 - `POST /drs/query-servers-by-tags` - Query DRS source servers by tags with hardware details
+
+### 8. DRS Tag Synchronization
+
+Automated synchronization of EC2 instance tags to DRS source servers across all regions.
+
+**Capabilities**:
+- **Bulk Tag Sync**: Synchronize tags from EC2 instances to corresponding DRS source servers
+- **Cross-Region Support**: Sync tags across all 30 DRS-supported regions
+- **Selective Sync**: Choose specific servers or sync all servers in a region
+- **Progress Monitoring**: Real-time progress tracking with detailed status updates
+- **Conflict Resolution**: Handle tag conflicts and validation errors gracefully
+- **Audit Trail**: Complete logging of sync operations and results
+
+**Sync Process**:
+1. Discover DRS source servers across specified regions
+2. Match DRS servers to EC2 instances by source server ID
+3. Compare existing tags and identify differences
+4. Apply tag updates to DRS source servers
+5. Report sync results with success/failure counts
+
+**API Endpoints**:
+- `POST /drs/tag-sync` - Sync EC2 tags to DRS source servers with progress tracking
+
+### 9. Configuration Management
+
+Export and import system configuration for backup, migration, and environment promotion.
+
+**Capabilities**:
+- **Full Configuration Export**: Export all Protection Groups, Recovery Plans, and settings
+- **Selective Export**: Export specific components or filtered data
+- **Configuration Import**: Import configuration from exported files
+- **Environment Migration**: Promote configurations between dev/test/prod environments
+- **Backup and Restore**: Create configuration backups for disaster recovery
+
+**Export Formats**:
+- JSON format with complete metadata
+- Structured data with relationships preserved
+- Validation checksums for integrity verification
+
+**API Endpoints**:
+- `GET /config/export` - Export system configuration
+- `POST /config/import` - Import configuration from file
 
 ### 7. DRS Source Server Management
 
@@ -407,9 +477,9 @@ Configure post-launch actions for recovery instances.
 - `GET /ssm/documents?region={region}` - List available SSM documents
 - `GET /s3/buckets?region={region}` - List available S3 buckets
 
-### 8. User Interface
+### 10. User Interface
 
-React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
+React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 32 components and 7 pages.
 
 **Pages**:
 
@@ -418,7 +488,7 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 | /login | LoginPage | Cognito authentication with error handling |
 | / | Dashboard | Metrics cards, pie chart, active executions, recent activity |
 | /getting-started | GettingStartedPage | 3-step onboarding guide with quick links |
-| /protection-groups | ProtectionGroupsPage | CRUD table with server counts and DRS limits validation |
+| /protection-groups | ProtectionGroupsPage | CRUD table with server counts, tag-based selection, and DRS limits validation |
 | /recovery-plans | RecoveryPlansPage | CRUD table with execution status, wave counts, conflict detection |
 | /executions | ExecutionsPage | Active/History tabs with real-time updates (3-second polling) |
 | /executions/:id | ExecutionDetailsPage | Wave progress, DRS job events, pause/resume/terminate controls |
@@ -435,19 +505,91 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0
 - Toast notifications via react-hot-toast
 - Auto-logout after 45 minutes of inactivity
 - Responsive design, WCAG 2.1 AA compliant
+- Multi-account context switching with enforcement
+- Tag-based server selection with preview
+- Existing instance detection and warning dialogs
 
-**Reusable Components**:
-- ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog
-- ServerSelector, ServerDiscoveryPanel, ServerListItem, RegionSelector
-- WaveConfigEditor, WaveProgress, StatusBadge, DateTimeDisplay
-- LoadingState, ErrorState, ErrorBoundary, ErrorFallback
-- CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute
-- DRSLimitsValidator, QuotaDisplay, ServiceLimitsAlert
-- ConflictDetector, ExecutionControls, JobEventsTimeline
-- ServerInfoPanel, LaunchSettingsEditor, EC2TemplateEditor
-- TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor
-- TagSyncManager, NotificationCenter
-- **AccountSelector**, **AccountRequiredWrapper**, **AccountManagementPanel** (Multi-Account Prototype 1.0)
+**Component Library (32 Components)**:
+
+| Category | Components | Count |
+|----------|------------|-------|
+| **Layout** | ErrorBoundary, ErrorFallback, ErrorState, LoadingState, CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute, AppLayout, ContentLayout | 10 |
+| **Multi-Account** | AccountSelector, AccountRequiredWrapper, AccountManagementPanel | 3 |
+| **Dialogs** | ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog, TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor | 7 |
+| **Server Management** | ServerSelector, ServerDiscoveryPanel, ServerListItem, ServerInfoPanel, PitPolicyEditor | 5 |
+| **Form Controls** | RegionSelector, WaveConfigEditor | 2 |
+| **Status Display** | StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus, InvocationSourceBadge, JobEventsTimeline | 6 |
+| **Execution** | ExecutionDetails | 1 |
+| **Launch Config** | LaunchConfigSection | 1 |
+| **CloudScape Wrappers** | AppLayout, ContentLayout | 2 |
+
+**Total: 32 Components**
+
+## Complete API Reference
+
+The solution provides a comprehensive REST API with 32+ endpoints across 9 categories for complete automation and DevOps integration.
+
+### Protection Groups API (7 endpoints)
+- `GET /protection-groups` - List all Protection Groups with server details
+- `POST /protection-groups` - Create Protection Group with tag-based or explicit server selection
+- `GET /protection-groups/{id}` - Get Protection Group details with enriched server information
+- `PUT /protection-groups/{id}` - Update Protection Group (blocked during active executions)
+- `DELETE /protection-groups/{id}` - Delete Protection Group (blocked if referenced by Recovery Plans)
+- `POST /protection-groups/resolve` - Preview servers matching specified tags
+- `GET /protection-groups/{id}/launch-config` - Get launch configuration settings
+
+### Recovery Plans API (6 endpoints)
+- `GET /recovery-plans` - List all Recovery Plans with execution status and wave counts
+- `POST /recovery-plans` - Create Recovery Plan with wave configuration and dependencies
+- `GET /recovery-plans/{id}` - Get Recovery Plan details with full wave configuration
+- `PUT /recovery-plans/{id}` - Update Recovery Plan (blocked during active executions)
+- `DELETE /recovery-plans/{id}` - Delete Recovery Plan (blocked during active executions)
+- `GET /recovery-plans/{id}/check-existing-instances` - Check for existing recovery instances
+
+### Executions API (7 endpoints)
+- `GET /executions` - List executions with filtering, pagination, and real-time status
+- `POST /executions` - Start new execution (drill or recovery mode)
+- `GET /executions/{id}` - Get execution details with wave progress and server status
+- `POST /executions/{id}/resume` - Resume paused execution
+- `DELETE /executions/{id}` - Cancel running execution
+- `POST /executions/{id}/terminate-instances` - Terminate recovery instances after completion
+- `DELETE /executions` - Bulk delete completed executions
+
+### DRS Integration API (4 endpoints)
+- `GET /drs/source-servers` - Discover DRS source servers by region with assignment status
+- `GET /drs/quotas` - Get DRS service limits and current usage by region
+- `POST /drs/query-servers-by-tags` - Query servers by tags with hardware details
+- `POST /drs/tag-sync` - Sync EC2 instance tags to DRS source servers
+
+### DRS Server Management API (7 endpoints)
+- `GET /drs/source-servers/{id}` - Get comprehensive server details and configuration
+- `GET /drs/source-servers/{id}/launch-settings` - Get DRS launch configuration
+- `PUT /drs/source-servers/{id}/launch-settings` - Update DRS launch configuration
+- `GET /drs/source-servers/{id}/tags` - Get server tags
+- `PUT /drs/source-servers/{id}/tags` - Add/update server tags
+- `DELETE /drs/source-servers/{id}/tags` - Remove server tags
+- `POST /drs/source-servers/{id}/sync-tags` - Sync EC2 tags to DRS server
+
+### EC2 Resources API (4 endpoints)
+- `GET /ec2/subnets` - List available subnets for launch template configuration
+- `GET /ec2/security-groups` - List security groups for launch template configuration
+- `GET /ec2/instance-profiles` - List IAM instance profiles for EC2 instances
+- `GET /ec2/instance-types` - List available EC2 instance types
+
+### Multi-Account Management API (4 endpoints)
+- `GET /accounts/targets` - List registered target accounts with health status
+- `POST /accounts/targets` - Register new target account with cross-account role
+- `PUT /accounts/targets/{id}` - Update target account configuration
+- `DELETE /accounts/targets/{id}` - Remove target account registration
+
+### Configuration Management API (2 endpoints)
+- `GET /config/export` - Export system configuration (Protection Groups, Recovery Plans)
+- `POST /config/import` - Import configuration from exported file
+
+### System API (1 endpoint)
+- `GET /health` - Health check endpoint for monitoring and load balancers
+
+**Total: 42 REST API Endpoints**
 
 ---
 
