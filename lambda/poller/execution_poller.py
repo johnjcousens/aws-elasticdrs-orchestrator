@@ -427,6 +427,13 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
                     logger.warning(f"Wave {wave.get('WaveId')} failed - servers {failed_servers} failed to launch")
                 elif drs_status in ['PENDING', 'STARTED']:
                     wave['Status'] = 'LAUNCHING'
+                elif drs_status == 'COMPLETED' and not all_launched:
+                    # CRITICAL BUG FIX: DRS job completed but servers never launched
+                    wave['Status'] = 'FAILED'
+                    not_launched_servers = [s.get('SourceServerId') for s in servers 
+                                           if s.get('Status') != 'LAUNCHED']
+                    logger.error(f"Wave {wave.get('WaveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched")
+                    wave['StatusMessage'] = f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
                 else:
                     # Fallback to DRS status if no clear success/failure
                     wave['Status'] = drs_status
@@ -448,6 +455,13 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
                     logger.warning(f"Wave {wave.get('WaveId')} recovery failed")
                 elif drs_status in ['PENDING', 'STARTED']:
                     wave['Status'] = 'LAUNCHING'
+                elif drs_status == 'COMPLETED' and not all_launched:
+                    # CRITICAL BUG FIX: DRS job completed but servers never launched
+                    wave['Status'] = 'FAILED'
+                    not_launched_servers = [s.get('SourceServerId') for s in servers 
+                                           if s.get('Status') != 'LAUNCHED']
+                    logger.error(f"Wave {wave.get('WaveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched")
+                    wave['StatusMessage'] = f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
                 else:
                     wave['Status'] = drs_status
             else:
