@@ -492,8 +492,6 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 32 components an
 | /recovery-plans | RecoveryPlansPage | CRUD table with execution status, wave counts, conflict detection |
 | /executions | ExecutionsPage | Active/History tabs with real-time updates (3-second polling) |
 | /executions/:id | ExecutionDetailsPage | Wave progress, DRS job events, pause/resume/terminate controls |
-| /servers/:id | ServerDetailsPage | DRS source server configuration management |
-| /quotas | QuotasPage | DRS service limits dashboard and monitoring |
 
 **Key UI Features**:
 - Real-time updates: 3-second polling for active executions
@@ -515,13 +513,12 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 32 components an
 |----------|------------|-------|
 | **Layout** | ErrorBoundary, ErrorFallback, ErrorState, LoadingState, CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute, AppLayout, ContentLayout | 10 |
 | **Multi-Account** | AccountSelector, AccountRequiredWrapper, AccountManagementPanel | 3 |
-| **Dialogs** | ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog, TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor | 7 |
-| **Server Management** | ServerSelector, ServerDiscoveryPanel, ServerListItem, ServerInfoPanel, PitPolicyEditor | 5 |
+| **Dialogs** | ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog, ConfigExportPanel, ConfigImportPanel, ImportResultsDialog, SettingsModal | 7 |
+| **Server Management** | ServerSelector, ServerDiscoveryPanel, ServerListItem | 3 |
 | **Form Controls** | RegionSelector, WaveConfigEditor | 2 |
-| **Status Display** | StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus, InvocationSourceBadge, JobEventsTimeline | 6 |
+| **Status Display** | StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus, InvocationSourceBadge | 5 |
 | **Execution** | ExecutionDetails | 1 |
 | **Launch Config** | LaunchConfigSection | 1 |
-| **CloudScape Wrappers** | AppLayout, ContentLayout | 2 |
 
 **Total: 32 Components**
 
