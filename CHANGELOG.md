@@ -7,6 +7,167 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [RBAC-PROTOTYPE-v1.0] - December 31, 2025
+
+### 🎉 **MILESTONE: RBAC Prototype with Password Reset Capability v1.0** - `TBD`
+
+**Tag**: `RBAC-Prototype-with-Password-Reset-capability-v1.0`
+
+This milestone introduces comprehensive Role-Based Access Control (RBAC) with 6 granular roles and password reset functionality for new users, establishing enterprise-grade security and user management for the AWS DRS Orchestration platform.
+
+### Major Features
+
+**Comprehensive RBAC System with API-First Enforcement**
+
+The solution now implements a complete role-based access control system with 6 distinct roles, each providing granular permissions for disaster recovery operations. RBAC enforcement occurs at the API level, ensuring that all access methods (UI, CLI, SDK, direct API calls) respect the same security boundaries.
+
+**Six RBAC Roles with Granular Permissions:**
+
+1. **DRS-Administrator**
+   - **Full Access**: Complete administrative control over all DRS orchestration functions
+   - **Permissions**: All protection groups, recovery plans, executions, DRS operations, configuration management, and user management
+   - **Use Case**: System administrators and DR team leads requiring unrestricted access
+
+2. **DRS-Infrastructure-Admin** 
+   - **Infrastructure Management**: Can manage DRS infrastructure, protection groups, and recovery plans
+   - **Permissions**: Create/modify protection groups and recovery plans, execute recovery plans, read executions, manage DRS configuration, export/import settings
+   - **Restrictions**: Cannot delete execution history or manage user roles
+   - **Use Case**: Infrastructure teams responsible for DR setup and configuration
+
+3. **DRS-Recovery-Plan-Manager**
+   - **Recovery Plan Focus**: Can create, modify, and execute recovery plans with full execution control
+   - **Permissions**: Read protection groups, full recovery plan management, execute/pause/resume/cancel executions, terminate instances
+   - **Restrictions**: Cannot create/modify protection groups or manage system configuration
+   - **Use Case**: DR managers responsible for recovery plan design and execution
+
+4. **DRS-Operator**
+   - **Execution Focus**: Can execute recovery plans and perform DR operations
+   - **Permissions**: Read protection groups and recovery plans, execute/pause/resume/cancel recovery plans, terminate instances
+   - **Restrictions**: Cannot create or modify protection groups or recovery plans
+   - **Use Case**: Operations teams responsible for executing pre-defined recovery procedures
+
+5. **DRS-Recovery-Plan-Viewer**
+   - **Planning Review**: Can view recovery plans but not execute them
+   - **Permissions**: Read-only access to protection groups, recovery plans, and execution history
+   - **Restrictions**: Cannot execute recovery plans or perform any DR operations
+   - **Use Case**: Stakeholders who need visibility into DR plans for compliance or planning
+
+6. **DRS-Read-Only**
+   - **View-Only Access**: Complete read-only access to DRS configuration and status
+   - **Permissions**: View all protection groups, recovery plans, executions, DRS status, and quotas
+   - **Restrictions**: Cannot perform any write operations or execute recovery plans
+   - **Use Case**: Auditors, compliance officers, and stakeholders requiring visibility without operational access
+
+**API-First Security Enforcement**
+
+- **Unified Security Model**: All access methods (UI, CLI, SDK, API) enforce identical role-based permissions
+- **No Bypass Possible**: UI restrictions reflect actual API-level RBAC enforcement - users cannot circumvent UI limitations
+- **Cognito Integration**: Roles managed through AWS Cognito Groups with JWT token validation
+- **Granular Endpoint Protection**: 40+ API endpoints mapped to specific permissions with automatic enforcement
+- **Real-Time Validation**: Every API call validates user permissions before execution
+
+**Password Reset Functionality for New Users**
+
+- **Forced Password Change**: New users must change their temporary password on first login
+- **Secure Workflow**: Cognito-managed password reset with email verification
+- **Admin User Creation**: Administrators can create users with temporary passwords
+- **Self-Service Reset**: Users can initiate password reset through standard Cognito flows
+- **Password Policy Enforcement**: Configurable password complexity requirements
+
+### Technical Implementation
+
+**RBAC Middleware System**
+
+- **Centralized Authorization**: `rbac_middleware.py` provides comprehensive role and permission management
+- **Permission Matrix**: 25+ granular permissions mapped to 6 roles with clear capability definitions
+- **Decorator Pattern**: Function decorators for easy permission enforcement (`@require_permission`, `@require_role`)
+- **Dynamic Validation**: Runtime permission checking with detailed error messages
+- **User Context**: Complete user profile extraction from Cognito JWT tokens
+
+**API Security Integration**
+
+- **Endpoint Mapping**: All 40+ API endpoints mapped to required permissions in `ENDPOINT_PERMISSIONS`
+- **Automatic Enforcement**: Middleware automatically validates permissions for each request
+- **Error Handling**: Standardized 403 Forbidden responses with specific permission requirements
+- **User Information**: User context automatically injected into Lambda functions for audit trails
+
+**Frontend Role Awareness**
+
+- **Dynamic UI**: Interface elements show/hide based on user permissions
+- **Role-Based Navigation**: Menu items and actions filtered by user capabilities
+- **Permission Feedback**: Clear indication when actions are restricted due to insufficient permissions
+- **Consistent Experience**: UI restrictions match API-level enforcement exactly
+
+### Security Enhancements
+
+**Enterprise-Grade Access Control**
+
+- **Principle of Least Privilege**: Each role provides minimum necessary permissions for job function
+- **Separation of Duties**: Clear separation between infrastructure management, plan management, and execution
+- **Audit Trail**: All actions logged with user context and role information
+- **Token Security**: JWT token validation with automatic expiration and refresh
+
+**Compliance Ready**
+
+- **Role Documentation**: Complete role definitions with permission matrices for compliance audits
+- **Access Reviews**: Clear role assignments enable regular access reviews
+- **Audit Logging**: All user actions logged with role context for compliance reporting
+- **Permission Transparency**: Users can view their own roles and permissions through API
+
+### User Experience Improvements
+
+**Intuitive Role Management**
+
+- **Clear Role Names**: Self-explanatory role names that match organizational functions
+- **Permission Visibility**: Users can see their current roles and capabilities
+- **Helpful Error Messages**: When access is denied, users receive clear explanation of required permissions
+- **Guided Onboarding**: New users guided through password reset and role understanding
+
+**Seamless Integration**
+
+- **No Workflow Disruption**: RBAC implementation maintains existing user workflows
+- **Backward Compatibility**: Existing functionality preserved while adding security layers
+- **Performance Optimized**: Permission checking adds minimal latency to API calls
+- **Scalable Design**: Role system designed to support additional roles and permissions as needed
+
+### Files Modified
+
+**Core RBAC Implementation**
+- `lambda/rbac_middleware.py` - Complete RBAC system with 6 roles and 25+ permissions
+- `lambda/index.py` - Integration of RBAC middleware into all API endpoints
+- `cfn/api-stack-rbac.yaml` - API Gateway configuration with RBAC-enabled endpoints
+
+**Frontend Integration**
+- `frontend/src/contexts/AuthContext.tsx` - Role-aware authentication context
+- `frontend/src/services/api.ts` - API client with role-based error handling
+- Multiple component files - Role-based UI element visibility
+
+**Infrastructure**
+- `cfn/api-stack-rbac.yaml` - Complete API Gateway setup with all endpoints and CORS
+- `scripts/sync-to-deployment-bucket.sh` - Deployment script with RBAC stack support
+
+### Deployment
+
+The RBAC Prototype is deployed using the RBAC-enabled CloudFormation stack (`cfn/api-stack-rbac.yaml`) which includes all API endpoints with proper CORS configuration and Cognito integration.
+
+**Deployment Command:**
+```bash
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+```
+
+### Testing Completed
+
+- ✅ All 6 roles tested with appropriate permission enforcement
+- ✅ API-first security validated - UI restrictions match API enforcement
+- ✅ Password reset functionality verified for new users
+- ✅ Cross-role permission validation completed
+- ✅ Frontend role-based UI elements tested
+- ✅ CORS configuration validated for all endpoints
+
+### Breaking Changes
+
+None - RBAC implementation is additive and maintains backward compatibility with existing functionality.
+
 ## [MVP-DRILL-PROTOTYPE] - December 30, 2025
 
 ### 🎉 **MILESTONE: MVP Drill Prototype Complete** - `a34c5b7`
