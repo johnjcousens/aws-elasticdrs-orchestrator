@@ -13,6 +13,7 @@ import {
   Alert,
   TextContent,
   Select,
+  Spinner,
 } from '@cloudscape-design/components';
 import type { SelectProps } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
@@ -32,16 +33,26 @@ export interface TargetAccount {
 
 interface AccountManagementPanelProps {
   onAccountsChange?: (accounts: TargetAccount[]) => void;
+  showWizardMode?: boolean; // New prop to enable wizard-style UI for first-time setup
 }
 
 const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   onAccountsChange,
+  showWizardMode = false,
 }) => {
   const [accounts, setAccounts] = useState<TargetAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TargetAccount | null>(null);
+  
+  // Current account info for wizard
+  const [currentAccount, setCurrentAccount] = useState<{
+    accountId: string;
+    accountName: string;
+    isCurrentAccount: boolean;
+  } | null>(null);
+  const [loadingCurrentAccount, setLoadingCurrentAccount] = useState(false);
   
   // Get account context for default account management
   const { defaultAccountId, setDefaultAccountId, applyDefaultAccount } = useAccount();
@@ -55,6 +66,23 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     crossAccountRoleArn: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  // Fetch current account info for wizard
+  const fetchCurrentAccount = async () => {
+    if (!showWizardMode) return;
+    
+    setLoadingCurrentAccount(true);
+    try {
+      const currentAccountInfo = await apiClient.getCurrentAccount();
+      setCurrentAccount(currentAccountInfo);
+    } catch (err: any) {
+      console.error('Error fetching current account:', err);
+      // Don't show error toast for this - it's not critical
+    } finally {
+      setLoadingCurrentAccount(false);
+    }
+  };
 
   const refreshAccounts = async () => {
     setLoading(true);
@@ -81,13 +109,37 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
 
   useEffect(() => {
     refreshAccounts();
-  }, []);
-  const [saving, setSaving] = useState(false);
+    fetchCurrentAccount();
+  }, [showWizardMode]);
 
   // Notify parent component when accounts change
   React.useEffect(() => {
     onAccountsChange?.(accounts);
   }, [accounts, onAccountsChange]);
+
+  // Quick add current account function for wizard
+  const handleQuickAddCurrentAccount = async () => {
+    if (!currentAccount) return;
+    
+    setSaving(true);
+    try {
+      const accountData = {
+        accountId: currentAccount.accountId,
+        accountName: currentAccount.accountName,
+        // No cross-account role needed for same account
+      };
+
+      await apiClient.createTargetAccount(accountData);
+      toast.success(`Current account ${currentAccount.accountName} (${currentAccount.accountId}) added successfully and set as default`);
+      
+      await refreshAccounts();
+    } catch (err: any) {
+      console.error('Error adding current account:', err);
+      toast.error(err.message || 'Failed to add current account');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -102,9 +154,22 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       errors.stagingAccountId = 'Staging Account ID must be 12 digits';
     }
     
-    // Cross-account role validation: only validate format if provided
-    if (formData.crossAccountRoleArn && formData.crossAccountRoleArn.trim() && !formData.crossAccountRoleArn.startsWith('arn:aws:iam::')) {
-      errors.crossAccountRoleArn = 'Must be a valid IAM role ARN';
+    // Enhanced wizard validation for cross-account role
+    if (showWizardMode && currentAccount) {
+      const isSameAccount = formData.accountId.trim() === currentAccount.accountId;
+      
+      if (isSameAccount && formData.crossAccountRoleArn.trim()) {
+        errors.crossAccountRoleArn = 'Cross-account role is not needed when adding the same account where this solution is deployed. Please leave this field empty.';
+      } else if (!isSameAccount && !formData.crossAccountRoleArn.trim()) {
+        errors.crossAccountRoleArn = `This account (${formData.accountId}) is different from where the solution is deployed (${currentAccount.accountId}). Please provide a cross-account IAM role ARN with DRS permissions.`;
+      } else if (formData.crossAccountRoleArn.trim() && !formData.crossAccountRoleArn.startsWith('arn:aws:iam::')) {
+        errors.crossAccountRoleArn = 'Must be a valid IAM role ARN (arn:aws:iam::account:role/role-name)';
+      }
+    } else {
+      // Standard validation for non-wizard mode
+      if (formData.crossAccountRoleArn && formData.crossAccountRoleArn.trim() && !formData.crossAccountRoleArn.startsWith('arn:aws:iam::')) {
+        errors.crossAccountRoleArn = 'Must be a valid IAM role ARN';
+      }
     }
     
     setFormErrors(errors);
@@ -322,26 +387,37 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
 
   return (
     <SpaceBetween size="l">
-      <TextContent>
-        <h3>Target Account Management</h3>
-        <p>
-          Configure target accounts for DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate.
-        </p>
-        <ul>
-          <li>
-            <strong>Target Account:</strong> AWS account containing DRS source servers to orchestrate
-          </li>
-          <li>
-            <strong>Same Account:</strong> If target account is the same as this solution account, no cross-account role is needed
-          </li>
-          <li>
-            <strong>Cross-Account Role:</strong> Required only for accessing different AWS accounts - leave empty for same account
-          </li>
-          <li>
-            <strong>Staging Account:</strong> Optional trusted account for staging/testing operations
-          </li>
-        </ul>
-      </TextContent>
+      {showWizardMode && (
+        <TextContent>
+          <h3>Account Setup Wizard</h3>
+          <p>
+            Configure target accounts for DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate.
+          </p>
+        </TextContent>
+      )}
+
+      {!showWizardMode && (
+        <TextContent>
+          <h3>Target Account Management</h3>
+          <p>
+            Configure target accounts for DRS orchestration. Add accounts that contain DRS source servers you want to orchestrate.
+          </p>
+          <ul>
+            <li>
+              <strong>Target Account:</strong> AWS account containing DRS source servers to orchestrate
+            </li>
+            <li>
+              <strong>Same Account:</strong> If target account is the same as this solution account, no cross-account role is needed
+            </li>
+            <li>
+              <strong>Cross-Account Role:</strong> Required only for accessing different AWS accounts - leave empty for same account
+            </li>
+            <li>
+              <strong>Staging Account:</strong> Optional trusted account for staging/testing operations
+            </li>
+          </ul>
+        </TextContent>
+      )}
 
       {error && (
         <Alert type="error" dismissible={false}>
@@ -349,37 +425,97 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         </Alert>
       )}
 
-      {/* Default Account Preference */}
-      <Container
-        header={
-          <Header variant="h2">
-            Default Account Preference
-          </Header>
-        }
-      >
-        <SpaceBetween size="m">
-          <TextContent>
-            <p>
-              Set a preferred default account to make selection easier. For security, you must still 
-              explicitly select an account each session - this preference just highlights your 
-              preferred choice in the account selector dropdown.
-            </p>
-          </TextContent>
-          
-          <FormField
-            label="Default Account Preference"
-            description="Choose your preferred default account. Note: You will still need to explicitly select an account each session for security - this just makes selection easier by highlighting your preferred choice."
-          >
-            <Select
-              selectedOption={selectedDefaultOption}
-              onChange={handleDefaultAccountChange}
-              options={defaultAccountOptions}
-              placeholder="Select default account"
-              disabled={loading || accounts.length === 0}
-            />
-          </FormField>
-        </SpaceBetween>
-      </Container>
+      {/* Quick Add Current Account - Wizard Mode Only */}
+      {showWizardMode && accounts.length === 0 && (
+        <Container
+          header={
+            <Header variant="h2">
+              Quick Setup - Add Current Account
+            </Header>
+          }
+        >
+          <SpaceBetween size="m">
+            {loadingCurrentAccount ? (
+              <Box textAlign="center" padding="l">
+                <Spinner size="normal" />
+                <Box variant="p" color="text-body-secondary" margin={{ top: 's' }}>
+                  Loading current account information...
+                </Box>
+              </Box>
+            ) : currentAccount ? (
+              <>
+                <Alert
+                  type="info"
+                  header="Recommended: Add Current Account"
+                >
+                  <SpaceBetween size="s">
+                    <Box>
+                      This solution is deployed in account <strong>{currentAccount.accountName} ({currentAccount.accountId})</strong>.
+                    </Box>
+                    <Box>
+                      If your DRS source servers are in this same account, you can add it quickly with one click. 
+                      No cross-account IAM role configuration needed.
+                    </Box>
+                  </SpaceBetween>
+                </Alert>
+                
+                <Box>
+                  <Button
+                    variant="primary"
+                    iconName="add-plus"
+                    onClick={handleQuickAddCurrentAccount}
+                    loading={saving}
+                  >
+                    Add Current Account ({currentAccount.accountId})
+                  </Button>
+                </Box>
+                
+                <Box variant="p" color="text-body-secondary">
+                  Or use "Add Target Account" below to add a different account or configure advanced options.
+                </Box>
+              </>
+            ) : (
+              <Alert type="warning">
+                Unable to detect current account information. Please use "Add Target Account" below to configure manually.
+              </Alert>
+            )}
+          </SpaceBetween>
+        </Container>
+      )}
+
+      {/* Default Account Preference - Only show when not in wizard mode */}
+      {!showWizardMode && (
+        <Container
+          header={
+            <Header variant="h2">
+              Default Account Preference
+            </Header>
+          }
+        >
+          <SpaceBetween size="m">
+            <TextContent>
+              <p>
+                Set a preferred default account to make selection easier. For security, you must still 
+                explicitly select an account each session - this preference just highlights your 
+                preferred choice in the account selector dropdown.
+              </p>
+            </TextContent>
+            
+            <FormField
+              label="Default Account Preference"
+              description="Choose your preferred default account. Note: You will still need to explicitly select an account each session for security - this just makes selection easier by highlighting your preferred choice."
+            >
+              <Select
+                selectedOption={selectedDefaultOption}
+                onChange={handleDefaultAccountChange}
+                options={defaultAccountOptions}
+                placeholder="Select default account"
+                disabled={loading || accounts.length === 0}
+              />
+            </FormField>
+          </SpaceBetween>
+        </Container>
+      )}
 
       <Container
         header={
@@ -392,11 +528,11 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
                 iconName="add-plus"
                 onClick={() => handleOpenModal()}
               >
-                Add Target Account
+                {showWizardMode ? 'Add Target Account' : 'Add Target Account'}
               </Button>
             }
           >
-            Target Accounts
+            {showWizardMode ? 'Target Accounts' : 'Target Accounts'}
           </Header>
         }
       >
@@ -408,8 +544,13 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           empty={
             <Box textAlign="center" color="inherit">
               <SpaceBetween size="m">
-                <b>No target accounts configured</b>
-                <p>Add target accounts to enable cross-account DRS orchestration.</p>
+                <b>{showWizardMode ? 'No target accounts configured yet' : 'No target accounts configured'}</b>
+                <p>
+                  {showWizardMode 
+                    ? 'Add your first target account to get started with DRS orchestration.'
+                    : 'Add target accounts to enable cross-account DRS orchestration.'
+                  }
+                </p>
                 <Button
                   variant="primary"
                   onClick={() => handleOpenModal()}
@@ -426,7 +567,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       <Modal
         visible={modalVisible}
         onDismiss={handleCloseModal}
-        header={editingAccount ? 'Edit Target Account' : 'Add Target Account'}
+        header={editingAccount ? 'Edit Target Account' : (showWizardMode ? 'Add Target Account - Setup Wizard' : 'Add Target Account')}
         footer={
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
@@ -444,6 +585,25 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         size="medium"
       >
         <SpaceBetween size="l">
+          {showWizardMode && !editingAccount && currentAccount && (
+            <Alert
+              type="info"
+              header="Account Setup Guidance"
+            >
+              <SpaceBetween size="s">
+                <Box>
+                  <strong>This solution is deployed in:</strong> {currentAccount.accountName} ({currentAccount.accountId})
+                </Box>
+                <Box>
+                  <strong>Same Account:</strong> If you enter {currentAccount.accountId}, leave the cross-account role field empty.
+                </Box>
+                <Box>
+                  <strong>Different Account:</strong> If you enter a different account ID, you must provide a cross-account IAM role ARN.
+                </Box>
+              </SpaceBetween>
+            </Alert>
+          )}
+
           <FormField
             label="Account ID"
             description="12-digit AWS account ID"
@@ -452,7 +612,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
             <Input
               value={formData.accountId}
               onChange={({ detail }) => setFormData(prev => ({ ...prev, accountId: detail.value }))}
-              placeholder="123456789012"
+              placeholder={showWizardMode && currentAccount ? `e.g., ${currentAccount.accountId} (current) or 123456789012` : "123456789012"}
               disabled={!!editingAccount}
             />
           </FormField>
@@ -466,6 +626,22 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
               value={formData.accountName}
               onChange={({ detail }) => setFormData(prev => ({ ...prev, accountName: detail.value }))}
               placeholder="Production Account"
+            />
+          </FormField>
+
+          <FormField
+            label="Cross-Account Role ARN"
+            description={
+              showWizardMode && currentAccount
+                ? `Required only for different AWS accounts. Leave empty if target account is ${currentAccount.accountId} (same as solution account).`
+                : "Required only for different AWS accounts. Leave empty if target account is the same as this solution account."
+            }
+            errorText={formErrors.crossAccountRoleArn}
+          >
+            <Input
+              value={formData.crossAccountRoleArn}
+              onChange={({ detail }) => setFormData(prev => ({ ...prev, crossAccountRoleArn: detail.value }))}
+              placeholder="arn:aws:iam::123456789012:role/DRSOrchestrationCrossAccountRole"
             />
           </FormField>
 
@@ -490,18 +666,6 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
               value={formData.stagingAccountName}
               onChange={({ detail }) => setFormData(prev => ({ ...prev, stagingAccountName: detail.value }))}
               placeholder="Staging Account"
-            />
-          </FormField>
-
-          <FormField
-            label="Cross-Account Role ARN"
-            description="Required only for different AWS accounts. Leave empty if target account is the same as this solution account."
-            errorText={formErrors.crossAccountRoleArn}
-          >
-            <Input
-              value={formData.crossAccountRoleArn}
-              onChange={({ detail }) => setFormData(prev => ({ ...prev, crossAccountRoleArn: detail.value }))}
-              placeholder="arn:aws:iam::123456789012:role/DRSOrchestrationCrossAccountRole"
             />
           </FormField>
         </SpaceBetween>
