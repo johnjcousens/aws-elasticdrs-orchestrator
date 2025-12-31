@@ -277,18 +277,89 @@ The solution uses a modular nested stack architecture for maintainability:
 
 ### Role-Based Access Control (RBAC)
 
-The solution implements comprehensive role-based access control with 6 granular roles, each providing specific permissions for disaster recovery operations. RBAC enforcement occurs at the API level, ensuring all access methods (UI, CLI, SDK, direct API calls) respect identical security boundaries.
+The solution implements comprehensive role-based access control with 5 granular DRS-specific roles, each providing specific permissions for disaster recovery operations. RBAC enforcement occurs at the API level, ensuring all access methods (UI, CLI, SDK, direct API calls) respect identical security boundaries.
 
 #### RBAC Roles & Permissions
 
 | Role | Description | Key Permissions | Use Case |
 |------|-------------|-----------------|----------|
-| **DRS-Administrator** | Full administrative access | All operations, user management, system configuration | System administrators, DR team leads |
-| **DRS-Infrastructure-Admin** | Infrastructure management | Create/modify protection groups & recovery plans, execute plans, manage configuration | Infrastructure teams, DR architects |
-| **DRS-Recovery-Plan-Manager** | Recovery plan focus | Full recovery plan management, execution control, terminate instances | DR managers, recovery coordinators |
-| **DRS-Operator** | Execution operations | Execute/pause/resume recovery plans, terminate instances | Operations teams, on-call engineers |
-| **DRS-Recovery-Plan-Viewer** | Planning review | Read-only access to plans and executions | Stakeholders, compliance reviewers |
-| **DRS-Read-Only** | View-only access | Complete read-only access to all DRS configuration and status | Auditors, compliance officers |
+| **DRSOrchestrationAdmin** | Full administrative access | All operations including configuration export/import | System administrators, DR team leads |
+| **DRSRecoveryManager** | Recovery operations and configuration | Execute plans, manage configuration, export/import settings | DR managers, recovery coordinators |
+| **DRSPlanManager** | Plan management focus | Create/modify protection groups & recovery plans, execute plans | Infrastructure teams, DR architects |
+| **DRSOperator** | Execution operations only | Execute/pause/resume recovery plans, terminate instances | Operations teams, on-call engineers |
+| **DRSReadOnly** | View-only access | Complete read-only access to all DRS configuration and status | Auditors, compliance officers |
+
+#### Detailed Permission Matrix
+
+The RBAC system implements 14 granular permissions mapped to business functionality:
+
+| Permission | Admin | Recovery Manager | Plan Manager | Operator | Read Only |
+|------------|-------|------------------|--------------|----------|-----------|
+| **Protection Groups** |
+| CREATE_PROTECTION_GROUP | ✅ | ❌ | ✅ | ❌ | ❌ |
+| READ_PROTECTION_GROUP | ✅ | ✅ | ✅ | ✅ | ✅ |
+| UPDATE_PROTECTION_GROUP | ✅ | ❌ | ✅ | ❌ | ❌ |
+| DELETE_PROTECTION_GROUP | ✅ | ❌ | ✅ | ❌ | ❌ |
+| **Recovery Plans** |
+| CREATE_RECOVERY_PLAN | ✅ | ✅ | ✅ | ❌ | ❌ |
+| READ_RECOVERY_PLAN | ✅ | ✅ | ✅ | ✅ | ✅ |
+| UPDATE_RECOVERY_PLAN | ✅ | ✅ | ✅ | ❌ | ❌ |
+| DELETE_RECOVERY_PLAN | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Executions** |
+| EXECUTE_RECOVERY_PLAN | ✅ | ✅ | ✅ | ✅ | ❌ |
+| READ_EXECUTION | ✅ | ✅ | ✅ | ✅ | ✅ |
+| CANCEL_EXECUTION | ✅ | ✅ | ✅ | ✅ | ❌ |
+| TERMINATE_INSTANCES | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Configuration** |
+| EXPORT_CONFIGURATION | ✅ | ✅ | ❌ | ❌ | ❌ |
+| IMPORT_CONFIGURATION | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+#### User Management
+
+Users are managed through AWS Cognito Groups. To assign roles to users:
+
+1. **Create Cognito Groups** (if not already created):
+   ```bash
+   USER_POOL_ID="your-user-pool-id"
+   
+   # Create RBAC groups
+   aws cognito-idp create-group --group-name DRSOrchestrationAdmin --user-pool-id $USER_POOL_ID --description "Full administrative access"
+   aws cognito-idp create-group --group-name DRSRecoveryManager --user-pool-id $USER_POOL_ID --description "Recovery operations and configuration"
+   aws cognito-idp create-group --group-name DRSPlanManager --user-pool-id $USER_POOL_ID --description "Plan management focus"
+   aws cognito-idp create-group --group-name DRSOperator --user-pool-id $USER_POOL_ID --description "Execution operations only"
+   aws cognito-idp create-group --group-name DRSReadOnly --user-pool-id $USER_POOL_ID --description "View-only access"
+   ```
+
+2. **Assign Users to Groups**:
+   ```bash
+   # Add user to admin group
+   aws cognito-idp admin-add-user-to-group \
+     --user-pool-id $USER_POOL_ID \
+     --username admin@yourcompany.com \
+     --group-name DRSOrchestrationAdmin
+   
+   # Add user to operator group
+   aws cognito-idp admin-add-user-to-group \
+     --user-pool-id $USER_POOL_ID \
+     --username operator@yourcompany.com \
+     --group-name DRSOperator
+   ```
+
+3. **View User's Groups**:
+   ```bash
+   aws cognito-idp admin-list-groups-for-user \
+     --user-pool-id $USER_POOL_ID \
+     --username admin@yourcompany.com
+   ```
+
+#### UI Permission Enforcement
+
+The frontend dynamically shows/hides functionality based on user permissions:
+
+- **Settings Modal**: Export/Import tabs only visible to users with `EXPORT_CONFIGURATION` and `IMPORT_CONFIGURATION` permissions
+- **Action Buttons**: Create, Edit, Delete buttons only appear for users with appropriate permissions
+- **Navigation**: Menu items filtered based on user capabilities
+- **Error Messages**: Clear indication when actions are restricted due to insufficient permissions
 
 #### API-First Security Enforcement
 
