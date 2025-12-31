@@ -6,23 +6,23 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
-[![Release](https://img.shields.io/badge/Release-MVP%20Drill%20Prototype%20Complete-green)](https://github.com/your-repo/releases/tag/MVP-DRILL-PROTOTYPE)
+[![Release](https://img.shields.io/badge/Release-RBAC%20Prototype%20v1.0-blue)](https://github.com/your-repo/releases/tag/RBAC-Prototype-with-Password-Reset-capability-v1.0)
 
-## 🚧 **MVP Drill Prototype Complete**
+## 🚧 **RBAC Prototype with Password Reset Capability v1.0**
 
-**Latest Version**: MVP Drill Prototype Complete (December 30, 2025)  
-**Git Tag**: `MVP-DRILL-PROTOTYPE`
+**Latest Version**: RBAC Prototype with Password Reset Capability v1.0 (December 31, 2025)  
+**Git Tag**: `RBAC-Prototype-with-Password-Reset-capability-v1.0`
 
-### 🚀 **What's Complete in MVP Drill Prototype**
+### 🔐 **What's New in RBAC Prototype v1.0**
 
-- **Complete Disaster Recovery Platform**: Full-featured disaster recovery orchestration with multi-account support
-- **Enhanced Tag-Based Selection**: Fixed DRS source server tag querying with complete hardware details
-- **Multi-Account Management**: Account context system with enforcement logic and persistent state
-- **Production-Ready Architecture**: 5 Lambda functions, 7 CloudFormation templates, comprehensive monitoring
-- **Documentation Standards**: Updated to follow "Keep a Changelog" best practices
-- **Enterprise Scale**: Supports all 30 AWS DRS regions with up to 300 replicating servers per account
+- **6 Granular RBAC Roles**: Complete role-based access control with enterprise-grade security
+- **API-First Enforcement**: All access methods (UI, CLI, SDK, API) respect identical role-based permissions
+- **Password Reset Capability**: New users must change temporary passwords on first login
+- **No Bypass Possible**: UI restrictions reflect actual API-level RBAC enforcement
+- **Enterprise Ready**: Comprehensive audit trails and compliance-ready role documentation
+- **Seamless Integration**: RBAC added without disrupting existing workflows
 
-**[View Complete Release Notes →](CHANGELOG.md#mvp-drill-prototype---december-30-2025)**
+**[View Complete RBAC Release Notes →](CHANGELOG.md#rbac-prototype-v10---december-31-2025)**
 
 ## Overview
 
@@ -32,7 +32,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 - **Cost-Effective**: $12-40/month operational cost with pay-per-use serverless pricing
 - **Unlimited Waves**: Flexible wave-based orchestration with no artificial constraints
-- **Platform Agnostic**: Supports any source platform (VMware, physical servers, cloud)
+- **Platform Agnostic**: Supports any source platform (physical servers, cloud instances, virtual machines)
 - **Sub-Second RPO**: Leverages AWS DRS continuous replication capabilities
 - **Fully Serverless**: No infrastructure to manage, scales automatically
 
@@ -272,12 +272,45 @@ The solution uses a modular nested stack architecture for maintainability:
 
 *Costs vary based on usage. DRS replication costs are separate and depend on protected server count.*
 
-## Security
+## Security & RBAC
+
+### Role-Based Access Control (RBAC)
+
+The solution implements comprehensive role-based access control with 6 granular roles, each providing specific permissions for disaster recovery operations. RBAC enforcement occurs at the API level, ensuring all access methods (UI, CLI, SDK, direct API calls) respect identical security boundaries.
+
+#### RBAC Roles & Permissions
+
+| Role | Description | Key Permissions | Use Case |
+|------|-------------|-----------------|----------|
+| **DRS-Administrator** | Full administrative access | All operations, user management, system configuration | System administrators, DR team leads |
+| **DRS-Infrastructure-Admin** | Infrastructure management | Create/modify protection groups & recovery plans, execute plans, manage configuration | Infrastructure teams, DR architects |
+| **DRS-Recovery-Plan-Manager** | Recovery plan focus | Full recovery plan management, execution control, terminate instances | DR managers, recovery coordinators |
+| **DRS-Operator** | Execution operations | Execute/pause/resume recovery plans, terminate instances | Operations teams, on-call engineers |
+| **DRS-Recovery-Plan-Viewer** | Planning review | Read-only access to plans and executions | Stakeholders, compliance reviewers |
+| **DRS-Read-Only** | View-only access | Complete read-only access to all DRS configuration and status | Auditors, compliance officers |
+
+#### API-First Security Enforcement
+
+- **Unified Security Model**: All access methods enforce identical role-based permissions
+- **No Bypass Possible**: UI restrictions reflect actual API-level RBAC enforcement
+- **Cognito Integration**: Roles managed through AWS Cognito Groups with JWT token validation
+- **Granular Protection**: 40+ API endpoints mapped to specific permissions
+- **Real-Time Validation**: Every API call validates user permissions before execution
+
+#### Password Reset for New Users
+
+- **Forced Password Change**: New users must change temporary passwords on first login
+- **Secure Workflow**: Cognito-managed password reset with email verification
+- **Admin User Creation**: Administrators can create users with temporary passwords
+- **Self-Service Reset**: Users can initiate password reset through standard Cognito flows
+
+### Traditional Security Features
 
 - **Encryption at Rest**: All data encrypted (DynamoDB, S3)
 - **Encryption in Transit**: HTTPS enforced via CloudFront
-- **Authentication**: Cognito JWT token-based authentication
-- **Authorization**: IAM least-privilege policies
+- **Authentication**: Cognito JWT token-based authentication with 45-minute sessions
+- **Authorization**: IAM least-privilege policies with comprehensive DRS permissions
+- **Audit Trails**: Complete user action logging with role context
 - **Optional**: WAF protection and CloudTrail audit logging
 
 ## Documentation
@@ -345,6 +378,7 @@ The repository uses Git tags to mark significant milestones:
 
 | Tag | Description | Date | Commit |
 |-----|-------------|------|--------|
+| `RBAC-Prototype-with-Password-Reset-capability-v1.0` | **RBAC Prototype v1.0** - Comprehensive role-based access control with 6 granular roles, API-first enforcement, and password reset capability for new users | December 31, 2025 | `TBD` |
 | `MVP-DRILL-PROTOTYPE` | **MVP Drill Prototype Complete** - Complete disaster recovery orchestration platform with multi-account support, tag-based selection, and comprehensive drill capabilities | December 30, 2025 | `a34c5b7` |
 | `v2.0.0-mvp-drill-prototype` | **MVP Drill Only Prototype v2.0** - Core drill functionality with comprehensive documentation | December 30, 2025 | - |
 | `mvp-demo-ready` | MVP Demo Ready - Complete working state with all core features | December 9, 2025 | - |
