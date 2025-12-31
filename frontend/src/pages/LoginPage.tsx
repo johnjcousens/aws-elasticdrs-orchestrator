@@ -10,13 +10,21 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { SpaceBetween, Alert, Link } from '@cloudscape-design/components';
+import { PasswordChangeForm } from '../components/PasswordChangeForm';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { signIn, isAuthenticated, loading: authLoading } = useAuth();
+  const { 
+    signIn, 
+    isAuthenticated, 
+    loading: authLoading, 
+    needsPasswordChange, 
+    currentUsername,
+    handlePasswordChanged 
+  } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -33,6 +41,9 @@ export const LoginPage: React.FC = () => {
       const result = await signIn(username, password);
       if (result.isSignedIn) {
         navigate('/');
+      } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+        // Password change will be handled by the needsPasswordChange state
+        console.log('Password change required');
       } else {
         setError('Additional authentication steps required');
       }
@@ -43,6 +54,24 @@ export const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePasswordChangeComplete = async () => {
+    try {
+      await handlePasswordChanged();
+      navigate('/');
+    } catch (err: unknown) {
+      console.error('Password change completion error:', err);
+      const message = err instanceof Error ? err.message : 'Password change completion failed.';
+      setError(message);
+    }
+  };
+
+  const handlePasswordChangeCancel = () => {
+    // Reset form state
+    setUsername('');
+    setPassword('');
+    setError(null);
   };
 
   const inputStyle: React.CSSProperties = {
@@ -120,78 +149,86 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Login Card */}
-          <div style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '8px',
-            padding: '32px',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
-          }}>
-            <h1 style={{
-              fontSize: '24px',
-              fontWeight: 700,
-              color: '#16191f',
-              margin: '0 0 24px 0',
-              textAlign: 'center',
+          {/* Login Card or Password Change Form */}
+          {needsPasswordChange && currentUsername ? (
+            <PasswordChangeForm
+              username={currentUsername}
+              onPasswordChanged={handlePasswordChangeComplete}
+              onCancel={handlePasswordChangeCancel}
+            />
+          ) : (
+            <div style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '8px',
+              padding: '32px',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
             }}>
-              Sign in
-            </h1>
+              <h1 style={{
+                fontSize: '24px',
+                fontWeight: 700,
+                color: '#16191f',
+                margin: '0 0 24px 0',
+                textAlign: 'center',
+              }}>
+                Sign in
+              </h1>
 
-            <form 
-              onSubmit={handleSubmit}
-              method="post"
-              action="#"
-              autoComplete="on"
-            >
-              <SpaceBetween direction="vertical" size="l">
-                {error && (
-                  <Alert type="error" dismissible onDismiss={() => setError(null)}>
-                    {error}
-                  </Alert>
-                )}
+              <form 
+                onSubmit={handleSubmit}
+                method="post"
+                action="#"
+                autoComplete="on"
+              >
+                <SpaceBetween direction="vertical" size="l">
+                  {error && (
+                    <Alert type="error" dismissible onDismiss={() => setError(null)}>
+                      {error}
+                    </Alert>
+                  )}
 
-                <div>
-                  <label htmlFor="login-username" style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600, color: '#16191f' }}>
-                    Username or email
-                  </label>
-                  <input
-                    id="login-username"
-                    name="username"
-                    type="email"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    style={inputStyle}
-                    placeholder="Enter your username"
-                    required
-                    autoComplete="username"
-                    autoFocus
-                  />
-                </div>
+                  <div>
+                    <label htmlFor="login-username" style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600, color: '#16191f' }}>
+                      Username or email
+                    </label>
+                    <input
+                      id="login-username"
+                      name="username"
+                      type="email"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      style={inputStyle}
+                      placeholder="Enter your username"
+                      required
+                      autoComplete="username"
+                      autoFocus
+                    />
+                  </div>
 
-                <div>
-                  <label htmlFor="login-password" style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600, color: '#16191f' }}>
-                    Password
-                  </label>
-                  <input
-                    id="login-password"
-                    name="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    style={inputStyle}
-                    placeholder="Enter your password"
-                    required
-                    autoComplete="current-password"
-                    data-lpignore="false"
-                  />
-                </div>
+                  <div>
+                    <label htmlFor="login-password" style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600, color: '#16191f' }}>
+                      Password
+                    </label>
+                    <input
+                      id="login-password"
+                      name="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={inputStyle}
+                      placeholder="Enter your password"
+                      required
+                      autoComplete="current-password"
+                      data-lpignore="false"
+                    />
+                  </div>
 
-                <button type="submit" style={buttonStyle} disabled={loading}>
-                  {loading ? 'Signing in...' : 'Sign in'}
-                </button>
-              </SpaceBetween>
-            </form>
-          </div>
+                  <button type="submit" style={buttonStyle} disabled={loading}>
+                    {loading ? 'Signing in...' : 'Sign in'}
+                  </button>
+                </SpaceBetween>
+              </form>
+            </div>
+          )}
         </div>
       </div>
 

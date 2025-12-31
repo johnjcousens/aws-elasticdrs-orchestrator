@@ -16,30 +16,71 @@ import {
   fetchUserAttributes,
 } from 'aws-amplify/auth';
 import type { SignInInput, SignInOutput } from 'aws-amplify/auth';
-import { awsConfig } from '../aws-config';
 import type { User, AuthState } from '../types';
 
-// Configure Amplify with explicit region validation
-const amplifyConfig = {
-  Auth: {
-    Cognito: {
-      region: awsConfig.Auth?.Cognito?.region || 'us-east-1',
-      userPoolId: awsConfig.Auth?.Cognito?.userPoolId,
-      userPoolClientId: awsConfig.Auth?.Cognito?.userPoolClientId,
-      loginWith: {
-        email: true
-      }
-    }
-  },
-  API: awsConfig.API
-};
+// Flag to track if Amplify has been configured
+let amplifyConfigured = false;
 
-Amplify.configure(amplifyConfig);
+// Function to configure Amplify dynamically when config is available
+const configureAmplify = () => {
+  if (amplifyConfigured) return;
+  
+  // Get config from window.AWS_CONFIG (loaded by index.html script)
+  const config = window.AWS_CONFIG;
+  
+  if (!config) {
+    console.warn('⚠️ AWS_CONFIG not available, using fallback configuration');
+    // Fallback configuration for development
+    const fallbackConfig = {
+      Auth: {
+        Cognito: {
+          region: 'us-east-1',
+          userPoolId: '***REMOVED***',
+          userPoolClientId: '***REMOVED***',
+          loginWith: {
+            email: true
+          }
+        }
+      },
+      API: {
+        REST: {
+          DRSOrchestration: {
+            endpoint: 'https://***REMOVED***.execute-api.us-east-1.amazonaws.com/dev',
+            region: 'us-east-1'
+          }
+        }
+      }
+    };
+    Amplify.configure(fallbackConfig);
+  } else {
+    console.log('✅ Configuring Amplify with loaded AWS config');
+    // Create a clean config without optional identityPoolId
+    const cleanConfig = {
+      Auth: {
+        Cognito: {
+          region: config.Auth.Cognito.region,
+          userPoolId: config.Auth.Cognito.userPoolId,
+          userPoolClientId: config.Auth.Cognito.userPoolClientId,
+          loginWith: {
+            email: true
+          }
+        }
+      },
+      API: config.API
+    };
+    Amplify.configure(cleanConfig);
+  }
+  
+  amplifyConfigured = true;
+};
 
 interface AuthContextType extends AuthState {
   signIn: (username: string, password: string) => Promise<SignInOutput>;
   signOut: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  needsPasswordChange: boolean;
+  currentUsername: string | null;
+  handlePasswordChanged: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -60,6 +101,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loading: true,
     error: undefined,
   });
+
+  const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
 
   // Auto-logout timer (45 minutes)
   const AUTO_LOGOUT_TIME = 45 * 60 * 1000; // 45 minutes in milliseconds
@@ -111,11 +155,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const checkAuth = async (): Promise<void> => {
     try {
+      // Ensure Amplify is configured before any operations
+      configureAmplify();
+      
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
 
       // Check if we're in local development mode AND using localhost API
       const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
+      const apiEndpoint = window.AWS_CONFIG?.API?.REST?.DRSOrchestration?.endpoint || '';
       const isUsingLocalAPI = apiEndpoint.includes('localhost') || apiEndpoint.includes('127.0.0.1');
       
       if (isLocalDev && isUsingLocalAPI) {
@@ -190,11 +237,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     password: string
   ): Promise<SignInOutput> => {
     try {
+      // Ensure Amplify is configured before any operations
+      configureAmplify();
+      
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
+      setNeedsPasswordChange(false);
+      setCurrentUsername(null);
 
       // Check if we're in local development mode AND using localhost API
       const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
+      const apiEndpoint = window.AWS_CONFIG?.API?.REST?.DRSOrchestration?.endpoint || '';
       const isUsingLocalAPI = apiEndpoint.includes('localhost') || apiEndpoint.includes('127.0.0.1');
       
       if (isLocalDev && isUsingLocalAPI) {
@@ -227,6 +279,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (result.isSignedIn) {
         // Refresh auth state
         await checkAuth();
+        setNeedsPasswordChange(false);
+        setCurrentUsername(null);
+      } else if (result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+        // User needs to change password
+        setNeedsPasswordChange(true);
+        setCurrentUsername(username);
+        setAuthState((prev) => ({ ...prev, loading: false }));
       }
 
       return result;
@@ -237,6 +296,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading: false,
         error: error.message || 'Sign in failed',
       }));
+      setNeedsPasswordChange(false);
+      setCurrentUsername(null);
       throw error;
     }
   };
@@ -246,6 +307,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const handleSignOut = async (): Promise<void> => {
     try {
+      // Ensure Amplify is configured before any operations
+      configureAmplify();
+      
       setAuthState((prev) => ({ ...prev, loading: true, error: undefined }));
 
       // Check if we're in local development mode
@@ -288,11 +352,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  /**
+   * Handle successful password change
+   */
+  const handlePasswordChanged = async (): Promise<void> => {
+    setNeedsPasswordChange(false);
+    setCurrentUsername(null);
+    await checkAuth();
+  };
+
   const value: AuthContextType = {
     ...authState,
     signIn: handleSignIn,
     signOut: handleSignOut,
     checkAuth,
+    needsPasswordChange,
+    currentUsername,
+    handlePasswordChanged,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
