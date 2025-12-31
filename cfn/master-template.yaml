@@ -156,7 +156,7 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Stack - Cognito, API Gateway, Step Functions
+  # API Stack - Cognito with RBAC, API Gateway, Step Functions
   ApiStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -165,7 +165,7 @@ Resources:
       - DatabaseStack
       - LambdaStack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-stack.yaml'
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-stack-rbac.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
@@ -176,6 +176,7 @@ Resources:
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
         ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
+        TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
         OrchestrationFunctionArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
       Tags:
@@ -208,7 +209,7 @@ Resources:
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
-      TimeoutInMinutes: 45
+      TimeoutInMinutes: 60
 
 Outputs:
   # Database Stack Outputs

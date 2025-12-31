@@ -27,9 +27,9 @@ AWS_PROFILE="777788889999_AdministratorAccess"
 LIST_PROFILES=false
 
 # CloudFormation stack configuration
-PROJECT_NAME="drsorchv4"
-ENVIRONMENT="test"
-PARENT_STACK_NAME="drs-orch-v4"
+PROJECT_NAME="aws-drs-orchestrator"
+ENVIRONMENT="dev"
+PARENT_STACK_NAME="aws-drs-orchestrator-dev"
 
 # Approved top-level directories (directories synced by this script)
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
@@ -314,7 +314,7 @@ if [ "$BUILD_FRONTEND" = true ]; then
     
     if [ -f ".env.dev" ]; then
         cd frontend
-        ./build.sh
+        npm run build
         cd ..
         echo "✅ Frontend build complete"
     else
@@ -428,7 +428,7 @@ echo ""
 
 # Helper function to get Lambda function name
 get_lambda_function_name() {
-    local function_name="drsorchv4-api-handler-test"
+    local function_name="aws-drs-orchestrator-api-handler-dev"
     echo "$function_name"
 }
 
@@ -460,6 +460,9 @@ package_lambda() {
     
     # Add Lambda code to zip
     zip -g "$package_file" index.py > /dev/null
+    if [ -f "rbac_middleware.py" ]; then
+        zip -g "$package_file" rbac_middleware.py > /dev/null
+    fi
     if [ -d "poller" ]; then
         zip -rg "$package_file" poller/ > /dev/null
     fi
@@ -508,6 +511,9 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         zip -qg /tmp/lambda-quick.zip index.py
         if [ -f "requirements.txt" ]; then
             zip -qg /tmp/lambda-quick.zip requirements.txt
+        fi
+        if [ -f "rbac_middleware.py" ]; then
+            zip -qg /tmp/lambda-quick.zip rbac_middleware.py
         fi
         if [ -d "poller" ]; then
             zip -qrg /tmp/lambda-quick.zip poller/
@@ -563,11 +569,11 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         # Lambda function mappings: local file -> actual function name
         declare -A LAMBDA_FUNCTIONS=(
-            ["index.py"]="drsorchv4-api-handler-test"
-            ["orchestration_stepfunctions.py"]="drsorchv4-orchestration-stepfunctions-test"
-            ["build_and_deploy.py"]="drsorchv4-frontend-builder-test"
-            ["poller/execution_finder.py"]="drsorchv4-execution-finder-test"
-            ["poller/execution_poller.py"]="drsorchv4-execution-poller-test"
+            ["index.py"]="aws-drs-orchestrator-api-handler-dev"
+            ["orchestration_stepfunctions.py"]="aws-drs-orchestrator-orchestration-stepfunctions-dev"
+            ["build_and_deploy.py"]="aws-drs-orchestrator-frontend-builder-dev"
+            ["poller/execution_finder.py"]="aws-drs-orchestrator-execution-finder-dev"
+            ["poller/execution_poller.py"]="aws-drs-orchestrator-execution-poller-dev"
         )
         
         for local_file in "${!LAMBDA_FUNCTIONS[@]}"; do
@@ -838,6 +844,9 @@ if [ "$DEPLOY_CFN" = true ]; then
         
         # Add Lambda code to zip
         zip -g "$PACKAGE_FILE" index.py > /dev/null
+        if [ -f "rbac_middleware.py" ]; then
+            zip -g "$PACKAGE_FILE" rbac_middleware.py > /dev/null
+        fi
         if [ -d "poller" ]; then
             zip -rg "$PACKAGE_FILE" poller/ > /dev/null
         fi

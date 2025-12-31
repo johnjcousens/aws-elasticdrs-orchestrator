@@ -29,9 +29,7 @@ export const AccountSelector: React.FC = () => {
   // Convert accounts to select options
   const accountOptions: SelectProps.Option[] = availableAccounts.map(account => ({
     value: account.accountId,
-    label: account.accountName 
-      ? `${account.accountName} (${account.accountId})`
-      : account.accountId,
+    label: account.accountId,
     description: account.isCurrentAccount ? 'Current account' : undefined,
   }));
 

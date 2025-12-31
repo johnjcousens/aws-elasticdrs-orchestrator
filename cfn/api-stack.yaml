@@ -157,6 +157,11 @@ Resources:
       IdentityPoolId: !Ref IdentityPool
       Roles:
         authenticated: !GetAtt CognitoAuthRole.Arn
+      RoleMappings:
+        UserPool:
+          Type: Token
+          AmbiguousRoleResolution: AuthenticatedRole
+          IdentityProvider: !Sub '${UserPool.ProviderName}:${UserPoolClient}'
 
   # SNS Topic for Notifications (Optional)
   NotificationTopic:
@@ -522,8 +527,6 @@ Resources:
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
       MethodResponses:
         - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
