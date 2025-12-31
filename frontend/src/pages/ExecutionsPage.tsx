@@ -28,6 +28,8 @@ import { ErrorState } from '../components/ErrorState';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { CardSkeleton } from '../components/CardSkeleton';
 import { PageTransition } from '../components/PageTransition';
+import { PermissionAwareButton } from '../components/PermissionAware';
+import { DRSPermission } from '../contexts/PermissionsContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { InvocationSourceBadge } from '../components/InvocationSourceBadge';
@@ -585,7 +587,16 @@ export const ExecutionsPage: React.FC = () => {
               <Box float="right">
                 <SpaceBetween direction="horizontal" size="xs">
                   <Button onClick={() => setClearDialogOpen(false)} disabled={clearing}>Cancel</Button>
-                  <Button variant="primary" onClick={handleConfirmClear} disabled={clearing} loading={clearing}>Delete Selected</Button>
+                  <PermissionAwareButton 
+                    variant="primary" 
+                    onClick={handleConfirmClear} 
+                    disabled={clearing} 
+                    loading={clearing}
+                    requiredPermission={DRSPermission.STOP_RECOVERY}
+                    fallbackTooltip="Requires recovery stop permission"
+                  >
+                    Delete Selected
+                  </PermissionAwareButton>
                 </SpaceBetween>
               </Box>
             }
