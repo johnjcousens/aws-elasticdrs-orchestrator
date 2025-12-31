@@ -17,8 +17,9 @@ from typing import Dict, Any, List, Optional
 # Import RBAC middleware
 from rbac_middleware import (
     check_authorization, 
-    get_user_profile, 
-    get_user_roles_info,
+    get_user_from_event,
+    get_user_roles,
+    get_user_permissions,
     DRSPermission
 )
 
@@ -1236,12 +1237,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         if path == '/health':
             print("Matched /health route")
             return response(200, {'status': 'healthy', 'service': 'drs-orchestration-api'})
-        elif path == '/users/profile':
-            print("Matched /users/profile route")
-            return get_user_profile(event)
-        elif path == '/users/roles':
-            print("Matched /users/roles route")
-            return get_user_roles_info(event)
+
+
         elif path.startswith('/protection-groups'):
             print("Matched /protection-groups route")
             return handle_protection_groups(http_method, path_parameters, body, query_parameters)
@@ -1289,6 +1286,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         elif path.startswith('/config'):
             print("Matched /config route")
             return handle_config(http_method, path, body, query_parameters)
+        elif path == '/user/permissions' and http_method == 'GET':
+            print("Matched /user/permissions route")
+            return handle_user_permissions(event)
         else:
             print(f"No route matched for path: '{path}' - checking all conditions:")
             print(f"  path == '/health': {path == '/health'}")
@@ -7611,6 +7611,43 @@ SCHEMA_VERSION = "1.0"
 SUPPORTED_SCHEMA_VERSIONS = ["1.0"]
 
 
+def handle_user_permissions(event: Dict) -> Dict:
+    """Return user roles and permissions based on Cognito groups"""
+    try:
+        print("🔍 Processing user permissions request")
+        
+        # Extract user information from the event
+        user = get_user_from_event(event)
+        print(f"🔍 User extracted: {user}")
+        
+        # Get user roles and permissions
+        user_roles = get_user_roles(user)
+        user_permissions = get_user_permissions(user)
+        
+        print(f"🔐 User roles: {[role.value for role in user_roles]}")
+        print(f"🔑 User permissions: {[perm.value for perm in user_permissions]}")
+        
+        return response(200, {
+            'user': {
+                'email': user.get('email'),
+                'userId': user.get('userId'),
+                'username': user.get('username'),
+                'groups': user.get('groups', [])
+            },
+            'roles': [role.value for role in user_roles],
+            'permissions': [perm.value for perm in user_permissions]
+        })
+        
+    except Exception as e:
+        print(f"Error in handle_user_permissions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {
+            'error': 'Internal Server Error',
+            'message': f'Failed to get user permissions: {str(e)}'
+        })
+
+
 def handle_config(method: str, path: str, body: Dict, query_params: Dict) -> Dict:
     """Route configuration export/import requests"""
     if path == '/config/export' and method == 'GET':
@@ -8264,3 +8301,4 @@ def _process_recovery_plan_import(
     result['status'] = 'created'
     result['reason'] = ''
     return result
+
