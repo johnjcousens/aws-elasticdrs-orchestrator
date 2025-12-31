@@ -46,6 +46,20 @@ def create_lambda_package(source_file, package_dir, output_zip):
         zipf.write(source_file, os.path.basename(source_file))
         print(f"  ✅ Added {os.path.basename(source_file)}")
         
+        # Add other Python files in the lambda directory (like rbac_middleware.py)
+        lambda_dir = os.path.dirname(source_file)
+        python_files = 0
+        for file in os.listdir(lambda_dir):
+            if file.endswith('.py') and file != os.path.basename(source_file):
+                file_path = os.path.join(lambda_dir, file)
+                if os.path.isfile(file_path):
+                    zipf.write(file_path, file)
+                    python_files += 1
+                    print(f"  ✅ Added {file}")
+        
+        if python_files > 0:
+            print(f"  ✅ Added {python_files} additional Python files")
+        
         # Add dependencies from package directory
         if os.path.exists(package_dir):
             package_files = 0

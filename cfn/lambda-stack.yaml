@@ -692,38 +692,8 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt ExecutionFinderScheduleRule.Arn
 
-  # Log Groups with retention
-  ApiHandlerLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/${ApiHandlerFunction}'
-      RetentionInDays: 30
-
-  FrontendBuilderLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/${FrontendBuilderFunction}'
-      RetentionInDays: 7
-
-  ExecutionFinderLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/${ExecutionFinderFunction}'
-      RetentionInDays: 7
-
-  ExecutionPollerLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/${ExecutionPollerFunction}'
-      RetentionInDays: 7
+  # Note: CloudWatch Log Groups are automatically created by Lambda functions
+  # Removed explicit log group creation to avoid conflicts
 
   # Step Functions Orchestration Lambda Function
   OrchestrationStepFunctionsFunction:
@@ -750,13 +720,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  OrchestrationStepFunctionsLogGroup:
-    Type: AWS::Logs::LogGroup
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/${OrchestrationStepFunctionsFunction}'
-      RetentionInDays: 30
+  # Note: CloudWatch Log Group automatically created by Lambda
 
 Outputs:
   ApiHandlerFunctionArn:

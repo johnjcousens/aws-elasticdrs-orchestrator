@@ -795,6 +795,21 @@ class ApiClient {
     return this.get<any>('/accounts/targets');
   }
 
+  /**
+   * Get current account information for setup wizard
+   */
+  public async getCurrentAccount(): Promise<{
+    accountId: string;
+    accountName: string;
+    isCurrentAccount: boolean;
+  }> {
+    return this.get<{
+      accountId: string;
+      accountName: string;
+      isCurrentAccount: boolean;
+    }>('/accounts/current');
+  }
+
   public async createTargetAccount(accountData: any): Promise<any> {
     return this.post<any>('/accounts/targets', accountData);
   }
