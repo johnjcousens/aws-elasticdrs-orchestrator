@@ -157,6 +157,11 @@ Resources:
       IdentityPoolId: !Ref IdentityPool
       Roles:
         authenticated: !GetAtt CognitoAuthRole.Arn
+      RoleMappings:
+        UserPool:
+          Type: Token
+          AmbiguousRoleResolution: AuthenticatedRole
+          IdentityProvider: !Sub '${UserPool.ProviderName}:${UserPoolClient}'
 
   # SNS Topic for Notifications (Optional)
   NotificationTopic:

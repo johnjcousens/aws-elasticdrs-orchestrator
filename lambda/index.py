@@ -14,6 +14,14 @@ from boto3.dynamodb.conditions import Key, Attr
 from decimal import Decimal
 from typing import Dict, Any, List, Optional
 
+# Import RBAC middleware
+from rbac_middleware import (
+    check_authorization, 
+    get_user_profile, 
+    get_user_roles_info,
+    DRSPermission
+)
+
 # Initialize AWS clients
 dynamodb = boto3.resource('dynamodb')
 stepfunctions = boto3.client('stepfunctions')
@@ -1205,8 +1213,22 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
                     'error': 'Unauthorized', 
                     'message': 'Valid authentication required'
                 })
+            
+            # RBAC Authorization Check
+            print("Performing RBAC authorization check")
+            auth_result = check_authorization(event)
+            if not auth_result['authorized']:
+                print(f"RBAC authorization failed: {auth_result['reason']}")
+                return response(403, {
+                    'error': 'Forbidden',
+                    'message': auth_result['reason'],
+                    'requiredPermission': auth_result.get('required_permission'),
+                    'userRoles': auth_result.get('user_roles', [])
+                })
+            
+            print(f"RBAC authorization passed for user: {auth_result.get('user', {}).get('email')}")
         
-        print("Authentication passed, proceeding to routing")
+        print("Authentication and authorization passed, proceeding to routing")
         
         # Route to appropriate handler
         print(f"Routing request - Method: {http_method}, Path: '{path}'")
@@ -1214,6 +1236,12 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         if path == '/health':
             print("Matched /health route")
             return response(200, {'status': 'healthy', 'service': 'drs-orchestration-api'})
+        elif path == '/users/profile':
+            print("Matched /users/profile route")
+            return get_user_profile(event)
+        elif path == '/users/roles':
+            print("Matched /users/roles route")
+            return get_user_roles_info(event)
         elif path.startswith('/protection-groups'):
             print("Matched /protection-groups route")
             return handle_protection_groups(http_method, path_parameters, body, query_parameters)
@@ -1249,6 +1277,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return handle_drs_accounts(query_parameters)
         elif path.startswith('/accounts/targets'):
             return handle_target_accounts(path, http_method, body, query_parameters)
+        elif path == '/accounts/current' and http_method == 'GET':
+            print(f"Matched /accounts/current route, calling get_current_account_info")
+            return get_current_account_info()
         elif path == '/drs/tag-sync' and http_method == 'POST':
             print("Matched /drs/tag-sync route")
             return handle_drs_tag_sync(body)
@@ -1766,6 +1797,10 @@ def create_protection_group(body: Dict) -> Dict:
 def get_protection_groups(query_params: Dict = None) -> Dict:
     """List all Protection Groups with optional account filtering"""
     try:
+        # Auto-initialize default account if none exist
+        if target_accounts_table:
+            ensure_default_account()
+        
         query_params = query_params or {}
         account_id = query_params.get('accountId')
         
@@ -2240,6 +2275,10 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         status: Filter by last execution status
     """
     try:
+        # Auto-initialize default account if none exist
+        if target_accounts_table:
+            ensure_default_account()
+        
         query_params = query_params or {}
         
         result = recovery_plans_table.scan()
@@ -5397,6 +5436,10 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
 
 def handle_drs_source_servers(query_params: Dict) -> Dict:
     """Route DRS source servers discovery requests"""
+    # Auto-initialize default account if none exist
+    if target_accounts_table:
+        ensure_default_account()
+    
     region = query_params.get('region')
     current_pg_id = query_params.get('currentProtectionGroupId')
     filter_by_pg = query_params.get('filterByProtectionGroup')  # NEW: Filter mode
@@ -6687,9 +6730,65 @@ def handle_target_accounts(path: str, http_method: str, body: Dict = None, query
         return response(500, {'error': str(e)})
 
 
+def get_current_account_info() -> Dict:
+    """Get current account information for setup wizard"""
+    try:
+        current_account_id = get_current_account_id()
+        current_account_name = get_account_name(current_account_id)
+        
+        return response(200, {
+            'accountId': current_account_id,
+            'accountName': current_account_name or f"Account {current_account_id}",
+            'isCurrentAccount': True
+        })
+        
+    except Exception as e:
+        print(f"Error getting current account info: {e}")
+        return response(500, {'error': str(e)})
+
+
+def ensure_default_account() -> None:
+    """Automatically add current account as default target account if no accounts exist"""
+    try:
+        # Check if any accounts already exist
+        scan_result = target_accounts_table.scan(Select='COUNT')
+        total_accounts = scan_result.get('Count', 0)
+        
+        if total_accounts == 0:
+            # No accounts exist - auto-add current account as default
+            current_account_id = get_current_account_id()
+            current_account_name = get_account_name(current_account_id) or f"Account {current_account_id}"
+            
+            now = datetime.utcnow().isoformat() + 'Z'
+            
+            # Create default account entry (using PascalCase for DynamoDB)
+            default_account = {
+                'AccountId': current_account_id,
+                'AccountName': current_account_name,
+                'Status': 'active',
+                'IsCurrentAccount': True,
+                'IsDefault': True,
+                'CreatedAt': now,
+                'LastValidated': now,
+                'CreatedBy': 'system-auto-init'
+            }
+            
+            # Store in DynamoDB
+            target_accounts_table.put_item(Item=default_account)
+            
+            print(f"Auto-initialized default target account: {current_account_id} ({current_account_name})")
+            
+    except Exception as e:
+        print(f"Error auto-initializing default account: {e}")
+        # Don't fail the request if auto-init fails - just log the error
+
+
 def get_target_accounts() -> Dict:
     """Get all configured target accounts"""
     try:
+        # Auto-initialize default account if none exist
+        ensure_default_account()
+        
         # Get current account info
         current_account_id = get_current_account_id()
         current_account_name = get_account_name(current_account_id)
@@ -6708,10 +6807,6 @@ def get_target_accounts() -> Dict:
                 ExclusiveStartKey=result['LastEvaluatedKey']
             )
             accounts.extend(result.get('Items', []))
-        
-        # Return empty list if no accounts configured
-        # Users must explicitly add target accounts (including current account if it has DRS)
-        # This supports deployment in shared services accounts that don't have DRS
         
         # Transform all accounts to camelCase for frontend
         camel_accounts = []
@@ -6754,11 +6849,38 @@ def create_target_account(body: Dict) -> Dict:
         # Get current account info
         current_account_id = get_current_account_id()
         account_name = body.get('accountName', '')
+        cross_account_role_arn = body.get('crossAccountRoleArn', '')
+        
+        # Determine if this is the same account as the solution
+        is_current_account = (account_id == current_account_id)
+        
+        # Wizard validation logic
+        if is_current_account:
+            # Same account - cross-account role should NOT be provided
+            if cross_account_role_arn:
+                return response(400, {
+                    'error': 'SAME_ACCOUNT_NO_ROLE_NEEDED',
+                    'message': 'Cross-account role is not needed when adding the same account where this solution is deployed. Please leave the role field empty.'
+                })
+            print(f"Same account deployment detected for {account_id} - no cross-account role required")
+        else:
+            # Different account - cross-account role IS required
+            if not cross_account_role_arn:
+                return response(400, {
+                    'error': 'CROSS_ACCOUNT_ROLE_REQUIRED',
+                    'message': f'This account ({account_id}) is different from where the solution is deployed ({current_account_id}). Please provide a cross-account IAM role ARN with DRS permissions.'
+                })
+            # Validate role ARN format
+            if not cross_account_role_arn.startswith('arn:aws:iam::'):
+                return response(400, {
+                    'error': 'INVALID_ROLE_ARN',
+                    'message': 'Cross-account role ARN must be a valid IAM role ARN (arn:aws:iam::account:role/role-name)'
+                })
         
         # If no name provided, try to get account name
         if not account_name:
-            if account_id == current_account_id:
-                account_name = get_account_name(account_id)
+            if is_current_account:
+                account_name = get_account_name(account_id) or f"Account {account_id}"
             else:
                 account_name = f"Account {account_id}"
         
@@ -6768,13 +6890,24 @@ def create_target_account(body: Dict) -> Dict:
             if not re.match(r'^\d{12}$', staging_account_id):
                 return response(400, {'error': 'INVALID_FORMAT', 'message': 'stagingAccountId must be 12 digits'})
         
+        # Check if this will be the first account (for default setting)
+        is_first_account = False
+        try:
+            scan_result = target_accounts_table.scan(Select='COUNT')
+            total_accounts = scan_result.get('Count', 0)
+            is_first_account = (total_accounts == 0)
+        except Exception as e:
+            print(f"Error checking account count: {e}")
+        
         # Transform from camelCase to PascalCase for DynamoDB
         now = datetime.utcnow().isoformat() + 'Z'
         body_with_timestamps = {
             **body,
             'createdAt': now,
             'lastValidated': now,
-            'status': 'active'
+            'status': 'active',
+            'isCurrentAccount': is_current_account,
+            'isFirstAccount': is_first_account  # Flag for frontend to know this should be default
         }
         
         account_item = transform_target_account_from_camelcase(body_with_timestamps)
@@ -6785,8 +6918,19 @@ def create_target_account(body: Dict) -> Dict:
         # Transform back to camelCase for response
         camel_account = transform_target_account_to_camelcase(account_item)
         
-        print(f"Created target account: {account_id}")
-        return response(201, camel_account)
+        success_message = f"Target account {account_id} added successfully"
+        if is_current_account:
+            success_message += " (same account - no cross-account role needed)"
+        if is_first_account:
+            success_message += " and set as default account"
+        
+        print(f"Created target account: {account_id} (isCurrentAccount: {is_current_account}, isFirstAccount: {is_first_account})")
+        
+        return response(201, {
+            **camel_account,
+            'message': success_message,
+            'isFirstAccount': is_first_account
+        })
         
     except Exception as e:
         print(f"Error creating target account: {e}")

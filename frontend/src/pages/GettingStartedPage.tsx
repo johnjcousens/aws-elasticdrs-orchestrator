@@ -15,7 +15,6 @@ import {
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { useAccount } from '../contexts/AccountContext';
-import AccountManagementPanel from '../components/AccountManagementPanel';
 
 const stepCardStyle: React.CSSProperties = {
   display: 'flex',
@@ -48,9 +47,6 @@ export const GettingStartedPage: React.FC = () => {
   const navigate = useNavigate();
   const { availableAccounts, accountsLoading } = useAccount();
   
-  // Check if no target accounts are configured (only after loading is complete)
-  const hasNoAccounts = !accountsLoading && availableAccounts.length === 0;
-
   // Show loading state while accounts are being fetched
   if (accountsLoading) {
     return (
@@ -75,93 +71,7 @@ export const GettingStartedPage: React.FC = () => {
     );
   }
 
-  // Show account management if no accounts are configured
-  if (hasNoAccounts) {
-    return (
-      <PageTransition>
-        <ContentLayout
-          header={
-            <Header variant="h1" description="AWS Disaster Recovery Service Orchestration Platform">
-              Getting Started
-            </Header>
-          }
-        >
-          <SpaceBetween size="l">
-            <Alert
-              type="info"
-              header="Welcome to AWS DRS Orchestration"
-            >
-              <SpaceBetween size="m">
-                <Box>
-                  To get started, you need to configure at least one target account where your DRS source servers are located.
-                </Box>
-                
-                <Box variant="h3">Setup Options:</Box>
-                
-                <SpaceBetween size="s">
-                  <Box>
-                    <Box variant="strong">Same Account Setup (Recommended for single account):</Box>
-                    <Box color="text-body-secondary">
-                      If your DRS source servers are in the same AWS account as this orchestration solution, 
-                      simply add your current account without specifying a cross-account role ARN. 
-                      Leave the role field empty - no additional IAM configuration needed.
-                    </Box>
-                  </Box>
-                  
-                  <Box>
-                    <Box variant="strong">Cross-Account Setup (For multi-account environments):</Box>
-                    <Box color="text-body-secondary">
-                      If your DRS source servers are in different AWS accounts, you'll need to create 
-                      cross-account IAM roles with DRS permissions and specify the role ARN when adding each account.
-                    </Box>
-                  </Box>
-                </SpaceBetween>
-              </SpaceBetween>
-            </Alert>
-            
-            <AccountManagementPanel 
-              onAccountsChange={(accounts) => {
-                // Show success message and navigation option when accounts are added
-                if (accounts.length > 0) {
-                  // Don't auto-navigate immediately, let user see the success
-                  // They can manually navigate or we'll show a button
-                }
-              }}
-            />
-            
-            {/* Show navigation button when accounts exist */}
-            {availableAccounts.length > 0 && (
-              <Container>
-                <SpaceBetween size="m">
-                  <Alert
-                    type="success"
-                    header="Target Account Configured Successfully!"
-                  >
-                    <SpaceBetween size="m">
-                      <Box>
-                        Great! You've successfully configured a target account. You can now proceed to the dashboard to start creating protection groups and recovery plans.
-                      </Box>
-                      <Box>
-                        <Button 
-                          variant="primary" 
-                          iconName="status-positive"
-                          onClick={() => navigate('/')}
-                        >
-                          Go to Dashboard
-                        </Button>
-                      </Box>
-                    </SpaceBetween>
-                  </Alert>
-                </SpaceBetween>
-              </Container>
-            )}
-          </SpaceBetween>
-        </ContentLayout>
-      </PageTransition>
-    );
-  }
-
-  // Show regular getting started content when accounts are configured
+  // Show regular getting started content (accounts are auto-initialized by backend)
   return (
     <PageTransition>
       <ContentLayout
@@ -172,6 +82,24 @@ export const GettingStartedPage: React.FC = () => {
         }
       >
         <SpaceBetween size="l">
+          {/* Welcome message for new users */}
+          {availableAccounts.length > 0 && (
+            <Alert
+              type="success"
+              header="Welcome to AWS DRS Orchestration"
+            >
+              <SpaceBetween size="s">
+                <Box>
+                  Your account has been automatically configured for DRS orchestration. 
+                  You can now create protection groups and recovery plans to orchestrate your disaster recovery operations.
+                </Box>
+                <Box>
+                  <strong>Current Account:</strong> {availableAccounts[0]?.accountId}
+                </Box>
+              </SpaceBetween>
+            </Alert>
+          )}
+
           {/* Navigation Cards */}
           <ColumnLayout columns={3} variant="default">
             <Container

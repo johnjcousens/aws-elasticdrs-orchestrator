@@ -1,39 +1,39 @@
-# VMware Site Recovery Manager (SRM) REST API Summary
+# Disaster Recovery API Reference
 
-A comprehensive reference for VMware SRM REST API endpoints used in disaster recovery orchestration.
+A comprehensive reference for disaster recovery orchestration APIs and patterns used in enterprise DR solutions.
 
 > **Last Updated**: December 2024
-> **API Version**: SRM 8.x REST API
-> **Official Documentation**: [VMware SRM API Reference](https://developer.vmware.com/apis/1196/site-recovery-manager)
+> **Purpose**: API patterns and best practices for disaster recovery orchestration
+> **Scope**: Generic DR concepts applicable across platforms
 
 ## Overview
 
-VMware Site Recovery Manager provides REST APIs for managing protection groups, recovery plans, and disaster recovery operations between vSphere sites. This document covers all key endpoints and serves as a comparison reference for AWS DRS functionality.
+This document provides API patterns and concepts commonly used in disaster recovery orchestration platforms. It serves as a reference for understanding DR automation patterns and can be used to compare different DR solutions and their capabilities.
 
-## API Categories
+## Common DR API Categories
 
-| Category | Endpoints |
-|----------|-----------|
-| Authentication | Sessions |
-| Protection Groups | CRUD operations, VM management |
-| Recovery Plans | CRUD operations, execution |
-| Recovery Operations | Test, Planned, Emergency recovery |
-| Reprotection | Failback, reverse replication |
-| Virtual Machines | Protected VMs, recovery settings |
-| Sites | Site pairing, connection status |
-| Inventory | Datastores, resource pools, networks |
+| Category | Purpose |
+|----------|---------|
+| Authentication | Session management and security |
+| Protection Groups | Logical grouping of protected resources |
+| Recovery Plans | Orchestration definitions and execution |
+| Recovery Operations | Test, planned, and emergency recovery |
+| Reprotection | Failback and reverse replication |
+| Virtual Machines | Protected resource management |
+| Sites | Multi-site configuration and status |
+| Inventory | Infrastructure resources and mappings |
 | Tasks | Async operation monitoring |
-| Reports | Compliance, test history |
+| Reports | Compliance and audit trails |
 
 ---
 
-## Authentication
+## Authentication Patterns
 
-VMware SRM uses session-based authentication with vCenter SSO integration.
+Most enterprise DR solutions use session-based authentication with integration to identity providers.
 
-### Create Session
+### Typical Session Creation
 
-**Endpoint**: `POST /api/sessions`
+**Endpoint Pattern**: `POST /api/sessions`
 
 **Headers**:
 
@@ -42,12 +42,12 @@ Authorization: Basic <base64-encoded-credentials>
 Content-Type: application/json
 ```
 
-**Response**:
+**Response Pattern**:
 
 ```json
 {
     "session_id": "session-12345",
-    "user": "administrator@vsphere.local",
+    "user": "administrator@company.com",
     "created_time": "2024-01-15T10:00:00Z",
     "expires_time": "2024-01-15T18:00:00Z"
 }
@@ -56,26 +56,28 @@ Content-Type: application/json
 **Subsequent Requests**: Include session token in header:
 
 ```text
-vmware-api-session-id: session-12345
+session-token: session-12345
 ```
 
-### Delete Session (Logout)
+### Session Termination
 
-**Endpoint**: `DELETE /api/sessions`
+**Endpoint Pattern**: `DELETE /api/sessions`
 
 ---
 
 ## Base URL Structure
 
 ```text
-https://{srm-server}/api/
+https://{dr-server}/api/
 ```
 
 ## Protection Groups Management
 
+Protection Groups represent logical collections of resources that are protected and recovered together.
+
 ### List Protection Groups
 
-**Endpoint**: `GET /api/protection-groups`
+**Endpoint Pattern**: `GET /api/protection-groups`
 
 **Query Parameters**:
 
@@ -84,7 +86,7 @@ https://{srm-server}/api/
 - `sort_by` - Sort field
 - `sort_order` - ASC or DESC
 
-**Response**:
+**Response Pattern**:
 
 ```json
 {
@@ -93,12 +95,12 @@ https://{srm-server}/api/
             "id": "protection-group-1",
             "name": "WebServers-PG",
             "description": "Web tier protection group",
-            "type": "san",
+            "type": "replication",
             "state": "ready",
             "peer_state": "ready",
-            "protection_state": "shadowing",
-            "vm_count": 5,
-            "datastore_count": 2,
+            "protection_state": "protected",
+            "resource_count": 5,
+            "storage_count": 2,
             "recovery_plan_count": 1,
             "last_test_time": "2024-01-15T10:30:00Z",
             "fault": null
@@ -112,45 +114,45 @@ https://{srm-server}/api/
 }
 ```
 
-**Protection Group Types**: `san`, `vr` (vSphere Replication), `vvol`, `spbm`
+**Protection Group Types**: `replication`, `snapshot`, `continuous`
 
-**Protection States**: `not_configured`, `partially_configured`, `shadowing`, `not_shadowing`
+**Protection States**: `not_configured`, `partially_configured`, `protected`, `not_protected`
 
 ### Create Protection Group
 
-**Endpoint**: `POST /api/protection-groups`
+**Endpoint Pattern**: `POST /api/protection-groups`
 
-**Request**:
+**Request Pattern**:
 
 ```json
 {
     "name": "DatabaseServers-PG",
     "description": "Database tier protection group",
-    "type": "san",
+    "type": "replication",
     "input_spec": {
-        "datastore_groups": [
+        "storage_groups": [
             {
-                "datastores": ["datastore-001", "datastore-002"],
-                "target_datastore": "datastore-recovery-001"
+                "source_storage": ["storage-001", "storage-002"],
+                "target_storage": "storage-recovery-001"
             }
         ]
     }
 }
 ```
 
-**vSphere Replication Protection Group**:
+**Continuous Replication Protection Group**:
 
 ```json
 {
     "name": "AppServers-PG",
-    "description": "Application tier with vSphere Replication",
-    "type": "vr",
+    "description": "Application tier with continuous replication",
+    "type": "continuous",
     "input_spec": {
-        "vms": ["vm-001", "vm-002", "vm-003"],
+        "resources": ["resource-001", "resource-002", "resource-003"],
         "replication_settings": {
             "rpo_minutes": 15,
             "point_in_time_instances": 24,
-            "quiesce_guest": true
+            "consistency_groups": true
         }
     }
 }
@@ -1569,19 +1571,19 @@ if __name__ == "__main__":
 
 6. **Callout Scripts**: Use pre/post power-on scripts for application-specific recovery steps.
 
-### Comparison: VMware SRM vs AWS DRS
+### Comparison: Generic DR Patterns vs AWS DRS
 
-| Feature | VMware SRM | AWS DRS |
-|---------|------------|---------|
-| Protection Unit | Protection Group (datastores/VMs) | Source Server |
+| Feature | Traditional DR Solutions | AWS DRS |
+|---------|--------------------------|---------|
+| Protection Unit | Protection Group (storage/resources) | Source Server |
 | Recovery Unit | Recovery Plan | Recovery Job |
-| Replication | SAN/vSphere Replication | Agent-based continuous replication |
-| Recovery Types | Test, Planned, Disaster | Drill, Recovery |
-| Failback | Built-in reprotection | Reverse replication |
+| Replication | Various (SAN/agent/snapshot) | Agent-based continuous replication |
+| Recovery Types | Test, Planned, Emergency | Drill, Recovery |
+| Failback | Platform-specific reprotection | Reverse replication |
 | Orchestration | Priority groups with scripts | Wave-based execution |
 | Network Customization | IP mapping rules | Launch template settings |
 | API Style | REST with session auth | AWS Signature V4 |
-| Automation | PowerCLI, REST API | boto3, AWS CLI |
+| Automation | Platform-specific SDKs | boto3, AWS CLI |
 
 ---
 

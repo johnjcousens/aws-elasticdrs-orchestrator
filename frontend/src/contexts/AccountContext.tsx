@@ -91,7 +91,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       const account = availableAccounts[0];
       setSelectedAccount({
         value: account.accountId,
-        label: account.accountName ? `${account.accountName} (${account.accountId})` : account.accountId,
+        label: account.accountId,
       });
       return;
     }
@@ -105,7 +105,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       if (account) {
         setSelectedAccount({
           value: account.accountId,
-          label: account.accountName ? `${account.accountName} (${account.accountId})` : account.accountId,
+          label: account.accountId,
         });
         return;
       }
