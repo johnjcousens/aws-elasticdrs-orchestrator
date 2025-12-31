@@ -326,6 +326,7 @@ The solution implements comprehensive role-based access control with 6 granular 
 | [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Step-by-step deployment instructions |
 | [Multi-Account Setup Guide](docs/guides/MULTI_ACCOUNT_SETUP_GUIDE.md) | Complete multi-account hub and spoke setup |
 | [Orchestration Integration](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) | CLI, SSM, Step Functions, API integration |
+| [RBAC Security Testing Status](docs/security/RBAC_SECURITY_TESTING_STATUS.md) | Role-based access control security testing documentation |
 
 ### Requirements & Architecture
 

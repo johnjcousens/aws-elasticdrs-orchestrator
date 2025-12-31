@@ -28,6 +28,8 @@ import { ProtectionGroupDialog } from '../components/ProtectionGroupDialog';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
+import { PermissionAwareButton, PermissionAwareButtonDropdown } from '../components/PermissionAware';
+import { DRSPermission } from '../contexts/PermissionsContext';
 import apiClient from '../services/api';
 
 /**
@@ -213,9 +215,14 @@ export const ProtectionGroupsPage: React.FC = () => {
             variant="h1"
             description="Define groups of servers to protect together"
             actions={
-              <Button variant="primary" onClick={handleCreate}>
+              <PermissionAwareButton 
+                variant="primary" 
+                onClick={handleCreate}
+                requiredPermission={DRSPermission.CREATE_PROTECTION_GROUPS}
+                fallbackTooltip="Requires protection group creation permission"
+              >
                 Create Group
-              </Button>
+              </PermissionAwareButton>
             }
           >
             Protection Groups
@@ -234,10 +241,24 @@ export const ProtectionGroupsPage: React.FC = () => {
                 const isInRecoveryPlan = groupsInRecoveryPlans.has(item.protectionGroupId);
                 const isInActiveExecution = groupsInActiveExecutions.has(item.protectionGroupId);
                 return (
-                  <ButtonDropdown
+                  <PermissionAwareButtonDropdown
                     items={[
-                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: isInActiveExecution, disabledReason: 'Cannot edit while execution is running' },
-                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: isInRecoveryPlan, disabledReason: 'Remove from recovery plans first' },
+                      { 
+                        id: 'edit', 
+                        text: 'Edit', 
+                        iconName: 'edit', 
+                        disabled: isInActiveExecution, 
+                        disabledReason: 'Cannot edit while execution is running',
+                        requiredPermission: DRSPermission.MODIFY_PROTECTION_GROUPS
+                      },
+                      { 
+                        id: 'delete', 
+                        text: 'Delete', 
+                        iconName: 'remove', 
+                        disabled: isInRecoveryPlan, 
+                        disabledReason: 'Remove from recovery plans first',
+                        requiredPermission: DRSPermission.DELETE_PROTECTION_GROUPS
+                      },
                     ]}
                     onItemClick={({ detail }) => {
                       if (detail.id === 'edit') {

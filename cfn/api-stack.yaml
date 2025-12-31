@@ -12,7 +12,7 @@ Parameters:
 
   DeploymentTimestamp:
     Type: String
-    Default: '20251216-150000'
+    Default: '20251231-210000'
     Description: 'Timestamp to force new API deployment (change to trigger replacement)'
 
   AdminEmail:
@@ -1733,6 +1733,66 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
+  # API Resources - User Management
+  UserResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: user
+
+  UserPermissionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref UserResource
+      PathPart: permissions
+
+  # Methods - GET /user/permissions
+  UserPermissionsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref UserPermissionsResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # CORS - OPTIONS /user/permissions
+  UserPermissionsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref UserPermissionsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   # Lambda Permission for API Gateway
   ApiGatewayInvokePermission:
     Type: AWS::Lambda::Permission
@@ -1790,6 +1850,8 @@ Resources:
       - ConfigExportOptionsMethod
       - ConfigImportPostMethod
       - ConfigImportOptionsMethod
+      - UserPermissionsGetMethod
+      - UserPermissionsOptionsMethod
       - ExecutionTerminateInstancesMethod
       - ExecutionCancelOptionsMethod
       - ExecutionPauseOptionsMethod

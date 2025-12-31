@@ -19,6 +19,8 @@ import type { SelectProps } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import apiClient from '../services/api';
 import { useAccount } from '../contexts/AccountContext';
+import { PermissionAwareButton, PermissionSection } from './PermissionAware';
+import { DRSPermission } from '../contexts/PermissionsContext';
 
 export interface TargetAccount {
   accountId: string;
@@ -381,23 +383,27 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       header: 'Actions',
       cell: (item: TargetAccount) => (
         <SpaceBetween direction="horizontal" size="xs">
-          <Button
+          <PermissionAwareButton
             variant="icon"
             iconName="edit"
             ariaLabel="Edit account"
             onClick={() => handleOpenModal(item)}
+            requiredPermission={DRSPermission.MODIFY_ACCOUNTS}
+            fallbackTooltip="Requires account modification permission"
           />
           <Button
             variant="icon"
             iconName="refresh"
-            ariaLabel="Validate account"
+            ariaLabel="Validate account access (available to all users)"
             onClick={() => handleValidate(item.accountId)}
           />
-          <Button
+          <PermissionAwareButton
             variant="icon"
             iconName="remove"
             ariaLabel="Remove account"
             onClick={() => handleDelete(item.accountId)}
+            requiredPermission={DRSPermission.DELETE_ACCOUNTS}
+            fallbackTooltip="Requires account deletion permission"
           />
         </SpaceBetween>
       ),
@@ -480,14 +486,16 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
                 </Alert>
                 
                 <Box>
-                  <Button
+                  <PermissionAwareButton
                     variant="primary"
                     iconName="add-plus"
                     onClick={handleQuickAddCurrentAccount}
                     loading={saving}
+                    requiredPermission={DRSPermission.REGISTER_ACCOUNTS}
+                    fallbackTooltip="Requires account registration permission"
                   >
                     Add Current Account ({currentAccount.accountId})
-                  </Button>
+                  </PermissionAwareButton>
                 </Box>
                 
                 <Box variant="p" color="text-body-secondary">
@@ -543,13 +551,15 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
             variant="h2"
             counter={`(${accounts.length})`}
             actions={
-              <Button
+              <PermissionAwareButton
                 variant="primary"
                 iconName="add-plus"
                 onClick={() => handleOpenModal()}
+                requiredPermission={DRSPermission.REGISTER_ACCOUNTS}
+                fallbackTooltip="Requires account registration permission"
               >
                 {showWizardMode ? 'Add Target Account' : 'Add Target Account'}
-              </Button>
+              </PermissionAwareButton>
             }
           >
             {showWizardMode ? 'Target Accounts' : 'Target Accounts'}
@@ -571,12 +581,14 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
                     : 'Add target accounts to enable cross-account DRS orchestration.'
                   }
                 </p>
-                <Button
+                <PermissionAwareButton
                   variant="primary"
                   onClick={() => handleOpenModal()}
+                  requiredPermission={DRSPermission.REGISTER_ACCOUNTS}
+                  fallbackTooltip="Requires account registration permission"
                 >
                   Add Target Account
-                </Button>
+                </PermissionAwareButton>
               </SpaceBetween>
             </Box>
           }
@@ -592,13 +604,15 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           <Box float="right">
             <SpaceBetween direction="horizontal" size="xs">
               <Button onClick={handleCloseModal}>Cancel</Button>
-              <Button
+              <PermissionAwareButton
                 variant="primary"
                 onClick={handleSave}
                 loading={saving}
+                requiredPermission={editingAccount ? DRSPermission.MODIFY_ACCOUNTS : DRSPermission.REGISTER_ACCOUNTS}
+                fallbackTooltip={editingAccount ? "Requires account modification permission" : "Requires account registration permission"}
               >
                 {editingAccount ? 'Update' : 'Add'}
-              </Button>
+              </PermissionAwareButton>
             </SpaceBetween>
           </Box>
         }

@@ -121,62 +121,53 @@ Resources:
         Environment: !Ref Environment
 
   # ============================================================================
-  # RBAC Groups - Disaster Recovery Roles
+  # RBAC Groups - DRS Orchestration Roles (Aligned with RBAC Middleware)
   # ============================================================================
 
-  # Full Administrator Role
-  DRSAdministratorGroup:
+  # DRS Orchestration Administrator - Full administrative access
+  DRSOrchestrationAdminGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
-      GroupName: DRS-Administrator
-      Description: 'Full administrative access to all DRS orchestration functions'
+      GroupName: DRSOrchestrationAdmin
+      Description: 'Full administrative access to all DRS orchestration functions including account management'
       UserPoolId: !Ref UserPool
       Precedence: 10
 
-  # Infrastructure Administrator Role  
-  DRSInfrastructureAdminGroup:
+  # DRS Recovery Manager - Can execute and manage all recovery operations
+  DRSRecoveryManagerGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
-      GroupName: DRS-Infrastructure-Admin
-      Description: 'Can manage DRS infrastructure, protection groups, and recovery plans'
+      GroupName: DRSRecoveryManager
+      Description: 'Can execute and manage all recovery operations, register accounts, and manage infrastructure'
       UserPoolId: !Ref UserPool
       Precedence: 20
 
-  # Recovery Plan Manager Role
-  DRSRecoveryPlanManagerGroup:
+  # DRS Plan Manager - Can create and modify recovery plans
+  DRSPlanManagerGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
-      GroupName: DRS-Recovery-Plan-Manager
-      Description: 'Can create, modify, and execute recovery plans'
+      GroupName: DRSPlanManager
+      Description: 'Can create, modify, and delete recovery plans and protection groups, execute recovery operations'
       UserPoolId: !Ref UserPool
       Precedence: 30
 
-  # DRS Operator Role
+  # DRS Operator - Can execute recovery but not modify plans
   DRSOperatorGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
-      GroupName: DRS-Operator
-      Description: 'Can execute recovery plans and perform DR operations'
+      GroupName: DRSOperator
+      Description: 'Can execute recovery operations and modify existing plans but cannot create/delete or terminate instances'
       UserPoolId: !Ref UserPool
       Precedence: 40
 
-  # Recovery Plan Viewer Role
-  DRSRecoveryPlanViewerGroup:
-    Type: AWS::Cognito::UserPoolGroup
-    Properties:
-      GroupName: DRS-Recovery-Plan-Viewer
-      Description: 'Can view recovery plans but not execute them'
-      UserPoolId: !Ref UserPool
-      Precedence: 50
-
-  # Read-Only Role
+  # DRS Read-Only - View-only access for monitoring and compliance
   DRSReadOnlyGroup:
     Type: AWS::Cognito::UserPoolGroup
     Properties:
-      GroupName: DRS-Read-Only
-      Description: 'View-only access to DRS configuration and status'
+      GroupName: DRSReadOnly
+      Description: 'View-only access to all DRS configuration, executions, and status for monitoring and compliance'
       UserPoolId: !Ref UserPool
-      Precedence: 60
+      Precedence: 50
 
   # ============================================================================
   # Cognito User Pool Client
@@ -541,6 +532,69 @@ Resources:
     Properties:
       RestApiId: !Ref RestApi
       ResourceId: !Ref UserRolesResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ============================================================================
+  # User Permissions Endpoint - /user/permissions
+  # ============================================================================
+
+  UserResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: user
+
+  UserPermissionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref UserResource
+      PathPart: permissions
+
+  # Methods - GET /user/permissions
+  UserPermissionsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref UserPermissionsResource
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # CORS - OPTIONS /user/permissions
+  UserPermissionsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref UserPermissionsResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -2370,6 +2424,9 @@ Resources:
       - UserProfileOptionsMethod
       - UserRolesGetMethod
       - UserRolesOptionsMethod
+      # User Permissions Methods
+      - UserPermissionsGetMethod
+      - UserPermissionsOptionsMethod
       # Protection Groups Methods
       - ProtectionGroupsGetMethod
       - ProtectionGroupsPostMethod
@@ -2530,12 +2587,24 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-NotificationTopicArn'
 
-  # RBAC Group Information
-  DRSAdministratorGroupName:
-    Description: 'DRS Administrator Group Name'
-    Value: !Ref DRSAdministratorGroup
+  # RBAC Group Information - DRS Orchestration Roles
+  DRSOrchestrationAdminGroupName:
+    Description: 'DRS Orchestration Administrator Group Name'
+    Value: !Ref DRSOrchestrationAdminGroup
     Export:
-      Name: !Sub '${AWS::StackName}-DRSAdministratorGroup'
+      Name: !Sub '${AWS::StackName}-DRSOrchestrationAdminGroup'
+
+  DRSRecoveryManagerGroupName:
+    Description: 'DRS Recovery Manager Group Name'
+    Value: !Ref DRSRecoveryManagerGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSRecoveryManagerGroup'
+
+  DRSPlanManagerGroupName:
+    Description: 'DRS Plan Manager Group Name'
+    Value: !Ref DRSPlanManagerGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSPlanManagerGroup'
 
   DRSOperatorGroupName:
     Description: 'DRS Operator Group Name'

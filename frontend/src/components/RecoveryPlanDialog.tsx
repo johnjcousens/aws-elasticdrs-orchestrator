@@ -23,6 +23,8 @@ import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
 import apiClient from '../services/api';
 import { DRS_LIMITS, validateWaveSize } from '../services/drsQuotaService';
+import { PermissionAwareButton } from './PermissionAware';
+import { DRSPermission } from '../contexts/PermissionsContext';
 
 interface RecoveryPlanDialogProps {
   open: boolean;
@@ -240,14 +242,16 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             <Button onClick={handleClose} disabled={loading}>
               Cancel
             </Button>
-            <Button
+            <PermissionAwareButton
               onClick={handleSubmit}
               variant="primary"
               disabled={loading || loadingGroups}
               loading={loading}
+              requiredPermission={plan ? DRSPermission.MODIFY_RECOVERY_PLANS : DRSPermission.CREATE_RECOVERY_PLANS}
+              fallbackTooltip={plan ? "Requires recovery plan modification permission" : "Requires recovery plan creation permission"}
             >
               {plan ? 'Update Plan' : 'Create Plan'}
-            </Button>
+            </PermissionAwareButton>
           </SpaceBetween>
         </Box>
       }

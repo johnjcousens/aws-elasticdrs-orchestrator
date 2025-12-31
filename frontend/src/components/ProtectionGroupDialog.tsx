@@ -28,6 +28,8 @@ import {
 import { RegionSelector } from './RegionSelector';
 import { ServerDiscoveryPanel } from './ServerDiscoveryPanel';
 import { LaunchConfigSection } from './LaunchConfigSection';
+import { PermissionAwareButton } from './PermissionAware';
+import { DRSPermission } from '../contexts/PermissionsContext';
 import { ServerListItem } from './ServerListItem';
 import apiClient from '../services/api';
 import type { ProtectionGroup, ResolvedServer, LaunchConfig } from '../types';
@@ -309,14 +311,16 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
             <Button onClick={handleCancel} disabled={loading}>
               Cancel
             </Button>
-            <Button
+            <PermissionAwareButton
               onClick={handleSave}
               variant="primary"
               disabled={loading || !region || !hasValidSelection}
               loading={loading}
+              requiredPermission={isEditMode ? DRSPermission.MODIFY_PROTECTION_GROUPS : DRSPermission.CREATE_PROTECTION_GROUPS}
+              fallbackTooltip={isEditMode ? "Requires protection group modification permission" : "Requires protection group creation permission"}
             >
-              {isEditMode ? 'Save Changes' : 'Create Group'}
-            </Button>
+              {isEditMode ? 'Update Group' : 'Create Group'}
+            </PermissionAwareButton>
           </SpaceBetween>
         </Box>
       }

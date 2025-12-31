@@ -28,6 +28,8 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useAccount } from '../contexts/AccountContext';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { PageTransition } from '../components/PageTransition';
+import { PermissionAwareButton, PermissionAwareButtonDropdown } from '../components/PermissionAware';
+import { DRSPermission } from '../contexts/PermissionsContext';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { StatusBadge } from '../components/StatusBadge';
@@ -381,9 +383,14 @@ export const RecoveryPlansPage: React.FC = () => {
             variant="h1"
             description="Define recovery strategies with wave-based orchestration"
             actions={
-              <Button variant="primary" onClick={handleCreate}>
+              <PermissionAwareButton 
+                variant="primary" 
+                onClick={handleCreate}
+                requiredPermission={DRSPermission.CREATE_RECOVERY_PLANS}
+                fallbackTooltip="Requires recovery plan creation permission"
+              >
                 Create Plan
-              </Button>
+              </PermissionAwareButton>
             }
           >
             Recovery Plans
@@ -410,13 +417,37 @@ export const RecoveryPlansPage: React.FC = () => {
                 }
                 
                 return (
-                  <ButtonDropdown
+                  <PermissionAwareButtonDropdown
                     items={[
-                      { id: 'drill', text: 'Run Drill', iconName: 'check', description: drillDescription, disabled: isExecutionDisabled },
-                      { id: 'recovery', text: 'Run Recovery', iconName: 'status-warning', description: recoveryDescription, disabled: true },
+                      { 
+                        id: 'drill', 
+                        text: 'Run Drill', 
+                        iconName: 'check', 
+                        disabled: isExecutionDisabled,
+                        requiredPermission: DRSPermission.START_RECOVERY
+                      },
+                      { 
+                        id: 'recovery', 
+                        text: 'Run Recovery', 
+                        iconName: 'status-warning', 
+                        disabled: true,
+                        requiredPermission: DRSPermission.START_RECOVERY
+                      },
                       { id: 'divider', text: '-', disabled: true },
-                      { id: 'edit', text: 'Edit', iconName: 'edit', disabled: hasInProgressExecution },
-                      { id: 'delete', text: 'Delete', iconName: 'remove', disabled: hasInProgressExecution },
+                      { 
+                        id: 'edit', 
+                        text: 'Edit', 
+                        iconName: 'edit', 
+                        disabled: hasInProgressExecution,
+                        requiredPermission: DRSPermission.MODIFY_RECOVERY_PLANS
+                      },
+                      { 
+                        id: 'delete', 
+                        text: 'Delete', 
+                        iconName: 'remove', 
+                        disabled: hasInProgressExecution,
+                        requiredPermission: DRSPermission.DELETE_RECOVERY_PLANS
+                      },
                     ]}
                     onItemClick={({ detail }) => {
                       if (detail.id === 'drill') {

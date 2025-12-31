@@ -191,6 +191,7 @@ Resources:
                   - ec2:DescribeInstanceTypes
                   - iam:PassRole
                   - iam:ListInstanceProfiles
+                  - iam:ListAccountAliases
                 Resource: '*'
               # EC2 Launch Template permissions for LaunchConfig apply-on-save
               - Effect: Allow
