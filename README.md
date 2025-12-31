@@ -18,6 +18,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 - **6 Granular RBAC Roles**: Complete role-based access control with enterprise-grade security
 - **API-First Enforcement**: All access methods (UI, CLI, SDK, API) respect identical role-based permissions
 - **Password Reset Capability**: New users must change temporary passwords on first login
+- **Automatic Account Initialization**: Zero-configuration setup - solution automatically initializes current account as default
 - **No Bypass Possible**: UI restrictions reflect actual API-level RBAC enforcement
 - **Enterprise Ready**: Comprehensive audit trails and compliance-ready role documentation
 - **Seamless Integration**: RBAC added without disrupting existing workflows

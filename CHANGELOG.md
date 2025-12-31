@@ -74,7 +74,23 @@ The solution now implements a complete role-based access control system with 6 d
 - **Self-Service Reset**: Users can initiate password reset through standard Cognito flows
 - **Password Policy Enforcement**: Configurable password complexity requirements
 
+**Automatic Account Initialization**
+
+- **Seamless First-Time Setup**: Solution automatically detects when no target accounts exist and initializes the current account (where solution is deployed) as the first default account
+- **Zero-Configuration Start**: Eliminates complex wizard setup - users can immediately begin creating protection groups and recovery plans
+- **Smart Account Detection**: Uses `ensure_default_account()` function that triggers during first API call to any core functionality
+- **Default Account Assignment**: First account added automatically becomes the default account for streamlined user experience
+- **Cross-Account Ready**: Foundation supports adding additional cross-account configurations after initial setup
+
 ### Technical Implementation
+
+**Automatic Account Initialization System**
+
+- **Smart Detection**: `ensure_default_account()` function automatically detects when no target accounts exist
+- **Seamless Integration**: Triggers during first API call to protection groups, recovery plans, or DRS operations
+- **Current Account Setup**: Automatically adds the account where solution is deployed as first default account
+- **Zero-Configuration**: Eliminates complex setup wizards - users can immediately start using the platform
+- **Cross-Account Foundation**: Provides foundation for adding additional cross-account configurations later
 
 **RBAC Middleware System**
 
