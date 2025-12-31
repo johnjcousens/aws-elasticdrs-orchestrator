@@ -7,6 +7,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { PermissionsProvider } from './contexts/PermissionsContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ApiProvider } from './contexts/ApiContext';
 import { AccountProvider } from './contexts/AccountContext';
@@ -30,11 +31,12 @@ import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
 function App() {
   return (
     <AuthProvider>
-      <NotificationProvider>
-        <ApiProvider>
-          <AccountProvider>
-        <BrowserRouter>
-          <ErrorBoundary>
+      <PermissionsProvider>
+        <NotificationProvider>
+          <ApiProvider>
+            <AccountProvider>
+              <BrowserRouter>
+                <ErrorBoundary>
             <Routes>
             {/* Public routes - no AppLayout wrapper */}
             <Route path="/login" element={<LoginPage />} />
@@ -134,9 +136,10 @@ function App() {
           </Routes>
           </ErrorBoundary>
         </BrowserRouter>
-          </AccountProvider>
-        </ApiProvider>
-      </NotificationProvider>
+            </AccountProvider>
+          </ApiProvider>
+        </NotificationProvider>
+      </PermissionsProvider>
     </AuthProvider>
   );
 }

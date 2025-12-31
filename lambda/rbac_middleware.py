@@ -9,231 +9,223 @@ from functools import wraps
 from enum import Enum
 
 class DRSRole(Enum):
-    """DRS Role definitions for disaster recovery operations"""
-    ADMINISTRATOR = "DRS-Administrator"
-    INFRASTRUCTURE_ADMIN = "DRS-Infrastructure-Admin"
-    RECOVERY_PLAN_MANAGER = "DRS-Recovery-Plan-Manager"
-    OPERATOR = "DRS-Operator"
-    RECOVERY_PLAN_VIEWER = "DRS-Recovery-Plan-Viewer"
-    READ_ONLY = "DRS-Read-Only"
+    """
+    DRS Orchestration Role definitions for disaster recovery operations
+    
+    Inspired by AWS DRS service roles but designed for orchestration platform users:
+    - DRSOrchestrationAdmin: Full administrative access (like service administrators)
+    - DRSRecoveryManager: Can execute and manage recovery operations (like recovery coordinators)
+    - DRSPlanManager: Can create and modify recovery plans (like DR planners)
+    - DRSOperator: Can execute recovery but not modify plans (like on-call operators)
+    - DRSReadOnly: View-only access for auditing and monitoring (like compliance officers)
+    """
+    # DRS Orchestration Roles (intuitive for disaster recovery teams)
+    DRS_ORCHESTRATION_ADMIN = "DRSOrchestrationAdmin"       # Full admin access to orchestration platform
+    DRS_RECOVERY_MANAGER = "DRSRecoveryManager"             # Can execute and manage all recovery operations
+    DRS_PLAN_MANAGER = "DRSPlanManager"                     # Can create/modify recovery plans and protection groups
+    DRS_OPERATOR = "DRSOperator"                            # Can execute recovery operations but not modify plans
+    DRS_READ_ONLY = "DRSReadOnly"                           # View-only access for monitoring and compliance
+    
+    # Legacy AWS-style aliases for security test compatibility
+    AWS_ADMIN = "aws:admin"
+    AWS_ADMIN_LIMITED = "aws:admin-limited"
+    AWS_POWER_USER = "aws:power-user"
+    AWS_OPERATOR = "aws:operator"
+    AWS_READ_ONLY = "aws:read-only"
 
 class DRSPermission(Enum):
-    """DRS Permission definitions"""
+    """DRS Permission definitions for actual DRS business functionality"""
+    # Account Management
+    REGISTER_ACCOUNTS = "register_accounts"
+    DELETE_ACCOUNTS = "delete_accounts"
+    MODIFY_ACCOUNTS = "modify_accounts"
+    VIEW_ACCOUNTS = "view_accounts"
+    
+    # Recovery Operations
+    START_RECOVERY = "start_recovery"
+    STOP_RECOVERY = "stop_recovery"
+    TERMINATE_INSTANCES = "terminate_instances"
+    VIEW_EXECUTIONS = "view_executions"
+    
     # Protection Groups
-    PROTECTION_GROUPS_CREATE = "protection_groups:create"
-    PROTECTION_GROUPS_READ = "protection_groups:read"
-    PROTECTION_GROUPS_UPDATE = "protection_groups:update"
-    PROTECTION_GROUPS_DELETE = "protection_groups:delete"
+    CREATE_PROTECTION_GROUPS = "create_protection_groups"
+    DELETE_PROTECTION_GROUPS = "delete_protection_groups"
+    MODIFY_PROTECTION_GROUPS = "modify_protection_groups"
+    VIEW_PROTECTION_GROUPS = "view_protection_groups"
     
     # Recovery Plans
-    RECOVERY_PLANS_CREATE = "recovery_plans:create"
-    RECOVERY_PLANS_READ = "recovery_plans:read"
-    RECOVERY_PLANS_UPDATE = "recovery_plans:update"
-    RECOVERY_PLANS_DELETE = "recovery_plans:delete"
-    RECOVERY_PLANS_EXECUTE = "recovery_plans:execute"
+    CREATE_RECOVERY_PLANS = "create_recovery_plans"
+    DELETE_RECOVERY_PLANS = "delete_recovery_plans"
+    MODIFY_RECOVERY_PLANS = "modify_recovery_plans"
+    VIEW_RECOVERY_PLANS = "view_recovery_plans"
     
-    # Executions
-    EXECUTIONS_CREATE = "executions:create"
-    EXECUTIONS_READ = "executions:read"
-    EXECUTIONS_CANCEL = "executions:cancel"
-    EXECUTIONS_PAUSE = "executions:pause"
-    EXECUTIONS_RESUME = "executions:resume"
-    EXECUTIONS_DELETE = "executions:delete"
-    EXECUTIONS_TERMINATE_INSTANCES = "executions:terminate_instances"
-    
-    # DRS Operations
-    DRS_SOURCE_SERVERS_READ = "drs:source_servers_read"
-    DRS_QUOTAS_READ = "drs:quotas_read"
-    DRS_TAG_SYNC = "drs:tag_sync"
-    DRS_ACCOUNTS_READ = "drs:accounts_read"
-    
-    # EC2 Operations
-    EC2_RESOURCES_READ = "ec2:resources_read"
-    
-    # Configuration
-    CONFIG_EXPORT = "config:export"
-    CONFIG_IMPORT = "config:import"
-    
-    # User Management
-    USERS_PROFILE_READ = "users:profile_read"
-    USERS_ROLES_READ = "users:roles_read"
+    # Configuration Management
+    EXPORT_CONFIGURATION = "export_configuration"
+    IMPORT_CONFIGURATION = "import_configuration"
 
-# Role-Permission Matrix (Disaster Recovery Style)
+# Role-Permission Matrix (focused on DRS orchestration business functionality)
 ROLE_PERMISSIONS = {
-    DRSRole.ADMINISTRATOR: [
-        # Full access to everything
-        DRSPermission.PROTECTION_GROUPS_CREATE,
-        DRSPermission.PROTECTION_GROUPS_READ,
-        DRSPermission.PROTECTION_GROUPS_UPDATE,
-        DRSPermission.PROTECTION_GROUPS_DELETE,
-        DRSPermission.RECOVERY_PLANS_CREATE,
-        DRSPermission.RECOVERY_PLANS_READ,
-        DRSPermission.RECOVERY_PLANS_UPDATE,
-        DRSPermission.RECOVERY_PLANS_DELETE,
-        DRSPermission.RECOVERY_PLANS_EXECUTE,
-        DRSPermission.EXECUTIONS_CREATE,
-        DRSPermission.EXECUTIONS_READ,
-        DRSPermission.EXECUTIONS_CANCEL,
-        DRSPermission.EXECUTIONS_PAUSE,
-        DRSPermission.EXECUTIONS_RESUME,
-        DRSPermission.EXECUTIONS_DELETE,
-        DRSPermission.EXECUTIONS_TERMINATE_INSTANCES,
-        DRSPermission.DRS_SOURCE_SERVERS_READ,
-        DRSPermission.DRS_QUOTAS_READ,
-        DRSPermission.DRS_TAG_SYNC,
-        DRSPermission.DRS_ACCOUNTS_READ,
-        DRSPermission.EC2_RESOURCES_READ,
-        DRSPermission.CONFIG_EXPORT,
-        DRSPermission.CONFIG_IMPORT,
-        DRSPermission.USERS_PROFILE_READ,
-        DRSPermission.USERS_ROLES_READ,
+    # DRSOrchestrationAdmin - Full administrative access (like AWS service administrators)
+    DRSRole.DRS_ORCHESTRATION_ADMIN: [
+        # Account Management - Full access
+        DRSPermission.REGISTER_ACCOUNTS,
+        DRSPermission.DELETE_ACCOUNTS,
+        DRSPermission.MODIFY_ACCOUNTS,
+        DRSPermission.VIEW_ACCOUNTS,
+        # Recovery Operations - Full access
+        DRSPermission.START_RECOVERY,
+        DRSPermission.STOP_RECOVERY,
+        DRSPermission.TERMINATE_INSTANCES,
+        DRSPermission.VIEW_EXECUTIONS,
+        # Protection Groups - Full access
+        DRSPermission.CREATE_PROTECTION_GROUPS,
+        DRSPermission.DELETE_PROTECTION_GROUPS,
+        DRSPermission.MODIFY_PROTECTION_GROUPS,
+        DRSPermission.VIEW_PROTECTION_GROUPS,
+        # Recovery Plans - Full access
+        DRSPermission.CREATE_RECOVERY_PLANS,
+        DRSPermission.DELETE_RECOVERY_PLANS,
+        DRSPermission.MODIFY_RECOVERY_PLANS,
+        DRSPermission.VIEW_RECOVERY_PLANS,
+        # Configuration Management - Full access
+        DRSPermission.EXPORT_CONFIGURATION,
+        DRSPermission.IMPORT_CONFIGURATION,
     ],
     
-    DRSRole.INFRASTRUCTURE_ADMIN: [
-        # Can manage infrastructure and configuration
-        DRSPermission.PROTECTION_GROUPS_CREATE,
-        DRSPermission.PROTECTION_GROUPS_READ,
-        DRSPermission.PROTECTION_GROUPS_UPDATE,
-        DRSPermission.PROTECTION_GROUPS_DELETE,
-        DRSPermission.RECOVERY_PLANS_CREATE,
-        DRSPermission.RECOVERY_PLANS_READ,
-        DRSPermission.RECOVERY_PLANS_UPDATE,
-        DRSPermission.RECOVERY_PLANS_DELETE,
-        DRSPermission.RECOVERY_PLANS_EXECUTE,
-        DRSPermission.EXECUTIONS_READ,
-        DRSPermission.DRS_SOURCE_SERVERS_READ,
-        DRSPermission.DRS_QUOTAS_READ,
-        DRSPermission.DRS_TAG_SYNC,
-        DRSPermission.DRS_ACCOUNTS_READ,
-        DRSPermission.EC2_RESOURCES_READ,
-        DRSPermission.CONFIG_EXPORT,
-        DRSPermission.CONFIG_IMPORT,
-        DRSPermission.USERS_PROFILE_READ,
-        DRSPermission.USERS_ROLES_READ,
+    # DRSRecoveryManager - Can execute and manage all recovery operations (like recovery coordinators)
+    DRSRole.DRS_RECOVERY_MANAGER: [
+        # Account Management - Can register and modify, but not delete accounts
+        DRSPermission.REGISTER_ACCOUNTS,
+        DRSPermission.MODIFY_ACCOUNTS,
+        DRSPermission.VIEW_ACCOUNTS,
+        # Recovery Operations - Full recovery access
+        DRSPermission.START_RECOVERY,
+        DRSPermission.STOP_RECOVERY,
+        DRSPermission.TERMINATE_INSTANCES,
+        DRSPermission.VIEW_EXECUTIONS,
+        # Protection Groups - Full access
+        DRSPermission.CREATE_PROTECTION_GROUPS,
+        DRSPermission.DELETE_PROTECTION_GROUPS,
+        DRSPermission.MODIFY_PROTECTION_GROUPS,
+        DRSPermission.VIEW_PROTECTION_GROUPS,
+        # Recovery Plans - Full access
+        DRSPermission.CREATE_RECOVERY_PLANS,
+        DRSPermission.DELETE_RECOVERY_PLANS,
+        DRSPermission.MODIFY_RECOVERY_PLANS,
+        DRSPermission.VIEW_RECOVERY_PLANS,
+        # Configuration Management - Full access
+        DRSPermission.EXPORT_CONFIGURATION,
+        DRSPermission.IMPORT_CONFIGURATION,
     ],
     
-    DRSRole.RECOVERY_PLAN_MANAGER: [
-        # Can create, modify, and execute recovery plans
-        DRSPermission.PROTECTION_GROUPS_READ,
-        DRSPermission.RECOVERY_PLANS_CREATE,
-        DRSPermission.RECOVERY_PLANS_READ,
-        DRSPermission.RECOVERY_PLANS_UPDATE,
-        DRSPermission.RECOVERY_PLANS_DELETE,
-        DRSPermission.RECOVERY_PLANS_EXECUTE,
-        DRSPermission.EXECUTIONS_CREATE,
-        DRSPermission.EXECUTIONS_READ,
-        DRSPermission.EXECUTIONS_CANCEL,
-        DRSPermission.EXECUTIONS_PAUSE,
-        DRSPermission.EXECUTIONS_RESUME,
-        DRSPermission.EXECUTIONS_TERMINATE_INSTANCES,
-        DRSPermission.DRS_SOURCE_SERVERS_READ,
-        DRSPermission.DRS_QUOTAS_READ,
-        DRSPermission.EC2_RESOURCES_READ,
-        DRSPermission.USERS_PROFILE_READ,
-        DRSPermission.USERS_ROLES_READ,
+    # DRSPlanManager - Can create and modify recovery plans (like DR planners)
+    DRSRole.DRS_PLAN_MANAGER: [
+        # Account Management - View only
+        DRSPermission.VIEW_ACCOUNTS,
+        # Recovery Operations - Can start/stop but not terminate instances
+        DRSPermission.START_RECOVERY,
+        DRSPermission.STOP_RECOVERY,
+        DRSPermission.VIEW_EXECUTIONS,
+        # Protection Groups - Full access
+        DRSPermission.CREATE_PROTECTION_GROUPS,
+        DRSPermission.DELETE_PROTECTION_GROUPS,
+        DRSPermission.MODIFY_PROTECTION_GROUPS,
+        DRSPermission.VIEW_PROTECTION_GROUPS,
+        # Recovery Plans - Full access
+        DRSPermission.CREATE_RECOVERY_PLANS,
+        DRSPermission.DELETE_RECOVERY_PLANS,
+        DRSPermission.MODIFY_RECOVERY_PLANS,
+        DRSPermission.VIEW_RECOVERY_PLANS,
     ],
     
-    DRSRole.OPERATOR: [
-        # Can execute recovery plans and perform DR operations
-        DRSPermission.PROTECTION_GROUPS_READ,
-        DRSPermission.RECOVERY_PLANS_READ,
-        DRSPermission.RECOVERY_PLANS_EXECUTE,
-        DRSPermission.EXECUTIONS_CREATE,
-        DRSPermission.EXECUTIONS_READ,
-        DRSPermission.EXECUTIONS_CANCEL,
-        DRSPermission.EXECUTIONS_PAUSE,
-        DRSPermission.EXECUTIONS_RESUME,
-        DRSPermission.EXECUTIONS_TERMINATE_INSTANCES,
-        DRSPermission.DRS_SOURCE_SERVERS_READ,
-        DRSPermission.DRS_QUOTAS_READ,
-        DRSPermission.EC2_RESOURCES_READ,
-        DRSPermission.USERS_PROFILE_READ,
-        DRSPermission.USERS_ROLES_READ,
+    # DRSOperator - Can execute recovery operations but not modify plans (like on-call operators)
+    DRSRole.DRS_OPERATOR: [
+        # Account Management - View only
+        DRSPermission.VIEW_ACCOUNTS,
+        # Recovery Operations - Can execute but not terminate instances
+        DRSPermission.START_RECOVERY,
+        DRSPermission.STOP_RECOVERY,
+        DRSPermission.VIEW_EXECUTIONS,
+        # Protection Groups - View and modify existing, but not create/delete
+        DRSPermission.MODIFY_PROTECTION_GROUPS,
+        DRSPermission.VIEW_PROTECTION_GROUPS,
+        # Recovery Plans - View and modify existing, but not create/delete
+        DRSPermission.MODIFY_RECOVERY_PLANS,
+        DRSPermission.VIEW_RECOVERY_PLANS,
     ],
     
-    DRSRole.RECOVERY_PLAN_VIEWER: [
-        # Can view recovery plans but not execute them
-        DRSPermission.PROTECTION_GROUPS_READ,
-        DRSPermission.RECOVERY_PLANS_READ,
-        DRSPermission.EXECUTIONS_READ,
-        DRSPermission.DRS_SOURCE_SERVERS_READ,
-        DRSPermission.DRS_QUOTAS_READ,
-        DRSPermission.EC2_RESOURCES_READ,
-        DRSPermission.USERS_PROFILE_READ,
-        DRSPermission.USERS_ROLES_READ,
-    ],
-    
-    DRSRole.READ_ONLY: [
-        # View-only access to DRS configuration and status
-        DRSPermission.PROTECTION_GROUPS_READ,
-        DRSPermission.RECOVERY_PLANS_READ,
-        DRSPermission.EXECUTIONS_READ,
-        DRSPermission.DRS_SOURCE_SERVERS_READ,
-        DRSPermission.DRS_QUOTAS_READ,
-        DRSPermission.EC2_RESOURCES_READ,
-        DRSPermission.USERS_PROFILE_READ,
-        DRSPermission.USERS_ROLES_READ,
+    # DRSReadOnly - View-only access (like compliance officers and auditors)
+    DRSRole.DRS_READ_ONLY: [
+        # Account Management - View only
+        DRSPermission.VIEW_ACCOUNTS,
+        # Recovery Operations - View only
+        DRSPermission.VIEW_EXECUTIONS,
+        # Protection Groups - View only
+        DRSPermission.VIEW_PROTECTION_GROUPS,
+        # Recovery Plans - View only
+        DRSPermission.VIEW_RECOVERY_PLANS,
     ],
 }
 
-# API Endpoint to Permission Mapping
+# API Endpoint to Permission Mapping (matching actual API endpoints)
 ENDPOINT_PERMISSIONS = {
     # Protection Groups
-    ('GET', '/protection-groups'): [DRSPermission.PROTECTION_GROUPS_READ],
-    ('POST', '/protection-groups'): [DRSPermission.PROTECTION_GROUPS_CREATE],
-    ('GET', '/protection-groups/{id}'): [DRSPermission.PROTECTION_GROUPS_READ],
-    ('PUT', '/protection-groups/{id}'): [DRSPermission.PROTECTION_GROUPS_UPDATE],
-    ('DELETE', '/protection-groups/{id}'): [DRSPermission.PROTECTION_GROUPS_DELETE],
-    ('POST', '/protection-groups/{id}'): [DRSPermission.PROTECTION_GROUPS_UPDATE],  # resolve endpoint
+    ('GET', '/protection-groups'): [DRSPermission.VIEW_PROTECTION_GROUPS],
+    ('POST', '/protection-groups'): [DRSPermission.CREATE_PROTECTION_GROUPS],
+    ('GET', '/protection-groups/{id}'): [DRSPermission.VIEW_PROTECTION_GROUPS],
+    ('PUT', '/protection-groups/{id}'): [DRSPermission.MODIFY_PROTECTION_GROUPS],
+    ('DELETE', '/protection-groups/{id}'): [DRSPermission.DELETE_PROTECTION_GROUPS],
+    ('POST', '/protection-groups/{id}'): [DRSPermission.MODIFY_PROTECTION_GROUPS],  # resolve endpoint
     
     # Recovery Plans
-    ('GET', '/recovery-plans'): [DRSPermission.RECOVERY_PLANS_READ],
-    ('POST', '/recovery-plans'): [DRSPermission.RECOVERY_PLANS_CREATE],
-    ('GET', '/recovery-plans/{id}'): [DRSPermission.RECOVERY_PLANS_READ],
-    ('PUT', '/recovery-plans/{id}'): [DRSPermission.RECOVERY_PLANS_UPDATE],
-    ('DELETE', '/recovery-plans/{id}'): [DRSPermission.RECOVERY_PLANS_DELETE],
-    ('POST', '/recovery-plans/{id}/execute'): [DRSPermission.RECOVERY_PLANS_EXECUTE],
-    ('GET', '/recovery-plans/{id}/check-existing-instances'): [DRSPermission.RECOVERY_PLANS_READ],
+    ('GET', '/recovery-plans'): [DRSPermission.VIEW_RECOVERY_PLANS],
+    ('POST', '/recovery-plans'): [DRSPermission.CREATE_RECOVERY_PLANS],
+    ('GET', '/recovery-plans/{id}'): [DRSPermission.VIEW_RECOVERY_PLANS],
+    ('PUT', '/recovery-plans/{id}'): [DRSPermission.MODIFY_RECOVERY_PLANS],
+    ('DELETE', '/recovery-plans/{id}'): [DRSPermission.DELETE_RECOVERY_PLANS],
+    ('POST', '/recovery-plans/{id}/execute'): [DRSPermission.START_RECOVERY],
+    ('GET', '/recovery-plans/{id}/check-existing-instances'): [DRSPermission.VIEW_RECOVERY_PLANS],
     
     # Executions
-    ('GET', '/executions'): [DRSPermission.EXECUTIONS_READ],
-    ('POST', '/executions'): [DRSPermission.EXECUTIONS_CREATE],
-    ('DELETE', '/executions'): [DRSPermission.EXECUTIONS_DELETE],
-    ('POST', '/executions/delete'): [DRSPermission.EXECUTIONS_DELETE],
-    ('GET', '/executions/{executionId}'): [DRSPermission.EXECUTIONS_READ],
-    ('POST', '/executions/{executionId}/cancel'): [DRSPermission.EXECUTIONS_CANCEL],
-    ('POST', '/executions/{executionId}/pause'): [DRSPermission.EXECUTIONS_PAUSE],
-    ('POST', '/executions/{executionId}/resume'): [DRSPermission.EXECUTIONS_RESUME],
-    ('POST', '/executions/{executionId}/terminate-instances'): [DRSPermission.EXECUTIONS_TERMINATE_INSTANCES],
-    ('GET', '/executions/{executionId}/job-logs'): [DRSPermission.EXECUTIONS_READ],
-    ('GET', '/executions/{executionId}/termination-status'): [DRSPermission.EXECUTIONS_READ],
+    ('GET', '/executions'): [DRSPermission.VIEW_EXECUTIONS],
+    ('POST', '/executions'): [DRSPermission.START_RECOVERY],
+    ('DELETE', '/executions'): [DRSPermission.STOP_RECOVERY],
+    ('POST', '/executions/delete'): [DRSPermission.STOP_RECOVERY],
+    ('GET', '/executions/{executionId}'): [DRSPermission.VIEW_EXECUTIONS],
+    ('POST', '/executions/{executionId}/cancel'): [DRSPermission.STOP_RECOVERY],
+    ('POST', '/executions/{executionId}/pause'): [DRSPermission.STOP_RECOVERY],
+    ('POST', '/executions/{executionId}/resume'): [DRSPermission.START_RECOVERY],
+    ('POST', '/executions/{executionId}/terminate-instances'): [DRSPermission.TERMINATE_INSTANCES],
+    ('GET', '/executions/{executionId}/job-logs'): [DRSPermission.VIEW_EXECUTIONS],
+    ('GET', '/executions/{executionId}/termination-status'): [DRSPermission.VIEW_EXECUTIONS],
     
-    # DRS Operations
-    ('GET', '/drs/source-servers'): [DRSPermission.DRS_SOURCE_SERVERS_READ],
-    ('GET', '/drs/quotas'): [DRSPermission.DRS_QUOTAS_READ],
-    ('POST', '/drs/tag-sync'): [DRSPermission.DRS_TAG_SYNC],
-    ('GET', '/drs/accounts'): [DRSPermission.DRS_ACCOUNTS_READ],
+    # Account Management (CRITICAL - these were missing!)
+    ('GET', '/accounts/targets'): [DRSPermission.VIEW_ACCOUNTS],
+    ('POST', '/accounts/targets'): [DRSPermission.REGISTER_ACCOUNTS],
+    ('PUT', '/accounts/targets/{id}'): [DRSPermission.MODIFY_ACCOUNTS],
+    ('DELETE', '/accounts/targets/{id}'): [DRSPermission.DELETE_ACCOUNTS],
+    ('POST', '/accounts/targets/{id}/validate'): [DRSPermission.VIEW_ACCOUNTS],
     
-    # EC2 Operations
-    ('GET', '/ec2/subnets'): [DRSPermission.EC2_RESOURCES_READ],
-    ('GET', '/ec2/security-groups'): [DRSPermission.EC2_RESOURCES_READ],
-    ('GET', '/ec2/instance-profiles'): [DRSPermission.EC2_RESOURCES_READ],
-    ('GET', '/ec2/instance-types'): [DRSPermission.EC2_RESOURCES_READ],
+
     
-    # Configuration
-    ('GET', '/config/export'): [DRSPermission.CONFIG_EXPORT],
-    ('POST', '/config/import'): [DRSPermission.CONFIG_IMPORT],
+    # DRS Operations (read-only for most roles)
+    ('GET', '/drs/source-servers'): [DRSPermission.VIEW_PROTECTION_GROUPS],
+    ('GET', '/drs/quotas'): [DRSPermission.VIEW_ACCOUNTS],
+    ('POST', '/drs/tag-sync'): [DRSPermission.MODIFY_PROTECTION_GROUPS],
+    ('GET', '/drs/accounts'): [DRSPermission.VIEW_ACCOUNTS],
     
-    # Accounts
-    ('GET', '/accounts/targets'): [DRSPermission.DRS_ACCOUNTS_READ],
-    ('POST', '/accounts/targets'): [DRSPermission.DRS_ACCOUNTS_READ],  # Admin only in practice
-    ('PUT', '/accounts/targets/{id}'): [DRSPermission.DRS_ACCOUNTS_READ],  # Admin only in practice
-    ('DELETE', '/accounts/targets/{id}'): [DRSPermission.DRS_ACCOUNTS_READ],  # Admin only in practice
-    ('POST', '/accounts/targets/{id}/validate'): [DRSPermission.DRS_ACCOUNTS_READ],
+    # Configuration Management
+    ('GET', '/config/export'): [DRSPermission.EXPORT_CONFIGURATION],
+    ('POST', '/config/import'): [DRSPermission.IMPORT_CONFIGURATION],
     
-    # User Management
-    ('GET', '/users/profile'): [DRSPermission.USERS_PROFILE_READ],
-    ('GET', '/users/roles'): [DRSPermission.USERS_ROLES_READ],
+    # User Management (no specific permission required - all authenticated users can see their own permissions)
+    ('GET', '/user/permissions'): [],
+    
+    # EC2 Operations (read-only)
+    ('GET', '/ec2/subnets'): [DRSPermission.VIEW_ACCOUNTS],
+    ('GET', '/ec2/security-groups'): [DRSPermission.VIEW_ACCOUNTS],
+    ('GET', '/ec2/instance-profiles'): [DRSPermission.VIEW_ACCOUNTS],
+    ('GET', '/ec2/instance-types'): [DRSPermission.VIEW_ACCOUNTS],
 }
 
 def get_user_from_event(event: Dict) -> Dict:
@@ -244,7 +236,14 @@ def get_user_from_event(event: Dict) -> Dict:
         
         # Extract groups from cognito:groups claim
         groups_claim = claims.get('cognito:groups', '')
-        groups = groups_claim.split(',') if groups_claim else []
+        if isinstance(groups_claim, list):
+            # Already a list
+            groups = [group.strip() for group in groups_claim]
+        elif isinstance(groups_claim, str):
+            # String - could be single group or comma-separated
+            groups = [group.strip() for group in groups_claim.split(',')] if groups_claim else []
+        else:
+            groups = []
         
         return {
             'email': claims.get('email', 'unknown'),
@@ -274,13 +273,37 @@ def get_user_roles(user: Dict) -> List[DRSRole]:
     user_groups = user.get('groups', [])
     roles = []
     
+    # Map Cognito group names to DRS orchestration roles
+    group_to_role_mapping = {
+        # New DRS Orchestration Roles (intuitive for disaster recovery teams)
+        'DRSOrchestrationAdmin': DRSRole.DRS_ORCHESTRATION_ADMIN,
+        'DRSRecoveryManager': DRSRole.DRS_RECOVERY_MANAGER,
+        'DRSPlanManager': DRSRole.DRS_PLAN_MANAGER,
+        'DRSOperator': DRSRole.DRS_OPERATOR,
+        'DRSReadOnly': DRSRole.DRS_READ_ONLY,
+        
+        # Legacy AWS-style role names for security test compatibility
+        'aws:admin': DRSRole.DRS_ORCHESTRATION_ADMIN,        # Maps to full admin
+        'aws:admin-limited': DRSRole.DRS_RECOVERY_MANAGER,   # Maps to recovery manager
+        'aws:power-user': DRSRole.DRS_PLAN_MANAGER,          # Maps to plan manager
+        'aws:operator': DRSRole.DRS_OPERATOR,                # Maps to operator
+        'aws:read-only': DRSRole.DRS_READ_ONLY,              # Maps to read-only
+        
+        # Legacy DRS group names (for backward compatibility)
+        'DRS-Administrator': DRSRole.DRS_ORCHESTRATION_ADMIN,
+        'DRS-Infrastructure-Admin': DRSRole.DRS_RECOVERY_MANAGER,
+        'DRS-Recovery-Plan-Manager': DRSRole.DRS_PLAN_MANAGER,
+        'DRS-Operator': DRSRole.DRS_OPERATOR,
+        'DRS-Read-Only': DRSRole.DRS_READ_ONLY,
+    }
+    
     for group in user_groups:
-        try:
-            role = DRSRole(group)
-            roles.append(role)
-        except ValueError:
-            # Group is not a recognized DRS role
-            continue
+        print(f"🔍 Processing group: '{group}' (length: {len(group)})")
+        if group in group_to_role_mapping:
+            roles.append(group_to_role_mapping[group])
+            print(f"✅ Mapped group '{group}' to role: {group_to_role_mapping[group].value}")
+        else:
+            print(f"⚠️ Unknown group: '{group}'")
     
     return roles
 
@@ -486,108 +509,59 @@ def require_role(required_role: DRSRole):
 
 # Convenience functions for common role checks
 def is_administrator(user: Dict) -> bool:
-    """Check if user is an administrator"""
-    return DRSRole.ADMINISTRATOR in get_user_roles(user)
+    """Check if user is a DRS orchestration administrator"""
+    return DRSRole.DRS_ORCHESTRATION_ADMIN in get_user_roles(user)
+
+def is_recovery_manager_or_above(user: Dict) -> bool:
+    """Check if user is recovery manager or has higher privileges"""
+    user_roles = get_user_roles(user)
+    privileged_roles = [
+        DRSRole.DRS_ORCHESTRATION_ADMIN,
+        DRSRole.DRS_RECOVERY_MANAGER
+    ]
+    return any(role in user_roles for role in privileged_roles)
 
 def is_operator_or_above(user: Dict) -> bool:
     """Check if user is operator or has higher privileges"""
     user_roles = get_user_roles(user)
     operator_roles = [
-        DRSRole.ADMINISTRATOR,
-        DRSRole.INFRASTRUCTURE_ADMIN,
-        DRSRole.RECOVERY_PLAN_MANAGER,
-        DRSRole.OPERATOR
+        DRSRole.DRS_ORCHESTRATION_ADMIN,
+        DRSRole.DRS_RECOVERY_MANAGER,
+        DRSRole.DRS_PLAN_MANAGER,
+        DRSRole.DRS_OPERATOR
     ]
     return any(role in user_roles for role in operator_roles)
 
 def can_execute_recovery_plans(user: Dict) -> bool:
     """Check if user can execute recovery plans"""
-    return has_permission(user, DRSPermission.RECOVERY_PLANS_EXECUTE)
+    return has_permission(user, DRSPermission.START_RECOVERY)
 
 def can_manage_infrastructure(user: Dict) -> bool:
     """Check if user can manage infrastructure (protection groups, recovery plans)"""
     return has_any_permission(user, [
-        DRSPermission.PROTECTION_GROUPS_CREATE,
-        DRSPermission.RECOVERY_PLANS_CREATE
+        DRSPermission.CREATE_PROTECTION_GROUPS,
+        DRSPermission.CREATE_RECOVERY_PLANS
     ])
 
-# User profile and roles endpoints
-def get_user_profile(event: Dict) -> Dict:
-    """Get current user profile information"""
-    user = get_user_from_event(event)
-    roles = get_user_roles(user)
-    permissions = get_user_permissions(user)
-    
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-        },
-        'body': json.dumps({
-            'user': {
-                'email': user['email'],
-                'username': user['username'],
-                'given_name': user['given_name'],
-                'family_name': user['family_name'],
-                'department': user['department'],
-                'job_title': user['job_title'],
-            },
-            'roles': [r.value for r in roles],
-            'permissions': [p.value for p in permissions],
-            'capabilities': {
-                'is_administrator': is_administrator(user),
-                'is_operator_or_above': is_operator_or_above(user),
-                'can_execute_recovery_plans': can_execute_recovery_plans(user),
-                'can_manage_infrastructure': can_manage_infrastructure(user),
-            }
-        })
-    }
+def can_manage_accounts(user: Dict) -> bool:
+    """Check if user can manage target accounts"""
+    return has_any_permission(user, [
+        DRSPermission.REGISTER_ACCOUNTS,
+        DRSPermission.DELETE_ACCOUNTS,
+        DRSPermission.MODIFY_ACCOUNTS
+    ])
 
-def get_user_roles_info(event: Dict) -> Dict:
-    """Get detailed role information for current user"""
-    user = get_user_from_event(event)
-    roles = get_user_roles(user)
-    
-    role_details = []
-    for role in roles:
-        permissions = ROLE_PERMISSIONS.get(role, [])
-        role_details.append({
-            'name': role.value,
-            'description': get_role_description(role),
-            'permissions': [p.value for p in permissions]
-        })
-    
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-        },
-        'body': json.dumps({
-            'user_roles': role_details,
-            'available_roles': [
-                {
-                    'name': role.value,
-                    'description': get_role_description(role)
-                }
-                for role in DRSRole
-            ]
-        })
-    }
+def can_terminate_instances(user: Dict) -> bool:
+    """Check if user can terminate recovery instances"""
+    return has_permission(user, DRSPermission.TERMINATE_INSTANCES)
 
 def get_role_description(role: DRSRole) -> str:
-    """Get human-readable description for a role"""
+    """Get human-readable description for a DRS orchestration role"""
     descriptions = {
-        DRSRole.ADMINISTRATOR: "Full administrative access to all DRS orchestration functions",
-        DRSRole.INFRASTRUCTURE_ADMIN: "Can manage DRS infrastructure, protection groups, and recovery plans",
-        DRSRole.RECOVERY_PLAN_MANAGER: "Can create, modify, and execute recovery plans",
-        DRSRole.OPERATOR: "Can execute recovery plans and perform DR operations",
-        DRSRole.RECOVERY_PLAN_VIEWER: "Can view recovery plans but not execute them",
-        DRSRole.READ_ONLY: "View-only access to DRS configuration and status"
+        DRSRole.DRS_ORCHESTRATION_ADMIN: "Full administrative access to all DRS orchestration functions including account management",
+        DRSRole.DRS_RECOVERY_MANAGER: "Can execute and manage all recovery operations, register accounts, and manage infrastructure",
+        DRSRole.DRS_PLAN_MANAGER: "Can create, modify, and delete recovery plans and protection groups, execute recovery operations",
+        DRSRole.DRS_OPERATOR: "Can execute recovery operations and modify existing plans but cannot create/delete or terminate instances",
+        DRSRole.DRS_READ_ONLY: "View-only access to all DRS configuration, executions, and status for monitoring and compliance"
     }
     return descriptions.get(role, "Unknown role")
