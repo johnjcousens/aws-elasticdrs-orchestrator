@@ -1,5 +1,11 @@
 # AWS DRS Orchestration CI/CD Pipeline
 # Comprehensive pipeline for CloudFormation, Lambda, and React frontend deployment
+# 
+# Updated: December 31, 2025
+# - Added frontend-builder.zip Lambda function (5 total functions)
+# - Added rbac_middleware.py to api-handler package for RBAC support
+# - Updated project name to match sync script (aws-drs-orchestrator)
+# - Aligned with current CloudFormation stack structure including RBAC implementation
 
 stages:
   - validate
@@ -13,7 +19,7 @@ variables:
   PYTHON_VERSION: "3.12"
   NODE_VERSION: "22"
   AWS_DEFAULT_REGION: "us-east-1"
-  STACK_NAME: "drs-orchestration-${CI_COMMIT_REF_SLUG}"
+  STACK_NAME: "aws-drs-orchestrator-${CI_COMMIT_REF_SLUG}"
   DEPLOYMENT_BUCKET: "aws-drs-orchestration"
   ENVIRONMENT: "test"
 
@@ -135,11 +141,11 @@ build:lambda:
       fi
     - echo "Creating Lambda deployment packages..."
     - |
-      # Package api-handler (index.py)
+      # Package api-handler (index.py + rbac_middleware.py)
       cd package
       zip -r ../api-handler.zip . -x "*.pyc" "__pycache__/*"
       cd ..
-      zip -g api-handler.zip index.py
+      zip -g api-handler.zip index.py rbac_middleware.py
       
       # Package orchestration-stepfunctions (orchestration_stepfunctions.py)
       cd package
@@ -158,6 +164,12 @@ build:lambda:
       zip -r ../execution-poller.zip . -x "*.pyc" "__pycache__/*"
       cd ..
       zip -g execution-poller.zip poller/execution_poller.py
+      
+      # Package frontend-builder (build_and_deploy.py)
+      cd package
+      zip -r ../frontend-builder.zip . -x "*.pyc" "__pycache__/*"
+      cd ..
+      zip -g frontend-builder.zip build_and_deploy.py
     - echo "Lambda packages created successfully"
     - ls -lh *.zip
   artifacts:
@@ -286,6 +298,7 @@ deploy:upload-artifacts:
     - aws s3 cp lambda/orchestration-stepfunctions.zip s3://${DEPLOYMENT_BUCKET}/lambda/orchestration-stepfunctions.zip
     - aws s3 cp lambda/execution-finder.zip s3://${DEPLOYMENT_BUCKET}/lambda/execution-finder.zip
     - aws s3 cp lambda/execution-poller.zip s3://${DEPLOYMENT_BUCKET}/lambda/execution-poller.zip
+    - aws s3 cp lambda/frontend-builder.zip s3://${DEPLOYMENT_BUCKET}/lambda/frontend-builder.zip
     - echo "Artifacts uploaded successfully"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
@@ -308,7 +321,7 @@ deploy:cloudformation:
         --template-url https://${DEPLOYMENT_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/cfn/master-template.yaml \
         --stack-name ${STACK_NAME} \
         --parameter-overrides \
-          ProjectName=drs-orchestration \
+          ProjectName=aws-drs-orchestrator \
           Environment=${ENVIRONMENT} \
           SourceBucket=${DEPLOYMENT_BUCKET} \
           AdminEmail=${ADMIN_EMAIL} \
@@ -400,7 +413,7 @@ deploy:production:
   image: public.ecr.aws/aws-cli/aws-cli:latest
   variables:
     ENVIRONMENT: "prod"
-    STACK_NAME: "drs-orchestration-prod"
+    STACK_NAME: "aws-drs-orchestrator-prod"
   before_script:
     - aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
     - aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
@@ -414,7 +427,7 @@ deploy:production:
         --template-url https://${DEPLOYMENT_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/cfn/master-template.yaml \
         --stack-name ${STACK_NAME} \
         --parameter-overrides \
-          ProjectName=drs-orchestration \
+          ProjectName=aws-drs-orchestrator \
           Environment=prod \
           SourceBucket=${DEPLOYMENT_BUCKET} \
           AdminEmail=${ADMIN_EMAIL} \
@@ -426,4 +439,4 @@ deploy:production:
       when: manual
   environment:
     name: production
-    url: https://drs-orchestration-prod.example.com
+    url: https://aws-drs-orchestrator-prod.example.com
