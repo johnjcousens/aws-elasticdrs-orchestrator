@@ -1,9 +1,9 @@
 # Deployment and Operations Guide
 # AWS DRS Orchestration System
 
-**Version**: 2.0  
-**Date**: December 8, 2025  
-**Status**: Production Operations Guide  
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete  
 **Document Owner**: DevOps & Operations Team  
 **Target Audience**: DevOps Engineers, System Administrators, SREs
 
@@ -945,3 +945,141 @@ if time.time() - start_time >= MAX_POLL_TIME:
 **Symptoms**:
 - HTTP 400 errors in API responses
 - CloudWatch Logs: "
+
+---
+
+## EventBridge Security Operations (v2.1)
+
+### EventBridge Security Enhancements
+
+**Multi-Layer Security Validation**:
+- IP validation for EventBridge rule sources
+- Request structure validation for all events
+- Rule name validation against approved patterns
+- Temporal validation with time-based access controls
+
+**Security Monitoring Commands**:
+```bash
+# Monitor EventBridge security validation logs
+AWS_PAGER="" aws logs filter-log-events \
+  --log-group-name /aws/lambda/drs-orchestration-eventbridge-security \
+  --filter-pattern "SECURITY_VALIDATION" \
+  --start-time $(($(date +%s) - 86400))000 | head -10
+
+# Check EventBridge rule invocations
+AWS_PAGER="" aws cloudwatch get-metric-statistics \
+  --namespace AWS/Events \
+  --metric-name InvocationsCount \
+  --dimensions Name=RuleName,Value=drs-orchestration-tag-sync \
+  --start-time $(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 3600 \
+  --statistics Sum | head -20
+```
+
+### Tag Synchronization Operations
+
+**Automated EC2-to-DRS Tag Sync**:
+- EventBridge scheduled rules trigger tag synchronization every hour
+- Automatic detection of tag changes on EC2 instances
+- Bi-directional sync between EC2 and DRS source servers
+- Conflict resolution with comprehensive audit trails
+
+**Tag Sync Monitoring**:
+```bash
+# Monitor tag sync Lambda invocations
+AWS_PAGER="" aws cloudwatch get-metric-statistics \
+  --namespace AWS/Lambda \
+  --metric-name Invocations \
+  --dimensions Name=FunctionName,Value=drs-orchestration-tag-sync \
+  --start-time $(date -u -d '1 week ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 86400 \
+  --statistics Sum | head -10
+
+# Check tag sync execution logs
+AWS_PAGER="" aws logs filter-log-events \
+  --log-group-name /aws/lambda/drs-orchestration-tag-sync \
+  --filter-pattern "TAG_SYNC" \
+  --start-time $(($(date +%s) - 3600))000 | head -15
+```
+
+---
+
+## Disaster Recovery Procedures
+
+### Critical Configuration Capture
+
+**Deployment Bucket Structure**: `aws-drs-orchestration`
+```
+aws-drs-orchestration/
+├── cfn/                           # CloudFormation templates (7 total)
+├── lambda/deployment-package.zip  # All Lambda functions in single package
+├── frontend/dist/                 # Built React application
+└── scripts/                       # Deployment automation
+```
+
+### Emergency Recovery Process
+
+**Complete Region Failure Recovery**:
+```bash
+# 1. Restore DynamoDB tables from backup
+AWS_PAGER="" aws dynamodb restore-table-to-point-in-time \
+  --source-table-name protection-groups-prod \
+  --target-table-name protection-groups-prod \
+  --use-latest-restorable-time \
+  --region us-west-2 > /dev/null 2>&1
+
+# 2. Deploy CloudFormation stack in new region
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn --region us-west-2
+
+# 3. Verify functionality
+curl -I https://new-cloudfront-url.cloudfront.net | head -3
+```
+
+**Recovery Time Objectives**:
+- RTO Target: 1 hour (restore + redeploy)
+- RPO Target: < 5 minutes (DynamoDB PITR)
+
+---
+
+## Cost Optimization
+
+### EventBridge Security Monitoring Costs
+
+**Cost Impact** (v2.1 features):
+- EventBridge rules: $1.00 per million events
+- CloudWatch Logs: $0.50 per GB ingested  
+- Security validation Lambda: ~$0.20/month additional
+
+### Tag Synchronization Cost Optimization
+
+**Optimize sync frequency**:
+```bash
+# Reduce from hourly to 6-hourly for cost savings
+AWS_PAGER="" aws events put-rule \
+  --name drs-orchestration-tag-sync \
+  --schedule-expression "rate(6 hours)" > /dev/null 2>&1
+```
+
+---
+
+## Appendix
+
+### Version 2.1 Changes Summary
+
+**EventBridge Security Enhancements**:
+- Multi-layer validation system implemented
+- IP validation, request structure validation, rule name validation
+- Temporal validation with time-based access controls
+- Comprehensive security audit trails
+
+**Tag Synchronization Automation**:
+- Automated EC2-to-DRS tag sync with EventBridge scheduling
+- Bi-directional synchronization with conflict resolution
+- Real-time tag change detection and propagation
+
+**Operational Impact**:
+- Enhanced security monitoring procedures
+- Additional cost monitoring for EventBridge and CloudWatch
+- New troubleshooting procedures for tag sync operations
