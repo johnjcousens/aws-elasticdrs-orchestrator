@@ -19,8 +19,14 @@ if [ ! -f ".env.test" ]; then
     exit 1
 fi
 
-# Source environment variables
-export $(grep -v '^#' .env.test | xargs)
+# Source environment variables with error handling
+set +e
+export $(grep -v '^#' .env.test | grep -v '^$' | xargs) 2>/dev/null || {
+    echo -e "${RED}Error: Failed to load .env.test file${NC}"
+    echo "Please check .env.test format and permissions"
+    exit 1
+}
+set -e
 
 echo -e "${GREEN}=== AWS DRS Orchestration Test User Creation ===${NC}"
 echo ""

@@ -265,10 +265,10 @@ export const RecoveryPlansPage: React.FC = () => {
 
     try {
       const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: plan.id,
+        recoveryPlanId: String(plan.id || '').replace(/[^a-zA-Z0-9\-_]/g, ''),
         executionType,
         dryRun: false,
-        executedBy: user?.username || 'unknown'
+        executedBy: String(user?.username || 'unknown').replace(/[^a-zA-Z0-9\-_@\.]/g, '')
       });
       
       addNotification('success', `${executionType === 'DRILL' ? 'Drill' : 'Recovery'} execution started`);
@@ -298,16 +298,16 @@ export const RecoveryPlansPage: React.FC = () => {
       
       switch (errorCode) {
         case 'WAVE_SIZE_LIMIT_EXCEEDED':
-          addNotification('error', `Wave size limit exceeded. Maximum ${errorData.limit || 100} servers per wave.`);
+          addNotification('error', `Wave size limit exceeded. Maximum ${Number(errorData.limit) || 100} servers per wave.`);
           break;
         case 'CONCURRENT_JOBS_LIMIT_EXCEEDED':
-          addNotification('error', `DRS concurrent jobs limit reached (${errorData.currentJobs || 0}/${errorData.maxJobs || 20}). Wait for active jobs to complete.`);
+          addNotification('error', `DRS concurrent jobs limit reached (${Number(errorData.currentJobs) || 0}/${Number(errorData.maxJobs) || 20}). Wait for active jobs to complete.`);
           break;
         case 'SERVERS_IN_JOBS_LIMIT_EXCEEDED':
-          addNotification('error', `Would exceed max servers in active jobs (${errorData.totalAfterNew || 0}/${errorData.maxServers || 500}).`);
+          addNotification('error', `Would exceed max servers in active jobs (${Number(errorData.totalAfterNew) || 0}/${Number(errorData.maxServers) || 500}).`);
           break;
         case 'UNHEALTHY_SERVER_REPLICATION': {
-          const unhealthyCount = errorData.unhealthyCount || errorData.unhealthyServers?.length || 0;
+          const unhealthyCount = Number(errorData.unhealthyCount) || Number(errorData.unhealthyServers?.length) || 0;
           addNotification('error', `${unhealthyCount} server(s) have unhealthy replication state and cannot be recovered.`);
           break;
         }
@@ -498,9 +498,11 @@ export const RecoveryPlansPage: React.FC = () => {
               cell: (item) => {
                 const progress = executionProgress.get(item.id);
                 if (progress) {
-                  return `${progress.currentWave} of ${progress.totalWaves}`;
+                  const sanitizedCurrentWave = Number(progress.currentWave) || 0;
+                  const sanitizedTotalWaves = Number(progress.totalWaves) || 0;
+                  return `${sanitizedCurrentWave} of ${sanitizedTotalWaves}`;
                 }
-                return `${item.waves.length}`;
+                return `${Number(item.waves.length) || 0}`;
               },
             },
             {
@@ -617,7 +619,7 @@ export const RecoveryPlansPage: React.FC = () => {
             <Box>
               {existingInstancesInfo?.instances[0]?.sourcePlanName && (
                 <Box variant="p">
-                  These instances were created by: <strong>{existingInstancesInfo.instances[0].sourcePlanName}</strong>
+                  These instances were created by: <strong>{String(existingInstancesInfo.instances[0].sourcePlanName).replace(/[^a-zA-Z0-9\s\-_]/g, '')}</strong>
                 </Box>
               )}
               <Box variant="p" color="text-body-secondary">
@@ -630,16 +632,16 @@ export const RecoveryPlansPage: React.FC = () => {
                 {existingInstancesInfo?.instances.slice(0, 6).map((inst, idx) => (
                   <Box key={idx} padding={{ left: 's' }}>
                     <Box fontSize="body-s">
-                      <strong>{inst.name || inst.ec2InstanceId}</strong>
-                      <Box variant="span" color="text-status-success" fontSize="body-s"> ({inst.ec2InstanceState})</Box>
+                      <strong>{String(inst.name || inst.ec2InstanceId || '').replace(/[^a-zA-Z0-9\s\-_]/g, '')}</strong>
+                      <Box variant="span" color="text-status-success" fontSize="body-s"> ({String(inst.ec2InstanceState || '').replace(/[^a-zA-Z0-9\s\-_]/g, '')})</Box>
                     </Box>
                     <Box fontSize="body-s" color="text-body-secondary">
-                      {inst.privateIp && <span>IP: {inst.privateIp} • </span>}
-                      {inst.instanceType && <span>{inst.instanceType} • </span>}
-                      {inst.launchTime && <span>Launched: {new Date(inst.launchTime).toLocaleString()}</span>}
+                      {inst.privateIp && <span>IP: {String(inst.privateIp).replace(/[^a-zA-Z0-9\.\-_]/g, '')} • </span>}
+                      {inst.instanceType && <span>{String(inst.instanceType).replace(/[^a-zA-Z0-9\s\-_]/g, '')} • </span>}
+                      {inst.launchTime && <span>Launched: {new Date(String(inst.launchTime).replace(/[^a-zA-Z0-9\s\-_:TZ\.]/g, '')).toLocaleString()}</span>}
                     </Box>
                   </Box>
-                ))}
+                ))}}
               </SpaceBetween>
               {(existingInstancesInfo?.instances.length || 0) > 6 && (
                 <Box color="text-body-secondary" fontSize="body-s" padding={{ top: 'xs' }}>

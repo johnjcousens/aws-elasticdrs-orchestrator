@@ -336,7 +336,8 @@ def handle_timeout(execution_id: str, plan_id: str, execution: Dict[str, Any]) -
                 ':status': {'S': 'TIMEOUT'},
                 ':waves': {'L': [format_wave_for_dynamodb(w) for w in final_waves]},
                 ':end_time': {'N': str(int(datetime.now(timezone.utc).timestamp()))}
-            }
+            },
+            ConditionExpression='attribute_exists(ExecutionId)'
         )
         
         logger.info(f"Execution {execution_id} marked as TIMEOUT")
@@ -558,16 +559,23 @@ def update_execution_waves(execution_id: str, plan_id: str, waves: List[Dict[str
         waves: Updated wave records
     """
     try:
+        # Validate input parameters to prevent injection
+        if not execution_id or not isinstance(execution_id, str):
+            raise ValueError("Invalid execution_id")
+        if not plan_id or not isinstance(plan_id, str):
+            raise ValueError("Invalid plan_id")
+        
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
             Key={
-                'ExecutionId': {'S': execution_id},
-                'PlanId': {'S': plan_id}
+                'ExecutionId': {'S': execution_id.strip()},
+                'PlanId': {'S': plan_id.strip()}
             },
             UpdateExpression='SET Waves = :waves',
             ExpressionAttributeValues={
                 ':waves': {'L': [format_wave_for_dynamodb(w) for w in waves]}
-            }
+            },
+            ConditionExpression='attribute_exists(ExecutionId) AND attribute_exists(PlanId)'
         )
         
         logger.info(f"Updated {len(waves)} waves for execution {execution_id}")
@@ -596,7 +604,8 @@ def update_last_polled_time(execution_id: str, plan_id: str) -> None:
             UpdateExpression='SET LastPolledTime = :time',
             ExpressionAttributeValues={
                 ':time': {'N': str(current_time)}
-            }
+            },
+            ConditionExpression='attribute_exists(ExecutionId)'
         )
         
     except Exception as e:
@@ -645,7 +654,8 @@ def finalize_execution(execution_id: str, plan_id: str, waves: List[Dict[str, An
                 ':status': {'S': status},
                 ':end_time': {'N': str(end_time)},
                 ':waves': {'L': [format_wave_for_dynamodb(w) for w in waves]}
-            }
+            },
+            ConditionExpression='attribute_exists(ExecutionId)'
         )
         
         logger.info(f"Execution {execution_id} finalized with status {status}")
