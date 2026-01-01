@@ -641,7 +641,7 @@ export const RecoveryPlansPage: React.FC = () => {
                       {inst.launchTime && <span>Launched: {new Date(String(inst.launchTime).replace(/[^a-zA-Z0-9\s\-_:TZ\.]/g, '')).toLocaleString()}</span>}
                     </Box>
                   </Box>
-                ))}}
+                ))}
               </SpaceBetween>
               {(existingInstancesInfo?.instances.length || 0) > 6 && (
                 <Box color="text-body-secondary" fontSize="body-s" padding={{ top: 'xs' }}>
