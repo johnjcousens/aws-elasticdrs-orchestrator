@@ -89,8 +89,25 @@ Parameters:
       - 'true'
       - 'false'
 
+  # Tag Sync Configuration
+  EnableTagSync:
+    Type: String
+    Default: 'true'
+    Description: 'Enable scheduled DRS tag synchronization'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  TagSyncIntervalHours:
+    Type: Number
+    Default: 4
+    MinValue: 1
+    MaxValue: 24
+    Description: 'Tag sync interval in hours (1-24)'
+
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
+  EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
 
 Resources:
   # Database Stack - DynamoDB Tables
@@ -185,6 +202,31 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
       TimeoutInMinutes: 20
+
+  # EventBridge Stack - Scheduled Drills and Tag Sync
+  EventBridgeStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - LambdaStack
+      - StepFunctionsStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/eventbridge-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        ModularOrchestratorArn: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
+        EnableWeeklyDrill: 'false'  # Disabled by default
+        EnableTagSync: !Ref EnableTagSync
+        TagSyncIntervalHours: !Ref TagSyncIntervalHours
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
 
   # Frontend Stack - S3, CloudFront, Custom Resources
   FrontendStack:
@@ -316,6 +358,27 @@ Outputs:
     Value: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
     Export:
       Name: !Sub '${AWS::StackName}-StateMachineArn'
+
+  # EventBridge Stack Outputs
+  EventBridgeRoleArn:
+    Description: 'EventBridge invoke role ARN'
+    Value: !GetAtt EventBridgeStack.Outputs.EventBridgeInvokeRoleArn
+    Export:
+      Name: !Sub '${AWS::StackName}-EventBridgeRoleArn'
+
+  TagSyncScheduleRuleName:
+    Description: 'Tag sync schedule rule name'
+    Value: !GetAtt EventBridgeStack.Outputs.TagSyncScheduleRuleName
+    Export:
+      Name: !Sub '${AWS::StackName}-TagSyncScheduleRuleName'
+    Condition: EnableTagSyncCondition
+
+  TagSyncScheduleExpression:
+    Description: 'Tag sync schedule expression'
+    Value: !GetAtt EventBridgeStack.Outputs.TagSyncScheduleExpression
+    Export:
+      Name: !Sub '${AWS::StackName}-TagSyncScheduleExpression'
+    Condition: EnableTagSyncCondition
 
 
   # Frontend Stack Outputs

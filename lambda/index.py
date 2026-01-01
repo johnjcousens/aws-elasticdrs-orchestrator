@@ -1285,7 +1285,16 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             return get_current_account_info()
         elif path == '/drs/tag-sync' and http_method == 'POST':
             print("Matched /drs/tag-sync route")
-            return handle_drs_tag_sync(body)
+            # Check if this is an EventBridge-triggered request
+            source_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', '')
+            invocation_source = event.get('invocationSource', '')
+            
+            if source_ip == 'eventbridge' or invocation_source == 'EVENTBRIDGE':
+                print("Detected EventBridge-triggered tag sync")
+                return handle_eventbridge_tag_sync(event)
+            else:
+                print("Manual tag sync request")
+                return handle_drs_tag_sync(body)
         elif path.startswith('/ec2/'):
             print("Matched /ec2/ route")
             return handle_ec2_resources(path, query_parameters)
@@ -7727,11 +7736,15 @@ def handle_user_permissions(event: Dict) -> Dict:
 
 
 def handle_config(method: str, path: str, body: Dict, query_params: Dict) -> Dict:
-    """Route configuration export/import requests"""
+    """Route configuration export/import requests and tag sync settings"""
     if path == '/config/export' and method == 'GET':
         return export_configuration(query_params)
     elif path == '/config/import' and method == 'POST':
         return import_configuration(body)
+    elif path == '/config/tag-sync' and method == 'GET':
+        return get_tag_sync_settings()
+    elif path == '/config/tag-sync' and method == 'PUT':
+        return update_tag_sync_settings(body)
     else:
         return response(405, {'error': 'Method Not Allowed'})
 
@@ -8380,3 +8393,208 @@ def _process_recovery_plan_import(
     result['reason'] = ''
     return result
 
+
+# ============================================================================
+# Tag Sync Settings Functions
+# ============================================================================
+
+def get_tag_sync_settings() -> Dict:
+    """Get current tag sync configuration settings"""
+    try:
+        import boto3
+        
+        # Get EventBridge client
+        events_client = boto3.client('events')
+        
+        # Get environment variables for current settings
+        project_name = os.environ.get('PROJECT_NAME', 'drs-orchestration')
+        environment = os.environ.get('ENVIRONMENT', 'prod')
+        
+        # Construct rule name based on naming convention
+        rule_name = f"{project_name}-tag-sync-schedule-{environment}"
+        
+        try:
+            # Get the EventBridge rule
+            rule_response = events_client.describe_rule(Name=rule_name)
+            
+            # Parse schedule expression to get interval
+            schedule_expression = rule_response.get('ScheduleExpression', '')
+            interval_hours = parse_schedule_expression(schedule_expression)
+            
+            settings = {
+                'enabled': rule_response.get('State') == 'ENABLED',
+                'intervalHours': interval_hours,
+                'scheduleExpression': schedule_expression,
+                'ruleName': rule_name,
+                'lastModified': rule_response.get('ModifiedDate', '').isoformat() if rule_response.get('ModifiedDate') else None
+            }
+            
+            return response(200, settings)
+            
+        except events_client.exceptions.ResourceNotFoundException:
+            # Rule doesn't exist - return default settings
+            return response(200, {
+                'enabled': False,
+                'intervalHours': 4,
+                'scheduleExpression': 'rate(4 hours)',
+                'ruleName': rule_name,
+                'lastModified': None,
+                'message': 'Tag sync rule not found - using defaults'
+            })
+            
+    except Exception as e:
+        print(f"Error getting tag sync settings: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': f'Failed to get tag sync settings: {str(e)}'})
+
+
+def update_tag_sync_settings(body: Dict) -> Dict:
+    """Update tag sync configuration settings"""
+    try:
+        import boto3
+        
+        # Validate input
+        if not isinstance(body, dict):
+            return response(400, {'error': 'Request body must be a JSON object'})
+        
+        enabled = body.get('enabled')
+        interval_hours = body.get('intervalHours')
+        
+        if enabled is None:
+            return response(400, {'error': 'enabled field is required'})
+        
+        if not isinstance(enabled, bool):
+            return response(400, {'error': 'enabled must be a boolean'})
+        
+        if interval_hours is not None:
+            if not isinstance(interval_hours, (int, float)) or interval_hours < 1 or interval_hours > 24:
+                return response(400, {'error': 'intervalHours must be a number between 1 and 24'})
+            interval_hours = int(interval_hours)
+        
+        # Get EventBridge client
+        events_client = boto3.client('events')
+        
+        # Get environment variables
+        project_name = os.environ.get('PROJECT_NAME', 'drs-orchestration')
+        environment = os.environ.get('ENVIRONMENT', 'prod')
+        
+        # Construct rule name
+        rule_name = f"{project_name}-tag-sync-schedule-{environment}"
+        
+        try:
+            # Get current rule to check if it exists
+            current_rule = events_client.describe_rule(Name=rule_name)
+            rule_exists = True
+        except events_client.exceptions.ResourceNotFoundException:
+            rule_exists = False
+            current_rule = {}
+        
+        # If rule doesn't exist and we're trying to enable, return error
+        if not rule_exists and enabled:
+            return response(400, {
+                'error': 'Tag sync rule not found. Please redeploy the CloudFormation stack with EnableTagSync=true to create the rule.',
+                'code': 'RULE_NOT_FOUND'
+            })
+        
+        # If rule doesn't exist and we're disabling, that's fine
+        if not rule_exists and not enabled:
+            return response(200, {
+                'message': 'Tag sync is already disabled (rule does not exist)',
+                'enabled': False,
+                'intervalHours': interval_hours or 4
+            })
+        
+        # Update rule state
+        if enabled:
+            # Enable the rule
+            events_client.enable_rule(Name=rule_name)
+            
+            # Update schedule if interval_hours provided
+            if interval_hours is not None:
+                # Use correct singular/plural form for EventBridge schedule expression
+                time_unit = "hour" if interval_hours == 1 else "hours"
+                new_schedule = f"rate({interval_hours} {time_unit})"
+                events_client.put_rule(
+                    Name=rule_name,
+                    ScheduleExpression=new_schedule,
+                    State='ENABLED',
+                    Description=f'Scheduled DRS tag synchronization every {interval_hours} {time_unit}'
+                )
+            else:
+                # Just enable with current schedule
+                events_client.enable_rule(Name=rule_name)
+                interval_hours = parse_schedule_expression(current_rule.get('ScheduleExpression', 'rate(4 hours)'))
+        else:
+            # Disable the rule
+            events_client.disable_rule(Name=rule_name)
+            interval_hours = interval_hours or parse_schedule_expression(current_rule.get('ScheduleExpression', 'rate(4 hours)'))
+        
+        # Get updated rule info
+        updated_rule = events_client.describe_rule(Name=rule_name)
+        
+        result = {
+            'message': f'Tag sync settings updated successfully',
+            'enabled': updated_rule.get('State') == 'ENABLED',
+            'intervalHours': interval_hours,
+            'scheduleExpression': updated_rule.get('ScheduleExpression'),
+            'ruleName': rule_name,
+            'lastModified': updated_rule.get('ModifiedDate', '').isoformat() if updated_rule.get('ModifiedDate') else None
+        }
+        
+        return response(200, result)
+        
+    except Exception as e:
+        print(f"Error updating tag sync settings: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': f'Failed to update tag sync settings: {str(e)}'})
+
+
+def parse_schedule_expression(schedule_expression: str) -> int:
+    """Parse EventBridge schedule expression to extract interval hours"""
+    try:
+        # Handle rate expressions like "rate(4 hours)"
+        if schedule_expression.startswith('rate(') and schedule_expression.endswith(')'):
+            rate_part = schedule_expression[5:-1]  # Remove "rate(" and ")"
+            
+            if 'hour' in rate_part:
+                # Extract number from "4 hours" or "1 hour"
+                import re
+                match = re.search(r'(\d+)\s+hours?', rate_part)
+                if match:
+                    return int(match.group(1))
+            elif 'minute' in rate_part:
+                # Convert minutes to hours
+                match = re.search(r'(\d+)\s+minutes?', rate_part)
+                if match:
+                    minutes = int(match.group(1))
+                    return max(1, minutes // 60)  # At least 1 hour
+        
+        # Default fallback
+        return 4
+        
+    except Exception as e:
+        print(f"Error parsing schedule expression '{schedule_expression}': {e}")
+        return 4
+
+
+def handle_eventbridge_tag_sync(event: Dict) -> Dict:
+    """Handle EventBridge-triggered tag sync requests"""
+    try:
+        print("Processing EventBridge-triggered tag sync")
+        
+        # Extract invocation details from EventBridge event
+        invocation_details = event.get('invocationDetails', {})
+        interval_hours = invocation_details.get('intervalHours', 4)
+        
+        print(f"Tag sync triggered by EventBridge (interval: {interval_hours} hours)")
+        
+        # Call the existing tag sync handler
+        return handle_drs_tag_sync({})
+        
+    except Exception as e:
+        print(f"Error in EventBridge tag sync handler: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': f'EventBridge tag sync failed: {str(e)}'})

@@ -38,11 +38,30 @@ Parameters:
     Default: 120
     Description: Maximum wait time for drill completion in minutes
 
+  # Tag Sync Parameters
+  EnableTagSync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable scheduled tag synchronization
+
+  TagSyncIntervalHours:
+    Type: Number
+    Default: 4
+    MinValue: 1
+    MaxValue: 24
+    Description: Tag sync interval in hours (1-24)
+
+  ApiHandlerFunctionArn:
+    Type: String
+    Description: ARN of the API Handler Lambda function for tag sync
+
 Conditions:
   EnableWeeklyDrillCondition: !Equals [!Ref EnableWeeklyDrill, 'true']
+  EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
 
 Resources:
-  # IAM Role for EventBridge to invoke Step Functions
+  # IAM Role for EventBridge to invoke Step Functions and Lambda
   EventBridgeInvokeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -63,6 +82,14 @@ Resources:
                 Action:
                   - states:StartExecution
                 Resource: !Ref ModularOrchestratorArn
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Ref ApiHandlerFunctionArn
 
   # Weekly Drill Rule - Wave 1
   WeeklyDrillWave1Rule:
@@ -140,6 +167,50 @@ Resources:
           RoleArn: !GetAtt EventBridgeInvokeRole.Arn
           InputPath: '$.detail'
 
+  # Scheduled Tag Sync Rule
+  TagSyncScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: EnableTagSyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-tag-sync-schedule-${Environment}'
+      Description: !Sub 'Scheduled DRS tag synchronization every ${TagSyncIntervalHours} hours'
+      ScheduleExpression: !Sub 'rate(${TagSyncIntervalHours} hours)'
+      State: ENABLED
+      Targets:
+        - Id: TagSyncTarget
+          Arn: !Ref ApiHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: !Sub |
+            {
+              "httpMethod": "POST",
+              "path": "/drs/tag-sync",
+              "headers": {
+                "Content-Type": "application/json"
+              },
+              "body": "{}",
+              "requestContext": {
+                "identity": {
+                  "sourceIp": "eventbridge"
+                }
+              },
+              "invocationSource": "EVENTBRIDGE",
+              "invocationDetails": {
+                "scheduleRuleName": "${ProjectName}-tag-sync-schedule-${Environment}",
+                "scheduleExpression": "rate(${TagSyncIntervalHours} hours)",
+                "intervalHours": ${TagSyncIntervalHours}
+              }
+            }
+
+  # Permission for EventBridge to invoke API Handler for tag sync
+  TagSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableTagSyncCondition
+    Properties:
+      FunctionName: !Ref ApiHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TagSyncScheduleRule.Arn
+
 Outputs:
   EventBridgeInvokeRoleArn:
     Description: ARN of the EventBridge invoke role
@@ -159,3 +230,13 @@ Outputs:
   ManualTriggerEventSource:
     Description: Event source for manual triggers
     Value: !Sub '${ProjectName}.manual'
+
+  TagSyncScheduleRuleName:
+    Condition: EnableTagSyncCondition
+    Description: Name of the tag sync schedule rule
+    Value: !Ref TagSyncScheduleRule
+
+  TagSyncScheduleExpression:
+    Condition: EnableTagSyncCondition
+    Description: Schedule expression for tag sync
+    Value: !Sub 'rate(${TagSyncIntervalHours} hours)'
