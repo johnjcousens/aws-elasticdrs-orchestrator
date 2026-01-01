@@ -473,8 +473,14 @@ def get_all_active_executions() -> List[Dict]:
                     KeyConditionExpression=Key('Status').eq(status)
                 )
                 active_executions.extend(result.get('Items', []))
-            except Exception:
-                pass  # GSI might not exist for all statuses
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code in ['ValidationException', 'ResourceNotFoundException']:
+                    print(f"StatusIndex GSI not available for status {status}: {error_code}")
+                else:
+                    print(f"DynamoDB error querying StatusIndex for {status}: {e}")
+            except Exception as e:
+                print(f"Unexpected error querying StatusIndex for {status}: {e}")
         
         # If no results from GSI, fallback to scan
         if not active_executions:
@@ -6642,8 +6648,9 @@ def get_account_name(account_id: str) -> str:
             org_client = boto3.client('organizations')
             account = org_client.describe_account(AccountId=account_id)
             return account['Account']['Name']
-        except:
+        except (ClientError, Exception) as e:
             # Organizations not available or no permissions
+            print(f"Could not get account name from Organizations: {e}")
             pass
         
         # Fallback to account ID
@@ -7286,8 +7293,14 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
             # Enable copyTags in launch configuration
             try:
                 drs_client.update_launch_configuration(sourceServerID=source_server_id, copyTags=True)
-            except Exception:
-                pass
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', '')
+                if error_code in ['ValidationException', 'ResourceNotFoundException']:
+                    print(f"Cannot update launch config for server {source_server_id}: {error_code}")
+                else:
+                    print(f"DRS error updating launch config for {source_server_id}: {e}")
+            except Exception as e:
+                print(f"Unexpected error updating launch config for {source_server_id}: {e}")
             
             synced += 1
             
