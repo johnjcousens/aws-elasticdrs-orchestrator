@@ -4025,8 +4025,15 @@ def recalculate_execution_status(execution: Dict) -> Dict:
     if not waves:
         return execution
     
+    # CRITICAL FIX: Preserve PAUSED status - don't recalculate for paused executions
+    current_status = execution.get('Status', '').upper()
+    if current_status == 'PAUSED':
+        # Execution is paused - don't recalculate status based on waves
+        # The pause state is managed by Step Functions orchestration
+        return execution
+    
     # Count waves by status
-    active_statuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING']
+    active_statuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'CONVERTING']
     terminal_statuses = ['COMPLETED', 'FAILED', 'CANCELLED']
     
     active_waves = []
@@ -4044,9 +4051,6 @@ def recalculate_execution_status(execution: Dict) -> Dict:
             failed_waves.append(wave)
         elif wave_status == 'CANCELLED':
             cancelled_waves.append(wave)
-    
-    # Determine overall execution status
-    current_status = execution.get('Status', '').upper()
     
     # If any waves are still active, execution should be active
     if active_waves:
@@ -6447,7 +6451,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
     return {
         'executionId': execution.get('ExecutionId'),
         'recoveryPlanId': execution.get('PlanId'),
-        'recoveryPlanName': execution.get('RecoveryPlanName', 'Unknown'),
+        'recoveryPlanName': execution.get('RecoveryPlanName') or execution.get('PlanName', 'Unknown'),
         'executionType': execution.get('ExecutionType'),
         'status': map_execution_status(execution.get('Status')),  # CRITICAL FIX: Map PARTIAL → failed
         'startTime': start_time,  # Now properly converted to int
