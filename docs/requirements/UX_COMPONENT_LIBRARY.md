@@ -10,7 +10,7 @@
 
 ## Overview
 
-This document specifies all 32 custom components required to build the AWS DRS Orchestration application. Each component must follow CloudScape design patterns and AWS Console conventions for consistent user experience.
+This document specifies all 37 custom components required to build the AWS DRS Orchestration application. Each component must follow CloudScape design patterns and AWS Console conventions for consistent user experience.
 
 ---
 
@@ -67,10 +67,43 @@ This document specifies all 32 custom components required to build the AWS DRS O
 - Include server selection with conflict detection
 
 ### ServerSelector (`ServerSelector.tsx`)
-**Build Requirements**: Create tag-based server selection interface
-- Must provide preview of selected servers
-- Include validation and conflict checking
-- Support multiple selection modes
+**Build Requirements**: Create advanced server selection interface with multi-mode support
+
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Server Selection                                            │
+├─────────────────────────────────────────────────────────────┤
+│ 3 of 12 servers selected          [Select All] [Deselect] │
+│                                                             │
+│ [Search servers by hostname, ID, or tags...              ] │
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ ☑ web-server-01 (i-abc123)                             │ │
+│ │   🏷 Environment: Production  🏷 Tier: Web              │ │
+│ │                                                         │ │
+│ │ ☐ app-server-01 (i-def456)                             │ │
+│ │   🏷 Environment: Production  🏷 Tier: Application      │ │
+│ │                                                         │ │
+│ │ ☑ db-server-01 (i-ghi789)                              │ │
+│ │   🏷 Environment: Production  🏷 Tier: Database         │ │
+│ │   🏷 Protection Group: DB-Primary                       │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ Multi-Protection Group Mode:                                │
+│ Servers from: DB-Primary (4), DB-Secondary (3), Web (5)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Required Features**:
+- **Multi-protection-group support**: Handle servers from multiple protection groups
+- **Search and filtering**: Real-time search by hostname, ID, or tag values
+- **Bulk selection**: Select All/Deselect All functionality
+- **Server metadata display**: Show server details, tags, and protection group assignment
+- **Conflict detection**: Prevent selection of servers already assigned elsewhere
+- **Tag-based mode detection**: Automatic handling of tag-based vs explicit selection
+- **Loading states**: Handle async server loading with proper error handling
+- **Readonly mode**: Support read-only display for review purposes
 
 ### ServerListItem (`ServerListItem.tsx`)
 **Build Requirements**: Create individual server display component
@@ -89,16 +122,94 @@ This document specifies all 32 custom components required to build the AWS DRS O
 ## Dialog Components (4)
 
 ### ProtectionGroupDialog (`ProtectionGroupDialog.tsx`)
-**Build Requirements**: Create protection group creation/editing modal
-- Must include server discovery and selection
-- Provide form validation and error handling
-- Support both create and edit modes
+**Build Requirements**: Create protection group creation/editing modal with advanced server selection
+
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Create Protection Group                           [✕ Close] │
+├─────────────────────────────────────────────────────────────┤
+│ Name: [________________________________]                   │
+│ Description: [________________________]                     │
+│ Region: [us-east-1 ▼] (disabled in edit mode)             │
+│                                                             │
+│ Server Selection:                                           │
+│ [Select Servers] [Select by Tags] ← Tabbed Interface       │
+│                                                             │
+│ ┌─ Select Servers Tab ─────────────────────────────────────┐│
+│ │ [ServerDiscoveryPanel with search and selection]        ││
+│ │ ☐ server-1 (i-abc123) - Available                      ││
+│ │ ☐ server-2 (i-def456) - Available                      ││
+│ │ ☑ server-3 (i-ghi789) - Selected                       ││
+│ └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│ ┌─ Select by Tags Tab ─────────────────────────────────────┐│
+│ │ Server Selection Tags:                    [+ Add Tag]   ││
+│ │ ┌─────────────────────────────────────────────────────┐ ││
+│ │ │ Tag Key      │ Tag Value     │ Actions             │ ││
+│ │ │ [DR-Tier    ]│ [Database    ]│ [×]                 │ ││
+│ │ │ [Environment]│ [Production  ]│ [×]                 │ ││
+│ │ │ [_________  ]│ [___________]│ [×]                 │ ││
+│ │ └─────────────────────────────────────────────────────┘ ││
+│ │                                                         ││
+│ │ Matching Servers:                      [🔄 Preview]    ││
+│ │ ┌─────────────────────────────────────────────────────┐ ││
+│ │ │ • server-db-1 (i-abc123) - Database Tier           │ ││
+│ │ │ • server-db-2 (i-def456) - Database Tier           │ ││
+│ │ │ 2 servers match these tags                          │ ││
+│ │ └─────────────────────────────────────────────────────┘ ││
+│ └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│ Launch Settings: (Optional)                                 │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ [LaunchConfigSection with instance type, subnet, etc.] │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│                                    [Cancel] [Create Group] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Required Features**:
+- **Tabbed server selection**: Toggle between explicit server selection and tag-based selection
+- **Tag editor**: Dynamic add/remove tag rows with key-value pairs
+- **Server preview**: Real-time preview of servers matching tag criteria
+- **Launch configuration**: Optional DRS launch settings (instance type, subnet, security groups)
+- **Validation**: Form validation with field-specific error messages
+- **Conflict detection**: Check for server assignment conflicts with other protection groups
+- **Optimistic locking**: Version conflict handling for concurrent edits
 
 ### RecoveryPlanDialog (`RecoveryPlanDialog.tsx`)
-**Build Requirements**: Create recovery plan creation/editing modal
-- Must support wave configuration with dependencies
-- Include pause point settings
-- Provide validation for wave dependencies
+**Build Requirements**: Create recovery plan creation/editing modal with wave configuration
+
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Create Recovery Plan                              [✕ Close] │
+├─────────────────────────────────────────────────────────────┤
+│ Basic Information:                                          │
+│ Plan Name: [_________________________________]             │
+│ Description: [___________________________]                 │
+│                                                             │
+│ Wave Configuration:                                         │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ [WaveConfigEditor - see detailed wireframe below]      │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ Validation Messages:                                        │
+│ ⚠ Wave 2 has no servers selected                          │
+│ ⚠ Wave 3 exceeds DRS limit (150 servers, max 100)        │
+│                                                             │
+│                                      [Cancel] [Create Plan] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Required Features**:
+- **Basic information form**: Plan name and description with validation
+- **Embedded wave editor**: Full WaveConfigEditor component integration
+- **Real-time validation**: DRS service limits validation (max 100 servers per wave)
+- **Protection group integration**: Load and validate available protection groups
+- **Dependency validation**: Prevent circular dependencies between waves
+- **Optimistic locking**: Version conflict handling for concurrent edits
 
 ### ConfirmDialog (`ConfirmDialog.tsx`)
 **Build Requirements**: Create reusable confirmation dialog
@@ -111,6 +222,133 @@ This document specifies all 32 custom components required to build the AWS DRS O
 - Must show success/failure summary
 - Include detailed error reporting
 - Provide clear feedback on import operations
+
+---
+
+## Authentication Components (1)
+
+### PasswordChangeForm (`PasswordChangeForm.tsx`)
+**Build Requirements**: Create Cognito password change interface for NEW_PASSWORD_REQUIRED challenge
+
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Change Password                          │
+├─────────────────────────────────────────────────────────────┤
+│ Your password needs to be changed before you can continue. │
+│                                                             │
+│ User: admin@example.com                                     │
+│                                                             │
+│ New Password:                                               │
+│ [••••••••••••••••••••••••••••••••••••••••••••••••••••••] │
+│ Password must be at least 8 characters with uppercase,     │
+│ lowercase, number, and special character                    │
+│                                                             │
+│ Confirm New Password:                                       │
+│ [••••••••••••••••••••••••••••••••••••••••••••••••••••••] │
+│                                                             │
+│ ⚠ Passwords do not match                                   │
+│                                                             │
+│                                    [Cancel] [Change Password] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Required Features**:
+- **Password validation**: Enforce Cognito password policy (8+ chars, uppercase, lowercase, number, special character)
+- **Confirmation matching**: Real-time validation that passwords match
+- **Cognito integration**: Handle NEW_PASSWORD_REQUIRED challenge with confirmSignIn
+- **Error handling**: Display validation errors and API errors
+- **Loading states**: Show loading during password change operation
+- **Auto-focus**: Focus on new password field when component loads
+- **Form submission**: Support both button click and form submit events
+
+---
+
+## Permission Management (4)
+
+### PermissionAwareButton (`PermissionAware.tsx`)
+**Build Requirements**: Create permission-controlled button component
+- Must integrate with PermissionsContext
+- Disable button when user lacks required permissions
+- Show tooltip explaining missing permissions
+- Support single permission or multiple permission requirements
+
+### PermissionWrapper (`PermissionAware.tsx`)
+**Build Requirements**: Create conditional rendering wrapper
+- Must show/hide content based on user permissions
+- Support fallback content for unauthorized users
+- Option to show disabled version instead of hiding
+- Handle loading states during permission checks
+
+### PermissionSection (`PermissionAware.tsx`)
+**Build Requirements**: Create section-level permission control
+- Must hide entire sections when permissions missing
+- Support fallback content for unauthorized sections
+- Clean conditional rendering without layout shifts
+- Integrate with role-based access control
+
+### PermissionAwareButtonDropdown (`PermissionAware.tsx`)
+**Build Requirements**: Create permission-controlled dropdown menu
+- Must filter menu items based on user permissions
+- Disable items when permissions missing
+- Show permission tooltips on disabled items
+- Support complex permission requirements per item
+
+---
+
+## Configuration Management (3)
+
+### ConfigExportPanel (`ConfigExportPanel.tsx`)
+**Build Requirements**: Create configuration export interface
+- Must export protection groups and recovery plans
+- Support JSON format with metadata
+- Include download functionality
+
+### ConfigImportPanel (`ConfigImportPanel.tsx`)
+**Build Requirements**: Create configuration import interface
+- Must import configuration from JSON files
+- Include validation and conflict resolution
+- Support batch import with progress tracking
+
+### TagSyncConfigPanel (`TagSyncConfigPanel.tsx`)
+**Build Requirements**: Create scheduled tag synchronization configuration interface
+
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Tag Synchronization                    [Reset] [Save Changes] │
+├─────────────────────────────────────────────────────────────┤
+│ Configure automatic synchronization of EC2 instance tags   │
+│ to DRS source servers                                       │
+│                                                             │
+│ Scheduled Sync:                    Current Status:          │
+│ ● Enabled                          ✅ Active                │
+│                                                             │
+│ Sync Interval:                     Schedule Expression:     │
+│ [4 hours        ▼]                 rate(4 hours)           │
+│                                                             │
+│                                    EventBridge Rule:        │
+│                                    tag-sync-schedule-dev    │
+│                                                             │
+│                                    Last Modified:           │
+│                                    Dec 13, 2025 10:30 AM   │
+│                                                             │
+│ ℹ About Tag Synchronization                                │
+│ Scheduled tag sync automatically copies tags from EC2      │
+│ instances to their corresponding DRS source servers.       │
+│ Manual tag sync via "Sync Tags" button continues to work   │
+│ regardless of scheduled sync settings.                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Required Features**:
+- **Schedule configuration**: Enable/disable scheduled sync with interval selection (1-24 hours)
+- **Real-time status**: Display current sync status and EventBridge rule information
+- **Form validation**: Validate configuration changes before saving
+- **API integration**: Load and save tag sync settings via REST API
+- **Error handling**: Display configuration errors with retry options
+- **Reset functionality**: Revert changes to current saved settings
+- **Loading states**: Show loading during configuration operations
 
 ---
 
@@ -173,10 +411,56 @@ This document specifies all 32 custom components required to build the AWS DRS O
 ## Form Components (2)
 
 ### WaveConfigEditor (`WaveConfigEditor.tsx`)
-**Build Requirements**: Create wave configuration interface
-- Must support protection group selection per wave
-- Include pause point and dependency settings
-- Provide validation for wave configuration
+**Build Requirements**: Create comprehensive wave configuration interface with expandable sections
+
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Wave Configuration                            [+ Add Wave]  │
+├─────────────────────────────────────────────────────────────┤
+│ ▼ Wave 1 [2 PGs] [5 servers]              [↑] [↓] [×]      │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Basic Information:                                      │ │
+│ │ Wave Name: [Database Tier____________]                  │ │
+│ │ Description: [Primary database servers_____________]    │ │
+│ │                                                         │ │
+│ │ Execution Configuration:                                │ │
+│ │ ℹ All servers launch in parallel with 15s delays      │ │
+│ │ Depends On Waves: [☐ Wave 0] (multi-select)           │ │
+│ │ ☐ Pause execution before starting this wave            │ │
+│ │                                                         │ │
+│ │ Protection Groups: (Required)                           │ │
+│ │ [☑ DB-Primary] [☑ DB-Secondary] [☐ DB-Backup]         │ │
+│ │ ℹ Multiple Protection Groups selected                   │ │
+│ │                                                         │ │
+│ │ Server Selection:                                       │ │
+│ │ ┌─────────────────────────────────────────────────────┐ │ │
+│ │ │ Tag-based Protection Groups selected                │ │ │
+│ │ │ Servers resolved dynamically at execution time     │ │ │
+│ │ │ No manual server selection needed                   │ │ │
+│ │ └─────────────────────────────────────────────────────┘ │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ▶ Wave 2 [1 PG] [3 servers]               [↑] [↓] [×]      │
+│                                                             │
+│ ▶ Wave 3 [0 PGs] [0 servers]              [↑] [↓] [×]      │
+│                                                             │
+│ Validation:                                                 │
+│ ⚠ Wave 3 has no Protection Groups selected                 │
+│ ⚠ Wave 2 exceeds DRS limit (150 servers, max 100)        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Required Features**:
+- **Expandable wave sections**: Click to expand/collapse individual wave configuration
+- **Wave management**: Add, remove, reorder waves with up/down arrows
+- **Multi-protection-group selection**: Support multiple PGs per wave with multi-select
+- **Dependency management**: Visual dependency selection preventing circular dependencies
+- **Pause configuration**: Checkbox to pause execution before wave (except Wave 1)
+- **Tag-based vs explicit selection**: Automatic detection of tag-based PGs
+- **Real-time validation**: DRS service limits and configuration validation
+- **Server count display**: Live server count per wave in collapsed headers
+- **Progressive disclosure**: Show complex configuration only when expanded
 
 ### RegionSelector (`RegionSelector.tsx`)
 **Build Requirements**: Create AWS region selection dropdown
@@ -241,26 +525,71 @@ This document specifies all 32 custom components required to build the AWS DRS O
 - Support transition animations
 
 ### SettingsModal (`SettingsModal.tsx`)
-**Build Requirements**: Create application settings interface with tag synchronization configuration
-- Must handle user preferences and configuration
-- Provide modal-based settings panel with tabbed interface
-- Include settings persistence and real-time updates
-- **Tag Sync Configuration**: EventBridge schedule configuration with interval selection (15min to 24hr)
-- **Manual Sync Triggers**: Immediate tag synchronization capability with progress tracking
-- **Security Audit Display**: Show EventBridge security validation status and audit logs
-- **Schedule Status**: Display current sync schedule and next execution time
+**Build Requirements**: Create comprehensive application settings interface with tabbed configuration
 
-**Tag Sync Panel Requirements**:
-- Schedule interval selector with predefined options (15min, 30min, 1hr, 2hr, 4hr, 8hr, 12hr, 24hr)
-- Manual trigger button with loading state and progress indication
-- Last sync status display with timestamp and result summary
-- EventBridge rule status indicator (enabled/disabled/error)
-- Security validation status with audit trail access
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Settings                                          [✕ Close] │
+├─────────────────────────────────────────────────────────────┤
+│ [Account Management] [Tag Sync] [Export] [Import]           │
+├─────────────────────────────────────────────────────────────┤
+│ Tag Sync Configuration: (Active Tab)                       │
+│                                                             │
+│ ┌─ Automated Synchronization ─────────────────────────────┐ │
+│ │ Schedule: [Every 1 hour        ▼]                      │ │
+│ │ Options: 15min, 30min, 1hr, 2hr, 4hr, 8hr, 12hr, 24hr │ │
+│ │                                                         │ │
+│ │ Status: ✅ Enabled - Next sync in 23 minutes           │ │
+│ │ Last sync: Dec 13, 2025 10:30 AM (6 servers updated)   │ │
+│ │                                                         │ │
+│ │ EventBridge Rule: aws-drs-orchestrator-tag-sync-dev    │ │
+│ │ Security Status: ✅ Multi-layer validation active      │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─ Manual Synchronization ─────────────────────────────────┐ │
+│ │ Trigger immediate tag sync across all regions           │ │
+│ │                                                         │ │
+│ │ [🔄 Sync Now]  [📊 View Sync History]                  │ │
+│ │                                                         │ │
+│ │ Progress: ████████████████████████████████████ 100%    │ │
+│ │ Status: Completed - 28 regions processed               │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─ Security Audit Trail ───────────────────────────────────┐ │
+│ │ EventBridge Security Validation: ✅ Active              │ │
+│ │ - Source IP validation                                  │ │
+│ │ - Request structure validation                          │ │
+│ │ - Authentication header validation                      │ │
+│ │ - Rule name validation                                  │ │
+│ │                                                         │ │
+│ │ Last 5 EventBridge Requests:                           │ │
+│ │ • 10:30 AM - SUCCESS - Rule: tag-sync-schedule-dev     │ │
+│ │ • 09:30 AM - SUCCESS - Rule: tag-sync-schedule-dev     │ │
+│ │ • 08:30 AM - SUCCESS - Rule: tag-sync-schedule-dev     │ │
+│ │                                                         │ │
+│ │ [📋 View Full Audit Log]                               │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│                                    [Cancel] [Save Changes] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Required Features**:
+- **Permission-based tabs**: Show Export/Import tabs only if user has appropriate permissions
+- **Tag sync configuration**: EventBridge schedule configuration with interval selection
+- **Manual sync triggers**: Immediate synchronization with progress tracking
+- **Security audit display**: Show EventBridge security validation status and logs
+- **Real-time status**: Display current sync schedule and next execution time
+- **Progress tracking**: Live progress bars during manual sync operations
+- **Settings persistence**: Save configuration changes immediately
+- **Error handling**: Comprehensive error display with retry options
 
 **API Integration**:
 - `PUT /settings/tag-sync-schedule` - Configure sync schedule
-- `POST /tag-sync/trigger` - Manual sync trigger
+- `POST /tag-sync/trigger` - Manual sync trigger with progress tracking
 - `GET /settings/tag-sync-status` - Get current sync status and history
+- `GET /settings/security-audit` - Get EventBridge security audit trail
 
 ---
 
@@ -294,7 +623,7 @@ Standard loading pattern must be implemented:
 
 ## Build Requirements Summary
 
-**Component Development**: Build all 32 components with the following requirements:
+**Component Development**: Build all 37 components with the following requirements:
 - CloudScape design system integration
 - Consistent error handling and loading states
 - Real-time updates and polling capabilities where needed

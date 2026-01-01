@@ -121,7 +121,7 @@ Successfully implemented scheduled tag synchronization feature for the AWS DRS O
 aws events describe-rule --name drs-orchestration-tag-sync-schedule-{env} --region {region}
 
 # Check Lambda environment variables
-aws lambda get-function-configuration --function-name drs-orchestration-api-handler-{env} --region {region}
+aws lambda get-function-configuration --function-name aws-drs-orchestrator-api-handler-{env} --region {region}
 
 # Test API endpoints
 curl -H "Authorization: Bearer {token}" https://{api-endpoint}/config/tag-sync
@@ -176,7 +176,7 @@ flowchart LR
 - View rule targets: `aws events list-targets-by-rule --rule {rule-name}`
 
 ### 2. Lambda Logs
-- CloudWatch log group: `/aws/lambda/drs-orchestration-api-handler-{env}`
+- CloudWatch log group: `/aws/lambda/aws-drs-orchestrator-api-handler-{env}`
 - Search for "EventBridge-triggered tag sync" for scheduled executions
 - Search for "Tag sync triggered by EventBridge" for execution details
 
