@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - January 1, 2026
+
+### Added
+- **Scheduled Tag Synchronization**: Automated tag sync from EC2 instances to DRS source servers
+  - EventBridge-triggered synchronization with configurable schedules (15min to 24hr intervals)
+  - Manual trigger capability for immediate synchronization
+  - Comprehensive error handling and progress tracking
+  - Batch processing with 10-server chunks to avoid API limits
+  - Supports all 28 commercial AWS DRS regions
+  - New Settings modal with TagSyncConfigPanel for schedule configuration
+  - Real-time sync progress indicators and status updates
+
+### Fixed
+- **EventBridge Schedule Expression Validation**: Fixed "Parameter ScheduleExpression is not valid" error
+  - Corrected singular/plural form handling for rate expressions
+  - `rate(1 hour)` vs `rate(2 hours)` now properly validated
+  - Prevents validation failures when selecting "1 hour" interval
+
+### Enhanced
+- **API Endpoints**: Added PUT `/settings/tag-sync-schedule` and POST `/tag-sync/trigger`
+- **Infrastructure**: Enhanced EventBridge integration with automated scheduling
+- **Lambda Permissions**: Added comprehensive EC2 tag operation permissions
+- **Frontend**: New TagSyncConfigPanel component with intuitive schedule selection
+- **Error Handling**: Robust error recovery and partial failure handling for tag operations
+
+### Technical Implementation
+- Tag sync processes handle pagination for large EC2 instance sets
+- EventBridge source detection differentiates automated vs manual triggers
+- Protection Groups using tag-based server selection now properly resolve servers
+- Addresses core issue where empty DRS server tags prevented server resolution
+
 ## [1.1.1] - December 31, 2025
 
 ### Fixed

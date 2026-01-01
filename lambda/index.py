@@ -1204,6 +1204,15 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             print("Handling OPTIONS request")
             return response(200, {'message': 'OK'})
         
+        # CRITICAL: Check for EventBridge-triggered tag sync BEFORE authentication
+        if path == '/drs/tag-sync' and http_method == 'POST':
+            source_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', '')
+            invocation_source = event.get('invocationSource', '')
+            
+            if source_ip == 'eventbridge' or invocation_source == 'EVENTBRIDGE':
+                print("Detected EventBridge-triggered tag sync - bypassing authentication")
+                return handle_eventbridge_tag_sync(event)
+        
         print(f"Checking authentication for path: {path}")
         
         # Skip authentication check for health endpoint
@@ -1284,17 +1293,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
             print(f"Matched /accounts/current route, calling get_current_account_info")
             return get_current_account_info()
         elif path == '/drs/tag-sync' and http_method == 'POST':
-            print("Matched /drs/tag-sync route")
-            # Check if this is an EventBridge-triggered request
-            source_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', '')
-            invocation_source = event.get('invocationSource', '')
-            
-            if source_ip == 'eventbridge' or invocation_source == 'EVENTBRIDGE':
-                print("Detected EventBridge-triggered tag sync")
-                return handle_eventbridge_tag_sync(event)
-            else:
-                print("Manual tag sync request")
-                return handle_drs_tag_sync(body)
+            print("Matched /drs/tag-sync route - manual tag sync request")
+            return handle_drs_tag_sync(body)
         elif path.startswith('/ec2/'):
             print("Matched /ec2/ route")
             return handle_ec2_resources(path, query_parameters)

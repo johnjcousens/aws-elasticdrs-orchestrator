@@ -6,24 +6,24 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
-[![Release](https://img.shields.io/badge/Release-RBAC%20Prototype%20v1.0-blue)](https://github.com/your-repo/releases/tag/RBAC-Prototype-with-Password-Reset-capability-v1.0)
+[![Release](https://img.shields.io/badge/Release-v1.2.0%20Tag%20Sync-green)](https://github.com/your-repo/releases/tag/v1.2.0)
 
-## 🚧 **RBAC Prototype with Password Reset Capability v1.0**
+## 🚀 **Latest Release: v1.2.0 - Tag Synchronization**
 
-**Latest Version**: RBAC Prototype with Password Reset Capability v1.0 (December 31, 2025)  
-**Git Tag**: `RBAC-Prototype-with-Password-Reset-capability-v1.0`
+**Latest Version**: v1.2.0 - Tag Synchronization (January 1, 2026)  
+**Git Tag**: `v1.2.0`
 
-### 🔐 **What's New in RBAC Prototype v1.0**
+### 🔄 **What's New in v1.2.0**
 
-- **6 Granular RBAC Roles**: Complete role-based access control with enterprise-grade security
-- **API-First Enforcement**: All access methods (UI, CLI, SDK, API) respect identical role-based permissions
-- **Password Reset Capability**: New users must change temporary passwords on first login
-- **Automatic Account Initialization**: Zero-configuration setup - solution automatically initializes current account as default
-- **No Bypass Possible**: UI restrictions reflect actual API-level RBAC enforcement
-- **Enterprise Ready**: Comprehensive audit trails and compliance-ready role documentation
-- **Seamless Integration**: RBAC added without disrupting existing workflows
+- **Automated Tag Synchronization**: EventBridge-scheduled sync from EC2 instances to DRS source servers
+- **Flexible Scheduling**: Configure sync intervals from 15 minutes to 24 hours via Settings modal
+- **Manual Triggers**: Immediate synchronization capability for urgent tag updates
+- **Multi-Region Support**: Automatically processes all 28 commercial AWS DRS regions
+- **EventBridge Fix**: Resolved schedule expression validation error for "1 hour" intervals
+- **Enhanced Protection Groups**: Tag-based server selection now works reliably with synced tags
+- **Real-Time Progress**: Live status updates and comprehensive error handling during sync operations
 
-**[View Complete RBAC Release Notes →](CHANGELOG.md#rbac-prototype-v10---december-31-2025)**
+**[View Complete v1.2.0 Release Notes →](CHANGELOG.md#120---january-1-2026)**
 
 ## Overview
 
@@ -55,6 +55,11 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Enhanced Tag-Based Selection** 🆕: Fixed to query DRS source server tags (not EC2 instance tags) with complete hardware details
 - **Hardware Information Display**: Comprehensive server details including CPU cores, RAM (GiB), and IP address displayed in clean format during server selection
 - **Tag-Based Server Selection**: Define Protection Groups using DRS source server tags (e.g., `DR-Application=HRP`, `DR-Tier=Database`)
+- **Automated Tag Synchronization** 🆕: EventBridge-scheduled sync from EC2 instances to DRS source servers
+  - Configurable schedules (15min to 24hr intervals) via Settings modal
+  - Manual trigger capability for immediate synchronization
+  - Batch processing across all 28 commercial AWS DRS regions
+  - Real-time progress tracking and comprehensive error handling
 - **Visual Server Selection**: Intuitive interface with assignment status indicators and detailed hardware specifications
 - **Conflict Prevention**: Single server per group constraint prevents recovery conflicts; tag conflicts detected automatically
 - **Real-Time Search**: Filter servers by hostname, Server ID, or Protection Group name
@@ -97,6 +102,16 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Dry Run Mode**: Validate import without making changes
 - **Server Validation**: Verifies DRS source servers exist before import
 - **Settings Modal**: Access via gear icon in top navigation bar
+
+### Tag Synchronization 🆕
+
+- **Automated Scheduling**: EventBridge-triggered tag sync from EC2 instances to DRS source servers
+- **Flexible Intervals**: Configure sync schedules from 15 minutes to 24 hours
+- **Manual Triggers**: Immediate synchronization capability for urgent updates
+- **Multi-Region Support**: Processes all 28 commercial AWS DRS regions automatically
+- **Batch Processing**: Handles large server inventories with 10-server chunks
+- **Progress Tracking**: Real-time status updates and comprehensive error reporting
+- **Settings Integration**: Configure via Settings modal accessible from top navigation
 
 ## Architecture
 
