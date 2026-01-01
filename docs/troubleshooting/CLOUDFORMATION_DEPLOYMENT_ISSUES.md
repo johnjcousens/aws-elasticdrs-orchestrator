@@ -128,7 +128,7 @@ flowchart LR
 ./scripts/sync-to-deployment-bucket.sh --deploy-cfn
 
 # Step 3: Verify deployment
-aws cloudformation describe-stacks --stack-name drs-orchestration-dev
+aws cloudformation describe-stacks --stack-name aws-drs-orchestrator-dev
 ```
 
 ### 2. Use Environment Files
@@ -146,7 +146,7 @@ cp .env.test.template .env.dev
 ```bash
 # Verify stack status
 aws cloudformation describe-stacks \
-  --stack-name drs-orchestration-dev \
+  --stack-name aws-drs-orchestrator-dev \
   --query 'Stacks[0].StackStatus'
 
 # Check S3 artifacts are current
@@ -154,7 +154,7 @@ aws s3 ls s3://aws-drs-orchestration/lambda/ --region us-east-1
 
 # Test API endpoint
 API_ENDPOINT=$(aws cloudformation describe-stacks \
-  --stack-name drs-orchestration-dev \
+  --stack-name aws-drs-orchestrator-dev \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
   --output text)
 

@@ -24,7 +24,7 @@ AWS DRS Orchestration provides complete orchestration and management on top of A
 - Step Functions-driven automation with pause/resume capability and existing instance detection
 - Complete DRS source server management (launch settings, EC2 templates, tags, disks, replication, post-launch)
 - Multi-account hub-and-spoke architecture with centralized management
-- React 19 + CloudScape Design System UI with real-time updates and 32 components
+- React 19 + CloudScape Design System UI with real-time updates and 37 components
 - Complete REST API with 42 endpoints for automation and DevOps integration
 - Tag synchronization between EC2 instances and DRS source servers
 - DRS service limits validation and quota monitoring
@@ -732,7 +732,7 @@ Comprehensive security hardening addressing critical vulnerability classes with 
 
 ### 11. User Interface
 
-React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 35+ components and 7 pages.
+React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 37 components and 7 pages.
 
 **Pages**:
 
@@ -778,7 +778,7 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 35+ components a
 
 ## Complete API Reference
 
-The solution provides a comprehensive REST API with 42+ endpoints across 12 categories for complete automation and DevOps integration.
+The solution provides a comprehensive REST API with 42 endpoints across 12 categories for complete automation and DevOps integration.
 
 ### Protection Groups API (7 endpoints)
 - `GET /protection-groups` - List all Protection Groups with server details

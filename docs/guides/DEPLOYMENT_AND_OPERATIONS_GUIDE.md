@@ -220,7 +220,7 @@ Create `parameters.json` file:
 
 ```bash
 # Set variables
-STACK_NAME="drs-orchestration-dev"
+STACK_NAME="aws-drs-orchestrator-dev"
 REGION="us-east-1"
 SOURCE_BUCKET="aws-drs-orchestration"
 
@@ -381,8 +381,8 @@ aws dynamodb list-tables --region $REGION | grep drs-orchestration
 aws lambda list-functions --region $REGION | grep drs-orchestration
 
 # Expected:
-# - drs-orchestration-api-prod
-# - drs-orchestration-orchestration-prod
+# - aws-drs-orchestrator-api-handler-prod
+# - aws-drs-orchestrator-orchestration-stepfunctions-prod
 ```
 
 **Success Criteria**:

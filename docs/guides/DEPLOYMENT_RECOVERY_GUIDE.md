@@ -52,7 +52,7 @@ aws-drs-orchestration/
 
 ### 3. Step Functions Configuration
 
-**State Machine ARN Pattern**: `arn:aws:states:us-east-1:ACCOUNT:stateMachine:drs-orchestration-state-machine-ENV`
+**State Machine ARN Pattern**: `arn:aws:states:us-east-1:ACCOUNT:stateMachine:aws-drs-orchestrator-state-machine-ENV`
 
 **Critical**: Step Functions calls `OrchestrationStepFunctionsFunction`, NOT `OrchestrationFunction`
 
@@ -138,9 +138,9 @@ aws s3 cp deployment-package.zip s3://aws-drs-orchestration/lambda/
 ```bash
 aws cloudformation deploy \
   --template-url https://s3.amazonaws.com/aws-drs-orchestration/cfn/master-template.yaml \
-  --stack-name drs-orchestration-dev \
+  --stack-name aws-drs-orchestrator-dev \
   --parameter-overrides \
-    ProjectName=drs-orchestration \
+    ProjectName=aws-drs-orchestrator \
     Environment=dev \
     SourceBucket=aws-drs-orchestration \
     AdminEmail=admin@example.com \
@@ -204,7 +204,7 @@ aws cognito-idp admin-set-user-password \
 **Check Lambda environment variables**:
 ```bash
 aws lambda get-function-configuration \
-  --function-name drs-orchestration-orchestration-stepfunctions-dev \
+  --function-name aws-drs-orchestrator-orchestration-stepfunctions-dev \
   --query 'Environment.Variables'
 ```
 
@@ -214,11 +214,11 @@ aws lambda get-function-configuration \
 # Verify Step Functions state machine
 aws stepfunctions describe-state-machine \
   --state-machine-arn $(aws stepfunctions list-state-machines \
-    --query 'stateMachines[?name==`drs-orchestration-state-machine-dev`].stateMachineArn' --output text)
+    --query 'stateMachines[?name==`aws-drs-orchestrator-state-machine-dev`].stateMachineArn' --output text)
 
 # Test Lambda function
 aws lambda invoke \
-  --function-name drs-orchestration-orchestration-stepfunctions-dev \
+  --function-name aws-drs-orchestrator-orchestration-stepfunctions-dev \
   --payload '{"action":"begin","execution":"test","plan":{"PlanId":"test"},"isDrill":true}' \
   response.json && cat response.json
 

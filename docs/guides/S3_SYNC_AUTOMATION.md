@@ -230,7 +230,7 @@ AWS_PAGER="" aws s3api list-object-versions \
 
 # Update Lambda with previous version from S3
 aws lambda update-function-code \
-  --function-name drs-orchestration-api-handler-dev \
+  --function-name aws-drs-orchestrator-api-handler-dev \
   --s3-bucket aws-drs-orchestration \
   --s3-key lambda/deployment-package.zip \
   --s3-object-version <previous-version-id>
@@ -304,7 +304,7 @@ cp .env.test.template .env.dev
 **Solution**: Check CloudFormation console for detailed error, or run:
 ```bash
 AWS_PAGER="" aws cloudformation describe-stack-events \
-  --stack-name drs-orchestration-dev \
+  --stack-name aws-drs-orchestrator-dev \
   --query 'StackEvents[?ResourceStatus==`UPDATE_FAILED`]'
 ```
 

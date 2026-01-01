@@ -69,7 +69,7 @@ echo $TOKEN | cut -d'.' -f2 | base64 -d 2>/dev/null | jq '.exp | todate'
 **Debugging**:
 ```bash
 # Check Lambda logs
-AWS_PAGER="" aws logs tail /aws/lambda/drs-orchestration-api-handler-{env} \
+AWS_PAGER="" aws logs tail /aws/lambda/aws-drs-orchestrator-api-handler-{env} \
   --since 5m \
   --region us-east-1
 ```
@@ -79,7 +79,7 @@ AWS_PAGER="" aws logs tail /aws/lambda/drs-orchestration-api-handler-{env} \
 #### Check Lambda Configuration
 ```bash
 AWS_PAGER="" aws lambda get-function-configuration \
-  --function-name drs-orchestration-api-handler-{env} \
+  --function-name aws-drs-orchestrator-api-handler-{env} \
   --query '{Runtime:Runtime,MemorySize:MemorySize,Timeout:Timeout,Environment:Environment.Variables}' \
   --region us-east-1
 ```
@@ -101,7 +101,7 @@ EOF
 
 # Invoke Lambda
 AWS_PAGER="" aws lambda invoke \
-  --function-name drs-orchestration-api-handler-{env} \
+  --function-name aws-drs-orchestrator-api-handler-{env} \
   --payload file:///tmp/test-event.json \
   --cli-binary-format raw-in-base64-out \
   /tmp/response.json \
@@ -261,7 +261,7 @@ AWS_PAGER="" aws cloudtrail lookup-events \
 AWS_PAGER="" aws cloudwatch get-metric-statistics \
   --namespace AWS/Lambda \
   --metric-name Duration \
-  --dimensions Name=FunctionName,Value=drs-orchestration-api-handler-{env} \
+  --dimensions Name=FunctionName,Value=aws-drs-orchestrator-api-handler-{env} \
   --start-time $(date -u -v-1H +%Y-%m-%dT%H:%M:%SZ) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
   --period 300 \
@@ -298,14 +298,14 @@ echo "=== Health Check ==="
 # Check Lambda
 echo "Lambda:"
 AWS_PAGER="" aws lambda get-function \
-  --function-name drs-orchestration-api-handler-$ENV \
+  --function-name aws-drs-orchestrator-api-handler-$ENV \
   --query 'Configuration.{State:State,LastModified:LastModified}' \
   --region $REGION
 
 # Check API Gateway
 echo "API Gateway:"
 API_ID=$(aws apigateway get-rest-apis \
-  --query "items[?name=='drs-orchestration-api-$ENV'].id" \
+  --query "items[?name=='aws-drs-orchestrator-api-$ENV'].id" \
   --output text --region $REGION)
 echo "API ID: $API_ID"
 
@@ -321,7 +321,7 @@ done
 # Check CloudFront
 echo "CloudFront:"
 AWS_PAGER="" aws cloudformation describe-stacks \
-  --stack-name drs-orchestration-$ENV \
+  --stack-name aws-drs-orchestrator-$ENV \
   --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
   --output text --region $REGION
 
@@ -341,14 +341,14 @@ AWS_PAGER="" aws s3api list-object-versions \
 
 # 2. Restore previous Lambda version
 aws lambda update-function-code \
-  --function-name drs-orchestration-api-handler-{env} \
+  --function-name aws-drs-orchestrator-api-handler-{env} \
   --s3-bucket {deployment-bucket} \
   --s3-key lambda/api-handler.zip \
   --s3-object-version {previous-version-id}
 
 # 3. Or rollback CloudFormation
 aws cloudformation rollback-stack \
-  --stack-name drs-orchestration-{env}
+  --stack-name aws-drs-orchestrator-{env}
 ```
 
 ## Additional Resources

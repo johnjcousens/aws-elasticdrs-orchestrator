@@ -67,7 +67,7 @@ Instead of calling API Gateway (which requires Cognito tokens), invoke the Lambd
 ```bash
 # Direct Lambda invocation (no Cognito token needed)
 AWS_PAGER="" aws lambda invoke \
-  --function-name drs-orchestration-api-handler-dev \
+  --function-name aws-drs-orchestrator-api-handler-dev \
   --payload '{"httpMethod":"GET","path":"/recovery-plans"}' \
   --cli-binary-format raw-in-base64-out \
   /tmp/response.json \
@@ -88,8 +88,8 @@ Create an IAM policy that allows invoking the Lambda function:
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
       "Resource": [
-        "arn:aws:lambda:us-east-1:*:function:drs-orchestration-api-handler-*",
-        "arn:aws:lambda:us-east-1:*:function:drs-orchestration-orchestration-*"
+        "arn:aws:lambda:us-east-1:*:function:aws-drs-orchestrator-api-handler-*",
+        "arn:aws:lambda:us-east-1:*:function:aws-drs-orchestrator-orchestration-stepfunctions-*"
       ]
     }
   ]
@@ -129,7 +129,7 @@ def invoke_drs_api(method: str, path: str, body: dict = None, query_params: dict
     }
   
     response = lambda_client.invoke(
-        FunctionName='drs-orchestration-api-handler-dev',
+        FunctionName='aws-drs-orchestrator-api-handler-dev',
         InvocationType='RequestResponse',
         Payload=json.dumps(event)
     )
@@ -172,7 +172,7 @@ print(f"Status: {status.get('status')}")
 #!/bin/bash
 # Direct Lambda invocation without Cognito authentication
 
-FUNCTION_NAME="drs-orchestration-api-handler-dev"
+FUNCTION_NAME="aws-drs-orchestrator-api-handler-dev"
 REGION="us-east-1"
 
 # Function to invoke Lambda directly
@@ -222,7 +222,7 @@ invoke_lambda "POST" "/executions" "{\"recoveryPlanId\":\"${PLAN_ID}\",\"executi
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "drs-orchestration-api-handler-dev",
+        "FunctionName": "aws-drs-orchestrator-api-handler-dev",
         "Payload": {
           "httpMethod": "GET",
           "path": "/recovery-plans",
@@ -252,7 +252,7 @@ invoke_lambda "POST" "/executions" "{\"recoveryPlanId\":\"${PLAN_ID}\",\"executi
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "drs-orchestration-api-handler-dev",
+        "FunctionName": "aws-drs-orchestrator-api-handler-dev",
         "Payload": {
           "httpMethod": "POST",
           "path": "/executions",
@@ -274,7 +274,7 @@ invoke_lambda "POST" "/executions" "{\"recoveryPlanId\":\"${PLAN_ID}\",\"executi
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "drs-orchestration-api-handler-dev",
+        "FunctionName": "aws-drs-orchestrator-api-handler-dev",
         "Payload": {
           "httpMethod": "GET",
           "path.$": "States.Format('/executions/{}', $.execution.executionId)"
@@ -330,7 +330,7 @@ parameters:
     description: IAM role with lambda:InvokeFunction permission
   LambdaFunctionName:
     type: String
-    default: drs-orchestration-api-handler-dev
+    default: aws-drs-orchestrator-api-handler-dev
   RecoveryPlanName:
     type: String
     description: Name of recovery plan to execute
@@ -450,7 +450,7 @@ To allow another AWS account to invoke the Lambda directly:
 ```bash
 # Add resource-based policy to Lambda (run in the account that owns the Lambda)
 aws lambda add-permission \
-  --function-name drs-orchestration-api-handler-dev \
+  --function-name aws-drs-orchestrator-api-handler-dev \
   --statement-id AllowCrossAccountInvoke \
   --action lambda:InvokeFunction \
   --principal 111122223333 \
@@ -529,7 +529,7 @@ All direct Lambda invocations are logged in CloudTrail:
     "arn": "arn:aws:sts::123456789012:assumed-role/MyRole/session"
   },
   "requestParameters": {
-    "functionName": "drs-orchestration-api-handler-dev"
+    "functionName": "aws-drs-orchestrator-api-handler-dev"
   }
 }
 ```
@@ -548,75 +548,186 @@ AWS_PAGER="" aws cloudtrail lookup-events \
 
 ## API Endpoints Reference
 
-Base URL: `https://{api-id}.execute-api.{region}.amazonaws.com/{stage}`
+The AWS DRS Orchestration platform provides a comprehensive REST API with **42+ endpoints** across **12 categories**. All endpoints require Cognito JWT authentication except for health checks and EventBridge-triggered operations.
 
-### Protection Groups
+**Base URL**: `https://{api-id}.execute-api.{region}.amazonaws.com/{stage}`  
+**Authentication**: Cognito JWT Bearer token or direct Lambda invocation  
+**RBAC**: 5 roles with granular permissions (see [RBAC System](#rbac-system))
 
-| Method | Endpoint                            | Description                |
-| ------ | ----------------------------------- | -------------------------- |
-| GET    | `/protection-groups`              | List all protection groups |
-| GET    | `/protection-groups/{id}`         | Get protection group by ID |
-| POST   | `/protection-groups`              | Create protection group    |
-| PUT    | `/protection-groups/{id}`         | Update protection group    |
-| DELETE | `/protection-groups/{id}`         | Delete protection group    |
-| POST   | `/protection-groups/{id}/resolve` | Resolve servers from tags  |
+### 1. Protection Groups (6 endpoints)
 
-### Recovery Plans
+Manage logical groupings of DRS source servers for coordinated recovery.
 
-| Method | Endpoint                              | Description                     |
-| ------ | ------------------------------------- | ------------------------------- |
-| GET    | `/recovery-plans`                   | List all recovery plans         |
-| GET    | `/recovery-plans?name={partial}`    | Filter by name (partial match)  |
-| GET    | `/recovery-plans?nameExact={name}`  | Filter by exact name            |
-| GET    | `/recovery-plans?tag={key}={value}` | Filter by protection group tag  |
-| GET    | `/recovery-plans?hasConflict=false` | Filter by conflict status       |
-| GET    | `/recovery-plans?status={status}`   | Filter by last execution status |
-| GET    | `/recovery-plans/{id}`              | Get recovery plan by ID         |
-| POST   | `/recovery-plans`                   | Create recovery plan            |
-| PUT    | `/recovery-plans/{id}`              | Update recovery plan            |
-| DELETE | `/recovery-plans/{id}`              | Delete recovery plan            |
+| Method | Endpoint                         | Description                                    |
+| ------ | -------------------------------- | ---------------------------------------------- |
+| GET    | `/protection-groups`           | List all protection groups with filtering      |
+| POST   | `/protection-groups`           | Create protection group (explicit or tag-based) |
+| GET    | `/protection-groups/{id}`      | Get protection group details                   |
+| PUT    | `/protection-groups/{id}`      | Update protection group                        |
+| DELETE | `/protection-groups/{id}`      | Delete protection group                        |
+| POST   | `/protection-groups/resolve`   | Preview servers from tag-based selection      |
 
-### Executions
+### 2. Recovery Plans (7 endpoints)
 
-| Method | Endpoint                    | Description             |
-| ------ | --------------------------- | ----------------------- |
-| GET    | `/executions`             | List all executions     |
-| GET    | `/executions/{id}`        | Get execution details   |
-| POST   | `/executions`             | Start new execution     |
-| POST   | `/executions/{id}/cancel` | Cancel execution        |
-| POST   | `/executions/{id}/pause`  | Pause execution         |
-| POST   | `/executions/{id}/resume` | Resume paused execution |
-| DELETE | `/executions/{id}`        | Delete execution record |
+Manage multi-wave disaster recovery execution plans.
 
-### DRS Operations
+| Method | Endpoint                                      | Description                                |
+| ------ | --------------------------------------------- | ------------------------------------------ |
+| GET    | `/recovery-plans`                           | List all recovery plans with filtering     |
+| POST   | `/recovery-plans`                           | Create recovery plan                       |
+| GET    | `/recovery-plans/{id}`                      | Get recovery plan details                  |
+| PUT    | `/recovery-plans/{id}`                      | Update recovery plan                       |
+| DELETE | `/recovery-plans/{id}`                      | Delete recovery plan                       |
+| POST   | `/recovery-plans/{id}/execute`              | Execute recovery plan (start DR)           |
+| GET    | `/recovery-plans/{id}/check-existing-instances` | Check for conflicting recovery instances |
 
-| Method | Endpoint                                | Description                              |
-| ------ | --------------------------------------- | ---------------------------------------- |
-| GET    | `/drs/source-servers?region={region}` | List DRS source servers                  |
-| GET    | `/drs/quotas?region={region}`         | Get DRS service quotas (region required) |
+### 3. Executions (11 endpoints)
 
-### Health Check
+Monitor and control disaster recovery executions with wave-based orchestration.
 
-| Method | Endpoint    | Description                                    |
-| ------ | ----------- | ---------------------------------------------- |
-| GET    | `/health` | Health check endpoint (returns service status) |
+| Method | Endpoint                                      | Description                              |
+| ------ | --------------------------------------------- | ---------------------------------------- |
+| GET    | `/executions`                               | List executions with pagination          |
+| POST   | `/executions`                               | Start new execution                      |
+| GET    | `/executions/{executionId}`                 | Get detailed execution status            |
+| POST   | `/executions/{executionId}/cancel`          | Cancel running execution                 |
+| POST   | `/executions/{executionId}/pause`           | Pause execution before next wave         |
+| POST   | `/executions/{executionId}/resume`          | Resume paused execution                  |
+| POST   | `/executions/{executionId}/terminate-instances` | Terminate recovery instances         |
+| GET    | `/executions/{executionId}/job-logs`        | Get DRS job logs for troubleshooting     |
+| GET    | `/executions/{executionId}/termination-status` | Check instance termination status     |
+| DELETE | `/executions`                               | Bulk delete completed executions         |
+| POST   | `/executions/delete`                        | Delete specific executions by IDs        |
 
-The health endpoint returns:
+### 4. DRS Integration (4 endpoints)
 
-```json
-{
-  "status": "healthy",
-  "service": "drs-orchestration-api"
-}
-```
+Direct integration with AWS Elastic Disaster Recovery service.
 
-### Configuration Export/Import
+| Method | Endpoint                  | Description                                    |
+| ------ | ------------------------- | ---------------------------------------------- |
+| GET    | `/drs/source-servers`   | Discover DRS source servers across regions     |
+| GET    | `/drs/quotas`           | Get DRS service quotas and current usage       |
+| POST   | `/drs/tag-sync`         | Sync EC2 instance tags to DRS source servers   |
+| GET    | `/drs/accounts`         | Get available DRS-enabled accounts             |
+
+### 5. Account Management (6 endpoints)
+
+Manage cross-account DRS operations and target accounts.
+
+| Method | Endpoint                           | Description                              |
+| ------ | ---------------------------------- | ---------------------------------------- |
+| GET    | `/accounts/targets`              | List configured target accounts          |
+| POST   | `/accounts/targets`              | Register new target account              |
+| PUT    | `/accounts/targets/{id}`         | Update target account configuration      |
+| DELETE | `/accounts/targets/{id}`         | Remove target account configuration      |
+| POST   | `/accounts/targets/{id}/validate` | Validate cross-account role permissions |
+| GET    | `/accounts/current`              | Get current account information          |
+
+### 6. EC2 Resources (4 endpoints)
+
+Retrieve EC2 resources for launch configuration dropdowns.
+
+| Method | Endpoint                    | Description                        |
+| ------ | --------------------------- | ---------------------------------- |
+| GET    | `/ec2/subnets`            | List available subnets by region   |
+| GET    | `/ec2/security-groups`    | List security groups by region     |
+| GET    | `/ec2/instance-types`     | List EC2 instance types            |
+| GET    | `/ec2/instance-profiles`  | List IAM instance profiles         |
+
+### 7. Configuration (4 endpoints)
+
+Export and import system configuration for backup and migration.
 
 | Method | Endpoint                      | Description                                      |
 | ------ | ----------------------------- | ------------------------------------------------ |
 | GET    | `/config/export`            | Export all Protection Groups and Recovery Plans  |
 | POST   | `/config/import`            | Import configuration (supports dry-run mode)     |
 | POST   | `/config/import?dryRun=true`| Validate import without making changes           |
+| GET    | `/config/validate`          | Validate current configuration integrity         |
+
+### 8. User Management (1 endpoint)
+
+Manage user permissions and roles.
+
+| Method | Endpoint           | Description                    |
+| ------ | ------------------ | ------------------------------ |
+| GET    | `/users/current` | Get current user profile/roles |
+
+### 9. Health Check (1 endpoint)
+
+System health and status monitoring.
+
+| Method | Endpoint    | Description                                    |
+| ------ | ----------- | ---------------------------------------------- |
+| GET    | `/health` | Health check endpoint (returns service status) |
+
+### 10. RBAC System
+
+The API implements a comprehensive Role-Based Access Control (RBAC) system with 5 roles and 11 granular permissions.
+
+#### Roles (5 Total)
+
+1. **DRSOrchestrationAdmin** - Full administrative access to all operations
+2. **DRSRecoveryManager** - Execute and manage recovery operations with plan modification
+3. **DRSPlanManager** - Create/modify recovery plans and protection groups
+4. **DRSOperator** - Execute recovery operations but cannot modify plans
+5. **DRSReadOnly** - View-only access for monitoring and reporting
+
+#### Permissions (11 Total)
+
+**Account Management:**
+- `register_accounts` - Register new target accounts
+- `delete_accounts` - Remove target accounts
+- `modify_accounts` - Update account configurations
+- `view_accounts` - View account information
+
+**Recovery Operations:**
+- `start_recovery` - Start disaster recovery executions
+- `stop_recovery` - Cancel/pause recovery executions
+- `terminate_instances` - Terminate recovery instances
+- `view_executions` - View execution status and history
+
+**Infrastructure Management:**
+- `create_protection_groups` - Create protection groups
+- `delete_protection_groups` - Delete protection groups
+- `modify_protection_groups` - Update protection groups
+- `view_protection_groups` - View protection groups
+- `create_recovery_plans` - Create recovery plans
+- `delete_recovery_plans` - Delete recovery plans
+- `modify_recovery_plans` - Update recovery plans
+- `view_recovery_plans` - View recovery plans
+
+**Configuration:**
+- `export_configuration` - Export system configuration
+- `import_configuration` - Import system configuration
+
+#### Role-Permission Matrix
+
+| Role | Account Mgmt | Recovery Ops | Infrastructure | Config |
+|------|-------------|-------------|----------------|--------|
+| **Admin** | Full | Full | Full | Full |
+| **Recovery Manager** | Register/Modify | Full | Full | Full |
+| **Plan Manager** | View | Start/Stop | Full | None |
+| **Operator** | View | Start/Stop | Modify Only | None |
+| **Read Only** | View | View | View | None |
+
+#### Authentication Headers
+
+When using Cognito authentication, include the JWT token in requests:
+
+```bash
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+For direct Lambda invocation, RBAC is bypassed but you should include user context:
+
+```json
+{
+  "httpMethod": "POST",
+  "path": "/executions",
+  "body": "{\"recoveryPlanId\":\"xxx\",\"executionType\":\"DRILL\",\"initiatedBy\":\"iam-automation-user\"}"
+}
+```
 
 ---
 
@@ -1298,7 +1409,7 @@ curl -s -H "Authorization: Bearer ${TOKEN}" \
 
 # Direct Lambda invocation (no Cognito token needed)
 AWS_PAGER="" aws lambda invoke \
-  --function-name drs-orchestration-api-handler-dev \
+  --function-name aws-drs-orchestrator-api-handler-dev \
   --payload '{"httpMethod":"GET","path":"/config/export"}' \
   --cli-binary-format raw-in-base64-out \
   /tmp/response.json \
@@ -1453,7 +1564,7 @@ curl -X POST -H "Authorization: Bearer ${TOKEN}" \
 # Direct Lambda invocation (no Cognito token needed)
 CONFIG_JSON=$(cat drs-config-backup.json | jq -c .)
 AWS_PAGER="" aws lambda invoke \
-  --function-name drs-orchestration-api-handler-dev \
+  --function-name aws-drs-orchestrator-api-handler-dev \
   --payload "{\"httpMethod\":\"POST\",\"path\":\"/config/import\",\"queryStringParameters\":{\"dryRun\":\"true\"},\"body\":$(echo $CONFIG_JSON | jq -Rs .)}" \
   --cli-binary-format raw-in-base64-out \
   /tmp/response.json \
@@ -1631,6 +1742,275 @@ All error responses follow this format:
 
 ---
 
+## Advanced Features
+
+### Cross-Account Operations
+
+The API supports cross-account DRS operations, allowing you to manage disaster recovery across multiple AWS accounts.
+
+#### Register Target Account
+
+```bash
+POST /accounts/targets
+Content-Type: application/json
+
+{
+  "accountId": "123456789012",
+  "accountName": "Production Account",
+  "crossAccountRoleArn": "arn:aws:iam::123456789012:role/DRSOrchestrationRole"
+}
+```
+
+#### Cross-Account Protection Group
+
+```bash
+POST /protection-groups
+Content-Type: application/json
+
+{
+  "GroupName": "Cross-Account-Servers",
+  "Description": "Servers in production account",
+  "Region": "us-east-1",
+  "AccountId": "123456789012",
+  "SourceServerIds": ["s-1234567890abcdef0"],
+  "LaunchConfig": {
+    "SubnetId": "subnet-12345678",
+    "SecurityGroupIds": ["sg-12345678"],
+    "InstanceType": "r5.xlarge"
+  }
+}
+```
+
+#### Required Cross-Account IAM Role
+
+The target account must have a role with these permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "drs:DescribeSourceServers",
+        "drs:StartRecovery",
+        "drs:DescribeJobs",
+        "drs:CreateRecoveryInstanceForDrs",
+        "ec2:DescribeInstances",
+        "ec2:DescribeLaunchTemplates",
+        "ec2:CreateLaunchTemplateVersion"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+Trust relationship:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::SOURCE-ACCOUNT:role/DRSOrchestrationLambdaRole"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+### Tag-Based Server Selection
+
+Protection Groups can automatically select servers based on EC2 tags instead of explicit server IDs.
+
+#### Create Tag-Based Protection Group
+
+```bash
+POST /protection-groups
+Content-Type: application/json
+
+{
+  "GroupName": "Production-Web-Servers",
+  "Description": "All production web servers",
+  "Region": "us-east-1",
+  "ServerSelectionTags": {
+    "Environment": "Production",
+    "Tier": "Web",
+    "DR-Enabled": "true"
+  }
+}
+```
+
+#### Preview Tag Selection
+
+Before creating a Protection Group, preview which servers would be selected:
+
+```bash
+POST /protection-groups/resolve
+Content-Type: application/json
+
+{
+  "region": "us-east-1",
+  "serverSelectionTags": {
+    "Environment": "Production",
+    "Tier": "Web"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "servers": [
+    {
+      "sourceServerId": "s-1234567890abcdef0",
+      "hostname": "WEB01",
+      "nameTag": "Production-Web-01",
+      "sourceInstanceId": "i-0123456789abcdef0",
+      "tags": {
+        "Environment": "Production",
+        "Tier": "Web",
+        "Name": "Production-Web-01"
+      }
+    }
+  ],
+  "matchedTags": {
+    "Environment": "Production",
+    "Tier": "Web"
+  }
+}
+```
+
+#### Tag Sync Automation
+
+Enable automatic synchronization of EC2 tags to DRS source servers:
+
+```bash
+POST /drs/tag-sync
+Content-Type: application/json
+
+{
+  "regions": ["us-east-1", "us-west-2"],
+  "dryRun": false
+}
+```
+
+### Wave-Based Execution with Pause/Resume
+
+Recovery Plans support wave-based execution with pause points for manual validation.
+
+#### Create Plan with Pause Points
+
+```bash
+POST /recovery-plans
+Content-Type: application/json
+
+{
+  "PlanName": "Staged-Recovery",
+  "Description": "Recovery with manual validation points",
+  "Waves": [
+    {
+      "waveNumber": 1,
+      "name": "Database Tier",
+      "protectionGroupId": "pg-database",
+      "pauseBeforeWave": false
+    },
+    {
+      "waveNumber": 2,
+      "name": "Application Tier",
+      "protectionGroupId": "pg-application",
+      "pauseBeforeWave": true,
+      "dependsOn": [1]
+    },
+    {
+      "waveNumber": 3,
+      "name": "Web Tier",
+      "protectionGroupId": "pg-web",
+      "pauseBeforeWave": true,
+      "dependsOn": [2]
+    }
+  ]
+}
+```
+
+#### Execution Flow with Pauses
+
+1. **Start Execution** - Wave 1 begins immediately
+2. **Wave 1 Completes** - Execution pauses before Wave 2
+3. **Manual Validation** - Verify database tier is healthy
+4. **Resume Execution** - Wave 2 begins
+5. **Wave 2 Completes** - Execution pauses before Wave 3
+6. **Manual Validation** - Verify application tier is healthy
+7. **Resume Execution** - Wave 3 begins and completes
+
+#### Resume Paused Execution
+
+```bash
+POST /executions/{executionId}/resume
+```
+
+### Conflict Detection
+
+The API automatically detects server conflicts and prevents overlapping assignments.
+
+#### Server Conflict Example
+
+```bash
+POST /protection-groups
+Content-Type: application/json
+
+{
+  "GroupName": "Duplicate-Servers",
+  "SourceServerIds": ["s-1234567890abcdef0"]  // Already assigned to another group
+}
+```
+
+**Response (409 Conflict):**
+```json
+{
+  "error": "SERVER_CONFLICT",
+  "message": "Server s-1234567890abcdef0 is already assigned to protection group 'Database-Servers'",
+  "details": {
+    "conflictingServers": [
+      {
+        "serverId": "s-1234567890abcdef0",
+        "existingGroupId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "existingGroupName": "Database-Servers"
+      }
+    ]
+  }
+}
+```
+
+#### Recovery Plan Conflict Check
+
+Before executing a recovery plan, check for existing recovery instances:
+
+```bash
+GET /recovery-plans/{id}/check-existing-instances
+```
+
+**Response:**
+```json
+{
+  "hasConflicts": true,
+  "existingInstances": [
+    {
+      "sourceServerId": "s-1234567890abcdef0",
+      "recoveryInstanceId": "i-recovery123456",
+      "state": "running",
+      "launchedAt": "2025-01-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ## CLI Integration
 
 ### Environment Setup
@@ -1770,7 +2150,7 @@ This walkthrough demonstrates a complete export/delete/reimport cycle using dire
 
 ```bash
 # Set Lambda function name and region
-export LAMBDA_FUNCTION="drs-orchestration-api-handler-dev"
+export LAMBDA_FUNCTION="aws-drs-orchestrator-api-handler-dev"
 export AWS_REGION="us-east-1"
 
 # Helper function for Lambda invocation
@@ -1923,7 +2303,7 @@ Save this as `scripts/config-backup-restore.sh`:
 
 set -e
 
-LAMBDA_FUNCTION="${LAMBDA_FUNCTION:-drs-orchestration-api-handler-dev}"
+LAMBDA_FUNCTION="${LAMBDA_FUNCTION:-aws-drs-orchestrator-api-handler-dev}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 BACKUP_FILE="${BACKUP_FILE:-drs-config-backup.json}"
 
@@ -2192,7 +2572,7 @@ mainSteps:
     inputs:
       Service: lambda
       Api: Invoke
-      FunctionName: drs-orchestration-api-handler-prod
+      FunctionName: aws-drs-orchestrator-api-handler-prod
       Payload: '{"httpMethod":"GET","path":"/executions/{{StartExecution.ExecutionId}}"}'
       PropertySelector: $.Payload.status
       DesiredValues:
