@@ -219,6 +219,17 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-api-handler-${Environment}'
+        - PolicyName: EventBridgeAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:DescribeRule
+                  - events:PutRule
+                  - events:EnableRule
+                  - events:DisableRule
+                Resource: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-tag-sync-schedule-${Environment}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -586,6 +597,8 @@ Resources:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !If 
             - HasStateMachineArn
             - !Ref StateMachineArn
