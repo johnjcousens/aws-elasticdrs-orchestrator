@@ -15,6 +15,7 @@ interface Props {
 }
 
 function getProgressStatus(current: number, max: number): 'in-progress' | 'error' {
+  if (max <= 0) return 'in-progress';
   const percentage = (current / max) * 100;
   return percentage >= 90 ? 'error' : 'in-progress';
 }

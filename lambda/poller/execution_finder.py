@@ -351,7 +351,7 @@ def invoke_pollers_for_executions(executions: List[Dict[str, Any]]) -> Dict[str,
             )
             
             logger.info(
-                f"Invoked Execution Poller for {execution_id}, "
+                f"Invoked Execution Poller for {str(execution_id).replace('\n', '').replace('\r', '')}, "
                 f"StatusCode: {response['StatusCode']}"
             )
             
