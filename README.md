@@ -22,6 +22,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 - **EventBridge Fix**: Resolved schedule expression validation error for "1 hour" intervals
 - **Enhanced Protection Groups**: Tag-based server selection now works reliably with synced tags
 - **Real-Time Progress**: Live status updates and comprehensive error handling during sync operations
+- **Enterprise Security** 🆕: Multi-layer security validation for EventBridge authentication bypass (v1.2.1)
 
 **[View Complete v1.2.0 Release Notes →](CHANGELOG.md#120---january-1-2026)**
 
@@ -112,6 +113,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Batch Processing**: Handles large server inventories with 10-server chunks
 - **Progress Tracking**: Real-time status updates and comprehensive error reporting
 - **Settings Integration**: Configure via Settings modal accessible from top navigation
+- **Enterprise Security**: Multi-layer security validation for EventBridge authentication bypass with comprehensive audit logging
 
 ## Architecture
 
@@ -430,6 +432,33 @@ The platform has been hardened against multiple security vulnerabilities with co
 - **Type Safety**: Improved TypeScript usage and fixed syntax errors for better compile-time security
 
 All security fixes have been deployed to production and are actively protecting the platform against these vulnerability classes.
+
+### EventBridge Security Validation (v1.2.1)
+
+Enhanced security validation for automated tag synchronization ensures EventBridge requests are legitimate while maintaining operational security:
+
+#### Multi-Layer Security Validation
+
+- **Source IP Validation**: Verify EventBridge requests originate from legitimate AWS sources (`sourceIp: 'eventbridge'`)
+- **Request Structure Validation**: Prevent direct Lambda invocation attempts by validating API Gateway context
+- **Authentication Header Validation**: Reject requests with unexpected Authorization headers to prevent bypass abuse
+- **EventBridge Rule Name Validation**: Verify rule names match expected patterns (`aws-drs-orchestrator-tag-sync-schedule-*`)
+- **Invocation Source Verification**: Validate `invocationSource` equals 'EVENTBRIDGE' for automated requests
+
+#### Security Audit Logging
+
+- **Comprehensive Request Logging**: Log requestId, stage, accountId, and rule name for all EventBridge requests
+- **Security Event Tracking**: Detailed audit trail for monitoring and compliance
+- **Attack Prevention Logging**: Log and reject invalid EventBridge attempts for security monitoring
+
+#### Zero Trust Authentication Bypass
+
+- **Scoped Access**: Only `/drs/tag-sync` endpoint allows EventBridge authentication bypass
+- **Multiple Validation Layers**: Prevent authentication bypass abuse through comprehensive validation
+- **Complete Audit Trail**: All EventBridge requests logged with security-relevant information
+- **Attack Surface Reduction**: Minimal bypass scope with maximum security validation
+
+This security model enables automated tag synchronization while maintaining enterprise-grade security standards and complete audit compliance.
 
 ## Documentation
 

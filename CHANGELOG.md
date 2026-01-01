@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - January 1, 2026
+
+### Security
+- **Enhanced EventBridge Security Validation**: Multi-layer security validation for automated tag synchronization
+  - **Source IP Validation**: Verify EventBridge requests originate from legitimate sources
+  - **Request Structure Validation**: Prevent direct Lambda invocation attempts
+  - **Authentication Header Validation**: Reject requests with unexpected Authorization headers
+  - **EventBridge Rule Name Validation**: Verify rule names match expected patterns
+  - **Comprehensive Security Audit Logging**: Complete audit trail for all EventBridge requests
+  - **Zero Trust Model**: EventBridge authentication bypass validated through multiple security layers
+
+### Fixed
+- **EventBridge Authentication Bypass**: Resolved 401 Unauthorized errors for scheduled tag synchronization
+  - Moved EventBridge detection before authentication checks in Lambda handler
+  - Scoped authentication bypass to only `/drs/tag-sync` endpoint
+  - Maintained security through comprehensive validation layers
+  - Enabled automated hourly tag synchronization without manual intervention
+
+### Enhanced
+- **Security Monitoring**: Enhanced CloudWatch logging for EventBridge security events
+- **Attack Prevention**: Multiple validation layers prevent authentication bypass abuse
+- **Compliance**: Complete audit trail for security reviews and monitoring
+- **Operational Reliability**: Automated tag sync now works consistently without manual intervention
+
 ## [1.2.0] - January 1, 2026
 
 ### Added
