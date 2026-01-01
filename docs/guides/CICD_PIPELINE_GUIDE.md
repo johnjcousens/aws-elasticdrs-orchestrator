@@ -387,7 +387,7 @@ aws cloudformation cancel-update-stack --stack-name drs-orchestration-test
 # Option 3: Restore previous Lambda version from S3
 aws s3api list-object-versions --bucket aws-drs-orchestration --prefix lambda/api-handler.zip
 aws lambda update-function-code \
-  --function-name drs-orchestration-api-handler-test \
+  --function-name aws-drs-orchestrator-api-handler-test \
   --s3-bucket aws-drs-orchestration \
   --s3-key lambda/api-handler.zip \
   --s3-object-version <previous-version-id>

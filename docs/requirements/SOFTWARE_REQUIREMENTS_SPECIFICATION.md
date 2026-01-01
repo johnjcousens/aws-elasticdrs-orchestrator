@@ -1210,7 +1210,7 @@ Authorization: Bearer {id_token}
 
 ### API Endpoints Summary
 
-Based on the current implementation in `lambda/index.py`, the system provides **42 REST API endpoints** across **9 categories**:
+Based on the current implementation in `lambda/index.py`, the system provides **42 REST API endpoints** across **12 categories**:
 
 #### Protection Groups (5 endpoints)
 
