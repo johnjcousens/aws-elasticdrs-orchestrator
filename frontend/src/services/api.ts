@@ -936,6 +936,41 @@ class ApiClient {
   }
 
   // ============================================================================
+  // Tag Sync Configuration API
+  // ============================================================================
+
+  /**
+   * Get current tag sync configuration settings
+   */
+  public async getTagSyncSettings(): Promise<{
+    enabled: boolean;
+    intervalHours: number;
+    scheduleExpression: string;
+    ruleName: string;
+    lastModified: string | null;
+    message?: string;
+  }> {
+    return this.get('/config/tag-sync');
+  }
+
+  /**
+   * Update tag sync configuration settings
+   */
+  public async updateTagSyncSettings(settings: {
+    enabled: boolean;
+    intervalHours?: number;
+  }): Promise<{
+    message: string;
+    enabled: boolean;
+    intervalHours: number;
+    scheduleExpression: string;
+    ruleName: string;
+    lastModified: string | null;
+  }> {
+    return this.put('/config/tag-sync', settings);
+  }
+
+  // ============================================================================
   // Health Check API
   // ============================================================================
 
@@ -975,5 +1010,7 @@ export const {
   deleteCompletedExecutions,
   exportConfiguration,
   importConfiguration,
+  getTagSyncSettings,
+  updateTagSyncSettings,
   healthCheck,
 } = apiClient;

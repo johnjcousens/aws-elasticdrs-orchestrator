@@ -603,6 +603,8 @@ def update_wave_status(event: Dict) -> Dict:
         # Check server launch status
         launched_count = 0
         failed_count = 0
+        launching_count = 0
+        converting_count = 0
         server_statuses = []
         
         for server in participating_servers:
@@ -622,9 +624,85 @@ def update_wave_status(event: Dict) -> Dict:
                 launched_count += 1
             elif launch_status in DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES:
                 failed_count += 1
+            elif launch_status == 'IN_PROGRESS':
+                # Check if it's launching or converting phase
+                # This is determined by looking at the job events or server state
+                launching_count += 1
+            elif launch_status == 'PENDING':
+                # Could be converting or initial phase
+                converting_count += 1
         
         total_servers = len(participating_servers)
-        print(f"Progress: {launched_count}/{total_servers} launched, {failed_count} failed")
+        print(f"Progress: {launched_count}/{total_servers} launched, {failed_count} failed, {launching_count} launching, {converting_count} converting")
+        
+        # Get job events to determine current phase
+        job_events = []
+        try:
+            events_response = drs_client.describe_job_log_items(jobID=job_id)
+            job_events = events_response.get('items', [])
+        except Exception as e:
+            print(f"Warning: Could not fetch job events: {e}")
+        
+        # Determine current phase from recent job events
+        current_phase = 'STARTED'
+        recent_events = sorted(job_events, key=lambda x: x.get('eventDateTime', ''), reverse=True)[:10]
+        
+        for event in recent_events:
+            event_type = event.get('event', '').upper()
+            if 'LAUNCHING' in event_type or 'LAUNCH' in event_type:
+                current_phase = 'LAUNCHING'
+                break
+            elif 'CONVERSION' in event_type and 'STARTED' in event_type:
+                current_phase = 'CONVERTING'
+                break
+        
+        print(f"Current phase determined from events: {current_phase}")
+        
+        # Check server launch status
+        launched_count = 0
+        failed_count = 0
+        launching_count = 0
+        converting_count = 0
+        server_statuses = []
+        
+        for server in participating_servers:
+            server_id = server.get('sourceServerID')
+            launch_status = server.get('launchStatus', 'PENDING')
+            recovery_instance_id = server.get('recoveryInstanceID')
+            
+            print(f"Server {server_id}: {launch_status}")
+            
+            server_statuses.append({
+                'SourceServerId': server_id,
+                'LaunchStatus': launch_status,
+                'RecoveryInstanceID': recovery_instance_id
+            })
+            
+            if launch_status in DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES:
+                launched_count += 1
+            elif launch_status in DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES:
+                failed_count += 1
+            elif launch_status == 'IN_PROGRESS':
+                # Check if it's launching or converting phase
+                # This is determined by looking at the job events or server state
+                launching_count += 1
+            elif launch_status == 'PENDING':
+                # Could be converting or initial phase
+                converting_count += 1
+        
+        total_servers = len(participating_servers)
+        print(f"Progress: {launched_count}/{total_servers} launched, {failed_count} failed, {launching_count} launching, {converting_count} converting")
+        
+        # Determine current wave status based on phase and server statuses
+        current_wave_status = current_phase
+        
+        if launched_count > 0 and launched_count < total_servers:
+            current_wave_status = 'IN_PROGRESS'
+        
+        # Update wave status in DynamoDB if it has changed from STARTED
+        if current_wave_status != 'STARTED':
+            print(f"Updating wave {wave_number} status to {current_wave_status}")
+            update_wave_in_dynamodb(execution_id, plan_id, wave_number, current_wave_status, server_statuses)
         
         # Check if job completed but no instances created
         if job_status == 'COMPLETED' and launched_count == 0:
