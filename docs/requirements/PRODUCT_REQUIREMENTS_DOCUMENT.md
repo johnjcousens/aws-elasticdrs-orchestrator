@@ -1,16 +1,16 @@
 # Product Requirements Document
 # AWS DRS Orchestration Solution
 
-**Version**: 2.0  
-**Date**: December 30, 2025  
-**Status**: MVP Drill Only Prototype - Core Drill Functionality Complete  
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete  
 **Document Owner**: AWS DRS Orchestration Team
 
 ---
 
 ## Executive Summary
 
-AWS DRS Orchestration is a production-ready, enterprise-grade serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, comprehensive DRS source server management, multi-account support, tag-based server selection, and complete audit trails.
+AWS DRS Orchestration is a production-ready, enterprise-grade serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, comprehensive DRS source server management, multi-account support, tag-based server selection, automated tag synchronization with EventBridge scheduling, enterprise security validation, and complete audit trails.
 
 ### Problem Statement
 
@@ -280,24 +280,59 @@ Fixed and enhanced tag-based server selection with DRS source server tags and co
 
 ### 8. DRS Tag Synchronization
 
-Automated synchronization of EC2 instance tags to DRS source servers across all regions.
+Automated synchronization of EC2 instance tags to DRS source servers across all regions with EventBridge scheduling and enterprise security validation.
 
 **Capabilities**:
-- **Bulk Tag Sync**: Synchronize tags from EC2 instances to corresponding DRS source servers
-- **Cross-Region Support**: Sync tags across all 30 DRS-supported regions
+- **Automated Scheduling**: EventBridge-triggered synchronization with configurable intervals (15 minutes to 24 hours)
+- **Manual Triggers**: Immediate synchronization capability for urgent tag updates
+- **Cross-Region Support**: Sync tags across all 30 DRS-supported regions automatically
+- **Batch Processing**: Handles large server inventories with 10-server chunks to avoid API limits
+- **Progress Monitoring**: Real-time progress tracking with detailed status updates and comprehensive error handling
 - **Selective Sync**: Choose specific servers or sync all servers in a region
-- **Progress Monitoring**: Real-time progress tracking with detailed status updates
 - **Conflict Resolution**: Handle tag conflicts and validation errors gracefully
 - **Audit Trail**: Complete logging of sync operations and results
+- **Settings Integration**: Configure sync schedules via Settings modal in top navigation
+
+**EventBridge Integration**:
+- **Scheduled Execution**: EventBridge rules trigger tag sync at configured intervals
+- **Rule Management**: Automatic creation and management of EventBridge rules
+- **Schedule Validation**: Proper rate expression validation (singular/plural forms)
+- **Source Detection**: Differentiate between manual UI triggers and automated EventBridge triggers
+- **Invocation Tracking**: Complete audit trail of sync invocation sources
 
 **Sync Process**:
 1. Discover DRS source servers across specified regions
 2. Match DRS servers to EC2 instances by source server ID
 3. Compare existing tags and identify differences
-4. Apply tag updates to DRS source servers
+4. Apply tag updates to DRS source servers in batches
 5. Report sync results with success/failure counts
+6. Update execution history with detailed progress
+
+**Security Model**:
+- **Multi-Layer Security Validation**: Comprehensive security validation for EventBridge authentication bypass
+- **Source IP Validation**: Verify EventBridge requests originate from legitimate AWS sources
+- **Request Structure Validation**: Prevent direct Lambda invocation attempts
+- **Authentication Header Validation**: Reject requests with unexpected Authorization headers
+- **EventBridge Rule Name Validation**: Verify rule names match expected patterns
+- **Comprehensive Security Audit Logging**: Complete audit trail for all EventBridge requests
+- **Zero Trust Authentication Bypass**: Scoped access with maximum security validation
+- **Attack Surface Reduction**: Minimal bypass scope limited to `/drs/tag-sync` endpoint only
 
 **API Endpoints**:
+- `POST /drs/tag-sync` - Sync EC2 tags to DRS source servers with progress tracking (supports EventBridge authentication bypass with security validation)
+- `PUT /settings/tag-sync-schedule` - Configure EventBridge sync schedule
+- `POST /tag-sync/trigger` - Manual trigger for immediate synchronization
+
+**EventBridge Security Validation**:
+The system implements enterprise-grade security validation for EventBridge authentication bypass:
+
+1. **Primary Detection**: Verify `sourceIp` equals 'eventbridge' and `invocationSource` equals 'EVENTBRIDGE'
+2. **Context Validation**: Ensure request has valid API Gateway context (requestId, stage)
+3. **Header Validation**: Reject requests with unexpected Authorization headers
+4. **Rule Validation**: Verify EventBridge rule name matches expected pattern (`aws-drs-orchestrator-tag-sync-schedule-*`)
+5. **Audit Logging**: Log all security-relevant information including requestId, stage, accountId, and rule name
+
+This security model enables automated tag synchronization while maintaining enterprise-grade security standards and complete audit compliance.
 - `POST /drs/tag-sync` - Sync EC2 tags to DRS source servers with progress tracking
 
 ### 9. Configuration Management
