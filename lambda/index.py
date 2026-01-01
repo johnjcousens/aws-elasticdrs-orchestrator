@@ -4016,6 +4016,63 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     return execution
 
 
+def recalculate_execution_status(execution: Dict) -> Dict:
+    """
+    Recalculate overall execution status based on current wave statuses.
+    This ensures the execution status accurately reflects the state of individual waves.
+    """
+    waves = execution.get('Waves', [])
+    if not waves:
+        return execution
+    
+    # Count waves by status
+    active_statuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING']
+    terminal_statuses = ['COMPLETED', 'FAILED', 'CANCELLED']
+    
+    active_waves = []
+    completed_waves = []
+    failed_waves = []
+    cancelled_waves = []
+    
+    for wave in waves:
+        wave_status = (wave.get('Status') or '').upper()
+        if wave_status in active_statuses:
+            active_waves.append(wave)
+        elif wave_status == 'COMPLETED':
+            completed_waves.append(wave)
+        elif wave_status == 'FAILED':
+            failed_waves.append(wave)
+        elif wave_status == 'CANCELLED':
+            cancelled_waves.append(wave)
+    
+    # Determine overall execution status
+    current_status = execution.get('Status', '').upper()
+    
+    # If any waves are still active, execution should be active
+    if active_waves:
+        # Keep execution as active - don't change to terminal state
+        if current_status in ['COMPLETED', 'FAILED', 'CANCELLED', 'PARTIAL']:
+            print(f"WARNING: Execution {execution.get('ExecutionId')} has active waves but status is {current_status}")
+            # Don't change status - let Step Functions orchestration handle it
+        return execution
+    
+    # All waves are in terminal states
+    if failed_waves and not active_waves:
+        # Some waves failed
+        if completed_waves:
+            execution['Status'] = 'PARTIAL'  # Some completed, some failed
+        else:
+            execution['Status'] = 'FAILED'   # All failed
+    elif cancelled_waves and not active_waves and not failed_waves:
+        # All waves cancelled
+        execution['Status'] = 'CANCELLED'
+    elif completed_waves and not active_waves and not failed_waves and not cancelled_waves:
+        # All waves completed successfully
+        execution['Status'] = 'COMPLETED'
+    
+    return execution
+
+
 def get_execution_details(execution_id: str) -> Dict:
     """Get detailed information about a specific execution"""
     try:
@@ -4093,6 +4150,10 @@ def get_execution_details(execution_id: str) -> Dict:
                     execution['EndTime'] = int(time.time())
             except Exception as e:
                 print(f"Error getting Step Functions status: {str(e)}")
+        
+        # CRITICAL FIX: Recalculate execution status based on current wave statuses
+        # This ensures the overall execution status reflects the actual state of waves
+        execution = recalculate_execution_status(execution)
         
         # CONSISTENCY FIX: Transform to camelCase for frontend (same as list_executions)
         # This ensures ALL API endpoints return consistent camelCase format
