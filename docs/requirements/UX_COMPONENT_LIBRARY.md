@@ -2,9 +2,9 @@
 
 ## AWS DRS Orchestration System
 
-**Version**: 2.0  
-**Date**: December 30, 2025  
-**Status**: MVP Drill Only Prototype
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete
 
 ---
 
@@ -241,10 +241,26 @@ This document specifies all 32 custom components required to build the AWS DRS O
 - Support transition animations
 
 ### SettingsModal (`SettingsModal.tsx`)
-**Build Requirements**: Create application settings interface
+**Build Requirements**: Create application settings interface with tag synchronization configuration
 - Must handle user preferences and configuration
-- Provide modal-based settings panel
-- Include settings persistence
+- Provide modal-based settings panel with tabbed interface
+- Include settings persistence and real-time updates
+- **Tag Sync Configuration**: EventBridge schedule configuration with interval selection (15min to 24hr)
+- **Manual Sync Triggers**: Immediate tag synchronization capability with progress tracking
+- **Security Audit Display**: Show EventBridge security validation status and audit logs
+- **Schedule Status**: Display current sync schedule and next execution time
+
+**Tag Sync Panel Requirements**:
+- Schedule interval selector with predefined options (15min, 30min, 1hr, 2hr, 4hr, 8hr, 12hr, 24hr)
+- Manual trigger button with loading state and progress indication
+- Last sync status display with timestamp and result summary
+- EventBridge rule status indicator (enabled/disabled/error)
+- Security validation status with audit trail access
+
+**API Integration**:
+- `PUT /settings/tag-sync-schedule` - Configure sync schedule
+- `POST /tag-sync/trigger` - Manual sync trigger
+- `GET /settings/tag-sync-status` - Get current sync status and history
 
 ---
 
