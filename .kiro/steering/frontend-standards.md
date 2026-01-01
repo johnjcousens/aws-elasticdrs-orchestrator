@@ -1,4 +1,4 @@
-# Frontend Design Consistency Rules
+# Frontend Standards
 
 ## CRITICAL: Always Follow AWS CloudScape Design System
 
@@ -178,6 +178,8 @@ const STANDARD_ICONS = {
 <SpaceBetween size="xs">    // Between inline elements
 ```
 
+**Sizes**: `xxxs` (2px), `xxs` (4px), `xs` (8px), `s` (12px), `m` (16px), `l` (20px), `xl` (24px), `xxl` (32px)
+
 ### 2. Container Padding (CLOUDSCAPE DEFAULT)
 ```typescript
 // NEVER override container padding - use CloudScape defaults
@@ -227,40 +229,94 @@ const STANDARD_ICONS = {
 >
 ```
 
+### 3. Select Components
+```typescript
+<FormField label="Region">
+  <Select
+    selectedOption={selectedRegion}
+    onChange={({ detail }) => setSelectedRegion(detail.selectedOption)}
+    options={[
+      { value: 'us-east-1', label: 'US East (N. Virginia)' },
+      { value: 'us-west-2', label: 'US West (Oregon)' },
+    ]}
+    placeholder="Select a region"
+  />
+</FormField>
+```
+
+### 4. Multiselect Components
+```typescript
+<FormField label="Servers">
+  <Multiselect
+    selectedOptions={selectedServers}
+    onChange={({ detail }) => setSelectedServers(detail.selectedOptions)}
+    options={servers.map(s => ({ value: s.id, label: s.hostname }))}
+    placeholder="Select servers"
+    filteringType="auto"
+  />
+</FormField>
+```
+
 ## Table Design Rules
 
 ### 1. Table Structure (MANDATORY)
 ```typescript
-// ALWAYS use this table structure
-<Table
-  items={items}
-  columnDefinitions={columnDefinitions}
-  loading={loading}
-  loadingText="Loading..."
-  empty={
-    <Box textAlign="center" color="inherit">
-      <b>No items</b>
-      <Box padding={{ bottom: 's' }} variant="p" color="inherit">
-        No items to display.
-      </Box>
-    </Box>
-  }
-  header={
-    <Header
-      counter={`(${items.length})`}
-      actions={
-        <SpaceBetween direction="horizontal" size="xs">
-          <Button iconName="refresh" onClick={onRefresh} />
-          <Button variant="primary" iconName="add-plus" onClick={onCreate}>
-            Create
-          </Button>
-        </SpaceBetween>
+// ALWAYS use this table structure with Collection Hooks
+import { useCollection } from '@cloudscape-design/collection-hooks';
+
+const MyTable: React.FC<{ items: Item[] }> = ({ items }) => {
+  const { items: filteredItems, collectionProps, filterProps, paginationProps } = useCollection(
+    items,
+    {
+      filtering: {
+        empty: <EmptyState title="No items" />,
+        noMatch: <EmptyState title="No matches" />,
+      },
+      pagination: { pageSize: 25 },
+      sorting: {
+        defaultState: {
+          sortingColumn: { sortingField: 'name' },
+          isDescending: false,
+        },
+      },
+      selection: {},
+    }
+  );
+
+  return (
+    <Table
+      {...collectionProps}
+      columnDefinitions={columnDefinitions}
+      items={filteredItems}
+      loading={loading}
+      loadingText="Loading items..."
+      header={
+        <Header
+          counter={`(${items.length})`}
+          actions={<Button variant="primary">Create</Button>}
+        >
+          Items
+        </Header>
       }
-    >
-      Table Title
-    </Header>
-  }
-/>
+      filter={
+        <TextFilter
+          {...filterProps}
+          filteringPlaceholder="Search items"
+          countText={`${filteredItems.length} matches`}
+        />
+      }
+      pagination={<Pagination {...paginationProps} />}
+      empty={
+        <Box textAlign="center" color="inherit">
+          <SpaceBetween size="m">
+            <b>No items</b>
+            <Button onClick={handleCreate}>Create item</Button>
+          </SpaceBetween>
+        </Box>
+      }
+    />
+  );
+};
 ```
 
 ### 2. Column Definition Pattern (STANDARD)
@@ -273,11 +329,13 @@ const columnDefinitions = [
     cell: (item) => item.name,
     sortingField: 'name',
     isRowHeader: true,
+    width: 200,
   },
   {
     id: 'status',
     header: 'Status',
     cell: (item) => <StatusBadge status={item.status} />,
+    width: 120,
   },
   {
     id: 'actions',
@@ -288,6 +346,7 @@ const columnDefinitions = [
         <Button variant="icon" iconName="remove" onClick={() => onDelete(item)} />
       </SpaceBetween>
     ),
+    width: 150,
   },
 ];
 ```
@@ -317,6 +376,38 @@ const columnDefinitions = [
 >
   {/* Modal content */}
 </Modal>
+```
+
+**Modal Sizes**: `small` (300px), `medium` (600px), `large` (900px), `max` (1200px)
+
+### 2. Confirmation Dialog Pattern
+```typescript
+const ConfirmDialog: React.FC<{
+  visible: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading?: boolean;
+}> = ({ visible, title, message, onConfirm, onCancel, loading }) => (
+  <Modal
+    visible={visible}
+    onDismiss={onCancel}
+    header={title}
+    footer={
+      <Box float="right">
+        <SpaceBetween direction="horizontal" size="xs">
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" onClick={onConfirm} loading={loading}>
+            Confirm
+          </Button>
+        </SpaceBetween>
+      </Box>
+    }
+  >
+    {message}
+  </Modal>
+);
 ```
 
 ## Loading State Rules
@@ -393,16 +484,29 @@ toast.success('Done!', { id: toastId });
 ### 2. Flashbar Notifications (CLOUDSCAPE)
 ```typescript
 // USE Flashbar for persistent notifications
-<Flashbar
-  items={[
+const [notifications, setNotifications] = useState<FlashbarProps.MessageDefinition[]>([]);
+
+const addNotification = (type: 'success' | 'error' | 'warning' | 'info', content: string) => {
+  const id = Date.now().toString();
+  setNotifications(prev => [
+    ...prev,
     {
-      type: 'success',
+      type,
+      content,
       dismissible: true,
-      header: 'Success',
-      content: 'Operation completed successfully',
+      onDismiss: () => removeNotification(id),
+      id,
     },
-  ]}
-/>
+  ]);
+
+  // Auto-dismiss success notifications
+  if (type === 'success') {
+    setTimeout(() => removeNotification(id), 5000);
+  }
+};
+
+// Usage
+<Flashbar items={notifications} />
 ```
 
 ## Typography Rules
@@ -425,10 +529,9 @@ toast.success('Done!', { id: toastId });
 
 ## Region Selector Rules
 
-### 1. DRS Regions (COMPLETE LIST - 30 TOTAL: 28 COMMERCIAL + 2 GOVCLOUD)
+### 1. DRS Regions (COMPLETE LIST - 30 REGIONS)
 ```typescript
 // ALWAYS use this complete DRS regions list (verified December 2025)
-// Note: GovCloud regions (us-gov-east-1, us-gov-west-1) require separate accounts
 const DRS_REGIONS = [
   // Americas (6)
   { value: 'us-east-1', label: 'us-east-1 (N. Virginia)' },
@@ -462,6 +565,9 @@ const DRS_REGIONS = [
   { value: 'me-central-1', label: 'me-central-1 (UAE)' },
   { value: 'af-south-1', label: 'af-south-1 (Cape Town)' },
   { value: 'il-central-1', label: 'il-central-1 (Tel Aviv)' },
+  // GovCloud (2)
+  { value: 'us-gov-east-1', label: 'us-gov-east-1 (GovCloud East)' },
+  { value: 'us-gov-west-1', label: 'us-gov-west-1 (GovCloud West)' },
 ];
 ```
 
@@ -515,6 +621,8 @@ import {
   Badge,
   Spinner,
 } from '@cloudscape-design/components';
+
+import { useCollection } from '@cloudscape-design/collection-hooks';
 ```
 
 ## CSS Rules
@@ -568,17 +676,116 @@ export const initializeTheme = () => {
 // CloudScape provides complete AWS-branded design system
 ```
 
-## Responsive Design Rules
+## Application Setup
 
-### 1. CloudScape Responsive (AUTOMATIC)
+### Main Entry Point
 ```typescript
-// CloudScape components are responsive by default
-// NEVER add custom responsive CSS
+// main.tsx
+import '@cloudscape-design/global-styles/index.css';
+import { createRoot } from 'react-dom/client';
+import App from './App';
 
-// USE ColumnLayout for responsive grids
-<ColumnLayout columns={4} variant="text-grid">
-  {/* Automatically responsive */}
-</ColumnLayout>
+createRoot(document.getElementById('root')!).render(<App />);
+```
+
+### App Layout
+```typescript
+// App.tsx
+import { AppLayout, SideNavigation, BreadcrumbGroup, Flashbar } from '@cloudscape-design/components';
+
+export const App: React.FC = () => {
+  const [notifications, setNotifications] = useState([]);
+
+  return (
+    <AppLayout
+      navigation={<Navigation />}
+      content={<Routes />}
+      breadcrumbs={<Breadcrumbs />}
+      notifications={<Flashbar items={notifications} />}
+      toolsHide={true}
+    />
+  );
+};
+```
+
+## Navigation Components
+
+### 1. SideNavigation
+```typescript
+<SideNavigation
+  activeHref={location.pathname}
+  items={[
+    { type: 'link', text: 'Dashboard', href: '/' },
+    { type: 'link', text: 'Protection Groups', href: '/protection-groups' },
+    { type: 'link', text: 'Recovery Plans', href: '/recovery-plans' },
+    { type: 'link', text: 'Executions', href: '/executions' },
+    { type: 'divider' },
+    { type: 'link', text: 'Settings', href: '/settings' },
+  ]}
+  onFollow={(event) => {
+    event.preventDefault();
+    navigate(event.detail.href);
+  }}
+/>
+```
+
+### 2. BreadcrumbGroup
+```typescript
+<BreadcrumbGroup
+  items={[
+    { text: 'Home', href: '/' },
+    { text: 'Protection Groups', href: '/protection-groups' },
+    { text: 'Edit', href: '#' },
+  ]}
+  onFollow={(event) => {
+    event.preventDefault();
+    navigate(event.detail.href);
+  }}
+/>
+```
+
+### 3. Tabs
+```typescript
+<Tabs
+  activeTabId={activeTab}
+  onChange={({ detail }) => setActiveTab(detail.activeTabId)}
+  tabs={[
+    { id: 'details', label: 'Details', content: <DetailsTab /> },
+    { id: 'servers', label: 'Servers', content: <ServersTab /> },
+    { id: 'history', label: 'History', content: <HistoryTab /> },
+  ]}
+/>
+```
+
+## Status Components
+
+### StatusIndicator
+```typescript
+<StatusIndicator type="success">Completed</StatusIndicator>
+<StatusIndicator type="error">Failed</StatusIndicator>
+<StatusIndicator type="warning">Warning</StatusIndicator>
+<StatusIndicator type="info">Info</StatusIndicator>
+<StatusIndicator type="pending">Pending</StatusIndicator>
+<StatusIndicator type="in-progress">In Progress</StatusIndicator>
+<StatusIndicator type="loading">Loading</StatusIndicator>
+```
+
+### Badge
+```typescript
+<Badge color="green">Active</Badge>
+<Badge color="red">Inactive</Badge>
+<Badge color="blue">New</Badge>
+<Badge color="grey">Unknown</Badge>
+```
+
+### ProgressBar
+```typescript
+<ProgressBar
+  value={75}
+  label="Progress"
+  description="75% complete"
+  status="in-progress"
+/>
 ```
 
 ## Accessibility Rules
@@ -594,6 +801,22 @@ export const initializeTheme = () => {
 >
   <Input ariaLabel="Descriptive label" />
 </FormField>
+```
+
+### 2. ARIA Labels
+```typescript
+<Button
+  iconName="edit"
+  ariaLabel="Edit protection group"
+  onClick={handleEdit}
+/>
+
+<Input
+  value={search}
+  onChange={handleSearch}
+  ariaLabel="Search protection groups"
+  placeholder="Search..."
+/>
 ```
 
 ## Performance Rules
@@ -684,3 +907,29 @@ Before creating any new component or page:
 - [ ] Maintains AWS console look and feel
 - [ ] No custom CSS overrides
 - [ ] Responsive by default (CloudScape handles this)
+
+## Component Reference
+
+**Total Application Components: 32**
+
+### Page Components (7)
+- LoginPage, Dashboard, GettingStartedPage, ProtectionGroupsPage, RecoveryPlansPage, ExecutionsPage, ExecutionDetailsPage
+
+### Reusable Components (16)
+- Layout: AppLayout, ContentLayout, ErrorBoundary, ErrorFallback, ErrorState, LoadingState, CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute
+- Dialogs: ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog
+- Server Management: ServerSelector, ServerDiscoveryPanel, ServerListItem
+- Form Controls: RegionSelector, WaveConfigEditor
+- Status Display: StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus
+- Execution: ExecutionDetails
+
+### DRS Source Server Management Components (9)
+- LaunchSettingsDialog, EC2TemplateEditor, TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor, ServerInfoPanel, PitPolicyEditor, JobEventsTimeline
+
+## Resources
+
+- [CloudScape Components](https://cloudscape.design/components/)
+- [CloudScape Patterns](https://cloudscape.design/patterns/)
+- [Design Tokens](https://cloudscape.design/foundation/visual-foundation/design-tokens/)
+- [Collection Hooks](https://cloudscape.design/get-started/dev-guides/collection-hooks/)
+- [Accessibility](https://cloudscape.design/foundation/core-principles/accessibility/)

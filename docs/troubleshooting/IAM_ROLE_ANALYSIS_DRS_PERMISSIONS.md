@@ -409,7 +409,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 ```bash
 # Verify stack is deployed
 aws cloudformation describe-stacks \
-  --stack-name drs-orchestration-dev \
+  --stack-name aws-drs-orchestrator-dev \
   --region us-east-1
 
 # Check Lambda functions

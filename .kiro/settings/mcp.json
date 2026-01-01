@@ -10,7 +10,16 @@
         "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP",
         "DIAGRAM_OUTPUT_DIR": "./docs/architecture"
       },
-      "disabled": false
+      "disabled": false,
+      "autoApprove": [
+        "analyze_diagram",
+        "analyze_diagram",
+        "generate_ad_dns_diagram",
+        "generate_ad_dns_diagram",
+        "generate_from_template",
+        "generate_from_template",
+        "generate_ec2_s3_diagram"
+      ]
     },
     "context-historian": {
       "command": "python3",

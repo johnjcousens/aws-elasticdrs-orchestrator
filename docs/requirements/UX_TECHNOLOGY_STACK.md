@@ -48,8 +48,8 @@
 | Package | Version | Installation | Purpose |
 |---------|---------|-------------|---------|
 | typescript | 5.9.3 | `npm install -D typescript@5.9.3` | TypeScript compiler |
-| @types/react | 19.1.16 | `npm install -D @types/react@19.1.16` | React type definitions |
-| @types/react-dom | 19.1.9 | `npm install -D @types/react-dom@19.1.9` | React DOM type definitions |
+| @types/react | 19.0.1 | `npm install -D @types/react@19.0.1` | React type definitions |
+| @types/react-dom | 19.0.1 | `npm install -D @types/react-dom@19.0.1` | React DOM type definitions |
 | eslint | 9.36.0 | `npm install -D eslint@9.36.0` | Code linting |
 | typescript-eslint | 8.45.0 | `npm install -D typescript-eslint@8.45.0` | TypeScript ESLint rules |
 
@@ -96,7 +96,7 @@ npm install react-router-dom@7.9.5 axios@1.13.2 react-hot-toast@2.6.0 date-fns@4
 # Development dependencies
 npm install -D @vitejs/plugin-react@5.0.4 vitest@3.2.4 \
   @vitest/coverage-v8@3.2.4 jsdom@27.3.0 eslint@9.36.0 \
-  typescript-eslint@8.45.0 @types/react@19.1.16 @types/react-dom@19.1.9
+  typescript-eslint@8.45.0 @types/react@19.0.1 @types/react-dom@19.0.1
 ```
 
 ---

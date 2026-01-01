@@ -2,14 +2,26 @@
 
 Complete REST API documentation for AWS DRS Orchestration Solution.
 
-## Authentication
+**Current Implementation**: 42+ endpoints across 12 categories  
+**Authentication**: Cognito JWT Bearer tokens  
+**RBAC**: 5 roles with granular permissions  
+**Last Updated**: January 1, 2026
 
-All API requests require a valid Cognito JWT token:
+## Authentication & Authorization
+
+All API requests require a valid Cognito JWT token and appropriate RBAC permissions:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   https://your-api-endpoint.execute-api.us-east-1.amazonaws.com/prod/protection-groups
 ```
+
+### RBAC Roles
+- **DRSOrchestrationAdmin** - Full administrative access
+- **DRSRecoveryManager** - Execute and manage recovery operations  
+- **DRSPlanManager** - Create/modify recovery plans and protection groups
+- **DRSOperator** - Execute recovery but not modify plans
+- **DRSReadOnly** - View-only access for monitoring
 
 ## Core Endpoints
 
@@ -62,7 +74,9 @@ curl -H "Authorization: Bearer $TOKEN" \
 | POST   | `/executions/{id}/cancel`              | Cancel running execution |
 | POST   | `/executions/{id}/terminate-instances` | Terminate recovery instances after drill completion |
 | GET    | `/executions/{id}/job-logs`            | Get DRS job logs for execution with real-time updates |
-| DELETE | `/executions`                          | Bulk delete selected executions |
+| GET    | `/executions/{id}/termination-status`  | Check status of instance termination job |
+| DELETE | `/executions`                          | Bulk delete completed executions |
+| POST   | `/executions/delete`                   | Delete specific executions by IDs |
 **Query Parameters for GET `/executions`:**
 - `planId` - Filter by recovery plan ID
 - `status` - Filter by execution status
@@ -121,13 +135,19 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ### Target Accounts
 
-| Method | Endpoint                    | Description                    |
-| ------ | --------------------------- | ------------------------------ |
-| GET    | `/accounts/targets`       | List registered target accounts for cross-account orchestration |
-| POST   | `/accounts/targets`       | Register new target account with cross-account role |
-| PUT    | `/accounts/targets/{id}`  | Update target account configuration |
-| DELETE | `/accounts/targets/{id}`  | Unregister target account |
-| GET    | `/accounts/targets/{id}/validate` | Validate cross-account role access |
+| Method | Endpoint                              | Description                    |
+| ------ | ------------------------------------- | ------------------------------ |
+| GET    | `/accounts/targets`                 | List registered target accounts for cross-account orchestration |
+| POST   | `/accounts/targets`                 | Register new target account with cross-account role |
+| PUT    | `/accounts/targets/{id}`            | Update target account configuration |
+| DELETE | `/accounts/targets/{id}`            | Unregister target account |
+| POST   | `/accounts/targets/{id}/validate`   | Validate cross-account role access |
+
+### Current Account
+
+| Method | Endpoint              | Description                    |
+| ------ | --------------------- | ------------------------------ |
+| GET    | `/accounts/current` | Get current account information |
 
 ## Configuration Management
 
@@ -142,6 +162,19 @@ curl -H "Authorization: Bearer $TOKEN" \
 - `includeExecutions` - Include execution history (default: false)
 - `accountId` - Export only resources for specific account
 - `format` - Export format: json, yaml (default: json)
+
+### Tag Sync Settings
+
+| Method | Endpoint              | Description                           |
+| ------ | --------------------- | ------------------------------------- |
+| GET    | `/config/tag-sync`  | Get tag synchronization settings |
+| PUT    | `/config/tag-sync`  | Update tag synchronization settings |
+
+### User Management
+
+| Method | Endpoint              | Description                           |
+| ------ | --------------------- | ------------------------------------- |
+| GET    | `/user/permissions` | Get current user's roles and permissions |
 
 ### Health Check
 

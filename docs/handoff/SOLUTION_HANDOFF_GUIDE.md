@@ -78,7 +78,7 @@ cd ../tests/python && pip install -r requirements.txt
 
 ```bash
 # Check stack status
-aws cloudformation describe-stacks --stack-name drs-orchestration-dev --region us-east-1
+aws cloudformation describe-stacks --stack-name aws-drs-orchestrator-dev --region us-east-1
 
 # Test frontend
 # URL from CloudFormation outputs: CloudFrontUrl
@@ -440,10 +440,10 @@ export const newEndpoint = async (data: NewEndpointRequest): Promise<NewEndpoint
 ### Debug Commands
 ```bash
 # Check CloudFormation stack
-aws cloudformation describe-stacks --stack-name drs-orchestration-dev
+aws cloudformation describe-stacks --stack-name aws-drs-orchestrator-dev
 
 # View Lambda logs
-aws logs tail /aws/lambda/drs-orchestration-api-handler-dev --follow
+aws logs tail /aws/lambda/aws-drs-orchestrator-api-handler-dev --follow
 
 # Check S3 sync status
 aws s3 ls s3://aws-drs-orchestration/lambda/ --region us-east-1
