@@ -648,6 +648,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const hasJobId = !!wave.jobId;
         const waveJobLogs = jobLogs[waveNum];
         const isLoadingLogs = loadingLogs[waveNum];
+        const waveDuration = useMemo(() => calculateWaveDuration(wave, executionStatus, executionEndTime), [wave, executionStatus, executionEndTime]);
         
         return (
           <Container key={wave.waveNumber ?? index}>
@@ -673,7 +674,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
                       Started {formatRelativeTime(wave.startTime)}
                       {' • '}
-                      Duration: {calculateWaveDuration(wave, executionStatus, executionEndTime)}
+                      Duration: {waveDuration}
                       {wave.jobId && (
                         <span> • Job: <code style={{ fontSize: '11px' }}>{wave.jobId}</code></span>
                       )}

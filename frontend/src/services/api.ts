@@ -36,9 +36,10 @@ const API_TIMEOUT = 30000; // 30 seconds
  * authentication token injection and error handling.
  */
 class ApiClient {
+  private static instance: ApiClient;
   private axiosInstance: AxiosInstance;
 
-  constructor() {
+  private constructor() {
     // Don't read endpoint here - will be set dynamically in interceptor
     this.axiosInstance = axios.create({
       timeout: API_TIMEOUT,
@@ -48,6 +49,13 @@ class ApiClient {
     });
 
     this.setupInterceptors();
+  }
+
+  public static getInstance(): ApiClient {
+    if (!ApiClient.instance) {
+      ApiClient.instance = new ApiClient();
+    }
+    return ApiClient.instance;
   }
 
   /**
@@ -175,7 +183,8 @@ class ApiClient {
             window.location.href = '/login';
           } else if (status === 403) {
             // Forbidden - insufficient permissions
-            console.error('Permission denied:', data);
+            const sanitizedData = typeof data === 'string' ? data.replace(/[\r\n]/g, '') : JSON.stringify(data).replace(/[\r\n]/g, '');
+            console.error('Permission denied:', sanitizedData);
           } else if (status === 409 && data?.error === 'VERSION_CONFLICT') {
             // Optimistic locking conflict - resource was modified by another user
             const versionError = new Error(data?.message || 'Resource was modified by another user. Please refresh and try again.');
@@ -186,7 +195,8 @@ class ApiClient {
             throw versionError;
           } else if (status >= 500) {
             // Server error - provide specific messages based on status code
-            console.error('Server error:', data);
+            const sanitizedData = typeof data === 'string' ? data.replace(/[\r\n]/g, '') : JSON.stringify(data).replace(/[\r\n]/g, '');
+            console.error('Server error:', sanitizedData);
             let serverErrorMessage = data?.message;
             
             if (!serverErrorMessage) {
@@ -216,7 +226,8 @@ class ApiClient {
           throw new Error(errorMessage);
         } else if (error.request) {
           // Request made but no response received
-          console.error('No response from server:', error.request);
+          const sanitizedRequest = JSON.stringify(error.request).replace(/[\r\n]/g, '');
+          console.error('No response from server:', sanitizedRequest);
           
           // Provide more specific error messages based on error type
           if (error.code === 'ECONNABORTED') {
@@ -230,7 +241,8 @@ class ApiClient {
           }
         } else {
           // Something else happened
-          console.error('Request error:', error.message);
+          const sanitizedMessage = String(error.message || '').replace(/[\r\n]/g, '');
+          console.error('Request error:', sanitizedMessage);
           
           // Provide more descriptive error for common issues
           if (error.message?.includes('CORS')) {
@@ -547,8 +559,13 @@ class ApiClient {
     }
 
     // Max duration reached - fetch final status
-    const finalExecution = await this.getExecution(executionId);
-    return finalExecution;
+    try {
+      const finalExecution = await this.getExecution(executionId);
+      return finalExecution;
+    } catch (error) {
+      console.error('Error fetching final execution status:', error);
+      throw new Error('Failed to retrieve final execution status after polling timeout');
+    }
   }
 
   /**
@@ -931,7 +948,7 @@ class ApiClient {
 }
 
 // Create singleton instance
-const apiClient = new ApiClient();
+const apiClient = ApiClient.getInstance();
 
 // Export the singleton instance
 export default apiClient;

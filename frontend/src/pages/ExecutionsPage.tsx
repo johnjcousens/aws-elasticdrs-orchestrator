@@ -87,7 +87,7 @@ export const ExecutionsPage: React.FC = () => {
 
   useEffect(() => {
     const hasActiveExecutions = executions.some((e) => {
-      const status = e.status.toLowerCase();
+      const status = String(e.status || '').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
       return ['in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated'].includes(status);
     });
     if (!hasActiveExecutions) return;
@@ -131,15 +131,15 @@ export const ExecutionsPage: React.FC = () => {
         return;
       }
 
-      // Debug: Log selected items and their statuses
+      // Debug: Log selected items and their statuses (sanitized)
       console.log('Selected items for deletion:', selectedItems.map(item => ({
-        executionId: item.executionId,
-        status: item.status,
-        recoveryPlanName: item.recoveryPlanName
+        executionId: String(item.executionId).replace(/[^a-zA-Z0-9-_]/g, ''),
+        status: String(item.status).replace(/[^a-zA-Z0-9_]/g, ''),
+        recoveryPlanName: String(item.recoveryPlanName || '').replace(/[^a-zA-Z0-9-_ ]/g, '')
       })));
 
       // Delete selected executions by ID
-      const executionIds = selectedItems.map(item => item.executionId);
+      const executionIds = selectedItems.map(item => String(item.executionId).replace(/[^a-zA-Z0-9-_]/g, ''));
       console.log('Calling deleteExecutions with IDs:', executionIds);
       
       const result = await apiClient.deleteExecutions(executionIds);
@@ -181,7 +181,7 @@ export const ExecutionsPage: React.FC = () => {
   };
 
   const activeExecutions = executions.filter((e) => {
-    const status = e.status.toUpperCase();
+    const status = String(e.status || '').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
     // Include standard active statuses
     if (['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'PAUSED', 'RUNNING'].includes(status)) {
       return true;
@@ -194,7 +194,7 @@ export const ExecutionsPage: React.FC = () => {
   });
 
   const historyExecutions = executions.filter((e) => {
-    const status = e.status.toUpperCase();
+    const status = String(e.status || '').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
     const isTerminal = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'ROLLED_BACK', 'TIMEOUT'].includes(status);
     if (!isTerminal) return false;
     
@@ -356,7 +356,7 @@ export const ExecutionsPage: React.FC = () => {
                       </Container>
                     ) : (
                       activeExecutions.map((execution) => (
-                        <Container key={execution.executionId} header={<Header variant="h2">{execution.recoveryPlanName}</Header>}>
+                        <Container key={execution.executionId} header={<Header variant="h2">{String(execution.recoveryPlanName || '').replace(/[<>"'&]/g, '')}</Header>}>
                           <SpaceBetween size="m">
                             <SpaceBetween direction="horizontal" size="m">
                               <StatusBadge status={execution.status} />
@@ -476,10 +476,10 @@ export const ExecutionsPage: React.FC = () => {
                         {(startDate || endDate) && (
                           <Box color="text-body-secondary" fontSize="body-s">
                             {startDate && endDate 
-                              ? `Showing executions from ${startDate} to ${endDate}`
+                              ? `Showing executions from ${String(startDate).replace(/[^0-9\-\/]/g, '')} to ${String(endDate).replace(/[^0-9\-\/]/g, '')}`
                               : startDate 
-                                ? `Showing executions from ${startDate} onwards`
-                                : `Showing executions up to ${endDate}`
+                                ? `Showing executions from ${String(startDate).replace(/[^0-9\-\/]/g, '')} onwards`
+                                : `Showing executions up to ${String(endDate).replace(/[^0-9\-\/]/g, '')}`
                             }
                           </Box>
                         )}
@@ -490,7 +490,7 @@ export const ExecutionsPage: React.FC = () => {
                       {...collectionProps}
                       columnDefinitions={[
                         { id: 'actions', header: 'Actions', cell: (item) => <Button variant="inline-link" iconName="external" onClick={() => handleViewDetails(item)}>View</Button>, width: 70 },
-                        { id: 'plan', header: 'Plan Name', cell: (item) => item.recoveryPlanName || '-', sortingField: 'recoveryPlanName', width: 180 },
+                        { id: 'plan', header: 'Plan Name', cell: (item) => String(item.recoveryPlanName || '-').replace(/[<>"'&]/g, ''), sortingField: 'recoveryPlanName', width: 180 },
                         { id: 'status', header: 'Status', cell: (item) => <StatusBadge status={item.status} />, width: 110 },
                         { 
                           id: 'source', 

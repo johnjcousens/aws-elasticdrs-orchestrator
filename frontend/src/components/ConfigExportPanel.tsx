@@ -35,7 +35,8 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
       
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `drs-orchestration-config-${timestamp}.json`;
+      const sanitizedTimestamp = String(timestamp).replace(/[^a-zA-Z0-9\-]/g, '');
+      const filename = `drs-orchestration-config-${sanitizedTimestamp}.json`;
       
       // Create blob and trigger download
       const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
@@ -43,6 +44,7 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
+      link.setAttribute('rel', 'noopener noreferrer');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -53,7 +55,7 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to export configuration';
       setError(message);
-      toast.error(message);
+      toast.error('Failed to export configuration');
     } finally {
       setLoading(false);
     }

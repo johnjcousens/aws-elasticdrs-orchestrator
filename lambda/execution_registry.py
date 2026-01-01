@@ -127,28 +127,49 @@ def register_execution(event: Dict) -> Dict:
 
 def build_initiated_by(source: str, details: Dict) -> str:
     """Build human-readable InitiatedBy string for display"""
+    import re
+    
+    def sanitize_input(value: str) -> str:
+        """Sanitize user input to prevent XSS"""
+        if not isinstance(value, str):
+            return 'unknown'
+        # Remove potentially dangerous characters
+        sanitized = re.sub(r'[<>"\'\/\\&]', '', str(value))
+        return sanitized[:50] if sanitized else 'unknown'
+    
     if source == 'UI':
-        return details.get('userEmail', 'UI User')
+        email = sanitize_input(details.get('userEmail', 'UI User'))
+        return email
     elif source == 'CLI':
         user = details.get('iamUser') or details.get('correlationId', 'unknown')
+        user = sanitize_input(user)
         return f"cli:{user}"
     elif source == 'EVENTBRIDGE':
-        rule = details.get('scheduleRuleName', 'unknown')
+        rule = sanitize_input(details.get('scheduleRuleName', 'unknown'))
         return f"schedule:{rule}"
     elif source == 'SSM':
-        doc = details.get('ssmDocumentName', 'unknown')
+        doc = sanitize_input(details.get('ssmDocumentName', 'unknown'))
         return f"ssm:{doc}"
     elif source == 'STEPFUNCTIONS':
-        parent = details.get('parentExecutionId', 'unknown')
+        parent = sanitize_input(details.get('parentExecutionId', 'unknown'))
         return f"stepfunctions:{parent[:8]}..." if len(parent) > 8 else f"stepfunctions:{parent}"
     else:
-        correlation = details.get('correlationId', 'unknown')
+        correlation = sanitize_input(details.get('correlationId', 'unknown'))
         return f"api:{correlation}"
 
 
 def update_execution(event: Dict) -> Dict:
     """Update execution status, waves, or other fields"""
     execution_id = event['executionId']
+    
+    # Validate execution_id to prevent injection
+    if not isinstance(execution_id, str) or not execution_id.strip():
+        raise ValueError("Invalid execution ID format")
+    
+    # Sanitize execution_id (should be UUID format)
+    import re
+    if not re.match(r'^[a-fA-F0-9-]{36}$', execution_id.strip()):
+        raise ValueError(f"Invalid execution ID format: {execution_id}")
     
     update_parts = ['LastUpdated = :updated']
     expr_names = {}
@@ -158,7 +179,7 @@ def update_execution(event: Dict) -> Dict:
     if 'status' in event:
         update_parts.append('#status = :status')
         expr_names['#status'] = 'Status'
-        expr_values[':status'] = event['status']
+        expr_values[':status'] = str(event['status'])  # Ensure string type
     
     # Waves update
     if 'waves' in event:
@@ -168,29 +189,30 @@ def update_execution(event: Dict) -> Dict:
     # Total waves
     if 'totalWaves' in event:
         update_parts.append('TotalWaves = :totalWaves')
-        expr_values[':totalWaves'] = event['totalWaves']
+        expr_values[':totalWaves'] = int(event['totalWaves'])  # Ensure integer type
     
     # Total servers
     if 'totalServers' in event:
         update_parts.append('TotalServers = :totalServers')
-        expr_values[':totalServers'] = event['totalServers']
+        expr_values[':totalServers'] = int(event['totalServers'])  # Ensure integer type
     
     # Current wave
     if 'currentWave' in event:
         update_parts.append('CurrentWave = :currentWave')
-        expr_values[':currentWave'] = event['currentWave']
+        expr_values[':currentWave'] = int(event['currentWave'])  # Ensure integer type
     
     # Error message
     if 'errorMessage' in event:
         update_parts.append('ErrorMessage = :errorMessage')
-        expr_values[':errorMessage'] = event['errorMessage']
+        expr_values[':errorMessage'] = str(event['errorMessage'])  # Ensure string type
     
     update_expr = 'SET ' + ', '.join(update_parts)
     
     update_kwargs = {
-        'Key': {'ExecutionId': execution_id},
+        'Key': {'ExecutionId': execution_id.strip()},
         'UpdateExpression': update_expr,
-        'ExpressionAttributeValues': expr_values
+        'ExpressionAttributeValues': expr_values,
+        'ConditionExpression': 'attribute_exists(ExecutionId)'
     }
     
     if expr_names:
@@ -253,7 +275,8 @@ def complete_execution(event: Dict) -> Dict:
         Key={'ExecutionId': execution_id},
         UpdateExpression=update_expr,
         ExpressionAttributeNames=expr_names,
-        ExpressionAttributeValues=expr_values
+        ExpressionAttributeValues=expr_values,
+        ConditionExpression='attribute_exists(ExecutionId)'
     )
     
     print(f"Completed execution {execution_id} with status {status}")
@@ -269,7 +292,18 @@ def get_execution(event: Dict) -> Dict:
     """Get execution by ID"""
     execution_id = event['executionId']
     
-    result = execution_table.get_item(Key={'ExecutionId': execution_id})
+    # Validate execution_id format to prevent injection
+    if not isinstance(execution_id, str) or not execution_id.strip():
+        raise ValueError("Invalid execution ID format")
+    
+    # Sanitize execution_id (should be UUID format)
+    import re
+    if not re.match(r'^[a-f0-9-]{36}$', execution_id.strip()):
+        raise ValueError(f"Invalid execution ID format: {execution_id}")
+    
+    result = execution_table.get_item(
+        Key={'ExecutionId': execution_id.strip()}
+    )
     item = result.get('Item')
     
     if not item:

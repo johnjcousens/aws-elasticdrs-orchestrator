@@ -420,7 +420,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         return
     
     try:
-        pg_response = get_protection_groups_table().get_item(Key={'GroupId': protection_group_id})
+        pg_response = get_protection_groups_table().get_item(
+            Key={'GroupId': protection_group_id}
+        )
         if 'Item' not in pg_response:
             print(f"Protection Group {protection_group_id} not found")
             state['wave_completed'] = True
@@ -491,7 +493,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             get_execution_history_table().update_item(
                 Key={'ExecutionId': execution_id, 'PlanId': state['plan_id']},
                 UpdateExpression='SET Waves = list_append(if_not_exists(Waves, :empty), :wave)',
-                ExpressionAttributeValues={':empty': [], ':wave': [wave_result]}
+                ExpressionAttributeValues={':empty': [], ':wave': [wave_result]},
+                ConditionExpression='attribute_exists(ExecutionId)'
             )
         except Exception as e:
             print(f"Error updating wave start in DynamoDB: {e}")
@@ -535,7 +538,8 @@ def update_wave_status(event: Dict) -> Dict:
                     Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                     UpdateExpression='SET #status = :status, EndTime = :end',
                     ExpressionAttributeNames={'#status': 'Status'},
-                    ExpressionAttributeValues={':status': 'CANCELLED', ':end': int(time.time())}
+                    ExpressionAttributeValues={':status': 'CANCELLED', ':end': int(time.time())},
+                    ConditionExpression='attribute_exists(ExecutionId)'
                 )
                 return state
         except Exception as e:
@@ -705,7 +709,8 @@ def update_wave_status(event: Dict) -> Dict:
                         Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                         UpdateExpression='SET #status = :status, EndTime = :end',
                         ExpressionAttributeNames={'#status': 'Status'},
-                        ExpressionAttributeValues={':status': 'CANCELLED', ':end': int(time.time())}
+                        ExpressionAttributeValues={':status': 'CANCELLED', ':end': int(time.time())},
+                        ConditionExpression='attribute_exists(ExecutionId)'
                     )
                     return state
             except Exception as e:
@@ -727,7 +732,8 @@ def update_wave_status(event: Dict) -> Dict:
                         Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                         UpdateExpression='SET #status = :status, PausedBeforeWave = :wave',
                         ExpressionAttributeNames={'#status': 'Status'},
-                        ExpressionAttributeValues={':status': 'PAUSED', ':wave': next_wave}
+                        ExpressionAttributeValues={':status': 'PAUSED', ':wave': next_wave},
+                        ConditionExpression='attribute_exists(ExecutionId)'
                     )
                     return state
                 
@@ -747,7 +753,8 @@ def update_wave_status(event: Dict) -> Dict:
                     Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                     UpdateExpression='SET #status = :status, EndTime = :end',
                     ExpressionAttributeNames={'#status': 'Status'},
-                    ExpressionAttributeValues={':status': 'COMPLETED', ':end': end_time}
+                    ExpressionAttributeValues={':status': 'COMPLETED', ':end': end_time},
+                    ConditionExpression='attribute_exists(ExecutionId)'
                 )
         
         elif failed_count > 0:
@@ -784,7 +791,8 @@ def update_wave_in_dynamodb(execution_id: str, plan_id: str, wave_number: int,
     """Update wave status in DynamoDB"""
     try:
         exec_response = get_execution_history_table().get_item(
-            Key={'ExecutionId': execution_id, 'PlanId': plan_id}
+            Key={'ExecutionId': execution_id, 'PlanId': plan_id},
+            ConditionExpression='attribute_exists(ExecutionId)'
         )
         
         if 'Item' in exec_response:
@@ -799,7 +807,8 @@ def update_wave_in_dynamodb(execution_id: str, plan_id: str, wave_number: int,
             get_execution_history_table().update_item(
                 Key={'ExecutionId': execution_id, 'PlanId': plan_id},
                 UpdateExpression='SET Waves = :waves',
-                ExpressionAttributeValues={':waves': waves}
+                ExpressionAttributeValues={':waves': waves},
+                ConditionExpression='attribute_exists(ExecutionId)'
             )
     except Exception as e:
         print(f"Error updating wave in DynamoDB: {e}")

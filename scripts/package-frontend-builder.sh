@@ -15,7 +15,7 @@ echo "================================================"
 
 # Create temporary directory
 TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
+trap 'rm -rf $TEMP_DIR' EXIT
 
 cd "$TEMP_DIR"
 

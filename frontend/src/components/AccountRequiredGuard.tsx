@@ -22,11 +22,13 @@ import { useAccount } from '../contexts/AccountContext';
 interface AccountRequiredGuardProps {
   children: React.ReactNode;
   feature?: string; // Name of the feature being blocked
+  onRefresh?: () => void; // Optional refresh callback
 }
 
 export const AccountRequiredGuard: React.FC<AccountRequiredGuardProps> = ({
   children,
   feature = 'this feature',
+  onRefresh,
 }) => {
   const { selectedAccount, availableAccounts, accountsLoading } = useAccount();
 
@@ -58,7 +60,7 @@ export const AccountRequiredGuard: React.FC<AccountRequiredGuardProps> = ({
           <Box textAlign="center">
             <Button
               variant="primary"
-              onClick={() => window.location.reload()}
+              onClick={onRefresh || (() => window.location.reload())}
               iconName="refresh"
             >
               Refresh Page

@@ -14,7 +14,10 @@ NC='\033[0m' # No Color
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TEMPLATE_DIR="$PROJECT_ROOT/templates"
+TEMPLATE_DIR="$PROJECT_ROOT/cfn"
+if [[ ! -d "$TEMPLATE_DIR" ]]; then
+    TEMPLATE_DIR="$PROJECT_ROOT/templates"
+fi
 
 # Global variables
 FAILED_TESTS=0

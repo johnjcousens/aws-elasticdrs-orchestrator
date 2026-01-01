@@ -491,18 +491,24 @@ export const Dashboard: React.FC = () => {
             >
               {executions.length > 0 ? (
                 <SpaceBetween size="xs">
-                  {executions.slice(0, 5).map((exec) => (
-                    <Box key={exec.executionId} padding="xs">
+                  {executions.slice(0, 5).map((exec) => {
+                    // Sanitize user-controlled data to prevent command injection
+                    const sanitizedExecutionId = String(exec.executionId || '').replace(/[^a-zA-Z0-9-]/g, '');
+                    const sanitizedStatus = String(exec.status || '').replace(/[^a-zA-Z0-9_]/g, '');
+                    const sanitizedPlanName = String(exec.recoveryPlanName || exec.recoveryPlanId || '').replace(/[<>"'&]/g, '');
+                    
+                    return (
+                    <Box key={sanitizedExecutionId} padding="xs">
                       <SpaceBetween direction="horizontal" size="m">
-                        <StatusIndicator type={getStatusType(exec.status)}>
-                          {STATUS_LABELS[exec.status] || exec.status}
+                        <StatusIndicator type={getStatusType(sanitizedStatus)}>
+                          {STATUS_LABELS[sanitizedStatus] || sanitizedStatus}
                         </StatusIndicator>
                         <Link
                           onFollow={() =>
-                            navigate(`/executions/${exec.executionId}`)
+                            navigate(`/executions/${sanitizedExecutionId}`)
                           }
                         >
-                          {exec.recoveryPlanName || exec.recoveryPlanId}
+                          {sanitizedPlanName}
                         </Link>
                         <Box color="text-body-secondary" fontSize="body-s">
                           {exec.startTime
@@ -511,7 +517,8 @@ export const Dashboard: React.FC = () => {
                         </Box>
                       </SpaceBetween>
                     </Box>
-                  ))}
+                    );
+                  })}
                 </SpaceBetween>
               ) : (
                 <Box textAlign="center" padding="l" color="text-body-secondary">

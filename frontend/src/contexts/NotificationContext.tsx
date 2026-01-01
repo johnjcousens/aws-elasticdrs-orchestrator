@@ -16,6 +16,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const addNotification = useCallback((type: NotificationType, content: string, header?: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    let timeoutId: NodeJS.Timeout | null = null;
     
     const notification: FlashbarProps.MessageDefinition = {
       type,
@@ -24,6 +25,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
       dismissible: true,
       dismissLabel: 'Dismiss',
       onDismiss: () => {
+        if (timeoutId) clearTimeout(timeoutId);
         setNotifications(prev => prev.filter(n => n.id !== id));
       },
       id,
@@ -33,7 +35,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     // Auto-dismiss success/info after 5 seconds
     if (type === 'success' || type === 'info') {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== id));
       }, 5000);
     }
