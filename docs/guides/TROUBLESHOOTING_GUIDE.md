@@ -1,6 +1,10 @@
 # Troubleshooting Guide
 
-Complete troubleshooting guide for AWS DRS Orchestration Solution.
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete  
+
+Complete troubleshooting guide for AWS DRS Orchestration Solution including EventBridge security validation and tag synchronization issues.
 
 ## Common Issues
 
@@ -357,3 +361,88 @@ aws cloudformation rollback-stack \
 - [IAM Permission Troubleshooting](../troubleshooting/IAM_ROLE_ANALYSIS_DRS_PERMISSIONS.md) - IAM permission requirements
 - [CloudFormation Deployment Issues](../troubleshooting/CLOUDFORMATION_DEPLOYMENT_ISSUES.md) - CloudFormation problems
 - [Drill Debugging Checklist](../troubleshooting/DRILL_DEBUGGING_CHECKLIST.md) - Step-by-step drill troubleshooting
+
+---
+
+## EventBridge Security Issues (v2.1)
+
+### EventBridge Security Validation Failures
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `SECURITY_VALIDATION_FAILED` | IP not in whitelist | Add client IP to allowed CIDR ranges |
+| `TEMPORAL_VALIDATION_FAILED` | Operation outside allowed time window | Check time-based access controls |
+| `REQUEST_STRUCTURE_INVALID` | Malformed EventBridge event | Validate event structure against schema |
+| `RULE_NAME_VALIDATION_FAILED` | EventBridge rule name not approved | Use approved rule naming patterns |
+
+**Debugging Commands**:
+```bash
+# Check EventBridge security validation logs
+AWS_PAGER="" aws logs filter-log-events \
+  --log-group-name /aws/lambda/drs-orchestration-eventbridge-security \
+  --filter-pattern "SECURITY_VALIDATION_FAILED" \
+  --start-time $(($(date +%s) - 3600))000 | head -10
+
+# Verify EventBridge rule configuration
+AWS_PAGER="" aws events describe-rule \
+  --name drs-orchestration-tag-sync | head -20
+```
+
+### Tag Synchronization Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `TAG_SYNC_FAILED` | DRS API permissions missing | Add `drs:TagResource` and `drs:UntagResource` permissions |
+| `EC2_TAG_READ_FAILED` | EC2 permissions missing | Add `ec2:DescribeTags` permission |
+| `TAG_CONFLICT_DETECTED` | Conflicting tag values | Review conflict resolution policy |
+| `SYNC_FREQUENCY_EXCEEDED` | Too many sync operations | Adjust EventBridge schedule frequency |
+
+**Debugging Commands**:
+```bash
+# Check tag sync execution logs
+AWS_PAGER="" aws logs filter-log-events \
+  --log-group-name /aws/lambda/drs-orchestration-tag-sync \
+  --filter-pattern "TAG_SYNC" \
+  --start-time $(($(date +%s) - 3600))000 | head -15
+
+# Monitor tag sync Lambda errors
+AWS_PAGER="" aws logs filter-log-events \
+  --log-group-name /aws/lambda/drs-orchestration-tag-sync \
+  --filter-pattern "ERROR" \
+  --start-time $(($(date +%s) - 86400))000 | head -10
+```
+
+---
+
+## Version 2.1 Specific Issues
+
+### EventBridge Rule Deployment Failures
+
+**Issue**: CloudFormation fails to create EventBridge rules
+**Cause**: Missing EventBridge permissions in deployment role
+**Solution**:
+```bash
+# Add EventBridge permissions to deployment role
+aws iam attach-role-policy \
+  --role-name CloudFormation-Deployment-Role \
+  --policy-arn arn:aws:iam::aws:policy/AmazonEventBridgeFullAccess
+```
+
+### Security Validation Performance Issues
+
+**Issue**: High latency in API responses due to security validation
+**Cause**: Multiple security validation layers
+**Solution**: Optimize validation by caching IP whitelist and time windows
+
+### Tag Sync Lambda Timeout
+
+**Issue**: Tag sync Lambda function timing out
+**Cause**: Large number of EC2 instances to process
+**Solution**: Implement pagination and batch processing:
+```python
+# Process EC2 instances in batches
+BATCH_SIZE = 50
+for i in range(0, len(instances), BATCH_SIZE):
+    batch = instances[i:i + BATCH_SIZE]
+    process_tag_sync_batch(batch)
+```
