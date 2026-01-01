@@ -1206,12 +1206,40 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         
         # CRITICAL: Check for EventBridge-triggered tag sync BEFORE authentication
         if path == '/drs/tag-sync' and http_method == 'POST':
+            # Enhanced EventBridge validation with multiple security checks
             source_ip = event.get('requestContext', {}).get('identity', {}).get('sourceIp', '')
             invocation_source = event.get('invocationSource', '')
+            user_agent = event.get('headers', {}).get('User-Agent', '')
             
-            if source_ip == 'eventbridge' or invocation_source == 'EVENTBRIDGE':
+            # Multiple validation criteria for EventBridge requests
+            is_eventbridge_request = (
+                # Primary indicators
+                (source_ip == 'eventbridge' or invocation_source == 'EVENTBRIDGE') and
+                # Additional security checks
+                (
+                    # EventBridge requests typically have no Authorization header
+                    not event.get('headers', {}).get('Authorization') and
+                    # EventBridge requests come through API Gateway with specific patterns
+                    event.get('requestContext', {}).get('stage') and
+                    # Validate request structure matches EventBridge pattern
+                    event.get('requestContext', {}).get('requestId')
+                )
+            )
+            
+            if is_eventbridge_request:
                 print("Detected EventBridge-triggered tag sync - bypassing authentication")
+                print(f"EventBridge validation - sourceIp: {source_ip}, invocationSource: {invocation_source}")
+                
+                # Additional logging for security audit
+                request_context = event.get('requestContext', {})
+                print(f"Security audit - requestId: {request_context.get('requestId')}, "
+                      f"stage: {request_context.get('stage')}, "
+                      f"userAgent: {user_agent}")
+                
                 return handle_eventbridge_tag_sync(event)
+            else:
+                print(f"Tag sync request failed EventBridge validation - sourceIp: {source_ip}, "
+                      f"invocationSource: {invocation_source}, will require authentication")
         
         print(f"Checking authentication for path: {path}")
         
@@ -8580,15 +8608,43 @@ def parse_schedule_expression(schedule_expression: str) -> int:
 
 
 def handle_eventbridge_tag_sync(event: Dict) -> Dict:
-    """Handle EventBridge-triggered tag sync requests"""
+    """Handle EventBridge-triggered tag sync requests with enhanced security validation"""
     try:
         print("Processing EventBridge-triggered tag sync")
         
-        # Extract invocation details from EventBridge event
+        # Enhanced security validation for EventBridge requests
+        request_context = event.get('requestContext', {})
+        
+        # Validate request came through API Gateway (not direct Lambda invoke)
+        if not request_context.get('requestId') or not request_context.get('stage'):
+            print("Security warning: EventBridge request missing API Gateway context")
+            return response(403, {'error': 'Invalid EventBridge request context'})
+        
+        # Validate no user authentication headers present (EventBridge shouldn't have them)
+        headers = event.get('headers', {})
+        if headers.get('Authorization') or headers.get('authorization'):
+            print("Security warning: EventBridge request contains authentication headers")
+            return response(403, {'error': 'Invalid EventBridge request - unexpected auth headers'})
+        
+        # Validate EventBridge rule name matches expected pattern
         invocation_details = event.get('invocationDetails', {})
+        rule_name = invocation_details.get('scheduleRuleName', '')
+        expected_rule_pattern = f"aws-drs-orchestrator-tag-sync-schedule-"
+        
+        if not rule_name or not rule_name.startswith(expected_rule_pattern):
+            print(f"Security warning: Invalid EventBridge rule name: {rule_name}")
+            return response(403, {'error': 'Invalid EventBridge rule source'})
+        
+        # Log security audit information
+        print(f"EventBridge security audit - requestId: {request_context.get('requestId')}, "
+              f"stage: {request_context.get('stage')}, "
+              f"accountId: {request_context.get('accountId')}, "
+              f"ruleName: {rule_name}")
+        
+        # Extract invocation details from EventBridge event
         interval_hours = invocation_details.get('intervalHours', 4)
         
-        print(f"Tag sync triggered by EventBridge (interval: {interval_hours} hours)")
+        print(f"Tag sync triggered by EventBridge rule: {rule_name} (interval: {interval_hours} hours)")
         
         # Call the existing tag sync handler
         return handle_drs_tag_sync({})
