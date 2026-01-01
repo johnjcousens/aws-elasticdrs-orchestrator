@@ -1,9 +1,9 @@
 # Architectural Design Document
 # AWS DRS Orchestration System
 
-**Version**: 2.0  
-**Date**: December 9, 2025  
-**Status**: Production Architecture (Current Deployment)  
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete  
 **Document Owner**: Technical Architecture Team  
 **Target Audience**: Software Engineers, DevOps Engineers, Solutions Architects
 
@@ -11,7 +11,7 @@
 
 ## Document Purpose
 
-This Architectural Design Document (ADD) provides comprehensive technical specifications for the AWS DRS Orchestration system. It describes the system architecture, component interactions, data flows, integration patterns, and deployment topology for enterprise disaster recovery orchestration with AWS Elastic Disaster Recovery Service (DRS).
+This Architectural Design Document (ADD) provides comprehensive technical specifications for the AWS DRS Orchestration system version 2.1 with EventBridge security enhancements. It describes the system architecture, component interactions, data flows, integration patterns, deployment topology, EventBridge security validation, automated tag synchronization, and complete RBAC implementation for enterprise disaster recovery orchestration with AWS Elastic Disaster Recovery Service (DRS).
 
 **Key Objective**: Enable engineers to understand, maintain, and extend the system architecture with confidence.
 
@@ -27,12 +27,14 @@ This Architectural Design Document (ADD) provides comprehensive technical specif
 6. [Integration Architecture](#integration-architecture)
 7. [Deployment Architecture](#deployment-architecture)
 8. [Security Architecture](#security-architecture)
-9. [API Architecture](#api-architecture)
-10. [Execution Engine Architecture](#execution-engine-architecture)
-11. [Cross-Cutting Concerns](#cross-cutting-concerns)
-12. [Technology Stack](#technology-stack)
-13. [Design Decisions](#design-decisions)
-14. [Future Architecture](#future-architecture)
+9. [EventBridge Security Architecture](#eventbridge-security-architecture)
+10. [Tag Synchronization Architecture](#tag-synchronization-architecture)
+11. [API Architecture](#api-architecture)
+12. [Execution Engine Architecture](#execution-engine-architecture)
+13. [Cross-Cutting Concerns](#cross-cutting-concerns)
+14. [Technology Stack](#technology-stack)
+15. [Design Decisions](#design-decisions)
+16. [Future Architecture](#future-architecture)
 
 ---
 
@@ -1755,6 +1757,189 @@ aws cognito-idp create-group \
 - **Viewer Protocol Policy**: Redirect HTTP to HTTPS
 - **Allowed HTTP Methods**: GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE
 - **Compress Objects Automatically**: Yes (gzip)
+
+---
+
+## EventBridge Security Architecture
+
+### Security Enhancement Overview
+
+Version 2.1 introduces comprehensive EventBridge security validation for automated tag synchronization operations, implementing multi-layer security controls to prevent unauthorized access and ensure enterprise-grade security compliance.
+
+### Security Validation Layers
+
+**1. Source IP Validation**
+```python
+def validate_source_ip(event: dict) -> bool:
+    """Validate EventBridge request source IP against allowlist"""
+    source_ip = event.get('source-ip', '')
+    allowed_ranges = [
+        '10.0.0.0/8',      # Internal VPC
+        '172.16.0.0/12',   # Private networks
+        '192.168.0.0/16'   # Local networks
+    ]
+    return any(ipaddress.ip_address(source_ip) in ipaddress.ip_network(range) 
+               for range in allowed_ranges)
+```
+
+**2. Request Structure Validation**
+```python
+def validate_request_structure(event: dict) -> bool:
+    """Validate EventBridge event structure and required fields"""
+    required_fields = ['source', 'detail-type', 'detail', 'time']
+    if not all(field in event for field in required_fields):
+        return False
+    
+    # Validate source matches expected pattern
+    if event['source'] != 'aws.events':
+        return False
+    
+    # Validate detail-type for tag sync operations
+    if event['detail-type'] != 'Scheduled Event':
+        return False
+    
+    return True
+```
+
+**3. Rule Name Validation**
+```python
+def validate_rule_name(event: dict) -> bool:
+    """Validate EventBridge rule name matches expected pattern"""
+    rule_name = event.get('detail', {}).get('rule-name', '')
+    expected_pattern = r'^aws-drs-orchestrator-tag-sync-(dev|test|prod)$'
+    return bool(re.match(expected_pattern, rule_name))
+```
+
+### Security Audit Trail
+
+**CloudWatch Logs Integration**:
+```python
+def log_security_event(event_type: str, details: dict, status: str):
+    """Log security events for audit trail"""
+    log_entry = {
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'event_type': event_type,
+        'status': status,
+        'source_ip': details.get('source_ip'),
+        'rule_name': details.get('rule_name'),
+        'validation_results': details.get('validation_results', {}),
+        'request_id': details.get('request_id')
+    }
+    
+    logger.info(json.dumps(log_entry))
+```
+
+---
+
+## Tag Synchronization Architecture
+
+### System Overview
+
+The tag synchronization system automatically maintains consistency between EC2 instance tags and DRS source server tags, enabling tag-based server selection for Protection Groups while ensuring data integrity and security.
+
+### Architecture Components
+
+```mermaid
+graph TB
+    subgraph "EventBridge Scheduling"
+        EB[EventBridge Rule<br/>60-minute schedule]
+        SEC[Security Validation<br/>Multi-layer checks]
+    end
+    
+    subgraph "Tag Sync Engine"
+        SYNC[Tag Sync Lambda<br/>Orchestration]
+        DISC[Server Discovery<br/>EC2 + DRS APIs]
+        COMP[Tag Comparison<br/>Diff Analysis]
+        UPD[Tag Updates<br/>Batch Operations]
+    end
+    
+    subgraph "Data Sources"
+        EC2[EC2 Instances<br/>Source Tags]
+        DRS[DRS Source Servers<br/>Target Tags]
+    end
+    
+    subgraph "Monitoring"
+        CW[CloudWatch Logs<br/>Audit Trail]
+        METRICS[CloudWatch Metrics<br/>Sync Statistics]
+    end
+    
+    EB --> SEC
+    SEC --> SYNC
+    SYNC --> DISC
+    DISC --> EC2
+    DISC --> DRS
+    COMP --> UPD
+    UPD --> DRS
+    SYNC --> CW
+    SYNC --> METRICS
+```
+
+### Tag Synchronization Workflow
+
+**1. Scheduled Trigger**:
+```python
+def lambda_handler(event, context):
+    """Main tag synchronization handler with security validation"""
+    
+    # Security validation (EventBridge security architecture)
+    if not validate_eventbridge_security(event):
+        log_security_event('BLOCKED_REQUEST', event, 'SECURITY_VIOLATION')
+        return {'statusCode': 403, 'body': 'Security validation failed'}
+    
+    # Execute tag synchronization
+    sync_results = execute_tag_synchronization()
+    
+    # Log results for audit trail
+    log_sync_results(sync_results)
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps(sync_results)
+    }
+```
+
+**2. Server Discovery and Synchronization**:
+```python
+def synchronize_tags(region: str) -> dict:
+    """Compare and synchronize tags between EC2 and DRS"""
+    
+    # Get EC2 instances with DRS-related tags
+    ec2_instances = ec2_client.describe_instances(
+        Filters=[
+            {'Name': 'tag-key', 'Values': ['DRS-*', 'Environment', 'Application']},
+            {'Name': 'instance-state-name', 'Values': ['running', 'stopped']}
+        ]
+    )
+    
+    # Get DRS source servers and match by instance ID
+    drs_servers = drs_client.describe_source_servers()
+    
+    sync_results = {'updated_servers': 0, 'errors': []}
+    
+    for reservation in ec2_instances['Reservations']:
+        for ec2_instance in reservation['Instances']:
+            instance_id = ec2_instance['InstanceId']
+            ec2_tags = {tag['Key']: tag['Value'] for tag in ec2_instance.get('Tags', [])}
+            
+            # Find corresponding DRS server
+            drs_server = next(
+                (server for server in drs_servers['items'] 
+                 if server.get('sourceProperties', {}).get('identificationHints', {}).get('awsInstanceID') == instance_id),
+                None
+            )
+            
+            if drs_server and validate_tag_sync_security(ec2_tags):
+                try:
+                    drs_client.tag_resource(
+                        resourceArn=f"arn:aws:drs:*:*:source-server/{drs_server['sourceServerID']}",
+                        tags=ec2_tags
+                    )
+                    sync_results['updated_servers'] += 1
+                except Exception as e:
+                    sync_results['errors'].append({'server_id': instance_id, 'error': str(e)})
+    
+    return sync_results
+```
 
 ---
 
