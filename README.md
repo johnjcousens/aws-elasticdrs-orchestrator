@@ -480,35 +480,78 @@ This security model enables automated tag synchronization while maintaining ente
 
 ## Documentation
 
-### Essential Guides
+### Essential Guides (16 Consolidated Guides)
 
+#### Core Operations
 | Document | Description |
 |----------|-------------|
-| [API Reference Guide](docs/guides/API_REFERENCE_GUIDE.md) | Complete REST API documentation (42+ endpoints) with RBAC |
+| [API Reference Guide](docs/guides/API_REFERENCE_GUIDE.md) | Complete REST API documentation (42+ endpoints) with RBAC system |
 | [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) | CLI, SSM, Step Functions, API integration with direct Lambda invocation |
-| [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) | Development, testing, and deployment procedures |
-| [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) | Common issues and debugging procedures |
-| [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Step-by-step deployment instructions |
-| [Multi-Account Setup Guide](docs/guides/MULTI_ACCOUNT_SETUP_GUIDE.md) | Complete multi-account hub and spoke setup |
-| [RBAC Security Testing Status](docs/security/RBAC_SECURITY_TESTING_STATUS.md) | Role-based access control security testing documentation |
+| [DRS Execution Walkthrough](docs/guides/DRS_EXECUTION_WALKTHROUGH.md) | Complete drill and recovery execution procedures |
+| [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) | Common issues, debugging, and resolution procedures |
 
-### Requirements & Architecture
+#### Deployment & Operations
+| Document | Description |
+|----------|-------------|
+| [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment, configuration, and operational procedures |
+| [Multi-Account Setup Guide](docs/guides/MULTI_ACCOUNT_SETUP_GUIDE.md) | Cross-account hub and spoke configuration |
+| [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) | Development, testing, and CI/CD procedures |
+
+#### Testing & Quality
+| Document | Description |
+|----------|-------------|
+| [Testing and Quality Assurance](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) | Comprehensive testing procedures and quality standards |
+| [Manual Test Instructions](docs/guides/MANUAL_TEST_INSTRUCTIONS.md) | Step-by-step manual testing procedures |
+| [Local Development](docs/guides/LOCAL_DEVELOPMENT.md) | Development environment setup and local testing |
+
+#### User & Admin Guides
+| Document | Description |
+|----------|-------------|
+| [User Guide](docs/guides/USER_GUIDE.md) | End-user interface and workflow documentation |
+| [Administrator Guide](docs/guides/ADMINISTRATOR_GUIDE.md) | System administration and configuration management |
+| [Getting Started Guide](docs/guides/GETTING_STARTED_GUIDE.md) | Quick start and initial setup procedures |
+
+#### Advanced Features
+| Document | Description |
+|----------|-------------|
+| [Cross-Account Features](docs/guides/CROSS_ACCOUNT_FEATURES.md) | Multi-account operations and configuration |
+| [Tag Synchronization Guide](docs/guides/TAG_SYNCHRONIZATION_GUIDE.md) | Automated EC2-to-DRS tag synchronization |
+| [Performance Optimization](docs/guides/PERFORMANCE_OPTIMIZATION.md) | Performance tuning and optimization strategies |
+
+### Technical Reference Documentation (7 Consolidated Files)
+
+#### Core DRS Reference
+| Document | Description |
+|----------|-------------|
+| [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) | Complete IAM analysis, service roles, and cross-account permissions |
+| [DRS Launch Configuration Reference](docs/reference/DRS_LAUNCH_CONFIGURATION_REFERENCE.md) | Launch template settings, configuration tools, and template management |
+| [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) | Cross-account architecture, setup, and network requirements |
+| [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) | Service quotas, regional availability, and feature capabilities |
+
+#### Competitive Analysis
+| Document | Description |
+|----------|-------------|
+| [Azure Site Recovery Analysis](docs/reference/competitive/AZURE_SITE_RECOVERY_ANALYSIS.md) | Comprehensive Azure ASR comparison and feature analysis |
+| [Zerto Research and API Analysis](docs/reference/competitive/ZERTO_RESEARCH_AND_API_ANALYSIS.md) | Zerto platform analysis, API documentation, and competitive positioning |
+
+### Requirements & Architecture (Source of Truth)
 
 | Document | Description |
 |----------|-------------|
-| [Product Requirements](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD with features and specifications |
-| [Architecture Design](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture and design decisions |
-| [Architecture Diagrams](docs/architecture/ARCHITECTURE_DIAGRAMS.md) | Visual reference - Complete mermaid diagrams |
+| [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD v2.1 with EventBridge security features |
+| [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) | Technical specifications v2.1 with comprehensive API catalog |
+| [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) | User interface design and interaction patterns v2.1 |
+| [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture v2.1 with EventBridge security and tag sync |
+| [AWS Services Architecture Deep Dive](docs/architecture/AWS_SERVICES_ARCHITECTURE_DEEP_DIVE.md) | Detailed AWS service integration patterns v2.1 |
+| [Architecture Diagrams](docs/architecture/ARCHITECTURE_DIAGRAMS.md) | Visual reference with sequence diagrams and current implementation |
 
-### Implementation & Testing
+### Security Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Testing Guide](docs/guides/TESTING_AND_QUALITY_ASSURANCE.md) | Testing procedures and quality assurance |
-| [Local Development](docs/guides/LOCAL_DEVELOPMENT.md) | Development environment setup |
-| [Manual Test Instructions](docs/guides/MANUAL_TEST_INSTRUCTIONS.md) | Manual testing procedures |
+| [RBAC Security Testing Status](docs/security/RBAC_SECURITY_TESTING_STATUS.md) | Role-based access control security testing and validation |
 
-For complete documentation index, see [Documentation Index](.kiro/steering/docs-index.md).
+*All documentation updated to v2.1 (January 1, 2026) with EventBridge security enhancements and tag synchronization features.*
 
 ## Future Enhancements
 
