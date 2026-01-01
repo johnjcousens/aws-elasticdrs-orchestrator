@@ -97,7 +97,53 @@ Logical organization of DRS source servers with tag-based or explicit server sel
 - `POST /protection-groups/resolve` - Preview servers matching specified tags
 - `GET /drs/source-servers?region={region}` - Discover DRS servers with assignment status
 
-### 2. Recovery Plans
+### 2. Multi-Account Management
+
+Enterprise-grade multi-account orchestration with hub-and-spoke architecture, centralized management, and cross-account role assumption.
+
+**Account Context System**:
+- **Account Selection Enforcement**: Features blocked until target account selected (multi-account scenarios only)
+- **Auto-Selection**: Single accounts automatically selected as default for seamless user experience
+- **Account Selector**: Top navigation dropdown for intuitive account switching with full page context updates
+- **Setup Wizard**: Guided first-time account configuration for new users
+- **Default Preferences**: Persistent default account selection integrated into existing 3-tab settings panel
+- **Page-Level Enforcement**: Features blocked until target account selected (multi-account scenarios only)
+
+**Cross-Account Architecture**:
+- **Hub-and-Spoke Model**: Central orchestration account manages multiple target accounts
+- **Cross-Account Role Assumption**: STS-based role assumption with configurable role names
+- **Target Account Registration**: Register/unregister target accounts with validation
+- **Account Health Monitoring**: Monitor cross-account connectivity and permissions
+- **Unified Management**: Single UI for managing DRS across multiple AWS accounts
+
+**Capabilities**:
+- Scale beyond 300-server DRS limit per account through multi-account distribution
+- Centralized orchestration with distributed DRS operations
+- Account-specific Protection Groups and Recovery Plans
+- Cross-account execution monitoring and audit trails
+- Account context preserved throughout user session
+
+**UI Components**:
+- AccountSelector dropdown in top navigation
+- AccountRequiredWrapper for feature enforcement
+- AccountRequiredGuard for specific feature protection
+- Account setup wizard for first-time configuration
+- Account management in Settings modal
+
+**API Endpoints**:
+- `GET /accounts/current` - Get current AWS account information
+- `GET /accounts/targets` - Get target accounts for multi-account operations
+- `POST /accounts/targets` - Register new target account with cross-account role
+- `PUT /accounts/targets/{accountId}` - Update target account configuration
+- `DELETE /accounts/targets/{accountId}` - Unregister target account
+
+**Infrastructure**:
+- **cross-account-role-stack.yaml**: CloudFormation template for cross-account IAM roles
+- **target-accounts-{env}** DynamoDB table for account registry
+- Cross-account DRS client creation with STS role assumption
+- Account context propagation through all API calls and Step Functions
+
+### 3. Recovery Plans
 
 Wave-based orchestration with multi-Protection Group support and pause/resume capability.
 
@@ -335,6 +381,55 @@ The system implements enterprise-grade security validation for EventBridge authe
 This security model enables automated tag synchronization while maintaining enterprise-grade security standards and complete audit compliance.
 - `POST /drs/tag-sync` - Sync EC2 tags to DRS source servers with progress tracking
 
+### 8. RBAC Security System
+
+Enterprise-grade role-based access control with 5 granular roles, 14 specific permissions, and comprehensive enforcement across all access methods.
+
+**Security Roles (5 Granular Roles)**:
+1. **DRS Admin**: Full system access including user management, system configuration, and all DRS operations
+2. **Recovery Manager**: Execute recovery operations, manage executions, terminate instances, and view all data
+3. **Plan Manager**: Create and manage Protection Groups and Recovery Plans, view executions (no execution control)
+4. **Operator**: Execute drills only, view assigned Protection Groups and Recovery Plans (no creation/editing)
+5. **Read Only**: View-only access to all data with no modification capabilities
+
+**Granular Permissions (14 Business-Focused Permissions)**:
+- **Protection Groups**: `CREATE_PROTECTION_GROUP`, `UPDATE_PROTECTION_GROUP`, `DELETE_PROTECTION_GROUP`, `VIEW_PROTECTION_GROUP`
+- **Recovery Plans**: `CREATE_RECOVERY_PLAN`, `UPDATE_RECOVERY_PLAN`, `DELETE_RECOVERY_PLAN`, `VIEW_RECOVERY_PLAN`
+- **Executions**: `EXECUTE_RECOVERY`, `EXECUTE_DRILL`, `CONTROL_EXECUTION`, `TERMINATE_INSTANCES`, `DELETE_EXECUTION`, `VIEW_EXECUTION`
+
+**Permission-Aware UI Components**:
+- **PermissionAwareButton**: Buttons that respect user permissions (disabled/hidden based on role)
+- **PermissionAwareButtonDropdown**: Dropdown menus with permission-filtered options
+- **PermissionWrapper**: Conditional rendering wrapper for permission-based content
+- **PermissionSection**: Section components with permission enforcement
+- **usePermissionCheck**: React hook for permission-based conditional logic
+
+**API-First RBAC Enforcement**:
+- All 42 REST API endpoints enforce identical permission boundaries
+- Cognito Groups integration for role assignment
+- JWT token-based permission validation
+- Comprehensive audit trails with role context
+- Consistent enforcement across UI, CLI, API, and automation access methods
+
+**Security Implementation**:
+- **rbac_middleware.py**: Centralized permission enforcement for all Lambda functions
+- **PermissionsContext**: React context for client-side permission management
+- **Role Mapping**: Cognito Groups automatically mapped to DRS-specific roles
+- **Permission Validation**: Real-time permission checking with caching for performance
+- **Audit Integration**: All actions logged with user role and permission context
+
+**User Management**:
+- Password reset capability for new users with temporary passwords
+- Cognito-managed user lifecycle with group-based role assignment
+- 45-minute session timeout with automatic logout
+- Multi-factor authentication support (Cognito-managed)
+
+**API Endpoints**:
+- `GET /user/permissions` - Get current user's permissions based on Cognito groups
+- All endpoints include role-based access validation
+
+This RBAC system ensures enterprise-grade security with granular access control while maintaining usability and performance.
+
 ### 9. Configuration Management
 
 Export and import system configuration for backup, migration, and environment promotion.
@@ -512,9 +607,132 @@ Configure post-launch actions for recovery instances.
 - `GET /ssm/documents?region={region}` - List available SSM documents
 - `GET /s3/buckets?region={region}` - List available S3 buckets
 
-### 10. User Interface
+### 9. Configuration Management
 
-React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 32 components and 7 pages.
+Complete export/import system for configuration backup, environment migration, and disaster recovery with portable JSON format and comprehensive validation.
+
+**Export Capabilities**:
+- **Full Configuration Export**: Export all Protection Groups and Recovery Plans to single JSON file
+- **Portable Format**: Uses `ProtectionGroupName` instead of UUIDs for cross-environment compatibility
+- **Metadata Preservation**: Includes creation dates, modification history, and user context
+- **Validation Checksums**: Built-in integrity verification for exported data
+- **Settings Integration**: Export functionality accessible via Settings modal gear icon
+
+**Import Capabilities**:
+- **Non-Destructive Import**: Additive-only import that skips existing items by name
+- **Dry Run Validation**: Preview import results before applying changes
+- **Name Resolution**: Automatically resolves Protection Group names to IDs during import
+- **Server Validation**: Validates all server IDs against DRS API before import
+- **Conflict Detection**: Identifies naming conflicts and provides resolution options
+- **Progress Tracking**: Real-time import progress with detailed status updates
+
+**Portable JSON Format**:
+```json
+{
+  "exportMetadata": {
+    "version": "1.0",
+    "exportDate": "2026-01-01T12:00:00Z",
+    "exportedBy": "user@example.com",
+    "sourceEnvironment": "prod"
+  },
+  "protectionGroups": [
+    {
+      "groupName": "Database-Tier",
+      "region": "us-east-1",
+      "serverSelectionTags": {"DR-Tier": "Database"},
+      "sourceServerIds": ["s-xxx", "s-yyy"]
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "planName": "HRP-Recovery",
+      "waves": [
+        {
+          "waveName": "Database",
+          "protectionGroupNames": ["Database-Tier"],
+          "pauseBeforeWave": false
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Environment Migration**:
+- Export from source environment (dev/test/prod)
+- Import to target environment with automatic name resolution
+- Cross-account compatibility with account context handling
+- Validation against target environment DRS servers
+
+**UI Components**:
+- **SettingsModal**: Three-tab modal (Export, Import, Tag Sync) accessible via gear icon
+- **ConfigExportPanel**: Export configuration with download functionality
+- **ConfigImportPanel**: File upload with drag-and-drop support and validation
+- **ImportResultsDialog**: Detailed import results with success/failure breakdown
+
+**API Endpoints**:
+- `GET /config/export` - Export all Protection Groups and Recovery Plans to portable JSON
+- `POST /config/import` - Import configuration from JSON with validation and dry-run support
+- `POST /config/validate` - Validate import file without applying changes
+
+**Use Cases**:
+- **Backup and Restore**: Regular configuration backups for disaster recovery
+- **Environment Promotion**: Promote configurations from dev → test → prod
+- **Cross-Account Migration**: Move configurations between AWS accounts
+- **Configuration Auditing**: Track configuration changes over time
+- **Disaster Recovery**: Restore configurations after system failures
+
+### 10. Security Vulnerability Fixes
+
+Comprehensive security hardening addressing critical vulnerability classes with input sanitization, validation, and secure coding practices.
+
+**Vulnerability Classes Addressed**:
+
+**SQL Injection (CWE-89)**:
+- **Risk**: Malicious input could manipulate DynamoDB operations
+- **Fix**: Implemented proper ConditionExpression usage in all DynamoDB operations
+- **Scope**: All Lambda functions with DynamoDB access (index.py, orchestration_stepfunctions.py)
+- **Validation**: Input sanitization before database operations
+
+**Cross-Site Scripting (CWE-20, 79, 80)**:
+- **Risk**: Malicious scripts could execute in user browsers
+- **Fix**: Comprehensive input sanitization in all React components
+- **Scope**: All user input fields, display components, and data rendering
+- **Implementation**: HTML encoding, input validation, and safe rendering practices
+
+**OS Command Injection (CWE-78, 77, 88)**:
+- **Risk**: Malicious input could execute system commands
+- **Fix**: Regex sanitization and input validation across all files
+- **Scope**: All user inputs that could be processed by system commands
+- **Validation**: Strict input patterns and command parameter sanitization
+
+**Log Injection (CWE-117)**:
+- **Risk**: Malicious input could manipulate log entries for security bypass
+- **Fix**: Removed newline characters and special characters before logging
+- **Scope**: All logging statements across Lambda functions and frontend
+- **Implementation**: Log sanitization middleware and safe logging practices
+
+**Security Implementation Details**:
+- **Input Validation**: Comprehensive regex patterns for all user inputs
+- **Output Encoding**: Safe rendering of all dynamic content
+- **Parameter Sanitization**: Validation of all API parameters and DynamoDB operations
+- **Logging Security**: Sanitized logging to prevent log injection attacks
+- **Error Handling**: Secure error messages that don't expose system internals
+
+**Files Hardened**:
+- **Backend**: `lambda/index.py`, `lambda/orchestration_stepfunctions.py`, all Lambda functions
+- **Frontend**: All React components with user input or data display
+- **Infrastructure**: CloudFormation templates with secure parameter handling
+
+**Compliance**:
+- Addresses OWASP Top 10 security risks
+- Implements secure coding best practices
+- Regular security scanning and validation
+- Comprehensive input/output sanitization
+
+### 11. User Interface
+
+React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 35+ components and 7 pages.
 
 **Pages**:
 
@@ -542,24 +760,25 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 32 components an
 - Tag-based server selection with preview
 - Existing instance detection and warning dialogs
 
-**Component Library (32 Components)**:
+**Component Library (35+ Components)**:
 
 | Category | Components | Count |
 |----------|------------|-------|
 | **Layout** | ErrorBoundary, ErrorFallback, ErrorState, LoadingState, CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute, AppLayout, ContentLayout | 10 |
-| **Multi-Account** | AccountSelector, AccountRequiredWrapper, AccountManagementPanel | 3 |
-| **Dialogs** | ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog, ConfigExportPanel, ConfigImportPanel, ImportResultsDialog, SettingsModal | 7 |
-| **Server Management** | ServerSelector, ServerDiscoveryPanel, ServerListItem | 3 |
-| **Form Controls** | RegionSelector, WaveConfigEditor | 2 |
-| **Status Display** | StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus, InvocationSourceBadge | 5 |
+| **Multi-Account** | AccountSelector, AccountRequiredWrapper, AccountRequiredGuard, AccountManagementPanel | 4 |
+| **RBAC & Permissions** | PermissionAwareButton, PermissionAwareButtonDropdown, PermissionWrapper, PermissionSection, usePermissionCheck | 5 |
+| **Dialogs** | ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog, ConfigExportPanel, ConfigImportPanel, ImportResultsDialog, SettingsModal, TagSyncConfigPanel | 8 |
+| **Server Management** | ServerSelector, ServerDiscoveryPanel, ServerListItem, ServerInfoPanel | 4 |
+| **Form Controls** | RegionSelector, WaveConfigEditor, TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor, PitPolicyEditor | 7 |
+| **Status Display** | StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus, InvocationSourceBadge, JobEventsTimeline | 6 |
 | **Execution** | ExecutionDetails | 1 |
 | **Launch Config** | LaunchConfigSection | 1 |
 
-**Total: 32 Components**
+**Total: 35+ Components**
 
 ## Complete API Reference
 
-The solution provides a comprehensive REST API with 32+ endpoints across 9 categories for complete automation and DevOps integration.
+The solution provides a comprehensive REST API with 42+ endpoints across 12 categories for complete automation and DevOps integration.
 
 ### Protection Groups API (7 endpoints)
 - `GET /protection-groups` - List all Protection Groups with server details
