@@ -40,6 +40,15 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ## Key Features
 
+### Comprehensive REST API 🆕
+
+- **42+ API Endpoints**: Complete REST API across 12 categories (Protection Groups, Recovery Plans, Executions, DRS Integration, Account Management, EC2 Resources, Configuration, User Management, Health Check)
+- **Role-Based Access Control (RBAC)**: 5 granular roles with 11 specific permissions for enterprise security
+- **Cross-Account Operations**: Manage DRS across multiple AWS accounts with automated role assumption
+- **Direct Lambda Invocation**: Bypass API Gateway for AWS-native automation (Step Functions, SSM, EventBridge)
+- **Configuration Export/Import**: Complete backup and restore capabilities with dry-run validation
+- **Tag Synchronization**: Automated EC2 to DRS tag sync with EventBridge scheduling
+
 ### Multi-Account Management 🆕
 
 - **Account Context System**: Complete account management with enforcement logic and persistent state
@@ -53,7 +62,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 ### Protection Groups
 
 - **Automatic Server Discovery**: Real-time DRS source server discovery across all AWS DRS-supported regions
-- **Enhanced Tag-Based Selection** 🆕: Fixed to query DRS source server tags (not EC2 instance tags) with complete hardware details
+- **Enhanced Tag-Based Selection** 🆕: Query DRS source server tags with complete hardware details and conflict detection
 - **Hardware Information Display**: Comprehensive server details including CPU cores, RAM (GiB), and IP address displayed in clean format during server selection
 - **Tag-Based Server Selection**: Define Protection Groups using DRS source server tags (e.g., `DR-Application=HRP`, `DR-Tier=Database`)
 - **Automated Tag Synchronization** 🆕: EventBridge-scheduled sync from EC2 instances to DRS source servers
@@ -67,14 +76,16 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ### Recovery Plans
 
-- **Wave-Based Orchestration**: Define multi-wave recovery sequences with unlimited flexibility
+- **Wave-Based Orchestration**: Define multi-wave recovery sequences with unlimited flexibility and dependency management
+- **Pause/Resume Execution**: Pause executions between waves for manual validation and resume when ready
 - **Dependency Management**: Automatic wave dependency handling with circular dependency detection
 - **Drill Mode**: Test recovery procedures without impacting production
+- **Conflict Detection**: Automatic detection of server conflicts and existing recovery instances
 - **Automation Hooks**: Pre-wave and post-wave actions for validation and health checks
 
 ### Execution Monitoring
 
-- **Real-Time Dashboard**: Live execution progress with wave-level status tracking
+- **Real-Time Dashboard**: Live execution progress with wave-level status tracking and auto-refresh
 - **Invocation Source Tracking**: Track execution origin (UI, CLI, API, EVENTBRIDGE, SSM, STEPFUNCTIONS)
 - **Enhanced History Management** 🆕: Improved History page with selective deletion, fixed invocation source filtering, and descriptive search functionality
 - **Date Range Filtering** 🆕: Comprehensive date filtering for execution history with American date format (MM-DD-YYYY), quick filter buttons (Last Hour, Today, Last Week, etc.), and custom date range selection
@@ -119,6 +130,8 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ![AWS DRS Orchestration Architecture](docs/architecture/AWS-DRS-Orchestration-Architecture.png)
 
+*Updated architecture diagrams available in [docs/architecture/](docs/architecture/) reflecting current 42+ endpoint implementation*
+
 *[View/Edit Source Diagram](docs/architecture/AWS-DRS-Orchestration-Architecture.drawio)*
 
 The solution follows a serverless, event-driven architecture with clear separation between frontend, API, compute, data, and DRS integration layers. Users access the React frontend via CloudFront, authenticate through Cognito, and interact with the REST API backed by Lambda functions. Step Functions orchestrates wave-based recovery execution, coordinating with AWS DRS to launch recovery instances.
@@ -162,9 +175,9 @@ The solution orchestrates disaster recovery in all **30 AWS regions** where Elas
 # Deploy the complete solution
 aws cloudformation deploy \
   --template-url https://your-bucket.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
-  --stack-name drs-orchestration \
+  --stack-name aws-drs-orchestrator \
   --parameter-overrides \
-    ProjectName=drs-orchestration \
+    ProjectName=aws-drs-orchestrator \
     Environment=prod \
     SourceBucket=your-bucket \
     AdminEmail=admin@yourcompany.com \
@@ -172,13 +185,18 @@ aws cloudformation deploy \
   --region us-east-1
 ```
 
-Deployment takes approximately 20-30 minutes.
+Deployment takes approximately 20-30 minutes and provides:
+- **Complete REST API** with 42+ endpoints across 12 categories
+- **Role-Based Access Control** with 5 granular roles
+- **Cross-Account Operations** for enterprise environments
+- **Tag-Based Server Selection** with automated synchronization
+- **Wave-Based Execution** with pause/resume capabilities
 
 ### Get Stack Outputs
 
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name drs-orchestration \
+  --stack-name aws-drs-orchestrator \
   --query 'Stacks[0].Outputs' \
   --output table
 ```
@@ -194,7 +212,7 @@ aws cloudformation describe-stacks \
 
 ```bash
 USER_POOL_ID=$(aws cloudformation describe-stacks \
-  --stack-name drs-orchestration \
+  --stack-name aws-drs-orchestrator \
   --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
   --output text)
 
@@ -466,12 +484,12 @@ This security model enables automated tag synchronization while maintaining ente
 
 | Document | Description |
 |----------|-------------|
-| [API Reference Guide](docs/guides/API_REFERENCE_GUIDE.md) | Complete REST API documentation with examples |
+| [API Reference Guide](docs/guides/API_REFERENCE_GUIDE.md) | Complete REST API documentation (42+ endpoints) with RBAC |
+| [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) | CLI, SSM, Step Functions, API integration with direct Lambda invocation |
 | [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) | Development, testing, and deployment procedures |
 | [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) | Common issues and debugging procedures |
 | [Deployment Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Step-by-step deployment instructions |
 | [Multi-Account Setup Guide](docs/guides/MULTI_ACCOUNT_SETUP_GUIDE.md) | Complete multi-account hub and spoke setup |
-| [Orchestration Integration](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) | CLI, SSM, Step Functions, API integration |
 | [RBAC Security Testing Status](docs/security/RBAC_SECURITY_TESTING_STATUS.md) | Role-based access control security testing documentation |
 
 ### Requirements & Architecture
@@ -496,16 +514,51 @@ For complete documentation index, see [Documentation Index](.kiro/steering/docs-
 
 ### Active Development Roadmap
 
+The solution currently provides a comprehensive disaster recovery orchestration platform with 42+ API endpoints, RBAC security, cross-account operations, and advanced features. The following enhancements represent the next phase of development:
+
 | Priority | Feature Category | LOE | Description | Status |
 |----------|------------------|-----|-------------|--------|
 | 6 | **Scheduled Drills** | 3-5d | Automated scheduled drill executions with EventBridge rules | Planned |
 | 7 | **SNS Notification Integration** | 1-2w | Real-time notifications for execution status changes via Email, SMS, Slack | Planned |
 | 9 | **Step Functions Visualization** | 2-3w | Real-time visualization of Step Functions state machine execution | Planned |
-| 10-18 | **Cross-Account Features** | 8-12w | Cross-account orchestration, monitoring, and extended source servers | Planned |
-| 12 | **DRS Source Server Management** | 8-10w | Complete DRS server configuration including tags, disk settings, replication | Planned |
+| 12 | **Advanced DRS Server Management** | 8-10w | Complete DRS server configuration including disk settings, replication settings, PIT policies | Planned |
 
-For detailed implementation plans, see:
-- [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md)
+### Recently Completed (v1.2.0 and Earlier)
+
+The following major features have been **completed and are available** in the current implementation:
+
+#### ✅ **Comprehensive REST API** (Completed)
+- **42+ API Endpoints** across 12 categories
+- **Role-Based Access Control (RBAC)** with 5 roles and 11 permissions
+- **Cross-Account Operations** with automated role assumption
+- **Direct Lambda Invocation** for AWS-native automation
+- **Configuration Export/Import** with dry-run validation
+
+#### ✅ **Multi-Account Support Foundation** (Completed Dec 30, 2025)
+- **Account Context System** with enforcement logic
+- **Account Selector** in top navigation
+- **Setup Wizard** for first-time configuration
+- **Cross-Account Role Management** with validation
+
+#### ✅ **Tag-Based Server Selection** (Completed Dec 16, 2025)
+- **DRS Source Server Tag Queries** with hardware details
+- **Automated Tag Synchronization** from EC2 to DRS
+- **EventBridge Scheduling** with configurable intervals
+- **Conflict Detection** and prevention
+
+#### ✅ **Wave-Based Execution** (Completed Dec 12, 2025)
+- **Pause/Resume Execution** between waves
+- **Dependency Management** with circular dependency detection
+- **Real-Time Progress Tracking** with auto-refresh
+- **Instance Termination** after testing
+
+#### ✅ **Enhanced Monitoring** (Completed Dec 14, 2025)
+- **Execution History** with selective deletion
+- **Date Range Filtering** with quick filters
+- **Invocation Source Tracking** (UI, CLI, API, EventBridge, SSM, Step Functions)
+- **DRS Job Events** with real-time monitoring
+
+For detailed implementation plans of remaining features, see:
 - [DRS Source Server Management](docs/implementation/DRS_SOURCE_SERVER_MANAGEMENT.md)
 - [Automation & Orchestration](docs/implementation/AUTOMATION_AND_ORCHESTRATION.md)
 - [Notifications & Monitoring](docs/implementation/NOTIFICATIONS_AND_MONITORING.md)

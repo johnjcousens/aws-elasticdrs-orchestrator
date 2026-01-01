@@ -340,44 +340,93 @@ graph TB
 
 #### 3. API Handler Lambda
 **Responsibilities**:
-- Business logic for all CRUD operations
-- Execution control (pause/resume/cancel/terminate instances)
+- REST API endpoint handling for all 42+ endpoints
+- RBAC authorization enforcement via middleware
+- Business logic for CRUD operations on all resources
+- **Advanced Execution Control**: Pause, resume, cancel, terminate instances
 - Input validation and sanitization
-- DynamoDB table operations (read/write)
+- DynamoDB table operations (read/write with optimistic locking)
 - Step Functions execution initiation and control
-- Error handling and logging
+- **Cross-Account DRS Operations**: STS role assumption and multi-account management
+- **Real-Time DRS Integration**: Server discovery, job monitoring, instance termination
+- Error handling and structured logging
 - Case transformation (PascalCase ↔ camelCase)
-- Conflict detection for active executions
+- Conflict detection for active executions and server assignments
 
 **Implementation**: `lambda/index.py` (Current Python 3.12)
 
-**Key Functions**:
-- `lambda_handler()` - Main entry point, routes requests
-- `handle_protection_groups()` - PG CRUD operations
-- `handle_recovery_plans()` - RP CRUD operations
-- `handle_executions()` - Execution start/status/control
-- `pause_execution()` - Pause execution between waves
-- `resume_execution()` - Resume paused execution via Step Functions callback
-- `cancel_execution()` - Cancel running execution
-- `terminate_recovery_instances()` - Terminate DRS recovery instances
-- `handle_drs_source_servers()` - Server discovery via DRS API
-- `get_active_executions_for_plan()` - Check for execution conflicts
-- `check_server_conflicts()` - Validate servers not in active executions
+**Enhanced Key Functions**:
+- `lambda_handler()` - Main entry point with RBAC middleware integration
+- `handle_protection_groups()` - PG CRUD with tag-based server selection
+- `handle_recovery_plans()` - RP CRUD with wave dependency validation
+- `handle_executions()` - Execution start/status/control with real-time updates
+- **`pause_execution()`** - Pause execution between waves using Step Functions StopExecution
+- **`resume_execution()`** - Resume paused execution via Step Functions SendTaskSuccess callback
+- **`cancel_execution()`** - Cancel running execution with proper cleanup
+- **`terminate_recovery_instances()`** - Terminate DRS recovery instances with validation
+- `handle_drs_source_servers()` - Server discovery with assignment tracking across regions
+- `handle_accounts()` - Cross-account configuration and validation
+- `get_active_executions_for_plan()` - Check for execution conflicts with detailed status
+- `check_server_conflicts()` - Validate servers not in active executions across plans
+- **`get_execution_job_logs()`** - Real-time DRS job log retrieval with filtering
+- **`check_termination_status()`** - Monitor instance termination job progress
 
-**DynamoDB Operations**:
+**Cross-Account Integration**:
 ```python
-# Protection Groups table
-pg_table.put_item(Item={...})           # Create
-pg_table.get_item(Key={'Id': pg_id})   # Read
-pg_table.update_item(Key={...})         # Update
-pg_table.delete_item(Key={'Id': pg_id}) # Delete
-pg_table.scan()                         # List all
+def assume_cross_account_role(account_id: str, region: str) -> boto3.Session:
+    """Assume role in target account for DRS operations"""
+    sts_client = boto3.client('sts')
+    
+    role_arn = f'arn:aws:iam::{account_id}:role/DRS-Orchestration-CrossAccount-Role'
+    
+    response = sts_client.assume_role(
+        RoleArn=role_arn,
+        RoleSessionName=f'drs-orchestration-{int(time.time())}',
+        ExternalId='drs-orchestration-external-id'
+    )
+    
+    credentials = response['Credentials']
+    return boto3.Session(
+        aws_access_key_id=credentials['AccessKeyId'],
+        aws_secret_access_key=credentials['SecretAccessKey'],
+        aws_session_token=credentials['SessionToken'],
+        region_name=region
+    )
+```
 
-# Recovery Plans table
-rp_table.put_item(Item={...})           # Create
-rp_table.get_item(Key={'PlanId': id})  # Read
-rp_table.update_item(Key={...})         # Update
-rp_table.delete_item(Key={...})         # Delete
+**Enhanced DynamoDB Operations**:
+```python
+# Protection Groups with conflict detection and optimistic locking
+pg_table.put_item(Item={...}, ConditionExpression='attribute_not_exists(Id)')
+pg_table.update_item(
+    Key={'Id': pg_id},
+    UpdateExpression='SET #servers = :servers, #updated = :timestamp, #version = #version + :inc',
+    ConditionExpression='#version = :expected_version',  # Optimistic locking
+    ExpressionAttributeNames={'#servers': 'ServerIds', '#updated': 'UpdatedAt', '#version': 'Version'},
+    ExpressionAttributeValues={':servers': server_ids, ':timestamp': now, ':expected_version': version, ':inc': 1}
+)
+
+# Execution History with StatusIndex GSI queries
+eh_table.query(
+    IndexName='StatusIndex',
+    KeyConditionExpression='#status = :status',
+    FilterExpression='#plan_id = :plan_id',
+    ExpressionAttributeNames={'#status': 'Status', '#plan_id': 'PlanId'},
+    ExpressionAttributeValues={':status': 'POLLING', ':plan_id': plan_id}
+)
+
+# Cross-account execution tracking
+eh_table.put_item(Item={
+    'ExecutionId': execution_id,
+    'PlanId': plan_id,
+    'Status': 'INITIATED',
+    'AccountId': target_account_id,
+    'Region': target_region,
+    'TaskToken': task_token,  # For pause/resume
+    'CrossAccountRole': assumed_role_arn,
+    'WaveStatus': wave_configurations,
+    'CreatedAt': timestamp
+})
 rp_table.scan()                         # List all
 
 # Execution History table
@@ -1308,9 +1357,229 @@ sequenceDiagram
     Frontend-->>User: Success/Error
 ```
 
-### Authorization Model
+### RBAC Authorization System
 
-**IAM Roles**:
+**Role-Based Access Control (RBAC) Implementation**:
+
+The system implements a comprehensive RBAC model with **5 roles** and **11 granular permissions** enforced through middleware in the API handler Lambda function.
+
+#### RBAC Role Matrix
+
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| **DRSOrchestrationAdmin** | All permissions (`*`) | Full system administration |
+| **DRSRecoveryManager** | `ExecuteRecovery`, `ManageExecution`, `TerminateInstances`, `ViewResources` | Recovery operations management |
+| **DRSPlanManager** | `CreateProtectionGroup`, `UpdateProtectionGroup`, `CreateRecoveryPlan`, `UpdateRecoveryPlan`, `ViewResources` | DR planning and configuration |
+| **DRSOperator** | `ExecuteRecovery`, `ViewResources` | Execute recovery operations only |
+| **DRSReadOnly** | `ViewResources` | Read-only monitoring access |
+
+#### Granular Permissions
+
+| Permission | Description | Endpoints Protected |
+|------------|-------------|-------------------|
+| `drs:CreateProtectionGroup` | Create protection groups | `POST /protection-groups` |
+| `drs:UpdateProtectionGroup` | Modify protection groups | `PUT /protection-groups/{id}` |
+| `drs:DeleteProtectionGroup` | Delete protection groups | `DELETE /protection-groups/{id}` |
+| `drs:CreateRecoveryPlan` | Create recovery plans | `POST /recovery-plans` |
+| `drs:UpdateRecoveryPlan` | Modify recovery plans | `PUT /recovery-plans/{id}` |
+| `drs:DeleteRecoveryPlan` | Delete recovery plans | `DELETE /recovery-plans/{id}` |
+| `drs:ExecuteRecovery` | Start recovery executions | `POST /executions`, `POST /recovery-plans/{id}/execute` |
+| `drs:ManageExecution` | Control running executions | `POST /executions/{id}/pause`, `POST /executions/{id}/resume`, `POST /executions/{id}/cancel` |
+| `drs:TerminateInstances` | Terminate recovery instances | `POST /executions/{id}/terminate-instances` |
+| `drs:ViewResources` | Read access to all resources | All `GET` endpoints |
+| `drs:ManageAccounts` | Cross-account configuration | `/accounts/*` endpoints |
+
+#### RBAC Middleware Implementation
+
+```python
+# lambda/rbac_middleware.py
+import json
+from typing import List, Dict, Any
+
+class RBACMiddleware:
+    """Role-Based Access Control middleware for API endpoints"""
+    
+    ROLE_PERMISSIONS = {
+        'DRSOrchestrationAdmin': ['*'],  # All permissions
+        'DRSRecoveryManager': [
+            'drs:ExecuteRecovery',
+            'drs:ManageExecution', 
+            'drs:TerminateInstances',
+            'drs:ViewResources'
+        ],
+        'DRSPlanManager': [
+            'drs:CreateProtectionGroup',
+            'drs:UpdateProtectionGroup',
+            'drs:CreateRecoveryPlan',
+            'drs:UpdateRecoveryPlan',
+            'drs:ViewResources'
+        ],
+        'DRSOperator': [
+            'drs:ExecuteRecovery',
+            'drs:ViewResources'
+        ],
+        'DRSReadOnly': [
+            'drs:ViewResources'
+        ]
+    }
+    
+    ENDPOINT_PERMISSIONS = {
+        # Protection Groups
+        ('POST', '/protection-groups'): 'drs:CreateProtectionGroup',
+        ('PUT', '/protection-groups/*'): 'drs:UpdateProtectionGroup',
+        ('DELETE', '/protection-groups/*'): 'drs:DeleteProtectionGroup',
+        
+        # Recovery Plans
+        ('POST', '/recovery-plans'): 'drs:CreateRecoveryPlan',
+        ('PUT', '/recovery-plans/*'): 'drs:UpdateRecoveryPlan',
+        ('DELETE', '/recovery-plans/*'): 'drs:DeleteRecoveryPlan',
+        ('POST', '/recovery-plans/*/execute'): 'drs:ExecuteRecovery',
+        
+        # Executions
+        ('POST', '/executions'): 'drs:ExecuteRecovery',
+        ('POST', '/executions/*/pause'): 'drs:ManageExecution',
+        ('POST', '/executions/*/resume'): 'drs:ManageExecution',
+        ('POST', '/executions/*/cancel'): 'drs:ManageExecution',
+        ('POST', '/executions/*/terminate-instances'): 'drs:TerminateInstances',
+        
+        # Account Management
+        ('POST', '/accounts'): 'drs:ManageAccounts',
+        ('PUT', '/accounts/*'): 'drs:ManageAccounts',
+        ('DELETE', '/accounts/*'): 'drs:ManageAccounts',
+        
+        # All GET endpoints require ViewResources
+        ('GET', '*'): 'drs:ViewResources'
+    }
+    
+    @classmethod
+    def check_permission(cls, user_roles: List[str], required_permission: str) -> bool:
+        """Check if user has required permission through any assigned role"""
+        for role in user_roles:
+            permissions = cls.ROLE_PERMISSIONS.get(role, [])
+            if '*' in permissions or required_permission in permissions:
+                return True
+        return False
+    
+    @classmethod
+    def authorize_request(cls, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Authorize API request based on JWT claims and endpoint"""
+        # Extract user roles from JWT token
+        jwt_claims = event.get('requestContext', {}).get('authorizer', {})
+        user_roles = jwt_claims.get('cognito:groups', '').split(',')
+        
+        # Determine required permission for endpoint
+        http_method = event.get('httpMethod', '')
+        resource_path = event.get('resource', '')
+        
+        required_permission = cls._get_required_permission(http_method, resource_path)
+        
+        # Check authorization
+        if not cls.check_permission(user_roles, required_permission):
+            return {
+                'statusCode': 403,
+                'body': json.dumps({
+                    'success': False,
+                    'error': {
+                        'message': f'Insufficient permissions. Required: {required_permission}',
+                        'code': 'INSUFFICIENT_PERMISSIONS'
+                    }
+                })
+            }
+        
+        return None  # Authorization successful
+    
+    @classmethod
+    def _get_required_permission(cls, method: str, path: str) -> str:
+        """Map HTTP method and path to required permission"""
+        # Check exact matches first
+        for (endpoint_method, endpoint_path), permission in cls.ENDPOINT_PERMISSIONS.items():
+            if method == endpoint_method:
+                if endpoint_path == '*' or path == endpoint_path or \
+                   (endpoint_path.endswith('*') and path.startswith(endpoint_path[:-1])):
+                    return permission
+        
+        # Default to ViewResources for GET requests
+        if method == 'GET':
+            return 'drs:ViewResources'
+        
+        # Deny by default for unmatched endpoints
+        return 'drs:Admin'  # Requires admin access
+```
+
+#### Cognito Groups Integration
+
+**Cognito User Pool Configuration**:
+```json
+{
+  "UserPoolName": "drs-orchestration-users",
+  "Policies": {
+    "PasswordPolicy": {
+      "MinimumLength": 8,
+      "RequireUppercase": true,
+      "RequireLowercase": true,
+      "RequireNumbers": true,
+      "RequireSymbols": true
+    }
+  },
+  "AutoVerifiedAttributes": ["email"],
+  "UsernameAttributes": ["email"],
+  "Schema": [
+    {
+      "Name": "email",
+      "AttributeDataType": "String",
+      "Required": true,
+      "Mutable": true
+    }
+  ]
+}
+```
+
+**Cognito Groups for RBAC**:
+```bash
+# Create RBAC groups in Cognito User Pool
+aws cognito-idp create-group \
+  --group-name "DRSOrchestrationAdmin" \
+  --user-pool-id us-east-1_XXXXXXXXX \
+  --description "Full administrative access"
+
+aws cognito-idp create-group \
+  --group-name "DRSRecoveryManager" \
+  --user-pool-id us-east-1_XXXXXXXXX \
+  --description "Recovery operations management"
+
+aws cognito-idp create-group \
+  --group-name "DRSPlanManager" \
+  --user-pool-id us-east-1_XXXXXXXXX \
+  --description "DR planning and configuration"
+
+aws cognito-idp create-group \
+  --group-name "DRSOperator" \
+  --user-pool-id us-east-1_XXXXXXXXX \
+  --description "Execute recovery operations"
+
+aws cognito-idp create-group \
+  --group-name "DRSReadOnly" \
+  --user-pool-id us-east-1_XXXXXXXXX \
+  --description "Read-only monitoring access"
+```
+
+#### JWT Token Structure
+
+**JWT Claims with RBAC Groups**:
+```json
+{
+  "sub": "user-uuid",
+  "email": "admin@example.com",
+  "cognito:groups": ["DRSOrchestrationAdmin", "DRSRecoveryManager"],
+  "cognito:username": "admin",
+  "aud": "client-id",
+  "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXXX",
+  "exp": 1699999999,
+  "iat": 1699996399
+}
+```
+
+### AWS IAM Roles
 
 1. **Lambda Execution Role** (`DRS-Orchestration-Lambda-Role`):
    ```json
@@ -1324,21 +1593,49 @@ sequenceDiagram
            "dynamodb:PutItem",
            "dynamodb:UpdateItem",
            "dynamodb:DeleteItem",
+           "dynamodb:Query",
            "dynamodb:Scan"
          ],
          "Resource": [
-           "arn:aws:dynamodb:*:*:table/protection-groups-*",
-           "arn:aws:dynamodb:*:*:table/recovery-plans-*",
-           "arn:aws:dynamodb:*:*:table/execution-history-*"
+           "arn:aws:dynamodb:*:*:table/drs-orchestration-protection-groups-*",
+           "arn:aws:dynamodb:*:*:table/drs-orchestration-recovery-plans-*",
+           "arn:aws:dynamodb:*:*:table/drs-orchestration-execution-history-*",
+           "arn:aws:dynamodb:*:*:table/drs-orchestration-execution-history-*/index/StatusIndex"
          ]
        },
        {
          "Effect": "Allow",
          "Action": [
-           "states:StartExecution",
-           "states:DescribeExecution"
+           "drs:DescribeSourceServers",
+           "drs:StartRecovery",
+           "drs:DescribeJobs",
+           "drs:DescribeJobLogItems",
+           "drs:CreateRecoveryInstanceForDrs",
+           "drs:TerminateRecoveryInstances"
          ],
-         "Resource": "arn:aws:states:*:*:stateMachine:DRS-Orchestration-*"
+         "Resource": "*"
+       },
+       {
+         "Effect": "Allow",
+         "Action": [
+           "ec2:DescribeInstances",
+           "ec2:DescribeInstanceStatus",
+           "ec2:TerminateInstances",
+           "ec2:CreateLaunchTemplate",
+           "ec2:CreateLaunchTemplateVersion"
+         ],
+         "Resource": "*"
+       },
+       {
+         "Effect": "Allow",
+         "Action": [
+           "states:StartExecution",
+           "states:DescribeExecution",
+           "states:StopExecution",
+           "states:SendTaskSuccess",
+           "states:SendTaskFailure"
+         ],
+         "Resource": "arn:aws:states:*:*:stateMachine:drs-orchestration-*"
        },
        {
          "Effect": "Allow",
@@ -1348,7 +1645,7 @@ sequenceDiagram
        {
          "Effect": "Allow",
          "Action": ["sts:AssumeRole"],
-         "Resource": "arn:aws:iam::*:role/DRS-Orchestration-Role"
+         "Resource": "arn:aws:iam::*:role/DRS-Orchestration-CrossAccount-Role"
        }
      ]
    }
@@ -1368,11 +1665,52 @@ sequenceDiagram
    }
    ```
 
+3. **Execution Poller Role** (`DRS-Orchestration-ExecutionPoller-Role`):
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "dynamodb:Query",
+           "dynamodb:UpdateItem"
+         ],
+         "Resource": [
+           "arn:aws:dynamodb:*:*:table/drs-orchestration-execution-history-*",
+           "arn:aws:dynamodb:*:*:table/drs-orchestration-execution-history-*/index/StatusIndex"
+         ]
+       },
+       {
+         "Effect": "Allow",
+         "Action": [
+           "drs:DescribeJobs",
+           "drs:DescribeJobLogItems"
+         ],
+         "Resource": "*"
+       },
+       {
+         "Effect": "Allow",
+         "Action": [
+           "cloudwatch:PutMetricData"
+         ],
+         "Resource": "*"
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["lambda:InvokeFunction"],
+         "Resource": "arn:aws:lambda:*:*:function:drs-orchestration-execution-poller-*"
+       }
+     ]
+   }
+   ```
+
 **Cognito Configuration**:
 - Password Policy: Min 8 chars, uppercase, lowercase, numbers, symbols
 - MFA: Optional (can enable per-user)
-- Token Expiration: Access token 1 hour, Refresh token 30 days
+- Token Expiration: Access token 45 minutes, Refresh token 30 days
 - User Attributes: email (required, verified)
+- Groups: 5 RBAC groups for permission management
 
 ---
 
@@ -1422,11 +1760,13 @@ sequenceDiagram
 
 ## API Architecture
 
-### REST API Design
+### Comprehensive REST API Design
 
 **API Base URL**: `https://{api-id}.execute-api.{region}.amazonaws.com/prod`
 
-**Authentication**: Bearer token (JWT from Cognito)
+**Current Implementation**: **42+ endpoints** across **12 categories**
+
+**Authentication**: Bearer token (JWT from Cognito) with RBAC authorization
 
 **Request Headers**:
 ```
@@ -1453,266 +1793,354 @@ Content-Type: application/json
 - 204 No Content: Successful DELETE
 - 400 Bad Request: Invalid input
 - 401 Unauthorized: Missing/invalid JWT
+- 403 Forbidden: Insufficient RBAC permissions
 - 404 Not Found: Resource doesn't exist
-- 409 Conflict: Duplicate name, server already assigned
+- 409 Conflict: Duplicate name, server already assigned, active execution
 - 500 Internal Server Error: Unexpected error
 
----
+### RBAC Authorization System
 
-### API Endpoints Reference
+**5 Roles with Granular Permissions**:
 
-#### Protection Groups
+| Role | Permissions | Use Case |
+|------|-------------|----------|
+| **DRSOrchestrationAdmin** | All 11 permissions | Full administrative access |
+| **DRSRecoveryManager** | Execute, manage, view operations | Recovery team leads |
+| **DRSPlanManager** | Create/modify plans and groups | DR architects |
+| **DRSOperator** | Execute recovery, view plans | Operations staff |
+| **DRSReadOnly** | View-only access | Monitoring, auditing |
 
-**Create Protection Group**:
-```
-POST /protection-groups
-Content-Type: application/json
+**11 Granular Permissions**:
+1. `drs:CreateProtectionGroup` - Create protection groups
+2. `drs:UpdateProtectionGroup` - Modify protection groups
+3. `drs:DeleteProtectionGroup` - Delete protection groups
+4. `drs:CreateRecoveryPlan` - Create recovery plans
+5. `drs:UpdateRecoveryPlan` - Modify recovery plans
+6. `drs:DeleteRecoveryPlan` - Delete recovery plans
+7. `drs:ExecuteRecovery` - Start recovery executions
+8. `drs:ManageExecution` - Pause/resume/cancel executions
+9. `drs:TerminateInstances` - Terminate recovery instances
+10. `drs:ViewResources` - Read access to all resources
+11. `drs:ManageAccounts` - Cross-account configuration
 
-{
-  "name": "Production-Database",
-  "region": "us-east-1",
-  "description": "Production database servers",
-  "tags": {"Environment": "prod"},
-  "serverIds": ["s-123", "s-456"]
-}
-
-Response: 201 Created
-{
-  "success": true,
-  "data": {
-    "id": "pg-uuid-123",
-    "name": "Production-Database",
-    "region": "us-east-1",
-    "serverIds": ["s-123", "s-456"],
-    "createdAt": 1699999999,
-    "updatedAt": 1699999999
-  }
-}
-```
-
-**List Protection Groups**:
-```
-GET /protection-groups
-
-Response: 200 OK
-{
-  "success": true,
-  "data": [
-    {"id": "pg-1", "name": "Database", ...},
-    {"id": "pg-2", "name": "Application", ...}
-  ]
-}
-```
-
-**Get Single Protection Group**:
-```
-GET /protection-groups/{id}
-
-Response: 200 OK
-{
-  "success": true,
-  "data": {
-    "id": "pg-uuid-123",
-    "name": "Production-Database",
-    ...
-  }
-}
-```
-
-**Update Protection Group**:
-```
-PUT /protection-groups/{id}
-Content-Type: application/json
-
-{
-  "serverIds": ["s-123", "s-456", "s-789"]
-}
-
-Response: 200 OK
-{
-  "success": true,
-  "data": {...}
-}
-```
-
-**Delete Protection Group**:
-```
-DELETE /protection-groups/{id}
-
-Response: 204 No Content
+**RBAC Middleware Implementation**:
+```python
+def check_permission(user_roles: List[str], required_permission: str) -> bool:
+    """Check if user has required permission through any assigned role"""
+    role_permissions = {
+        'DRSOrchestrationAdmin': ['*'],  # All permissions
+        'DRSRecoveryManager': [
+            'drs:ExecuteRecovery', 'drs:ManageExecution', 
+            'drs:TerminateInstances', 'drs:ViewResources'
+        ],
+        'DRSPlanManager': [
+            'drs:CreateProtectionGroup', 'drs:UpdateProtectionGroup',
+            'drs:CreateRecoveryPlan', 'drs:UpdateRecoveryPlan', 'drs:ViewResources'
+        ],
+        'DRSOperator': ['drs:ExecuteRecovery', 'drs:ViewResources'],
+        'DRSReadOnly': ['drs:ViewResources']
+    }
+    
+    for role in user_roles:
+        permissions = role_permissions.get(role, [])
+        if '*' in permissions or required_permission in permissions:
+            return True
+    return False
 ```
 
 ---
 
-#### Recovery Plans
+### Complete API Endpoint Catalog (42+ Endpoints)
 
-**Create Recovery Plan**:
+#### 1. Protection Groups (6 endpoints)
 ```
-POST /recovery-plans
-Content-Type: application/json
+GET    /protection-groups              # List with filtering (region, status, conflict)
+POST   /protection-groups              # Create with tag-based or explicit server selection
+GET    /protection-groups/{id}         # Get details with resolved server information
+PUT    /protection-groups/{id}         # Update with optimistic locking
+DELETE /protection-groups/{id}         # Delete (blocked if used in active plans)
+POST   /protection-groups/resolve      # Preview servers matching tag criteria
+```
 
+#### 2. Recovery Plans (7 endpoints)
+```
+GET    /recovery-plans                 # List with execution history and conflict info
+POST   /recovery-plans                 # Create with multi-wave configuration
+GET    /recovery-plans/{id}            # Get details with wave dependencies
+PUT    /recovery-plans/{id}            # Update with validation
+DELETE /recovery-plans/{id}            # Delete (blocked if has active executions)
+POST   /recovery-plans/{id}/execute    # Execute recovery plan (drill or recovery mode)
+GET    /recovery-plans/{id}/check-existing-instances # Check for existing recovery instances
+```
+
+#### 3. Executions (11 endpoints)
+```
+GET    /executions                     # List with advanced filtering and pagination
+POST   /executions                     # Start execution (alternative to recovery-plans execute)
+GET    /executions/{id}                # Get detailed status and wave progress
+POST   /executions/{id}/pause          # Pause execution between waves (waitForTaskToken)
+POST   /executions/{id}/resume         # Resume paused execution via Step Functions callback
+POST   /executions/{id}/cancel         # Cancel running execution
+POST   /executions/{id}/terminate-instances # Terminate recovery instances after drill
+GET    /executions/{id}/job-logs       # Get DRS job logs with real-time updates
+GET    /executions/{id}/termination-status # Check instance termination job status
+DELETE /executions                     # Bulk delete completed executions
+POST   /executions/delete              # Delete specific executions by IDs
+```
+
+#### 4. DRS Integration (4 endpoints)
+```
+GET    /drs/source-servers             # Discover servers with assignment tracking
+GET    /drs/quotas                     # Get service quotas and current usage
+GET    /drs/accounts                   # Get account information and initialization status
+GET    /drs/job-logs/{jobId}           # Get detailed DRS job event logs
+```
+
+#### 5. Account Management (6 endpoints)
+```
+GET    /accounts                       # List configured cross-account access
+POST   /accounts                       # Add cross-account configuration
+GET    /accounts/{accountId}           # Get account details and validation status
+PUT    /accounts/{accountId}           # Update account configuration
+DELETE /accounts/{accountId}           # Remove account access
+POST   /accounts/{accountId}/validate  # Validate cross-account role access
+```
+
+#### 6. EC2 Resources (4 endpoints)
+```
+GET    /ec2/instances                  # List recovery instances across accounts
+GET    /ec2/instances/{instanceId}     # Get instance details and health status
+POST   /ec2/instances/terminate        # Terminate specific instances
+GET    /ec2/launch-templates           # List DRS launch templates
+```
+
+#### 7. Configuration (4 endpoints)
+```
+GET    /config/settings                # Get system configuration
+PUT    /config/settings                # Update system settings
+GET    /config/regions                 # List supported DRS regions
+GET    /config/health                  # System health check
+```
+
+#### 8. User Management (1 endpoint)
+```
+GET    /users/profile                  # Get current user profile and permissions
+```
+
+#### 9. Health Check (1 endpoint)
+```
+GET    /health                         # API health status (no auth required)
+```
+
+### Advanced Execution Control Flows
+
+#### Pause/Resume Execution Flow
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as api-handler
+    participant SF as Step Functions
+    participant DDB as DynamoDB
+    participant Orch as orchestration-stepfunctions
+    
+    Note over User,Orch: Execution running, user wants to pause
+    
+    User->>API: POST /executions/{id}/pause
+    API->>DDB: Get execution record
+    DDB-->>API: Execution data (status: POLLING)
+    API->>SF: StopExecution (graceful)
+    SF-->>API: Execution stopped
+    API->>DDB: Update status = PAUSED
+    API-->>User: 200 OK (Execution paused)
+    
+    Note over User,Orch: User ready to resume
+    
+    User->>API: POST /executions/{id}/resume
+    API->>DDB: Get execution record
+    DDB-->>API: Execution data (status: PAUSED, taskToken)
+    API->>SF: SendTaskSuccess(taskToken)
+    SF->>Orch: Continue execution
+    Orch->>DDB: Update status = POLLING
+    API-->>User: 200 OK (Execution resumed)
+```
+
+#### Cancel Execution Flow
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as api-handler
+    participant SF as Step Functions
+    participant DDB as DynamoDB
+    
+    User->>API: POST /executions/{id}/cancel
+    API->>DDB: Get execution record
+    DDB-->>API: Execution data
+    
+    alt Execution is paused
+        API->>SF: SendTaskFailure(taskToken, "User cancelled")
+    else Execution is running
+        API->>SF: StopExecution(cause: "User cancelled")
+    end
+    
+    SF-->>API: Execution stopped
+    API->>DDB: Update status = CANCELLED, endTime = now
+    API-->>User: 200 OK (Execution cancelled)
+```
+
+#### Terminate Instances Flow
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as api-handler
+    participant DDB as DynamoDB
+    participant EC2 as EC2 Service
+    
+    User->>API: POST /executions/{id}/terminate-instances
+    API->>DDB: Get execution record
+    DDB-->>API: Execution (status, recoveryInstanceIds)
+    
+    alt Status not terminal
+        API-->>User: 400 Bad Request (Execution still running)
+    else Already terminated
+        API-->>User: 400 Bad Request (Already terminated)
+    else Valid request
+        loop For each recovery instance
+            API->>EC2: TerminateInstances([instanceId])
+            EC2-->>API: Termination initiated
+        end
+        API->>DDB: Update instancesTerminated = true
+        API-->>User: 200 OK (Termination initiated)
+    end
+```
+
+### Cross-Account Integration Patterns
+
+#### Multi-Account DRS Operations
+```mermaid
+sequenceDiagram
+    participant API as api-handler (Hub Account)
+    participant STS as AWS STS
+    participant DRS as AWS DRS (Spoke Account)
+    participant EC2 as EC2 (Spoke Account)
+    
+    Note over API,EC2: Cross-account DRS operation
+    
+    API->>STS: AssumeRole(SpokeAccountRole)
+    STS-->>API: Temporary credentials
+    API->>DRS: DescribeSourceServers (with assumed role)
+    DRS-->>API: Source server list
+    API->>DRS: StartRecovery (with assumed role)
+    DRS->>EC2: Launch recovery instances
+    EC2-->>DRS: Instances launched
+    DRS-->>API: Job ID and status
+```
+
+**Cross-Account IAM Configuration**:
+
+**Hub Account Lambda Role**:
+```json
 {
-  "name": "3-Tier-Production",
-  "description": "3-tier app recovery",
-  "protectionGroupIds": ["pg-db", "pg-app", "pg-web"],
-  "waves": [
+  "Version": "2012-10-17",
+  "Statement": [
     {
-      "waveNumber": 1,
-      "waveName": "Database",
-      "serverIds": ["s-db1", "s-db2"],
-      "executionType": "SEQUENTIAL",
-      "dependsOnWaves": [],
-      "waitTimeSeconds": 60
-    },
-    {
-      "waveNumber": 2,
-      "waveName": "Application",
-      "serverIds": ["s-app1", "s-app2"],
-      "executionType": "PARALLEL",
-      "dependsOnWaves": [1],
-      "waitTimeSeconds": 30
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::*:role/DRS-Orchestration-CrossAccount-Role",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "drs-orchestration-external-id"
+        }
+      }
     }
   ]
 }
+```
 
-Response: 201 Created
+**Spoke Account Cross-Account Role**:
+```json
 {
-  "success": true,
-  "data": {
-    "planId": "plan-uuid-456",
-    "name": "3-Tier-Production",
-    ...
-  }
-}
-```
-
-**List Recovery Plans**:
-```
-GET /recovery-plans
-
-Response: 200 OK
-{
-  "success": true,
-  "data": [...]
-}
-```
-
----
-
-#### Executions
-
-**Start Execution**:
-```
-POST /executions
-Content-Type: application/json
-
-{
-  "PlanId": "plan-uuid-456",
-  "ExecutionType": "DRILL",  // or "RECOVERY"
-  "InitiatedBy": "admin@example.com"
-}
-
-Response: 202 Accepted
-{
-  "executionId": "exec-uuid-789",
-  "status": "PENDING",
-  "message": "Execution started"
-}
-```
-
-**Get Execution Status**:
-```
-GET /executions/{id}
-
-Response: 200 OK
-{
-  "executionId": "exec-uuid-789",
-  "status": "running",
-  "currentWave": 2,
-  "totalWaves": 3,
-  "waves": [
-    {"waveName": "Database", "status": "completed"},
-    {"waveName": "Application", "status": "in_progress"}
-  ]
-}
-```
-
-**Pause Execution**:
-```
-POST /executions/{id}/pause
-
-Response: 200 OK
-{
-  "executionId": "exec-uuid-789",
-  "status": "PAUSED",
-  "message": "Execution paused"
-}
-```
-
-**Resume Execution**:
-```
-POST /executions/{id}/resume
-
-Response: 200 OK
-{
-  "executionId": "exec-uuid-789",
-  "status": "RESUMING",
-  "message": "Execution resumed"
-}
-```
-
-**Cancel Execution**:
-```
-POST /executions/{id}/cancel
-
-Response: 200 OK
-{
-  "executionId": "exec-uuid-789",
-  "status": "CANCELLED",
-  "message": "Execution cancelled"
-}
-```
-
-**Terminate Recovery Instances**:
-```
-POST /executions/{id}/terminate-instances
-
-Response: 200 OK
-{
-  "executionId": "exec-uuid-789",
-  "message": "Initiated termination of recovery instances",
-  "totalTerminated": 5
-}
-```
-
----
-
-#### DRS Server Discovery
-
-**Discover Source Servers**:
-```
-GET /drs/source-servers?region=us-east-1
-
-Response: 200 OK
-{
-  "success": true,
-  "data": [
+  "Version": "2012-10-17",
+  "Statement": [
     {
-      "sourceServerID": "s-123",
-      "hostname": "db-server-01",
-      "ipAddress": "10.0.1.10",
-      "replicationStatus": "CONTINUOUS",
-      "assignedToProtectionGroup": null  // or "pg-uuid-123"
-    },
-    {
-      "sourceServerID": "s-456",
-      "hostname": "app-server-01",
-      "ipAddress": "10.0.2.10",
-      "replicationStatus": "PAUSED",
-      "assignedToProtectionGroup": "pg-uuid-456"
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::HUB_ACCOUNT:role/DRS-Orchestration-Lambda-Role"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "drs-orchestration-external-id"
+        }
+      }
     }
   ]
 }
+```
+
+### Real-Time Polling Mechanisms
+
+#### Execution Status Polling Architecture
+```mermaid
+graph TB
+    subgraph "EventBridge Scheduling"
+        EB[EventBridge Rule<br/>1-minute schedule]
+    end
+    
+    subgraph "Execution Discovery"
+        Finder[execution-finder<br/>Lambda]
+        GSI[(StatusIndex GSI<br/>DynamoDB)]
+    end
+    
+    subgraph "Status Monitoring"
+        Poller[execution-poller<br/>Lambda]
+        DRS[AWS DRS API]
+        Metrics[CloudWatch Metrics]
+    end
+    
+    subgraph "Data Updates"
+        History[(execution-history<br/>DynamoDB)]
+    end
+    
+    EB -->|Every 1 minute| Finder
+    Finder -->|Query status=POLLING| GSI
+    GSI -->|Active executions| Finder
+    Finder -->|Invoke for each| Poller
+    Poller -->|DescribeJobs| DRS
+    DRS -->|Job status| Poller
+    Poller -->|Update status| History
+    Poller -->|Publish metrics| Metrics
+    
+    style EB fill:#E7157B
+    style Finder fill:#FF9900
+    style Poller fill:#FF9900
+    style DRS fill:#527FFF
+```
+
+**Polling Logic Implementation**:
+```python
+def poll_execution_status(execution_id: str):
+    """Poll DRS job status and update execution record"""
+    # Get execution record
+    execution = get_execution_from_dynamodb(execution_id)
+    
+    if execution['Status'] != 'POLLING':
+        return  # Skip non-active executions
+    
+    # Poll all DRS jobs for this execution
+    job_statuses = []
+    for wave in execution['WaveStatus']:
+        for job_id in wave.get('JobIds', []):
+            job_status = drs_client.describe_jobs(
+                filters={'jobIDs': [job_id]}
+            )['items'][0]['status']
+            job_statuses.append(job_status)
+    
+    # Determine overall execution status
+    if all(status == 'COMPLETED' for status in job_statuses):
+        update_execution_status(execution_id, 'COMPLETED')
+    elif any(status == 'FAILED' for status in job_statuses):
+        update_execution_status(execution_id, 'FAILED')
+    # Continue polling if jobs still running
 ```
 
 ---

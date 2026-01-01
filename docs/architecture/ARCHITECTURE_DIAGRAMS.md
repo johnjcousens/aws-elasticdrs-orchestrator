@@ -574,8 +574,6 @@ graph TB
 
 ---
 
-## Component Interaction Matrix
-
 | Component | Reads From | Writes To | Invokes |
 |-----------|------------|-----------|---------|
 | api-handler | DynamoDB (all 3 tables), DRS | DynamoDB, CloudWatch Logs | Step Functions, EC2 |
@@ -586,6 +584,511 @@ graph TB
 | Step Functions | - | CloudWatch Logs | orchestration-stepfunctions |
 | EventBridge | - | - | execution-finder |
 | Frontend | API Gateway | - | Cognito Auth |
+
+---
+
+## RBAC Authorization Flow
+
+### JWT Token Validation and Permission Check
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant CloudFront
+    participant APIGateway as API Gateway
+    participant Cognito
+    participant Lambda as api-handler
+    participant RBAC as RBAC Middleware
+    participant DDB as DynamoDB
+    
+    User->>Frontend: Login Request
+    Frontend->>Cognito: Authenticate (email/password)
+    Cognito-->>Frontend: JWT Tokens (access, ID, refresh)
+    Frontend->>CloudFront: Store tokens securely
+    
+    Note over User,DDB: API Request with RBAC Check
+    
+    User->>Frontend: API Action (e.g., Create Protection Group)
+    Frontend->>APIGateway: HTTPS Request + Authorization Header
+    APIGateway->>Cognito: Validate JWT Token
+    Cognito-->>APIGateway: Token Valid + User Claims
+    
+    APIGateway->>Lambda: Invoke with JWT Claims
+    Lambda->>RBAC: Check Permission (endpoint, HTTP method, user claims)
+    
+    RBAC->>RBAC: Extract custom:role from JWT
+    RBAC->>RBAC: Map endpoint to required permission
+    RBAC->>RBAC: Validate role has permission
+    
+    alt Permission Granted
+        RBAC-->>Lambda: Authorization Success
+        Lambda->>DDB: Execute Business Logic
+        DDB-->>Lambda: Data Response
+        Lambda-->>APIGateway: 200 Success + Data
+    else Permission Denied
+        RBAC-->>Lambda: 403 Forbidden
+        Lambda-->>APIGateway: 403 Forbidden + Error
+    end
+    
+    APIGateway-->>Frontend: HTTP Response
+    Frontend-->>User: UI Update or Error Message
+```
+
+### RBAC Permission Matrix
+
+| Role | Permissions | Endpoint Access |
+|------|-------------|-----------------|
+| **DRSAdmin** | All permissions | All 42+ endpoints |
+| **DRSOperator** | Execute, manage, view, terminate | 35+ endpoints (no account management) |
+| **DRSViewer** | View only | 15+ read-only endpoints |
+| **DRSAuditor** | View + execution history | 20+ endpoints (no modifications) |
+| **DRSCrossAccount** | Cross-account operations | 25+ endpoints (account-specific) |
+
+---
+
+## Cross-Account DRS Operations
+
+### Cross-Account Recovery Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as api-handler
+    participant STS as AWS STS
+    participant DRSSource as DRS (Source Account)
+    participant DRSTarget as DRS (Target Account)
+    participant EC2Target as EC2 (Target Account)
+    
+    User->>API: Execute Recovery Plan (cross-account)
+    API->>API: Validate cross-account configuration
+    
+    Note over API,STS: Assume Cross-Account Role
+    
+    API->>STS: AssumeRole (target account role)
+    STS-->>API: Temporary credentials
+    
+    Note over API,DRSSource: Source Account Operations
+    
+    API->>DRSSource: DescribeSourceServers (source account)
+    DRSSource-->>API: Server details and replication status
+    
+    Note over API,DRSTarget: Target Account Recovery
+    
+    API->>DRSTarget: StartRecovery (with temp credentials)
+    DRSTarget->>EC2Target: Create launch template
+    EC2Target-->>DRSTarget: Template created
+    DRSTarget->>EC2Target: Launch recovery instances
+    EC2Target-->>DRSTarget: Instances launching
+    DRSTarget-->>API: Recovery job started
+    
+    API-->>User: Execution started (cross-account)
+    
+    Note over API,DRSTarget: Monitor Progress
+    
+    loop Poll until complete
+        API->>DRSTarget: DescribeJobs (temp credentials)
+        DRSTarget-->>API: Job status update
+    end
+```
+
+### Cross-Account IAM Configuration
+
+**Source Account Role (DRS servers)**:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "drs:DescribeSourceServers",
+        "drs:GetReplicationConfiguration"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**Target Account Role (Recovery instances)**:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "drs:StartRecovery",
+        "drs:DescribeJobs",
+        "drs:CreateRecoveryInstanceForDrs",
+        "ec2:RunInstances",
+        "ec2:CreateLaunchTemplate",
+        "ec2:CreateLaunchTemplateVersion",
+        "ec2:TerminateInstances"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+---
+
+## Real-Time Polling Mechanisms
+
+### Execution Status Polling Architecture
+
+```mermaid
+graph TB
+    subgraph "Scheduled Polling (EventBridge)"
+        EB[EventBridge Rule<br/>1 minute schedule]
+        EF[execution-finder<br/>Query StatusIndex GSI]
+        EP[execution-poller<br/>Poll DRS jobs]
+    end
+    
+    subgraph "Frontend Real-Time Updates"
+        FE[Frontend App]
+        Timer[3-second timer]
+        API[API Gateway]
+    end
+    
+    subgraph "Data Layer"
+        DDB[(DynamoDB<br/>execution-history)]
+        GSI[(StatusIndex GSI<br/>Status + StartTime)]
+    end
+    
+    subgraph "AWS DRS"
+        DRS[DRS Service]
+        Jobs[Recovery Jobs]
+    end
+    
+    EB -->|Every 1 minute| EF
+    EF -->|Query POLLING status| GSI
+    GSI -->|Return active executions| EF
+    EF -->|Invoke for each execution| EP
+    
+    EP -->|DescribeJobs| DRS
+    DRS -->|Job status| EP
+    EP -->|Update status| DDB
+    
+    Timer -->|Every 3 seconds| FE
+    FE -->|GET /executions| API
+    API -->|Query| DDB
+    DDB -->|Latest status| API
+    API -->|JSON response| FE
+    
+    style EF fill:#FF9900
+    style EP fill:#FF9900
+    style GSI fill:#C925D1
+```
+
+### Polling State Transitions
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: Execution Created
+    PENDING --> INITIATED: Step Functions Started
+    INITIATED --> POLLING: DRS Job Started
+    
+    state POLLING {
+        [*] --> CheckJobStatus
+        CheckJobStatus --> LAUNCHING: All jobs LAUNCHED
+        CheckJobStatus --> POLLING: Jobs still in progress
+        CheckJobStatus --> FAILED: Any job FAILED
+    }
+    
+    POLLING --> PAUSED: Pause before wave
+    PAUSED --> POLLING: User resumes
+    PAUSED --> CANCELLED: User cancels
+    
+    POLLING --> COMPLETED: All waves done
+    POLLING --> PARTIAL: Some waves failed
+    POLLING --> CANCELLED: User cancels
+    
+    COMPLETED --> [*]
+    PARTIAL --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
+```
+
+### Real-Time Update Flow
+
+```mermaid
+sequenceDiagram
+    participant EB as EventBridge
+    participant Finder as execution-finder
+    participant Poller as execution-poller
+    participant DDB as DynamoDB
+    participant DRS as AWS DRS
+    participant Frontend
+    
+    Note over EB,DRS: Background Polling (Every 1 minute)
+    
+    EB->>Finder: Scheduled trigger
+    Finder->>DDB: Query StatusIndex GSI (Status=POLLING)
+    DDB-->>Finder: Active executions list
+    
+    loop For each active execution
+        Finder->>Poller: Invoke async
+        Poller->>DRS: DescribeJobs(jobIds)
+        DRS-->>Poller: Job status updates
+        Poller->>DDB: Update execution status
+    end
+    
+    Note over Frontend,DDB: Frontend Polling (Every 3 seconds)
+    
+    Frontend->>Frontend: Timer triggers
+    Frontend->>DDB: GET /executions (via API)
+    DDB-->>Frontend: Latest execution status
+    Frontend->>Frontend: Update UI with new status
+```
+
+---
+
+## Cancel and Terminate Flows
+
+### Execution Cancellation Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as api-handler
+    participant SF as Step Functions
+    participant DDB as DynamoDB
+    participant Lambda as orchestration-stepfunctions
+    
+    User->>API: POST /executions/{id}/cancel
+    API->>DDB: Get execution record
+    DDB-->>API: Execution details (status, taskToken)
+    
+    alt Execution is PAUSED (has taskToken)
+        API->>SF: SendTaskFailure(taskToken, "User cancelled")
+        SF->>Lambda: Resume with failure
+        Lambda->>DDB: Update status = CANCELLED
+        Lambda-->>SF: Execution terminated
+    else Execution is POLLING (no taskToken)
+        API->>SF: StopExecution(executionArn, "User cancelled")
+        SF-->>API: Execution stopped
+        API->>DDB: Update status = CANCELLED
+    else Execution already terminal
+        API-->>User: 400 Bad Request (already completed)
+    end
+    
+    API-->>User: 200 Success (cancellation initiated)
+```
+
+### Instance Termination Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as api-handler
+    participant DDB as DynamoDB
+    participant EC2 as EC2 Service
+    
+    User->>API: POST /executions/{id}/terminate-instances
+    API->>DDB: Get execution record
+    DDB-->>API: Execution (status, instanceIds, terminated flag)
+    
+    alt Status not terminal
+        API-->>User: 400 Bad Request (execution still running)
+    else Already terminated
+        API-->>User: 400 Bad Request (instances already terminated)
+    else Valid termination request
+        API->>EC2: TerminateInstances(instanceIds)
+        EC2-->>API: Termination initiated
+        API->>DDB: Update instancesTerminated = true
+        API-->>User: 200 Success (termination started)
+    end
+    
+    Note over EC2: Instances terminate asynchronously
+    Note over User: User can check termination status via API
+```
+
+---
+
+## Advanced Execution Control Patterns
+
+### Wave-Based Execution with Dependencies
+
+```mermaid
+graph TB
+    subgraph "Recovery Plan Structure"
+        Plan[Recovery Plan]
+        W1[Wave 1: Database Tier<br/>pauseBeforeWave: false]
+        W2[Wave 2: Application Tier<br/>pauseBeforeWave: true]
+        W3[Wave 3: Web Tier<br/>pauseBeforeWave: false]
+    end
+    
+    subgraph "Execution Flow"
+        Start[Start Execution]
+        ExecW1[Execute Wave 1]
+        MonitorW1[Monitor Wave 1 Jobs]
+        CompleteW1[Wave 1 Complete]
+        
+        PauseW2[Pause Before Wave 2]
+        WaitW2[Wait for Resume Signal]
+        ExecW2[Execute Wave 2]
+        MonitorW2[Monitor Wave 2 Jobs]
+        CompleteW2[Wave 2 Complete]
+        
+        ExecW3[Execute Wave 3]
+        MonitorW3[Monitor Wave 3 Jobs]
+        CompleteW3[Wave 3 Complete]
+        
+        End[Execution Complete]
+    end
+    
+    Plan --> W1
+    W1 --> W2
+    W2 --> W3
+    
+    Start --> ExecW1
+    ExecW1 --> MonitorW1
+    MonitorW1 --> CompleteW1
+    CompleteW1 --> PauseW2
+    PauseW2 --> WaitW2
+    WaitW2 -->|User Resume| ExecW2
+    ExecW2 --> MonitorW2
+    MonitorW2 --> CompleteW2
+    CompleteW2 --> ExecW3
+    ExecW3 --> MonitorW3
+    MonitorW3 --> CompleteW3
+    CompleteW3 --> End
+    
+    style PauseW2 fill:#E7157B
+    style WaitW2 fill:#E7157B
+```
+
+### Task Token Management for Pause/Resume
+
+```mermaid
+sequenceDiagram
+    participant SF as Step Functions
+    participant Lambda as orchestration-stepfunctions
+    participant DDB as DynamoDB
+    participant API as api-handler
+    participant User
+    
+    Note over SF,Lambda: Wave configured with pauseBeforeWave=true
+    
+    SF->>Lambda: Invoke with taskToken
+    Lambda->>DDB: Store taskToken in execution record
+    Lambda->>DDB: Update status = PAUSED
+    Lambda->>DDB: Store wave context (number, name, servers)
+    Lambda-->>SF: Return (no SendTaskSuccess yet)
+    
+    Note over SF: Step Functions waits indefinitely
+    Note over SF: Maximum wait: 1 year (31536000 seconds)
+    
+    User->>API: POST /executions/{id}/resume
+    API->>DDB: Get execution record
+    DDB-->>API: taskToken + wave context
+    API->>SF: SendTaskSuccess(taskToken, waveContext)
+    SF->>Lambda: Continue with wave execution
+    Lambda->>DDB: Update status = POLLING
+    Lambda->>Lambda: Execute DRS StartRecovery
+```
+
+---
+
+## Component Interaction Matrix (Enhanced)
+
+### Service Communication Patterns
+
+| Source Service | Target Service | Communication Type | Purpose | Frequency |
+|----------------|----------------|--------------------|---------|-----------|
+| **Frontend** | **CloudFront** | HTTPS | Static asset delivery | Continuous |
+| **Frontend** | **API Gateway** | HTTPS + JWT | API requests | Per user action |
+| **API Gateway** | **Cognito** | AWS API | JWT validation | Per API request |
+| **API Gateway** | **api-handler** | Synchronous invoke | Request processing | Per API request |
+| **api-handler** | **DynamoDB** | AWS SDK | CRUD operations | Per API request |
+| **api-handler** | **Step Functions** | AWS SDK | Start executions | Per execution start |
+| **api-handler** | **AWS DRS** | AWS SDK | Server discovery | Per DRS query |
+| **api-handler** | **EC2** | AWS SDK | Instance termination | Per terminate request |
+| **Step Functions** | **orchestration-stepfunctions** | Synchronous invoke | Wave execution | Per wave |
+| **orchestration-stepfunctions** | **AWS DRS** | AWS SDK | Recovery operations | Per wave |
+| **orchestration-stepfunctions** | **DynamoDB** | AWS SDK | Status updates | Per wave transition |
+| **EventBridge** | **execution-finder** | Scheduled invoke | Polling trigger | Every 1 minute |
+| **execution-finder** | **DynamoDB** | AWS SDK | Query active executions | Every 1 minute |
+| **execution-finder** | **execution-poller** | Asynchronous invoke | Job status polling | Per active execution |
+| **execution-poller** | **AWS DRS** | AWS SDK | Job status queries | Per polling cycle |
+| **execution-poller** | **DynamoDB** | AWS SDK | Status updates | Per job status change |
+| **execution-poller** | **CloudWatch** | AWS SDK | Metrics publishing | Per status update |
+| **frontend-builder** | **S3** | AWS SDK | Deploy frontend | Per deployment |
+| **frontend-builder** | **CloudFront** | AWS SDK | Cache invalidation | Per deployment |
+
+### Data Flow Patterns
+
+```mermaid
+graph LR
+    subgraph "User Interface Layer"
+        User[User Browser]
+        Frontend[React Frontend]
+    end
+    
+    subgraph "Content Delivery"
+        CF[CloudFront CDN]
+        S3Frontend[S3 Frontend Bucket]
+    end
+    
+    subgraph "API Layer"
+        APIGW[API Gateway]
+        Cognito[Cognito User Pool]
+    end
+    
+    subgraph "Compute Layer"
+        APIHandler[api-handler Lambda]
+        OrchSF[orchestration-stepfunctions]
+        ExecFinder[execution-finder]
+        ExecPoller[execution-poller]
+    end
+    
+    subgraph "Orchestration"
+        StepFn[Step Functions]
+        EventBridge[EventBridge]
+    end
+    
+    subgraph "Data Layer"
+        DDBProtection[(protection-groups)]
+        DDBPlans[(recovery-plans)]
+        DDBHistory[(execution-history)]
+    end
+    
+    subgraph "AWS Services"
+        DRS[AWS DRS]
+        EC2[EC2 Service]
+    end
+    
+    User -.->|HTTPS| CF
+    CF -.->|Origin| S3Frontend
+    User -.->|API Calls| APIGW
+    APIGW -.->|Auth| Cognito
+    APIGW -.->|Invoke| APIHandler
+    
+    APIHandler -.->|CRUD| DDBProtection
+    APIHandler -.->|CRUD| DDBPlans
+    APIHandler -.->|CRUD| DDBHistory
+    APIHandler -.->|Start| StepFn
+    APIHandler -.->|Query| DRS
+    APIHandler -.->|Terminate| EC2
+    
+    StepFn -.->|Invoke| OrchSF
+    OrchSF -.->|Recovery| DRS
+    OrchSF -.->|Update| DDBHistory
+    
+    EventBridge -.->|Schedule| ExecFinder
+    ExecFinder -.->|Query| DDBHistory
+    ExecFinder -.->|Invoke| ExecPoller
+    ExecPoller -.->|Poll| DRS
+    ExecPoller -.->|Update| DDBHistory
+    
+    style APIHandler fill:#FF9900
+    style OrchSF fill:#FF9900
+    style ExecFinder fill:#FF9900
+    style ExecPoller fill:#FF9900
+```
 
 ---
 
@@ -607,3 +1110,17 @@ This architecture provides:
 - EventBridge scheduled triggers for background processing
 - CloudFront + S3 for global frontend distribution
 - API Gateway + Cognito for secure API access
+- RBAC middleware for granular permission control
+- Cross-account DRS operations with STS role assumption
+- Real-time polling with dual-layer architecture (EventBridge + Frontend)
+
+**Advanced Features**:
+
+- **42+ REST API endpoints** across 12 categories
+- **5-role RBAC system** with 11 granular permissions
+- **Cross-account orchestration** with STS role assumption
+- **Pause/resume execution control** with indefinite wait capability
+- **Real-time DRS integration** with job status monitoring
+- **Instance termination management** for cost optimization
+- **Tag-based server selection** with conflict detection
+- **Wave-based execution** with dependency management

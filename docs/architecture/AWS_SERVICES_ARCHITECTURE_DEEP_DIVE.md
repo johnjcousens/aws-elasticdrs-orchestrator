@@ -324,7 +324,7 @@ AWS Lambda provides the serverless compute foundation for the DRS Orchestration 
 
 **Four Core Functions:**
 
-**1. API Handler (`drs-orchestration-api-handler-{env}`)**
+**1. API Handler (`aws-drs-orchestrator-api-handler-{env}`)**
 
 **Purpose**: REST API request handler for all CRUD operations
 
@@ -424,7 +424,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
 }
 ```
 
-**2. Orchestration Function (`drs-orchestration-orchestration-{env}`)**
+**2. Orchestration Function (`aws-drs-orchestrator-orchestration-stepfunctions-{env}`)**
 
 **Purpose**: Step Functions integration for wave-based disaster recovery execution
 
@@ -486,7 +486,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
 }
 ```
 
-**3. Frontend Builder Function (`drs-orchestration-frontend-builder-{env}`)**
+**3. Frontend Builder Function (`aws-drs-orchestrator-frontend-builder-{env}`)**
 
 **Purpose**: Custom CloudFormation resource to build and deploy React frontend
 
@@ -527,7 +527,7 @@ def lambda_handler(event, context):
         send_cfn_response(SUCCESS)
 ```
 
-**4. S3 Cleanup Function (`drs-orchestration-s3-cleanup-{env}`)**
+**4. S3 Cleanup Function (`aws-drs-orchestrator-s3-cleanup-{env}`)**
 
 **Purpose**: Custom CloudFormation resource to empty S3 bucket before deletion
 
@@ -707,3 +707,1211 @@ AWS Step Functions orchestrates multi-wave disaster recovery execution through a
 **Type**: Standard (long-running workflows, at-least-once execution)
 
 **Definition Language**: Amazon States Language (ASL) JSON
+
+**Enhanced Capabilities**:
+- **Pause/Resume with waitForTaskToken**: Indefinite pause capability (up to 1 year)
+- **Cross-Account Orchestration**: Multi-account DRS operations via assumed roles
+- **Wave-Based Execution**: Sequential wave processing with dependency validation
+- **Real-Time Job Monitoring**: Continuous DRS job status polling with CloudWatch metrics
+- **Advanced Error Handling**: Retry logic, exponential backoff, graceful degradation
+- **Task Token Management**: Secure token storage in DynamoDB for pause/resume operations
+
+**Complete State Machine Flow**:
+```json
+{
+  "Comment": "DRS Orchestration State Machine with Pause/Resume Capability",
+  "StartAt": "ValidateRecoveryPlan",
+  "States": {
+    "ValidateRecoveryPlan": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+      "Parameters": {
+        "action": "validate_plan",
+        "execution_id.$": "$.execution_id",
+        "plan_id.$": "$.plan_id"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "ExecutionFailed",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "InitializeExecution"
+    },
+    
+    "InitializeExecution": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+      "Parameters": {
+        "action": "initialize_execution",
+        "execution_id.$": "$.execution_id",
+        "plan_id.$": "$.plan_id",
+        "execution_type.$": "$.execution_type",
+        "initiated_by.$": "$.initiated_by"
+      },
+      "Next": "ProcessWaves"
+    },
+    
+    "ProcessWaves": {
+      "Type": "Map",
+      "ItemsPath": "$.waves",
+      "MaxConcurrency": 1,
+      "Iterator": {
+        "StartAt": "CheckPauseConfiguration",
+        "States": {
+          "CheckPauseConfiguration": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.pause_before_wave",
+                "BooleanEquals": true,
+                "Next": "WaitForResumeSignal"
+              }
+            ],
+            "Default": "ExecuteWave"
+          },
+          
+          "WaitForResumeSignal": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+            "Parameters": {
+              "FunctionName": "drs-orchestration-stepfunctions-${Environment}",
+              "Payload": {
+                "action": "pause_before_wave",
+                "TaskToken.$": "$$.Task.Token",
+                "execution_id.$": "$.execution_id",
+                "wave_number.$": "$.wave_number",
+                "wave_name.$": "$.wave_name"
+              }
+            },
+            "TimeoutSeconds": 31536000,
+            "Catch": [
+              {
+                "ErrorEquals": ["States.ALL"],
+                "Next": "WaveCancelled",
+                "ResultPath": "$.error"
+              }
+            ],
+            "Next": "ExecuteWave"
+          },
+          
+          "ExecuteWave": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+            "Parameters": {
+              "action": "execute_wave",
+              "execution_id.$": "$.execution_id",
+              "wave_number.$": "$.wave_number",
+              "wave_name.$": "$.wave_name",
+              "server_ids.$": "$.server_ids",
+              "account_id.$": "$.account_id",
+              "region.$": "$.region"
+            },
+            "Retry": [
+              {
+                "ErrorEquals": ["DRS.ThrottlingException"],
+                "IntervalSeconds": 5,
+                "MaxAttempts": 5,
+                "BackoffRate": 2.0
+              }
+            ],
+            "Next": "MonitorWaveCompletion"
+          },
+          
+          "MonitorWaveCompletion": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+            "Parameters": {
+              "action": "monitor_wave_jobs",
+              "execution_id.$": "$.execution_id",
+              "wave_number.$": "$.wave_number",
+              "job_ids.$": "$.job_ids"
+            },
+            "Next": "CheckWaveStatus"
+          },
+          
+          "CheckWaveStatus": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.wave_status",
+                "StringEquals": "COMPLETED",
+                "Next": "WaveCompleted"
+              },
+              {
+                "Variable": "$.wave_status",
+                "StringEquals": "FAILED",
+                "Next": "WaveFailed"
+              },
+              {
+                "Variable": "$.wave_status",
+                "StringEquals": "POLLING",
+                "Next": "WaitAndPoll"
+              }
+            ],
+            "Default": "WaveFailed"
+          },
+          
+          "WaitAndPoll": {
+            "Type": "Wait",
+            "Seconds": 30,
+            "Next": "MonitorWaveCompletion"
+          },
+          
+          "WaveCompleted": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+            "Parameters": {
+              "action": "finalize_wave",
+              "execution_id.$": "$.execution_id",
+              "wave_number.$": "$.wave_number",
+              "status": "COMPLETED"
+            },
+            "End": true
+          },
+          
+          "WaveFailed": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+            "Parameters": {
+              "action": "finalize_wave",
+              "execution_id.$": "$.execution_id",
+              "wave_number.$": "$.wave_number",
+              "status": "FAILED",
+              "error.$": "$.error"
+            },
+            "End": true
+          },
+          
+          "WaveCancelled": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+            "Parameters": {
+              "action": "finalize_wave",
+              "execution_id.$": "$.execution_id",
+              "wave_number.$": "$.wave_number",
+              "status": "CANCELLED",
+              "error.$": "$.error"
+            },
+            "End": true
+          }
+        }
+      },
+      "Next": "FinalizeExecution"
+    },
+    
+    "FinalizeExecution": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+      "Parameters": {
+        "action": "finalize_execution",
+        "execution_id.$": "$.execution_id",
+        "wave_results.$": "$"
+      },
+      "Next": "ExecutionCompleted"
+    },
+    
+    "ExecutionCompleted": {
+      "Type": "Succeed"
+    },
+    
+    "ExecutionFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${Region}:${AccountId}:function:drs-orchestration-stepfunctions-${Environment}",
+      "Parameters": {
+        "action": "handle_execution_failure",
+        "execution_id.$": "$.execution_id",
+        "error.$": "$.error"
+      },
+      "Next": "ExecutionFailedEnd"
+    },
+    
+    "ExecutionFailedEnd": {
+      "Type": "Fail",
+      "Cause": "Execution failed during processing"
+    }
+  }
+}
+```
+
+**Key State Machine Features**:
+
+1. **waitForTaskToken Integration**: 
+   - Enables indefinite pause capability (up to 1 year maximum)
+   - Task token stored securely in DynamoDB execution record
+   - Resume triggered via `SendTaskSuccess` API call from API handler
+
+2. **Cross-Account Orchestration**:
+   - Each wave can target different AWS accounts
+   - STS role assumption handled in Lambda functions
+   - Account-specific DRS client creation for multi-account operations
+
+3. **Advanced Error Handling**:
+   - Exponential backoff for DRS throttling exceptions
+   - Graceful degradation for individual wave failures
+   - Comprehensive error context preservation
+
+4. **Real-Time Monitoring Integration**:
+   - CloudWatch metrics published at each state transition
+   - Execution progress tracked in DynamoDB with timestamps
+   - Job-level monitoring with detailed status updates
+
+---
+
+## Amazon API Gateway - Comprehensive Endpoint Catalog
+
+### Service Overview and Advanced Configuration
+
+Amazon API Gateway serves as the unified entry point for all 42+ REST API endpoints, providing authentication, authorization, request validation, and traffic management. This section analyzes the complete endpoint catalog, RBAC integration, cross-account request routing, and advanced API Gateway features.
+
+### Complete API Endpoint Catalog (42+ Endpoints)
+
+The AWS DRS Orchestration Solution provides a comprehensive REST API with **42+ endpoints** across **12 categories**, implementing advanced features including pause/resume execution control, cross-account operations, real-time DRS integration, and granular RBAC authorization.
+
+#### 1. Protection Groups Management (6 endpoints)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/protection-groups` | `drs:ViewResources` | List all protection groups with advanced filtering (region, account, conflict status) |
+| POST | `/protection-groups` | `drs:CreateProtectionGroup` | Create protection group with tag-based server selection and conflict detection |
+| GET | `/protection-groups/{id}` | `drs:ViewResources` | Get protection group details with resolved server information and assignment tracking |
+| PUT | `/protection-groups/{id}` | `drs:UpdateProtectionGroup` | Update protection group with optimistic locking and server conflict validation |
+| DELETE | `/protection-groups/{id}` | `drs:DeleteProtectionGroup` | Delete protection group with active execution conflict checking |
+| POST | `/protection-groups/resolve` | `drs:ViewResources` | Preview servers matching tag criteria in real-time across accounts |
+
+**Query Parameters for GET `/protection-groups`**:
+- `accountId` - Filter by target AWS account ID
+- `region` - Filter by AWS region (us-east-1, us-west-2, etc.)
+- `name` - Filter by group name (partial match, case-insensitive)
+- `hasConflict` - Filter by server conflict status (true/false)
+- `tag` - Filter by server tags (format: key=value)
+
+#### 2. Recovery Plans Management (7 endpoints)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/recovery-plans` | `drs:ViewResources` | List recovery plans with execution history |
+| POST | `/recovery-plans` | `drs:CreateRecoveryPlan` | Create multi-wave recovery plan |
+| GET | `/recovery-plans/{id}` | `drs:ViewResources` | Get recovery plan with wave dependencies |
+| PUT | `/recovery-plans/{id}` | `drs:UpdateRecoveryPlan` | Update recovery plan with validation |
+| DELETE | `/recovery-plans/{id}` | `drs:DeleteRecoveryPlan` | Delete recovery plan (active execution check) |
+| POST | `/recovery-plans/{id}/execute` | `drs:ExecuteRecovery` | Execute recovery plan (drill or recovery) |
+| GET | `/recovery-plans/{id}/check-existing-instances` | `drs:ViewResources` | Check for existing recovery instances |
+
+**Query Parameters for GET `/recovery-plans`**:
+- `accountId` - Filter by target AWS account ID
+- `name` - Filter by plan name (partial match)
+- `nameExact` - Filter by exact plan name match
+- `tag` - Filter by protection group tags (key=value format)
+- `hasConflict` - Filter by server conflict status
+- `status` - Filter by last execution status
+
+#### 3. Execution Management (11 endpoints)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/executions` | `drs:ViewResources` | List execution history with advanced filtering |
+| POST | `/executions` | `drs:ExecuteRecovery` | Start new execution (alternative to plan execute) |
+| GET | `/executions/{id}` | `drs:ViewResources` | Get detailed execution status and progress |
+| POST | `/executions/{id}/pause` | `drs:ManageExecution` | Pause execution between waves |
+| POST | `/executions/{id}/resume` | `drs:ManageExecution` | Resume paused execution |
+| POST | `/executions/{id}/cancel` | `drs:ManageExecution` | Cancel running execution |
+| POST | `/executions/{id}/terminate-instances` | `drs:TerminateInstances` | Terminate recovery instances |
+| GET | `/executions/{id}/job-logs` | `drs:ViewResources` | Get DRS job logs with real-time updates |
+| GET | `/executions/{id}/termination-status` | `drs:ViewResources` | Check instance termination status |
+| DELETE | `/executions` | `drs:ManageExecution` | Bulk delete completed executions |
+| POST | `/executions/delete` | `drs:ManageExecution` | Delete specific executions by IDs |
+
+**Advanced Query Parameters for GET `/executions`**:
+- `planId` - Filter by recovery plan UUID
+- `status` - Filter by execution status (PENDING, POLLING, COMPLETED, etc.)
+- `executionType` - Filter by DRILL or RECOVERY
+- `initiatedBy` - Filter by user who started execution
+- `startDate` - Filter by start date (MM-DD-YYYY format)
+- `endDate` - Filter by end date (MM-DD-YYYY format)
+- `dateRange` - Quick filters: today, yesterday, thisWeek, lastWeek, thisMonth, lastMonth
+- `limit` - Limit number of results (default: 50, max: 100)
+- `sortBy` - Sort field: StartTime, EndTime, Status (default: StartTime)
+- `sortOrder` - Sort direction: asc, desc (default: desc)
+
+#### 4. DRS Integration (4 endpoints)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/drs/source-servers` | `drs:ViewResources` | Discover DRS servers with assignment tracking |
+| GET | `/drs/quotas` | `drs:ViewResources` | Get DRS service quotas and usage |
+| GET | `/drs/accounts` | `drs:ViewResources` | Get DRS account initialization status |
+| GET | `/drs/job-logs/{jobId}` | `drs:ViewResources` | Get detailed DRS job event logs |
+
+**Query Parameters for GET `/drs/source-servers`**:
+- `region` - Target AWS region (required)
+- `accountId` - Target AWS account ID (for cross-account)
+- `replicationStatus` - Filter by replication status
+- `assignmentStatus` - Filter by assignment to protection groups
+- `tag` - Filter by server tags (key=value format)
+
+#### 5. Account Management (6 endpoints)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/accounts` | `drs:ManageAccounts` | List configured cross-account access |
+| POST | `/accounts` | `drs:ManageAccounts` | Add cross-account configuration |
+| GET | `/accounts/{accountId}` | `drs:ManageAccounts` | Get account details and validation |
+| PUT | `/accounts/{accountId}` | `drs:ManageAccounts` | Update account configuration |
+| DELETE | `/accounts/{accountId}` | `drs:ManageAccounts` | Remove account access |
+| POST | `/accounts/{accountId}/validate` | `drs:ManageAccounts` | Validate cross-account role access |
+
+#### 6. EC2 Resources (4 endpoints)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/ec2/instances` | `drs:ViewResources` | List recovery instances across accounts |
+| GET | `/ec2/instances/{instanceId}` | `drs:ViewResources` | Get instance details and health |
+| POST | `/ec2/instances/terminate` | `drs:TerminateInstances` | Terminate specific instances |
+| GET | `/ec2/launch-templates` | `drs:ViewResources` | List DRS launch templates |
+
+#### 7. Configuration Management (4 endpoints)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/config/settings` | `drs:ViewResources` | Get system configuration |
+| PUT | `/config/settings` | `drs:ManageAccounts` | Update system settings |
+| GET | `/config/regions` | `drs:ViewResources` | List supported DRS regions |
+| GET | `/config/health` | `drs:ViewResources` | System health check |
+
+#### 8. User Management (1 endpoint)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/users/profile` | `drs:ViewResources` | Get current user profile and permissions |
+
+#### 9. Health Check (1 endpoint)
+
+| Method | Endpoint | RBAC Permission | Description |
+|--------|----------|-----------------|-------------|
+| GET | `/health` | None (public) | API health status check |
+
+### RBAC Middleware Integration
+
+**API Gateway Authorizer Configuration**:
+```json
+{
+  "Type": "COGNITO_USER_POOLS",
+  "Name": "CognitoAuthorizer",
+  "ProviderARNs": [
+    "arn:aws:cognito-idp:${Region}:${AccountId}:userpool/${UserPoolId}"
+  ],
+  "AuthorizerCredentials": "arn:aws:iam::${AccountId}:role/APIGatewayAuthorizerRole",
+  "IdentitySource": "method.request.header.Authorization",
+  "AuthorizerResultTtlInSeconds": 300
+}
+```
+
+**Request Validation and RBAC Flow**:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant APIGW as API Gateway
+    participant Cognito
+    participant Lambda as api-handler
+    participant RBAC as RBAC Middleware
+    participant DDB as DynamoDB
+    
+    Client->>APIGW: Request + JWT Token
+    APIGW->>Cognito: Validate JWT
+    Cognito-->>APIGW: Token Valid + Claims
+    APIGW->>Lambda: Invoke with JWT Claims
+    Lambda->>RBAC: Check Permission
+    RBAC->>RBAC: Extract User Roles
+    RBAC->>RBAC: Map Endpoint to Permission
+    RBAC->>RBAC: Validate Role Permissions
+    
+    alt Permission Granted
+        RBAC-->>Lambda: Authorization Success
+        Lambda->>DDB: Execute Business Logic
+        DDB-->>Lambda: Data Response
+        Lambda-->>APIGW: Success Response
+    else Permission Denied
+        RBAC-->>Lambda: 403 Forbidden
+        Lambda-->>APIGW: Error Response
+    end
+    
+    APIGW-->>Client: Final Response
+```
+
+### Advanced API Gateway Features
+
+**Request/Response Transformation**:
+```json
+{
+  "RequestTemplates": {
+    "application/json": {
+      "httpMethod": "$context.httpMethod",
+      "resourcePath": "$context.resourcePath",
+      "pathParameters": "$input.params().path",
+      "queryStringParameters": "$input.params().querystring",
+      "headers": "$input.params().header",
+      "body": "$util.escapeJavaScript($input.body)",
+      "requestContext": {
+        "requestId": "$context.requestId",
+        "authorizer": {
+          "claims": "$context.authorizer.claims"
+        }
+      }
+    }
+  }
+}
+```
+
+**CORS Configuration**:
+```json
+{
+  "CorsConfiguration": {
+    "AllowCredentials": true,
+    "AllowHeaders": ["Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key"],
+    "AllowMethods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "AllowOrigins": ["https://*.amazonaws.com", "https://localhost:5173"],
+    "ExposeHeaders": ["X-Request-Id"],
+    "MaxAge": 86400
+  }
+}
+```
+
+**Throttling and Rate Limiting**:
+```json
+{
+  "ThrottleSettings": {
+    "BurstLimit": 500,
+    "RateLimit": 1000
+  },
+  "QuotaSettings": {
+    "Limit": 10000,
+    "Period": "DAY"
+  }
+}
+```
+
+### Performance Characteristics
+
+**API Response Times**:
+- **Simple CRUD Operations**: <100ms p95 (DynamoDB GetItem/PutItem)
+- **DRS Server Discovery**: 200-500ms p95 (AWS DRS API dependent)
+- **Execution Start**: <200ms p95 (Step Functions StartExecution)
+- **Complex Queries**: 100-300ms p95 (DynamoDB Query with GSI)
+
+**Throughput Capacity**:
+- **Burst Capacity**: 500 requests/second
+- **Sustained Rate**: 1000 requests/second
+- **Daily Quota**: 10,000 requests per API key
+- **Concurrent Connections**: 10,000 (API Gateway limit)
+
+**Caching Strategy**:
+- **DRS Server Discovery**: 5-minute cache (frequently changing data)
+- **Protection Groups**: 1-minute cache (moderate change frequency)
+- **Recovery Plans**: 5-minute cache (infrequent changes)
+- **Execution History**: No caching (real-time data)
+
+---
+
+## Amazon Cognito - Authentication and Authorization
+
+### Service Overview and JWT Integration
+
+Amazon Cognito User Pool provides centralized authentication for the DRS Orchestration Solution, issuing JWT tokens with embedded role claims for RBAC authorization. This section analyzes Cognito configuration, JWT token structure, session management, and integration with API Gateway authorizer.
+
+### User Pool Configuration
+
+**User Pool Settings**:
+```json
+{
+  "UserPoolName": "drs-orchestration-users-{env}",
+  "Policies": {
+    "PasswordPolicy": {
+      "MinimumLength": 8,
+      "RequireUppercase": true,
+      "RequireLowercase": true,
+      "RequireNumbers": true,
+      "RequireSymbols": false,
+      "TemporaryPasswordValidityDays": 7
+    }
+  },
+  "AutoVerifiedAttributes": ["email"],
+  "UsernameAttributes": ["email"],
+  "MfaConfiguration": "OPTIONAL",
+  "DeviceConfiguration": {
+    "ChallengeRequiredOnNewDevice": false,
+    "DeviceOnlyRememberedOnUserPrompt": true
+  },
+  "UserPoolTags": {
+    "Project": "aws-drs-orchestration",
+    "Environment": "{env}"
+  }
+}
+```
+
+**App Client Configuration**:
+```json
+{
+  "ClientName": "drs-orchestration-client-{env}",
+  "GenerateSecret": false,
+  "RefreshTokenValidity": 30,
+  "AccessTokenValidity": 45,
+  "IdTokenValidity": 45,
+  "TokenValidityUnits": {
+    "AccessToken": "minutes",
+    "IdToken": "minutes",
+    "RefreshToken": "days"
+  },
+  "ReadAttributes": ["email", "email_verified", "custom:role"],
+  "WriteAttributes": ["email"],
+  "ExplicitAuthFlows": [
+    "ALLOW_USER_SRP_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH"
+  ]
+}
+```
+
+### JWT Token Structure and RBAC Claims
+
+**Access Token Claims**:
+```json
+{
+  "sub": "user-uuid",
+  "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXXX",
+  "client_id": "client-id",
+  "origin_jti": "origin-jwt-id",
+  "event_id": "event-uuid",
+  "token_use": "access",
+  "scope": "aws.cognito.signin.user.admin",
+  "auth_time": 1640995200,
+  "exp": 1640997900,
+  "iat": 1640995200,
+  "jti": "jwt-id",
+  "username": "user@example.com",
+  "custom:role": "DRSOperator"
+}
+```
+
+**ID Token Claims (Extended)**:
+```json
+{
+  "sub": "user-uuid",
+  "aud": "client-id",
+  "cognito:groups": ["DRSOperators"],
+  "email_verified": true,
+  "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXXX",
+  "cognito:username": "user@example.com",
+  "custom:role": "DRSOperator",
+  "aud": "client-id",
+  "event_id": "event-uuid",
+  "token_use": "id",
+  "auth_time": 1640995200,
+  "exp": 1640997900,
+  "iat": 1640995200,
+  "email": "user@example.com"
+}
+```
+
+### RBAC Role Mapping
+
+**Custom Attribute Configuration**:
+- **Attribute Name**: `custom:role`
+- **Data Type**: String
+- **Mutable**: Yes (admin can update)
+- **Required**: Yes
+- **Valid Values**: DRSAdmin, DRSOperator, DRSViewer, DRSAuditor, DRSCrossAccount
+
+**Role Assignment Process**:
+1. Admin creates user in Cognito User Pool
+2. Admin sets `custom:role` attribute during user creation
+3. User receives temporary password via email
+4. User completes password reset on first login
+5. JWT tokens include role in `custom:role` claim
+6. API Gateway passes JWT to Lambda functions
+7. RBAC middleware extracts role and validates permissions
+
+### Session Management
+
+**Token Lifecycle**:
+- **Access Token**: 45 minutes (API authentication)
+- **ID Token**: 45 minutes (user identity)
+- **Refresh Token**: 30 days (token renewal)
+- **Session Timeout**: 45 minutes of inactivity
+
+**Token Refresh Flow**:
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant Cognito
+    participant API as API Gateway
+    
+    Frontend->>API: Request with expired token
+    API-->>Frontend: 401 Unauthorized
+    Frontend->>Cognito: Refresh token request
+    Cognito-->>Frontend: New access/ID tokens
+    Frontend->>API: Retry with new token
+    API-->>Frontend: Success response
+```
+
+### Security Configuration
+
+**Encryption and Security**:
+- **JWT Signing**: RS256 (RSA with SHA-256)
+- **Token Encryption**: TLS 1.2+ in transit
+- **Password Storage**: bcrypt with salt
+- **MFA Support**: TOTP and SMS (optional)
+- **Account Lockout**: 5 failed attempts, 15-minute lockout
+
+**Advanced Security Features**:
+- **Adaptive Authentication**: Risk-based MFA challenges
+- **Compromised Credentials Detection**: AWS threat intelligence
+- **Advanced Security Metrics**: CloudWatch integration
+- **User Pool Analytics**: Sign-in patterns and anomalies
+
+---
+
+## Amazon S3 - Static Hosting and Deployment Artifacts
+
+### Service Overview and Dual-Bucket Architecture
+
+Amazon S3 provides static website hosting for the React frontend and stores deployment artifacts for CloudFormation templates and Lambda functions. This section analyzes the dual-bucket architecture, CloudFront integration, deployment automation, and security configurations.
+
+### Dual-Bucket Architecture
+
+**1. Frontend Hosting Bucket (`drs-orchestration-frontend-{env}-{random}`)**
+
+**Purpose**: Static website hosting for React application
+
+**Configuration**:
+```json
+{
+  "BucketName": "drs-orchestration-frontend-test-abc123",
+  "PublicAccessBlockConfiguration": {
+    "BlockPublicAcls": true,
+    "BlockPublicPolicy": true,
+    "IgnorePublicAcls": true,
+    "RestrictPublicBuckets": true
+  },
+  "BucketEncryption": {
+    "ServerSideEncryptionConfiguration": [
+      {
+        "ServerSideEncryptionByDefault": {
+          "SSEAlgorithm": "AES256"
+        }
+      }
+    ]
+  },
+  "VersioningConfiguration": {
+    "Status": "Enabled"
+  },
+  "LifecycleConfiguration": {
+    "Rules": [
+      {
+        "Id": "DeleteOldVersions",
+        "Status": "Enabled",
+        "NoncurrentVersionExpirationInDays": 30
+      }
+    ]
+  }
+}
+```
+
+**Content Structure**:
+```text
+s3://drs-orchestration-frontend-test-abc123/
+├── index.html                    # React app entry point
+├── assets/
+│   ├── index-[hash].js          # Main application bundle
+│   ├── index-[hash].css         # Compiled styles
+│   └── vendor-[hash].js         # Third-party dependencies
+├── aws-config.json              # Runtime AWS configuration
+├── favicon.ico                  # Application icon
+└── manifest.json               # PWA manifest
+```
+
+**2. Deployment Artifacts Bucket (`aws-drs-orchestration`)**
+
+**Purpose**: Store CloudFormation templates and Lambda deployment packages
+
+**Configuration**:
+```json
+{
+  "BucketName": "aws-drs-orchestration",
+  "PublicAccessBlockConfiguration": {
+    "BlockPublicAcls": true,
+    "BlockPublicPolicy": true,
+    "IgnorePublicAcls": true,
+    "RestrictPublicBuckets": true
+  },
+  "BucketEncryption": {
+    "ServerSideEncryptionConfiguration": [
+      {
+        "ServerSideEncryptionByDefault": {
+          "SSEAlgorithm": "aws:kms",
+          "KMSMasterKeyID": "alias/aws/s3"
+        }
+      }
+    ]
+  },
+  "VersioningConfiguration": {
+    "Status": "Enabled"
+  }
+}
+```
+
+**Artifact Structure**:
+```text
+s3://aws-drs-orchestration/
+├── cfn/                         # CloudFormation templates
+│   ├── master-template.yaml
+│   ├── database-stack.yaml
+│   ├── lambda-stack.yaml
+│   ├── api-stack.yaml
+│   ├── step-functions-stack.yaml
+│   ├── security-stack.yaml
+│   └── frontend-stack.yaml
+├── lambda/                      # Lambda deployment packages
+│   ├── api-handler.zip
+│   ├── orchestration-stepfunctions.zip
+│   ├── execution-finder.zip
+│   ├── execution-poller.zip
+│   └── frontend-builder.zip
+└── frontend/                    # Frontend source for Lambda builder
+    ├── package.json
+    ├── src/
+    └── public/
+```
+
+### CloudFront Integration
+
+**Distribution Configuration**:
+```json
+{
+  "DistributionConfig": {
+    "CallerReference": "drs-orchestration-{timestamp}",
+    "Comment": "DRS Orchestration Frontend Distribution",
+    "DefaultRootObject": "index.html",
+    "Origins": [
+      {
+        "Id": "S3Origin",
+        "DomainName": "drs-orchestration-frontend-test-abc123.s3.amazonaws.com",
+        "S3OriginConfig": {
+          "OriginAccessIdentity": "origin-access-identity/cloudfront/ABCDEFG1234567"
+        }
+      }
+    ],
+    "DefaultCacheBehavior": {
+      "TargetOriginId": "S3Origin",
+      "ViewerProtocolPolicy": "redirect-to-https",
+      "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
+      "CachedMethods": ["GET", "HEAD"],
+      "Compress": true,
+      "CachePolicyId": "managed-caching-optimized",
+      "OriginRequestPolicyId": "managed-cors-s3-origin"
+    },
+    "CacheBehaviors": [
+      {
+        "PathPattern": "/assets/*",
+        "TargetOriginId": "S3Origin",
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "CachePolicyId": "managed-caching-optimized-for-uncompressed-objects",
+        "TTL": 31536000
+      },
+      {
+        "PathPattern": "/aws-config.json",
+        "TargetOriginId": "S3Origin",
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "CachePolicyId": "managed-caching-disabled",
+        "TTL": 0
+      }
+    ],
+    "CustomErrorResponses": [
+      {
+        "ErrorCode": 404,
+        "ResponseCode": 200,
+        "ResponsePagePath": "/index.html",
+        "ErrorCachingMinTTL": 300
+      }
+    ],
+    "PriceClass": "PriceClass_100",
+    "Enabled": true,
+    "HttpVersion": "http2"
+  }
+}
+```
+
+### Deployment Automation
+
+**Frontend Builder Lambda Integration**:
+```python
+def build_and_deploy_frontend(bucket_name, distribution_id):
+    """Build React app and deploy to S3 with CloudFront invalidation"""
+    
+    # 1. Extract frontend source from Lambda deployment package
+    extract_path = '/tmp/frontend'
+    with zipfile.ZipFile('/opt/frontend-source.zip', 'r') as zip_ref:
+        zip_ref.extractall(extract_path)
+    
+    # 2. Install dependencies
+    subprocess.run(['npm', 'install'], cwd=extract_path, check=True)
+    
+    # 3. Inject AWS configuration
+    aws_config = {
+        'region': os.environ['AWS_REGION'],
+        'userPoolId': os.environ['USER_POOL_ID'],
+        'userPoolWebClientId': os.environ['USER_POOL_CLIENT_ID'],
+        'apiGatewayUrl': os.environ['API_GATEWAY_URL']
+    }
+    
+    with open(f'{extract_path}/public/aws-config.json', 'w') as f:
+        json.dump(aws_config, f)
+    
+    # 4. Build production bundle
+    subprocess.run(['npm', 'run', 'build'], cwd=extract_path, check=True)
+    
+    # 5. Sync to S3 bucket
+    s3_client = boto3.client('s3')
+    build_path = f'{extract_path}/dist'
+    
+    for root, dirs, files in os.walk(build_path):
+        for file in files:
+            local_path = os.path.join(root, file)
+            s3_key = os.path.relpath(local_path, build_path)
+            
+            # Set content type
+            content_type = get_content_type(file)
+            
+            # Set cache control
+            cache_control = get_cache_control(file)
+            
+            s3_client.upload_file(
+                local_path, bucket_name, s3_key,
+                ExtraArgs={
+                    'ContentType': content_type,
+                    'CacheControl': cache_control
+                }
+            )
+    
+    # 6. Invalidate CloudFront cache
+    cloudfront_client = boto3.client('cloudfront')
+    cloudfront_client.create_invalidation(
+        DistributionId=distribution_id,
+        InvalidationBatch={
+            'Paths': {
+                'Quantity': 1,
+                'Items': ['/*']
+            },
+            'CallerReference': str(int(time.time()))
+        }
+    )
+```
+
+### Performance Optimization
+
+**Caching Strategy**:
+- **Static Assets** (`/assets/*`): 1 year cache (immutable with hash)
+- **HTML Files**: No cache (SPA routing)
+- **Configuration** (`aws-config.json`): No cache (runtime config)
+- **Other Files**: 1 day cache with revalidation
+
+**Compression and Optimization**:
+- **Gzip Compression**: Enabled for all text files
+- **Brotli Compression**: Enabled for modern browsers
+- **Image Optimization**: WebP format with fallbacks
+- **Bundle Splitting**: Vendor and app bundles separated
+
+### Cost Analysis
+
+**S3 Storage Costs (us-east-1)**:
+```
+Frontend Bucket (typical React app):
+  - Storage: 50 MB × $0.023/GB = $0.001/month
+  - Requests: 1000 GET × $0.0004/1000 = $0.0004/month
+  
+Deployment Bucket:
+  - Storage: 500 MB × $0.023/GB = $0.012/month
+  - Requests: 100 PUT × $0.005/1000 = $0.0005/month
+  
+Total S3: ~$0.02/month
+```
+
+**CloudFront Costs**:
+```
+Distribution (10,000 requests/month):
+  - Requests: 10,000 × $0.0075/10,000 = $0.0075/month
+  - Data Transfer: 1 GB × $0.085/GB = $0.085/month
+  
+Total CloudFront: ~$0.10/month
+```
+
+---
+
+## Amazon CloudFront - Global Content Delivery
+
+### Service Overview and Edge Optimization
+
+Amazon CloudFront provides global content delivery for the React frontend through 450+ edge locations worldwide, implementing advanced caching strategies, security headers, and performance optimizations. This section analyzes distribution configuration, caching behaviors, security features, and performance characteristics.
+
+### Distribution Architecture
+
+**Global Edge Network**:
+- **Edge Locations**: 450+ locations across 90+ cities
+- **Regional Edge Caches**: 13 regional caches for origin shielding
+- **Origin Shield**: Optional additional caching layer
+- **HTTP/2 Support**: Enabled by default for modern browsers
+
+**Performance Characteristics**:
+- **Cache Hit Ratio**: 85-95% for static assets
+- **Origin Requests**: 5-15% of total requests
+- **Global Latency**: <50ms p95 to edge locations
+- **Bandwidth**: Unlimited with automatic scaling
+
+### Advanced Caching Behaviors
+
+**Cache Behavior Configuration**:
+
+**1. Static Assets (`/assets/*`)**:
+```json
+{
+  "PathPattern": "/assets/*",
+  "CachePolicyId": "managed-caching-optimized-for-uncompressed-objects",
+  "TTL": {
+    "DefaultTTL": 31536000,
+    "MaxTTL": 31536000,
+    "MinTTL": 31536000
+  },
+  "Compress": true,
+  "ViewerProtocolPolicy": "redirect-to-https"
+}
+```
+
+**2. HTML Files (SPA Routing)**:
+```json
+{
+  "PathPattern": "*.html",
+  "CachePolicyId": "managed-caching-disabled",
+  "TTL": {
+    "DefaultTTL": 0,
+    "MaxTTL": 0,
+    "MinTTL": 0
+  },
+  "Headers": ["CloudFront-Is-Mobile-Viewer", "CloudFront-Is-Tablet-Viewer"]
+}
+```
+
+**3. API Configuration (`/aws-config.json`)**:
+```json
+{
+  "PathPattern": "/aws-config.json",
+  "CachePolicyId": "managed-caching-disabled",
+  "TTL": {
+    "DefaultTTL": 0,
+    "MaxTTL": 0,
+    "MinTTL": 0
+  },
+  "Headers": ["Origin", "Access-Control-Request-Headers", "Access-Control-Request-Method"]
+}
+```
+
+### Security Headers and Protection
+
+**Response Headers Policy**:
+```json
+{
+  "ResponseHeadersPolicyConfig": {
+    "Name": "DRS-Orchestration-Security-Headers",
+    "SecurityHeadersConfig": {
+      "StrictTransportSecurity": {
+        "AccessControlMaxAgeSec": 31536000,
+        "IncludeSubdomains": true,
+        "Preload": true
+      },
+      "ContentTypeOptions": {
+        "Override": true
+      },
+      "FrameOptions": {
+        "FrameOption": "DENY",
+        "Override": true
+      },
+      "ReferrerPolicy": {
+        "ReferrerPolicy": "strict-origin-when-cross-origin",
+        "Override": true
+      },
+      "ContentSecurityPolicy": {
+        "ContentSecurityPolicy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.amazonaws.com;",
+        "Override": true
+      }
+    },
+    "CorsConfig": {
+      "AccessControlAllowCredentials": false,
+      "AccessControlAllowHeaders": {
+        "Quantity": 4,
+        "Items": ["Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key"]
+      },
+      "AccessControlAllowMethods": {
+        "Quantity": 5,
+        "Items": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      },
+      "AccessControlAllowOrigins": {
+        "Quantity": 1,
+        "Items": ["*"]
+      },
+      "AccessControlMaxAgeSec": 86400
+    }
+  }
+}
+```
+
+### Origin Access Control (OAC)
+
+**Enhanced Security with OAC**:
+```json
+{
+  "OriginAccessControlConfig": {
+    "Name": "DRS-Orchestration-OAC",
+    "Description": "Origin Access Control for DRS Orchestration S3 bucket",
+    "OriginAccessControlOriginType": "s3",
+    "SigningBehavior": "always",
+    "SigningProtocol": "sigv4"
+  }
+}
+```
+
+**S3 Bucket Policy for OAC**:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCloudFrontServicePrincipal",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "cloudfront.amazonaws.com"
+      },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::drs-orchestration-frontend-*/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::${AccountId}:distribution/${DistributionId}"
+        }
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Summary and Integration Patterns
+
+### Complete Service Integration Matrix
+
+| Service | Primary Role | Integration Points | Dependencies |
+|---------|--------------|-------------------|--------------|
+| **DynamoDB** | Data persistence | Lambda functions, Step Functions | None |
+| **Lambda** | Serverless compute | API Gateway, Step Functions, EventBridge | DynamoDB, DRS, EC2 |
+| **Step Functions** | Orchestration | Lambda functions, DynamoDB | Lambda |
+| **API Gateway** | REST API | Lambda, Cognito, CloudFront | Lambda, Cognito |
+| **Cognito** | Authentication | API Gateway, Frontend | None |
+| **S3** | Static hosting + artifacts | CloudFront, Lambda | None |
+| **CloudFront** | Global CDN | S3, API Gateway | S3 |
+| **EventBridge** | Scheduling | Lambda functions | Lambda |
+| **CloudWatch** | Monitoring | All services | None |
+| **IAM** | Access control | All services | None |
+| **CloudFormation** | Infrastructure | All services | None |
+| **AWS DRS** | Disaster recovery | Lambda functions | EC2 |
+
+### Architectural Patterns Implemented
+
+**1. Serverless-First Architecture**:
+- Zero server management across all components
+- Pay-per-use pricing model
+- Automatic scaling and high availability
+- Built-in security and compliance
+
+**2. Event-Driven Processing**:
+- EventBridge triggers for scheduled polling
+- Step Functions for workflow orchestration
+- Lambda functions for event processing
+- DynamoDB Streams for change tracking (optional)
+
+**3. API-First Design**:
+- Complete REST API with 42+ endpoints
+- OpenAPI specification compliance
+- Comprehensive RBAC authorization
+- Real-time integration with AWS DRS
+
+**4. Security by Design**:
+- Encryption at rest and in transit
+- Least-privilege IAM policies
+- JWT-based authentication
+- CORS and security headers
+
+**5. Operational Excellence**:
+- Infrastructure as Code (CloudFormation)
+- Comprehensive logging and monitoring
+- Automated deployment pipelines
+- Health checks and error handling
+
+### Performance and Scalability Characteristics
+
+**Throughput Capacity**:
+- **API Requests**: 1,000 requests/second sustained, 500 burst
+- **Concurrent Executions**: 100+ simultaneous recovery operations
+- **Data Operations**: 40,000 read/write capacity units (DynamoDB)
+- **Frontend Delivery**: Unlimited via CloudFront edge network
+
+**Latency Targets**:
+- **API Response**: <100ms p95 for CRUD operations
+- **Frontend Load**: <2 seconds global p95
+- **Execution Start**: <200ms from API call to Step Functions
+- **DRS Integration**: 2-5 seconds per wave (DRS API dependent)
+
+**Scalability Limits**:
+- **Step Functions**: 25,000 executions per second per region
+- **Lambda**: 1,000 concurrent executions (configurable)
+- **DynamoDB**: 40,000 RCU/WCU per table (auto-scaling)
+- **API Gateway**: 10,000 requests per second per region
+
+### Cost Optimization Strategies
+
+**1. Serverless Pay-Per-Use**:
+- No idle infrastructure costs
+- Automatic scaling prevents over-provisioning
+- Reserved capacity not required
+
+**2. Efficient Data Storage**:
+- DynamoDB on-demand billing
+- S3 lifecycle policies for old versions
+- CloudFront caching reduces origin requests
+
+**3. Resource Right-Sizing**:
+- Lambda memory allocation optimized per function
+- DynamoDB table design minimizes item size
+- CloudFront price class optimization
+
+**Estimated Monthly Costs (Production)**:
+```
+Service Breakdown (1000 API calls, 50 executions):
+- DynamoDB: $5-10 (on-demand)
+- Lambda: $10-20 (compute time)
+- API Gateway: $3-5 (requests)
+- Step Functions: $2-5 (state transitions)
+- S3: $1-2 (storage + requests)
+- CloudFront: $5-10 (data transfer)
+- Cognito: $0-5 (MAU based)
+- Other services: $5-10
+
+Total: $30-70/month for typical production usage
+```
+
+This comprehensive service architecture provides enterprise-grade disaster recovery orchestration capabilities while maintaining cost efficiency, operational simplicity, and security best practices through AWS-native service integration.
