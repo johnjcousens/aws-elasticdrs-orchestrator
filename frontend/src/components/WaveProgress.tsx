@@ -622,6 +622,16 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
     return calculateOverallProgressWithLogs(waves, planTotalWaves, jobLogs);
   }, [waves, planTotalWaves, jobLogs]);
 
+  // Pre-calculate wave durations to avoid useMemo inside map (React hooks rule violation)
+  const waveDurations = useMemo(() => {
+    if (!waves) return {};
+    return waves.reduce((acc, wave, index) => {
+      const waveNum = wave.waveNumber ?? index;
+      acc[waveNum] = calculateWaveDuration(wave, executionStatus, executionEndTime);
+      return acc;
+    }, {} as Record<number, string>);
+  }, [waves, executionStatus, executionEndTime]);
+
   
   return (
     <SpaceBetween size="m">
@@ -648,7 +658,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const hasJobId = !!wave.jobId;
         const waveJobLogs = jobLogs[waveNum];
         const isLoadingLogs = loadingLogs[waveNum];
-        const waveDuration = useMemo(() => calculateWaveDuration(wave, executionStatus, executionEndTime), [wave, executionStatus, executionEndTime]);
+        const waveDuration = waveDurations[waveNum] || '-';
         
         return (
           <Container key={wave.waveNumber ?? index}>
