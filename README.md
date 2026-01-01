@@ -608,6 +608,86 @@ For detailed implementation plans of remaining features, see:
 - [Recovery Enhancements](docs/implementation/RECOVERY_ENHANCEMENTS.md)
 - [Infrastructure Improvements](docs/implementation/INFRASTRUCTURE_IMPROVEMENTS.md)
 
+## Agentic AI Programming
+
+This project is optimized for development with AI assistants like **Kiro**, **Amazon Q Developer**, and **Claude**. The repository includes comprehensive steering documents and rules to ensure consistent, high-quality AI-assisted development.
+
+### AI Assistant Configuration
+
+#### Kiro (Primary AI Assistant)
+The `.kiro/` directory contains steering documents that guide Kiro's behavior:
+
+```
+.kiro/steering/
+├── project-context.md          # Product overview, architecture, tech stack
+├── development-workflow.md     # CI/CD, debugging, terminal rules, file writing
+├── frontend-standards.md       # CloudScape design system rules and patterns
+└── technical-standards.md      # AWS diagram standards, Mermaid preferences, documentation
+```
+
+**Key Features for AI Development:**
+- **Token Optimization**: Consolidated from 14+ files to 4 focused files (85% token reduction)
+- **Comprehensive Standards**: Complete CloudScape design system rules, AWS diagram standards
+- **Development Workflow**: Terminal rules, file writing patterns, CI/CD procedures
+- **Technical Patterns**: Mermaid over ASCII, AWS 2025 icon standards, code documentation
+
+#### Amazon Q Developer
+The `.amazonq/` directory contains aligned rules for Amazon Q:
+
+```
+.amazonq/rules/
+├── amazonq-project-context.md      # Product overview aligned with Kiro
+├── amazonq-development-workflow.md # Deployment verification workflows
+└── amazonq-frontend-standards.md   # CloudScape consistency rules
+```
+
+**Alignment with Kiro**: Both AI assistants follow identical core standards while Amazon Q includes additional deployment verification workflows.
+
+### AI Development Best Practices
+
+#### Working with Steering Documents
+1. **Read Before Starting**: AI assistants automatically load steering documents for context
+2. **Follow Standards**: All code generation follows CloudScape design system and AWS standards
+3. **Consistent Patterns**: Steering ensures consistent API patterns, error handling, and documentation
+4. **Token Efficiency**: Consolidated documents minimize token consumption while maintaining completeness
+
+#### Key Development Rules for AI
+- **CloudScape Only**: Never deviate from AWS CloudScape Design System components
+- **AWS Standards**: Use AWS 2025 (AWS4) icon format for all diagrams
+- **Mermaid Diagrams**: Prefer Mermaid over ASCII art for all technical diagrams
+- **Terminal Efficiency**: Suppress output (`> /dev/null 2>&1`) and use `--no-pager` for git/AWS CLI
+- **File Writing**: Use fsWrite/strReplace tools directly, avoid opening files in editor
+
+#### AI-Optimized Documentation Structure
+The project documentation is organized for optimal AI consumption:
+
+- **Single Source of Truth**: Each topic has one authoritative document
+- **Logical Grouping**: Related content consolidated (42% reduction in reference docs)
+- **Clear Hierarchy**: Requirements → Architecture → Implementation → Reference
+- **Cross-References**: Comprehensive linking between related documents
+
+#### Development Workflow with AI
+1. **Context Loading**: AI assistants automatically load project context from steering documents
+2. **Standards Enforcement**: All generated code follows established patterns and standards
+3. **Consistent Output**: Steering ensures consistent API responses, error handling, and UI patterns
+4. **Quality Assurance**: Built-in validation rules prevent common issues and maintain quality
+
+#### AI Assistant Capabilities
+- **Complete API Development**: Generate REST endpoints following established patterns
+- **CloudScape UI Components**: Create consistent AWS console-style interfaces
+- **Infrastructure as Code**: Generate CloudFormation templates with proper security
+- **Documentation**: Maintain comprehensive documentation following established formats
+- **Testing**: Generate unit and integration tests following project patterns
+
+### Getting Started with AI Development
+
+1. **Clone Repository**: AI assistants automatically detect `.kiro/` and `.amazonq/` directories
+2. **Review Steering**: Understand project standards and patterns from steering documents
+3. **Follow Patterns**: Use established patterns for API development, UI components, and documentation
+4. **Maintain Standards**: All AI-generated code follows CloudScape design system and AWS standards
+
+The steering documents ensure that multiple AI assistants can work on the project while maintaining consistency, quality, and adherence to AWS best practices.
+
 ## Contributing
 
 1. Fork the repository
