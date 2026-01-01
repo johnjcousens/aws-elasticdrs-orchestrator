@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - December 31, 2025
+
+### Fixed
+- **Security Vulnerabilities**: Comprehensive fixes for multiple CWE vulnerabilities
+  - **SQL Injection (CWE-89)**: Fixed DynamoDB operations with proper ConditionExpression usage
+  - **XSS Vulnerabilities (CWE-20,79,80)**: Sanitized user inputs in React components
+  - **OS Command Injection (CWE-78,77,88)**: Added regex sanitization across multiple files
+  - **Log Injection (CWE-117)**: Removed newline characters from user-controlled logging data
+- **TypeScript Syntax Error**: Fixed extra closing brace in RecoveryPlansPage.tsx JSX map function
+- **Error Handling**: Improved structured error responses and validation across Lambda functions
+- **Input Validation**: Enhanced UUID format checking and type conversion for user-controlled data
+
+### Security
+- **Database Security**: Added condition expressions to DynamoDB operations to prevent injection attacks
+- **Frontend Security**: Comprehensive input sanitization to prevent XSS and command injection
+- **Performance Optimizations**: Fixed memory leaks and implemented proper singleton patterns
+- **Code Quality**: Addressed readability issues and improved maintainability
+
+### Deployment
+- **Production Security Fixes**: All vulnerability fixes deployed to production environment
+- **Frontend Rebuild**: Complete frontend rebuild and deployment with security enhancements
+- **Lambda Updates**: All Lambda functions updated with security improvements
+- **CloudFront Cache**: Invalidated to ensure latest secure frontend is served
+
 ## [1.1.0] - December 31, 2025
 
 ### Added
