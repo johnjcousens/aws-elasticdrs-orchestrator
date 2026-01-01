@@ -15,6 +15,7 @@ import {
 } from '@cloudscape-design/components';
 import { ConfigExportPanel } from './ConfigExportPanel';
 import { ConfigImportPanel } from './ConfigImportPanel';
+import { TagSyncConfigPanel } from './TagSyncConfigPanel';
 import AccountManagementPanel from './AccountManagementPanel';
 import { usePermissions, DRSPermission } from '../contexts/PermissionsContext';
 
@@ -42,6 +43,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       content: (
         <Box padding={{ top: 'm' }}>
           <AccountManagementPanel />
+        </Box>
+      ),
+    },
+    {
+      id: 'tag-sync',
+      label: 'Tag Sync',
+      content: (
+        <Box padding={{ top: 'm' }}>
+          <TagSyncConfigPanel />
         </Box>
       ),
     },
