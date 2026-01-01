@@ -2,10 +2,10 @@
 
 ## AWS DRS Orchestration System
 
-**Version**: 2.0  
-**Date**: December 30, 2025  
-**Status**: MVP Drill Only Prototype  
-**Build Scope**: Complete page implementation specifications
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete  
+**Build Scope**: Complete page implementation specifications including tag synchronization and security features
 
 ---
 
@@ -233,6 +233,97 @@ When building each page:
 - Wave progress visualization
 - Job events timeline with auto-refresh
 - Terminate instances action
+
+---
+
+## Settings Modal (Accessible from Top Navigation)
+
+**Build Requirements**: Create comprehensive application settings interface with tag synchronization configuration
+
+**Trigger**: Gear icon in top navigation bar opens modal
+
+**Required Layout**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Settings                                          [✕ Close] │
+├─────────────────────────────────────────────────────────────┤
+│ [General] [Tag Sync] [Account Management]                   │
+├─────────────────────────────────────────────────────────────┤
+│ Tag Sync Configuration:                                     │
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Automated Synchronization                               │ │
+│ │                                                         │ │
+│ │ Schedule: [Every 1 hour        ▼]                      │ │
+│ │ Options: 15min, 30min, 1hr, 2hr, 4hr, 8hr, 12hr, 24hr │ │
+│ │                                                         │ │
+│ │ Status: ✅ Enabled - Next sync in 23 minutes           │ │
+│ │ Last sync: Dec 13, 2025 10:30 AM (6 servers updated)   │ │
+│ │                                                         │ │
+│ │ EventBridge Rule: aws-drs-orchestrator-tag-sync-dev    │ │
+│ │ Security Status: ✅ Multi-layer validation active      │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Manual Synchronization                                  │ │
+│ │                                                         │ │
+│ │ Trigger immediate tag sync across all regions           │ │
+│ │                                                         │ │
+│ │ [🔄 Sync Now]  [📊 View Sync History]                  │ │
+│ │                                                         │ │
+│ │ Progress: ████████████████████████████████████ 100%    │ │
+│ │ Status: Completed - 28 regions processed               │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Security Audit Trail                                    │ │
+│ │                                                         │ │
+│ │ EventBridge Security Validation: ✅ Active              │ │
+│ │ - Source IP validation                                  │ │
+│ │ - Request structure validation                          │ │
+│ │ - Authentication header validation                      │ │
+│ │ - Rule name validation                                  │ │
+│ │                                                         │ │
+│ │ Last 5 EventBridge Requests:                           │ │
+│ │ • 10:30 AM - SUCCESS - Rule: tag-sync-schedule-dev     │ │
+│ │ • 09:30 AM - SUCCESS - Rule: tag-sync-schedule-dev     │ │
+│ │ • 08:30 AM - SUCCESS - Rule: tag-sync-schedule-dev     │ │
+│ │                                                         │ │
+│ │ [📋 View Full Audit Log]                               │ │
+│ └─────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│                                    [Cancel] [Save Changes] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Tag Sync Tab Requirements**:
+- **Schedule Configuration**: Dropdown with predefined intervals (15min to 24hr)
+- **Real-time Status**: Display current schedule status, next execution time, last sync results
+- **Manual Trigger**: Immediate sync button with progress tracking and loading states
+- **Security Validation Display**: Show EventBridge security validation status and audit trail
+- **Sync History**: Access to detailed sync operation history and results
+- **Progress Tracking**: Real-time progress bars during manual sync operations
+- **Error Handling**: Comprehensive error display with retry options
+
+**Security Features**:
+- **Multi-layer Validation Status**: Display active security validation layers
+- **Audit Trail Access**: Show recent EventBridge requests with security validation results
+- **Rule Status Monitoring**: Display EventBridge rule health and configuration
+- **Attack Prevention Logging**: Show blocked invalid requests (if any)
+
+**API Integration**:
+- `PUT /settings/tag-sync-schedule` - Configure sync schedule
+- `POST /tag-sync/trigger` - Manual sync trigger with progress tracking
+- `GET /settings/tag-sync-status` - Get current sync status and history
+- `GET /settings/security-audit` - Get EventBridge security audit trail
+
+**Required Implementation Details**:
+- **Real-time Updates**: Poll sync status every 3 seconds during active operations
+- **Form Validation**: Validate schedule intervals and configuration
+- **Loading States**: Show loading indicators for all async operations
+- **Error Recovery**: Provide retry mechanisms for failed operations
+- **Settings Persistence**: Save configuration changes immediately
+- **Security Monitoring**: Display security validation status in real-time
 
 ---
 

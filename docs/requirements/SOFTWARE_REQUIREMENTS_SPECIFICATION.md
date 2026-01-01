@@ -1,9 +1,9 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 2.0  
-**Date**: December 30, 2025  
-**Status**: MVP Drill Only Prototype - Core Drill Functionality Complete
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete
 
 ---
 
@@ -39,7 +39,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - **Enhanced Tag-Based Server Selection** (DRS source server tags, hardware details)
 - EC2 Launch Template & DRS Launch Settings (Protection Group level configuration)
 - DRS Source Server Management (Server Info, tags, disks, replication, post-launch)
-- DRS Tag Synchronization (EC2 to DRS tag sync with bulk operations)
+- DRS Tag Synchronization (EC2 to DRS tag sync with EventBridge scheduling and enterprise security validation)
 - SSM Automation Integration (pre/post-wave automation)
 - Step Functions Visualization (real-time state machine monitoring)
 - Cross-Account Orchestration (hub-and-spoke architecture, scale beyond 300 servers)
@@ -786,19 +786,99 @@ The system shall return available S3 buckets for post-launch logs.
 
 ### FR-7: DRS Tag Synchronization
 
-#### FR-7.1: Sync EC2 Tags to DRS
+#### FR-7.1: Automated Tag Synchronization with EventBridge
+**Priority**: High
+
+The system shall provide automated tag synchronization from EC2 instances to DRS source servers with EventBridge scheduling:
+
+**Scheduling Capabilities**:
+- EventBridge-triggered synchronization with configurable intervals (15 minutes to 24 hours)
+- Manual trigger capability for immediate synchronization
+- Automatic EventBridge rule creation and management
+- Schedule validation with proper rate expression handling (singular/plural forms)
+
+**Synchronization Process**:
+- Cross-region support for all 30 DRS-supported regions
+- Batch processing with 10-server chunks to avoid API limits
+- Real-time progress monitoring with detailed status updates
+- Comprehensive error handling and conflict resolution
+- Complete audit trail of sync operations and results
+
+**API Endpoints**:
+- `POST /drs/tag-sync` - Sync EC2 tags to DRS source servers (supports EventBridge authentication bypass)
+- `PUT /settings/tag-sync-schedule` - Configure EventBridge sync schedule
+- `POST /tag-sync/trigger` - Manual trigger for immediate synchronization
+
+#### FR-7.2: EventBridge Security Validation
+**Priority**: Critical
+
+The system shall implement enterprise-grade security validation for EventBridge authentication bypass:
+
+**Multi-Layer Security Validation**:
+1. **Source IP Validation**: Verify `sourceIp` equals 'eventbridge'
+2. **Invocation Source Verification**: Validate `invocationSource` equals 'EVENTBRIDGE'
+3. **API Gateway Context Validation**: Ensure request has valid requestId and stage
+4. **Authentication Header Validation**: Reject requests with unexpected Authorization headers
+5. **EventBridge Rule Name Validation**: Verify rule name matches pattern `aws-drs-orchestrator-tag-sync-schedule-*`
+
+**Security Audit Logging**:
+- Comprehensive request logging with requestId, stage, accountId, and rule name
+- Security event tracking for monitoring and compliance
+- Attack prevention logging for invalid EventBridge attempts
+
+**Zero Trust Authentication Bypass**:
+- Scoped access limited to `/drs/tag-sync` endpoint only
+- Multiple validation layers prevent authentication bypass abuse
+- Complete audit trail for all EventBridge requests
+- Attack surface reduction with minimal bypass scope
+
+**Validation Rules**:
+```javascript
+// EventBridge Detection Logic
+if (event.requestContext?.identity?.sourceIp === 'eventbridge' && 
+    event.headers?.['X-Amz-Invocation-Source'] === 'EVENTBRIDGE') {
+  // Validate API Gateway context
+  if (!event.requestContext?.requestId || !event.requestContext?.stage) {
+    return { statusCode: 403, body: 'Invalid request structure' };
+  }
+  
+  // Validate no unexpected auth headers
+  if (event.headers?.Authorization || event.headers?.authorization) {
+    return { statusCode: 403, body: 'Unexpected authentication headers' };
+  }
+  
+  // Validate EventBridge rule name
+  const ruleName = event.headers?.['X-Amz-Rule-Name'];
+  if (!ruleName?.match(/^aws-drs-orchestrator-tag-sync-schedule-/)) {
+    return { statusCode: 403, body: 'Invalid EventBridge rule source' };
+  }
+  
+  // Log security audit information
+  console.log('EventBridge Security Audit:', {
+    requestId: event.requestContext.requestId,
+    stage: event.requestContext.stage,
+    accountId: event.requestContext.accountId,
+    ruleName: ruleName
+  });
+  
+  // Proceed with tag sync
+  return handleEventbridgeTagSync(event);
+}
+```
+
+#### FR-7.3: Manual Tag Synchronization
 **Priority**: Medium
 
-The system shall synchronize EC2 instance tags to DRS source servers:
+The system shall support manual tag synchronization operations:
 - On-demand sync for individual servers
 - Bulk sync operations for multiple servers
-- Real-time progress monitoring
+- Regional sync operations
 - Sync history and audit trail
 
 **API**: `POST /drs/source-servers/{id}/sync-tags`
 **Response**: Sync job status and progress
 
-#### FR-7.2: Sync Instance Types
+#### FR-7.4: Sync Instance Types
 **Priority**: Medium
 
 The system shall synchronize EC2 instance types to DRS launch templates:
