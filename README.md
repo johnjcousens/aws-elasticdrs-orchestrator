@@ -243,12 +243,14 @@ The solution uses a modular nested stack architecture for maintainability:
 | Stack                         | Purpose             | Key Resources                     |
 | ----------------------------- | ------------------- | --------------------------------- |
 | `master-template.yaml`      | Root orchestrator   | Parameter propagation, outputs    |
-| `database-stack.yaml`       | Data persistence    | 3 DynamoDB tables with encryption |
+| `database-stack.yaml`       | Data persistence    | 4 DynamoDB tables with encryption |
 | `lambda-stack.yaml`         | Compute layer       | Lambda functions, IAM roles     |
-| `api-stack.yaml`            | API & Auth          | API Gateway, Cognito              |
+| `api-stack-rbac.yaml`       | API & Auth with RBAC | API Gateway, Cognito, RBAC endpoints |
 | `step-functions-stack.yaml` | Orchestration       | Step Functions state machine      |
+| `eventbridge-stack.yaml`    | Event scheduling    | EventBridge rules for polling     |
 | `security-stack.yaml`       | Security (optional) | WAF, CloudTrail                   |
 | `frontend-stack.yaml`       | Frontend hosting    | S3, CloudFront                    |
+| `cross-account-role-stack.yaml` | Multi-account (optional) | Cross-account IAM roles |
 
 ### DynamoDB Tables
 
@@ -257,6 +259,7 @@ The solution uses a modular nested stack architecture for maintainability:
 | `protection-groups-{env}` | Server groupings    | `GroupId` (PK)                      |
 | `recovery-plans-{env}`    | Wave configurations | `PlanId` (PK)                       |
 | `execution-history-{env}` | Audit trail         | `ExecutionId` (PK), `PlanId` (SK) |
+| `target-accounts-{env}`   | Multi-account management | `AccountId` (PK), StatusIndex GSI |
 
 ## Cost Estimate
 
