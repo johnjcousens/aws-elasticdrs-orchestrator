@@ -5,9 +5,8 @@ Manages Cognito User Pool Groups and user assignments
 """
 
 import argparse
-import json
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import boto3
 
@@ -176,12 +175,12 @@ class UserRoleManager:
             print(f"   Status: {status}")
 
             if groups:
-                print(f"   Roles:")
+                print("   Roles:")
                 for group in groups:
                     description = DRS_ROLES.get(group, "Unknown role")
                     print(f"     • {group}: {description}")
             else:
-                print(f"   Roles: None assigned")
+                print("   Roles: None assigned")
 
     def display_available_roles(self):
         """Display all available DRS roles"""
@@ -194,7 +193,7 @@ class UserRoleManager:
             print()
 
 
-def main():
+def main():  # noqa: C901
     parser = argparse.ArgumentParser(description="Manage DRS Orchestration User Roles")
     parser.add_argument("--user-pool-id", required=True, help="Cognito User Pool ID")
     parser.add_argument(
@@ -204,12 +203,12 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # List users command
-    list_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "list-users", help="List all users and their roles"
     )
 
     # List roles command
-    roles_parser = subparsers.add_parser("list-roles", help="List available roles")
+    subparsers.add_parser("list-roles", help="List available roles")
 
     # Add user to role command
     add_parser = subparsers.add_parser("add-role", help="Add user to role")
@@ -305,7 +304,7 @@ def main():
         if success:
             print(f"\n✅ User '{args.email}' created successfully")
             print(f"   Temporary password: {args.temp_password}")
-            print(f"   User must change password on first login")
+            print("   User must change password on first login")
         else:
             sys.exit(1)
 

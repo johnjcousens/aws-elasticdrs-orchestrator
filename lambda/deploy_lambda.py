@@ -80,7 +80,7 @@ def create_lambda_package(source_file, package_dir, output_zip):
     zip_size = os.path.getsize(output_zip)
     zip_size_mb = zip_size / (1024 * 1024)
 
-    print(f"  📊 Package size: {zip_size_mb:.2f} MB")
+    print(f"  📊 Package size: {zip_size_mb:.2f} MB")  # noqa: E231
     print("  🎉 Package created successfully")
 
     return output_zip
