@@ -9653,8 +9653,6 @@ def import_configuration(body: Dict) -> Dict:
     Returns detailed results with created, skipped, and failed resources.
     """
     try:
-        import datetime
-
         correlation_id = str(uuid.uuid4())
         print(f"[{correlation_id}] Starting configuration import")
 

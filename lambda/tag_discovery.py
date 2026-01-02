@@ -7,7 +7,7 @@ Supports single-account and multi-staging-account modes.
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import boto3
 

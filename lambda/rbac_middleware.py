@@ -6,7 +6,7 @@ Implements role-based access control using Cognito Groups
 import json
 from enum import Enum
 from functools import wraps
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List
 
 
 class DRSRole(Enum):
