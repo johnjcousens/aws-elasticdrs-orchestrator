@@ -48,6 +48,11 @@ Parameters:
   StateMachineArn:
     Type: String
     Description: 'Step Functions State Machine ARN for orchestration'
+
+  CrossAccountRoleName:
+    Type: String
+    Default: 'drs-orchestration-cross-account-role'
+    Description: 'Name of the cross-account IAM role for DRS operations'
     Default: ''
 
 
@@ -435,7 +440,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: 'arn:aws:iam::*:role/drs-orchestration-cross-account-role'
+                Resource: !Sub 'arn:aws:iam::*:role/${CrossAccountRoleName}'
       Tags:
         - Key: Project
           Value: !Ref ProjectName

@@ -12,161 +12,179 @@ AWS DRS Service Limits (as of 2025):
 - MAX_SOURCE_SERVERS: 4000 (soft limit, can request increase)
 """
 
-import pytest
-import sys
 import os
-from unittest.mock import patch, MagicMock
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add lambda directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'lambda'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda"))
 
 # Mock environment variables before importing
-os.environ['PROTECTION_GROUPS_TABLE'] = 'test-protection-groups'
-os.environ['RECOVERY_PLANS_TABLE'] = 'test-recovery-plans'
-os.environ['EXECUTION_HISTORY_TABLE'] = 'test-execution-history'
-os.environ['STATE_MACHINE_ARN'] = 'arn:aws:states:us-east-1:123456789:stateMachine:test'
+os.environ["PROTECTION_GROUPS_TABLE"] = "test-protection-groups"
+os.environ["RECOVERY_PLANS_TABLE"] = "test-recovery-plans"
+os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
+os.environ["STATE_MACHINE_ARN"] = "arn:aws:states:us-east-1:123456789:stateMachine:test"
 
 
 class TestDRSLimitsConstants:
     """Test DRS_LIMITS constants match AWS documented limits."""
-    
+
     def test_max_servers_per_job(self):
         """MAX_SERVERS_PER_JOB should be 100."""
         from index import DRS_LIMITS
-        assert DRS_LIMITS['MAX_SERVERS_PER_JOB'] == 100
-    
+
+        assert DRS_LIMITS["MAX_SERVERS_PER_JOB"] == 100
+
     def test_max_concurrent_jobs(self):
         """MAX_CONCURRENT_JOBS should be 20."""
         from index import DRS_LIMITS
-        assert DRS_LIMITS['MAX_CONCURRENT_JOBS'] == 20
-    
+
+        assert DRS_LIMITS["MAX_CONCURRENT_JOBS"] == 20
+
     def test_max_servers_in_all_jobs(self):
         """MAX_SERVERS_IN_ALL_JOBS should be 500."""
         from index import DRS_LIMITS
-        assert DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS'] == 500
-    
+
+        assert DRS_LIMITS["MAX_SERVERS_IN_ALL_JOBS"] == 500
+
     def test_max_replicating_servers(self):
         """MAX_REPLICATING_SERVERS should be 300."""
         from index import DRS_LIMITS
-        assert DRS_LIMITS['MAX_REPLICATING_SERVERS'] == 300
-    
+
+        assert DRS_LIMITS["MAX_REPLICATING_SERVERS"] == 300
+
     def test_max_source_servers(self):
         """MAX_SOURCE_SERVERS should be 4000."""
         from index import DRS_LIMITS
-        assert DRS_LIMITS['MAX_SOURCE_SERVERS'] == 4000
-    
+
+        assert DRS_LIMITS["MAX_SOURCE_SERVERS"] == 4000
+
     def test_warning_threshold_less_than_max(self):
         """WARNING_REPLICATING_THRESHOLD should be less than MAX_REPLICATING_SERVERS."""
         from index import DRS_LIMITS
-        assert DRS_LIMITS['WARNING_REPLICATING_THRESHOLD'] < DRS_LIMITS['MAX_REPLICATING_SERVERS']
-    
+
+        assert (
+            DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
+            < DRS_LIMITS["MAX_REPLICATING_SERVERS"]
+        )
+
     def test_critical_threshold_between_warning_and_max(self):
         """CRITICAL_REPLICATING_THRESHOLD should be between WARNING and MAX."""
         from index import DRS_LIMITS
-        assert DRS_LIMITS['CRITICAL_REPLICATING_THRESHOLD'] > DRS_LIMITS['WARNING_REPLICATING_THRESHOLD']
-        assert DRS_LIMITS['CRITICAL_REPLICATING_THRESHOLD'] < DRS_LIMITS['MAX_REPLICATING_SERVERS']
+
+        assert (
+            DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
+            > DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
+        )
+        assert (
+            DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
+            < DRS_LIMITS["MAX_REPLICATING_SERVERS"]
+        )
 
 
 class TestValidateWaveSizes:
     """Test validate_wave_sizes function."""
-    
+
     def test_valid_wave_single_server(self):
         """Wave with 1 server should be valid."""
         from index import validate_wave_sizes
-        plan = {
-            'Waves': [
-                {'WaveName': 'Wave 1', 'ServerIds': ['s-123']}
-            ]
-        }
+
+        plan = {"Waves": [{"WaveName": "Wave 1", "ServerIds": ["s-123"]}]}
         errors = validate_wave_sizes(plan)
         assert len(errors) == 0
-    
+
     def test_valid_wave_at_limit(self):
         """Wave with exactly 100 servers should be valid."""
         from index import validate_wave_sizes
+
         plan = {
-            'Waves': [
-                {'WaveName': 'Wave 1', 'ServerIds': [f's-{i}' for i in range(100)]}
+            "Waves": [
+                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(100)]}
             ]
         }
         errors = validate_wave_sizes(plan)
         assert len(errors) == 0
-    
+
     def test_invalid_wave_over_limit(self):
         """Wave with 101 servers should return error."""
         from index import validate_wave_sizes
+
         plan = {
-            'Waves': [
-                {'WaveName': 'Wave 1', 'ServerIds': [f's-{i}' for i in range(101)]}
+            "Waves": [
+                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(101)]}
             ]
         }
         errors = validate_wave_sizes(plan)
         assert len(errors) == 1
-        assert errors[0]['type'] == 'WAVE_SIZE_EXCEEDED'
-        assert errors[0]['serverCount'] == 101
-        assert errors[0]['limit'] == 100
-    
+        assert errors[0]["type"] == "WAVE_SIZE_EXCEEDED"
+        assert errors[0]["serverCount"] == 101
+        assert errors[0]["limit"] == 100
+
     def test_invalid_wave_way_over_limit(self):
         """Wave with 200 servers should return error with correct count."""
         from index import validate_wave_sizes
+
         plan = {
-            'Waves': [
-                {'WaveName': 'Big Wave', 'ServerIds': [f's-{i}' for i in range(200)]}
+            "Waves": [
+                {"WaveName": "Big Wave", "ServerIds": [f"s-{i}" for i in range(200)]}
             ]
         }
         errors = validate_wave_sizes(plan)
         assert len(errors) == 1
-        assert errors[0]['serverCount'] == 200
-        assert 'Big Wave' in errors[0]['message']
-    
+        assert errors[0]["serverCount"] == 200
+        assert "Big Wave" in errors[0]["message"]
+
     def test_multiple_waves_one_invalid(self):
         """Multiple waves with one exceeding limit should return one error."""
         from index import validate_wave_sizes
+
         plan = {
-            'Waves': [
-                {'WaveName': 'Wave 1', 'ServerIds': [f's-{i}' for i in range(50)]},
-                {'WaveName': 'Wave 2', 'ServerIds': [f's-{i}' for i in range(150)]},
-                {'WaveName': 'Wave 3', 'ServerIds': [f's-{i}' for i in range(30)]}
+            "Waves": [
+                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(50)]},
+                {"WaveName": "Wave 2", "ServerIds": [f"s-{i}" for i in range(150)]},
+                {"WaveName": "Wave 3", "ServerIds": [f"s-{i}" for i in range(30)]},
             ]
         }
         errors = validate_wave_sizes(plan)
         assert len(errors) == 1
-        assert errors[0]['wave'] == 'Wave 2'
-        assert errors[0]['waveIndex'] == 2
-    
+        assert errors[0]["wave"] == "Wave 2"
+        assert errors[0]["waveIndex"] == 2
+
     def test_multiple_waves_all_invalid(self):
         """Multiple waves all exceeding limit should return multiple errors."""
         from index import validate_wave_sizes
+
         plan = {
-            'Waves': [
-                {'WaveName': 'Wave 1', 'ServerIds': [f's-{i}' for i in range(101)]},
-                {'WaveName': 'Wave 2', 'ServerIds': [f's-{i}' for i in range(150)]}
+            "Waves": [
+                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(101)]},
+                {"WaveName": "Wave 2", "ServerIds": [f"s-{i}" for i in range(150)]},
             ]
         }
         errors = validate_wave_sizes(plan)
         assert len(errors) == 2
-    
+
     def test_empty_wave(self):
         """Wave with no servers should be valid."""
         from index import validate_wave_sizes
-        plan = {
-            'Waves': [
-                {'WaveName': 'Empty Wave', 'ServerIds': []}
-            ]
-        }
+
+        plan = {"Waves": [{"WaveName": "Empty Wave", "ServerIds": []}]}
         errors = validate_wave_sizes(plan)
         assert len(errors) == 0
-    
+
     def test_no_waves(self):
         """Plan with no waves should be valid."""
         from index import validate_wave_sizes
-        plan = {'Waves': []}
+
+        plan = {"Waves": []}
         errors = validate_wave_sizes(plan)
         assert len(errors) == 0
-    
+
     def test_missing_waves_key(self):
         """Plan without Waves key should be valid (empty)."""
         from index import validate_wave_sizes
+
         plan = {}
         errors = validate_wave_sizes(plan)
         assert len(errors) == 0
@@ -174,248 +192,302 @@ class TestValidateWaveSizes:
 
 class TestValidateConcurrentJobs:
     """Test validate_concurrent_jobs function with mocked DRS client."""
-    
-    @patch('index.boto3.client')
+
+    @patch("index.boto3.client")
     def test_no_active_jobs(self, mock_boto_client):
         """Should be valid when no active jobs exist."""
         from index import validate_concurrent_jobs
-        
+
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
-        mock_paginator.paginate.return_value = [{'items': []}]
+        mock_paginator.paginate.return_value = [{"items": []}]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_concurrent_jobs('us-east-1')
-        
-        assert result['valid'] is True
-        assert result['currentJobs'] == 0
-        assert result['availableSlots'] == 20
-    
-    @patch('index.boto3.client')
+
+        result = validate_concurrent_jobs("us-east-1")
+
+        assert result["valid"] is True
+        assert result["currentJobs"] == 0
+        assert result["availableSlots"] == 20
+
+    @patch("index.boto3.client")
     def test_some_active_jobs(self, mock_boto_client):
         """Should be valid when under limit."""
         from index import validate_concurrent_jobs
-        
+
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
-        mock_paginator.paginate.return_value = [{
-            'items': [
-                {'jobID': 'job-1', 'status': 'PENDING', 'type': 'LAUNCH', 'participatingServers': []},
-                {'jobID': 'job-2', 'status': 'STARTED', 'type': 'DRILL', 'participatingServers': []},
-                {'jobID': 'job-3', 'status': 'COMPLETED', 'type': 'LAUNCH', 'participatingServers': []},  # Not active
-            ]
-        }]
+        mock_paginator.paginate.return_value = [
+            {
+                "items": [
+                    {
+                        "jobID": "job-1",
+                        "status": "PENDING",
+                        "type": "LAUNCH",
+                        "participatingServers": [],
+                    },
+                    {
+                        "jobID": "job-2",
+                        "status": "STARTED",
+                        "type": "DRILL",
+                        "participatingServers": [],
+                    },
+                    {
+                        "jobID": "job-3",
+                        "status": "COMPLETED",
+                        "type": "LAUNCH",
+                        "participatingServers": [],
+                    },  # Not active
+                ]
+            }
+        ]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_concurrent_jobs('us-east-1')
-        
-        assert result['valid'] is True
-        assert result['currentJobs'] == 2  # Only PENDING and STARTED
-        assert result['availableSlots'] == 18
-    
-    @patch('index.boto3.client')
+
+        result = validate_concurrent_jobs("us-east-1")
+
+        assert result["valid"] is True
+        assert result["currentJobs"] == 2  # Only PENDING and STARTED
+        assert result["availableSlots"] == 18
+
+    @patch("index.boto3.client")
     def test_at_limit(self, mock_boto_client):
         """Should be invalid when at limit."""
         from index import validate_concurrent_jobs
-        
+
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         # Create 20 active jobs
         active_jobs = [
-            {'jobID': f'job-{i}', 'status': 'STARTED', 'type': 'LAUNCH', 'participatingServers': []}
+            {
+                "jobID": f"job-{i}",
+                "status": "STARTED",
+                "type": "LAUNCH",
+                "participatingServers": [],
+            }
             for i in range(20)
         ]
-        mock_paginator.paginate.return_value = [{'items': active_jobs}]
+        mock_paginator.paginate.return_value = [{"items": active_jobs}]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_concurrent_jobs('us-east-1')
-        
-        assert result['valid'] is False
-        assert result['currentJobs'] == 20
-        assert result['availableSlots'] == 0
-    
-    @patch('index.boto3.client')
+
+        result = validate_concurrent_jobs("us-east-1")
+
+        assert result["valid"] is False
+        assert result["currentJobs"] == 20
+        assert result["availableSlots"] == 0
+
+    @patch("index.boto3.client")
     def test_api_error_returns_valid_with_warning(self, mock_boto_client):
         """Should return valid=True with warning on API error."""
         from index import validate_concurrent_jobs
-        
+
         mock_drs = MagicMock()
         mock_drs.get_paginator.side_effect = Exception("API Error")
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_concurrent_jobs('us-east-1')
-        
-        assert result['valid'] is True
-        assert 'warning' in result
-        assert result['currentJobs'] is None
+
+        result = validate_concurrent_jobs("us-east-1")
+
+        assert result["valid"] is True
+        assert "warning" in result
+        assert result["currentJobs"] is None
 
 
 class TestValidateServersInAllJobs:
     """Test validate_servers_in_all_jobs function with mocked DRS client."""
-    
-    @patch('index.boto3.client')
+
+    @patch("index.boto3.client")
     def test_no_servers_in_jobs(self, mock_boto_client):
         """Should be valid when no servers in active jobs."""
         from index import validate_servers_in_all_jobs
-        
+
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
-        mock_paginator.paginate.return_value = [{'items': []}]
+        mock_paginator.paginate.return_value = [{"items": []}]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_servers_in_all_jobs('us-east-1', 50)
-        
-        assert result['valid'] is True
-        assert result['currentServersInJobs'] == 0
-        assert result['totalAfterNew'] == 50
-    
-    @patch('index.boto3.client')
+
+        result = validate_servers_in_all_jobs("us-east-1", 50)
+
+        assert result["valid"] is True
+        assert result["currentServersInJobs"] == 0
+        assert result["totalAfterNew"] == 50
+
+    @patch("index.boto3.client")
     def test_would_exceed_limit(self, mock_boto_client):
         """Should be invalid when adding servers would exceed 500 limit."""
         from index import validate_servers_in_all_jobs
-        
+
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         # 450 servers already in jobs
-        mock_paginator.paginate.return_value = [{
-            'items': [
-                {'jobID': 'job-1', 'status': 'STARTED', 'participatingServers': [{'sourceServerID': f's-{i}'} for i in range(450)]}
-            ]
-        }]
+        mock_paginator.paginate.return_value = [
+            {
+                "items": [
+                    {
+                        "jobID": "job-1",
+                        "status": "STARTED",
+                        "participatingServers": [
+                            {"sourceServerID": f"s-{i}"} for i in range(450)
+                        ],
+                    }
+                ]
+            }
+        ]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_servers_in_all_jobs('us-east-1', 100)  # Would be 550 total
-        
-        assert result['valid'] is False
-        assert result['currentServersInJobs'] == 450
-        assert result['totalAfterNew'] == 550
-        assert result['maxServers'] == 500
-    
-    @patch('index.boto3.client')
+
+        result = validate_servers_in_all_jobs("us-east-1", 100)  # Would be 550 total
+
+        assert result["valid"] is False
+        assert result["currentServersInJobs"] == 450
+        assert result["totalAfterNew"] == 550
+        assert result["maxServers"] == 500
+
+    @patch("index.boto3.client")
     def test_exactly_at_limit(self, mock_boto_client):
         """Should be valid when exactly at 500 limit."""
         from index import validate_servers_in_all_jobs
-        
+
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
-        mock_paginator.paginate.return_value = [{
-            'items': [
-                {'jobID': 'job-1', 'status': 'STARTED', 'participatingServers': [{'sourceServerID': f's-{i}'} for i in range(400)]}
-            ]
-        }]
+        mock_paginator.paginate.return_value = [
+            {
+                "items": [
+                    {
+                        "jobID": "job-1",
+                        "status": "STARTED",
+                        "participatingServers": [
+                            {"sourceServerID": f"s-{i}"} for i in range(400)
+                        ],
+                    }
+                ]
+            }
+        ]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_servers_in_all_jobs('us-east-1', 100)  # Exactly 500
-        
-        assert result['valid'] is True
-        assert result['totalAfterNew'] == 500
+
+        result = validate_servers_in_all_jobs("us-east-1", 100)  # Exactly 500
+
+        assert result["valid"] is True
+        assert result["totalAfterNew"] == 500
 
 
 class TestValidateServerReplicationStates:
     """Test validate_server_replication_states function with mocked DRS client."""
-    
-    @patch('index.boto3.client')
+
+    @patch("index.boto3.client")
     def test_all_healthy_servers(self, mock_boto_client):
         """Should be valid when all servers have healthy replication."""
         from index import validate_server_replication_states
-        
+
         mock_drs = MagicMock()
         mock_drs.describe_source_servers.return_value = {
-            'items': [
+            "items": [
                 {
-                    'sourceServerID': 's-1',
-                    'dataReplicationInfo': {'dataReplicationState': 'CONTINUOUS_REPLICATION'},
-                    'lifeCycle': {'state': 'READY_FOR_TEST'},
-                    'sourceProperties': {'identificationHints': {'hostname': 'server1'}}
+                    "sourceServerID": "s-1",
+                    "dataReplicationInfo": {
+                        "dataReplicationState": "CONTINUOUS_REPLICATION"
+                    },
+                    "lifeCycle": {"state": "READY_FOR_TEST"},
+                    "sourceProperties": {
+                        "identificationHints": {"hostname": "server1"}
+                    },
                 },
                 {
-                    'sourceServerID': 's-2',
-                    'dataReplicationInfo': {'dataReplicationState': 'CONTINUOUS_REPLICATION'},
-                    'lifeCycle': {'state': 'READY_FOR_TEST'},
-                    'sourceProperties': {'identificationHints': {'hostname': 'server2'}}
-                }
+                    "sourceServerID": "s-2",
+                    "dataReplicationInfo": {
+                        "dataReplicationState": "CONTINUOUS_REPLICATION"
+                    },
+                    "lifeCycle": {"state": "READY_FOR_TEST"},
+                    "sourceProperties": {
+                        "identificationHints": {"hostname": "server2"}
+                    },
+                },
             ]
         }
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_server_replication_states('us-east-1', ['s-1', 's-2'])
-        
-        assert result['valid'] is True
-        assert result['healthyCount'] == 2
-        assert result['unhealthyCount'] == 0
-    
-    @patch('index.boto3.client')
+
+        result = validate_server_replication_states("us-east-1", ["s-1", "s-2"])
+
+        assert result["valid"] is True
+        assert result["healthyCount"] == 2
+        assert result["unhealthyCount"] == 0
+
+    @patch("index.boto3.client")
     def test_disconnected_server(self, mock_boto_client):
         """Should be invalid when server is disconnected."""
         from index import validate_server_replication_states
-        
+
         mock_drs = MagicMock()
         mock_drs.describe_source_servers.return_value = {
-            'items': [
+            "items": [
                 {
-                    'sourceServerID': 's-1',
-                    'dataReplicationInfo': {'dataReplicationState': 'DISCONNECTED'},
-                    'lifeCycle': {'state': 'DISCONNECTED'},
-                    'sourceProperties': {'identificationHints': {'hostname': 'server1'}}
+                    "sourceServerID": "s-1",
+                    "dataReplicationInfo": {"dataReplicationState": "DISCONNECTED"},
+                    "lifeCycle": {"state": "DISCONNECTED"},
+                    "sourceProperties": {
+                        "identificationHints": {"hostname": "server1"}
+                    },
                 }
             ]
         }
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_server_replication_states('us-east-1', ['s-1'])
-        
-        assert result['valid'] is False
-        assert result['unhealthyCount'] == 1
-        assert result['unhealthyServers'][0]['serverId'] == 's-1'
-        assert result['unhealthyServers'][0]['replicationState'] == 'DISCONNECTED'
-    
-    @patch('index.boto3.client')
+
+        result = validate_server_replication_states("us-east-1", ["s-1"])
+
+        assert result["valid"] is False
+        assert result["unhealthyCount"] == 1
+        assert result["unhealthyServers"][0]["serverId"] == "s-1"
+        assert result["unhealthyServers"][0]["replicationState"] == "DISCONNECTED"
+
+    @patch("index.boto3.client")
     def test_empty_server_list(self, mock_boto_client):
         """Should be valid for empty server list."""
         from index import validate_server_replication_states
-        
-        result = validate_server_replication_states('us-east-1', [])
-        
-        assert result['valid'] is True
-        assert result['healthyCount'] == 0
-        assert result['unhealthyCount'] == 0
-    
-    @patch('index.boto3.client')
+
+        result = validate_server_replication_states("us-east-1", [])
+
+        assert result["valid"] is True
+        assert result["healthyCount"] == 0
+        assert result["unhealthyCount"] == 0
+
+    @patch("index.boto3.client")
     def test_mixed_healthy_unhealthy(self, mock_boto_client):
         """Should be invalid when some servers are unhealthy."""
         from index import validate_server_replication_states
-        
+
         mock_drs = MagicMock()
         mock_drs.describe_source_servers.return_value = {
-            'items': [
+            "items": [
                 {
-                    'sourceServerID': 's-1',
-                    'dataReplicationInfo': {'dataReplicationState': 'CONTINUOUS_REPLICATION'},
-                    'lifeCycle': {'state': 'READY_FOR_TEST'},
-                    'sourceProperties': {'identificationHints': {'hostname': 'healthy-server'}}
+                    "sourceServerID": "s-1",
+                    "dataReplicationInfo": {
+                        "dataReplicationState": "CONTINUOUS_REPLICATION"
+                    },
+                    "lifeCycle": {"state": "READY_FOR_TEST"},
+                    "sourceProperties": {
+                        "identificationHints": {"hostname": "healthy-server"}
+                    },
                 },
                 {
-                    'sourceServerID': 's-2',
-                    'dataReplicationInfo': {'dataReplicationState': 'STALLED'},
-                    'lifeCycle': {'state': 'READY_FOR_TEST'},
-                    'sourceProperties': {'identificationHints': {'hostname': 'stalled-server'}}
-                }
+                    "sourceServerID": "s-2",
+                    "dataReplicationInfo": {"dataReplicationState": "STALLED"},
+                    "lifeCycle": {"state": "READY_FOR_TEST"},
+                    "sourceProperties": {
+                        "identificationHints": {"hostname": "stalled-server"}
+                    },
+                },
             ]
         }
         mock_boto_client.return_value = mock_drs
-        
-        result = validate_server_replication_states('us-east-1', ['s-1', 's-2'])
-        
-        assert result['valid'] is False
-        assert result['healthyCount'] == 1
-        assert result['unhealthyCount'] == 1
+
+        result = validate_server_replication_states("us-east-1", ["s-1", "s-2"])
+
+        assert result["valid"] is False
+        assert result["healthyCount"] == 1
+        assert result["unhealthyCount"] == 1
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
