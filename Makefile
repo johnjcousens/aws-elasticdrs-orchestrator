@@ -302,21 +302,38 @@ lint-python: ## Lint Python code with Flake8 for PEP 8 compliance
 
 check-python: ## Check Python code formatting and style without making changes
 	@echo "🔍 Checking Python code formatting and style..."
-	black --check --diff lambda/ --line-length=79
-	isort --check-only --diff lambda/ --profile=black --line-length=79
-	flake8 lambda/
+	black --check --diff lambda/ scripts/ --line-length=79
+	isort --check-only --diff lambda/ scripts/ --profile=black --line-length=79
+	flake8 lambda/ scripts/
 	@echo "✅ Python code check complete"
 
 fix-python: format-python lint-python ## Format and lint Python code (fix issues)
 	@echo "🔧 Python code fixed and validated"
 
+# Comprehensive PEP 8 compliance targets
+pep8-full-check: pep8-compliance-check analyze-violations python-quality-report ## Run all PEP 8 analysis tools
+	@echo "🎯 Complete PEP 8 analysis finished"
+
 python-quality-report: ## Generate Python code quality report
 	@echo "📊 Generating Python code quality report..."
 	@mkdir -p reports
-	flake8 lambda/ --format=json --output-file=reports/flake8-report.json || true
-	black --check --diff lambda/ > reports/black-report.txt 2>&1 || true
-	isort --check-only --diff lambda/ > reports/isort-report.txt 2>&1 || true
+	python scripts/generate_quality_report.py --format json,html
 	@echo "✅ Python quality reports generated in reports/"
+
+pep8-compliance-check: ## Run comprehensive PEP 8 compliance check
+	@echo "🔍 Running comprehensive PEP 8 compliance check..."
+	python scripts/pep8_compliance_checker.py --report
+	@echo "✅ PEP 8 compliance check complete"
+
+pep8-compliance-fix: ## Fix PEP 8 compliance issues automatically
+	@echo "🔧 Fixing PEP 8 compliance issues..."
+	python scripts/pep8_compliance_checker.py --fix --report
+	@echo "✅ PEP 8 compliance fixes applied"
+
+analyze-violations: ## Analyze current code violations with detailed breakdown
+	@echo "📊 Analyzing code violations..."
+	python scripts/analyze_violations.py
+	@echo "✅ Violation analysis complete"
 
 pre-commit-all: ## Run pre-commit hooks on all files
 	@echo "🔍 Running pre-commit hooks on all files..."
