@@ -158,7 +158,7 @@ def build_initiated_by(source: str, details: Dict) -> str:
         )
     else:
         correlation = sanitize_input(details.get("correlationId", "unknown"))
-        return f"api:{correlation}"
+        return f"api:{correlation}"  # noqa: E231
 
 
 def update_execution(event: Dict) -> Dict:
