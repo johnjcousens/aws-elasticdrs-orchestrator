@@ -147,6 +147,45 @@ The solution follows a serverless, event-driven architecture with clear separati
 | Hosting    | Amazon S3, Amazon CloudFront                             |
 | DR Service | AWS Elastic Disaster Recovery (DRS)                      |
 
+## Python Virtual Environment
+
+The repository includes a pre-configured Python 3.12.11 virtual environment (`venv/`) for Lambda development and testing:
+
+### Environment Details
+- **Python Version**: 3.12.11 (matches AWS Lambda runtime)
+- **Package Count**: 76+ packages installed
+- **Testing Framework**: pytest, moto, hypothesis for comprehensive testing
+- **AWS Integration**: boto3, crhelper for Lambda development
+- **Status**: ✅ Up-to-date with deployed codebase
+
+### Usage
+
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Run Lambda unit tests
+cd tests/python
+pytest unit/ -v
+
+# Run integration tests with AWS mocking
+pytest integration/ -v
+
+# Generate coverage report
+pytest --cov=lambda
+
+# Deactivate when done
+deactivate
+```
+
+### Key Packages
+- **Testing**: pytest 7.4.3, moto 4.2.9, hypothesis 6.92.1
+- **AWS SDK**: boto3 1.34.0, botocore 1.34.0
+- **Lambda Helper**: crhelper 2.0.11
+- **Utilities**: freezegun 1.4.0, python-dateutil 2.8.2
+
+The virtual environment is maintained to match the exact versions used in production Lambda functions and testing infrastructure.
+
 ## AWS DRS Regional Availability
 
 The solution orchestrates disaster recovery in all **30 AWS regions** where Elastic Disaster Recovery (DRS) is available:
@@ -507,22 +546,22 @@ This security model enables automated tag synchronization while maintaining ente
 #### User & Admin Guides
 | Document | Description |
 |----------|-------------|
-| [User Guide](docs/guides/USER_GUIDE.md) | End-user interface and workflow documentation |
-| [Administrator Guide](docs/guides/ADMINISTRATOR_GUIDE.md) | System administration and configuration management |
-| [Getting Started Guide](docs/guides/GETTING_STARTED_GUIDE.md) | Quick start and initial setup procedures |
+| [Solution Handoff Guide](docs/guides/SOLUTION_HANDOFF_GUIDE.md) | Complete solution handoff and operational procedures |
+| [S3 Sync Automation](docs/guides/S3_SYNC_AUTOMATION.md) | S3 deployment automation and synchronization |
+| [CI/CD Pipeline Guide](docs/guides/CICD_PIPELINE_GUIDE.md) | Continuous integration and deployment procedures |
 
 #### Advanced Features
 | Document | Description |
 |----------|-------------|
-| [Cross-Account Features](docs/guides/CROSS_ACCOUNT_FEATURES.md) | Multi-account operations and configuration |
-| [Tag Synchronization Guide](docs/guides/TAG_SYNCHRONIZATION_GUIDE.md) | Automated EC2-to-DRS tag synchronization |
-| [Performance Optimization](docs/guides/PERFORMANCE_OPTIMIZATION.md) | Performance tuning and optimization strategies |
+| [AWS DRS Advanced Status Polling Reference](docs/guides/AWS_DRS_ADVANCED_STATUS_POLLING_REFERENCE.md) | Advanced DRS status polling and monitoring |
+| [DRS Recovery and Failback Complete Guide](docs/guides/DRS_RECOVERY_AND_FAILBACK_COMPLETE_GUIDE.md) | Complete recovery and failback procedures |
 
-### Technical Reference Documentation (7 Consolidated Files)
+### Technical Reference Documentation (8 Consolidated Files)
 
 #### Core DRS Reference
 | Document | Description |
 |----------|-------------|
+| [API Endpoints Current](docs/reference/API_ENDPOINTS_CURRENT.md) | Complete current API endpoints catalog with implementation details |
 | [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) | Complete IAM analysis, service roles, and cross-account permissions |
 | [DRS Launch Configuration Reference](docs/reference/DRS_LAUNCH_CONFIGURATION_REFERENCE.md) | Launch template settings, configuration tools, and template management |
 | [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) | Cross-account architecture, setup, and network requirements |
@@ -541,15 +580,29 @@ This security model enables automated tag synchronization while maintaining ente
 | [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) | Complete PRD v2.1 with EventBridge security features |
 | [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) | Technical specifications v2.1 with comprehensive API catalog |
 | [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) | User interface design and interaction patterns v2.1 |
+| [UX Component Library](docs/requirements/UX_COMPONENT_LIBRARY.md) | CloudScape component specifications and usage patterns |
+| [UX Page Specifications](docs/requirements/UX_PAGE_SPECIFICATIONS.md) | Detailed page layouts and user interaction flows |
+| [UX Technology Stack](docs/requirements/UX_TECHNOLOGY_STACK.md) | Frontend technology decisions and implementation standards |
+| [UX Visual Design System](docs/requirements/UX_VISUAL_DESIGN_SYSTEM.md) | Visual design standards and AWS branding guidelines |
 | [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) | System architecture v2.1 with EventBridge security and tag sync |
 | [AWS Services Architecture Deep Dive](docs/architecture/AWS_SERVICES_ARCHITECTURE_DEEP_DIVE.md) | Detailed AWS service integration patterns v2.1 |
 | [Architecture Diagrams](docs/architecture/ARCHITECTURE_DIAGRAMS.md) | Visual reference with sequence diagrams and current implementation |
+| [Step Functions Analysis](docs/architecture/STEP_FUNCTIONS_ANALYSIS.md) | Detailed Step Functions state machine analysis and coordination patterns |
 
 ### Security Documentation
 
 | Document | Description |
 |----------|-------------|
 | [RBAC Security Testing Status](docs/security/RBAC_SECURITY_TESTING_STATUS.md) | Role-based access control security testing and validation |
+| [RBAC Security Testing Plan](docs/security/RBAC_SECURITY_TESTING_PLAN.md) | Comprehensive security testing procedures and validation framework |
+
+### Troubleshooting Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Deployment Troubleshooting Guide](docs/troubleshooting/DEPLOYMENT_TROUBLESHOOTING_GUIDE.md) | CloudFormation deployment issues and IAM role troubleshooting |
+| [DRS Execution Troubleshooting Guide](docs/troubleshooting/DRS_EXECUTION_TROUBLESHOOTING_GUIDE.md) | DRS drill debugging and execution failure analysis |
+| [DRS Service Limits Testing](docs/troubleshooting/DRS_SERVICE_LIMITS_TESTING.md) | Service quota testing and limit validation procedures |
 
 *All documentation updated to v2.1 (January 1, 2026) with EventBridge security enhancements and tag synchronization features.*
 
@@ -570,9 +623,26 @@ The solution currently provides a comprehensive disaster recovery orchestration 
 
 The following major features have been **completed and are available** in the current implementation:
 
-#### ✅ **Comprehensive REST API** (Completed)
+#### ✅ **Role-Based Access Control (RBAC)** (Completed v1.0 - December 31, 2025)
+- **5 Granular DRS-Specific Roles** with enterprise security focus
+- **14 Granular Permissions** mapped to business functionality
+- **API-First Security Enforcement** - all access methods enforce identical RBAC
+- **Cognito Groups Integration** with JWT token validation
+- **UI Permission Enforcement** - dynamic show/hide based on user permissions
+- **Password Reset Capability** for new users with forced password change
+- **Admin User Management** through AWS Cognito Groups
+- **Real-Time Permission Validation** for every API call
+
+#### ✅ **Tag Synchronization** (Completed v1.2.0 - January 1, 2026)
+- **Automated Tag Synchronization** from EC2 instances to DRS source servers
+- **EventBridge Scheduling** with configurable intervals (15 minutes to 24 hours)
+- **Manual Triggers** for immediate synchronization capability
+- **Multi-Region Support** across all 28 commercial AWS DRS regions
+- **Enterprise Security** with multi-layer security validation for EventBridge authentication bypass
+- **Real-Time Progress** tracking and comprehensive error handling
+
+#### ✅ **Comprehensive REST API** (Completed v1.1.0)
 - **42+ API Endpoints** across 12 categories
-- **Role-Based Access Control (RBAC)** with 5 roles and 11 permissions
 - **Cross-Account Operations** with automated role assumption
 - **Direct Lambda Invocation** for AWS-native automation
 - **Configuration Export/Import** with dry-run validation
@@ -585,9 +655,8 @@ The following major features have been **completed and are available** in the cu
 
 #### ✅ **Tag-Based Server Selection** (Completed Dec 16, 2025)
 - **DRS Source Server Tag Queries** with hardware details
-- **Automated Tag Synchronization** from EC2 to DRS
-- **EventBridge Scheduling** with configurable intervals
 - **Conflict Detection** and prevention
+- **Enhanced Protection Groups** with tag-based server selection
 
 #### ✅ **Wave-Based Execution** (Completed Dec 12, 2025)
 - **Pause/Resume Execution** between waves
@@ -607,6 +676,7 @@ For detailed implementation plans of remaining features, see:
 - [Notifications & Monitoring](docs/implementation/NOTIFICATIONS_AND_MONITORING.md)
 - [Recovery Enhancements](docs/implementation/RECOVERY_ENHANCEMENTS.md)
 - [Infrastructure Improvements](docs/implementation/INFRASTRUCTURE_IMPROVEMENTS.md)
+- [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md)
 
 ## Agentic AI Programming
 
