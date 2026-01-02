@@ -1,66 +1,63 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - Lambda Functions Nested Stack'
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS DRS Orchestration - Lambda Functions Nested Stack"
 
 Parameters:
   ProjectName:
     Type: String
-    Description: 'Project name for resource naming'
+    Description: "Project name for resource naming"
 
   Environment:
     Type: String
-    Description: 'Environment name'
+    Description: "Environment name"
 
   SourceBucket:
     Type: String
-    Description: 'S3 bucket containing Lambda deployment packages'
+    Description: "S3 bucket containing Lambda deployment packages"
 
   ProtectionGroupsTableName:
     Type: String
-    Description: 'DynamoDB table name for Protection Groups'
+    Description: "DynamoDB table name for Protection Groups"
 
   RecoveryPlansTableName:
     Type: String
-    Description: 'DynamoDB table name for Recovery Plans'
+    Description: "DynamoDB table name for Recovery Plans"
 
   ExecutionHistoryTableName:
     Type: String
-    Description: 'DynamoDB table name for Execution History'
+    Description: "DynamoDB table name for Execution History"
 
   TargetAccountsTableName:
     Type: String
-    Description: 'DynamoDB table name for Target Accounts'
+    Description: "DynamoDB table name for Target Accounts"
 
   FrontendBucketName:
     Type: String
-    Default: ''
-    Description: 'S3 bucket name for frontend hosting'
+    Default: ""
+    Description: "S3 bucket name for frontend hosting"
 
   CloudFrontDistributionId:
     Type: String
-    Default: ''
-    Description: 'CloudFront distribution ID'
+    Default: ""
+    Description: "CloudFront distribution ID"
 
   NotificationTopicArn:
     Type: String
-    Description: 'SNS topic ARN for notifications'
-    Default: ''
+    Description: "SNS topic ARN for notifications"
+    Default: ""
 
   StateMachineArn:
     Type: String
-    Description: 'Step Functions State Machine ARN for orchestration'
+    Description: "Step Functions State Machine ARN for orchestration"
 
   CrossAccountRoleName:
     Type: String
-    Default: 'drs-orchestration-cross-account-role'
-    Description: 'Name of the cross-account IAM role for DRS operations'
-    Default: ''
-
-
+    Default: "drs-orchestration-cross-account-role"
+    Description: "Name of the cross-account IAM role for DRS operations"
 
 Conditions:
-  HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, '']]
-  HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, '']]
-  HasStateMachineArn: !Not [!Equals [!Ref StateMachineArn, '']]
+  HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, ""]]
+  HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, ""]]
+  HasStateMachineArn: !Not [!Equals [!Ref StateMachineArn, ""]]
 
 Resources:
   # IAM Role for API Handler Lambda
@@ -68,7 +65,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -79,7 +76,7 @@ Resources:
       Policies:
         - PolicyName: DynamoDBAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -90,14 +87,14 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:Scan
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProtectionGroupsTableName}'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TargetAccountsTableName}'
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProtectionGroupsTableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TargetAccountsTableName}"
         - PolicyName: StepFunctionsAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -107,13 +104,13 @@ Resources:
                   - states:SendTaskSuccess
                   - states:SendTaskFailure
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
-                  - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-orchestration-${Environment}:*'
-                  - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-state-machine-${Environment}'
-                  - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-state-machine-${Environment}:*'
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-orchestration-${Environment}:*"
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-state-machine-${Environment}"
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-state-machine-${Environment}:*"
         - PolicyName: DRSAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -168,7 +165,7 @@ Resources:
                   - drs:CreateSourceNetwork
                   - drs:DeleteSourceNetwork
                   - drs:UpdateSourceNetwork
-                Resource: '*'
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - ec2:DescribeInstances
@@ -176,7 +173,7 @@ Resources:
                   - ec2:TerminateInstances
                   - ec2:DetachVolume
                   - ec2:DeleteVolume
-                Resource: '*'
+                Resource: "*"
               # EC2 permissions for DRS instance launching during conversion
               - Effect: Allow
                 Action:
@@ -197,7 +194,7 @@ Resources:
                   - iam:PassRole
                   - iam:ListInstanceProfiles
                   - iam:ListAccountAliases
-                Resource: '*'
+                Resource: "*"
               # EC2 Launch Template permissions for LaunchConfig apply-on-save
               - Effect: Allow
                 Action:
@@ -205,7 +202,7 @@ Resources:
                   - ec2:ModifyLaunchTemplate
                   - ec2:DescribeLaunchTemplates
                   - ec2:DescribeLaunchTemplateVersions
-                Resource: '*'
+                Resource: "*"
               # EC2 Snapshot/AMI permissions for drill conversion (no condition - DRS needs full access)
               - Effect: Allow
                 Action:
@@ -215,18 +212,18 @@ Resources:
                   - ec2:DeregisterImage
                   - ec2:CopyImage
                   - ec2:RegisterImage
-                Resource: '*'
+                Resource: "*"
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - lambda:InvokeFunction
-                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-api-handler-${Environment}'
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-api-handler-${Environment}"
         - PolicyName: EventBridgeAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -234,7 +231,7 @@ Resources:
                   - events:PutRule
                   - events:EnableRule
                   - events:DisableRule
-                Resource: !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-tag-sync-schedule-${Environment}'
+                Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-tag-sync-schedule-${Environment}"
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -246,7 +243,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -257,7 +254,7 @@ Resources:
       Policies:
         - PolicyName: DynamoDBAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -266,14 +263,14 @@ Resources:
                   - dynamodb:UpdateItem
                   - dynamodb:Query
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProtectionGroupsTableName}'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TargetAccountsTableName}'
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProtectionGroupsTableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${RecoveryPlansTableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/*"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TargetAccountsTableName}"
         - PolicyName: DRSAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -329,10 +326,10 @@ Resources:
                   - drs:UpdateSourceNetwork
                   # CRITICAL: Required for DRS to register recovery instances
                   - drs:CreateRecoveryInstanceForDrs
-                Resource: '*'
+                Resource: "*"
         - PolicyName: EC2Access
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -369,7 +366,7 @@ Resources:
                   # Network interface operations
                   - ec2:DeleteNetworkInterface
                   - ec2:ModifyNetworkInterfaceAttribute
-                Resource: '*'
+                Resource: "*"
               # EC2 permissions for DRS instance launching during conversion
               - Effect: Allow
                 Action:
@@ -388,7 +385,7 @@ Resources:
                   - ec2:DescribeInstanceTypes
                   - iam:PassRole
                   - iam:ListInstanceProfiles
-                Resource: '*'
+                Resource: "*"
               # EC2 Snapshot/AMI permissions for drill conversion (no condition - DRS needs full access)
               - Effect: Allow
                 Action:
@@ -398,7 +395,7 @@ Resources:
                   - ec2:DeregisterImage
                   - ec2:CopyImage
                   - ec2:RegisterImage
-                Resource: '*'
+                Resource: "*"
               # CRITICAL: DRS uses Lambda credentials for volume operations during recovery
               # CloudTrail shows: invokedBy=drs.amazonaws.com, inScopeOf=Lambda function
               # DRS staging volumes use tags: drs.amazonaws.com-job, drs.amazonaws.com-source-server
@@ -408,10 +405,10 @@ Resources:
                 Action:
                   - ec2:DetachVolume
                   - ec2:DeleteVolume
-                Resource: '*'
+                Resource: "*"
         - PolicyName: SSMAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -421,26 +418,26 @@ Resources:
                   - ssm:StopAutomationExecution
                   - ssm:SendCommand
                   - ssm:GetCommandInvocation
-                Resource: '*'
+                Resource: "*"
         - !If
           - HasNotificationTopic
           - PolicyName: SNSAccess
             PolicyDocument:
-              Version: '2012-10-17'
+              Version: "2012-10-17"
               Statement:
                 - Effect: Allow
                   Action:
                     - sns:Publish
                   Resource: !Ref NotificationTopicArn
-          - !Ref 'AWS::NoValue'
+          - !Ref "AWS::NoValue"
         - PolicyName: STSAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - sts:AssumeRole
-                Resource: !Sub 'arn:aws:iam::*:role/${CrossAccountRoleName}'
+                Resource: !Sub "arn:aws:iam::*:role/${CrossAccountRoleName}"
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -452,7 +449,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -463,7 +460,7 @@ Resources:
       Policies:
         - PolicyName: S3Access
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -474,17 +471,17 @@ Resources:
                   - s3:DeleteObject
                   - s3:DeleteObjectVersion
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}'
-                  - !Sub 'arn:${AWS::Partition}:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}/*'
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}"
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}/*"
         - PolicyName: CloudFrontAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - cloudfront:CreateInvalidation
                   - cloudfront:GetInvalidation
-                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+                Resource: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*"
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -496,7 +493,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -507,17 +504,17 @@ Resources:
       Policies:
         - PolicyName: DynamoDBQueryAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - dynamodb:Query
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/StatusIndex'
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}"
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}/index/StatusIndex"
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -534,7 +531,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -545,17 +542,17 @@ Resources:
       Policies:
         - PolicyName: DynamoDBAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
                   - dynamodb:UpdateItem
                 Resource:
-                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}'
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ExecutionHistoryTableName}"
         - PolicyName: DRSAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
@@ -566,15 +563,15 @@ Resources:
                   - drs:DescribeRecoveryInstances
                   # Source Server Status
                   - drs:DescribeSourceServers
-                Resource: '*'
+                Resource: "*"
         - PolicyName: CloudWatchMetricsAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - cloudwatch:PutMetricData
-                Resource: '*'
+                Resource: "*"
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -585,14 +582,14 @@ Resources:
   ApiHandlerFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-api-handler-${Environment}'
-      Description: 'API Gateway handler for DRS Orchestration'
+      FunctionName: !Sub "${ProjectName}-api-handler-${Environment}"
+      Description: "API Gateway handler for DRS Orchestration"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !GetAtt ApiHandlerRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
-        S3Key: 'lambda/api-handler.zip'
+        S3Key: "lambda/api-handler.zip"
       Timeout: 120
       MemorySize: 512
       Environment:
@@ -604,10 +601,10 @@ Resources:
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
-          STATE_MACHINE_ARN: !If 
+          STATE_MACHINE_ARN: !If
             - HasStateMachineArn
             - !Ref StateMachineArn
-            - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}'
+            - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -618,14 +615,14 @@ Resources:
   FrontendBuilderFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-frontend-builder-${Environment}'
-      Description: 'Custom resource to build and deploy React frontend'
+      FunctionName: !Sub "${ProjectName}-frontend-builder-${Environment}"
+      Description: "Custom resource to build and deploy React frontend"
       Runtime: python3.12
       Handler: build_and_deploy.lambda_handler
       Role: !GetAtt CustomResourceRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
-        S3Key: 'lambda/frontend-builder.zip'
+        S3Key: "lambda/frontend-builder.zip"
       Timeout: 900
       MemorySize: 2048
       Environment:
@@ -634,8 +631,18 @@ Resources:
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
-          FRONTEND_BUCKET: !If [HasFrontendBucket, !Ref FrontendBucketName, !Ref 'AWS::NoValue']
-          CLOUDFRONT_DISTRIBUTION_ID: !If [HasFrontendBucket, !Ref CloudFrontDistributionId, !Ref 'AWS::NoValue']
+          FRONTEND_BUCKET:
+            !If [
+              HasFrontendBucket,
+              !Ref FrontendBucketName,
+              !Ref "AWS::NoValue",
+            ]
+          CLOUDFRONT_DISTRIBUTION_ID:
+            !If [
+              HasFrontendBucket,
+              !Ref CloudFrontDistributionId,
+              !Ref "AWS::NoValue",
+            ]
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -646,20 +653,20 @@ Resources:
   ExecutionFinderFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-execution-finder-${Environment}'
-      Description: 'Queries StatusIndex GSI for executions in POLLING status'
+      FunctionName: !Sub "${ProjectName}-execution-finder-${Environment}"
+      Description: "Queries StatusIndex GSI for executions in POLLING status"
       Runtime: python3.12
       Handler: execution_finder.lambda_handler
       Role: !GetAtt ExecutionFinderRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
-        S3Key: 'lambda/execution-finder.zip'
+        S3Key: "lambda/execution-finder.zip"
       Timeout: 60
       MemorySize: 256
       Environment:
         Variables:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          EXECUTION_POLLER_FUNCTION: !Sub '${ProjectName}-execution-poller-${Environment}'
+          EXECUTION_POLLER_FUNCTION: !Sub "${ProjectName}-execution-poller-${Environment}"
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -670,20 +677,20 @@ Resources:
   ExecutionPollerFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-execution-poller-${Environment}'
-      Description: 'Polls DRS job status and updates execution wave states'
+      FunctionName: !Sub "${ProjectName}-execution-poller-${Environment}"
+      Description: "Polls DRS job status and updates execution wave states"
       Runtime: python3.12
       Handler: execution_poller.lambda_handler
       Role: !GetAtt ExecutionPollerRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
-        S3Key: 'lambda/execution-poller.zip'
+        S3Key: "lambda/execution-poller.zip"
       Timeout: 120
       MemorySize: 256
       Environment:
         Variables:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          TIMEOUT_THRESHOLD_SECONDS: '1800'
+          TIMEOUT_THRESHOLD_SECONDS: "1800"
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -694,9 +701,9 @@ Resources:
   ExecutionFinderScheduleRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub '${ProjectName}-execution-finder-schedule-${Environment}'
-      Description: 'Triggers Execution Finder Lambda every 1 minute'
-      ScheduleExpression: 'rate(1 minute)'
+      Name: !Sub "${ProjectName}-execution-finder-schedule-${Environment}"
+      Description: "Triggers Execution Finder Lambda every 1 minute"
+      ScheduleExpression: "rate(1 minute)"
       State: ENABLED
       Targets:
         - Arn: !GetAtt ExecutionFinderFunction.Arn
@@ -718,14 +725,14 @@ Resources:
   OrchestrationStepFunctionsFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub '${ProjectName}-orchestration-stepfunctions-${Environment}'
-      Description: 'Step Functions orchestrator for DRS recovery - properly waits for EC2 launch'
+      FunctionName: !Sub "${ProjectName}-orchestration-stepfunctions-${Environment}"
+      Description: "Step Functions orchestrator for DRS recovery - properly waits for EC2 launch"
       Runtime: python3.12
       Handler: orchestration_stepfunctions.handler
       Role: !GetAtt OrchestrationRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
-        S3Key: 'lambda/orchestration-stepfunctions.zip'
+        S3Key: "lambda/orchestration-stepfunctions.zip"
       Timeout: 120
       MemorySize: 512
       Environment:
@@ -743,61 +750,61 @@ Resources:
 
 Outputs:
   ApiHandlerFunctionArn:
-    Description: 'API Handler Lambda Function ARN'
+    Description: "API Handler Lambda Function ARN"
     Value: !GetAtt ApiHandlerFunction.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-ApiHandlerArn'
+      Name: !Sub "${AWS::StackName}-ApiHandlerArn"
 
   ApiHandlerFunctionName:
-    Description: 'API Handler Lambda Function Name'
+    Description: "API Handler Lambda Function Name"
     Value: !Ref ApiHandlerFunction
     Export:
-      Name: !Sub '${AWS::StackName}-ApiHandlerName'
+      Name: !Sub "${AWS::StackName}-ApiHandlerName"
 
   OrchestrationStepFunctionsFunctionArn:
-    Description: 'Step Functions Orchestration Lambda Function ARN'
+    Description: "Step Functions Orchestration Lambda Function ARN"
     Value: !GetAtt OrchestrationStepFunctionsFunction.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-OrchestrationStepFunctionsArn'
+      Name: !Sub "${AWS::StackName}-OrchestrationStepFunctionsArn"
 
   OrchestrationStepFunctionsFunctionName:
-    Description: 'Step Functions Orchestration Lambda Function Name'
+    Description: "Step Functions Orchestration Lambda Function Name"
     Value: !Ref OrchestrationStepFunctionsFunction
     Export:
-      Name: !Sub '${AWS::StackName}-OrchestrationStepFunctionsName'
+      Name: !Sub "${AWS::StackName}-OrchestrationStepFunctionsName"
 
   FrontendBuilderFunctionArn:
-    Description: 'Frontend Builder Lambda Function ARN'
+    Description: "Frontend Builder Lambda Function ARN"
     Value: !GetAtt FrontendBuilderFunction.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-FrontendBuilderArn'
+      Name: !Sub "${AWS::StackName}-FrontendBuilderArn"
 
   ExecutionFinderFunctionArn:
-    Description: 'Execution Finder Lambda Function ARN'
+    Description: "Execution Finder Lambda Function ARN"
     Value: !GetAtt ExecutionFinderFunction.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-ExecutionFinderArn'
+      Name: !Sub "${AWS::StackName}-ExecutionFinderArn"
 
   ExecutionFinderFunctionName:
-    Description: 'Execution Finder Lambda Function Name'
+    Description: "Execution Finder Lambda Function Name"
     Value: !Ref ExecutionFinderFunction
     Export:
-      Name: !Sub '${AWS::StackName}-ExecutionFinderName'
+      Name: !Sub "${AWS::StackName}-ExecutionFinderName"
 
   ExecutionPollerFunctionArn:
-    Description: 'Execution Poller Lambda Function ARN'
+    Description: "Execution Poller Lambda Function ARN"
     Value: !GetAtt ExecutionPollerFunction.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-ExecutionPollerArn'
+      Name: !Sub "${AWS::StackName}-ExecutionPollerArn"
 
   ExecutionPollerFunctionName:
-    Description: 'Execution Poller Lambda Function Name'
+    Description: "Execution Poller Lambda Function Name"
     Value: !Ref ExecutionPollerFunction
     Export:
-      Name: !Sub '${AWS::StackName}-ExecutionPollerName'
+      Name: !Sub "${AWS::StackName}-ExecutionPollerName"
 
   ExecutionFinderScheduleRuleArn:
-    Description: 'EventBridge Schedule Rule ARN'
+    Description: "EventBridge Schedule Rule ARN"
     Value: !GetAtt ExecutionFinderScheduleRule.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-ScheduleRuleArn'
+      Name: !Sub "${AWS::StackName}-ScheduleRuleArn"
