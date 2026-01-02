@@ -31,7 +31,9 @@ EXECUTION_POLLER_FUNCTION = os.environ.get(
 
 # Adaptive polling interval thresholds (seconds)
 POLLING_INTERVAL_PENDING = 45  # PENDING phase: 45s (slow, predictable)
-POLLING_INTERVAL_STARTED = 15  # STARTED phase: 15s (rapid, critical transition)
+POLLING_INTERVAL_STARTED = (
+    15  # STARTED phase: 15s (rapid, critical transition)
+)
 POLLING_INTERVAL_IN_PROGRESS = 30  # IN_PROGRESS phase: 30s (normal)
 
 
@@ -54,13 +56,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         logger.info("Execution Finder Lambda invoked")
         logger.info(
-            f"Querying table: {EXECUTION_HISTORY_TABLE}, index: {STATUS_INDEX_NAME}"
+            f"Querying table: {EXECUTION_HISTORY_TABLE}, "
+            f"index: {STATUS_INDEX_NAME}"
         )
 
         # Query StatusIndex GSI for POLLING executions
         polling_executions = query_polling_executions()
 
-        logger.info(f"Found {len(polling_executions)} executions in POLLING status")
+        logger.info(
+            f"Found {len(polling_executions)} executions in POLLING status"
+        )
 
         if not polling_executions:
             logger.info("No executions found in POLLING status")
@@ -87,7 +92,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         logger.info(f"Executions to poll now: {len(executions_to_poll)}")
         if skipped_executions:
-            logger.info(f"Skipped executions (not yet time): {skipped_executions}")
+            logger.info(
+                f"Skipped executions (not yet time): {skipped_executions}"
+            )
 
         # Invoke Execution Poller Lambda for each execution (async)
         invocation_results = invoke_pollers_for_executions(executions_to_poll)
@@ -100,7 +107,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     "executionsPolled": len(executions_to_poll),
                     "executionsSkipped": len(skipped_executions),
                     "invocations": invocation_results,
-                    "message": f"Invoked poller for {len(executions_to_poll)} executions",
+                    "message": (
+                        f"Invoked poller for {len(executions_to_poll)} "
+                        f"executions"
+                    ),
                 }
             ),
         }
@@ -112,7 +122,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "body": json.dumps(
                 {
                     "error": str(e),
-                    "message": "Failed to query and invoke polling executions",
+                    "message": (
+                        "Failed to query and invoke polling executions"
+                    ),
                 }
             ),
         }
@@ -151,7 +163,8 @@ def query_polling_executions() -> List[Dict[str, Any]]:
             )
 
             logger.info(
-                f"DynamoDB query for {status} returned {response['Count']} items"
+                f"DynamoDB query for {status} returned {response['Count']} "
+                f"items"
             )
 
             # Parse DynamoDB items to Python dicts
@@ -270,13 +283,13 @@ def should_poll_now(execution: Dict[str, Any]) -> bool:
 
         if should_poll:
             logger.info(
-                f"ExecutionId {execution['ExecutionId']}: "  # noqa: E231
+                f"ExecutionId {execution['ExecutionId']}: "
                 f"Phase={phase}, TimeSincePoll={time_since_poll:.1f}s, "
                 f"Interval={interval}s - POLLING NOW"
             )
         else:
             logger.debug(
-                f"ExecutionId {execution['ExecutionId']}: "  # noqa: E231
+                f"ExecutionId {execution['ExecutionId']}: "
                 f"Phase={phase}, TimeSincePoll={time_since_poll:.1f}s, "
                 f"Interval={interval}s - Skipping (not time yet)"
             )
@@ -285,7 +298,8 @@ def should_poll_now(execution: Dict[str, Any]) -> bool:
 
     except Exception as e:
         logger.error(
-            f"Error determining poll timing for {execution.get('ExecutionId')}: {str(e)}"
+            f"Error determining poll timing for "
+            f"{execution.get('ExecutionId')}: {str(e)}"
         )
         # Default to polling on error (fail-safe)
         return True
@@ -335,7 +349,9 @@ def detect_execution_phase(waves: List[Dict[str, Any]]) -> str:
             return "STARTED"
 
         # Check for IN_PROGRESS phase (active recovery)
-        if any(status in in_progress_statuses for status in all_server_statuses):
+        if any(
+            status in in_progress_statuses for status in all_server_statuses
+        ):
             return "IN_PROGRESS"
 
         # Default to PENDING if all servers NOT_STARTED
@@ -347,7 +363,9 @@ def detect_execution_phase(waves: List[Dict[str, Any]]) -> str:
         return "IN_PROGRESS"
 
 
-def invoke_pollers_for_executions(executions: List[Dict[str, Any]]) -> Dict[str, Any]:
+def invoke_pollers_for_executions(
+    executions: List[Dict[str, Any]]
+) -> Dict[str, Any]:
     """
     Invoke Execution Poller Lambda asynchronously for each execution.
 
@@ -383,7 +401,8 @@ def invoke_pollers_for_executions(executions: List[Dict[str, Any]]) -> Dict[str,
             )
 
             logger.info(
-                f"Invoked Execution Poller for {str(execution_id).replace('\n', '').replace('\r', '')}, "
+                f"Invoked Execution Poller for "
+                f"{str(execution_id).replace('\n', '').replace('\r', '')}, "
                 f"StatusCode: {response['StatusCode']}"
             )
 
@@ -396,10 +415,13 @@ def invoke_pollers_for_executions(executions: List[Dict[str, Any]]) -> Dict[str,
 
         except Exception as e:
             logger.error(
-                f"Failed to invoke Execution Poller for {execution_id}: {str(e)}",
+                f"Failed to invoke Execution Poller for {execution_id}: "
+                f"{str(e)}",
                 exc_info=True,
             )
-            failed_invocations.append({"ExecutionId": execution_id, "Error": str(e)})
+            failed_invocations.append(
+                {"ExecutionId": execution_id, "Error": str(e)}
+            )
 
     return {
         "successful": len(successful_invocations),
