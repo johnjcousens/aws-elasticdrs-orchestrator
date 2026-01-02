@@ -75,7 +75,9 @@ def handler(event, context):
                 total_servers += result["total"]
                 total_synced += result["synced"]
                 total_failed += result["failed"]
-                logger.info(f"{region}: {result['synced']}/{result['total']} synced")
+                logger.info(
+                    f"{region}: {result['synced']}/{result['total']} synced"
+                )
         except Exception as e:
             # Log but continue - don't fail entire sync for one region
             logger.warning(f"{region}: skipped - {e}")
@@ -90,7 +92,8 @@ def handler(event, context):
     }
 
     logger.info(
-        f"Tag sync complete: {total_synced}/{total_servers} servers synced across {len(regions_with_servers)} regions"
+        f"Tag sync complete: {total_synced}/{total_servers} servers "
+        f"synced across {len(regions_with_servers)} regions"
     )
 
     return {"statusCode": 200, "body": json.dumps(summary)}
@@ -127,7 +130,8 @@ def sync_tags_in_region(drs_region: str) -> dict:
 
             if not instance_id:
                 logger.warning(
-                    f"No instance ID for source server {source_server_id}, skipping"
+                    f"No instance ID for source server {source_server_id}, "
+                    f"skipping"
                 )
                 continue
 
@@ -150,7 +154,8 @@ def sync_tags_in_region(drs_region: str) -> dict:
             ec2_tags = get_ec2_tags(ec2_client, instance_id)
             if not ec2_tags:
                 logger.info(
-                    f"No tags found for EC2 instance {instance_id} in {source_region}"
+                    f"No tags found for EC2 instance {instance_id} in "
+                    f"{source_region}"
                 )
                 continue
 
@@ -162,13 +167,15 @@ def sync_tags_in_region(drs_region: str) -> dict:
 
             synced += 1
             logger.info(
-                f"Synced {len(ec2_tags)} tags from {source_region}: {instance_id} -> {source_server_id}"
+                f"Synced {len(ec2_tags)} tags from {source_region}: "
+                f"{instance_id} -> {source_server_id}"
             )
 
         except Exception as e:
             failed += 1
             logger.error(
-                f"Failed to sync server {server.get('sourceServerID', 'unknown')}: {e}"
+                f"Failed to sync server "
+                f"{server.get('sourceServerID', 'unknown')}: {e}"
             )
 
     return {
@@ -229,4 +236,6 @@ def enable_copy_tags(drs_client, source_server_id: str):
             sourceServerID=source_server_id, copyTags=True
         )
     except Exception as e:
-        logger.warning(f"Failed to enable copyTags for {source_server_id}: {e}")
+        logger.warning(
+            f"Failed to enable copyTags for {source_server_id}: {e}"
+        )

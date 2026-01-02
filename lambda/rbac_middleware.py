@@ -13,26 +13,25 @@ class DRSRole(Enum):
     """
     DRS Orchestration Role definitions for disaster recovery operations
 
-    Inspired by AWS DRS service roles but designed for orchestration platform users:
-    - DRSOrchestrationAdmin: Full administrative access (like service administrators)
-    - DRSRecoveryManager: Can execute and manage recovery operations (like recovery coordinators)
+    Inspired by AWS DRS service roles but designed for orchestration platform
+    users:
+    - DRSOrchestrationAdmin: Full administrative access (like service
+      administrators)
+    - DRSRecoveryManager: Can execute and manage recovery operations (like
+      recovery coordinators)
     - DRSPlanManager: Can create and modify recovery plans (like DR planners)
-    - DRSOperator: Can execute recovery but not modify plans (like on-call operators)
-    - DRSReadOnly: View-only access for auditing and monitoring (like compliance officers)
+    - DRSOperator: Can execute recovery but not modify plans (like on-call
+      operators)
+    - DRSReadOnly: View-only access for auditing and monitoring (like
+      compliance officers)
     """
 
     # DRS Orchestration Roles (intuitive for disaster recovery teams)
-    DRS_ORCHESTRATION_ADMIN = (
-        "DRSOrchestrationAdmin"  # Full admin access to orchestration platform
-    )
-    DRS_RECOVERY_MANAGER = (
-        "DRSRecoveryManager"  # Can execute and manage all recovery operations
-    )
-    DRS_PLAN_MANAGER = (
-        "DRSPlanManager"  # Can create/modify recovery plans and protection groups
-    )
-    DRS_OPERATOR = "DRSOperator"  # Can execute recovery operations but not modify plans
-    DRS_READ_ONLY = "DRSReadOnly"  # View-only access for monitoring and compliance
+    DRS_ORCHESTRATION_ADMIN = "DRSOrchestrationAdmin"
+    DRS_RECOVERY_MANAGER = "DRSRecoveryManager"
+    DRS_PLAN_MANAGER = "DRSPlanManager"
+    DRS_OPERATOR = "DRSOperator"
+    DRS_READ_ONLY = "DRSReadOnly"
 
     # Legacy AWS-style aliases for security test compatibility
     AWS_ADMIN = "aws:admin"
@@ -76,7 +75,8 @@ class DRSPermission(Enum):
 
 # Role-Permission Matrix (focused on DRS orchestration business functionality)
 ROLE_PERMISSIONS = {
-    # DRSOrchestrationAdmin - Full administrative access (like AWS service administrators)
+    # DRSOrchestrationAdmin - Full administrative access (like AWS service
+    # administrators)
     DRSRole.DRS_ORCHESTRATION_ADMIN: [
         # Account Management - Full access
         DRSPermission.REGISTER_ACCOUNTS,
@@ -102,7 +102,8 @@ ROLE_PERMISSIONS = {
         DRSPermission.EXPORT_CONFIGURATION,
         DRSPermission.IMPORT_CONFIGURATION,
     ],
-    # DRSRecoveryManager - Can execute and manage all recovery operations (like recovery coordinators)
+    # DRSRecoveryManager - Can execute and manage all recovery operations
+    # (like recovery coordinators)
     DRSRole.DRS_RECOVERY_MANAGER: [
         # Account Management - Can register and modify, but not delete accounts
         DRSPermission.REGISTER_ACCOUNTS,
@@ -146,7 +147,8 @@ ROLE_PERMISSIONS = {
         DRSPermission.MODIFY_RECOVERY_PLANS,
         DRSPermission.VIEW_RECOVERY_PLANS,
     ],
-    # DRSOperator - Can execute recovery operations but not modify plans (like on-call operators)
+    # DRSOperator - Can execute recovery operations but not modify plans
+    # (like on-call operators)
     DRSRole.DRS_OPERATOR: [
         # Account Management - View only
         DRSPermission.VIEW_ACCOUNTS,
@@ -180,11 +182,15 @@ ENDPOINT_PERMISSIONS = {
     ("GET", "/protection-groups"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("POST", "/protection-groups"): [DRSPermission.CREATE_PROTECTION_GROUPS],
     ("GET", "/protection-groups/{id}"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    ("PUT", "/protection-groups/{id}"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
-    ("DELETE", "/protection-groups/{id}"): [DRSPermission.DELETE_PROTECTION_GROUPS],
+    ("PUT", "/protection-groups/{id}"): [
+        DRSPermission.MODIFY_PROTECTION_GROUPS
+    ],
+    ("DELETE", "/protection-groups/{id}"): [
+        DRSPermission.DELETE_PROTECTION_GROUPS
+    ],
     ("POST", "/protection-groups/{id}"): [
         DRSPermission.MODIFY_PROTECTION_GROUPS
-    ],  # resolve endpoint
+    ],
     # Recovery Plans
     ("GET", "/recovery-plans"): [DRSPermission.VIEW_RECOVERY_PLANS],
     ("POST", "/recovery-plans"): [DRSPermission.CREATE_RECOVERY_PLANS],
@@ -201,13 +207,19 @@ ENDPOINT_PERMISSIONS = {
     ("DELETE", "/executions"): [DRSPermission.STOP_RECOVERY],
     ("POST", "/executions/delete"): [DRSPermission.STOP_RECOVERY],
     ("GET", "/executions/{executionId}"): [DRSPermission.VIEW_EXECUTIONS],
-    ("POST", "/executions/{executionId}/cancel"): [DRSPermission.STOP_RECOVERY],
+    ("POST", "/executions/{executionId}/cancel"): [
+        DRSPermission.STOP_RECOVERY
+    ],
     ("POST", "/executions/{executionId}/pause"): [DRSPermission.STOP_RECOVERY],
-    ("POST", "/executions/{executionId}/resume"): [DRSPermission.START_RECOVERY],
+    ("POST", "/executions/{executionId}/resume"): [
+        DRSPermission.START_RECOVERY
+    ],
     ("POST", "/executions/{executionId}/terminate-instances"): [
         DRSPermission.TERMINATE_INSTANCES
     ],
-    ("GET", "/executions/{executionId}/job-logs"): [DRSPermission.VIEW_EXECUTIONS],
+    ("GET", "/executions/{executionId}/job-logs"): [
+        DRSPermission.VIEW_EXECUTIONS
+    ],
     ("GET", "/executions/{executionId}/termination-status"): [
         DRSPermission.VIEW_EXECUTIONS
     ],
@@ -338,7 +350,9 @@ def has_permission(user: Dict, required_permission: DRSPermission) -> bool:
     return required_permission in user_permissions
 
 
-def has_any_permission(user: Dict, required_permissions: List[DRSPermission]) -> bool:
+def has_any_permission(
+    user: Dict, required_permissions: List[DRSPermission]
+) -> bool:
     """Check if user has any of the required permissions"""
     user_permissions = get_user_permissions(user)
     return any(perm in user_permissions for perm in required_permissions)
@@ -352,7 +366,9 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
     # Replace common path parameters
     import re
 
-    normalized_path = re.sub(r"/[a-f0-9-]{36}", "/{id}", normalized_path)  # UUIDs
+    normalized_path = re.sub(
+        r"/[a-f0-9-]{36}", "/{id}", normalized_path
+    )  # UUIDs
     normalized_path = re.sub(
         r"/[a-zA-Z0-9-]+(?=/|$)", "/{id}", normalized_path
     )  # Generic IDs
@@ -408,7 +424,9 @@ def check_authorization(event: Dict) -> Dict:
 
         # If no specific permissions required, allow access (fallback)
         if not required_permissions:
-            print(f"⚠️ No permissions defined for {method} {path}, allowing access")
+            print(
+                f"⚠️ No permissions defined for {method} {path}, allowing access"
+            )
             return {
                 "authorized": True,
                 "user": user,
@@ -428,7 +446,9 @@ def check_authorization(event: Dict) -> Dict:
                 "authorized": False,
                 "user": user,
                 "reason": f"Missing required permissions: {[p.value for p in required_permissions]}",
-                "user_permissions": [p.value for p in get_user_permissions(user)],
+                "user_permissions": [
+                    p.value for p in get_user_permissions(user)
+                ],
                 "user_roles": [r.value for r in get_user_roles(user)],
             }
 

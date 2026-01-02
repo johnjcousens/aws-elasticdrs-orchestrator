@@ -18,7 +18,9 @@ import boto3
 dynamodb = boto3.resource("dynamodb")
 
 # Environment variables
-EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE", "execution-history")
+EXECUTION_HISTORY_TABLE = os.environ.get(
+    "EXECUTION_HISTORY_TABLE", "execution-history"
+)
 
 # Get table reference
 execution_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
@@ -43,7 +45,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
     - complete: Mark execution as complete
     - get: Get execution by ID
     """
-    print(f"Execution Registry received: {json.dumps(event, cls=DecimalEncoder)}")
+    print(
+        f"Execution Registry received: {json.dumps(event, cls=DecimalEncoder)}"
+    )
 
     action = event.get("action", "register")
 
@@ -140,25 +144,27 @@ def build_initiated_by(source: str, details: Dict) -> str:
         email = sanitize_input(details.get("userEmail", "UI User"))
         return email
     elif source == "CLI":
-        user = details.get("iamUser") or details.get("correlationId", "unknown")
+        user = details.get("iamUser") or details.get(
+            "correlationId", "unknown"
+        )
         user = sanitize_input(user)
-        return f"cli:{user}"  # noqa: E231
+        return f"cli:{user}"
     elif source == "EVENTBRIDGE":
         rule = sanitize_input(details.get("scheduleRuleName", "unknown"))
-        return f"schedule:{rule}"  # noqa: E231
+        return f"schedule:{rule}"
     elif source == "SSM":
         doc = sanitize_input(details.get("ssmDocumentName", "unknown"))
-        return f"ssm:{doc}"  # noqa: E231
+        return f"ssm:{doc}"
     elif source == "STEPFUNCTIONS":
         parent = sanitize_input(details.get("parentExecutionId", "unknown"))
         return (
-            f"stepfunctions:{parent[:8]}..."  # noqa: E231
+            f"stepfunctions:{parent[:8]}..."
             if len(parent) > 8
-            else f"stepfunctions:{parent}"  # noqa: E231
+            else f"stepfunctions:{parent}"
         )
     else:
         correlation = sanitize_input(details.get("correlationId", "unknown"))
-        return f"api:{correlation}"  # noqa: E231
+        return f"api:{correlation}"
 
 
 def update_execution(event: Dict) -> Dict:
@@ -193,22 +199,30 @@ def update_execution(event: Dict) -> Dict:
     # Total waves
     if "totalWaves" in event:
         update_parts.append("TotalWaves = :totalWaves")
-        expr_values[":totalWaves"] = int(event["totalWaves"])  # Ensure integer type
+        expr_values[":totalWaves"] = int(
+            event["totalWaves"]
+        )  # Ensure integer type
 
     # Total servers
     if "totalServers" in event:
         update_parts.append("TotalServers = :totalServers")
-        expr_values[":totalServers"] = int(event["totalServers"])  # Ensure integer type
+        expr_values[":totalServers"] = int(
+            event["totalServers"]
+        )  # Ensure integer type
 
     # Current wave
     if "currentWave" in event:
         update_parts.append("CurrentWave = :currentWave")
-        expr_values[":currentWave"] = int(event["currentWave"])  # Ensure integer type
+        expr_values[":currentWave"] = int(
+            event["currentWave"]
+        )  # Ensure integer type
 
     # Error message
     if "errorMessage" in event:
         update_parts.append("ErrorMessage = :errorMessage")
-        expr_values[":errorMessage"] = str(event["errorMessage"])  # Ensure string type
+        expr_values[":errorMessage"] = str(
+            event["errorMessage"]
+        )  # Ensure string type
 
     update_expr = "SET " + ", ".join(update_parts)
 
@@ -305,7 +319,9 @@ def get_execution(event: Dict) -> Dict:
     if not re.match(r"^[a-f0-9-]{36}$", execution_id.strip()):
         raise ValueError(f"Invalid execution ID format: {execution_id}")
 
-    result = execution_table.get_item(Key={"ExecutionId": execution_id.strip()})
+    result = execution_table.get_item(
+        Key={"ExecutionId": execution_id.strip()}
+    )
     item = result.get("Item")
 
     if not item:
