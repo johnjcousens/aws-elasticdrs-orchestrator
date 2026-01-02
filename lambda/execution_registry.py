@@ -148,23 +148,23 @@ def build_initiated_by(source: str, details: Dict) -> str:
             "correlationId", "unknown"
         )
         user = sanitize_input(user)
-        return f"cli:{user}"
+        return f"cli: {user}"
     elif source == "EVENTBRIDGE":
         rule = sanitize_input(details.get("scheduleRuleName", "unknown"))
-        return f"schedule:{rule}"
+        return f"schedule: {rule}"
     elif source == "SSM":
         doc = sanitize_input(details.get("ssmDocumentName", "unknown"))
-        return f"ssm:{doc}"
+        return f"ssm: {doc}"
     elif source == "STEPFUNCTIONS":
         parent = sanitize_input(details.get("parentExecutionId", "unknown"))
         return (
-            f"stepfunctions:{parent[:8]}..."
+            f"stepfunctions: {parent[:8]}..."
             if len(parent) > 8
-            else f"stepfunctions:{parent}"
+            else f"stepfunctions: {parent}"
         )
     else:
         correlation = sanitize_input(details.get("correlationId", "unknown"))
-        return f"api:{correlation}"
+        return f"api: {correlation}"
 
 
 def update_execution(event: Dict) -> Dict:
