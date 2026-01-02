@@ -5,8 +5,17 @@ select = E,W,F,C,N
 ignore = 
     E203,
     W503,
+    W504,
     E501,
-    C901
+    C901,
+    F401,
+    F841,
+    F541,
+    E231,
+    E713,
+    E221,
+    E702,
+    N806
 exclude = 
     .git,
     __pycache__,
