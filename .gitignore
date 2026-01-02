@@ -170,9 +170,12 @@ CHECKPOINT_*.md
 /package.json
 /package-lock.json
 
-# Environment files (except template)
+# Environment files (except templates)
 /.env.*
 !/.env.test.template
+!/.env.deployment.template
+.env.deployment
+.env.deployment.local
 
 # Temporary directories
 temp/

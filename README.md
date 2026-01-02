@@ -535,6 +535,7 @@ This security model enables automated tag synchronization while maintaining ente
 | [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment, configuration, and operational procedures |
 | [Multi-Account Setup Guide](docs/guides/MULTI_ACCOUNT_SETUP_GUIDE.md) | Cross-account hub and spoke configuration |
 | [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) | Development, testing, and CI/CD procedures |
+| [Parameterization Summary](docs/implementation/PARAMETERIZATION_SUMMARY.md) | Configuration management and hardcoded value elimination |
 
 #### Testing & Quality
 | Document | Description |

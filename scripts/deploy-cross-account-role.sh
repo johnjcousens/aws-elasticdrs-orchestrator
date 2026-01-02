@@ -5,7 +5,7 @@ set -e
 # This script deploys the cross-account role in a spoke account
 
 # Configuration
-HUB_ACCOUNT_ID="${HUB_ACCOUNT_ID:-438465159935}"
+HUB_ACCOUNT_ID="${HUB_ACCOUNT_ID:-}"  # Must be provided via environment variable
 ENVIRONMENT="${ENVIRONMENT:-test}"
 REGION="${REGION:-us-east-1}"
 PROJECT_NAME="${PROJECT_NAME:-drs-orchestration}"

@@ -12,8 +12,21 @@ export AWS_PAGER=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-BUCKET="aws-drs-orchestration"
-REGION="us-east-1"
+# Load configuration from environment files
+# Priority: .env.deployment.local > .env.deployment > defaults
+if [ -f "$PROJECT_ROOT/.env.deployment" ]; then
+    echo "📋 Loading configuration from .env.deployment"
+    source "$PROJECT_ROOT/.env.deployment"
+fi
+
+if [ -f "$PROJECT_ROOT/.env.deployment.local" ]; then
+    echo "📋 Loading local overrides from .env.deployment.local"
+    source "$PROJECT_ROOT/.env.deployment.local"
+fi
+
+# Default configuration (can be overridden by environment files or command line)
+BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orchestration}"
+REGION="${DEPLOYMENT_REGION:-us-east-1}"
 BUILD_FRONTEND=false
 DRY_RUN=false
 CLEAN_ORPHANS=false
@@ -22,14 +35,14 @@ DEPLOY_LAMBDA=false
 UPDATE_LAMBDA_CODE=false
 DEPLOY_FRONTEND=false
 UPDATE_ALL_LAMBDA=false
-# Default to standard AWS credentials profile
-AWS_PROFILE="438465159935_AdministratorAccess"
+# Default AWS profile (override with --profile or in .env files)
+AWS_PROFILE="${AWS_PROFILE:-default}"
 LIST_PROFILES=false
 
 # CloudFormation stack configuration
-PROJECT_NAME="aws-drs-orchestrator"
-ENVIRONMENT="dev"
-PARENT_STACK_NAME="aws-drs-orchestrator-dev"
+PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestrator}"
+ENVIRONMENT="${ENVIRONMENT:-dev}"
+PARENT_STACK_NAME="${PARENT_STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 
 # Approved top-level directories (directories synced by this script)
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
@@ -81,7 +94,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --profile PROFILE        AWS credentials profile (default: 438465159935_AdministratorAccess)"
+            echo "  --profile PROFILE        AWS credentials profile (default: ${AWS_PROFILE})"
             echo "  --build-frontend         Build frontend before syncing"
             echo "  --dry-run                Show what would be synced without making changes"
             echo "  --clean-orphans          Remove orphaned directories from S3"

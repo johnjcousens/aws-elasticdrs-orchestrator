@@ -98,6 +98,14 @@ Parameters:
       - 'true'
       - 'false'
 
+  # Cross-Account Configuration
+  CrossAccountRoleName:
+    Type: String
+    Default: 'drs-orchestration-cross-account-role'
+    Description: 'Name of the cross-account IAM role for DRS operations in target accounts'
+    AllowedPattern: '^[a-zA-Z0-9+=,.@_-]+$'
+    ConstraintDescription: 'Must be a valid IAM role name'
+
   TagSyncIntervalHours:
     Type: Number
     Default: 4
@@ -144,6 +152,7 @@ Resources:
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
         TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
         NotificationTopicArn: ''
+        CrossAccountRoleName: !Ref CrossAccountRoleName
       Tags:
         - Key: Project
           Value: !Ref ProjectName

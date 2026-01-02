@@ -94,14 +94,26 @@ lint:python:
   image: public.ecr.aws/docker/library/python:${PYTHON_VERSION}
   retry: 2
   script:
-    - pip install pylint black flake8
-    - echo "Linting Lambda functions..."
-    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs pylint --disable=C0114,C0115,C0116,R0903,W0613,C0103 || true
-    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs black --check --line-length=120 || true
-    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs flake8 --max-line-length=120 --ignore=E203,W503,E501 || true
+    - pip install black==23.7.0 flake8==6.0.0 isort==5.12.0 flake8-docstrings==1.7.0 flake8-import-order==0.18.2 pep8-naming==0.13.3
+    - echo "Running Python code quality checks..."
+    - echo "Checking Black formatting (PEP 8 - 79 characters)..."
+    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs black --check --line-length=79
+    - echo "Checking import sorting with isort..."
+    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs isort --check-only --profile=black --line-length=79
+    - echo "Running Flake8 linting (PEP 8 compliance)..."
+    - find lambda -name "*.py" -not -path "*/package/*" -not -path "*/__pycache__/*" | xargs flake8
+  artifacts:
+    when: always
+    reports:
+      junit: flake8-report.xml
+    paths:
+      - flake8-report.xml
+    expire_in: 1 week
   rules:
     - changes:
         - lambda/**/*.py
+        - pyproject.toml
+        - .flake8
         - .gitlab-ci.yml
 
 lint:frontend:
