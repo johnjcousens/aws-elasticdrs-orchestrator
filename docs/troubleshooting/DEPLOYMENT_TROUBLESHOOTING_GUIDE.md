@@ -1,28 +1,228 @@
-# IAM Role Analysis - DRS Permissions for Lambda Functions
+# Deployment Troubleshooting Guide
 
-**Analysis Date**: January 2025
-**Purpose**: Document Lambda IAM roles and their permissions for DRS drill and recovery operations
-**Status**: ✅ DEPLOYED - All critical permissions implemented in CloudFormation
-
----
-
-## Executive Summary
-
-The Lambda functions have **COMPLETE** permissions for full DRS drill and recovery operations:
-
-- ✅ Starting recovery operations
-- ✅ Terminating drill instances
-- ✅ EC2 instance termination and management
-- ✅ Failback operations
-- ✅ Configuration management
-- ✅ Replication management
-- ✅ Source server management
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete
 
 ---
 
-## Current IAM Roles (CloudFormation Deployed)
+## Overview
 
-### 1. ApiHandlerRole ✅ DEPLOYED
+This guide consolidates all deployment-related troubleshooting for AWS DRS Orchestration, covering CloudFormation deployment issues and IAM permission problems.
+
+---
+
+## CloudFormation Deployment Issues
+
+### Current Deployment Architecture
+
+**Deployment Script:** `./scripts/sync-to-deployment-bucket.sh`
+
+```bash
+# Automated deployment workflow
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+
+# This automatically:
+# 1. Builds frontend from current source
+# 2. Packages Lambda functions with dependencies
+# 3. Syncs all artifacts to S3
+# 4. Deploys via CloudFormation
+```
+
+**CloudFormation Integration:**
+```yaml
+# All functions use single deployment package
+ApiHandlerFunction:
+  Code:
+    S3Bucket: !Ref SourceBucket
+    S3Key: 'lambda/deployment-package.zip'  # Contains all current code
+```
+
+### Current Solution Benefits
+
+**Automated sync script provides:**
+- ✅ Frontend build from current source (`npm run build`)
+- ✅ Lambda packaging with current code
+- ✅ Automatic artifact upload to S3
+- ✅ CloudFormation deployment with latest artifacts
+- ✅ Single command deployment
+
+**Deploy from scratch workflow:**
+```bash
+# Complete deployment from current source
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+```
+
+### Current Deployment Flow
+
+```mermaid
+flowchart LR
+    Dev[Developer] --> Script[sync-to-deployment-bucket.sh]
+    Script --> Build[Auto Build]
+    Build --> Upload[Auto Upload]
+    Upload --> CFN[CloudFormation Deploy]
+```
+
+**Benefits:**
+- ✅ Single command deployment
+- ✅ Always deploys current source
+- ✅ Automatic build and packaging
+- ✅ No manual steps required
+- ✅ Fast deployment (~5-10 minutes)
+- ✅ Consistent artifact generation
+
+### Deployment Options Available
+
+**Fast Lambda Updates:**
+```bash
+# Update Lambda code only (~5 seconds)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+```
+
+**Full Stack Deployment:**
+```bash
+# Deploy all infrastructure (~5-10 minutes)
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+```
+
+**Frontend Only:**
+```bash
+# Build and deploy frontend only
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+```
+
+### Common Deployment Issues
+
+#### 1. Stale S3 Artifacts
+**Problem:** CloudFormation uses old artifacts from S3
+
+**Solution:** Always sync before deploying
+```bash
+# Ensure S3 has latest code
+./scripts/sync-to-deployment-bucket.sh
+# Then deploy
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+```
+
+#### 2. Frontend Configuration Mismatch
+**Problem:** Frontend can't connect to API after deployment
+
+**Solution:** Use automated frontend build
+```bash
+# Build with correct configuration
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+```
+
+#### 3. Lambda Function Not Updated
+**Problem:** Code changes not reflected in deployed function
+
+**Solution:** Use fast Lambda update
+```bash
+# Quick code update
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+```
+
+### Deployment Best Practices
+
+#### 1. Always Sync Before Deploy
+
+**Recommended workflow:**
+```bash
+# Step 1: Sync all code to S3
+./scripts/sync-to-deployment-bucket.sh
+
+# Step 2: Deploy infrastructure
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+
+# Step 3: Verify deployment
+aws cloudformation describe-stacks --stack-name aws-drs-orchestrator-dev
+```
+
+#### 2. Use Environment Files
+
+**Frontend configuration:**
+```bash
+# Ensure .env.dev exists with correct API endpoints
+cp .env.test.template .env.dev
+# Edit .env.dev with your stack outputs
+```
+
+#### 3. Verify Deployment Success
+
+**Check deployment status:**
+```bash
+# Verify stack status
+aws cloudformation describe-stacks \
+  --stack-name aws-drs-orchestrator-dev \
+  --query 'Stacks[0].StackStatus'
+
+# Check S3 artifacts are current
+aws s3 ls s3://aws-drs-orchestration/lambda/ --region us-east-1
+
+# Test API endpoint
+API_ENDPOINT=$(aws cloudformation describe-stacks \
+  --stack-name aws-drs-orchestrator-dev \
+  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+  --output text)
+
+curl "$API_ENDPOINT/protection-groups" -H "Authorization: Bearer $TOKEN"
+```
+
+#### 4. Troubleshooting Failed Deployments
+
+**Common failure scenarios:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `No updates to be performed` | No changes detected | Verify S3 artifacts are updated |
+| `Template validation error` | Invalid CloudFormation | Run `make validate` before deploy |
+| `Insufficient permissions` | IAM role lacks permissions | Check deployment role permissions |
+| `Resource already exists` | Stack name conflict | Use unique stack name or delete existing |
+
+### Quick Deployment Commands
+
+**Most common deployment scenarios:**
+
+```bash
+# Complete deployment from scratch
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-cfn
+
+# Update only Lambda code (fastest)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+
+# Update only frontend
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+
+# Sync code without deploying
+./scripts/sync-to-deployment-bucket.sh
+
+# Preview changes (dry run)
+./scripts/sync-to-deployment-bucket.sh --dry-run
+```
+
+### Advanced Deployment Options
+
+**For enterprise environments:**
+
+1. **GitLab CI/CD Integration** - Automated pipeline on git push
+2. **Multiple Environment Support** - Dev, test, prod deployments
+3. **Blue/Green Deployments** - Zero-downtime updates
+4. **Rollback Capabilities** - Quick revert to previous version
+
+**Environment-specific deployments:**
+```bash
+# Deploy to different environments
+./scripts/sync-to-deployment-bucket.sh --profile dev-profile --deploy-cfn
+./scripts/sync-to-deployment-bucket.sh --profile prod-profile --deploy-cfn
+```
+
+---
+
+## IAM Role Analysis - DRS Permissions
+
+### Current IAM Roles (CloudFormation Deployed)
+
+#### 1. ApiHandlerRole ✅ DEPLOYED
 
 **CloudFormation Resource**: `cfn/lambda-stack.yaml` → `ApiHandlerRole`
 **Lambda Function**: `api-handler` (REST API endpoints)
@@ -126,7 +326,7 @@ The Lambda functions have **COMPLETE** permissions for full DRS drill and recove
 - iam:PassRole
 ```
 
-### 2. OrchestrationRole ✅ DEPLOYED
+#### 2. OrchestrationRole ✅ DEPLOYED
 
 **CloudFormation Resource**: `cfn/lambda-stack.yaml` → `OrchestrationRole`
 **Lambda Functions**: `orchestration` (legacy), `orchestration-stepfunctions` (active)
@@ -224,7 +424,7 @@ The Lambda functions have **COMPLETE** permissions for full DRS drill and recove
   Resource: 'arn:aws:iam::*:role/drs-orchestration-cross-account-role'
 ```
 
-### 3. ExecutionPollerRole ✅ DEPLOYED
+#### 3. ExecutionPollerRole ✅ DEPLOYED
 
 **CloudFormation Resource**: `cfn/lambda-stack.yaml` → `ExecutionPollerRole`
 **Lambda Function**: `execution-poller` (DRS job status monitoring)
@@ -249,7 +449,7 @@ The Lambda functions have **COMPLETE** permissions for full DRS drill and recove
 - cloudwatch:PutMetricData
 ```
 
-### 4. ExecutionFinderRole ✅ DEPLOYED
+#### 4. ExecutionFinderRole ✅ DEPLOYED
 
 **CloudFormation Resource**: `cfn/lambda-stack.yaml` → `ExecutionFinderRole`
 **Lambda Function**: `execution-finder` (queries for active executions)
@@ -270,7 +470,7 @@ The Lambda functions have **COMPLETE** permissions for full DRS drill and recove
   Resource: execution-poller function ARN
 ```
 
-### 5. CustomResourceRole ✅ DEPLOYED
+#### 5. CustomResourceRole ✅ DEPLOYED
 
 **CloudFormation Resource**: `cfn/lambda-stack.yaml` → `CustomResourceRole`
 **Lambda Function**: `frontend-builder` (CloudFormation custom resource)
@@ -295,9 +495,7 @@ The Lambda functions have **COMPLETE** permissions for full DRS drill and recove
   Resource: all distributions
 ```
 
----
-
-## Lambda Functions and Their Roles (Deployed)
+### Lambda Functions and Their Roles (Deployed)
 
 | Function | Role | CloudFormation Resource | Purpose |
 |----------|------|------------------------|----------|
@@ -308,11 +506,9 @@ The Lambda functions have **COMPLETE** permissions for full DRS drill and recove
 | `execution-finder` | ExecutionFinderRole | `ExecutionFinderFunction` | Find active executions (EventBridge scheduled) |
 | `execution-poller` | ExecutionPollerRole | `ExecutionPollerFunction` | Poll DRS job status |
 
----
+### Critical Permission Notes
 
-## Critical Permission Notes
-
-### DRS Recovery Flow
+#### DRS Recovery Flow
 
 When Lambda calls `drs:StartRecovery`, DRS uses the **caller's IAM permissions** for subsequent operations:
 
@@ -331,7 +527,7 @@ flowchart TD
     G --> G1[Requires: drs:CreateRecoveryInstanceForDrs]
 ```
 
-### Volume Cleanup During Recovery
+#### Volume Cleanup During Recovery
 
 DRS uses Lambda credentials for volume operations during recovery cleanup:
 
@@ -339,7 +535,7 @@ DRS uses Lambda credentials for volume operations during recovery cleanup:
 - DRS staging volumes use tags: `drs.amazonaws.com-job`, `drs.amazonaws.com-source-server`
 - Without `ec2:DetachVolume` and `ec2:DeleteVolume`, DRS recovery fails during cleanup phase
 
-### Launch Template Permissions
+#### Launch Template Permissions
 
 The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 
@@ -347,9 +543,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 - Without this permission, recovery fails with `UnauthorizedOperation`
 - Error: `UnauthorizedOperation when calling CreateLaunchTemplateVersion operation`
 
----
-
-## Deployment Status
+### Deployment Status
 
 | Feature | Status | CloudFormation Location |
 |---------|--------|------------------------|
@@ -361,11 +555,9 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 | Cross-Account | ✅ Deployed | `OrchestrationRole` → STS assume role |
 | EventBridge Scheduling | ✅ Deployed | `ExecutionFinderScheduleRule` (1 minute intervals) |
 
----
+### Troubleshooting Common IAM Errors
 
-## Troubleshooting Common Errors
-
-### Error: UnauthorizedOperation on CreateLaunchTemplateVersion
+#### Error: UnauthorizedOperation on CreateLaunchTemplateVersion
 
 **Cause**: Lambda IAM role missing EC2 launch template permissions.
 
@@ -379,7 +571,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 - ec2:DeleteLaunchTemplateVersions
 ```
 
-### Error: AccessDeniedException on CreateRecoveryInstanceForDrs
+#### Error: AccessDeniedException on CreateRecoveryInstanceForDrs
 
 **Cause**: Lambda IAM role missing DRS permission to register recovery instances.
 
@@ -389,7 +581,7 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 - drs:CreateRecoveryInstanceForDrs
 ```
 
-### Error: LAUNCH_FAILED with Volume Cleanup Issues
+#### Error: LAUNCH_FAILED with Volume Cleanup Issues
 
 **Cause**: Lambda IAM role missing EC2 volume permissions.
 
@@ -400,11 +592,9 @@ The `ec2:CreateLaunchTemplateVersion` permission is **CRITICAL**:
 - ec2:DeleteVolume
 ```
 
----
+### Deployment Verification
 
-## Deployment Verification
-
-### Check Current Deployment
+#### Check Current Deployment
 
 ```bash
 # Verify stack is deployed
@@ -422,7 +612,7 @@ aws iam list-roles \
   --query 'Roles[?starts_with(RoleName, `drs-orchestration`)].RoleName'
 ```
 
-### Sync and Deploy
+#### Sync and Deploy
 
 ```bash
 # Sync to S3 and deploy
@@ -432,9 +622,24 @@ aws iam list-roles \
 ./scripts/sync-to-deployment-bucket.sh --update-lambda-code
 ```
 
+---
+
+## Summary
+
+**Current state:** Automated deployment process ensures CloudFormation always deploys current source code with complete IAM permissions for DRS operations.
+
+**Key benefits:**
+- ✅ Single command deployment from source
+- ✅ Automatic build and packaging
+- ✅ Fast updates for development
+- ✅ Reliable artifact management
+- ✅ Complete DRS permissions deployed
+- ✅ Multiple deployment options
+
+**Best practice:** Always use `sync-to-deployment-bucket.sh` script for consistent, reliable deployments.
+
 ## References
 
 - **CloudFormation Template**: `cfn/lambda-stack.yaml` (IAM roles and Lambda functions)
 - **Deployment Script**: `scripts/sync-to-deployment-bucket.sh`
-- **CI/CD Rules**: `.amazonq/rules/cicd-iac-workflow.md`
 - **AWS DRS Documentation**: [AWS Elastic Disaster Recovery](https://docs.aws.amazon.com/drs/)
