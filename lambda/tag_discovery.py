@@ -120,7 +120,9 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
                         "isHealthy": is_healthy,
                         "tags": server_tags,
                         "region": region,
-                        "accountId": server.get("sourceServerID", "").split("/")[0]
+                        "accountId": server.get("sourceServerID", "").split(
+                            "/"
+                        )[0]
                         if "/" in server.get("sourceServerID", "")
                         else None,
                         "lastLaunchResult": server.get(
@@ -165,7 +167,9 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
     }
 
 
-def discover_multi_account(tags: Dict[str, str], staging_accounts: List[Dict]) -> Dict:
+def discover_multi_account(
+    tags: Dict[str, str], staging_accounts: List[Dict]
+) -> Dict:
     """
     Discover DRS source servers across multiple staging accounts.
     Uses cross-account IAM role assumption.
@@ -193,7 +197,8 @@ def discover_multi_account(tags: Dict[str, str], staging_accounts: List[Dict]) -
             # Assume role in staging account
             sts = boto3.client("sts")
             assumed = sts.assume_role(
-                RoleArn=role_arn, RoleSessionName=f"drs-discovery-{account_id}"
+                RoleArn=role_arn,
+                RoleSessionName=f"drs-discovery-{account_id}",
             )
 
             credentials = assumed["Credentials"]
@@ -220,12 +225,16 @@ def discover_multi_account(tags: Dict[str, str], staging_accounts: List[Dict]) -
                     if all(server_tags.get(k) == v for k, v in tags.items()):
                         source_props = server.get("sourceProperties", {})
                         id_hints = source_props.get("identificationHints", {})
-                        replication_info = server.get("dataReplicationInfo", {})
+                        replication_info = server.get(
+                            "dataReplicationInfo", {}
+                        )
                         replication_state = replication_info.get(
                             "dataReplicationState", "UNKNOWN"
                         )
 
-                        is_healthy = replication_state in VALID_REPLICATION_STATES
+                        is_healthy = (
+                            replication_state in VALID_REPLICATION_STATES
+                        )
                         if is_healthy:
                             healthy += 1
                         else:
@@ -270,9 +279,12 @@ def discover_multi_account(tags: Dict[str, str], staging_accounts: List[Dict]) -
             }
 
     # Discover in parallel across accounts
-    with ThreadPoolExecutor(max_workers=min(10, len(staging_accounts))) as executor:
+    with ThreadPoolExecutor(
+        max_workers=min(10, len(staging_accounts))
+    ) as executor:
         futures = {
-            executor.submit(discover_in_account, acc): acc for acc in staging_accounts
+            executor.submit(discover_in_account, acc): acc
+            for acc in staging_accounts
         }
 
         for future in as_completed(futures):
@@ -323,14 +335,17 @@ def group_servers_by_wave(servers: List[Dict]) -> Dict[str, List[Dict]]:
     # Sort waves numerically
     sorted_waves = {}
     for wave in sorted(
-        servers_by_wave.keys(), key=lambda x: int(x) if x.isdigit() else 999
+        servers_by_wave.keys(),
+        key=lambda x: int(x) if x.isdigit() else 999,
     ):
         sorted_waves[wave] = servers_by_wave[wave]
 
     return sorted_waves
 
 
-def resolve_protection_group(protection_group: Dict, region: str = None) -> Dict:
+def resolve_protection_group(
+    protection_group: Dict, region: str = None
+) -> Dict:
     """
     Resolve a Protection Group to actual server IDs.
 
