@@ -1,7 +1,8 @@
 # Step Functions Architecture Analysis
 
-**Date**: December 9, 2025  
-**Status**: PRODUCTION - Step Functions Active with Pause/Resume  
+**Version**: 2.1  
+**Date**: January 1, 2026  
+**Status**: Production Ready - EventBridge Security Enhancements Complete  
 **Current System**: Step Functions Orchestration (OPERATIONAL ✅)
 
 ---
@@ -19,6 +20,8 @@ The AWS DRS Orchestration solution uses AWS Step Functions as the core orchestra
 - ✅ Scalable wave-based orchestration
 - ✅ Integration with DRS API for recovery operations
 - ✅ Task token management for user control
+- ✅ AWS reference implementation pattern compliance
+- ✅ DRS + Step Functions coordination optimization
 
 ---
 
@@ -401,6 +404,135 @@ Total: $0.13/month (negligible)
 
 ---
 
+## DRS + Step Functions Coordination Analysis
+
+### Reference Implementation Comparison
+
+This section analyzes how the AWS reference implementation (`drs-plan-automation`) coordinates DRS drill execution with Step Functions, and compares it to our implementation.
+
+**Key Finding**: The reference implementation uses a **single Lambda function** that handles ALL actions (begin, update_wave_status, update_action_status, all_waves_completed) with Step Functions providing the **wait/poll/loop orchestration**. The Lambda returns state that Step Functions uses to decide what to do next.
+
+### The Coordination Pattern
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     STEP FUNCTIONS STATE MACHINE                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────┐    ┌─────────────────────┐    ┌────────────────┐  │
+│  │ InitiateWave │───▶│ DetermineWavePlan   │───▶│ DetermineWave  │  │
+│  │    Plan      │    │      State          │    │     State      │  │
+│  └──────────────┘    └─────────────────────┘    └────────────────┘  │
+│         │                     │                        │            │
+│         │                     │                        ▼            │
+│         │                     │              ┌─────────────────┐    │
+│         │                     │              │ WaitForWave     │    │
+│         │                     │              │   Update        │    │
+│         │                     │              │ (30 seconds)    │    │
+│         │                     │              └─────────────────┘    │
+│         │                     │                        │            │
+│         │                     │                        ▼            │
+│         │                     │              ┌─────────────────┐    │
+│         │                     │              │ UpdateWave      │    │
+│         │                     │              │   Status        │    │
+│         │                     │              └─────────────────┘    │
+│         │                     │                        │            │
+│         │                     │                        │            │
+│         │                     ◀────────────────────────┘            │
+│         │                                                           │
+│         ▼                                                           │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    SINGLE LAMBDA FUNCTION                     │   │
+│  │                  (drs_automation_plan.handler)                │   │
+│  │                                                               │   │
+│  │  Actions:                                                     │   │
+│  │  - begin: Start wave plan, call start_recovery()              │   │
+│  │  - update_wave_status: Poll describe_jobs(), check servers    │   │
+│  │  - update_action_status: Poll SSM automation status           │   │
+│  │  - all_waves_completed: Record final status                   │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Principles
+
+1. **Lambda Returns State, Step Functions Decides**
+   - Lambda returns `application` object with flags like `wave_completed`, `all_waves_completed`, `status`
+   - Step Functions uses Choice states to evaluate these flags
+   - Step Functions handles the wait/loop logic
+
+2. **Dynamic Wait Times**
+   - `current_wave_update_time` (default 30s) controls polling interval
+   - `current_wave_wait_time` (MaxWaitTime) controls timeout
+   - Step Functions uses `SecondsPath` to read wait time from Lambda response
+
+3. **Simple DRS API Call**
+   ```python
+   # Reference implementation - start_recovery() call
+   drs_launch = drs_client.start_recovery(
+       isDrill=isdrill,
+       sourceServers=servers  # Just [{sourceServerID: 'xxx'}, ...]
+   )
+   # NO TAGS! Just isDrill and sourceServers
+   ```
+
+### Critical DRS API Details
+
+**start_recovery() Parameters:**
+```python
+# MINIMAL call - this is what works
+response = drs_client.start_recovery(
+    isDrill=True,           # or False for actual recovery
+    sourceServers=[
+        {'sourceServerID': 's-xxxxx'},
+        {'sourceServerID': 's-yyyyy'}
+    ]
+)
+```
+
+**Job Status Constants:**
+```python
+# Job-level status (from describe_jobs)
+DRS_JOB_STATUS_COMPLETE_STATES = ['COMPLETED']
+DRS_JOB_STATUS_WAIT_STATES = ['PENDING', 'STARTED']
+
+# Server-level launch status (from participatingServers[].launchStatus)
+DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES = ['LAUNCHED']
+DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES = ['FAILED', 'TERMINATED']
+DRS_JOB_SERVERS_COMPLETE_WAIT_STATES = ['PENDING', 'IN_PROGRESS']
+```
+
+### DRS Drill Execution Flow
+
+**What Happens When You Call start_recovery():**
+
+1. **DRS creates a Job** with status `PENDING`
+2. **DRS creates Recovery Instances** for each source server
+3. **DRS performs conversion** (this is where DetachVolume happens!)
+   - Creates snapshots from replication volumes
+   - Creates AMIs from snapshots
+   - Launches EC2 instances from AMIs
+   - **DetachVolume** is called during conversion to detach replication volumes
+4. **Server launchStatus transitions**: `PENDING` → `IN_PROGRESS` → `LAUNCHED` (or `FAILED`)
+5. **Job status transitions**: `PENDING` → `STARTED` → `COMPLETED`
+
+### Implementation Comparison
+
+| Aspect | Reference | Our Implementation |
+|--------|-----------|-------------------|
+| Server discovery | Tag-based at runtime | Pre-defined in Protection Groups |
+| Pre/Post wave actions | SSM Automation | Not implemented yet |
+| Cross-account | STS AssumeRole | Not implemented yet |
+| SNS notifications | Built-in | Not implemented yet |
+| DynamoDB structure | AppId_PlanId composite key | ExecutionId + PlanId |
+| DRS API calls | ✅ Identical pattern | ✅ Identical pattern |
+| Step Functions flow | ✅ Same wait/poll loop | ✅ Same wait/poll loop |
+
+**Critical Finding**: Our implementation follows the reference pattern correctly. The main difference is in feature scope (we focus on core orchestration, reference includes SSM automation and cross-account features).
+
+---
+
 ## Conclusion
 
 The Step Functions-based orchestration architecture provides a robust, scalable, and enterprise-grade solution for AWS DRS disaster recovery orchestration. Key achievements include:
@@ -414,11 +546,13 @@ The Step Functions-based orchestration architecture provides a robust, scalable,
 - ✅ Cost-effective operation at enterprise scale
 - ✅ Archive pattern for consistent state management
 - ✅ Task token management for user control
+- ✅ AWS reference implementation pattern compliance
+- ✅ DRS + Step Functions coordination optimization
 
 The architecture successfully balances operational simplicity with advanced enterprise features, providing a production-ready disaster recovery orchestration platform with full user control over execution flow.
 
 ---
 
 **Document Owner**: DevOps & Architecture Team  
-**Last Updated**: December 9, 2025  
+**Last Updated**: January 1, 2026  
 **Review Cycle**: Quarterly
