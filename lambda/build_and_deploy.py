@@ -28,16 +28,23 @@ def use_prebuilt_dist(frontend_dir):
         )
 
     # Count files in dist
-    file_count = sum(1 for root, dirs, files in os.walk(dist_dir) for f in files)
+    file_count = sum(
+        1 for root, dirs, files in os.walk(dist_dir) for f in files
+    )
     print(f"Found pre-built dist directory with {file_count} files")
 
     return dist_dir
 
 
 def inject_aws_config_into_dist(dist_dir, properties):
-    """Generate aws-config.js, aws-config.json, and inject script tag into index.html"""
+    """
+    Generate aws-config.js, aws-config.json, and inject script tag into
+    index.html
+    """
     print("Injecting AWS configuration into pre-built dist...")
-    region = properties.get("Region", os.environ.get("AWS_REGION", "us-west-2"))
+    region = properties.get(
+        "Region", os.environ.get("AWS_REGION", "us-west-2")
+    )
 
     # Create configuration object
     config_obj = {
@@ -93,7 +100,9 @@ window.AWS_CONFIG = {{
     with open(config_js_path, "w") as f:
         f.write(config_js_content)
 
-    print("✅ Generated aws-config.js in dist/assets/ (backwards compatibility)")
+    print(
+        "✅ Generated aws-config.js in dist/assets/ (backwards compatibility)"
+    )
 
     # 3. Inject script tag into index.html to load aws-config.js before React app
     index_html_path = os.path.join(dist_dir, "index.html")
@@ -112,17 +121,24 @@ window.AWS_CONFIG = {{
         if match:
             # Insert config script before first script tag
             insert_pos = match.start()
-            config_script = '    <script src="/assets/aws-config.js"></script>\n    '
+            config_script = (
+                '    <script src="/assets/aws-config.js"></script>\n    '
+            )
             html_content = (
-                html_content[:insert_pos] + config_script + html_content[insert_pos:]
+                html_content[:insert_pos]
+                + config_script
+                + html_content[insert_pos:]
             )
             print("✅ Injected aws-config.js script tag BEFORE React bundle")
         else:
             # Fallback: insert before </head> if no script tags found
-            script_tag = '    <script src="/assets/aws-config.js"></script>\n  </head>'
+            script_tag = (
+                '    <script src="/assets/aws-config.js"></script>\n  </head>'
+            )
             html_content = html_content.replace("</head>", script_tag)
             print(
-                "✅ Injected aws-config.js script tag before </head> (no script tags found)"
+                "✅ Injected aws-config.js script tag before </head> "
+                "(no script tags found)"
             )
 
         with open(index_html_path, "w") as f:
@@ -139,17 +155,24 @@ def create_or_update(event, context):
     bucket_name = properties["BucketName"]
     distribution_id = properties["DistributionId"]
 
-    print(f"Frontend Builder: Deploying pre-built frontend to bucket: {bucket_name}")
+    print(
+        f"Frontend Builder: Deploying pre-built frontend to bucket: "
+        f"{bucket_name}"
+    )
 
     try:
         # Get frontend source from Lambda package
         lambda_frontend_path = "/var/task/frontend"
         if not os.path.exists(lambda_frontend_path):
             raise Exception(
-                f"Frontend source not found in Lambda package at {lambda_frontend_path}"  # noqa: E713
+                f"Frontend source not found in Lambda package at "
+                f"{lambda_frontend_path}"
             )
 
-        print(f"Found frontend source in Lambda package at {lambda_frontend_path}")
+        print(
+            f"Found frontend source in Lambda package at "
+            f"{lambda_frontend_path}"
+        )
 
         # Use pre-built dist/ folder (no npm build required)
         dist_dir = use_prebuilt_dist(lambda_frontend_path)
@@ -270,7 +293,9 @@ def delete(event, context):
     properties = event["ResourceProperties"]
     bucket_name = properties["BucketName"]
 
-    print(f"Frontend Builder: Emptying bucket {bucket_name} before deletion...")
+    print(
+        f"Frontend Builder: Emptying bucket {bucket_name} before deletion..."
+    )
 
     try:
         # Delete all objects (including versions if versioning enabled)
@@ -309,7 +334,10 @@ def delete(event, context):
                 delete_count += len(objects_to_delete)
                 print(f"  Deleted {len(objects_to_delete)} objects/versions")
 
-        print(f"✅ Bucket emptied successfully. Total objects deleted: {delete_count}")
+        print(
+            f"✅ Bucket emptied successfully. Total objects deleted: "
+            f"{delete_count}"
+        )
         return None
 
     except s3.exceptions.NoSuchBucket:
@@ -329,5 +357,7 @@ def delete(event, context):
 
 def lambda_handler(event, context):
     """Main handler for CloudFormation custom resource"""
-    print(f"Frontend Builder: Received event: {json.dumps(event, default=str)}")
+    print(
+        f"Frontend Builder: Received event: {json.dumps(event, default=str)}"
+    )
     helper(event, context)

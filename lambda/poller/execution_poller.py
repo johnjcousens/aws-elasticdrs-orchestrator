@@ -36,7 +36,9 @@ COMPLETED_STATUSES = {"COMPLETED", "FAILED", "TERMINATED", "TIMEOUT"}
 DRS_COMPLETED_STATUSES = {"COMPLETED", "FAILED"}
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # noqa: C901
+def lambda_handler(
+    event: Dict[str, Any], context: Any
+) -> Dict[str, Any]:  # noqa: C901
     """
     Main Lambda handler for Execution Poller.
 
@@ -60,7 +62,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # no
         execution_type = event.get("ExecutionType", "DRILL")
         start_time = event.get("StartTime")
 
-        logger.info(f"Polling execution: {execution_id} (Type: {execution_type})")
+        logger.info(
+            f"Polling execution: {execution_id} (Type: {execution_type})"
+        )
 
         # Get current execution state from DynamoDB
         execution = get_execution_from_dynamodb(execution_id, plan_id)
@@ -87,7 +91,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # no
             )
 
         # Check if execution has timed out (skip timeout for CANCELLING - we want to finalize)
-        if not is_cancelling and has_execution_timed_out(execution, start_time):
+        if not is_cancelling and has_execution_timed_out(
+            execution, start_time
+        ):
             logger.warning(
                 f"Execution {execution_id} has timed out (>{TIMEOUT_THRESHOLD_SECONDS}s)"
             )
@@ -134,11 +140,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # no
                     # Set EndTime on wave if it just completed
                     if updated_wave.get(
                         "Status"
-                    ) in COMPLETED_STATUSES and not updated_wave.get("EndTime"):
+                    ) in COMPLETED_STATUSES and not updated_wave.get(
+                        "EndTime"
+                    ):
                         updated_wave["EndTime"] = int(
                             datetime.now(timezone.utc).timestamp()
                         )
-                        logger.info(f"Wave {wave.get('WaveId')} completed, set EndTime")
+                        logger.info(
+                            f"Wave {wave.get('WaveId')} completed, set EndTime"
+                        )
 
                     updated_waves.append(updated_wave)
 
@@ -262,7 +272,9 @@ def get_execution_from_dynamodb(
         return parse_dynamodb_item(response["Item"])
 
     except Exception as e:
-        logger.error(f"Error getting execution from DynamoDB: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error getting execution from DynamoDB: {str(e)}", exc_info=True
+        )
         raise
 
 
@@ -337,7 +349,9 @@ def has_execution_timed_out(
     return elapsed_time > TIMEOUT_THRESHOLD_SECONDS
 
 
-def handle_timeout(execution_id: str, plan_id: str, execution: Dict[str, Any]) -> None:
+def handle_timeout(
+    execution_id: str, plan_id: str, execution: Dict[str, Any]
+) -> None:
     """
     Handle execution timeout.
 
@@ -367,14 +381,18 @@ def handle_timeout(execution_id: str, plan_id: str, execution: Dict[str, Any]) -
                         "StatusMessage", "Execution timed out"
                     )
                 except Exception as e:
-                    logger.error(f"Error querying DRS for job {job_id}: {str(e)}")
+                    logger.error(
+                        f"Error querying DRS for job {job_id}: {str(e)}"
+                    )
                     wave["Status"] = "TIMEOUT"
                     wave[
                         "StatusMessage"
                     ] = f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
             else:
                 wave["Status"] = "TIMEOUT"
-                wave["StatusMessage"] = f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
+                wave[
+                    "StatusMessage"
+                ] = f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
 
             final_waves.append(wave)
 
@@ -386,8 +404,12 @@ def handle_timeout(execution_id: str, plan_id: str, execution: Dict[str, Any]) -
             ExpressionAttributeNames={"#status": "Status"},
             ExpressionAttributeValues={
                 ":status": {"S": "TIMEOUT"},
-                ":waves": {"L": [format_wave_for_dynamodb(w) for w in final_waves]},
-                ":end_time": {"N": str(int(datetime.now(timezone.utc).timestamp()))},
+                ":waves": {
+                    "L": [format_wave_for_dynamodb(w) for w in final_waves]
+                },
+                ":end_time": {
+                    "N": str(int(datetime.now(timezone.utc).timestamp()))
+                },
             },
             ConditionExpression="attribute_exists(ExecutionId)",
         )
@@ -399,7 +421,9 @@ def handle_timeout(execution_id: str, plan_id: str, execution: Dict[str, Any]) -
         raise
 
 
-def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any]:  # noqa: C901
+def poll_wave_status(
+    wave: Dict[str, Any], execution_type: str
+) -> Dict[str, Any]:  # noqa: C901
     """
     Poll DRS job status for a wave.
 
@@ -460,7 +484,9 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
                             recovery_instance_id, wave_region
                         )
                         if ec2_data:
-                            server_data["HostName"] = ec2_data.get("HostName", "")
+                            server_data["HostName"] = ec2_data.get(
+                                "HostName", ""
+                            )
                             server_data["PrivateIpAddress"] = ec2_data.get(
                                 "PrivateIpAddress", ""
                             )
@@ -479,10 +505,13 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
         if execution_type == "DRILL":
             if servers:
                 # Check if ALL servers launched successfully
-                all_launched = all(s.get("Status") == "LAUNCHED" for s in servers)
+                all_launched = all(
+                    s.get("Status") == "LAUNCHED" for s in servers
+                )
                 # Check if ANY servers failed to launch
                 any_failed = any(
-                    s.get("Status") in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
+                    s.get("Status")
+                    in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     for s in servers
                 )
 
@@ -496,7 +525,8 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
                     failed_servers = [
                         s.get("SourceServerID")
                         for s in servers
-                        if s.get("Status") in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
+                        if s.get("Status")
+                        in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     ]
                     logger.warning(
                         f"Wave {wave.get('WaveId')} failed - servers {failed_servers} failed to launch"
@@ -526,9 +556,12 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
         else:  # RECOVERY
             # RECOVERY complete when all servers LAUNCHED + post-launch complete
             if servers:
-                all_launched = all(s.get("Status") == "LAUNCHED" for s in servers)
+                all_launched = all(
+                    s.get("Status") == "LAUNCHED" for s in servers
+                )
                 any_failed = any(
-                    s.get("Status") in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
+                    s.get("Status")
+                    in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     for s in servers
                 )
                 post_launch_complete = (
@@ -537,10 +570,14 @@ def poll_wave_status(wave: Dict[str, Any], execution_type: str) -> Dict[str, Any
 
                 if all_launched and post_launch_complete:
                     wave["Status"] = "COMPLETED"
-                    logger.info(f"Wave {wave.get('WaveId')} recovery completed")
+                    logger.info(
+                        f"Wave {wave.get('WaveId')} recovery completed"
+                    )
                 elif any_failed:
                     wave["Status"] = "FAILED"
-                    logger.warning(f"Wave {wave.get('WaveId')} recovery failed")
+                    logger.warning(
+                        f"Wave {wave.get('WaveId')} recovery failed"
+                    )
                 elif drs_status in ["PENDING", "STARTED"]:
                     wave["Status"] = "LAUNCHING"
                 elif drs_status == "COMPLETED" and not all_launched:
@@ -600,11 +637,15 @@ def query_drs_job_status(job_id: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Error querying DRS job {job_id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error querying DRS job {job_id}: {str(e)}", exc_info=True
+        )
         raise
 
 
-def get_ec2_instance_details(instance_id: str, region: str) -> Optional[Dict[str, Any]]:
+def get_ec2_instance_details(
+    instance_id: str, region: str
+) -> Optional[Dict[str, Any]]:
     """
     Get EC2 instance details to enrich server data.
 
@@ -681,7 +722,9 @@ def update_execution_waves(
         logger.info(f"Updated {len(waves)} waves for execution {execution_id}")
 
     except Exception as e:
-        logger.error(f"Error updating execution waves: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error updating execution waves: {str(e)}", exc_info=True
+        )
         raise
 
 
@@ -705,7 +748,9 @@ def update_last_polled_time(execution_id: str, plan_id: str) -> None:
         )
 
     except Exception as e:
-        logger.error(f"Error updating last polled time: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error updating last polled time: {str(e)}", exc_info=True
+        )
         # Non-critical error, don't raise
 
 
@@ -789,13 +834,17 @@ def record_poller_metrics(
                     "MetricName": "ActivePollingExecutions",
                     "Value": 1,
                     "Unit": "Count",
-                    "Dimensions": [{"Name": "ExecutionType", "Value": execution_type}],
+                    "Dimensions": [
+                        {"Name": "ExecutionType", "Value": execution_type}
+                    ],
                 },
                 {
                     "MetricName": "WavesPolled",
                     "Value": len(waves),
                     "Unit": "Count",
-                    "Dimensions": [{"Name": "ExecutionId", "Value": execution_id}],
+                    "Dimensions": [
+                        {"Name": "ExecutionId", "Value": execution_id}
+                    ],
                 },
             ],
         )
@@ -820,12 +869,16 @@ def format_wave_for_dynamodb(wave: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in wave.items():
         if isinstance(value, str):
             formatted["M"][key] = {"S": value}
-        elif isinstance(value, bool):  # Check bool BEFORE int (bool is subclass of int)
+        elif isinstance(
+            value, bool
+        ):  # Check bool BEFORE int (bool is subclass of int)
             formatted["M"][key] = {"BOOL": value}
         elif isinstance(value, (int, float)):
             formatted["M"][key] = {"N": str(value)}
         elif isinstance(value, list):
-            formatted["M"][key] = {"L": [format_value_for_dynamodb(v) for v in value]}
+            formatted["M"][key] = {
+                "L": [format_value_for_dynamodb(v) for v in value]
+            }
         elif isinstance(value, dict):
             formatted["M"][key] = format_wave_for_dynamodb(value)
 
@@ -836,7 +889,9 @@ def format_value_for_dynamodb(value: Any) -> Dict[str, Any]:
     """Format a value for DynamoDB."""
     if isinstance(value, str):
         return {"S": value}
-    elif isinstance(value, bool):  # Check bool BEFORE int (bool is subclass of int)
+    elif isinstance(
+        value, bool
+    ):  # Check bool BEFORE int (bool is subclass of int)
         return {"BOOL": value}
     elif isinstance(value, (int, float)):
         return {"N": str(value)}

@@ -91,7 +91,9 @@ def create_drs_client(region: str, account_context: Dict = None):
             )
 
             credentials = assumed_role["Credentials"]
-            print(f"Successfully assumed role {role_name} in account {account_id}")
+            print(
+                f"Successfully assumed role {role_name} in account {account_id}"
+            )
 
             return boto3.client(
                 "drs",
@@ -101,7 +103,9 @@ def create_drs_client(region: str, account_context: Dict = None):
                 aws_session_token=credentials["SessionToken"],
             )
         except Exception as e:
-            print(f"Failed to assume role {role_name} in account {account_id}: {e}")
+            print(
+                f"Failed to assume role {role_name} in account {account_id}: {e}"
+            )
             raise
 
     # Default: use current account credentials
@@ -302,7 +306,9 @@ def resume_wave(event: Dict) -> Dict:
     if isinstance(paused_before_wave, Decimal):
         paused_before_wave = int(paused_before_wave)
 
-    print(f"⏯️ Resuming execution {execution_id}, starting wave {paused_before_wave}")
+    print(
+        f"⏯️ Resuming execution {execution_id}, starting wave {paused_before_wave}"
+    )
 
     # Reset status to running
     state["status"] = "running"
@@ -434,7 +440,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             print(f"Protection Group {protection_group_id} not found")
             state["wave_completed"] = True
             state["status"] = "failed"
-            state["error"] = f"Protection Group {protection_group_id} not found"
+            state[
+                "error"
+            ] = f"Protection Group {protection_group_id} not found"
             return
 
         pg = pg_response["Item"]
@@ -456,7 +464,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         else:
             # Fallback: Check if wave has explicit ServerIds (legacy support)
             server_ids = wave.get("ServerIds", [])
-            print(f"Using explicit ServerIds from wave: {len(server_ids)} servers")
+            print(
+                f"Using explicit ServerIds from wave: {len(server_ids)} servers"
+            )
 
         if not server_ids:
             print(
@@ -575,7 +585,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     max_wait = state.get("current_wave_max_wait_time", 1800)
     state["current_wave_total_wait_time"] = total_wait
 
-    print(f"Checking status for job {job_id}, wait time: {total_wait}s / {max_wait}s")
+    print(
+        f"Checking status for job {job_id}, wait time: {total_wait}s / {max_wait}s"
+    )
 
     # Check for timeout
     if total_wait >= max_wait:
@@ -607,7 +619,10 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         )
 
         if not participating_servers:
-            if job_status in DRS_JOB_STATUS_WAIT_STATES or job_status == "STARTED":
+            if (
+                job_status in DRS_JOB_STATUS_WAIT_STATES
+                or job_status == "STARTED"
+            ):
                 print("Job still initializing")
                 state["wave_completed"] = False
                 return state
@@ -615,7 +630,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 print("❌ Job COMPLETED but no servers")
                 state["wave_completed"] = True
                 state["status"] = "failed"
-                state["error"] = "DRS job completed but no participating servers"
+                state[
+                    "error"
+                ] = "DRS job completed but no participating servers"
                 return state
             else:
                 state["wave_completed"] = False
@@ -732,7 +749,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
         # Update wave status in DynamoDB if it has changed from STARTED
         if current_wave_status != "STARTED":
-            print(f"Updating wave {wave_number} status to {current_wave_status}")
+            print(
+                f"Updating wave {wave_number} status to {current_wave_status}"
+            )
             update_wave_in_dynamodb(
                 execution_id,
                 plan_id,
@@ -746,7 +765,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             print("❌ Job COMPLETED but no instances launched")
             state["wave_completed"] = True
             state["status"] = "failed"
-            state["error"] = "DRS job completed but no recovery instances created"
+            state[
+                "error"
+            ] = "DRS job completed but no recovery instances created"
             update_wave_in_dynamodb(
                 execution_id, plan_id, wave_number, "FAILED", server_statuses
             )
@@ -760,7 +781,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             # Get EC2 instance IDs
             try:
-                source_server_ids = [s.get("SourceServerId") for s in server_statuses]
+                source_server_ids = [
+                    s.get("SourceServerId") for s in server_statuses
+                ]
                 ri_response = drs_client.describe_recovery_instances(
                     filters={"sourceServerIDs": source_server_ids}
                 )
@@ -769,10 +792,14 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     for ss in server_statuses:
                         if ss.get("SourceServerId") == source_id:
                             ss["EC2InstanceId"] = ri.get("ec2InstanceID")
-                            ss["RecoveryInstanceID"] = ri.get("recoveryInstanceID")
+                            ss["RecoveryInstanceID"] = ri.get(
+                                "recoveryInstanceID"
+                            )
                             break
             except Exception as e:
-                print(f"Warning: Could not fetch recovery instance details: {e}")
+                print(
+                    f"Warning: Could not fetch recovery instance details: {e}"
+                )
 
             state["wave_completed"] = True
             state["completed_waves"] = state.get("completed_waves", 0) + 1
@@ -782,7 +809,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 ec2_id = ss.get("EC2InstanceId")
                 if ec2_id:
                     if ec2_id not in state.get("recovery_instance_ids", []):
-                        state.setdefault("recovery_instance_ids", []).append(ec2_id)
+                        state.setdefault("recovery_instance_ids", []).append(
+                            ec2_id
+                        )
 
             # Fetch private IPs from EC2
             try:
@@ -793,16 +822,18 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 ]
                 if ec2_ids:
                     ec2_client = boto3.client("ec2", region_name=region)
-                    ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
+                    ec2_response = ec2_client.describe_instances(
+                        InstanceIds=ec2_ids
+                    )
                     for reservation in ec2_response.get("Reservations", []):
                         for instance in reservation.get("Instances", []):
                             private_ip = instance.get("PrivateIpAddress")
                             if private_ip and private_ip not in state.get(
                                 "recovery_instance_ips", []
                             ):
-                                state.setdefault("recovery_instance_ips", []).append(
-                                    private_ip
-                                )
+                                state.setdefault(
+                                    "recovery_instance_ips", []
+                                ).append(private_ip)
             except Exception as e:
                 print(f"Warning: Could not fetch EC2 IPs: {e}")
 
@@ -837,7 +868,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["status_reason"] = "Execution cancelled by user"
                     state["end_time"] = end_time
                     if state.get("start_time"):
-                        state["duration_seconds"] = end_time - state["start_time"]
+                        state["duration_seconds"] = (
+                            end_time - state["start_time"]
+                        )
                     get_execution_history_table().update_item(
                         Key={"ExecutionId": execution_id, "PlanId": plan_id},
                         UpdateExpression="SET #status = :status, EndTime = :end",
@@ -900,7 +933,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 )
 
         elif failed_count > 0:
-            print(f"❌ Wave {wave_number} FAILED - {failed_count} servers failed")
+            print(
+                f"❌ Wave {wave_number} FAILED - {failed_count} servers failed"
+            )
             end_time = int(time.time())
             state["wave_completed"] = True
             state["status"] = "failed"

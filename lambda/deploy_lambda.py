@@ -80,7 +80,7 @@ def create_lambda_package(source_file, package_dir, output_zip):
     zip_size = os.path.getsize(output_zip)
     zip_size_mb = zip_size / (1024 * 1024)
 
-    print(f"  📊 Package size: {zip_size_mb:.2f} MB")  # noqa: E231
+    print(f"  📊 Package size: {zip_size_mb:.2f} MB")
     print("  🎉 Package created successfully")
 
     return output_zip
@@ -88,11 +88,14 @@ def create_lambda_package(source_file, package_dir, output_zip):
 
 def upload_to_s3(local_file, bucket, s3_key):
     """Upload file to S3"""
-    print(f"\n☁️  Uploading to S3: s3://{bucket}/{s3_key}")  # noqa: E231
+    print(f"\n☁️  Uploading to S3: s3://{bucket}/{s3_key}")
 
     try:
         s3.upload_file(
-            local_file, bucket, s3_key, ExtraArgs={"ContentType": "application/zip"}
+            local_file,
+            bucket,
+            s3_key,
+            ExtraArgs={"ContentType": "application/zip"},
         )
         print("  ✅ Upload successful")
         return True
@@ -191,9 +194,12 @@ def deploy_api_handler(args):
 
     if args.s3_only or args.full:
         # Upload to S3
-        if upload_to_s3(str(output_zip), args.bucket, "lambda/api-handler.zip"):
+        if upload_to_s3(
+            str(output_zip), args.bucket, "lambda/api-handler.zip"
+        ):
             print(
-                f"  ✅ Lambda package available at s3://{args.bucket}/lambda/api-handler.zip"  # noqa: E231
+                f"  ✅ Lambda package available at "
+                f"s3://{args.bucket}/lambda/api-handler.zip"
             )
 
     if args.direct or args.full:
@@ -276,7 +282,8 @@ Examples:
     # Validate deployment mode
     if not (args.direct or args.s3_only or args.cfn or args.full):
         parser.error(
-            "Must specify deployment mode: --direct, --s3-only, --cfn, or --full"
+            "Must specify deployment mode: --direct, --s3-only, --cfn, "
+            "or --full"
         )
 
     # Configure AWS region
