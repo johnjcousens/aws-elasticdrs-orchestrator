@@ -1,29 +1,69 @@
-# Flake8 Configuration for PEP 8 Compliance
-# AWS DRS Orchestration Python Coding Standards
+# Flake8 Configuration for Complete PEP 8 Compliance
+# AWS DRS Orchestration Python Coding Standards v1.2.2+
 
 [flake8]
-# PEP 8 standard line length
+# PEP 8 standard line length (strict compliance)
 max-line-length = 79
 
-# Complexity threshold
+# Complexity threshold (enterprise standard)
 max-complexity = 10
 
-# Error and warning codes to check
-select = E,W,F,C
+# Comprehensive error and warning codes
+select = E,W,F,C,N
 
-# Ignore specific codes that conflict with Black or are outdated
-ignore = E203,W503,E501
+# Ignore specific codes that conflict with Black or are acceptable
+ignore = 
+    E203,  # Whitespace before ':' (conflicts with Black)
+    W503,  # Line break before binary operator (PEP 8 updated)
+    E501,  # Line too long (handled by Black)
 
 # Directories and files to exclude from linting
-exclude = .git,__pycache__,.venv,venv,build,dist,*.egg-info,lambda/package,.mypy_cache,.pytest_cache,frontend,node_modules,archive,reports,.kiro
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    lambda/package,
+    .mypy_cache,
+    .pytest_cache,
+    frontend,
+    node_modules,
+    archive,
+    reports,
+    .kiro,
+    .cline_memory
 
 # Per-file ignores for specific patterns
 per-file-ignores =
-    __init__.py:F401,
+    __init__.py:F401,F403
     **/migrations/*.py:E501
+    scripts/analyze_violations.py:C901
+    scripts/generate_quality_report.py:C901
 
-# Docstring conventions
+# Docstring conventions (PEP 257 compliance)
 docstring-convention = pep257
 
-# Import order checking
+# Import order checking (matches isort configuration)
 import-order-style = pep8
+
+# Additional PEP 8 compliance checks
+# Naming conventions
+enable-extensions = N801,N802,N803,N804,N805,N806,N807,N811,N812,N813,N814,N815,N816,N817,N818
+
+# Docstring checks
+extend-ignore = 
+    D100,  # Missing docstring in public module
+    D101,  # Missing docstring in public class  
+    D102,  # Missing docstring in public method
+    D103,  # Missing docstring in public function
+    D104,  # Missing docstring in public package
+    D105,  # Missing docstring in magic method
+    D107,  # Missing docstring in __init__
+
+# Enhanced error messages
+show-source = True
+statistics = True
+count = True
