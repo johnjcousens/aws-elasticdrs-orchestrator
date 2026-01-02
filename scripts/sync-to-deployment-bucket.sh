@@ -525,6 +525,7 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         if [ -f "requirements.txt" ]; then
             zip -qg /tmp/lambda-quick.zip requirements.txt
         fi
+        # Add rbac_middleware dependency (required by index.py)
         if [ -f "rbac_middleware.py" ]; then
             zip -qg /tmp/lambda-quick.zip rbac_middleware.py
         fi
@@ -580,7 +581,7 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         cd "$PROJECT_ROOT/lambda"
         
-        # Update each Lambda function individually
+        # Update each Lambda function individually with proper dependencies
         echo "📦 Packaging index (API Handler)..."
         rm -f "/tmp/lambda-index.zip"
         
@@ -591,8 +592,12 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
             cd ..
         fi
         
-        # Add the main handler
-        zip -qg "/tmp/lambda-index.zip" "index.py" 2>/dev/null || zip -q "/tmp/lambda-index.zip" "index.py"
+        # Add the main handler and its dependencies (files must be at root level in zip)
+        zip -qj "/tmp/lambda-index.zip" "index.py" 2>/dev/null || zip -qj "/tmp/lambda-index.zip" "index.py"
+        # Add rbac_middleware dependency (required by index.py)
+        if [ -f "rbac_middleware.py" ]; then
+            zip -qj "/tmp/lambda-index.zip" "rbac_middleware.py"
+        fi
         
         echo "⚡ Updating aws-drs-orchestrator-api-handler-dev..."
         aws lambda update-function-code \
@@ -615,7 +620,7 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
             cd ..
         fi
         
-        zip -qg "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py" 2>/dev/null || zip -q "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py"
+        zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py" 2>/dev/null || zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py"
         
         echo "⚡ Updating aws-drs-orchestrator-orchestration-stepfunctions-dev..."
         aws lambda update-function-code \
@@ -638,7 +643,7 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
             cd ..
         fi
         
-        zip -qg "/tmp/lambda-builder.zip" "build_and_deploy.py" 2>/dev/null || zip -q "/tmp/lambda-builder.zip" "build_and_deploy.py"
+        zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py" 2>/dev/null || zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py"
         
         echo "⚡ Updating aws-drs-orchestrator-frontend-builder-dev..."
         aws lambda update-function-code \
@@ -661,7 +666,7 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
             cd ..
         fi
         
-        zip -qg "/tmp/lambda-finder.zip" "poller/execution_finder.py" 2>/dev/null || zip -q "/tmp/lambda-finder.zip" "poller/execution_finder.py"
+        zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py" 2>/dev/null || zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py"
         
         echo "⚡ Updating aws-drs-orchestrator-execution-finder-dev..."
         aws lambda update-function-code \
@@ -684,7 +689,7 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
             cd ..
         fi
         
-        zip -qg "/tmp/lambda-poller.zip" "poller/execution_poller.py" 2>/dev/null || zip -q "/tmp/lambda-poller.zip" "poller/execution_poller.py"
+        zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py" 2>/dev/null || zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py"
         
         echo "⚡ Updating aws-drs-orchestrator-execution-poller-dev..."
         aws lambda update-function-code \
@@ -923,8 +928,9 @@ if [ "$DEPLOY_CFN" = true ]; then
         zip -r ../"$PACKAGE_FILE" . > /dev/null
         cd ..
         
-        # Add Lambda code to zip
+        # Add Lambda code to zip with dependencies
         zip -g "$PACKAGE_FILE" index.py > /dev/null
+        # Add rbac_middleware dependency (required by index.py)
         if [ -f "rbac_middleware.py" ]; then
             zip -g "$PACKAGE_FILE" rbac_middleware.py > /dev/null
         fi
