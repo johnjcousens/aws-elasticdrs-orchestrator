@@ -12,13 +12,12 @@ import json
 import re
 import subprocess
 from collections import defaultdict
-from pathlib import Path
 from typing import Dict, List, Tuple
 
 
 class ViolationAnalyzer:
     """Analyzes flake8 violations and creates migration plan."""
-    
+
     def __init__(self):
         self.violations = []
         self.categories = {
@@ -27,7 +26,7 @@ class ViolationAnalyzer:
             'medium': ['C901', 'E713', 'W504'],  # Complexity, membership tests
             'low': ['E231', 'E221', 'E222', 'E226', 'F541', 'W291', 'W293'],  # Formatting
         }
-        
+
     def run_flake8(self) -> List[str]:
         """Run flake8 and return violation lines."""
         try:
@@ -41,11 +40,11 @@ class ViolationAnalyzer:
         except Exception as e:
             print(f"Error running flake8: {e}")
             return []
-    
+
     def parse_violations(self, lines: List[str]) -> None:
         """Parse flake8 output into structured violations."""
         pattern = r'^(.+?):(\d+):(\d+): (\w+) (.+)$'
-        
+
         for line in lines:
             if not line.strip():
                 continue
