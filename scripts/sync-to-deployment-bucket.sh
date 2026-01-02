@@ -580,54 +580,122 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         cd "$PROJECT_ROOT/lambda"
         
-        # Lambda function mappings: local file -> actual function name
-        declare -A LAMBDA_FUNCTIONS=(
-            ["index.py"]="aws-drs-orchestrator-api-handler-dev"
-            ["orchestration_stepfunctions.py"]="aws-drs-orchestrator-orchestration-stepfunctions-dev"
-            ["build_and_deploy.py"]="aws-drs-orchestrator-frontend-builder-dev"
-            ["poller/execution_finder.py"]="aws-drs-orchestrator-execution-finder-dev"
-            ["poller/execution_poller.py"]="aws-drs-orchestrator-execution-poller-dev"
-        )
+        # Update each Lambda function individually
+        echo "📦 Packaging index (API Handler)..."
+        rm -f "/tmp/lambda-index.zip"
         
-        for local_file in "${!LAMBDA_FUNCTIONS[@]}"; do
-            func_name="${LAMBDA_FUNCTIONS[$local_file]}"
-            # Extract suffix from filename (e.g., "index.py" -> "index", "poller/execution_finder.py" -> "execution_finder")
-            func_suffix=$(basename "$local_file" .py)
-            
-            if [ -f "$local_file" ]; then
-                echo "📦 Packaging $func_suffix..."
-                rm -f /tmp/lambda-${func_suffix}.zip
-                
-                # First, add dependencies from package/ directory (at root level of zip)
-                if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-                    cd package
-                    zip -qr /tmp/lambda-${func_suffix}.zip .
-                    cd ..
-                fi
-                
-                # Create zip based on file location
-                if [[ "$local_file" == poller/* ]]; then
-                    # For poller functions, include the poller directory structure
-                    zip -qg /tmp/lambda-${func_suffix}.zip "$local_file" 2>/dev/null || zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
-                else
-                    zip -qg /tmp/lambda-${func_suffix}.zip "$local_file" 2>/dev/null || zip -q /tmp/lambda-${func_suffix}.zip "$local_file"
-                fi
-                
-                echo "⚡ Updating $func_name..."
-                aws lambda update-function-code \
-                    --function-name "$func_name" \
-                    --zip-file fileb:///tmp/lambda-${func_suffix}.zip \
-                    $PROFILE_FLAG \
-                    --region $REGION \
-                    --query 'LastModified' \
-                    --output text \
-                    2>/dev/null && echo "  ✅ $func_suffix updated" || echo "  ⚠️  $func_suffix not found (may not be deployed)"
-                
-                rm -f /tmp/lambda-${func_suffix}.zip
-            else
-                echo "  ⚠️  $local_file not found, skipping $func_suffix"
-            fi
-        done
+        # Add dependencies if they exist
+        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+            cd package
+            zip -qr "/tmp/lambda-index.zip" .
+            cd ..
+        fi
+        
+        # Add the main handler
+        zip -qg "/tmp/lambda-index.zip" "index.py" 2>/dev/null || zip -q "/tmp/lambda-index.zip" "index.py"
+        
+        echo "⚡ Updating aws-drs-orchestrator-api-handler-dev..."
+        aws lambda update-function-code \
+            --function-name "aws-drs-orchestrator-api-handler-dev" \
+            --zip-file "fileb:///tmp/lambda-index.zip" \
+            $PROFILE_FLAG \
+            --region $REGION \
+            --query 'LastModified' \
+            --output text > /dev/null 2>&1 && echo "  ✅ API Handler updated" || echo "  ⚠️  API Handler update failed"
+        
+        rm -f "/tmp/lambda-index.zip"
+        
+        # Update orchestration stepfunctions
+        echo "📦 Packaging orchestration_stepfunctions..."
+        rm -f "/tmp/lambda-orchestration.zip"
+        
+        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+            cd package
+            zip -qr "/tmp/lambda-orchestration.zip" .
+            cd ..
+        fi
+        
+        zip -qg "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py" 2>/dev/null || zip -q "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py"
+        
+        echo "⚡ Updating aws-drs-orchestrator-orchestration-stepfunctions-dev..."
+        aws lambda update-function-code \
+            --function-name "aws-drs-orchestrator-orchestration-stepfunctions-dev" \
+            --zip-file "fileb:///tmp/lambda-orchestration.zip" \
+            $PROFILE_FLAG \
+            --region $REGION \
+            --query 'LastModified' \
+            --output text > /dev/null 2>&1 && echo "  ✅ Orchestration StepFunctions updated" || echo "  ⚠️  Orchestration StepFunctions update failed"
+        
+        rm -f "/tmp/lambda-orchestration.zip"
+        
+        # Update frontend builder
+        echo "📦 Packaging build_and_deploy..."
+        rm -f "/tmp/lambda-builder.zip"
+        
+        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+            cd package
+            zip -qr "/tmp/lambda-builder.zip" .
+            cd ..
+        fi
+        
+        zip -qg "/tmp/lambda-builder.zip" "build_and_deploy.py" 2>/dev/null || zip -q "/tmp/lambda-builder.zip" "build_and_deploy.py"
+        
+        echo "⚡ Updating aws-drs-orchestrator-frontend-builder-dev..."
+        aws lambda update-function-code \
+            --function-name "aws-drs-orchestrator-frontend-builder-dev" \
+            --zip-file "fileb:///tmp/lambda-builder.zip" \
+            $PROFILE_FLAG \
+            --region $REGION \
+            --query 'LastModified' \
+            --output text > /dev/null 2>&1 && echo "  ✅ Frontend Builder updated" || echo "  ⚠️  Frontend Builder update failed"
+        
+        rm -f "/tmp/lambda-builder.zip"
+        
+        # Update execution finder
+        echo "📦 Packaging execution_finder..."
+        rm -f "/tmp/lambda-finder.zip"
+        
+        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+            cd package
+            zip -qr "/tmp/lambda-finder.zip" .
+            cd ..
+        fi
+        
+        zip -qg "/tmp/lambda-finder.zip" "poller/execution_finder.py" 2>/dev/null || zip -q "/tmp/lambda-finder.zip" "poller/execution_finder.py"
+        
+        echo "⚡ Updating aws-drs-orchestrator-execution-finder-dev..."
+        aws lambda update-function-code \
+            --function-name "aws-drs-orchestrator-execution-finder-dev" \
+            --zip-file "fileb:///tmp/lambda-finder.zip" \
+            $PROFILE_FLAG \
+            --region $REGION \
+            --query 'LastModified' \
+            --output text > /dev/null 2>&1 && echo "  ✅ Execution Finder updated" || echo "  ⚠️  Execution Finder update failed"
+        
+        rm -f "/tmp/lambda-finder.zip"
+        
+        # Update execution poller
+        echo "📦 Packaging execution_poller..."
+        rm -f "/tmp/lambda-poller.zip"
+        
+        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+            cd package
+            zip -qr "/tmp/lambda-poller.zip" .
+            cd ..
+        fi
+        
+        zip -qg "/tmp/lambda-poller.zip" "poller/execution_poller.py" 2>/dev/null || zip -q "/tmp/lambda-poller.zip" "poller/execution_poller.py"
+        
+        echo "⚡ Updating aws-drs-orchestrator-execution-poller-dev..."
+        aws lambda update-function-code \
+            --function-name "aws-drs-orchestrator-execution-poller-dev" \
+            --zip-file "fileb:///tmp/lambda-poller.zip" \
+            $PROFILE_FLAG \
+            --region $REGION \
+            --query 'LastModified' \
+            --output text > /dev/null 2>&1 && echo "  ✅ Execution Poller updated" || echo "  ⚠️  Execution Poller update failed"
+        
+        rm -f "/tmp/lambda-poller.zip"
         
         cd "$PROJECT_ROOT"
         
