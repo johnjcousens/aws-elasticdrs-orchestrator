@@ -299,27 +299,27 @@ class QualityReporter:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Code Quality Report - AWS DRS Orchestration</title>
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
-        .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-        .header {{ border-bottom: 2px solid #e1e5e9; padding-bottom: 20px; margin-bottom: 30px; }}
-        .header h1 {{ color: #232f3e; margin: 0; font-size: 28px; }}
-        .header .subtitle {{ color: #666; margin-top: 5px; }}
-        .metrics {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .metric-card {{ background: #f8f9fa; padding: 20px; border-radius: 6px; border-left: 4px solid #007dbc; }}
-        .metric-value {{ font-size: 24px; font-weight: bold; color: #232f3e; }}
-        .metric-label {{ color: #666; font-size: 14px; margin-top: 5px; }}
-        .status-passed {{ color: #16a34a; }}
-        .status-failed {{ color: #dc2626; }}
-        .tool-section {{ margin-bottom: 30px; }}
-        .tool-header {{ background: #232f3e; color: white; padding: 15px; border-radius: 6px 6px 0 0; margin: 0; }}
-        .tool-content {{ border: 1px solid #e1e5e9; border-top: none; padding: 20px; border-radius: 0 0 6px 6px; }}
-        .violation {{ background: #fef2f2; border: 1px solid #fecaca; padding: 10px; margin: 5px 0; border-radius: 4px; }}
-        .violation-file {{ font-weight: bold; color: #991b1b; }}
-        .violation-message {{ color: #7f1d1d; margin-top: 5px; }}
-        .no-violations {{ color: #16a34a; font-weight: bold; }}
-        pre {{ background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; }}
-        .files-list {{ background: #f8f9fa; padding: 15px; border-radius: 4px; }}
-        .files-list ul {{ margin: 0; padding-left: 20px; }}
+        body {{font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5;}}
+        .container {{max-width: 1200px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);}}
+        .header {{border-bottom: 2px solid #e1e5e9; padding-bottom: 20px; margin-bottom: 30px;}}
+        .header h1 {{color: #232f3e; margin: 0; font-size: 28px;}}
+        .header .subtitle {{color: #666; margin-top: 5px;}}
+        .metrics {{display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;}}
+        .metric-card {{background: #f8f9fa; padding: 20px; border-radius: 6px; border-left: 4px solid #007dbc;}}
+        .metric-value {{font-size: 24px; font-weight: bold; color: #232f3e;}}
+        .metric-label {{color: #666; font-size: 14px; margin-top: 5px;}}
+        .status-passed {{color: #16a34a;}}
+        .status-failed {{color: #dc2626;}}
+        .tool-section {{margin-bottom: 30px;}}
+        .tool-header {{background: #232f3e; color: white; padding: 15px; border-radius: 6px 6px 0 0; margin: 0;}}
+        .tool-content {{border: 1px solid #e1e5e9; border-top: none; padding: 20px; border-radius: 0 0 6px 6px;}}
+        .violation {{background: #fef2f2; border: 1px solid #fecaca; padding: 10px; margin: 5px 0; border-radius: 4px;}}
+        .violation-file {{font-weight: bold; color: #991b1b;}}
+        .violation-message {{color: #7f1d1d; margin-top: 5px;}}
+        .no-violations {{color: #16a34a; font-weight: bold;}}
+        pre {{background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;}}
+        .files-list {{background: #f8f9fa; padding: 15px; border-radius: 4px;}}
+        .files-list ul {{margin: 0; padding-left: 20px;}}
     </style>
 </head>
 <body>
@@ -376,22 +376,27 @@ class QualityReporter:
             status_text = result.get("status", "unknown").upper()
 
             content = '<div class="tool-content">'
-            content += f'<p><strong>Status:</strong> <span class="{status_class}">{status_text}</span></p>'
+            content += f'<p><strong>Status:</strong> <span class="{status_class}">{status_text}</span></p>'  # noqa: E231
 
             if tool_name == "flake8" and result.get("violations"):
-                content += f'<p><strong>Total Violations:</strong> {len(result["violations"])}</p>'
+                violations_list = result.get("violations", [])
+                violations_count = len(violations_list)
+                content += f'<p><strong>Total Violations:</strong> {violations_count}</p>'  # noqa: E231
                 content += '<div class="violations">'
-                for violation in result["violations"][
-                    :10
-                ]:  # Show first 10 violations
-                    content += f"""
-                    <div class="violation">
-                        <div class="violation-file">{violation["file"]}: {violation["line"]}: {violation["column"]}</div>
-                        <div class="violation-message">{violation["message"]}</div>
-                    </div>
-                    """
-                if len(result["violations"]) > 10:
-                    content += f'<p><em>... and {len(result["violations"]) - 10} more violations</em></p>'
+                for violation in violations_list[:10]:  # Show first 10 violations
+                    file_path = violation.get("file", "")
+                    line_num = violation.get("line", 0)
+                    col_num = violation.get("column", 0)
+                    message = violation.get("message", "")
+                    content += (
+                        f'<div class="violation">'
+                        f'<div class="violation-file">{file_path}: {line_num}: {col_num}</div>'
+                        f'<div class="violation-message">{message}</div>'
+                        f'</div>'
+                    )
+                if len(violations_list) > 10:
+                    remaining_count = len(violations_list) - 10
+                    content += f'<p><em>... and {remaining_count} more violations</em></p>'
                 content += "</div>"
             elif result.get("status") == "passed":
                 content += (
@@ -399,19 +404,17 @@ class QualityReporter:
                 )
 
             if result.get("output") and result.get("status") != "passed":
-                content += (
-                    f'<h4>Output:</h4><pre>{result["output"][:1000]}</pre>'
-                )
+                output_text = result.get("output", "")[:1000]
+                content += f'<h4>Output:</h4><pre>{output_text}</pre>'  # noqa: E231
 
             content += "</div>"
 
+            tool_title = tool_name.title()
             tool_sections.append(
-                f"""
-            <div class="tool-section">
-                <h3 class="tool-header">{tool_name.title()} Results</h3>
-                {content}
-            </div>
-            """
+                f'<div class="tool-section">'
+                f'<h3 class="tool-header">{tool_title} Results</h3>'
+                f'{content}'
+                f'</div>'
             )
 
         # Generate files list
@@ -515,7 +518,7 @@ class QualityReporter:
             )
 
         # Print summary
-        print(f"\n=== Quality Report Summary ===")
+        print("\n=== Quality Report Summary ===")
         print(f"Overall Status: {metrics['overall_status']}")
         print(f"Tool Compliance: {metrics['tool_compliance_percentage']}%")
         print(f"Files Analyzed: {metrics['total_files_analyzed']}")
@@ -559,7 +562,7 @@ def main():
         generated_files = reporter.generate_reports(formats)
 
         if generated_files:
-            print(f"\n=== Generated Reports ===")
+            print("\n=== Generated Reports ===")
             for format_type, file_path in generated_files.items():
                 print(f"{format_type.upper()}: {file_path}")
         else:
