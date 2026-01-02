@@ -5,376 +5,407 @@ Implements adaptive polling intervals based on execution phase.
 Invokes Execution Poller Lambda asynchronously per execution.
 """
 import json
-import os
-import boto3
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
 import logging
+import os
+from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+import boto3
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
-dynamodb = boto3.client('dynamodb')
-lambda_client = boto3.client('lambda')
+dynamodb = boto3.client("dynamodb")
+lambda_client = boto3.client("lambda")
 
 # Environment variables (with defaults for testing)
-EXECUTION_HISTORY_TABLE = os.environ.get('EXECUTION_HISTORY_TABLE', 'test-execution-table')
-STATUS_INDEX_NAME = 'StatusIndex'
-EXECUTION_POLLER_FUNCTION = os.environ.get('EXECUTION_POLLER_FUNCTION', 'test-execution-poller')
+EXECUTION_HISTORY_TABLE = os.environ.get(
+    "EXECUTION_HISTORY_TABLE", "test-execution-table"
+)
+STATUS_INDEX_NAME = "StatusIndex"
+EXECUTION_POLLER_FUNCTION = os.environ.get(
+    "EXECUTION_POLLER_FUNCTION", "test-execution-poller"
+)
 
 # Adaptive polling interval thresholds (seconds)
-POLLING_INTERVAL_PENDING = 45      # PENDING phase: 45s (slow, predictable)
-POLLING_INTERVAL_STARTED = 15      # STARTED phase: 15s (rapid, critical transition)
+POLLING_INTERVAL_PENDING = 45  # PENDING phase: 45s (slow, predictable)
+POLLING_INTERVAL_STARTED = 15  # STARTED phase: 15s (rapid, critical transition)
 POLLING_INTERVAL_IN_PROGRESS = 30  # IN_PROGRESS phase: 30s (normal)
+
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Main Lambda handler for Execution Finder.
-    
+
     Invoked by EventBridge on a schedule (default: 30s intervals).
     Queries StatusIndex GSI for executions with Status=POLLING.
     Applies adaptive polling intervals based on execution phase.
     Invokes Execution Poller Lambda asynchronously per execution.
-    
+
     Args:
         event: EventBridge scheduled event
         context: Lambda context object
-        
+
     Returns:
         Dict containing invocation results
     """
     try:
         logger.info("Execution Finder Lambda invoked")
-        logger.info(f"Querying table: {EXECUTION_HISTORY_TABLE}, index: {STATUS_INDEX_NAME}")
-        
+        logger.info(
+            f"Querying table: {EXECUTION_HISTORY_TABLE}, index: {STATUS_INDEX_NAME}"
+        )
+
         # Query StatusIndex GSI for POLLING executions
         polling_executions = query_polling_executions()
-        
+
         logger.info(f"Found {len(polling_executions)} executions in POLLING status")
-        
+
         if not polling_executions:
             logger.info("No executions found in POLLING status")
             return {
-                'statusCode': 200,
-                'body': json.dumps({
-                    'executionCount': 0,
-                    'invocations': 0,
-                    'message': 'No executions in POLLING status'
-                })
+                "statusCode": 200,
+                "body": json.dumps(
+                    {
+                        "executionCount": 0,
+                        "invocations": 0,
+                        "message": "No executions in POLLING status",
+                    }
+                ),
             }
-        
+
         # Filter executions that need polling now (adaptive intervals)
         executions_to_poll = []
         skipped_executions = []
-        
+
         for execution in polling_executions:
             if should_poll_now(execution):
                 executions_to_poll.append(execution)
             else:
-                skipped_executions.append(execution['ExecutionId'])
-        
+                skipped_executions.append(execution["ExecutionId"])
+
         logger.info(f"Executions to poll now: {len(executions_to_poll)}")
         if skipped_executions:
             logger.info(f"Skipped executions (not yet time): {skipped_executions}")
-        
+
         # Invoke Execution Poller Lambda for each execution (async)
         invocation_results = invoke_pollers_for_executions(executions_to_poll)
-        
+
         return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'executionCount': len(polling_executions),
-                'executionsPolled': len(executions_to_poll),
-                'executionsSkipped': len(skipped_executions),
-                'invocations': invocation_results,
-                'message': f'Invoked poller for {len(executions_to_poll)} executions'
-            })
+            "statusCode": 200,
+            "body": json.dumps(
+                {
+                    "executionCount": len(polling_executions),
+                    "executionsPolled": len(executions_to_poll),
+                    "executionsSkipped": len(skipped_executions),
+                    "invocations": invocation_results,
+                    "message": f"Invoked poller for {len(executions_to_poll)} executions",
+                }
+            ),
         }
-        
+
     except Exception as e:
         logger.error(f"Error in Execution Finder: {str(e)}", exc_info=True)
         return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'error': str(e),
-                'message': 'Failed to query and invoke polling executions'
-            })
+            "statusCode": 500,
+            "body": json.dumps(
+                {
+                    "error": str(e),
+                    "message": "Failed to query and invoke polling executions",
+                }
+            ),
         }
+
 
 def query_polling_executions() -> List[Dict[str, Any]]:
     """
     Query DynamoDB StatusIndex GSI for executions that need polling.
-    
+
     Queries for:
     - Status=POLLING: Active executions being monitored
     - Status=CANCELLING: Cancelled executions with in-progress waves that need final status update
-    
+
     CRITICAL: Status is a reserved keyword in DynamoDB.
     MUST use ExpressionAttributeNames to avoid ValidationException.
-    
+
     Returns:
         List of execution records that need polling
     """
     executions = []
-    
+
     # Statuses that need polling
-    statuses_to_poll = ['POLLING', 'CANCELLING']
-    
+    statuses_to_poll = ["POLLING", "CANCELLING"]
+
     for status in statuses_to_poll:
         try:
             # CRITICAL: Use expression attribute names for reserved keyword "Status"
             response = dynamodb.query(
                 TableName=EXECUTION_HISTORY_TABLE,
                 IndexName=STATUS_INDEX_NAME,
-                KeyConditionExpression='#status = :status',
+                KeyConditionExpression="#status = :status",
                 ExpressionAttributeNames={
-                    '#status': 'Status'  # Required: Status is reserved keyword
+                    "#status": "Status"  # Required: Status is reserved keyword
                 },
-                ExpressionAttributeValues={
-                    ':status': {'S': status}
-                }
+                ExpressionAttributeValues={":status": {"S": status}},
             )
-            
-            logger.info(f"DynamoDB query for {status} returned {response['Count']} items")
-            
+
+            logger.info(
+                f"DynamoDB query for {status} returned {response['Count']} items"
+            )
+
             # Parse DynamoDB items to Python dicts
-            for item in response.get('Items', []):
+            for item in response.get("Items", []):
                 execution = parse_dynamodb_item(item)
                 executions.append(execution)
-            
+
         except Exception as e:
-            logger.error(f"Error querying StatusIndex for {status}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error querying StatusIndex for {status}: {str(e)}",
+                exc_info=True,
+            )
             raise
-    
+
     return executions
+
 
 def parse_dynamodb_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """
     Parse DynamoDB item format to Python dict.
-    
+
     Converts DynamoDB's typed format {'S': 'value'} to simple values.
     Handles nested structures (Lists, Maps).
-    
+
     Args:
         item: DynamoDB item in typed format
-        
+
     Returns:
         Parsed Python dictionary
     """
     result = {}
-    
+
     for key, value in item.items():
-        if 'S' in value:  # String
-            result[key] = value['S']
-        elif 'N' in value:  # Number
-            result[key] = int(value['N']) if '.' not in value['N'] else float(value['N'])
-        elif 'L' in value:  # List
-            result[key] = [parse_dynamodb_value(v) for v in value['L']]
-        elif 'M' in value:  # Map
-            result[key] = parse_dynamodb_item(value['M'])
-        elif 'BOOL' in value:  # Boolean
-            result[key] = value['BOOL']
-        elif 'NULL' in value:  # Null
+        if "S" in value:  # String
+            result[key] = value["S"]
+        elif "N" in value:  # Number
+            result[key] = (
+                int(value["N"]) if "." not in value["N"] else float(value["N"])
+            )
+        elif "L" in value:  # List
+            result[key] = [parse_dynamodb_value(v) for v in value["L"]]
+        elif "M" in value:  # Map
+            result[key] = parse_dynamodb_item(value["M"])
+        elif "BOOL" in value:  # Boolean
+            result[key] = value["BOOL"]
+        elif "NULL" in value:  # Null
             result[key] = None
         else:
             result[key] = value
-    
+
     return result
+
 
 def parse_dynamodb_value(value: Dict[str, Any]) -> Any:
     """
     Parse a single DynamoDB value.
-    
+
     Args:
         value: DynamoDB value in typed format
-        
+
     Returns:
         Parsed Python value
     """
-    if 'S' in value:
-        return value['S']
-    elif 'N' in value:
-        return int(value['N']) if '.' not in value['N'] else float(value['N'])
-    elif 'L' in value:
-        return [parse_dynamodb_value(v) for v in value['L']]
-    elif 'M' in value:
-        return parse_dynamodb_item(value['M'])
-    elif 'BOOL' in value:
-        return value['BOOL']
-    elif 'NULL' in value:
+    if "S" in value:
+        return value["S"]
+    elif "N" in value:
+        return int(value["N"]) if "." not in value["N"] else float(value["N"])
+    elif "L" in value:
+        return [parse_dynamodb_value(v) for v in value["L"]]
+    elif "M" in value:
+        return parse_dynamodb_item(value["M"])
+    elif "BOOL" in value:
+        return value["BOOL"]
+    elif "NULL" in value:
         return None
     else:
         return value
 
+
 def should_poll_now(execution: Dict[str, Any]) -> bool:
     """
     Determine if execution should be polled now based on adaptive intervals.
-    
+
     Implements adaptive polling strategy:
     - PENDING phase: 45s intervals (slow, predictable)
     - STARTED phase: 15s intervals (rapid, critical transition)
     - IN_PROGRESS phase: 30s intervals (normal)
-    
+
     Args:
         execution: Execution record from DynamoDB
-        
+
     Returns:
         True if execution should be polled now, False otherwise
     """
     try:
         # Get last polled timestamp (Unix timestamp in seconds)
-        last_polled = execution.get('LastPolledTime', 0)
+        last_polled = execution.get("LastPolledTime", 0)
         current_time = datetime.now(timezone.utc).timestamp()
-        
+
         # Calculate time since last poll
         time_since_poll = current_time - last_polled
-        
+
         # Detect execution phase from waves data
-        waves = execution.get('Waves', [])
+        waves = execution.get("Waves", [])
         phase = detect_execution_phase(waves)
-        
+
         # Determine polling interval based on phase
-        if phase == 'PENDING':
+        if phase == "PENDING":
             interval = POLLING_INTERVAL_PENDING
-        elif phase == 'STARTED':
+        elif phase == "STARTED":
             interval = POLLING_INTERVAL_STARTED
         else:  # IN_PROGRESS or unknown
             interval = POLLING_INTERVAL_IN_PROGRESS
-        
+
         should_poll = time_since_poll >= interval
-        
+
         if should_poll:
             logger.info(
-                f"ExecutionId {execution['ExecutionId']}: "
+                f"ExecutionId {execution['ExecutionId']}: "  # noqa: E231
                 f"Phase={phase}, TimeSincePoll={time_since_poll:.1f}s, "
                 f"Interval={interval}s - POLLING NOW"
             )
         else:
             logger.debug(
-                f"ExecutionId {execution['ExecutionId']}: "
+                f"ExecutionId {execution['ExecutionId']}: "  # noqa: E231
                 f"Phase={phase}, TimeSincePoll={time_since_poll:.1f}s, "
                 f"Interval={interval}s - Skipping (not time yet)"
             )
-        
+
         return should_poll
-        
+
     except Exception as e:
-        logger.error(f"Error determining poll timing for {execution.get('ExecutionId')}: {str(e)}")
+        logger.error(
+            f"Error determining poll timing for {execution.get('ExecutionId')}: {str(e)}"
+        )
         # Default to polling on error (fail-safe)
         return True
+
 
 def detect_execution_phase(waves: List[Dict[str, Any]]) -> str:
     """
     Detect execution phase from wave server statuses.
-    
+
     Phase Detection Logic:
     - PENDING: All servers NOT_STARTED (launch not initiated yet)
     - STARTED: At least one server PENDING_LAUNCH or LAUNCHING (transition phase)
     - IN_PROGRESS: At least one server in active state (LAUNCHED, RECOVERING, etc.)
-    
+
     Args:
         waves: List of wave records with server status data
-        
+
     Returns:
         Detected phase: 'PENDING', 'STARTED', or 'IN_PROGRESS'
     """
     if not waves:
-        return 'PENDING'
-    
+        return "PENDING"
+
     try:
         # Collect all server statuses across waves
         all_server_statuses = []
         for wave in waves:
-            servers = wave.get('Servers', [])
+            servers = wave.get("Servers", [])
             for server in servers:
-                status = server.get('Status', 'NOT_STARTED')
+                status = server.get("Status", "NOT_STARTED")
                 all_server_statuses.append(status)
-        
+
         if not all_server_statuses:
-            return 'PENDING'
-        
+            return "PENDING"
+
         # Phase detection based on server statuses
-        started_statuses = {'PENDING_LAUNCH', 'LAUNCHING'}
-        in_progress_statuses = {'LAUNCHED', 'RECOVERING', 'RECOVERY_IN_PROGRESS', 'FAILBACK'}
-        
+        started_statuses = {"PENDING_LAUNCH", "LAUNCHING"}
+        in_progress_statuses = {
+            "LAUNCHED",
+            "RECOVERING",
+            "RECOVERY_IN_PROGRESS",
+            "FAILBACK",
+        }
+
         # Check for STARTED phase (critical transition)
         if any(status in started_statuses for status in all_server_statuses):
-            return 'STARTED'
-        
+            return "STARTED"
+
         # Check for IN_PROGRESS phase (active recovery)
         if any(status in in_progress_statuses for status in all_server_statuses):
-            return 'IN_PROGRESS'
-        
+            return "IN_PROGRESS"
+
         # Default to PENDING if all servers NOT_STARTED
-        return 'PENDING'
-        
+        return "PENDING"
+
     except Exception as e:
         logger.error(f"Error detecting execution phase: {str(e)}")
         # Default to IN_PROGRESS (most aggressive polling)
-        return 'IN_PROGRESS'
+        return "IN_PROGRESS"
+
 
 def invoke_pollers_for_executions(executions: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Invoke Execution Poller Lambda asynchronously for each execution.
-    
+
     Invokes separate Lambda per execution for parallel processing.
     Uses Event invocation type (async, no response wait).
-    
+
     Args:
         executions: List of execution records to poll
-        
+
     Returns:
         Dict with invocation results
     """
     successful_invocations = []
     failed_invocations = []
-    
+
     for execution in executions:
-        execution_id = execution['ExecutionId']
-        
+        execution_id = execution["ExecutionId"]
+
         try:
             # Prepare payload for Execution Poller
             payload = {
-                'ExecutionId': execution_id,
-                'PlanId': execution.get('PlanId'),
-                'ExecutionType': execution.get('ExecutionType', 'DRILL'),
-                'StartTime': execution.get('StartTime')
+                "ExecutionId": execution_id,
+                "PlanId": execution.get("PlanId"),
+                "ExecutionType": execution.get("ExecutionType", "DRILL"),
+                "StartTime": execution.get("StartTime"),
             }
-            
+
             # Invoke Execution Poller Lambda (async)
             response = lambda_client.invoke(
                 FunctionName=EXECUTION_POLLER_FUNCTION,
-                InvocationType='Event',  # Async invocation
-                Payload=json.dumps(payload)
+                InvocationType="Event",  # Async invocation
+                Payload=json.dumps(payload),
             )
-            
+
             logger.info(
                 f"Invoked Execution Poller for {str(execution_id).replace('\n', '').replace('\r', '')}, "
                 f"StatusCode: {response['StatusCode']}"
             )
-            
-            successful_invocations.append({
-                'ExecutionId': execution_id,
-                'StatusCode': response['StatusCode']
-            })
-            
+
+            successful_invocations.append(
+                {
+                    "ExecutionId": execution_id,
+                    "StatusCode": response["StatusCode"],
+                }
+            )
+
         except Exception as e:
             logger.error(
                 f"Failed to invoke Execution Poller for {execution_id}: {str(e)}",
-                exc_info=True
+                exc_info=True,
             )
-            failed_invocations.append({
-                'ExecutionId': execution_id,
-                'Error': str(e)
-            })
-    
+            failed_invocations.append({"ExecutionId": execution_id, "Error": str(e)})
+
     return {
-        'successful': len(successful_invocations),
-        'failed': len(failed_invocations),
-        'details': {
-            'successful': successful_invocations,
-            'failed': failed_invocations
-        }
+        "successful": len(successful_invocations),
+        "failed": len(failed_invocations),
+        "details": {
+            "successful": successful_invocations,
+            "failed": failed_invocations,
+        },
     }
