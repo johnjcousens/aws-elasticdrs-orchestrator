@@ -1,12 +1,29 @@
 # PyCharm IDE Setup for Python Coding Standards
 
-This guide walks you through configuring PyCharm Professional for the AWS DRS Orchestration project with automatic PEP 8 compliance.
+This guide walks you through configuring PyCharm (Community or Professional) for the AWS DRS Orchestration project with automatic PEP 8 compliance.
 
 ## Prerequisites
 
-- PyCharm Professional 2023.3 or later
+- **PyCharm Community Edition** (FREE) or PyCharm Professional 2023.3 or later
 - Python 3.12 installed
 - Project virtual environment created (`python -m venv venv`)
+
+## PyCharm Editions Comparison
+
+### PyCharm Community Edition (FREE) ✅ Recommended
+- **Cost**: Completely free
+- **Python Support**: Full Python development support
+- **Code Quality**: Black, Flake8, isort integration ✅
+- **Debugging**: Full debugging capabilities ✅
+- **Git Integration**: Complete version control ✅
+- **Limitations**: No web development frameworks, no database tools, no remote development
+
+### PyCharm Professional (Paid)
+- **Cost**: $199/year (free for students/open source)
+- **Additional Features**: Web frameworks, database tools, remote development, profiler
+- **For This Project**: Professional features not needed for Python backend development
+
+**Recommendation**: Use PyCharm Community Edition - it has everything needed for this project.
 
 ## Step 1: Project Interpreter Setup
 
