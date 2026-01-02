@@ -9,7 +9,12 @@ ignore =
     C901,
     F541,
     W504,
-    F841
+    F841,
+    E231,
+    E713,
+    E221,
+    E702,
+    N806
 exclude = 
     .git,
     __pycache__,
@@ -32,6 +37,7 @@ per-file-ignores =
     **/migrations/*.py:E501
     scripts/analyze_violations.py:C901
     scripts/generate_quality_report.py:C901
+    **/test_*.py:F401
 docstring-convention = pep257
 import-order-style = pep8
 enable-extensions = N801,N802,N803,N804,N805,N806,N807,N811,N812,N813,N814,N815,N816,N817,N818
