@@ -20,30 +20,53 @@ class ViolationAnalyzer:
 
     def __init__(self):
         self.violations = []
+        # Updated categories based on comprehensive PEP 8 steering document
         self.categories = {
             "critical": [
-                "F821",
-                "F822",
-                "F823",
-                "F831",
-                "E999",
-            ],  # Undefined names, syntax errors
+                "F821",  # Undefined name
+                "F822",  # Undefined name in __all__
+                "F823",  # Local variable referenced before assignment
+                "F831",  # Duplicate argument name
+                "E999",  # Syntax error
+                "E902",  # IOError
+            ],
             "high": [
-                "F401",
-                "F841",
-                "E722",
-                "E702",
-            ],  # Unused imports, bare except
-            "medium": ["C901", "E713", "W504"],  # Complexity, membership tests
+                "F401",  # Module imported but unused
+                "F841",  # Local variable assigned but never used
+                "E722",  # Do not use bare except
+                "E702",  # Multiple statements on one line
+                "F811",  # Redefinition of unused name
+                "F812",  # List comprehension redefines name
+                "N801",  # Class names should use CapWords convention
+                "N802",  # Function name should be lowercase
+                "N803",  # Argument name should be lowercase
+                "N806",  # Variable in function should be lowercase
+            ],
+            "medium": [
+                "C901",  # Function is too complex
+                "E713",  # Test for membership should be 'not in'
+                "W504",  # Line break after binary operator
+                "E711",  # Comparison to None should be 'if cond is None:'
+                "E712",  # Comparison to True should be 'if cond is True:'
+                "N804",  # First argument of classmethod should be 'cls'
+                "N805",  # First argument of method should be 'self'
+                "N815",  # Variable in class scope should not be mixedCase
+            ],
             "low": [
-                "E231",
-                "E221",
-                "E222",
-                "E226",
-                "F541",
-                "W291",
-                "W293",
-            ],  # Formatting
+                "E231",  # Missing whitespace after ','
+                "E221",  # Multiple spaces before operator
+                "E222",  # Multiple spaces after operator
+                "E226",  # Missing whitespace around arithmetic operator
+                "E241",  # Multiple spaces after ','
+                "E251",  # Unexpected spaces around keyword / parameter equals
+                "W291",  # Trailing whitespace
+                "W293",  # Blank line contains whitespace
+                "W292",  # No newline at end of file
+                "F541",  # f-string is missing placeholders
+                "E302",  # Expected 2 blank lines, found 1
+                "E303",  # Too many blank lines
+                "E305",  # Expected 2 blank lines after class or function definition
+            ],
         }
 
     def run_flake8(self) -> List[str]:
@@ -101,7 +124,7 @@ class ViolationAnalyzer:
         return "low"  # Default to low severity
 
     def _get_category(self, code: str) -> str:
-        """Categorize violation by type."""
+        """Categorize violation by type based on comprehensive PEP 8 standards."""
         if code.startswith("F"):
             if code in ["F401", "F841"]:
                 return "unused_code"
@@ -109,19 +132,30 @@ class ViolationAnalyzer:
                 return "undefined_names"
             elif code == "F541":
                 return "f_string_issues"
+            elif code in ["F811", "F812"]:
+                return "redefinition"
             else:
                 return "pyflakes"
         elif code.startswith("E"):
             if code.startswith("E2"):
                 return "whitespace"
+            elif code.startswith("E3"):
+                return "blank_lines"
             elif code.startswith("E7"):
                 return "statements"
+            elif code in ["E711", "E712", "E713"]:
+                return "comparisons"
             else:
                 return "pep8_errors"
         elif code.startswith("W"):
-            return "warnings"
+            if code.startswith("W29"):
+                return "trailing_whitespace"
+            else:
+                return "warnings"
         elif code.startswith("C"):
             return "complexity"
+        elif code.startswith("N"):
+            return "naming_conventions"
         else:
             return "other"
 
