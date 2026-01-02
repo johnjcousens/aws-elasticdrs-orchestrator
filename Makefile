@@ -6,8 +6,20 @@
 # Default target
 .DEFAULT_GOAL := help
 
+# Load configuration from environment files
+-include .env.deployment
+-include .env.deployment.local
+
+# Configuration with defaults (can be overridden)
+DEPLOYMENT_BUCKET ?= aws-drs-orchestration
+DEPLOYMENT_REGION ?= us-east-1
+PROJECT_NAME ?= aws-drs-orchestrator
+ENVIRONMENT ?= dev
+PARENT_STACK_NAME ?= $(PROJECT_NAME)-$(ENVIRONMENT)
+AWS_PROFILE ?= default
+
 # Template paths
-TEMPLATE_DIR := templates
+TEMPLATE_DIR := cfn
 TEMPLATES := $(wildcard $(TEMPLATE_DIR)/*.yaml)
 SCRIPTS_DIR := scripts
 
@@ -36,6 +48,14 @@ help: ## Show this help message
 install: ## Install required validation tools
 	@echo "Installing CloudFormation validation tools..."
 	$(PIP) install cfn-lint pyyaml
+
+validate-config: ## Validate deployment configuration
+	@echo "🔍 Validating deployment configuration..."
+	@./scripts/validate-deployment-config.sh
+
+validate-config-full: ## Validate configuration and check for hardcoded values
+	@echo "🔍 Full validation including hardcoded value checks..."
+	@./scripts/validate-deployment-config.sh --check-hardcoded
 	@if command -v brew >/dev/null 2>&1; then \
 		echo "Installing cfn-guard via Homebrew..."; \
 		brew install cfn-guard; \
@@ -245,3 +265,88 @@ check-config-drift: ## Check if frontend config matches CloudFormation stack
 		echo "✅ Configuration is in sync with CloudFormation stack"; \
 		rm -f "$$TEMP_CONFIG" "$$TEMP_CONFIG.backup"; \
 	fi
+
+# =============================================================================
+# PYTHON CODING STANDARDS
+# =============================================================================
+
+# Python tool configuration
+PYTHON_VERSION ?= 3.12
+BLACK_VERSION ?= 23.7.0
+FLAKE8_VERSION ?= 6.0.0
+ISORT_VERSION ?= 5.12.0
+PRECOMMIT_VERSION ?= 3.3.3
+
+install-python-tools: ## Install Python code quality and formatting tools
+	@echo "🐍 Installing Python code quality tools..."
+	$(PIP) install black==$(BLACK_VERSION) flake8==$(FLAKE8_VERSION) isort==$(ISORT_VERSION) pre-commit==$(PRECOMMIT_VERSION)
+	$(PIP) install flake8-docstrings==1.7.0 flake8-import-order==0.18.2 pep8-naming==0.13.3
+	@echo "✅ Python tools installed"
+
+setup-pre-commit: install-python-tools ## Setup and install pre-commit hooks
+	@echo "🔧 Setting up pre-commit hooks..."
+	pre-commit install
+	pre-commit install --hook-type commit-msg
+	@echo "✅ Pre-commit hooks installed"
+
+format-python: ## Format Python code with Black and sort imports with isort
+	@echo "🎨 Formatting Python code..."
+	black lambda/ --line-length=79
+	isort lambda/ --profile=black --line-length=79
+	@echo "✅ Python code formatted"
+
+lint-python: ## Lint Python code with Flake8 for PEP 8 compliance
+	@echo "🔍 Linting Python code..."
+	flake8 lambda/
+	@echo "✅ Python linting complete"
+
+check-python: ## Check Python code formatting and style without making changes
+	@echo "🔍 Checking Python code formatting and style..."
+	black --check --diff lambda/ --line-length=79
+	isort --check-only --diff lambda/ --profile=black --line-length=79
+	flake8 lambda/
+	@echo "✅ Python code check complete"
+
+fix-python: format-python lint-python ## Format and lint Python code (fix issues)
+	@echo "🔧 Python code fixed and validated"
+
+python-quality-report: ## Generate Python code quality report
+	@echo "📊 Generating Python code quality report..."
+	@mkdir -p reports
+	flake8 lambda/ --format=json --output-file=reports/flake8-report.json || true
+	black --check --diff lambda/ > reports/black-report.txt 2>&1 || true
+	isort --check-only --diff lambda/ > reports/isort-report.txt 2>&1 || true
+	@echo "✅ Python quality reports generated in reports/"
+
+pre-commit-all: ## Run pre-commit hooks on all files
+	@echo "🔍 Running pre-commit hooks on all files..."
+	pre-commit run --all-files
+	@echo "✅ Pre-commit validation complete"
+
+dev-setup-python: install-python-tools setup-pre-commit ## Complete Python development environment setup
+	@echo "🚀 Python development environment ready"
+	@echo "Next steps:"
+	@echo "  1. Run 'make check-python' to validate existing code"
+	@echo "  2. Run 'make format-python' to format code if needed"
+	@echo "  3. Start developing with automatic pre-commit validation"
+
+python-status: ## Show Python tools status and versions
+	@echo "🐍 Python Tools Status"
+	@echo "====================="
+	@python --version 2>/dev/null || echo "Python: Not installed"
+	@black --version 2>/dev/null || echo "Black: Not installed"
+	@flake8 --version 2>/dev/null || echo "Flake8: Not installed"
+	@isort --version 2>/dev/null || echo "isort: Not installed"
+	@pre-commit --version 2>/dev/null || echo "pre-commit: Not installed"
+	@echo ""
+	@echo "Project Files:"
+	@find lambda -name "*.py" | wc -l | xargs echo "Python files:"
+
+clean-python: ## Clean Python cache and temporary files
+	@echo "🧹 Cleaning Python artifacts..."
+	find . -type f -name "*.pyc" -delete
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	rm -rf reports/
+	@echo "✅ Python cleanup complete"
