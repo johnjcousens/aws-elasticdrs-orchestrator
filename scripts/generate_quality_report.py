@@ -15,10 +15,9 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 class QualityReporter:
@@ -79,7 +78,9 @@ class QualityReporter:
                 "tool": "black",
                 "status": "passed" if result.returncode == 0 else "failed",
                 "files_checked": len(self.python_files),
-                "files_needing_format": 0 if result.returncode == 0 else "unknown",
+                "files_needing_format": 0
+                if result.returncode == 0
+                else "unknown",
                 "output": result.stdout,
                 "errors": result.stderr,
                 "return_code": result.returncode,
@@ -122,7 +123,9 @@ class QualityReporter:
                             violations.append(
                                 {
                                     "file": parts[0],
-                                    "line": int(parts[1]) if parts[1].isdigit() else 0,
+                                    "line": int(parts[1])
+                                    if parts[1].isdigit()
+                                    else 0,
                                     "column": int(parts[2])
                                     if parts[2].isdigit()
                                     else 0,
@@ -168,7 +171,9 @@ class QualityReporter:
                 "tool": "isort",
                 "status": "passed" if result.returncode == 0 else "failed",
                 "files_checked": len(self.python_files),
-                "files_needing_sort": 0 if result.returncode == 0 else "unknown",
+                "files_needing_sort": 0
+                if result.returncode == 0
+                else "unknown",
                 "output": result.stdout,
                 "errors": result.stderr,
                 "return_code": result.returncode,
@@ -183,7 +188,9 @@ class QualityReporter:
         except Exception as e:
             return {"tool": "isort", "status": "error", "error": str(e)}
 
-    def calculate_compliance_metrics(self, results: Dict[str, Any]) -> Dict[str, Any]:
+    def calculate_compliance_metrics(
+        self, results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Calculate overall compliance metrics with baseline support."""
         total_files = len(self.python_files)
 
@@ -192,13 +199,16 @@ class QualityReporter:
         baseline_count = 0
         if os.path.exists(baseline_file):
             try:
-                with open(baseline_file, 'r') as f:
+                with open(baseline_file, "r") as f:
                     content = f.read()
                     # Extract baseline count from the file
-                    for line in content.split('\n'):
-                        if 'violations documented as baseline' in line:
+                    for line in content.split("\n"):
+                        if "violations documented as baseline" in line:
                             import re
-                            match = re.search(r'(\d+) violations documented', line)
+
+                            match = re.search(
+                                r"(\d+) violations documented", line
+                            )
                             if match:
                                 baseline_count = int(match.group(1))
                                 break
@@ -206,28 +216,36 @@ class QualityReporter:
                 baseline_count = 0
 
         # Get Flake8 violations for detailed metrics
-        flake8_violations = results.get("flake8", {}).get("total_violations", 0)
-        
+        flake8_violations = results.get("flake8", {}).get(
+            "total_violations", 0
+        )
+
         # Calculate compliance with baseline approach
         if baseline_count > 0 and flake8_violations <= baseline_count:
             # If violations are at or below baseline, consider flake8 as passing
-            tools_passed = sum([
-                results.get("black", {}).get("status") == "passed",
-                results.get("isort", {}).get("status") == "passed", 
-                True  # flake8 considered passing if at/below baseline
-            ])
+            tools_passed = sum(
+                [
+                    results.get("black", {}).get("status") == "passed",
+                    results.get("isort", {}).get("status") == "passed",
+                    True,  # flake8 considered passing if at/below baseline
+                ]
+            )
             flake8_status = "baseline_compliant"
         else:
             # Standard compliance calculation
             tools_passed = sum(
-                1 for result in results.values() if result.get("status") == "passed"
+                1
+                for result in results.values()
+                if result.get("status") == "passed"
             )
             flake8_status = results.get("flake8", {}).get("status", "failed")
-        
+
         total_tools = len(results)
 
         # Calculate compliance percentage
-        tool_compliance = (tools_passed / total_tools * 100) if total_tools > 0 else 0
+        tool_compliance = (
+            (tools_passed / total_tools * 100) if total_tools > 0 else 0
+        )
 
         return {
             "total_files_analyzed": total_files,
@@ -237,7 +255,9 @@ class QualityReporter:
             "flake8_violations": flake8_violations,
             "baseline_violations": baseline_count,
             "flake8_status": flake8_status,
-            "overall_status": "PASSED" if tools_passed == total_tools else "FAILED",
+            "overall_status": "PASSED"
+            if tools_passed == total_tools
+            else "FAILED",
             "timestamp": self.timestamp.isoformat(),
             "files_analyzed": [str(f) for f in self.python_files],
         }
@@ -308,7 +328,7 @@ class QualityReporter:
             <h1>Code Quality Report</h1>
             <div class="subtitle">AWS DRS Orchestration Project - Generated on {timestamp}</div>
         </div>
-        
+
         <div class="metrics">
             <div class="metric-card">
                 <div class="metric-value {status_class}">{overall_status}</div>
@@ -327,9 +347,9 @@ class QualityReporter:
                 <div class="metric-label">Flake8 Violations</div>
             </div>
         </div>
-        
+
         {tool_sections}
-        
+
         <div class="tool-section">
             <h3 class="tool-header">Files Analyzed</h3>
             <div class="tool-content">
@@ -349,20 +369,24 @@ class QualityReporter:
         tool_sections = []
         for tool_name, result in results.items():
             status_class = (
-                "status-passed" if result.get("status") == "passed" else "status-failed"
+                "status-passed"
+                if result.get("status") == "passed"
+                else "status-failed"
             )
             status_text = result.get("status", "unknown").upper()
 
-            content = f'<div class="tool-content">'
+            content = '<div class="tool-content">'
             content += f'<p><strong>Status:</strong> <span class="{status_class}">{status_text}</span></p>'
 
             if tool_name == "flake8" and result.get("violations"):
                 content += f'<p><strong>Total Violations:</strong> {len(result["violations"])}</p>'
                 content += '<div class="violations">'
-                for violation in result["violations"][:10]:  # Show first 10 violations
+                for violation in result["violations"][
+                    :10
+                ]:  # Show first 10 violations
                     content += f"""
                     <div class="violation">
-                        <div class="violation-file">{violation["file"]}:{violation["line"]}:{violation["column"]}</div>
+                        <div class="violation-file">{violation["file"]}: {violation["line"]}: {violation["column"]}</div>
                         <div class="violation-message">{violation["message"]}</div>
                     </div>
                     """
@@ -370,10 +394,14 @@ class QualityReporter:
                     content += f'<p><em>... and {len(result["violations"]) - 10} more violations</em></p>'
                 content += "</div>"
             elif result.get("status") == "passed":
-                content += '<div class="no-violations">✓ No violations found</div>'
+                content += (
+                    '<div class="no-violations">✓ No violations found</div>'
+                )
 
             if result.get("output") and result.get("status") != "passed":
-                content += f'<h4>Output:</h4><pre>{result["output"][:1000]}</pre>'
+                content += (
+                    f'<h4>Output:</h4><pre>{result["output"][:1000]}</pre>'
+                )
 
             content += "</div>"
 
@@ -387,7 +415,9 @@ class QualityReporter:
             )
 
         # Generate files list
-        files_list = "\n".join(f"<li>{f}</li>" for f in metrics["files_analyzed"])
+        files_list = "\n".join(
+            f"<li>{f}</li>" for f in metrics["files_analyzed"]
+        )
 
         # Fill template
         html_content = html_template.format(
@@ -475,10 +505,14 @@ class QualityReporter:
         generated_files = {}
 
         if "json" in formats:
-            generated_files["json"] = self.generate_json_report(results, metrics)
+            generated_files["json"] = self.generate_json_report(
+                results, metrics
+            )
 
         if "html" in formats:
-            generated_files["html"] = self.generate_html_report(results, metrics)
+            generated_files["html"] = self.generate_html_report(
+                results, metrics
+            )
 
         # Print summary
         print(f"\n=== Quality Report Summary ===")
@@ -514,7 +548,9 @@ def main():
     formats = [f for f in formats if f in valid_formats]
 
     if not formats:
-        print("Error: No valid formats specified. Use 'json', 'html', or 'json,html'")
+        print(
+            "Error: No valid formats specified. Use 'json', 'html', or 'json,html'"
+        )
         sys.exit(1)
 
     # Generate reports
