@@ -2,8 +2,8 @@
 """
 Add Current Account as Target Account
 
-This script adds the current AWS account (where the solution is deployed) 
-as a target account in the DRS Orchestration system. This is the most 
+This script adds the current AWS account (where the solution is deployed)
+as a target account in the DRS Orchestration system. This is the most
 common setup where DRS source servers are in the same account as the solution.
 
 Usage:
@@ -11,7 +11,6 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 from datetime import datetime
 
@@ -38,7 +37,7 @@ def get_account_name(account_id):
         aliases = response.get("AccountAliases", [])
         if aliases:
             return aliases[0]
-    except:
+    except Exception:  # noqa: E722
         pass
 
     try:
@@ -46,7 +45,7 @@ def get_account_name(account_id):
         orgs = boto3.client("organizations")
         response = orgs.describe_account(AccountId=account_id)
         return response["Account"]["Name"]
-    except:
+    except Exception:  # noqa: E722
         pass
 
     return None
@@ -86,9 +85,9 @@ def add_target_account(table_name, account_id, account_name=None):
             f"{account_name} ({account_id})" if account_name else account_id
         )
         print(f"✅ Successfully added {account_display} as a target account")
-        print(f"   - No cross-account role required (same account)")
-        print(f"   - Status: Active")
-        print(f"   - You can now use the Dashboard and all DRS orchestration features")
+        print("   - No cross-account role required (same account)")
+        print("   - Status: Active")
+        print("   - You can now use the Dashboard and all DRS orchestration features")
 
         return True
 
@@ -139,7 +138,7 @@ def main():
     table_name = args.table_name
     if not table_name:
         # Try to detect from environment or use default pattern
-        table_name = f"aws-drs-orchestrator-target-accounts-dev"
+        table_name = "aws-drs-orchestrator-target-accounts-dev"
         print(f"📋 Using table name: {table_name}")
 
     # Add the account
