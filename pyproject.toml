@@ -4,7 +4,7 @@
 [tool.black]
 line-length = 79
 target-version = ['py312']
-include = '\.pyi?$'$'
+include = '\.pyi?$'
 extend-exclude = '''
 /(
   # Exclude auto-generated files and dependencies
