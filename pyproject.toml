@@ -4,7 +4,7 @@
 [tool.black]
 line-length = 79
 target-version = ['py312']
-include = '\.pyi?$'
+include = '\.pyi?$'$'
 extend-exclude = '''
 /(
   # Exclude auto-generated files and dependencies
@@ -31,3 +31,129 @@ use_parentheses = true
 ensure_newline_before_comments = true
 known_first_party = ["lambda"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.flake8]
+# Note: Flake8 doesn't read from pyproject.toml natively
+# Configuration is in .flake8 file for compatibility
+# This section documents the settings for reference
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["lambda"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/build/*",
+    "*/dist/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "boto3.*",
+    "botocore.*",
+    "crhelper.*",
+]
+ignore_missing_imports = true
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-drs-orchestration"
+version = "1.2.2"
+description = "AWS Elastic Disaster Recovery Orchestration Platform"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "AWS DRS Orchestration Team"},
+]
+keywords = ["aws", "disaster-recovery", "drs", "orchestration", "serverless"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Systems Administration",
+    "Topic :: System :: Recovery Tools",
+]
+dependencies = [
+    "boto3>=1.34.0",
+    "botocore>=1.34.0",
+    "crhelper>=2.0.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.7.0",
+    "flake8>=6.0.0",
+    "isort>=5.12.0",
+    "pre-commit>=3.3.3",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "mypy>=1.5.0",
+    "flake8-docstrings>=1.7.0",
+    "flake8-import-order>=0.18.2",
+    "pep8-naming>=0.13.3",
+]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "moto>=4.2.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/aws-samples/aws-drs-orchestration"
+Documentation = "https://github.com/aws-samples/aws-drs-orchestration/tree/main/docs"
+Repository = "https://github.com/aws-samples/aws-drs-orchestration"
+"Bug Tracker" = "https://github.com/aws-samples/aws-drs-orchestration/issues"
