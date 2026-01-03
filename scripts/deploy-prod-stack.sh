@@ -8,10 +8,10 @@ set -e
 export AWS_PAGER=""
 
 # Configuration
-STACK_NAME="aws-drs-orchestrator-dev"
+STACK_NAME="aws-elasticdrs-orchestrator-dev"
 REGION="us-east-1"
-BUCKET="aws-drs-orchestration"
-PROJECT_NAME="aws-drs-orchestrator"
+BUCKET="aws-elasticdrs-orchestrator"
+PROJECT_NAME="aws-elasticdrs-orchestrator"
 ENVIRONMENT="dev"
 ADMIN_EMAIL="***REMOVED***"
 

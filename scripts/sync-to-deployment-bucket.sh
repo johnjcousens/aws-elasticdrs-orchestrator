@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sync complete deployment-ready repository to S3
-# Purpose: Keep s3://aws-drs-orchestration in sync with local git repo
+# Purpose: Keep s3://aws-elasticdrs-orchestrator in sync with local git repo
 # Usage: ./scripts/sync-to-deployment-bucket.sh [--build-frontend]
 
 set -e  # Exit on error
@@ -25,7 +25,7 @@ if [ -f "$PROJECT_ROOT/.env.deployment.local" ]; then
 fi
 
 # Default configuration (can be overridden by environment files or command line)
-BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orchestration}"
+BUCKET="${DEPLOYMENT_BUCKET:-aws-elasticdrs-orchestrator}"
 REGION="${DEPLOYMENT_REGION:-us-east-1}"
 BUILD_FRONTEND=false
 DRY_RUN=false
@@ -40,7 +40,7 @@ AWS_PROFILE="${AWS_PROFILE:-default}"
 LIST_PROFILES=false
 
 # CloudFormation stack configuration
-PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestrator}"
+PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
 PARENT_STACK_NAME="${PARENT_STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 
@@ -441,7 +441,7 @@ echo ""
 
 # Helper function to get Lambda function name
 get_lambda_function_name() {
-    local function_name="aws-drs-orchestrator-api-handler-dev"
+    local function_name="aws-elasticdrs-orchestrator-api-handler-dev"
     echo "$function_name"
 }
 
@@ -599,9 +599,9 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
             zip -qj "/tmp/lambda-index.zip" "rbac_middleware.py"
         fi
         
-        echo "⚡ Updating aws-drs-orchestrator-api-handler-dev..."
+        echo "⚡ Updating aws-elasticdrs-orchestrator-api-handler-dev..."
         aws lambda update-function-code \
-            --function-name "aws-drs-orchestrator-api-handler-dev" \
+            --function-name "aws-elasticdrs-orchestrator-api-handler-dev" \
             --zip-file "fileb:///tmp/lambda-index.zip" \
             $PROFILE_FLAG \
             --region $REGION \
@@ -622,9 +622,9 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py" 2>/dev/null || zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py"
         
-        echo "⚡ Updating aws-drs-orchestrator-orchestration-stepfunctions-dev..."
+        echo "⚡ Updating aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev..."
         aws lambda update-function-code \
-            --function-name "aws-drs-orchestrator-orchestration-stepfunctions-dev" \
+            --function-name "aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev" \
             --zip-file "fileb:///tmp/lambda-orchestration.zip" \
             $PROFILE_FLAG \
             --region $REGION \
@@ -645,9 +645,9 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py" 2>/dev/null || zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py"
         
-        echo "⚡ Updating aws-drs-orchestrator-frontend-builder-dev..."
+        echo "⚡ Updating aws-elasticdrs-orchestrator-frontend-builder-dev..."
         aws lambda update-function-code \
-            --function-name "aws-drs-orchestrator-frontend-builder-dev" \
+            --function-name "aws-elasticdrs-orchestrator-frontend-builder-dev" \
             --zip-file "fileb:///tmp/lambda-builder.zip" \
             $PROFILE_FLAG \
             --region $REGION \
@@ -668,9 +668,9 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py" 2>/dev/null || zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py"
         
-        echo "⚡ Updating aws-drs-orchestrator-execution-finder-dev..."
+        echo "⚡ Updating aws-elasticdrs-orchestrator-execution-finder-dev..."
         aws lambda update-function-code \
-            --function-name "aws-drs-orchestrator-execution-finder-dev" \
+            --function-name "aws-elasticdrs-orchestrator-execution-finder-dev" \
             --zip-file "fileb:///tmp/lambda-finder.zip" \
             $PROFILE_FLAG \
             --region $REGION \
@@ -691,9 +691,9 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py" 2>/dev/null || zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py"
         
-        echo "⚡ Updating aws-drs-orchestrator-execution-poller-dev..."
+        echo "⚡ Updating aws-elasticdrs-orchestrator-execution-poller-dev..."
         aws lambda update-function-code \
-            --function-name "aws-drs-orchestrator-execution-poller-dev" \
+            --function-name "aws-elasticdrs-orchestrator-execution-poller-dev" \
             --zip-file "fileb:///tmp/lambda-poller.zip" \
             $PROFILE_FLAG \
             --region $REGION \

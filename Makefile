@@ -11,9 +11,9 @@
 -include .env.deployment.local
 
 # Configuration with defaults (can be overridden)
-DEPLOYMENT_BUCKET ?= aws-drs-orchestration
+DEPLOYMENT_BUCKET ?= aws-elasticdrs-orchestrator
 DEPLOYMENT_REGION ?= us-east-1
-PROJECT_NAME ?= aws-drs-orchestrator
+PROJECT_NAME ?= aws-elasticdrs-orchestrator
 ENVIRONMENT ?= dev
 PARENT_STACK_NAME ?= $(PROJECT_NAME)-$(ENVIRONMENT)
 AWS_PROFILE ?= default
