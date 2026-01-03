@@ -53,7 +53,6 @@ interface RegionSelectorProps {
   value?: string;
   onChange?: (value: string) => void;
   error?: boolean;
-  helperText?: string;
   
   placeholder?: string;
   disabled?: boolean;
@@ -68,7 +67,6 @@ export const RegionSelector: React.FC<RegionSelectorProps> = ({
   value,
   onChange,
   error,
-  helperText,
   
   placeholder = "Select region",
   disabled = false

@@ -8,16 +8,9 @@
  */
 
 import type { ReactElement } from 'react';
-import { Spinner, SpaceBetween } from '@cloudscape-design/components';
+import { Spinner } from '@cloudscape-design/components';
 
-interface CardSkeletonProps {
-  /** Number of skeleton cards to display */
-  count?: number;
-  /** Whether to show action buttons skeleton */
-  showActions?: boolean;
-  /** Whether to show progress bar skeleton */
-  showProgress?: boolean;
-}
+// No props needed for simple spinner approach
 
 /**
  * CardSkeleton Component
@@ -40,11 +33,7 @@ interface CardSkeletonProps {
  * )}
  * ```
  */
-export const CardSkeleton = ({
-  count = 3,
-  showActions = true,
-  showProgress = false,
-}: CardSkeletonProps): ReactElement => {
+export const CardSkeleton = (): ReactElement => {
   // CloudScape doesn't have skeleton components, use spinner instead
   return (
     <div

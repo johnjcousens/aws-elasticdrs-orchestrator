@@ -60,13 +60,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   ];
 
   // Handle navigation
-  const handleNavigationFollow = (event: any) => {
+  const handleNavigationFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
     navigate(event.detail.href);
   };
 
   // Handle breadcrumb navigation
-  const handleBreadcrumbFollow = (event: any) => {
+  const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
     navigate(event.detail.href);
   };

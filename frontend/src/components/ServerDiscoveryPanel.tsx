@@ -53,14 +53,14 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
         setServers([]);
       } else {
         setDrsInitialized(true);
-
         setServers(response.servers || []);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching servers:', err);
-      if (err.message?.includes('DRS_NOT_INITIALIZED') || err.message?.includes('not initialized')) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      if (errorMessage.includes('DRS_NOT_INITIALIZED') || errorMessage.includes('not initialized')) {
         setDrsInitialized(false);
-        setError(err.message);
+        setError(errorMessage);
         setServers([]);
       } else {
         setError('Failed to fetch DRS source servers. Please try again.');
@@ -68,7 +68,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [region]);
+  }, [region, currentProtectionGroupId]);
 
   // Initial fetch
   useEffect(() => {
@@ -202,7 +202,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
           <FormField label="Filter">
             <Select
               selectedOption={{ label: filter === 'all' ? 'All Servers' : filter === 'available' ? 'Available' : 'Assigned', value: filter }}
-              onChange={({ detail }) => setFilter(detail.selectedOption.value as any)}
+              onChange={({ detail }) => setFilter(detail.selectedOption?.value as 'all' | 'available' | 'assigned' || 'all')}
               options={[
                 { label: 'All Servers', value: 'all' },
                 { label: 'Available', value: 'available' },
@@ -218,7 +218,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
                 label: sortBy === 'name' ? 'Name Tag' : sortBy === 'hostname' ? 'Hostname' : 'IP Address', 
                 value: sortBy 
               }}
-              onChange={({ detail }) => setSortBy(detail.selectedOption.value as any)}
+              onChange={({ detail }) => setSortBy(detail.selectedOption?.value as 'name' | 'hostname' | 'ip' || 'name')}
               options={[
                 { label: 'Name Tag', value: 'name' },
                 { label: 'Hostname', value: 'hostname' },

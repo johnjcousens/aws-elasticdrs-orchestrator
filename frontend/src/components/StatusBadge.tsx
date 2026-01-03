@@ -11,18 +11,15 @@ import type { ExecutionStatus } from '../types';
 
 export interface StatusBadgeProps {
   status: ExecutionStatus | string;
-  size?: 'small' | 'medium';
 }
 
 /**
  * Status Badge Component
  * 
  * @param status - Status string
- * @param size - Badge size (small or medium) - Note: CloudScape badges don't have size variants
  */
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
-  size = 'small', // Kept for API compatibility but not used in CloudScape
 }) => {
   const getStatusConfig = (status: string) => {
     const normalizedStatus = status.toLowerCase().replace(/_/g, ' ');
