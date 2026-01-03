@@ -28,14 +28,19 @@ phases:
 
   build:
     commands:
-      - echo "CloudFormation Template Validation"
+      - echo "=== CloudFormation Template Validation ==="
       - echo "Validating CloudFormation templates with cfn-lint..."
       - cfn-lint cfn/*.yaml --info --format parseable
       - echo "CloudFormation validation completed"
-      - echo "AWS CloudFormation Native Validation"
+      - echo "=== AWS CloudFormation Native Validation ==="
       - echo "Validating templates with AWS CloudFormation..."
-      - for template in cfn/*.yaml; do echo "Validating $template..."; aws cloudformation validate-template --template-body file://$template > /dev/null; echo "Template $template is valid"; done
-      - echo "Python Code Quality Validation"
+      - |
+        for template in cfn/*.yaml; do
+          echo "Validating $template..."
+          aws cloudformation validate-template --template-body file://$template > /dev/null
+          echo "Template $template is valid"
+        done
+      - echo "=== Python Code Quality Validation ==="
       - echo "Checking Python code formatting with Black..."
       - black --check --line-length=79 lambda/ || (echo "Code formatting issues found" && exit 1)
       - echo "Python code formatting is correct"
@@ -45,10 +50,32 @@ phases:
       - echo "Running flake8 linting..."
       - flake8 lambda/ --max-line-length=79 --exclude=__pycache__ --statistics
       - echo "Python linting passed"
-      - echo "Python Unit Tests"
-      - if [ -d "tests/python/unit" ]; then echo "Running Python unit tests..."; cd tests/python; python -m pytest unit/ -v --tb=short --cov=../../lambda --cov-report=term-missing; cd ../..; echo "Unit tests passed"; else echo "Unit tests directory not found, skipping..."; fi
-      - echo "Frontend Code Validation"
-      - if [ -f "frontend/package.json" ]; then echo "Installing frontend dependencies..."; cd frontend; npm ci --silent; echo "Running TypeScript type checking..."; npm run type-check; echo "Running ESLint..."; npm run lint; echo "Frontend validation passed"; cd ..; else echo "Frontend not found, skipping..."; fi
+      - echo "=== Python Unit Tests ==="
+      - |
+        if [ -d "tests/python/unit" ]; then
+          echo "Running Python unit tests..."
+          cd tests/python
+          python -m pytest unit/ -v --tb=short --cov=../../lambda --cov-report=term-missing
+          cd ../..
+          echo "Unit tests passed"
+        else
+          echo "Unit tests directory not found, skipping..."
+        fi
+      - echo "=== Frontend Code Validation ==="
+      - |
+        if [ -f "frontend/package.json" ]; then
+          echo "Installing frontend dependencies..."
+          cd frontend
+          npm ci --silent
+          echo "Running TypeScript type checking..."
+          npm run type-check
+          echo "Running ESLint..."
+          npm run lint
+          echo "Frontend validation passed"
+          cd ..
+        else
+          echo "Frontend not found, skipping..."
+        fi
 
   post_build:
     commands:
