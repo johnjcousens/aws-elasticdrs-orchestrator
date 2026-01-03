@@ -1,0 +1,11 @@
+[bandit]
+# Bandit security configuration for AWS DRS Orchestration
+exclude_dirs = tests,archive,node_modules,frontend/node_modules
+skips = B112
+
+[bandit.assert_used]
+skips = *_test.py,*/test_*.py
+
+[bandit.hardcoded_password_string]
+# Allow test passwords and AWS service names
+word_list = test,example,password,secret,key,token,aws,drs,lambda

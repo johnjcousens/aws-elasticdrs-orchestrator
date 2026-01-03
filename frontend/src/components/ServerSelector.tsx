@@ -5,7 +5,7 @@
  * Fetches servers from protection group and displays with checkboxes.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -67,7 +67,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
     }
   }, [pgIds, fetchServers]);
 
-  const fetchServers = async () => {
+  const fetchServers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -123,7 +123,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [pgIds]);
 
   const handleToggle = (serverId: string) => {
     if (readonly) return;

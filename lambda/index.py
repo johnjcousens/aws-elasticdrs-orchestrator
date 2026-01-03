@@ -16,6 +16,22 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
+# Import security utilities
+from security_utils import (
+    validate_api_gateway_event,
+    sanitize_dynamodb_input,
+    validate_protection_group_name,
+    validate_recovery_plan_name,
+    validate_drs_server_id,
+    validate_aws_region,
+    validate_uuid,
+    log_security_event,
+    create_security_headers,
+    safe_aws_client_call,
+    InputValidationError,
+    SecurityError
+)
+
 # Import RBAC middleware
 from rbac_middleware import (
     check_authorization,
@@ -367,13 +383,20 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
 def response(
     status_code: int, body: Any, headers: Optional[Dict] = None
 ) -> Dict:
-    """Generate API Gateway response with CORS headers"""
-    default_headers = {
+    """Generate API Gateway response with CORS and security headers"""
+    # Start with security headers
+    default_headers = create_security_headers()
+    
+    # Add CORS headers
+    cors_headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,Authorization",
         "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
     }
+    default_headers.update(cors_headers)
+    
+    # Add any custom headers
     if headers:
         default_headers.update(headers)
 
@@ -1434,11 +1457,26 @@ def get_drs_account_capacity(region: str) -> Dict:  # noqa: C901
 
 def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
     """Main Lambda handler - routes requests to appropriate functions"""
-    print(f"Received event: {json.dumps(event)}")
+    
+    # Security: Log request with masked sensitive data
+    masked_event = mask_sensitive_data(event)
+    print(f"Received event: {json.dumps(masked_event)}")
     print("Lambda handler started")
 
     try:
         print("Entering try block")
+        
+        # Security: Validate API Gateway event structure
+        try:
+            validated_event = validate_api_gateway_event(event)
+            print("Event validation passed")
+        except InputValidationError as e:
+            log_security_event('invalid_request', {'error': str(e)}, 'WARN')
+            return {
+                "statusCode": 400,
+                "headers": create_security_headers(),
+                "body": json.dumps({"error": "Invalid request format"})
+            }
 
         # Check if this is a worker invocation (async execution)
         if event.get("worker"):
@@ -1448,19 +1486,43 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
         print("Not worker mode, processing API Gateway request")
 
-        # Normal API Gateway request handling
-        http_method = event.get("httpMethod", "")
-        path = event.get("path", "")
+        # Extract validated request data
+        http_method = validated_event.get("httpMethod", "")
+        path = validated_event.get("path", "")
         path_parameters = event.get("pathParameters") or {}
-        query_parameters = event.get("queryStringParameters") or {}
-        body = json.loads(event.get("body", "{}")) if event.get("body") else {}
+        query_parameters = validated_event.get("queryStringParameters") or {}
+        
+        # Security: Validate and sanitize body data
+        body = {}
+        if event.get("body"):
+            try:
+                body_str = event.get("body", "{}")
+                body = json.loads(body_str)
+                # Sanitize DynamoDB input if this is a write operation
+                if http_method in ["POST", "PUT", "PATCH"]:
+                    body = sanitize_dynamodb_input(body)
+            except (json.JSONDecodeError, InputValidationError) as e:
+                log_security_event('invalid_json', {'error': str(e)}, 'WARN')
+                return {
+                    "statusCode": 400,
+                    "headers": create_security_headers(),
+                    "body": json.dumps({"error": "Invalid JSON in request body"})
+                }
 
         print(f"Extracted values - Method: {http_method}, Path: {path}")
 
         # Handle OPTIONS requests for CORS
         if http_method == "OPTIONS":
             print("Handling OPTIONS request")
-            return response(200, {"message": "OK"})
+            return {
+                "statusCode": 200,
+                "headers": {**create_security_headers(), **{
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type,Authorization"
+                }},
+                "body": json.dumps({"message": "OK"})
+            }
 
         # CRITICAL: Check for EventBridge-triggered tag sync BEFORE authentication
         if path == "/drs/tag-sync" and http_method == "POST":
@@ -1566,6 +1628,47 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
         print("Authentication and authorization passed, proceeding to routing")
 
+        # Security: Additional input validation for specific endpoints
+        try:
+            # Validate protection group operations
+            if path.startswith("/protection-groups") and http_method in ["POST", "PUT"]:
+                if "name" in body and not validate_protection_group_name(body["name"]):
+                    log_security_event('invalid_protection_group_name', 
+                                     {'name': body.get("name")}, 'WARN')
+                    return response(400, {"error": "Invalid protection group name format"})
+                
+                if "region" in body and not validate_aws_region(body["region"]):
+                    log_security_event('invalid_region', 
+                                     {'region': body.get("region")}, 'WARN')
+                    return response(400, {"error": "Invalid AWS region format"})
+                
+                if "serverIds" in body:
+                    for server_id in body["serverIds"]:
+                        if not validate_drs_server_id(server_id):
+                            log_security_event('invalid_server_id', 
+                                             {'server_id': server_id}, 'WARN')
+                            return response(400, {"error": f"Invalid DRS server ID format: {server_id}"})
+            
+            # Validate recovery plan operations
+            elif path.startswith("/recovery-plans") and http_method in ["POST", "PUT"]:
+                if "name" in body and not validate_recovery_plan_name(body["name"]):
+                    log_security_event('invalid_recovery_plan_name', 
+                                     {'name': body.get("name")}, 'WARN')
+                    return response(400, {"error": "Invalid recovery plan name format"})
+            
+            # Validate UUID parameters in path
+            if path_parameters:
+                for param_name, param_value in path_parameters.items():
+                    if param_name in ["id", "planId", "groupId", "executionId"]:
+                        if not validate_uuid(param_value):
+                            log_security_event('invalid_uuid_parameter', 
+                                             {param_name: param_value}, 'WARN')
+                            return response(400, {"error": f"Invalid {param_name} format"})
+                            
+        except Exception as e:
+            log_security_event('validation_error', {'error': str(e)}, 'ERROR')
+            return response(500, {"error": "Internal validation error"})
+
         # Route to appropriate handler
         print(f"Routing request - Method: {http_method}, Path: '{path}'")
 
@@ -1670,12 +1773,22 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             return response(404, {"error": "Not Found", "path": path})
 
     except Exception as e:
+        # Security: Log unexpected errors for monitoring
+        error_details = {
+            'error_type': type(e).__name__,
+            'error_message': str(e),
+            'http_method': event.get('httpMethod'),
+            'path': event.get('path'),
+            'user_agent': event.get('headers', {}).get('User-Agent', 'Unknown')
+        }
+        log_security_event('unexpected_error', error_details, 'ERROR')
+        
         print(f"Error: {str(e)}")
         import traceback
-
         traceback.print_exc()
+        
         return response(
-            500, {"error": "Internal Server Error", "message": str(e)}
+            500, {"error": "Internal Server Error", "message": "An unexpected error occurred"}
         )
 
 
@@ -9042,6 +9155,7 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                     InstanceIds=[instance_id]
                 )
                 if not ec2_response["Reservations"]:
+                    logger.warning(f"No EC2 instance found for ID: {instance_id}")
                     continue
                 instance = ec2_response["Reservations"][0]["Instances"][0]
                 ec2_tags = {
@@ -9049,7 +9163,12 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                     for tag in instance.get("Tags", [])
                     if not tag["Key"].startswith("aws:")
                 }
-            except Exception:
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code", "Unknown")
+                logger.error(f"Failed to describe EC2 instance {instance_id}: {error_code}")
+                continue
+            except Exception as e:
+                logger.error(f"Unexpected error describing EC2 instance {instance_id}: {str(e)}")
                 continue
 
             if not ec2_tags:

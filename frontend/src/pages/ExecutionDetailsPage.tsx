@@ -8,7 +8,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Box,
   Button,
   Container,
   Header,
@@ -119,9 +118,13 @@ export const ExecutionDetailsPage: React.FC = () => {
     if (!terminationInProgress || !execution) return;
 
     // Check if instances are now terminated
+    const executionWithTermination = execution as Execution & {
+      instancesTerminated?: boolean;
+      InstancesTerminated?: boolean;
+    };
     const isTerminated = 
-      (execution as any).instancesTerminated === true ||
-      (execution as any).InstancesTerminated === true;
+      executionWithTermination.instancesTerminated === true ||
+      executionWithTermination.InstancesTerminated === true;
 
     if (isTerminated) {
       setTerminationInProgress(false);
@@ -248,7 +251,7 @@ export const ExecutionDetailsPage: React.FC = () => {
         const resultAny = result as { jobs?: Array<{ jobId: string; region?: string }> };
         const jobIds = (resultAny.jobs || []).map((j) => j.jobId).filter(Boolean);
         // Get region from first job or execution
-        const region = (resultAny.jobs?.[0]?.region) || (execution as any)?.drsRegion || 'us-west-2';
+        const region = (resultAny.jobs?.[0]?.region) || (execution as Execution & { drsRegion?: string })?.drsRegion || 'us-west-2';
         setTerminationJobInfo({
           totalInstances: result.totalTerminated,
           jobIds: jobIds,
@@ -265,7 +268,7 @@ export const ExecutionDetailsPage: React.FC = () => {
         setTerminationInProgress(false);
       }
       await fetchExecution();
-    } catch (err: any) {
+    } catch (err) {
       // Check if error indicates already terminated
       const errorMsg = err instanceof Error ? err.message : '';
       if (errorMsg.includes('No recovery instances') || errorMsg.includes('already')) {
@@ -288,7 +291,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   );
 
   // Get paused before wave number (from execution data)
-  const pausedBeforeWave = execution ? (execution as any).pausedBeforeWave : undefined;
+  const pausedBeforeWave = execution ? (execution as Execution & { pausedBeforeWave?: number }).pausedBeforeWave : undefined;
 
   // Calculate execution duration
   const calculateDuration = (): string => {
@@ -331,7 +334,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   const calculateProgress = (): number => {
     if (!execution) return 0;
     
-    const waves = (execution as any).waves || execution.waveExecutions || [];
+    const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
     const totalWaves = execution.totalWaves || waves.length || 1;
     
     if (totalWaves === 0) return 0;
@@ -431,8 +434,12 @@ export const ExecutionDetailsPage: React.FC = () => {
 
   // Check if instances have already been terminated
   const instancesAlreadyTerminated = execution && (
-    (execution as any).instancesTerminated === true ||
-    (execution as any).InstancesTerminated === true
+    const executionWithTermination = execution as Execution & {
+      instancesTerminated?: boolean;
+      InstancesTerminated?: boolean;
+    };
+    (executionWithTermination.instancesTerminated === true ||
+    executionWithTermination.InstancesTerminated === true)
   );
 
   // Check if recovery instances can be terminated
@@ -445,7 +452,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     const isTerminal = terminalStatuses.includes(execution.status as string);
     
     // Check if any wave has a jobId (meaning recovery instances were launched)
-    const waves = (execution as any).waves || execution.waveExecutions || [];
+    const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
     const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || wave.JobId);
     
     // Don't show button if already terminated
@@ -460,7 +467,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   // Map API response (waves/servers) to frontend types (waveExecutions/serverExecutions)
   const mapWavesToWaveExecutions = (exec: Execution): WaveExecution[] => {
     // API returns 'waves' but type expects 'waveExecutions'
-    const waves = (exec as any).waves || exec.waveExecutions || [];
+    const waves = (exec as Execution & { waves?: WaveExecution[] }).waves || exec.waveExecutions || [];
     return waves.map((wave: any, index: number) => {
       const waveRegion = wave.region || wave.Region || 'us-east-1';
       // ServerIds might be an array of strings or objects
