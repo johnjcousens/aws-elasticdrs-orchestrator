@@ -4,10 +4,12 @@ Description: 'AWS DRS Orchestration - Database Stack (DynamoDB Tables)'
 Parameters:
   ProjectName:
     Type: String
+    Default: 'aws-elasticdrs-orchestrator'
     Description: 'Project name used for resource naming'
 
   Environment:
     Type: String
+    Default: 'dev'
     Description: 'Environment name (dev, test, prod)'
 
 Resources:
