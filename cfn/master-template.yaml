@@ -82,6 +82,14 @@ Parameters:
       - 'true'
       - 'false'
 
+  EnableSecurityStack:
+    Type: String
+    Default: 'false'
+    Description: 'Enable Security Stack (WAF, CloudTrail, Secrets Manager)'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
   EnableSecretsManager:
     Type: String
     Default: 'true'
@@ -116,7 +124,7 @@ Parameters:
       - 'true'
       - 'false'
 
-  GitHubRepositoryURL:
+  GitHubRepositoryUrl:
     Type: String
     Description: 'GitHub repository URL for CodeCommit mirroring'
     Default: 'https://github.com/johnjcousens/aws-elasticdrs-orchestrator'
@@ -132,6 +140,7 @@ Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
   EnableCICDCondition: !Equals [!Ref EnableAutomatedDeployment, 'true']
+  EnableSecurityStackCondition: !Equals [!Ref EnableSecurityStack, 'true']
 
 Resources:
   # Database Stack - DynamoDB Tables
@@ -283,7 +292,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
-    Condition: EnableCICDCondition
+    Condition: EnableSecurityStackCondition
     DependsOn:
       - ApiStack
     Properties:
@@ -291,10 +300,9 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        ApiGatewayId: !GetAtt ApiStack.Outputs.ApiId
+        RestApiId: !GetAtt ApiStack.Outputs.ApiId
         EnableWAF: !Ref EnableWAF
         EnableCloudTrail: !Ref EnableCloudTrail
-        EnableSecretsManager: !Ref EnableSecretsManager
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -313,7 +321,6 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        GitHubRepositoryURL: !Ref GitHubRepositoryURL
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -572,11 +579,11 @@ Outputs:
     Value: !GetAtt SecurityStack.Outputs.WAFWebAclId
     Export:
       Name: !Sub '${AWS::StackName}-WAFWebAclId'
-    Condition: EnableCICDCondition
+    Condition: EnableSecurityStackCondition
 
   CloudTrailArn:
     Description: 'CloudTrail ARN'
     Value: !GetAtt SecurityStack.Outputs.CloudTrailArn
     Export:
       Name: !Sub '${AWS::StackName}-CloudTrailArn'
-    Condition: EnableCICDCondition
+    Condition: EnableSecurityStackCondition
