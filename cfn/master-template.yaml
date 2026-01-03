@@ -136,6 +136,14 @@ Parameters:
     MaxValue: 24
     Description: 'Tag sync interval in hours (1-24)'
 
+  EnablePipelineNotifications:
+    Type: String
+    Default: 'true'
+    Description: 'Enable SNS email notifications for pipeline and security scan failures'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
@@ -364,10 +372,13 @@ Resources:
         RepositoryName: !GetAtt CodeCommitStack.Outputs.RepositoryName
         ArtifactBucketName: !GetAtt CodeCommitStack.Outputs.ArtifactBucketName
         ValidateProjectName: !GetAtt CodeBuildProjectsStack.Outputs.ValidateProjectName
+        SecurityScanProjectName: !GetAtt CodeBuildProjectsStack.Outputs.SecurityScanProjectName
         BuildProjectName: !GetAtt CodeBuildProjectsStack.Outputs.BuildProjectName
         TestProjectName: !GetAtt CodeBuildProjectsStack.Outputs.TestProjectName
         DeployInfraProjectName: !GetAtt CodeBuildProjectsStack.Outputs.DeployInfraProjectName
         DeployFrontendProjectName: !GetAtt CodeBuildProjectsStack.Outputs.DeployFrontendProjectName
+        AdminEmail: !Ref AdminEmail
+        EnablePipelineNotifications: !Ref EnablePipelineNotifications
       Tags:
         - Key: Project
           Value: !Ref ProjectName
