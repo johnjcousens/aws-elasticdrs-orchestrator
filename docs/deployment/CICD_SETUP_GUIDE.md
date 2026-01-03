@@ -4,19 +4,21 @@ This guide provides detailed instructions for setting up and configuring the CI/
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Prerequisites](#prerequisites)  
-- [CI/CD Architecture](#cicd-architecture)
-- [Setup Process](#setup-process)
-- [Pipeline Configuration](#pipeline-configuration)
-- [BuildSpec Customization](#buildspec-customization)
-- [GitHub Integration](#github-integration)
-- [Pipeline Monitoring](#pipeline-monitoring)
-- [Troubleshooting](#troubleshooting)
-- [Best Practices](#best-practices)
-- [Advanced Configuration](#advanced-configuration)
+1. Overview
+2. Prerequisites
+3. CI/CD Architecture
+4. Setup Process
+5. Pipeline Configuration
+6. BuildSpec Customization
+7. GitHub Integration
+8. Pipeline Monitoring
+9. Troubleshooting
+10. Best Practices
+11. Advanced Configuration
 
-## Overview
+---
+
+## <a name="overview"></a>Overview
 
 The AWS DRS Orchestration CI/CD pipeline provides:
 
@@ -35,7 +37,7 @@ The AWS DRS Orchestration CI/CD pipeline provides:
 5. **Deploy Infrastructure**: CloudFormation deployment
 6. **Deploy Frontend**: S3 sync, CloudFront invalidation
 
-## Prerequisites
+## <a name="prerequisites"></a>Prerequisites
 
 ### AWS Services Required
 
@@ -79,7 +81,7 @@ The deployment user/role needs permissions for:
 - GitHub Personal Access Token with `repo` permissions
 - Webhook configuration for automatic mirroring
 
-## CI/CD Architecture
+## <a name="cicd-architecture"></a>CI/CD Architecture
 
 ```mermaid
 flowchart TB
@@ -135,7 +137,7 @@ flowchart TB
     CB5 -->|Invalidate| CDN
 ```
 
-## Setup Process
+## <a name="setup-process"></a>Setup Process
 
 ### Step 1: Enable CI/CD During Fresh Deployment
 
@@ -207,7 +209,7 @@ git config credential.UseHttpPath true
 git remote add upstream https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
 ```
 
-## Pipeline Configuration
+## <a name="pipeline-configuration"></a>Pipeline Configuration
 
 ### Pipeline Parameters
 
@@ -234,7 +236,7 @@ The pipeline creates these IAM roles:
 - **Build Artifacts**: Stored in S3 artifact bucket
 - **Deployment Artifacts**: Stored in S3 deployment bucket
 
-## BuildSpec Customization
+## <a name="buildspec-customization"></a>BuildSpec Customization
 
 ### Validate BuildSpec (`buildspecs/validate-buildspec.yml`)
 
@@ -333,7 +335,7 @@ build:
         --exclude "config.js"
 ```
 
-## GitHub Integration
+## <a name="github-integration"></a>GitHub Integration
 
 ### Automatic Mirroring Setup
 
@@ -386,7 +388,7 @@ WEBHOOK_URL=$(aws cloudformation describe-stacks \
 echo "Configure GitHub webhook: $WEBHOOK_URL"
 ```
 
-## Pipeline Monitoring
+## <a name="pipeline-monitoring"></a>Pipeline Monitoring
 
 ### Pipeline Status
 
@@ -448,7 +450,7 @@ aws sns subscribe \
   --region us-east-1
 ```
 
-## Troubleshooting
+## <a name="troubleshooting"></a>Troubleshooting
 
 ### Common Issues
 
@@ -572,7 +574,7 @@ aws codebuild batch-get-builds \
   --region us-east-1
 ```
 
-## Best Practices
+## <a name="best-practices"></a>Best Practices
 
 ### Security
 
@@ -609,7 +611,7 @@ aws codebuild batch-get-builds \
 3. **Performance Review**: Regularly review and optimize pipeline performance
 4. **Documentation**: Keep pipeline documentation up to date
 
-## Advanced Configuration
+## <a name="advanced-configuration"></a>Advanced Configuration
 
 ### Custom Build Images
 
