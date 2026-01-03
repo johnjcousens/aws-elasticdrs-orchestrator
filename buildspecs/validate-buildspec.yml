@@ -1,8 +1,5 @@
 version: 0.2
 
-# BuildSpec for Validation Phase
-# Validates CloudFormation templates, Python code quality, and runs unit tests
-
 env:
   variables:
     PROJECT_NAME: "aws-elasticdrs-orchestrator"
@@ -22,80 +19,41 @@ phases:
 
   pre_build:
     commands:
-      - echo "=== VALIDATION PHASE STARTED ==="
-      - echo "Project: $PROJECT_NAME"
-      - echo "Environment: $ENVIRONMENT"
-      - echo "Deployment Bucket: $DEPLOYMENT_BUCKET"
-      - echo "Build ID: $CODEBUILD_BUILD_ID"
-      - echo "Source Version: $CODEBUILD_SOURCE_VERSION"
+      - echo "VALIDATION PHASE STARTED"
+      - echo "Project $PROJECT_NAME"
+      - echo "Environment $ENVIRONMENT"
+      - echo "Deployment Bucket $DEPLOYMENT_BUCKET"
+      - echo "Build ID $CODEBUILD_BUILD_ID"
+      - echo "Source Version $CODEBUILD_SOURCE_VERSION"
 
   build:
     commands:
-      - echo "=== CloudFormation Template Validation ==="
+      - echo "CloudFormation Template Validation"
       - echo "Validating CloudFormation templates with cfn-lint..."
       - cfn-lint cfn/*.yaml --info --format parseable
       - echo "CloudFormation validation completed"
-      
-      - echo "=== AWS CloudFormation Native Validation ==="
+      - echo "AWS CloudFormation Native Validation"
       - echo "Validating templates with AWS CloudFormation..."
-      - |
-        for template in cfn/*.yaml; do
-          echo "Validating $template..."
-          aws cloudformation validate-template --template-body file://$template > /dev/null
-          echo "✓ $template is valid"
-        done
-      
-      - echo "=== Python Code Quality Validation ==="
+      - for template in cfn/*.yaml; do echo "Validating $template..."; aws cloudformation validate-template --template-body file://$template > /dev/null; echo "Template $template is valid"; done
+      - echo "Python Code Quality Validation"
       - echo "Checking Python code formatting with Black..."
-      - black --check --line-length=79 lambda/ || (echo "❌ Code formatting issues found. Run 'black --line-length=79 lambda/' to fix." && exit 1)
-      - echo "✓ Python code formatting is correct"
-      
+      - black --check --line-length=79 lambda/ || (echo "Code formatting issues found" && exit 1)
+      - echo "Python code formatting is correct"
       - echo "Checking import sorting with isort..."
-      - isort --check-only --profile=black lambda/ || (echo "❌ Import sorting issues found. Run 'isort --profile=black lambda/' to fix." && exit 1)
-      - echo "✓ Import sorting is correct"
-      
+      - isort --check-only --profile=black lambda/ || (echo "Import sorting issues found" && exit 1)
+      - echo "Import sorting is correct"
       - echo "Running flake8 linting..."
       - flake8 lambda/ --max-line-length=79 --exclude=__pycache__ --statistics
-      - echo "✓ Python linting passed"
-      
-      - echo "Running Python unit tests..."
-      - |
-        if [ -d "tests/python/unit" ]; then
-          echo "Running Python unit tests..."
-          cd tests/python
-          python -m pytest unit/ -v --tb=short --cov=../../lambda --cov-report=term-missing
-          cd ../..
-          echo "✓ Unit tests passed"
-        else
-          echo "⚠️  Unit tests directory not found, skipping..."
-        fi
-      
+      - echo "Python linting passed"
+      - echo "Python Unit Tests"
+      - if [ -d "tests/python/unit" ]; then echo "Running Python unit tests..."; cd tests/python; python -m pytest unit/ -v --tb=short --cov=../../lambda --cov-report=term-missing; cd ../..; echo "Unit tests passed"; else echo "Unit tests directory not found, skipping..."; fi
       - echo "Frontend Code Validation"
-      - |
-        if [ -f "frontend/package.json" ]; then
-          echo "Installing frontend dependencies..."
-          cd frontend
-          npm ci --silent
-          echo "Running TypeScript type checking..."
-          npm run type-check
-          echo "Running ESLint..."
-          npm run lint
-          echo "✓ Frontend validation passed"
-          cd ..
-        else
-          echo "⚠️  Frontend not found, skipping..."
-        fi
+      - if [ -f "frontend/package.json" ]; then echo "Installing frontend dependencies..."; cd frontend; npm ci --silent; echo "Running TypeScript type checking..."; npm run type-check; echo "Running ESLint..."; npm run lint; echo "Frontend validation passed"; cd ..; else echo "Frontend not found, skipping..."; fi
 
   post_build:
     commands:
-      - echo "=== VALIDATION PHASE COMPLETED ==="
-      - |
-        if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then
-          echo "✅ All validation checks passed successfully"
-        else
-          echo "❌ Validation failed - check the logs above for details"
-          exit 1
-        fi
+      - echo "VALIDATION PHASE COMPLETED"
+      - if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then echo "All validation checks passed successfully"; else echo "Validation failed - check the logs above for details"; exit 1; fi
 
 artifacts:
   files:
