@@ -19,9 +19,9 @@ variables:
   PYTHON_VERSION: "3.12"
   NODE_VERSION: "22"
   AWS_DEFAULT_REGION: "us-east-1"
-  STACK_NAME: "aws-drs-orchestrator-${CI_COMMIT_REF_SLUG}"
-  DEPLOYMENT_BUCKET: "aws-drs-orchestration"
-  ENVIRONMENT: "test"
+  STACK_NAME: "aws-elasticdrs-orchestrator-dev"
+  DEPLOYMENT_BUCKET: "aws-elasticdrs-orchestrator"
+  ENVIRONMENT: "dev"
 
 # ============================================================================
 # VALIDATION STAGE
@@ -333,7 +333,7 @@ deploy:cloudformation:
         --template-url https://${DEPLOYMENT_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/cfn/master-template.yaml \
         --stack-name ${STACK_NAME} \
         --parameter-overrides \
-          ProjectName=aws-drs-orchestrator \
+          ProjectName=aws-elasticdrs-orchestrator \
           Environment=${ENVIRONMENT} \
           SourceBucket=${DEPLOYMENT_BUCKET} \
           AdminEmail=${ADMIN_EMAIL} \
@@ -425,7 +425,7 @@ deploy:production:
   image: public.ecr.aws/aws-cli/aws-cli:latest
   variables:
     ENVIRONMENT: "prod"
-    STACK_NAME: "aws-drs-orchestrator-prod"
+    STACK_NAME: "aws-elasticdrs-orchestrator-prod"
   before_script:
     - aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
     - aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
@@ -439,7 +439,7 @@ deploy:production:
         --template-url https://${DEPLOYMENT_BUCKET}.s3.${AWS_DEFAULT_REGION}.amazonaws.com/cfn/master-template.yaml \
         --stack-name ${STACK_NAME} \
         --parameter-overrides \
-          ProjectName=aws-drs-orchestrator \
+          ProjectName=aws-elasticdrs-orchestrator \
           Environment=prod \
           SourceBucket=${DEPLOYMENT_BUCKET} \
           AdminEmail=${ADMIN_EMAIL} \
@@ -451,4 +451,4 @@ deploy:production:
       when: manual
   environment:
     name: production
-    url: https://aws-drs-orchestrator-prod.example.com
+    url: https://aws-elasticdrs-orchestrator-prod.example.com

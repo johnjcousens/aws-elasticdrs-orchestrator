@@ -47,7 +47,7 @@ Parameters:
 
   SourceBucket:
     Type: String
-    Default: 'aws-elasticdrs-orchestrator-deployment-dev'
+    Default: 'aws-elasticdrs-orchestrator'
     Description: 'S3 bucket containing nested CloudFormation templates and Lambda code at root level'
 
   AdminEmail:
@@ -119,7 +119,7 @@ Parameters:
   GitHubRepositoryURL:
     Type: String
     Description: 'GitHub repository URL for CodeCommit mirroring'
-    Default: 'https://github.com/organization/aws-drs-orchestration'
+    Default: 'https://github.com/johnjcousens/aws-elasticdrs-orchestrator'
 
   TagSyncIntervalHours:
     Type: Number

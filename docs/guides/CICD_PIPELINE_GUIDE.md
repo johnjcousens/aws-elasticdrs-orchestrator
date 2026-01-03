@@ -10,7 +10,7 @@ Before setting up the pipeline, ensure you have:
 
 1. **GitLab Repository** - Code pushed to GitLab (code.amazon.com or gitlab.com)
 2. **AWS Account** - With permissions to deploy CloudFormation, Lambda, S3, CloudFront
-3. **S3 Deployment Bucket** - Pre-created bucket for artifacts (default: `aws-drs-orchestration`)
+3. **S3 Deployment Bucket** - Pre-created bucket for artifacts (default: `aws-elasticdrs-orchestrator`)
 4. **IAM Credentials** - Access key with deployment permissions
 
 > **Note**: This pipeline uses Amazon ECR Public images (`public.ecr.aws/docker/library/...`) instead of Docker Hub to avoid rate limiting issues. Docker Hub enforces pull rate limits for unauthenticated requests (100 pulls/6 hours), which can cause CI failures in shared GitLab runners.
@@ -20,9 +20,9 @@ Before setting up the pipeline, ensure you have:
 ### Step 1: Create S3 Deployment Bucket
 
 ```bash
-aws s3 mb s3://aws-drs-orchestration --region us-east-1
+aws s3 mb s3://aws-elasticdrs-orchestrator --region us-east-1
 aws s3api put-bucket-versioning \
-  --bucket aws-drs-orchestration \
+  --bucket aws-elasticdrs-orchestrator \
   --versioning-configuration Status=Enabled
 ```
 
