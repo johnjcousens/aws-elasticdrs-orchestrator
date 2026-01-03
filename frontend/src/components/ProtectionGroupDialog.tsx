@@ -19,8 +19,6 @@ import {
   Alert,
   Container,
   Header,
-  Table,
-  StatusIndicator,
   ColumnLayout,
   Icon,
   Tabs,

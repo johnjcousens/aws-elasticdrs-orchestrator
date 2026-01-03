@@ -28,8 +28,7 @@ export default defineConfig([
       'react-refresh/only-export-components': 'warn', // Allow mixed exports but warn
       
       // Keep these as errors for critical issues
-      '@typescript-eslint/no-undef': 'error',
-      'no-undef': 'error',
+      // Note: @typescript-eslint/no-undef is not a valid rule - TypeScript handles this
       'no-unused-expressions': 'error',
     },
   },

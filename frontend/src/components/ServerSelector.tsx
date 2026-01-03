@@ -65,7 +65,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
     if (pgIds.length > 0) {
       fetchServers();
     }
-  }, [JSON.stringify(pgIds)]);  // Watch for changes in the PG IDs array
+  }, [pgIds, fetchServers]);
 
   const fetchServers = async () => {
     try {
@@ -90,7 +90,15 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
           }
           
           // Transform DRS response to Server format with PG tracking
-          const drsServers: Server[] = response.servers.map((s: any) => ({
+          const drsServers: Server[] = response.servers.map((s: {
+            sourceServerID: string;
+            hostname: string;
+            state: string;
+            replicationState: string;
+            assignedToProtectionGroup?: {
+              protectionGroupName: string;
+            };
+          }) => ({
             id: s.sourceServerID,
             hostname: s.hostname,
             protectionGroupId: pgId,
@@ -103,15 +111,15 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
           }));
           
           allServers.push(...drsServers);
-        } catch (pgError: any) {
+        } catch (pgError) {
           console.error(`Failed to fetch servers for PG ${pgId}:`, pgError);
           // Continue with other PGs even if one fails
         }
       }
       
       setServers(allServers);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load servers');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load servers');
     } finally {
       setLoading(false);
     }
@@ -214,7 +222,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
                 <div key={server.id} style={{ padding: '8px 0' }}>
                   <Checkbox
                     checked={safeSelectedServerIds.includes(server.id)}
-                    onChange={({ detail }) => {
+                    onChange={() => {
                       // Prevent any form submission behavior
                       handleToggle(server.id);
                     }}
