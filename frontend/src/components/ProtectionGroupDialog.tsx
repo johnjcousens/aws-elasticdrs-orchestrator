@@ -181,8 +181,9 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       if (response.resolvedServers?.length === 0) {
         setPreviewError('No servers found matching these tags');
       }
-    } catch (err: any) {
-      setPreviewError(err.message || 'Failed to preview servers');
+    } catch (err: unknown) {
+      const error = err as Error & { message?: string };
+      setPreviewError(error.message || 'Failed to preview servers');
       setPreviewServers([]);
     } finally {
       setPreviewLoading(false);
@@ -227,7 +228,15 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       let savedGroup: ProtectionGroup;
 
       // Build base group data
-      const groupData: any = {
+      const groupData: {
+        GroupName: string;
+        Description: string;
+        Region: string;
+        ServerSelectionTags?: Record<string, string>;
+        SourceServerIds?: string[];
+        LaunchConfig?: LaunchConfig;
+        version?: number;
+      } = {
         GroupName: name.trim(),
         Description: description.trim(),  // Always send, even if empty, to allow clearing
         Region: region,
@@ -265,12 +274,24 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 
       onSave(savedGroup);
       onClose();
-    } catch (err: any) {
-      if (err.isVersionConflict) {
+    } catch (err: unknown) {
+      const error = err as Error & { 
+        message?: string; 
+        isVersionConflict?: boolean;
+        response?: {
+          status?: number;
+          data?: {
+            conflictType?: string;
+            message?: string;
+          };
+        };
+      };
+      
+      if (error.isVersionConflict) {
         // Optimistic locking conflict - another user modified the resource
         setError('This protection group was modified by another user. Please close and reopen to get the latest version.');
-      } else if (err.response?.status === 409) {
-        const conflictData = err.response?.data;
+      } else if (error.response?.status === 409) {
+        const conflictData = error.response?.data;
         if (conflictData?.conflictType === 'NAME_CONFLICT') {
           setError(`Protection Group name "${name}" is already in use.`);
         } else if (conflictData?.conflictType === 'SERVER_CONFLICT') {
@@ -279,7 +300,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           setError(conflictData?.message || 'Conflict detected. Please check your inputs.');
         }
       } else {
-        setError(err.message || 'Failed to save protection group');
+        setError(error.message || 'Failed to save protection group');
       }
     } finally {
       setLoading(false);
