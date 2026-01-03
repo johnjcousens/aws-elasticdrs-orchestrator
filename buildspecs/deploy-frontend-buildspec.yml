@@ -5,7 +5,6 @@ version: 0.2
 
 env:
   variables:
-    # These will be overridden by CodeBuild project environment variables
     PROJECT_NAME: "aws-elasticdrs-orchestrator"
     ENVIRONMENT: "dev"
     DEPLOYMENT_BUCKET: "aws-elasticdrs-orchestrator"
