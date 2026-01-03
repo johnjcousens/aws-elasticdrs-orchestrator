@@ -1,0 +1,219 @@
+version: 0.2
+
+# AWS CodeBuild Security Scanning BuildSpec
+# This buildspec runs comprehensive security scans on the AWS DRS Orchestration codebase
+
+env:
+  variables:
+    PROJECT_NAME: "aws-elasticdrs-orchestrator"
+    SECURITY_THRESHOLD_CRITICAL: "0"
+    SECURITY_THRESHOLD_HIGH: "10"
+    SECURITY_THRESHOLD_TOTAL: "50"
+  parameter-store:
+    # Optional: Store security tool configurations in Parameter Store
+    # BANDIT_CONFIG: "/security/bandit-config"
+    # SEMGREP_CONFIG: "/security/semgrep-config"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+      nodejs: 20
+    commands:
+      - echo "Installing security scanning tools..."
+      - echo "Python version:" && python --version
+      - echo "Node.js version:" && node --version
+      - echo "NPM version:" && npm --version
+      
+      # Install Python security tools
+      - pip install --upgrade pip
+      - pip install bandit semgrep safety cfn-lint
+      
+      # Install Node.js security tools globally
+      - npm install -g npm-audit-ci eslint
+      
+      # Verify tool installations
+      - bandit --version
+      - semgrep --version
+      - safety --version
+      - cfn-lint --version
+      - npm-audit-ci --version
+
+  pre_build:
+    commands:
+      - echo "=== SECURITY SCAN PHASE STARTED ==="
+      - echo "Build started on $(date)"
+      - echo "Project: $PROJECT_NAME"
+      - echo "Commit: $CODEBUILD_RESOLVED_SOURCE_VERSION"
+      - echo "Branch: $CODEBUILD_SOURCE_VERSION"
+      
+      # Create reports directory
+      - mkdir -p reports/security
+      - mkdir -p reports/security/raw
+      - mkdir -p reports/security/formatted
+      
+      # Set up environment
+      - export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+      - export NODE_ENV=production
+
+  build:
+    commands:
+      - echo "=== PYTHON SECURITY SCANNING ==="
+      
+      # Bandit security scan
+      - echo "Running Bandit security scan on Python code..."
+      - |
+        bandit -r lambda/ scripts/ \
+          -f json -o reports/security/raw/bandit-report.json \
+          -ll --severity-level medium --confidence-level medium || true
+      - echo "Bandit scan completed, generating human-readable report..."
+      - bandit -r lambda/ scripts/ -ll --severity-level medium --confidence-level medium > reports/security/formatted/bandit-report.txt || true
+      
+      # Semgrep security scan for Python
+      - echo "Running Semgrep security scan on Python code..."
+      - |
+        semgrep --config=python.lang.security lambda/ scripts/ \
+          --json -o reports/security/raw/semgrep-python.json \
+          --severity ERROR --severity WARNING || true
+      - echo "Semgrep Python scan completed, generating human-readable report..."
+      - semgrep --config=python.lang.security lambda/ scripts/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-python.txt || true
+      
+      # Safety dependency vulnerability scan
+      - echo "Running Safety dependency vulnerability scan..."
+      - safety check --json -o reports/security/raw/safety-report.json || true
+      - echo "Safety scan completed, generating human-readable report..."
+      - safety check > reports/security/formatted/safety-report.txt || true
+      
+      - echo "=== FRONTEND SECURITY SCANNING ==="
+      
+      # Install frontend dependencies
+      - echo "Installing frontend dependencies..."
+      - cd frontend/
+      - npm ci --production=false
+      
+      # NPM audit security scan
+      - echo "Running NPM audit security scan..."
+      - npm audit --audit-level moderate --json > ../reports/security/raw/npm-audit.json || true
+      - echo "NPM audit completed, generating human-readable report..."
+      - npm audit --audit-level moderate > ../reports/security/formatted/npm-audit.txt || true
+      
+      # ESLint security scan
+      - echo "Running ESLint security scan..."
+      - |
+        npx eslint src/ --ext .ts,.tsx \
+          --format json -o ../reports/security/raw/eslint-security.json \
+          --config .eslintrc.json || true
+      - echo "ESLint security scan completed, generating human-readable report..."
+      - npx eslint src/ --ext .ts,.tsx --format compact > ../reports/security/formatted/eslint-security.txt || true
+      
+      - cd ../
+      
+      - echo "=== INFRASTRUCTURE SECURITY SCANNING ==="
+      
+      # CloudFormation security linting
+      - echo "Running CloudFormation security linting..."
+      - cfn-lint cfn/*.yaml --format json > reports/security/raw/cfn-lint.json || true
+      - echo "CloudFormation linting completed, generating human-readable report..."
+      - cfn-lint cfn/*.yaml > reports/security/formatted/cfn-lint.txt || true
+      
+      # Semgrep security scan for CloudFormation
+      - echo "Running Semgrep security scan on CloudFormation templates..."
+      - |
+        semgrep --config=yaml.lang.security cfn/ \
+          --json -o reports/security/raw/semgrep-cfn.json \
+          --severity ERROR --severity WARNING || true
+      - echo "Semgrep CloudFormation scan completed, generating human-readable report..."
+      - semgrep --config=yaml.lang.security cfn/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-cfn.txt || true
+      
+      - echo "=== SECURITY SUMMARY GENERATION ==="
+      
+      # Generate comprehensive security summary
+      - echo "Generating security scan summary..."
+      - python scripts/generate-security-summary.py
+      
+      # Display summary for build logs
+      - echo "=== SECURITY SCAN RESULTS ==="
+      - cat reports/security/security-summary.json
+      
+      # Check if critical security issues were found
+      - echo "Checking security scan results against thresholds..."
+      - |
+        if [ -f reports/security/security-summary.json ]; then
+          CRITICAL_ISSUES=$(python -c "import json; data=json.load(open('reports/security/security-summary.json')); print(data['summary']['total_critical_issues'])")
+          HIGH_ISSUES=$(python -c "import json; data=json.load(open('reports/security/security-summary.json')); print(data['summary']['total_high_issues'])")
+          TOTAL_ISSUES=$(python -c "import json; data=json.load(open('reports/security/security-summary.json')); print(data['summary']['total_issues'])")
+          
+          echo "Security scan results:"
+          echo "  Critical issues: $CRITICAL_ISSUES (threshold: $SECURITY_THRESHOLD_CRITICAL)"
+          echo "  High issues: $HIGH_ISSUES (threshold: $SECURITY_THRESHOLD_HIGH)"
+          echo "  Total issues: $TOTAL_ISSUES (threshold: $SECURITY_THRESHOLD_TOTAL)"
+          
+          if [ "$CRITICAL_ISSUES" -gt "$SECURITY_THRESHOLD_CRITICAL" ]; then
+            echo "❌ SECURITY SCAN FAILED: Critical security issues found!"
+            echo "Build will fail due to critical security vulnerabilities."
+            exit 1
+          elif [ "$HIGH_ISSUES" -gt "$SECURITY_THRESHOLD_HIGH" ]; then
+            echo "⚠️ SECURITY SCAN WARNING: High-severity issues found!"
+            echo "Consider addressing these issues before deployment."
+          elif [ "$TOTAL_ISSUES" -gt "$SECURITY_THRESHOLD_TOTAL" ]; then
+            echo "ℹ️ SECURITY SCAN INFO: Many security issues found."
+            echo "Consider addressing medium/low severity issues."
+          else
+            echo "✅ SECURITY SCAN PASSED: Security posture is acceptable."
+          fi
+        else
+          echo "❌ ERROR: Security summary not generated!"
+          exit 1
+        fi
+
+  post_build:
+    commands:
+      - echo "=== SECURITY SCAN COMPLETED ==="
+      - echo "Build completed on $(date)"
+      
+      # Archive security reports
+      - echo "Archiving security scan reports..."
+      - ls -la reports/security/
+      - ls -la reports/security/raw/
+      - ls -la reports/security/formatted/
+      
+      # Generate build badge information
+      - |
+        if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then
+          echo "Security scan completed successfully"
+          echo '{"status": "passed", "message": "Security scan passed"}' > reports/security/build-status.json
+        else
+          echo "Security scan failed - check reports for details"
+          echo '{"status": "failed", "message": "Security scan failed"}' > reports/security/build-status.json
+        fi
+      
+      # Optional: Upload to S3 for long-term storage
+      # - aws s3 cp reports/security/ s3://your-security-reports-bucket/builds/$CODEBUILD_BUILD_ID/ --recursive
+
+reports:
+  security-scan-reports:
+    files:
+      - 'reports/security/**/*'
+    name: SecurityScanReports-$CODEBUILD_BUILD_ID
+    base-directory: '.'
+
+artifacts:
+  files:
+    - 'reports/security/**/*'
+  name: SecurityScanArtifacts-$CODEBUILD_BUILD_ID
+  base-directory: '.'
+
+cache:
+  paths:
+    - '/root/.cache/pip/**/*'
+    - 'frontend/node_modules/**/*'
+    - '/root/.cache/semgrep/**/*'
+
+# Environment variables for security tools
+# These can be overridden in the CodeBuild project configuration
+# BANDIT_SEVERITY_LEVEL: medium
+# BANDIT_CONFIDENCE_LEVEL: medium
+# SEMGREP_TIMEOUT: 300
+# SAFETY_IGNORE_IDS: ""  # Comma-separated list of vulnerability IDs to ignore
+# NPM_AUDIT_LEVEL: moderate
+# CFN_LINT_REGIONS: us-east-1,us-west-2

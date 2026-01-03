@@ -38,7 +38,60 @@ Parameters:
     Type: String
     Description: 'CodeBuild project name for frontend deployment'
 
+  SecurityScanProjectName:
+    Type: String
+    Description: 'CodeBuild project name for security scanning'
+
+  AdminEmail:
+    Type: String
+    Description: 'Admin email address for pipeline notifications'
+    AllowedPattern: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    ConstraintDescription: 'Must be a valid email address'
+
+  EnablePipelineNotifications:
+    Type: String
+    Default: 'true'
+    Description: 'Enable SNS email notifications for pipeline and security scan failures'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+Conditions:
+  EnableNotifications: !Equals [!Ref EnablePipelineNotifications, 'true']
+
 Resources:
+  # SNS Topic for Pipeline Notifications (Conditional)
+  PipelineNotificationsTopic:
+    Type: AWS::SNS::Topic
+    Condition: EnableNotifications
+    Properties:
+      TopicName: !Sub '${ProjectName}-pipeline-notifications-${Environment}'
+      DisplayName: 'CodePipeline and Security Scan Notifications'
+      
+  PipelineNotificationsSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: EnableNotifications
+    Properties:
+      Protocol: email
+      TopicArn: !Ref PipelineNotificationsTopic
+      Endpoint: !Ref AdminEmail
+
+  # SNS Topic Policy to allow EventBridge to publish (Conditional)
+  PipelineNotificationsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Condition: EnableNotifications
+    Properties:
+      Topics:
+        - !Ref PipelineNotificationsTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref PipelineNotificationsTopic
+
   # IAM Role for CodePipeline
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -87,10 +140,19 @@ Resources:
                   - codebuild:StartBuild
                 Resource:
                   - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${ValidateProjectName}'
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${SecurityScanProjectName}'
                   - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${BuildProjectName}'
                   - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${TestProjectName}'
                   - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${DeployInfraProjectName}'
                   - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${DeployFrontendProjectName}'
+              # SNS permissions for notifications (conditional)
+              - !If
+                - EnableNotifications
+                - Effect: Allow
+                  Action:
+                    - sns:Publish
+                  Resource: !Ref PipelineNotificationsTopic
+                - !Ref AWS::NoValue
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -138,6 +200,22 @@ Resources:
                 - Name: SourceOutput
               OutputArtifacts:
                 - Name: ValidateOutput
+
+        # Security Scan Stage - Comprehensive security scanning
+        - Name: SecurityScan
+          Actions:
+            - Name: SecurityScanAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref SecurityScanProjectName
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: SecurityScanOutput
 
         # Build Stage - Lambda packages and frontend
         - Name: Build
@@ -217,9 +295,10 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # CloudWatch Event Rule for Pipeline State Changes
+  # CloudWatch Event Rule for Pipeline State Changes (Conditional)
   PipelineEventRule:
     Type: AWS::Events::Rule
+    Condition: EnableNotifications
     Properties:
       Name: !Sub '${ProjectName}-pipeline-events-${Environment}'
       Description: 'Capture pipeline state changes'
@@ -232,10 +311,36 @@ Resources:
         detail:
           pipeline:
             - !Ref Pipeline
+          state:
+            - FAILED
       State: ENABLED
       Targets:
+        - Arn: !Ref PipelineNotificationsTopic
+          Id: PipelineFailureNotification
         - Arn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/events/codepipeline'
           Id: PipelineLogTarget
+
+  # CloudWatch Event Rule for Security Scan Failures (Conditional)
+  SecurityScanFailureEventRule:
+    Type: AWS::Events::Rule
+    Condition: EnableNotifications
+    Properties:
+      Name: !Sub '${ProjectName}-security-scan-failures-${Environment}'
+      Description: 'Capture security scan build failures'
+      EventPattern:
+        source:
+          - aws.codebuild
+        detail-type:
+          - CodeBuild Build State Change
+        detail:
+          project-name:
+            - !Ref SecurityScanProjectName
+          build-status:
+            - FAILED
+      State: ENABLED
+      Targets:
+        - Arn: !Ref PipelineNotificationsTopic
+          Id: SecurityScanFailureNotification
 
   # CloudWatch Log Group for Pipeline Events
   PipelineLogGroup:
@@ -279,3 +384,18 @@ Outputs:
     Value: !GetAtt PipelineEventRule.Arn
     Export:
       Name: !Sub '${AWS::StackName}-PipelineEventRuleArn'
+    Condition: EnableNotifications
+
+  PipelineNotificationsTopicArn:
+    Description: 'Pipeline notifications SNS topic ARN'
+    Value: !Ref PipelineNotificationsTopic
+    Export:
+      Name: !Sub '${AWS::StackName}-PipelineNotificationsTopicArn'
+    Condition: EnableNotifications
+
+  SecurityScanFailureEventRuleArn:
+    Description: 'Security scan failure event rule ARN'
+    Value: !GetAtt SecurityScanFailureEventRule.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityScanFailureEventRuleArn'
+    Condition: EnableNotifications

@@ -317,6 +317,40 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # CodeBuild Project for Security Scanning
+  SecurityScanProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${ProjectName}-security-scan-${Environment}'
+      Description: 'Comprehensive security scanning with Bandit, Semgrep, Safety, and ESLint'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: PROJECT_NAME
+            Value: !Ref ProjectName
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+          - Name: SECURITY_THRESHOLD_CRITICAL
+            Value: '0'
+          - Name: SECURITY_THRESHOLD_HIGH
+            Value: '10'
+          - Name: SECURITY_THRESHOLD_TOTAL
+            Value: '50'
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspecs/security-buildspec.yml
+      TimeoutInMinutes: 20
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # CodeBuild Project for Frontend Deployment
   DeployFrontendProject:
     Type: AWS::CodeBuild::Project
@@ -403,6 +437,18 @@ Outputs:
     Value: !GetAtt DeployInfraProject.Arn
     Export:
       Name: !Sub '${AWS::StackName}-DeployInfraProjectArn'
+
+  SecurityScanProjectName:
+    Description: 'Security scan CodeBuild project name'
+    Value: !Ref SecurityScanProject
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityScanProjectName'
+
+  SecurityScanProjectArn:
+    Description: 'Security scan CodeBuild project ARN'
+    Value: !GetAtt SecurityScanProject.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityScanProjectArn'
 
   DeployFrontendProjectName:
     Description: 'Frontend deployment CodeBuild project name'

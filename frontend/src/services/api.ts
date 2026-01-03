@@ -9,6 +9,7 @@ import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { awsConfig } from '../aws-config';
+import { sanitizeErrorMessage, sanitizeForLogging } from '../utils/security';
 import type {
   ProtectionGroup,
   CreateProtectionGroupRequest,
@@ -152,11 +153,11 @@ class ApiClient {
             });
           }
         } catch (error) {
-          console.error('Error fetching auth token:', {
+          const sanitizedError = sanitizeForLogging({
             error: error?.message || 'Unknown error',
-            stack: error?.stack,
             name: error?.name
           });
+          console.error('Error fetching auth token:', sanitizedError);
           throw error;
         }
 
@@ -183,8 +184,8 @@ class ApiClient {
             window.location.href = '/login';
           } else if (status === 403) {
             // Forbidden - insufficient permissions
-            const sanitizedData = typeof data === 'string' ? data.replace(/[\r\n]/g, '') : JSON.stringify(data).replace(/[\r\n]/g, '');
-            console.error('Permission denied:', sanitizedData);
+            const sanitizedMessage = sanitizeErrorMessage(data);
+            console.error('Permission denied:', sanitizedMessage);
           } else if (status === 409 && data && typeof data === 'object' && 'error' in data && data.error === 'VERSION_CONFLICT') {
             // Optimistic locking conflict - resource was modified by another user
             const errorData = data as { message?: string; resourceId?: string; expectedVersion?: string; currentVersion?: string };
@@ -196,9 +197,9 @@ class ApiClient {
             throw versionError;
           } else if (status >= 500) {
             // Server error - provide specific messages based on status code
-            const sanitizedData = typeof data === 'string' ? data.replace(/[\r\n]/g, '') : JSON.stringify(data).replace(/[\r\n]/g, '');
-            console.error('Server error:', sanitizedData);
-            let serverErrorMessage = (data && typeof data === 'object' && 'message' in data) ? String(data.message) : undefined;
+            const sanitizedMessage = sanitizeErrorMessage(data);
+            console.error('Server error:', sanitizedMessage);
+            let serverErrorMessage = (data && typeof data === 'object' && 'message' in data) ? sanitizeErrorMessage(String(data.message)) : undefined;
             
             if (!serverErrorMessage) {
               switch (status) {
@@ -223,11 +224,11 @@ class ApiClient {
           }
 
           // Provide specific error message or fallback with status code
-          const errorMessage = (data && typeof data === 'object' && 'message' in data) ? String(data.message) : this.getStatusCodeMessage(status);
+          const errorMessage = (data && typeof data === 'object' && 'message' in data) ? sanitizeErrorMessage(String(data.message)) : this.getStatusCodeMessage(status);
           throw new Error(errorMessage);
         } else if (error.request) {
           // Request made but no response received
-          const sanitizedRequest = JSON.stringify(error.request).replace(/[\r\n]/g, '');
+          const sanitizedRequest = sanitizeForLogging(error.request);
           console.error('No response from server:', sanitizedRequest);
           
           // Provide more specific error messages based on error type
@@ -242,7 +243,7 @@ class ApiClient {
           }
         } else {
           // Something else happened
-          const sanitizedMessage = String(error.message || '').replace(/[\r\n]/g, '');
+          const sanitizedMessage = sanitizeErrorMessage(error.message || '');
           console.error('Request error:', sanitizedMessage);
           
           // Provide more descriptive error for common issues
