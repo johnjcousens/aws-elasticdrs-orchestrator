@@ -570,7 +570,7 @@ artifacts:
 #### Environment Variables
 - `PROJECT_NAME`: `aws-elasticdrs-orchestrator`
 - `ENVIRONMENT`: `dev`
-- `DEPLOYMENT_BUCKET`: `aws-elasticdrs-orchestrator-deployment-dev`
+- `DEPLOYMENT_BUCKET`: `aws-elasticdrs-orchestrator`
 
 #### BuildSpec Configuration
 ```yaml

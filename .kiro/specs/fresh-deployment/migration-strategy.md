@@ -31,7 +31,7 @@ This document outlines the comprehensive migration strategy for transitioning fr
 
 #### Activities
 1. **Deploy Fresh Infrastructure**
-   - Create new S3 deployment bucket: `aws-elasticdrs-orchestrator-deployment-dev`
+   - Create new S3 deployment bucket: `aws-elasticdrs-orchestrator`
    - Deploy master stack: `aws-elasticdrs-orchestrator-dev`
    - Validate all 10 nested stacks deploy successfully
    - Verify CI/CD pipeline functionality

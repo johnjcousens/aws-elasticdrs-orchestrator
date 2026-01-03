@@ -138,7 +138,7 @@ def main():
     table_name = args.table_name
     if not table_name:
         # Try to detect from environment or use default pattern
-        table_name = "aws-drs-orchestrator-target-accounts-dev"
+        table_name = "aws-elasticdrs-orchestrator-target-accounts-dev"
         print(f"📋 Using table name: {table_name}")
 
     # Add the account

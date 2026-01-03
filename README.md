@@ -188,9 +188,9 @@ The solution orchestrates disaster recovery in all **30 AWS regions** where Elas
 # Deploy the complete solution
 aws cloudformation deploy \
   --template-url https://your-bucket.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
-  --stack-name aws-drs-orchestrator \
+  --stack-name aws-elasticdrs-orchestrator \
   --parameter-overrides \
-    ProjectName=aws-drs-orchestrator \
+    ProjectName=aws-elasticdrs-orchestrator \
     Environment=prod \
     SourceBucket=your-bucket \
     AdminEmail=admin@yourcompany.com \
@@ -209,7 +209,7 @@ Deployment takes approximately 20-30 minutes and provides:
 
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestrator \
+  --stack-name aws-elasticdrs-orchestrator \
   --query 'Stacks[0].Outputs' \
   --output table
 ```
@@ -225,7 +225,7 @@ aws cloudformation describe-stacks \
 
 ```bash
 USER_POOL_ID=$(aws cloudformation describe-stacks \
-  --stack-name aws-drs-orchestrator \
+  --stack-name aws-elasticdrs-orchestrator \
   --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
   --output text)
 

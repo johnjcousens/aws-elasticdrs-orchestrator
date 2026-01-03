@@ -8,7 +8,7 @@ set -e
 HUB_ACCOUNT_ID="${HUB_ACCOUNT_ID:-}"  # Must be provided via environment variable
 ENVIRONMENT="${ENVIRONMENT:-test}"
 REGION="${REGION:-us-east-1}"
-PROJECT_NAME="${PROJECT_NAME:-drs-orchestration}"
+PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -142,7 +142,7 @@ if [[ ! -f "$TEMPLATE_FILE" ]]; then
 fi
 
 # Deploy the stack
-STACK_NAME="drs-orchestration-cross-account-role-${ENVIRONMENT}"
+STACK_NAME="aws-elasticdrs-orchestrator-cross-account-role-${ENVIRONMENT}"
 
 log "Deploying cross-account role stack..."
 log "Stack name: $STACK_NAME"

@@ -45,7 +45,7 @@ graph TB
     end
     
     subgraph "S3 Deployment Bucket"
-        S3[aws-elasticdrs-orchestrator-deployment-dev]
+        S3[aws-elasticdrs-orchestrator]
         S3CFN[cfn/ - CloudFormation templates]
         S3LAM[lambda/ - Lambda packages]
         S3FE[frontend/ - React build artifacts]
@@ -105,7 +105,7 @@ Where:
 
 ### S3 Bucket Structure
 ```
-s3://aws-elasticdrs-orchestrator-deployment-dev/
+s3://aws-elasticdrs-orchestrator/
 ├── cfn/
 │   ├── master-template.yaml
 │   ├── database-stack.yaml
@@ -435,7 +435,7 @@ Parameters:
     
   DeploymentBucketName:
     Type: String
-    Default: aws-elasticdrs-orchestrator-deployment-dev
+    Default: aws-elasticdrs-orchestrator
     Description: S3 bucket containing deployment artifacts
     
   BucketSuffix:
@@ -446,7 +446,7 @@ Parameters:
   GitHubRepositoryURL:
     Type: String
     Description: GitHub repository URL for CodeCommit mirroring
-    Default: https://github.com/organization/aws-drs-orchestration
+    Default: https://github.com/johnjcousens/aws-elasticdrs-orchestrator
     
   AdminEmail:
     Type: String
@@ -494,17 +494,17 @@ Parameters:
 ### Phase 1: Pre-Deployment Setup
 1. **Create S3 Deployment Bucket**
    ```bash
-   aws s3 mb s3://aws-elasticdrs-orchestrator-deployment-dev
+   aws s3 mb s3://aws-elasticdrs-orchestrator
    ```
 
 2. **Upload CloudFormation Templates**
    ```bash
-   aws s3 sync cfn/ s3://aws-elasticdrs-orchestrator-deployment-dev/cfn/
+   aws s3 sync cfn/ s3://aws-elasticdrs-orchestrator/cfn/
    ```
 
 3. **Upload BuildSpec Files**
    ```bash
-   aws s3 sync buildspecs/ s3://aws-elasticdrs-orchestrator-deployment-dev/buildspecs/
+   aws s3 sync buildspecs/ s3://aws-elasticdrs-orchestrator/buildspecs/
    ```
 
 4. **Package and Upload Lambda Functions**
@@ -512,7 +512,7 @@ Parameters:
    # For each Lambda function
    cd lambda/{function-name}
    zip -r ../../{function-name}.zip . -x "*.pyc" "__pycache__/*"
-   aws s3 cp ../../{function-name}.zip s3://aws-elasticdrs-orchestrator-deployment-dev/lambda/
+   aws s3 cp ../../{function-name}.zip s3://aws-elasticdrs-orchestrator/lambda/
    ```
 
 ### Phase 2: Infrastructure Deployment
@@ -520,11 +520,11 @@ Parameters:
    ```bash
    aws cloudformation create-stack \
      --stack-name aws-elasticdrs-orchestrator-dev \
-     --template-url https://s3.amazonaws.com/aws-elasticdrs-orchestrator-deployment-dev/cfn/master-template.yaml \
+     --template-url https://s3.amazonaws.com/aws-elasticdrs-orchestrator/cfn/master-template.yaml \
      --parameters ParameterKey=ProjectName,ParameterValue=aws-elasticdrs-orchestrator \
                   ParameterKey=Environment,ParameterValue=dev \
-                  ParameterKey=DeploymentBucketName,ParameterValue=aws-elasticdrs-orchestrator-deployment-dev \
-                  ParameterKey=GitHubRepositoryURL,ParameterValue=https://github.com/organization/aws-drs-orchestration \
+                  ParameterKey=DeploymentBucketName,ParameterValue=aws-elasticdrs-orchestrator \
+                  ParameterKey=GitHubRepositoryURL,ParameterValue=https://github.com/johnjcousens/aws-elasticdrs-orchestrator \
                   ParameterKey=AdminEmail,ParameterValue=admin@company.com \
                   ParameterKey=EnableAutomatedDeployment,ParameterValue=true \
      --capabilities CAPABILITY_NAMED_IAM
@@ -550,7 +550,7 @@ Parameters:
    
    # Add GitHub as remote and push initial code
    cd aws-elasticdrs-orchestrator-dev-repo
-   git remote add github https://github.com/organization/aws-drs-orchestration
+   git remote add github https://github.com/johnjcousens/aws-elasticdrs-orchestrator
    git pull github main
    git push origin main
    ```

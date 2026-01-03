@@ -519,7 +519,7 @@ test('should handle API errors gracefully', async () => {
 def test_fresh_deployment_end_to_end():
     """Test complete fresh deployment process."""
     # Phase 1: Setup S3 deployment bucket
-    setup_deployment_bucket('aws-elasticdrs-orchestrator-deployment-dev')
+    setup_deployment_bucket('aws-elasticdrs-orchestrator')
     
     # Phase 2: Upload artifacts
     upload_cloudformation_templates()

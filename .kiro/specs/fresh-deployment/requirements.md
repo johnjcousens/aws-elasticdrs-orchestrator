@@ -34,7 +34,7 @@ Deploy the complete AWS DRS Orchestration platform to a fresh AWS environment wi
 
 #### Acceptance Criteria
 
-1. THE Deployment_System SHALL create an S3 bucket named `aws-elasticdrs-orchestrator-deployment-dev`
+1. THE Deployment_System SHALL create an S3 bucket named `aws-elasticdrs-orchestrator`
 2. WHEN setting up the deployment bucket, THE Deployment_System SHALL upload all CloudFormation templates to the `cfn/` prefix
 3. WHEN setting up the deployment bucket, THE Deployment_System SHALL upload all Lambda packages to the `lambda/` prefix
 4. THE Deployment_System SHALL ensure all Lambda packages are properly structured with dependencies at the root level

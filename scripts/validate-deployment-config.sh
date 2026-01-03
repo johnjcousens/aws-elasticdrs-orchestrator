@@ -125,9 +125,9 @@ if [ "$CHECK_HARDCODED" = true ]; then
     # Check for hardcoded stack names in scripts
     echo "  Checking for hardcoded stack names..."
     HARDCODED_PATTERNS=(
-        "aws-drs-orchestrator-dev"
-        "aws-drs-orchestrator-prod"
-        "aws-drs-orchestrator-test"
+        "aws-elasticdrs-orchestrator-dev"
+        "aws-elasticdrs-orchestrator-prod"
+        "aws-elasticdrs-orchestrator-test"
     )
     
     for pattern in "${HARDCODED_PATTERNS[@]}"; do
@@ -151,7 +151,7 @@ if [ "$CHECK_HARDCODED" = true ]; then
             fi
             
             # Check for hardcoded role names (except in defaults)
-            if grep "drs-orchestration-cross-account-role" "$file" | grep -v "Default:" | grep -q .; then
+            if grep "aws-elasticdrs-orchestrator-cross-account-role" "$file" | grep -v "Default:" | grep -q .; then
                 report_error "$filename contains hardcoded cross-account role name"
             fi
         fi

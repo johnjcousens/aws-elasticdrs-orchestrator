@@ -45,7 +45,7 @@ AWS_PAGER="" aws cloudformation describe-stacks --stack-name stack-name
 
 ### S3 Deployment Bucket (Source of Truth)
 ```
-s3://aws-drs-orchestration/
+s3://aws-elasticdrs-orchestrator/
 ├── cfn/                     # CloudFormation templates (7 total)
 ├── lambda/                  # Lambda deployment packages (5 functions)
 └── frontend/                # Frontend build artifacts

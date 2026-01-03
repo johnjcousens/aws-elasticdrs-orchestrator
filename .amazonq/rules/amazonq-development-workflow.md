@@ -19,11 +19,11 @@
 ```
 
 **This syncs:**
-- CloudFormation templates → `s3://aws-drs-orchestration/cfn/`
-- Lambda source code → `s3://aws-drs-orchestration/lambda/`
-- Frontend source + built dist → `s3://aws-drs-orchestration/frontend/`
-- Scripts and SSM documents → `s3://aws-drs-orchestration/scripts/` and `ssm-documents/`
-- Documentation → `s3://aws-drs-orchestration/docs/`
+- CloudFormation templates → `s3://aws-elasticdrs-orchestrator/cfn/`
+- Lambda source code → `s3://aws-elasticdrs-orchestrator/lambda/`
+- Frontend source + built dist → `s3://aws-elasticdrs-orchestrator/frontend/`
+- Scripts and SSM documents → `s3://aws-elasticdrs-orchestrator/scripts/` and `ssm-documents/`
+- Documentation → `s3://aws-elasticdrs-orchestrator/docs/`
 
 #### 3. Deploy Changes (REQUIRED)
 
@@ -55,10 +55,10 @@
 #### 4. Verify Deployment
 ```bash
 # Check stack status
-aws cloudformation describe-stacks --stack-name aws-drs-orchestrator-dev --region us-east-1
+aws cloudformation describe-stacks --stack-name aws-elasticdrs-orchestrator-dev --region us-east-1
 
 # Verify S3 has latest
-aws s3 ls s3://aws-drs-orchestration/lambda/ --region us-east-1
+aws s3 ls s3://aws-elasticdrs-orchestrator/lambda/ --region us-east-1
 ```
 
 ### GitLab CI/CD Pipeline
@@ -82,7 +82,7 @@ validate → lint → build → test → deploy-infra → deploy-frontend
 - Automated deployment for main/dev branches
 - Manual production deployment
 - Complete artifact upload to S3 deployment bucket
-- Project name: "aws-drs-orchestrator" (matches sync script)
+- Project name: "aws-elasticdrs-orchestrator" (matches sync script)
 
 ## Rules for Amazon Q
 
@@ -151,16 +151,16 @@ Before marking work complete, ALWAYS verify:
 #### 1. S3 Bucket Has Latest Code
 ```bash
 # Check timestamps - should be recent
-aws s3 ls s3://aws-drs-orchestration/lambda/ --region us-east-1
-aws s3 ls s3://aws-drs-orchestration/cfn/ --region us-east-1
-aws s3 ls s3://aws-drs-orchestration/frontend/ --region us-east-1
+aws s3 ls s3://aws-elasticdrs-orchestrator/lambda/ --region us-east-1
+aws s3 ls s3://aws-elasticdrs-orchestrator/cfn/ --region us-east-1
+aws s3 ls s3://aws-elasticdrs-orchestrator/frontend/ --region us-east-1
 ```
 
 #### 2. CloudFormation Templates Are Current
 ```bash
 # Verify master template is valid
 aws cloudformation validate-template \
-  --template-url https://s3.amazonaws.com/aws-drs-orchestration/cfn/master-template.yaml \
+  --template-url https://s3.amazonaws.com/aws-elasticdrs-orchestrator/cfn/master-template.yaml \
   --region us-east-1
 ```
 
@@ -168,12 +168,12 @@ aws cloudformation validate-template \
 **Test command** (don't actually run, just verify it would work):
 ```bash
 aws cloudformation create-stack \
-  --stack-name aws-drs-orchestrator-dev-TEST \
-  --template-url https://s3.amazonaws.com/aws-drs-orchestration/cfn/master-template.yaml \
+  --stack-name aws-elasticdrs-orchestrator-dev-TEST \
+  --template-url https://s3.amazonaws.com/aws-elasticdrs-orchestrator/cfn/master-template.yaml \
   --parameters \
-    ParameterKey=ProjectName,ParameterValue=drs-orchestration \
+    ParameterKey=ProjectName,ParameterValue=aws-elasticdrs-orchestrator \
     ParameterKey=Environment,ParameterValue=dev \
-    ParameterKey=SourceBucket,ParameterValue=aws-drs-orchestration \
+    ParameterKey=SourceBucket,ParameterValue=aws-elasticdrs-orchestrator \
     ParameterKey=AdminEmail,ParameterValue=admin@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 ```
@@ -315,7 +315,7 @@ AWS_PAGER="" aws logs tail /aws/lambda/function-name \
 
 ## S3 Bucket is Source of Truth
 
-**Remember**: `s3://aws-drs-orchestration` must always have the latest:
+**Remember**: `s3://aws-elasticdrs-orchestrator` must always have the latest:
 - CloudFormation templates (7 files: master-template.yaml + 6 nested stacks)
 - Lambda source code (NOT zip packages during sync)
 - Frontend source and built assets

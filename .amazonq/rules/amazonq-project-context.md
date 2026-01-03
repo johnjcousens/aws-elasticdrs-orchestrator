@@ -92,7 +92,7 @@ The solution supports disaster recovery orchestration in all **30 AWS regions** 
 ### Directory Organization
 
 ```text
-AWS-DRS-Orchestration/
+AWS-ElasticDRS-Orchestration/
 ├── cfn/                          # CloudFormation Infrastructure as Code (7 templates)
 ├── frontend/                     # React + CloudScape UI (37 components, 9 pages)
 ├── lambda/                       # Python Lambda functions (5 active functions)
@@ -265,7 +265,7 @@ flowchart LR
 ## S3 Deployment Bucket (Source of Truth)
 
 ```
-s3://aws-drs-orchestration/
+s3://aws-elasticdrs-orchestrator/
 ├── cfn/                     # CloudFormation templates (7 total)
 ├── lambda/                  # Lambda deployment packages (5 functions)
 └── frontend/                # Frontend build artifacts
