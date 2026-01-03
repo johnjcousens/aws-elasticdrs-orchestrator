@@ -11,7 +11,6 @@ import {
   Button,
   Input,
   FormField,
-  Select,
   SpaceBetween,
   Badge,
   ExpandableSection,
