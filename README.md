@@ -6,7 +6,154 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
-[![Release](https://img.shields.io/badge/Release-v1.2.2%20Code%20Quality-green)](https://github.com/your-repo/releases/tag/v1.2.2)
+[![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/jocousen/aws-drs-orchestration)
+[![Release](https://img.shields.io/badge/Release-v1.2.2%20Code%20Quality-green)](https://github.com/jocousen/aws-drs-orchestration/releases/tag/v1.2.2)
+
+## 🤖 **For Agentic AI Agents - Start Here**
+
+This repository is **optimized for AI-assisted development** with comprehensive steering documents and clear entry points.
+
+### **Quick Start for AI Agents**
+
+1. **📋 Project Context**: Read [`.kiro/steering/project-context.md`](.kiro/steering/project-context.md) for complete product overview, architecture, and technology stack
+2. **🛠️ Development Workflow**: Review [`.kiro/steering/development-workflow.md`](.kiro/steering/development-workflow.md) for CI/CD, debugging, and file writing rules
+3. **🎨 Frontend Standards**: Follow [`.kiro/steering/frontend-standards.md`](.kiro/steering/frontend-standards.md) for CloudScape design system compliance
+4. **📐 Technical Standards**: Apply [`.kiro/steering/technical-standards.md`](.kiro/steering/technical-standards.md) for AWS diagrams, Mermaid preferences, and documentation
+
+### **Key Resources for AI Development**
+
+| Resource | Purpose | Location |
+|----------|---------|----------|
+| **Specs Directory** | Feature specifications and implementation plans | [`.kiro/specs/`](.kiro/specs/) |
+| **API Reference** | Complete REST API documentation (42+ endpoints) | [`docs/guides/API_REFERENCE_GUIDE.md`](docs/guides/API_REFERENCE_GUIDE.md) |
+| **Architecture** | System design and AWS service integration | [`docs/architecture/`](docs/architecture/) |
+| **Requirements** | Product requirements and technical specifications | [`docs/requirements/`](docs/requirements/) |
+| **Implementation Guides** | Feature implementation details and patterns | [`docs/implementation/`](docs/implementation/) |
+
+### **Available Specifications**
+
+The [`.kiro/specs/`](.kiro/specs/) directory contains complete feature specifications ready for implementation:
+
+- **[Fresh Deployment](.kiro/specs/fresh-deployment/)** - Complete deployment to new AWS environments
+- **[SNS Notification Integration](.kiro/specs/sns-notification-integration/)** - Real-time notifications via Email/SMS/Slack
+- **[Python Coding Standards](.kiro/specs/python-coding-standards/)** - Code quality and PEP 8 compliance
+- **[Repository Cleanup](.kiro/specs/repository-cleanup/)** - Codebase organization and maintenance
+- **[CI/CD Migration](.kiro/specs/cicd-migration/)** - GitLab to GitHub Actions migration
+
+### **AI Development Workflow**
+
+This repository is designed for seamless AI-assisted development. Follow these patterns when working with AI agents:
+
+#### **Getting Started with AI Agents**
+1. **Read Project Context**: Start with [`.kiro/steering/project-context.md`](.kiro/steering/project-context.md) for complete understanding
+2. **Review Development Rules**: Follow [`.kiro/steering/development-workflow.md`](.kiro/steering/development-workflow.md) for CI/CD and file operations
+3. **Apply Standards**: Use [`.kiro/steering/technical-standards.md`](.kiro/steering/technical-standards.md) and [`.kiro/steering/frontend-standards.md`](.kiro/steering/frontend-standards.md)
+4. **Check Specifications**: Review [`.kiro/specs/`](.kiro/specs/) for available feature specifications
+
+#### **AI Agent Contribution Workflow**
+```mermaid
+flowchart TD
+    A[AI Agent Starts] --> B[Read Steering Documents]
+    B --> C[Identify Task Type]
+    C --> D{New Feature?}
+    D -->|Yes| E[Check .kiro/specs/]
+    D -->|No| F[Review Existing Code]
+    E --> G[Follow Spec Requirements]
+    F --> H[Apply Standards]
+    G --> H
+    H --> I[Generate/Modify Code]
+    I --> J[Follow CloudScape Standards]
+    J --> K[Use AWS 2025 Icons]
+    K --> L[Create Mermaid Diagrams]
+    L --> M[Validate with Tools]
+    M --> N[Submit Changes]
+```
+
+#### **Key AI Development Rules**
+- **CloudScape Only**: Never deviate from AWS CloudScape Design System
+- **AWS Standards**: Use AWS 2025 (AWS4) icon format for all diagrams
+- **Mermaid Preferred**: Use Mermaid diagrams instead of ASCII art
+- **Token Efficiency**: Follow terminal rules to avoid token exhaustion
+- **Consistent Patterns**: Follow established API, UI, and documentation patterns
+
+#### **Available Specifications for Implementation**
+
+The [`.kiro/specs/`](.kiro/specs/) directory contains ready-to-implement specifications:
+
+| Specification | Status | Description | Estimated Effort |
+|---------------|--------|-------------|------------------|
+| **[Fresh Deployment](.kiro/specs/fresh-deployment/)** | Ready | Complete deployment to new AWS environments with CI/CD | 2-3 weeks |
+| **[SNS Notification Integration](.kiro/specs/sns-notification-integration/)** | Ready | Real-time notifications via Email/SMS/Slack | 1-2 weeks |
+| **[Python Coding Standards](.kiro/specs/python-coding-standards/)** | ✅ Completed | Code quality and PEP 8 compliance (v1.2.2) | Completed |
+| **[Repository Cleanup](.kiro/specs/repository-cleanup/)** | Ready | Codebase organization and maintenance | 1 week |
+| **[CI/CD Migration](.kiro/specs/cicd-migration/)** | In Progress | GitLab to GitHub Actions migration | 1 week |
+
+Each specification includes:
+- **Requirements**: Complete user stories and acceptance criteria
+- **Design**: Technical architecture and implementation approach
+- **Tasks**: Detailed task breakdown with dependencies
+- **Implementation**: Step-by-step development guide
+
+### **GitHub Migration Status**
+
+✅ **Repository migrated from GitLab to GitHub** (January 2026)
+- **Source Code**: All source code, documentation, and commit history preserved
+- **CI/CD Pipeline**: GitHub Actions workflow configured (migrated from GitLab CI)
+- **Issue Tracking**: GitHub Issues enabled with templates for bug reports and feature requests
+- **Project Management**: GitHub Projects configured for roadmap and sprint planning
+- **Releases**: GitHub Releases with automated changelog generation
+- **Security**: Dependabot alerts and security advisories enabled
+- **Documentation**: Comprehensive README updated with GitHub-specific workflows
+
+### **GitHub Repository Links**
+
+| Resource | Link | Description |
+|----------|------|-------------|
+| **Repository** | [github.com/jocousen/aws-drs-orchestration](https://github.com/jocousen/aws-drs-orchestration) | Main repository with all source code |
+| **Issues** | [Issues](https://github.com/jocousen/aws-drs-orchestration/issues) | Bug reports, feature requests, and discussions |
+| **Projects** | [Projects](https://github.com/jocousen/aws-drs-orchestration/projects) | Project management and roadmap tracking |
+| **Releases** | [Releases](https://github.com/jocousen/aws-drs-orchestration/releases) | Version releases with changelogs |
+| **Actions** | [Actions](https://github.com/jocousen/aws-drs-orchestration/actions) | CI/CD pipeline status and build history |
+| **Security** | [Security](https://github.com/jocousen/aws-drs-orchestration/security) | Security advisories and vulnerability reports |
+| **Insights** | [Insights](https://github.com/jocousen/aws-drs-orchestration/pulse) | Repository analytics and contributor activity |
+
+### **GitHub Actions CI/CD Pipeline**
+
+The repository includes a comprehensive GitHub Actions workflow (`.github/workflows/ci-cd.yml`) that provides:
+
+#### **Pipeline Stages**
+1. **Validation**: CloudFormation template validation and TypeScript type checking
+2. **Linting**: Python code quality (Black, Flake8, isort) and frontend ESLint
+3. **Building**: Lambda deployment packages and React frontend build
+4. **Testing**: Unit tests, integration tests, and E2E testing (when enabled)
+5. **Infrastructure Deployment**: CloudFormation stack deployment to AWS
+6. **Frontend Deployment**: React app deployment to S3 + CloudFront
+
+#### **Automated Workflows**
+- **Pull Request Validation**: Automatic validation and testing on all PRs
+- **Main Branch Deployment**: Automatic deployment to test environment on main branch
+- **Production Deployment**: Manual approval required for production releases
+- **Dependency Updates**: Dependabot automatic dependency updates with security scanning
+- **Release Management**: Automated changelog generation and GitHub Releases
+
+#### **Environment Variables Required**
+```yaml
+# AWS Credentials (Repository Secrets)
+AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}  # If using temporary credentials
+
+# Deployment Configuration
+AWS_DEFAULT_REGION: us-east-1
+DEPLOYMENT_BUCKET: aws-drs-orchestration
+ADMIN_EMAIL: admin@yourcompany.com
+```
+
+#### **Branch Protection Rules**
+- **Main Branch**: Requires PR reviews, status checks, and up-to-date branches
+- **Status Checks**: All CI/CD pipeline stages must pass before merge
+- **Review Requirements**: At least 1 approving review required for PRs
+- **Dismiss Stale Reviews**: Automatically dismiss reviews when new commits are pushed
 
 ## 🚀 **Latest Release: v1.2.2 - Code Quality Enhancement**
 
@@ -536,7 +683,7 @@ This security model enables automated tag synchronization while maintaining ente
 | Document | Description |
 |----------|-------------|
 | [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) | Complete deployment, configuration, and operational procedures |
-| [Multi-Account Setup Guide](docs/guides/MULTI_ACCOUNT_SETUP_GUIDE.md) | Cross-account hub and spoke configuration |
+| [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md) | Cross-account hub and spoke configuration |
 | [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) | Development, testing, and CI/CD procedures |
 | [Parameterization Summary](docs/implementation/PARAMETERIZATION_SUMMARY.md) | Configuration management and hardcoded value elimination |
 
@@ -890,6 +1037,20 @@ The `baseline_violations_report.txt` provides complete documentation of all reso
 - **Standards Evolution**: Regular updates to coding standards based on industry best practices
 
 This comprehensive code quality implementation ensures the AWS DRS Orchestration platform maintains enterprise-grade code standards while preserving all existing functionality and performance characteristics.
+
+## Next Steps
+
+For new deployments and fresh environment setup, see the comprehensive [Fresh Deployment Specification](.kiro/specs/fresh-deployment/) which includes:
+
+- **[Requirements](.kiro/specs/fresh-deployment/requirements.md)** - Complete deployment requirements and acceptance criteria
+- **[Design Document](.kiro/specs/fresh-deployment/design.md)** - Detailed technical architecture and implementation approach  
+- **[CI/CD Pipeline Specification](.kiro/specs/fresh-deployment/cicd-pipeline-specification.md)** - Automated deployment pipeline design
+- **[Security & Compliance](.kiro/specs/fresh-deployment/security-compliance-specification.md)** - Security controls and compliance requirements
+- **[Testing Strategy](.kiro/specs/fresh-deployment/testing-strategy.md)** - Comprehensive testing approach and validation
+- **[Migration Strategy](.kiro/specs/fresh-deployment/migration-strategy.md)** - Migration planning and execution strategy
+- **[Implementation Tasks](.kiro/specs/fresh-deployment/tasks.md)** - Detailed task breakdown and dependencies
+
+This specification provides everything needed to deploy the complete AWS DRS Orchestration platform to a fresh AWS environment with the project name `aws-elasticdrs-orchestrator` and environment `dev`.
 
 ## Contributing
 
