@@ -60,38 +60,6 @@ Conditions:
   EnableNotifications: !Equals [!Ref EnablePipelineNotifications, 'true']
 
 Resources:
-  # SNS Topic for Pipeline Notifications (Conditional)
-  PipelineNotificationsTopic:
-    Type: AWS::SNS::Topic
-    Condition: EnableNotifications
-    Properties:
-      TopicName: !Sub '${ProjectName}-pipeline-notifications-${Environment}'
-      DisplayName: 'CodePipeline and Security Scan Notifications'
-      
-  PipelineNotificationsSubscription:
-    Type: AWS::SNS::Subscription
-    Condition: EnableNotifications
-    Properties:
-      Protocol: email
-      TopicArn: !Ref PipelineNotificationsTopic
-      Endpoint: !Ref AdminEmail
-
-  # SNS Topic Policy to allow EventBridge to publish (Conditional)
-  PipelineNotificationsTopicPolicy:
-    Type: AWS::SNS::TopicPolicy
-    Condition: EnableNotifications
-    Properties:
-      Topics:
-        - !Ref PipelineNotificationsTopic
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sns:Publish
-            Resource: !Ref PipelineNotificationsTopic
-
   # IAM Role for CodePipeline
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -151,7 +119,8 @@ Resources:
                 - Effect: Allow
                   Action:
                     - sns:Publish
-                  Resource: !Ref PipelineNotificationsTopic
+                  Resource: 
+                    Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-PipelineNotificationsTopicArn'
                 - !Ref AWS::NoValue
       Tags:
         - Key: Project
@@ -315,8 +284,9 @@ Resources:
             - FAILED
       State: ENABLED
       Targets:
-        - Arn: !Ref PipelineNotificationsTopic
-          Id: PipelineFailureNotification
+        - Arn: 
+            Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterArn'
+          Id: PipelineFailureNotificationFormatter
         - Arn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/events/codepipeline'
           Id: PipelineLogTarget
 
@@ -339,8 +309,31 @@ Resources:
             - FAILED
       State: ENABLED
       Targets:
-        - Arn: !Ref PipelineNotificationsTopic
-          Id: SecurityScanFailureNotification
+        - Arn: 
+            Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterArn'
+          Id: SecurityScanFailureNotificationFormatter
+
+  # EventBridge Permission for Pipeline Events to invoke Notification Formatter Lambda
+  PipelineEventRuleLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableNotifications
+    Properties:
+      FunctionName: 
+        Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterName'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt PipelineEventRule.Arn
+
+  # EventBridge Permission for Security Scan Events to invoke Notification Formatter Lambda
+  SecurityScanEventRuleLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableNotifications
+    Properties:
+      FunctionName: 
+        Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterName'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt SecurityScanFailureEventRule.Arn
 
   # CloudWatch Log Group for Pipeline Events
   PipelineLogGroup:
@@ -388,7 +381,8 @@ Outputs:
 
   PipelineNotificationsTopicArn:
     Description: 'Pipeline notifications SNS topic ARN'
-    Value: !Ref PipelineNotificationsTopic
+    Value: 
+      Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-PipelineNotificationsTopicArn'
     Export:
       Name: !Sub '${AWS::StackName}-PipelineNotificationsTopicArn'
     Condition: EnableNotifications
