@@ -70,9 +70,10 @@ export const TagSyncConfigPanel: React.FC<TagSyncConfigPanelProps> = ({
       setEnabled(response.enabled);
       setIntervalHours(response.intervalHours);
       
-    } catch (err: any) {
-      console.error('Failed to load tag sync settings:', err);
-      setError(err.message || 'Failed to load tag sync settings');
+    } catch (err: unknown) {
+      const error = err as Error & { message?: string };
+      console.error('Failed to load tag sync settings:', error);
+      setError(error.message || 'Failed to load tag sync settings');
     } finally {
       setLoading(false);
     }
@@ -100,9 +101,10 @@ export const TagSyncConfigPanel: React.FC<TagSyncConfigPanelProps> = ({
         onConfigurationChange();
       }
       
-    } catch (err: any) {
-      console.error('Failed to update tag sync settings:', err);
-      const errorMessage = err.message || 'Failed to update tag sync settings';
+    } catch (err: unknown) {
+      const error = err as Error & { message?: string };
+      console.error('Failed to update tag sync settings:', error);
+      const errorMessage = error.message || 'Failed to update tag sync settings';
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
