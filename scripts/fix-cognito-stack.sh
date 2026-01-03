@@ -5,8 +5,8 @@ set -e
 export AWS_PAGER=""
 
 REGION="us-east-1"
-BUCKET="aws-drs-orchestration"
-NEW_STACK_NAME="drs-orchestration-fixed"
+BUCKET="aws-elasticdrs-orchestrator"
+NEW_STACK_NAME="elasticdrs-orchestration-fixed"
 
 echo "🔧 Fixing Cognito Identity Pool Role Attachment Issue"
 echo "======================================================"
@@ -18,7 +18,7 @@ aws cloudformation create-stack \
   --stack-name "$NEW_STACK_NAME" \
   --template-url "https://$BUCKET.s3.$REGION.amazonaws.com/cfn/master-template.yaml" \
   --parameters \
-    ParameterKey=ProjectName,ParameterValue="drs-orchestration" \
+    ParameterKey=ProjectName,ParameterValue="aws-elasticdrs-orchestrator" \
     ParameterKey=Environment,ParameterValue="dev" \
     ParameterKey=SourceBucket,ParameterValue="$BUCKET" \
     ParameterKey=AdminEmail,ParameterValue="jocousen@amazon.com" \

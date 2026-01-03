@@ -11,8 +11,8 @@ ENVIRONMENT="test"
 REGION="us-east-1"
 PROFILE=""
 ADMIN_EMAIL=""
-DEPLOYMENT_BUCKET="aws-drs-orchestration"
-PROJECT_NAME="drs-orchestration"
+DEPLOYMENT_BUCKET="aws-elasticdrs-orchestrator"
+PROJECT_NAME="aws-elasticdrs-orchestrator"
 DRY_RUN=false
 SKIP_USER_SETUP=false
 
@@ -33,8 +33,8 @@ usage() {
     echo "  -r, --region REGION       AWS Region [default: us-east-1]"
     echo "  -p, --profile PROFILE     AWS Profile to use"
     echo "  -a, --admin-email EMAIL   Admin email for Cognito (required)"
-    echo "  -b, --bucket BUCKET       S3 deployment bucket [default: aws-drs-orchestration]"
-    echo "  -n, --project-name NAME   Project name [default: drs-orchestration]"
+    echo "  -b, --bucket BUCKET       S3 deployment bucket [default: aws-elasticdrs-orchestrator]"
+    echo "  -n, --project-name NAME   Project name [default: aws-elasticdrs-orchestrator]"
     echo "  --dry-run                 Show what would be deployed without executing"
     echo "  --skip-user-setup         Skip initial user setup"
     echo "  -h, --help                Show this help message"
