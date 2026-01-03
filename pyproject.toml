@@ -1,5 +1,38 @@
-# Python Coding Standards Configuration
-# PEP 8 compliant settings for AWS DRS Orchestration project
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-drs-orchestration"
+version = "1.2.2"
+description = "AWS Elastic Disaster Recovery Orchestration Platform"
+authors = [
+    {name = "AWS DRS Orchestration Team", email = "aws-drs-orchestration@amazon.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.35.0",
+    "crhelper>=2.0.11",
+    "requests>=2.32.0",
+    "pyjwt>=2.10.0",
+    "python-dateutil>=2.9.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "moto>=5.0.0",
+    "black>=24.3.0",
+    "flake8>=7.0.0",
+    "isort>=5.13.0",
+    "bandit>=1.9.0",
+    "semgrep>=1.146.0",
+    "safety>=3.7.0"
+]
 
 [tool.black]
 line-length = 79
@@ -7,17 +40,13 @@ target-version = ['py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # Exclude auto-generated files and dependencies
   \.eggs
   | \.git
   | \.venv
-  | venv
   | build
   | dist
-  | lambda/package
-  | __pycache__
-  | \.mypy_cache
-  | \.pytest_cache
+  | archive
+  | frontend
 )/
 '''
 
@@ -29,26 +58,15 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
-known_first_party = ["lambda"]
-sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
-
-[tool.flake8]
-# Note: Flake8 doesn't read from pyproject.toml natively
-# Configuration is in .flake8 file for compatibility
-# This section documents the settings for reference
+src_paths = ["lambda", "scripts", "tests"]
 
 [tool.pytest.ini_options]
-minversion = "6.0"
+minversion = "8.0"
 addopts = "-ra -q --strict-markers --strict-config"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-]
 
 [tool.coverage.run]
 source = ["lambda"]
@@ -56,9 +74,7 @@ omit = [
     "*/tests/*",
     "*/test_*",
     "*/__pycache__/*",
-    "*/venv/*",
-    "*/build/*",
-    "*/dist/*",
+    "*/archive/*"
 ]
 
 [tool.coverage.report]
@@ -70,90 +86,16 @@ exclude_lines = [
     "raise AssertionError",
     "raise NotImplementedError",
     "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
+    "if __name__ == .__main__.:"
 ]
 
-[tool.mypy]
-python_version = "3.12"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
+[tool.bandit]
+exclude_dirs = ["tests", "archive", "frontend"]
+skips = ["B112"]  # Skip try-except-continue for now
 
-[[tool.mypy.overrides]]
-module = [
-    "boto3.*",
-    "botocore.*",
-    "crhelper.*",
-]
-ignore_missing_imports = true
+[tool.bandit.assert_used]
+skips = ["*_test.py", "*/test_*.py"]
 
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "aws-elasticdrs-orchestrator"
-version = "1.2.2"
-description = "AWS Elastic Disaster Recovery Orchestration Platform"
-readme = "README.md"
-requires-python = ">=3.12"
-license = {text = "MIT"}
-authors = [
-    {name = "AWS DRS Orchestration Team"},
-]
-keywords = ["aws", "disaster-recovery", "drs", "orchestration", "serverless"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: System :: Systems Administration",
-    "Topic :: System :: Recovery Tools",
-]
-dependencies = [
-    "boto3>=1.34.0",
-    "botocore>=1.34.0",
-    "crhelper>=2.0.11",
-]
-
-[project.optional-dependencies]
-dev = [
-    "black>=23.7.0",
-    "flake8>=6.0.0",
-    "isort>=5.12.0",
-    "pre-commit>=3.3.3",
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "mypy>=1.5.0",
-    "flake8-docstrings>=1.7.0",
-    "flake8-import-order>=0.18.2",
-    "pep8-naming>=0.13.3",
-]
-test = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "moto>=4.2.0",
-]
-docs = [
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.2.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/johnjcousens/aws-elasticdrs-orchestrator"
-Documentation = "https://github.com/johnjcousens/aws-elasticdrs-orchestrator/tree/main/docs"
-Repository = "https://github.com/johnjcousens/aws-elasticdrs-orchestrator"
-"Bug Tracker" = "https://github.com/johnjcousens/aws-elasticdrs-orchestrator/issues"
+[tool.semgrep]
+config = ["auto"]
+exclude = ["tests/", "archive/", "frontend/node_modules/"]

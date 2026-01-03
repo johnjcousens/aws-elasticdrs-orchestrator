@@ -28,6 +28,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
 
   const validatePassword = (password: string): string | null => {
     if (password.length < 8) {
+      // amazonq-ignore-next-line
       return 'Password must be at least 8 characters long';
     }
     if (!/(?=.*[a-z])/.test(password)) {

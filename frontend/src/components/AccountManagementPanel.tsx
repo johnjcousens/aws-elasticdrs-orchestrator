@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Header,
@@ -71,7 +71,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   const [saving, setSaving] = useState(false);
 
   // Fetch current account info for wizard
-  const fetchCurrentAccount = async () => {
+  const fetchCurrentAccount = useCallback(async () => {
     if (!showWizardMode) return;
     
     setLoadingCurrentAccount(true);
@@ -84,9 +84,9 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     } finally {
       setLoadingCurrentAccount(false);
     }
-  };
+  }, [showWizardMode]);
 
-  const refreshAccounts = async () => {
+  const refreshAccounts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -107,7 +107,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [defaultAccountId, onAccountsChange]);
 
   useEffect(() => {
     refreshAccounts();
