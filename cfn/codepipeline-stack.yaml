@@ -119,8 +119,7 @@ Resources:
                 - Effect: Allow
                   Action:
                     - sns:Publish
-                  Resource: 
-                    Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-PipelineNotificationsTopicArn'
+                  Resource: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-pipeline-notifications-${Environment}'
                 - !Ref AWS::NoValue
       Tags:
         - Key: Project
@@ -284,8 +283,7 @@ Resources:
             - FAILED
       State: ENABLED
       Targets:
-        - Arn: 
-            Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterArn'
+        - Arn: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-notification-formatter-${Environment}'
           Id: PipelineFailureNotificationFormatter
         - Arn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/events/codepipeline'
           Id: PipelineLogTarget
@@ -309,8 +307,7 @@ Resources:
             - FAILED
       State: ENABLED
       Targets:
-        - Arn: 
-            Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterArn'
+        - Arn: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-notification-formatter-${Environment}'
           Id: SecurityScanFailureNotificationFormatter
 
   # EventBridge Permission for Pipeline Events to invoke Notification Formatter Lambda
@@ -318,8 +315,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: EnableNotifications
     Properties:
-      FunctionName: 
-        Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterName'
+      FunctionName: !Sub '${ProjectName}-notification-formatter-${Environment}'
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt PipelineEventRule.Arn
@@ -329,8 +325,7 @@ Resources:
     Type: AWS::Lambda::Permission
     Condition: EnableNotifications
     Properties:
-      FunctionName: 
-        Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-NotificationFormatterName'
+      FunctionName: !Sub '${ProjectName}-notification-formatter-${Environment}'
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt SecurityScanFailureEventRule.Arn
@@ -381,8 +376,7 @@ Outputs:
 
   PipelineNotificationsTopicArn:
     Description: 'Pipeline notifications SNS topic ARN'
-    Value: 
-      Fn::ImportValue: !Sub '${ProjectName}-lambda-${Environment}-PipelineNotificationsTopicArn'
+    Value: !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-pipeline-notifications-${Environment}'
     Export:
       Name: !Sub '${AWS::StackName}-PipelineNotificationsTopicArn'
     Condition: EnableNotifications

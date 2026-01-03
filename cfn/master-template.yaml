@@ -184,10 +184,7 @@ Resources:
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
         TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
-        NotificationTopicArn: !If 
-          - EnableCICDCondition
-          - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-pipeline-notifications-${Environment}'
-          - ""
+        NotificationTopicArn: ""
         CrossAccountRoleName: !Ref CrossAccountRoleName
         AdminEmail: !Ref AdminEmail
         EnablePipelineNotifications: !Ref EnablePipelineNotifications
