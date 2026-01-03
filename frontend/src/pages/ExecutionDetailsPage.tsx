@@ -69,8 +69,9 @@ export const ExecutionDetailsPage: React.FC = () => {
       if (data.status !== 'paused' && resumeInProgress) {
         setResumeInProgress(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load execution details');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load execution details';
+      setError(errorMessage);
     } finally {
       if (!silent) {
         setLoading(false);
@@ -196,8 +197,9 @@ export const ExecutionDetailsPage: React.FC = () => {
       await apiClient.cancelExecution(executionId);
       setCancelDialogOpen(false);
       await fetchExecution();
-    } catch (err: any) {
-      setCancelError(err.message || 'Failed to cancel execution');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel execution';
+      setCancelError(errorMessage);
     } finally {
       setCancelling(false);
     }
@@ -214,8 +216,9 @@ export const ExecutionDetailsPage: React.FC = () => {
       await apiClient.resumeExecution(executionId);
       await fetchExecution();
       // Keep resumeInProgress true - status polling will update when execution resumes
-    } catch (err: any) {
-      setResumeError(err.message || 'Failed to resume execution');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to resume execution';
+      setResumeError(errorMessage);
       setResumeInProgress(false); // Only reset on error so button can be retried
     } finally {
       setResuming(false);
@@ -242,8 +245,8 @@ export const ExecutionDetailsPage: React.FC = () => {
       } else if (result.totalTerminated > 0) {
         // Termination INITIATED (not completed) - DRS job created
         // Store job info for progress tracking
-        const resultAny = result as any;
-        const jobIds = (resultAny.jobs || []).map((j: any) => j.jobId).filter(Boolean);
+        const resultAny = result as { jobs?: Array<{ jobId: string; region?: string }> };
+        const jobIds = (resultAny.jobs || []).map((j) => j.jobId).filter(Boolean);
         // Get region from first job or execution
         const region = (resultAny.jobs?.[0]?.region) || (execution as any)?.drsRegion || 'us-west-2';
         setTerminationJobInfo({
@@ -264,12 +267,13 @@ export const ExecutionDetailsPage: React.FC = () => {
       await fetchExecution();
     } catch (err: any) {
       // Check if error indicates already terminated
-      const errorMsg = err.message || '';
+      const errorMsg = err instanceof Error ? err.message : '';
       if (errorMsg.includes('No recovery instances') || errorMsg.includes('already')) {
         setTerminateSuccess('Recovery instances have already been terminated or do not exist.');
         await fetchExecution();
       } else {
-        setTerminateError(err.message || 'Failed to terminate recovery instances');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to terminate recovery instances';
+        setTerminateError(errorMessage);
       }
       setTerminationInProgress(false);
     } finally {
@@ -360,7 +364,7 @@ export const ExecutionDetailsPage: React.FC = () => {
         wavePhaseProgress = 0.5;
       } else if (serverStatuses.length > 0) {
         // Check individual server launch statuses
-        const launchStatuses = serverStatuses.map((s: any) => 
+        const launchStatuses = serverStatuses.map((s: { LaunchStatus?: string; launchStatus?: string }) => 
           (s.LaunchStatus || s.launchStatus || 'PENDING').toUpperCase()
         );
         
@@ -442,7 +446,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     
     // Check if any wave has a jobId (meaning recovery instances were launched)
     const waves = (execution as any).waves || execution.waveExecutions || [];
-    const hasJobId = waves.some((wave: any) => wave.jobId || wave.JobId);
+    const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || wave.JobId);
     
     // Don't show button if already terminated
     if (instancesAlreadyTerminated) return false;

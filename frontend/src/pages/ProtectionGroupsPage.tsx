@@ -9,11 +9,8 @@ import React, { useState, useEffect } from 'react';
 import type { ProtectionGroup } from '../types';
 import {
   Box,
-  SpaceBetween,
-  Button,
   Header,
   Table,
-  ButtonDropdown,
   Pagination,
   TextFilter,
 } from '@cloudscape-design/components';

@@ -26,8 +26,6 @@ export interface LoadingStateProps {
 export const LoadingState: React.FC<LoadingStateProps> = ({
   variant = 'spinner',
   message = 'Loading...',
-  rows = 5,
-  height = 60,
 }) => {
   if (variant === 'inline') {
     return (

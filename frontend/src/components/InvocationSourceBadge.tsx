@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Badge, Icon, SpaceBetween } from '@cloudscape-design/components';
+import { Badge, Icon } from '@cloudscape-design/components';
 
 export type InvocationSource = 'UI' | 'CLI' | 'EVENTBRIDGE' | 'SSM' | 'STEPFUNCTIONS' | 'API';
 

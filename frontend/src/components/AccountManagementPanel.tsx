@@ -19,7 +19,7 @@ import type { SelectProps } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import apiClient from '../services/api';
 import { useAccount } from '../contexts/AccountContext';
-import { PermissionAwareButton, PermissionSection } from './PermissionAware';
+import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../contexts/PermissionsContext';
 
 export interface TargetAccount {
@@ -78,7 +78,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     try {
       const currentAccountInfo = await apiClient.getCurrentAccount();
       setCurrentAccount(currentAccountInfo);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching current account:', err);
       // Don't show error toast for this - it's not critical
     } finally {
@@ -101,9 +101,9 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         // Apply the default account selection immediately
         applyDefaultAccount(singleAccount.accountId);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching accounts:', err);
-      setError(err.message || 'Failed to load target accounts');
+      setError(err instanceof Error ? err.message : 'Failed to load target accounts');
     } finally {
       setLoading(false);
     }
@@ -112,7 +112,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   useEffect(() => {
     refreshAccounts();
     fetchCurrentAccount();
-  }, [showWizardMode]);
+  }, [showWizardMode, refreshAccounts, fetchCurrentAccount]);
 
   // Notify parent component when accounts change
   React.useEffect(() => {
@@ -135,9 +135,9 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       toast.success(`Current account ${currentAccount.accountName} (${currentAccount.accountId}) added successfully and set as default`);
       
       await refreshAccounts();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error adding current account:', err);
-      toast.error(err.message || 'Failed to add current account');
+      toast.error(err instanceof Error ? err.message : 'Failed to add current account');
     } finally {
       setSaving(false);
     }
@@ -183,8 +183,12 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     
     setSaving(true);
     try {
-      const accountData: any = {
+      const accountData = {
         accountId: formData.accountId.trim(),
+        accountName: '',
+        stagingAccountId: '',
+        stagingAccountName: '',
+        crossAccountRoleArn: '',
       };
 
       // For updates, always include all fields (even if empty) so they get updated
@@ -221,9 +225,9 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       
       await refreshAccounts();
       handleCloseModal();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error saving target account:', err);
-      toast.error(err.message || 'Failed to save target account');
+      toast.error(err instanceof Error ? err.message : 'Failed to save target account');
     } finally {
       setSaving(false);
     }
@@ -236,9 +240,9 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       await apiClient.deleteTargetAccount(accountId);
       toast.success('Target account removed successfully');
       await refreshAccounts();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error deleting target account:', err);
-      toast.error(err.message || 'Failed to remove target account');
+      toast.error(err instanceof Error ? err.message : 'Failed to remove target account');
     }
   };
 
@@ -247,9 +251,9 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       await apiClient.validateTargetAccount(accountId);
       toast.success('Account validation successful');
       await refreshAccounts();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error validating target account:', err);
-      toast.error(err.message || 'Account validation failed');
+      toast.error(err instanceof Error ? err.message : 'Account validation failed');
     }
   };
 

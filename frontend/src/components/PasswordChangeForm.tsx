@@ -39,7 +39,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
     if (!/(?=.*\d)/.test(password)) {
       return 'Password must contain at least one number';
     }
-    if (!/(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/.test(password)) {
+    if (!/(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/.test(password)) {
       return 'Password must contain at least one special character';
     }
     return null;

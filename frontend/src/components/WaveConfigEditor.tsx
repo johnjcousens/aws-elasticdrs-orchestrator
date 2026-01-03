@@ -133,7 +133,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
     setExpandedWave(newIndex);
   };
 
-  const handleUpdateWave = (waveNumber: number, field: keyof Wave, value: any) => {
+  const handleUpdateWave = (waveNumber: number, field: keyof Wave, value: string | boolean | string[] | number) => {
     const updatedWaves = safeWaves.map(w =>
       w.waveNumber === waveNumber ? { ...w, [field]: value } : w
     );

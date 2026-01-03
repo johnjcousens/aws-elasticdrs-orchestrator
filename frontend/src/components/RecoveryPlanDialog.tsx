@@ -22,7 +22,7 @@ import {
 import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
 import apiClient from '../services/api';
-import { DRS_LIMITS, validateWaveSize } from '../services/drsQuotaService';
+import { DRS_LIMITS } from '../services/drsQuotaService';
 import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../contexts/PermissionsContext';
 
@@ -96,8 +96,9 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       setLoadingGroups(true);
       const data = await apiClient.listProtectionGroups();
       setProtectionGroups(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load protection groups');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load protection groups';
+      setError(errorMessage);
     } finally {
       setLoadingGroups(false);
     }
@@ -164,7 +165,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
       if (plan) {
         // Update existing plan - each wave uses its own Protection Group
-        const updateData: any = {
+        const updateData: Partial<RecoveryPlan> = {
           PlanName: name,
           Description: description,
           Waves: waves.map((wave, index) => ({
@@ -204,17 +205,18 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
             }))
           }))
         };
-        const newPlan = await apiClient.createRecoveryPlan(createData as any);
+        const newPlan = await apiClient.createRecoveryPlan(createData);
         onSave(newPlan);
       }
 
       handleClose();
-    } catch (err: any) {
-      if (err.isVersionConflict) {
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'isVersionConflict' in err && err.isVersionConflict) {
         // Optimistic locking conflict - another user modified the resource
         setError('This recovery plan was modified by another user. Please close and reopen to get the latest version.');
       } else {
-        setError(err.message || 'Failed to save recovery plan');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to save recovery plan';
+        setError(errorMessage);
       }
     } finally {
       setLoading(false);

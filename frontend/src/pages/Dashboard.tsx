@@ -16,14 +16,12 @@ import {
   Spinner,
   PieChart,
   Button,
-  Alert,
 } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
-import { AccountSelector } from '../components/AccountSelector';
 import { RegionSelector } from '../components/RegionSelector';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { useAccount } from '../contexts/AccountContext';

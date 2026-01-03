@@ -10,7 +10,6 @@ import {
   Select,
   Box,
   StatusIndicator,
-  SpaceBetween,
 } from '@cloudscape-design/components';
 import type { SelectProps } from '@cloudscape-design/components';
 import { useAccount } from '../contexts/AccountContext';
@@ -23,7 +22,6 @@ export const AccountSelector: React.FC = () => {
     accountsLoading,
     accountsError,
     hasSelectedAccount,
-    getAccountSelectionMessage,
   } = useAccount();
 
   // Convert accounts to select options
