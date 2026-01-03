@@ -16,7 +16,7 @@ import {
   fetchUserAttributes,
 } from 'aws-amplify/auth';
 import type { SignInInput, SignInOutput } from 'aws-amplify/auth';
-import type { User, AuthState } from '../types';
+import type { AuthState } from '../types';
 
 // Flag to track if Amplify has been configured
 let amplifyConfigured = false;
@@ -139,7 +139,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   /**
    * Clean up timer on unmount
@@ -148,7 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => {
       clearLogoutTimer();
     };
-  }, []);
+  }, [clearLogoutTimer]);
 
   /**
    * Check current authentication status
@@ -289,12 +289,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Sign in failed:', error);
       setAuthState((prev) => ({
         ...prev,
         loading: false,
-        error: error.message || 'Sign in failed',
+        error: error instanceof Error ? error.message : 'Sign in failed',
       }));
       setNeedsPasswordChange(false);
       setCurrentUsername(null);
@@ -338,7 +338,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading: false,
         error: undefined,
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Sign out failed:', error);
       // Clear timer even if sign out fails
       clearLogoutTimer();
@@ -346,7 +346,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setAuthState((prev) => ({
         ...prev,
         loading: false,
-        error: error.message || 'Sign out failed',
+        error: error instanceof Error ? error.message : 'Sign out failed',
       }));
       throw error;
     }

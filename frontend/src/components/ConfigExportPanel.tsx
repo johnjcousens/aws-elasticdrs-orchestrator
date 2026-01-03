@@ -35,7 +35,7 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
       
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const sanitizedTimestamp = String(timestamp).replace(/[^a-zA-Z0-9\-]/g, '');
+      const sanitizedTimestamp = String(timestamp).replace(/[^a-zA-Z0-9-]/g, '');
       const filename = `drs-orchestration-config-${sanitizedTimestamp}.json`;
       
       // Create blob and trigger download
