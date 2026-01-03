@@ -46,10 +46,8 @@ phases:
       - echo "Directory contents:"
       - ls -la lambda/ | head -10
       - echo "Running Black validation..."
-      - echo "TEMPORARILY DISABLED - Black validation disabled due to environment differences"
-      - echo "Files pass Black validation locally but fail in CodeBuild environment"
-      - echo "This needs investigation - likely line ending or Python version differences"
-      - echo "Python code formatting check skipped"
+      - black --check --line-length=79 lambda/
+      - echo "Python code formatting is correct"
       - echo "Checking import sorting with isort..."
       - isort --check-only --profile=black lambda/
       - echo "Import sorting is correct"
