@@ -215,7 +215,7 @@ export interface Wave {
 export interface WaveAction {
   actionType: 'ssm-automation' | 'lambda' | 'wait' | 'approval';
   actionName: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   timeoutSeconds?: number;
   retryConfig?: RetryConfig;
 }
@@ -288,7 +288,7 @@ export interface Execution {
   waveExecutions: WaveExecution[];
   executedBy?: string;
   error?: ExecutionError;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   pausedBeforeWave?: number;  // Wave number that execution is paused before (0-indexed)
 }
 
@@ -336,7 +336,7 @@ export interface ActionStatus {
   startTime?: string;
   endTime?: string;
   duration?: number;
-  output?: any;
+  output?: unknown;
   error?: ExecutionError;
 }
 
@@ -345,13 +345,13 @@ export interface HealthCheckResult {
   status: 'passed' | 'failed' | 'warning';
   timestamp: string;
   message?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export interface ExecutionError {
   code: string;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -361,7 +361,7 @@ export interface ExecuteRecoveryPlanRequest {
   dryRun?: boolean;
   skipHealthChecks?: boolean;
   startFromWave?: number;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   executedBy?: string;  // Added for backend compatibility
   topicArn?: string;    // Added for backend SNS notifications
 }
@@ -418,7 +418,7 @@ export interface ApiResponse<T> {
 export interface ApiError {
   code: string;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export interface PaginatedResponse<T> {
@@ -588,7 +588,7 @@ export interface ExecutionTimeline {
 export interface User {
   username: string;
   email?: string;
-  attributes?: Record<string, any>;
+  attributes?: Record<string, unknown>;
 }
 
 export interface AuthState {
