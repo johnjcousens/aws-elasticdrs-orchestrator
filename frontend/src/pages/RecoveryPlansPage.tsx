@@ -265,10 +265,10 @@ export const RecoveryPlansPage: React.FC = () => {
 
     try {
       const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: String(plan.id || '').replace(/[^a-zA-Z0-9\-_]/g, ''),
+        recoveryPlanId: plan.id,
         executionType,
         dryRun: false,
-        executedBy: String(user?.username || 'unknown').replace(/[^a-zA-Z0-9\-_@\.]/g, '')
+        executedBy: user?.username || 'unknown'
       });
       
       addNotification('success', `${executionType === 'DRILL' ? 'Drill' : 'Recovery'} execution started`);
@@ -619,7 +619,7 @@ export const RecoveryPlansPage: React.FC = () => {
             <Box>
               {existingInstancesInfo?.instances[0]?.sourcePlanName && (
                 <Box variant="p">
-                  These instances were created by: <strong>{String(existingInstancesInfo.instances[0].sourcePlanName).replace(/[^a-zA-Z0-9\s\-_]/g, '')}</strong>
+                  These instances were created by: <strong>{existingInstancesInfo.instances[0].sourcePlanName}</strong>
                 </Box>
               )}
               <Box variant="p" color="text-body-secondary">
@@ -632,13 +632,13 @@ export const RecoveryPlansPage: React.FC = () => {
                 {existingInstancesInfo?.instances.slice(0, 6).map((inst, idx) => (
                   <Box key={idx} padding={{ left: 's' }}>
                     <Box fontSize="body-s">
-                      <strong>{String(inst.name || inst.ec2InstanceId || '').replace(/[^a-zA-Z0-9\s\-_]/g, '')}</strong>
-                      <Box variant="span" color="text-status-success" fontSize="body-s"> ({String(inst.ec2InstanceState || '').replace(/[^a-zA-Z0-9\s\-_]/g, '')})</Box>
+                      <strong>{inst.name || inst.ec2InstanceId || ''}</strong>
+                      <Box variant="span" color="text-status-success" fontSize="body-s"> ({inst.ec2InstanceState || ''})</Box>
                     </Box>
                     <Box fontSize="body-s" color="text-body-secondary">
-                      {inst.privateIp && <span>IP: {String(inst.privateIp).replace(/[^a-zA-Z0-9\.\-_]/g, '')} • </span>}
-                      {inst.instanceType && <span>{String(inst.instanceType).replace(/[^a-zA-Z0-9\s\-_]/g, '')} • </span>}
-                      {inst.launchTime && <span>Launched: {new Date(String(inst.launchTime).replace(/[^a-zA-Z0-9\s\-_:TZ\.]/g, '')).toLocaleString()}</span>}
+                      {inst.privateIp && <span>IP: {inst.privateIp} • </span>}
+                      {inst.instanceType && <span>{inst.instanceType} • </span>}
+                      {inst.launchTime && <span>Launched: {new Date(inst.launchTime).toLocaleString()}</span>}
                     </Box>
                   </Box>
                 ))}
