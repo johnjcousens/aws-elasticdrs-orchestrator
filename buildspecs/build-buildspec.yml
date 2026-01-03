@@ -36,6 +36,7 @@ phases:
     commands:
       - echo "=== Building Lambda Packages ==="
       - cd lambda
+      - echo "Building Lambda packages..."
       - |
         for dir in */; do
           if [ -d "$dir" ] && [ -f "$dir/index.py" ]; then
@@ -47,15 +48,14 @@ phases:
             fi
             echo "Creating deployment package for $dir..."
             zip -r "../${dir%/}.zip" . -x "*.pyc" -x "__pycache__/*" -x "tests/*" -x "*.md" -x ".git*" -x "requirements.txt"
-            echo "✓ Package created: ${dir%/}.zip"
+            echo "Package created: ${dir%/}.zip"
             cd ..
           else
-            echo "⚠️  Skipping $dir (not a Lambda function directory)"
+            echo "Skipping $dir (not a Lambda function directory)"
           fi
         done
       - cd ..
       - echo "Lambda packages built successfully"
-      
       - echo "=== Building Frontend Application ==="
       - |
         if [ -f "frontend/package.json" ]; then
@@ -69,9 +69,8 @@ phases:
           du -sh dist/
           cd ..
         else
-          echo "⚠️  Frontend package.json not found, skipping frontend build"
+          echo "Frontend package.json not found, skipping frontend build"
         fi
-      
       - echo "=== Uploading Build Artifacts to S3 ==="
       - echo "Uploading Lambda packages..."
       - aws s3 sync lambda/ s3://$DEPLOYMENT_BUCKET/lambda/ --exclude "*" --include "*.zip" --delete
