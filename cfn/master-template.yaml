@@ -29,24 +29,25 @@ Metadata:
 Parameters:
   ProjectName:
     Type: String
-    Default: 'drs-orchestration'
+    Default: 'aws-elasticdrs-orchestrator'
     Description: 'Project name used for resource naming'
     AllowedPattern: '^[a-z0-9-]+$'
     ConstraintDescription: 'Must contain only lowercase letters, numbers, and hyphens'
 
   Environment:
     Type: String
-    Default: 'prod'
+    Default: 'dev'
     Description: 'Environment name (dev, test, prod)'
     AllowedValues:
-      - test
       - dev
+      - test
       - qa
       - uat
       - prod
 
   SourceBucket:
     Type: String
+    Default: 'aws-elasticdrs-orchestrator-deployment-dev'
     Description: 'S3 bucket containing nested CloudFormation templates and Lambda code at root level'
 
   AdminEmail:
@@ -101,10 +102,24 @@ Parameters:
   # Cross-Account Configuration
   CrossAccountRoleName:
     Type: String
-    Default: 'drs-orchestration-cross-account-role'
+    Default: 'aws-elasticdrs-orchestrator-cross-account-role'
     Description: 'Name of the cross-account IAM role for DRS operations in target accounts'
     AllowedPattern: '^[a-zA-Z0-9+=,.@_-]+$'
     ConstraintDescription: 'Must be a valid IAM role name'
+
+  # CI/CD Configuration Parameters
+  EnableAutomatedDeployment:
+    Type: String
+    Default: 'true'
+    Description: 'Enable automated CI/CD pipeline deployment'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  GitHubRepositoryURL:
+    Type: String
+    Description: 'GitHub repository URL for CodeCommit mirroring'
+    Default: 'https://github.com/organization/aws-drs-orchestration'
 
   TagSyncIntervalHours:
     Type: Number
@@ -116,6 +131,7 @@ Parameters:
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
+  EnableCICDCondition: !Equals [!Ref EnableAutomatedDeployment, 'true']
 
 Resources:
   # Database Stack - DynamoDB Tables
@@ -261,6 +277,96 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
       TimeoutInMinutes: 60
+
+  # Security Stack - WAF, CloudTrail, Secrets Manager (Optional)
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Condition: EnableCICDCondition
+    DependsOn:
+      - ApiStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/security-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        ApiGatewayId: !GetAtt ApiStack.Outputs.ApiId
+        EnableWAF: !Ref EnableWAF
+        EnableCloudTrail: !Ref EnableCloudTrail
+        EnableSecretsManager: !Ref EnableSecretsManager
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 15
+
+  # CI/CD Infrastructure Stacks (Conditional)
+  CodeCommitStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Condition: EnableCICDCondition
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/codecommit-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepositoryURL: !Ref GitHubRepositoryURL
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
+  CodeBuildProjectsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Condition: EnableCICDCondition
+    DependsOn: CodeCommitStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/codebuild-projects-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        SourceBucket: !Ref SourceBucket
+        ArtifactBucketName: !GetAtt CodeCommitStack.Outputs.ArtifactBucketName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 15
+
+  CodePipelineStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Condition: EnableCICDCondition
+    DependsOn:
+      - CodeCommitStack
+      - CodeBuildProjectsStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/codepipeline-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RepositoryName: !GetAtt CodeCommitStack.Outputs.RepositoryName
+        ArtifactBucketName: !GetAtt CodeCommitStack.Outputs.ArtifactBucketName
+        ValidateProjectName: !GetAtt CodeBuildProjectsStack.Outputs.ValidateProjectName
+        BuildProjectName: !GetAtt CodeBuildProjectsStack.Outputs.BuildProjectName
+        TestProjectName: !GetAtt CodeBuildProjectsStack.Outputs.TestProjectName
+        DeployInfraProjectName: !GetAtt CodeBuildProjectsStack.Outputs.DeployInfraProjectName
+        DeployFrontendProjectName: !GetAtt CodeBuildProjectsStack.Outputs.DeployFrontendProjectName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
 
 Outputs:
   # Database Stack Outputs
@@ -423,3 +529,54 @@ Outputs:
     Value: !Ref SourceBucket
     Export:
       Name: !Sub '${AWS::StackName}-DeploymentBucket'
+
+  # CI/CD Stack Outputs (Conditional)
+  RepositoryName:
+    Description: 'CodeCommit repository name'
+    Value: !GetAtt CodeCommitStack.Outputs.RepositoryName
+    Export:
+      Name: !Sub '${AWS::StackName}-RepositoryName'
+    Condition: EnableCICDCondition
+
+  RepositoryCloneUrlHttp:
+    Description: 'CodeCommit repository clone URL (HTTPS)'
+    Value: !GetAtt CodeCommitStack.Outputs.RepositoryCloneUrlHttp
+    Export:
+      Name: !Sub '${AWS::StackName}-RepositoryCloneUrlHttp'
+    Condition: EnableCICDCondition
+
+  ArtifactBucketName:
+    Description: 'S3 bucket for CI/CD artifacts'
+    Value: !GetAtt CodeCommitStack.Outputs.ArtifactBucketName
+    Export:
+      Name: !Sub '${AWS::StackName}-ArtifactBucket'
+    Condition: EnableCICDCondition
+
+  PipelineName:
+    Description: 'CodePipeline name'
+    Value: !GetAtt CodePipelineStack.Outputs.PipelineName
+    Export:
+      Name: !Sub '${AWS::StackName}-PipelineName'
+    Condition: EnableCICDCondition
+
+  PipelineUrl:
+    Description: 'CodePipeline console URL'
+    Value: !GetAtt CodePipelineStack.Outputs.PipelineUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-PipelineUrl'
+    Condition: EnableCICDCondition
+
+  # Security Stack Outputs (Conditional)
+  WAFWebAclId:
+    Description: 'WAF Web ACL ID'
+    Value: !GetAtt SecurityStack.Outputs.WAFWebAclId
+    Export:
+      Name: !Sub '${AWS::StackName}-WAFWebAclId'
+    Condition: EnableCICDCondition
+
+  CloudTrailArn:
+    Description: 'CloudTrail ARN'
+    Value: !GetAtt SecurityStack.Outputs.CloudTrailArn
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudTrailArn'
+    Condition: EnableCICDCondition
