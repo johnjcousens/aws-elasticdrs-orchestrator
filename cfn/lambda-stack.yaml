@@ -45,6 +45,19 @@ Parameters:
     Description: "SNS topic ARN for notifications"
     Default: ""
 
+  AdminEmail:
+    Type: String
+    Description: "Admin email address for pipeline notifications"
+    Default: ""
+
+  EnablePipelineNotifications:
+    Type: String
+    Description: "Enable SNS email notifications for pipeline and security scan failures"
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
   CrossAccountRoleName:
     Type: String
     Default: "drs-orchestration-cross-account-role"
@@ -53,8 +66,40 @@ Parameters:
 Conditions:
   HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, ""]]
   HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, ""]]
+  EnableNotifications: !Equals [!Ref EnablePipelineNotifications, "true"]
 
 Resources:
+  # SNS Topic for Pipeline Notifications (Conditional)
+  PipelineNotificationsTopic:
+    Type: AWS::SNS::Topic
+    Condition: EnableNotifications
+    Properties:
+      TopicName: !Sub '${ProjectName}-pipeline-notifications-${Environment}'
+      DisplayName: 'CodePipeline and Security Scan Notifications'
+      
+  PipelineNotificationsSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: EnableNotifications
+    Properties:
+      Protocol: email
+      TopicArn: !Ref PipelineNotificationsTopic
+      Endpoint: !Ref AdminEmail
+
+  # SNS Topic Policy to allow EventBridge to publish (Conditional)
+  PipelineNotificationsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Condition: EnableNotifications
+    Properties:
+      Topics:
+        - !Ref PipelineNotificationsTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref PipelineNotificationsTopic
   # IAM Role for API Handler Lambda
   ApiHandlerRole:
     Type: AWS::IAM::Role
@@ -547,6 +592,38 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # IAM Role for Notification Formatter Lambda
+  NotificationFormatterRole:
+    Type: AWS::IAM::Role
+    Condition: EnableNotifications
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SNSPublishAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - sns:ListTopics
+                Resource: 
+                  - !Ref PipelineNotificationsTopic
+                  - !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:*"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # API Handler Lambda Function
   ApiHandlerFunction:
     Type: AWS::Lambda::Function
@@ -712,6 +789,30 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # Notification Formatter Lambda Function
+  NotificationFormatterFunction:
+    Type: AWS::Lambda::Function
+    Condition: EnableNotifications
+    Properties:
+      FunctionName: !Sub "${ProjectName}-notification-formatter-${Environment}"
+      Description: "Formats CodePipeline and CodeBuild events into user-friendly email notifications"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt NotificationFormatterRole.Arn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/notification-formatter.zip"
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref PipelineNotificationsTopic
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
   # Note: CloudWatch Log Group automatically created by Lambda
 
 Outputs:
@@ -774,3 +875,24 @@ Outputs:
     Value: !GetAtt ExecutionFinderScheduleRule.Arn
     Export:
       Name: !Sub "${AWS::StackName}-ScheduleRuleArn"
+
+  NotificationFormatterFunctionArn:
+    Description: "Notification Formatter Lambda Function ARN"
+    Value: !GetAtt NotificationFormatterFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-NotificationFormatterArn"
+    Condition: EnableNotifications
+
+  NotificationFormatterFunctionName:
+    Description: "Notification Formatter Lambda Function Name"
+    Value: !Ref NotificationFormatterFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-NotificationFormatterName"
+    Condition: EnableNotifications
+
+  PipelineNotificationsTopicArn:
+    Description: "Pipeline notifications SNS topic ARN"
+    Value: !Ref PipelineNotificationsTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-PipelineNotificationsTopicArn"
+    Condition: EnableNotifications
