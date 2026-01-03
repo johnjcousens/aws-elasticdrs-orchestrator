@@ -42,7 +42,10 @@ phases:
         done
       - echo "=== Python Code Quality Validation ==="
       - echo "Checking Python code formatting with Black..."
-      - black --check --line-length=79 lambda/ || (echo "Code formatting issues found" && exit 1)
+      - echo "Python files to be checked:"
+      - find lambda/ -name "*.py" | sort
+      - echo "Running Black validation..."
+      - black --check --line-length=79 lambda/ --verbose || (echo "Code formatting issues found. Files that need formatting:" && black --check --line-length=79 lambda/ --diff && exit 1)
       - echo "Python code formatting is correct"
       - echo "Checking import sorting with isort..."
       - isort --check-only --profile=black lambda/ || (echo "Import sorting issues found" && exit 1)
