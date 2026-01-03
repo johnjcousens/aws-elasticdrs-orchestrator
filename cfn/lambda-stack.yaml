@@ -434,7 +434,7 @@ Resources:
                   - ssm:GetCommandInvocation
                 Resource: "*"
         - !If
-          - HasNotificationTopic
+          - EnableNotifications
           - PolicyName: SNSAccess
             PolicyDocument:
               Version: "2012-10-17"
@@ -442,7 +442,7 @@ Resources:
                 - Effect: Allow
                   Action:
                     - sns:Publish
-                  Resource: !Ref NotificationTopicArn
+                  Resource: !Ref PipelineNotificationsTopic
           - !Ref "AWS::NoValue"
         - PolicyName: STSAccess
           PolicyDocument:
@@ -644,7 +644,10 @@ Resources:
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
           TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
-          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
+          NOTIFICATION_TOPIC_ARN: !If
+            - EnableNotifications
+            - !Ref PipelineNotificationsTopic
+            - ""
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
           STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
@@ -673,7 +676,10 @@ Resources:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
+          NOTIFICATION_TOPIC_ARN: !If
+            - EnableNotifications
+            - !Ref PipelineNotificationsTopic
+            - ""
           FRONTEND_BUCKET:
             !If [
               HasFrontendBucket,
