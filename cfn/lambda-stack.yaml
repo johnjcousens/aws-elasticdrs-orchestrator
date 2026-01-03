@@ -45,10 +45,6 @@ Parameters:
     Description: "SNS topic ARN for notifications"
     Default: ""
 
-  StateMachineArn:
-    Type: String
-    Description: "Step Functions State Machine ARN for orchestration"
-
   CrossAccountRoleName:
     Type: String
     Default: "drs-orchestration-cross-account-role"
@@ -57,7 +53,6 @@ Parameters:
 Conditions:
   HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, ""]]
   HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, ""]]
-  HasStateMachineArn: !Not [!Equals [!Ref StateMachineArn, ""]]
 
 Resources:
   # IAM Role for API Handler Lambda
@@ -601,10 +596,7 @@ Resources:
           NOTIFICATION_TOPIC_ARN: !Ref NotificationTopicArn
           PROJECT_NAME: !Ref ProjectName
           ENVIRONMENT: !Ref Environment
-          STATE_MACHINE_ARN: !If
-            - HasStateMachineArn
-            - !Ref StateMachineArn
-            - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+          STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
       Tags:
         - Key: Project
           Value: !Ref ProjectName

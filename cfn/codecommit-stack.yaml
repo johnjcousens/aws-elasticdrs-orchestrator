@@ -10,19 +10,6 @@ Parameters:
     Type: String
     Description: 'Environment name (dev, test, prod)'
 
-  GitHubRepositoryUrl:
-    Type: String
-    Description: 'GitHub repository URL for mirroring (e.g., https://github.com/user/repo.git)'
-    Default: ''
-
-  GitHubBranch:
-    Type: String
-    Description: 'GitHub branch to mirror'
-    Default: 'main'
-
-Conditions:
-  HasGitHubRepository: !Not [!Equals [!Ref GitHubRepositoryUrl, '']]
-
 Resources:
   # CodeCommit Repository
   Repository:
@@ -30,25 +17,17 @@ Resources:
     Properties:
       RepositoryName: !Sub '${ProjectName}-${Environment}'
       RepositoryDescription: !Sub 'AWS DRS Orchestration source code repository for ${Environment} environment'
-      Code:
-        !If
-          - HasGitHubRepository
-          - S3:
-              Bucket: !Ref InitialCodeBucket
-              Key: 'initial-code.zip'
-          - !Ref 'AWS::NoValue'
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
 
-  # S3 Bucket for initial code (if GitHub mirroring is used)
-  InitialCodeBucket:
+  # S3 Bucket for CI/CD artifacts (always created)
+  ArtifactBucket:
     Type: AWS::S3::Bucket
-    Condition: HasGitHubRepository
     Properties:
-      BucketName: !Sub '${ProjectName}-initial-code-${AWS::AccountId}-${Environment}'
+      BucketName: !Sub '${ProjectName}-cicd-artifacts-${AWS::AccountId}-${Environment}'
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
@@ -65,148 +44,15 @@ Resources:
           - Id: DeleteOldVersions
             Status: Enabled
             NoncurrentVersionExpirationInDays: 30
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
-
-  # Lambda function for GitHub mirroring (optional)
-  GitHubMirrorFunction:
-    Type: AWS::Lambda::Function
-    Condition: HasGitHubRepository
-    Properties:
-      FunctionName: !Sub '${ProjectName}-github-mirror-${Environment}'
-      Description: 'Mirrors GitHub repository to CodeCommit'
-      Runtime: python3.12
-      Handler: index.lambda_handler
-      Role: !GetAtt GitHubMirrorRole.Arn
-      Timeout: 300
-      MemorySize: 512
-      Code:
-        ZipFile: |
-          import json
-          import boto3
-          import urllib3
-          import zipfile
-          import io
-          import os
-          
-          def lambda_handler(event, context):
-              """
-              Custom resource to mirror GitHub repository to CodeCommit
-              This is a placeholder - actual implementation would require GitHub API integration
-              """
-              
-              response_data = {}
-              
-              try:
-                  request_type = event['RequestType']
-                  
-                  if request_type == 'Create':
-                      # In a real implementation, this would:
-                      # 1. Clone from GitHub repository
-                      # 2. Create initial commit in CodeCommit
-                      # 3. Set up mirroring webhook (if needed)
-                      
-                      response_data['Message'] = 'GitHub mirroring setup completed'
-                      response_data['RepositoryCloneUrl'] = event['ResourceProperties']['RepositoryCloneUrl']
-                      
-                  elif request_type == 'Update':
-                      response_data['Message'] = 'GitHub mirroring updated'
-                      
-                  elif request_type == 'Delete':
-                      response_data['Message'] = 'GitHub mirroring cleanup completed'
-                  
-                  send_response(event, context, 'SUCCESS', response_data)
-                  
-              except Exception as e:
-                  print(f'Error: {str(e)}')
-                  send_response(event, context, 'FAILED', {'Error': str(e)})
-          
-          def send_response(event, context, response_status, response_data):
-              response_url = event['ResponseURL']
-              response_body = {
-                  'Status': response_status,
-                  'Reason': f'See CloudWatch Log Stream: {context.log_stream_name}',
-                  'PhysicalResourceId': context.log_stream_name,
-                  'StackId': event['StackId'],
-                  'RequestId': event['RequestId'],
-                  'LogicalResourceId': event['LogicalResourceId'],
-                  'Data': response_data
-              }
-              
-              json_response_body = json.dumps(response_body)
-              headers = {'content-type': '', 'content-length': str(len(json_response_body))}
-              
-              http = urllib3.PoolManager()
-              response = http.request('PUT', response_url, body=json_response_body, headers=headers)
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # IAM Role for GitHub Mirror Lambda
-  GitHubMirrorRole:
-    Type: AWS::IAM::Role
-    Condition: HasGitHubRepository
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: CodeCommitAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - codecommit:GitPush
-                  - codecommit:GitPull
-                  - codecommit:CreateBranch
-                  - codecommit:CreateCommit
-                  - codecommit:GetBranch
-                  - codecommit:GetCommit
-                  - codecommit:GetRepository
-                  - codecommit:ListBranches
-                  - codecommit:ListRepositories
-                Resource: !GetAtt Repository.Arn
-        - PolicyName: S3Access
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
-                Resource: !Sub '${InitialCodeBucket}/*'
-              - Effect: Allow
-                Action:
-                  - s3:ListBucket
-                Resource: !Ref InitialCodeBucket
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # Custom Resource to trigger GitHub mirroring
-  GitHubMirrorResource:
-    Type: AWS::CloudFormation::CustomResource
-    Condition: HasGitHubRepository
-    Properties:
-      ServiceToken: !GetAtt GitHubMirrorFunction.Arn
-      RepositoryCloneUrl: !GetAtt Repository.CloneUrlHttp
-      GitHubRepositoryUrl: !Ref GitHubRepositoryUrl
-      GitHubBranch: !Ref GitHubBranch
 
 Outputs:
   RepositoryName:
@@ -233,9 +79,14 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-RepositoryCloneUrlSsh'
 
-  InitialCodeBucketName:
-    Condition: HasGitHubRepository
-    Description: 'S3 bucket for initial code storage'
-    Value: !Ref InitialCodeBucket
+  ArtifactBucketName:
+    Description: 'S3 bucket for CI/CD artifacts'
+    Value: !Ref ArtifactBucket
     Export:
-      Name: !Sub '${AWS::StackName}-InitialCodeBucketName'
+      Name: !Sub '${AWS::StackName}-ArtifactBucketName'
+
+  ArtifactBucketArn:
+    Description: 'S3 bucket ARN for CI/CD artifacts'
+    Value: !GetAtt ArtifactBucket.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ArtifactBucketArn'

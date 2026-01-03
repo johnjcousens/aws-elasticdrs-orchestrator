@@ -302,6 +302,7 @@ Resources:
   CloudTrailBucket:
     Type: AWS::S3::Bucket
     Condition: EnableCloudTrailCondition
+    DeletionPolicy: Delete
     Properties:
       BucketName: !Sub '${ProjectName}-cloudtrail-${AWS::AccountId}'
       BucketEncryption:
@@ -320,6 +321,13 @@ Resources:
           - Id: DeleteOldLogs
             Status: Enabled
             ExpirationInDays: 90
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+          - Id: DeleteNonCurrentVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 1
           - Id: TransitionToIA
             Status: Enabled
             Transitions:
