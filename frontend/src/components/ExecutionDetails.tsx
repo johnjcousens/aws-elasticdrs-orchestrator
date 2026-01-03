@@ -86,8 +86,9 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
       }
       const data = await apiClient.getExecution(executionId);
       setExecution(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load execution details');
+    } catch (err: unknown) {
+      const error = err as Error & { message?: string };
+      setError(error.message || 'Failed to load execution details');
     } finally {
       if (!silent) {
         setLoading(false);
@@ -112,8 +113,9 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
       if (onRefresh) {
         onRefresh();
       }
-    } catch (err: any) {
-      setCancelError(err.message || 'Failed to cancel execution');
+    } catch (err: unknown) {
+      const error = err as Error & { message?: string };
+      setCancelError(error.message || 'Failed to cancel execution');
     } finally {
       setCancelling(false);
     }
