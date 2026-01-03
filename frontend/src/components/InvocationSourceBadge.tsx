@@ -50,7 +50,7 @@ export const InvocationSourceBadge: React.FC<InvocationSourceBadgeProps> = ({
 
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-      <Icon name={cfg.icon as any} size="small" />
+      <Icon name={cfg.icon as 'user-profile' | 'script' | 'calendar' | 'settings' | 'share' | 'external'} size="small" />
       <Badge color={cfg.color}>{cfg.label}</Badge>
     </span>
   );
