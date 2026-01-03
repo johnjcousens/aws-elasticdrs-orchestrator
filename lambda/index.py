@@ -1534,26 +1534,39 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             )
             invocation_source = event.get("invocationSource", "")
             user_agent = event.get("headers", {}).get("User-Agent", "")
-
-            # Multiple validation criteria for EventBridge requests
+            
+            # Get EventBridge-specific headers
+            headers = event.get("headers", {})
+            eventbridge_event_id = headers.get("X-Amz-EventBridge-Event-Id", "")
+            eventbridge_source = headers.get("X-Amz-EventBridge-Source", "")
+            
+            # Enhanced validation with multiple security layers
             is_eventbridge_request = (
-                # Primary indicators
-                (
-                    source_ip == "eventbridge"
-                    or invocation_source == "EVENTBRIDGE"
-                )
+                # Layer 1: Source validation
+                (source_ip == "eventbridge" or invocation_source == "EVENTBRIDGE")
                 and
-                # Additional security checks
+                # Layer 2: User-Agent validation (EventBridge has specific pattern)
+                user_agent.startswith("Amazon EventBridge")
+                and
+                # Layer 3: EventBridge-specific headers must be present
+                (eventbridge_event_id and eventbridge_source)
+                and
+                # Layer 4: Request structure validation
                 (
-                    # EventBridge requests typically have no Authorization header
-                    not event.get("headers", {}).get("Authorization")
+                    # EventBridge requests have no Authorization header
+                    not headers.get("Authorization")
                     and
-                    # EventBridge requests come through API Gateway with specific patterns
+                    # Must come through API Gateway with proper context
                     event.get("requestContext", {}).get("stage")
                     and
-                    # Validate request structure matches EventBridge pattern
                     event.get("requestContext", {}).get("requestId")
+                    and
+                    # EventBridge requests have specific content type
+                    headers.get("Content-Type", "").startswith("application/json")
                 )
+                and
+                # Layer 5: EventBridge source validation
+                eventbridge_source == "aws.events"
             )
 
             if is_eventbridge_request:
@@ -1569,14 +1582,18 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
                 print(
                     f"Security audit - requestId: {request_context.get('requestId')}, "
                     f"stage: {request_context.get('stage')}, "
-                    f"userAgent: {user_agent}"
+                    f"userAgent: {user_agent}, "
+                    f"eventId: {eventbridge_event_id}, "
+                    f"eventSource: {eventbridge_source}"
                 )
 
                 return handle_eventbridge_tag_sync(event)
             else:
                 print(
                     f"Tag sync request failed EventBridge validation - sourceIp: {source_ip}, "
-                    f"invocationSource: {invocation_source}, will require authentication"
+                    f"invocationSource: {invocation_source}, userAgent: {user_agent}, "
+                    f"eventId: {eventbridge_event_id}, eventSource: {eventbridge_source}, "
+                    f"will require authentication"
                 )
 
         print(f"Checking authentication for path: {path}")
