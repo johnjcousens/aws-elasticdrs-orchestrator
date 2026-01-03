@@ -5,7 +5,6 @@ version: 0.2
 
 env:
   variables:
-    # These will be overridden by CodeBuild project environment variables
     PROJECT_NAME: "aws-elasticdrs-orchestrator"
     ENVIRONMENT: "dev"
     DEPLOYMENT_BUCKET: "aws-elasticdrs-orchestrator"
@@ -19,7 +18,7 @@ phases:
       - pip install --upgrade pip
       - pip install cfn-lint pyyaml boto3
       - pip install flake8 black isort pytest pytest-cov
-      - pip install moto requests  # For unit tests
+      - pip install moto requests
 
   pre_build:
     commands:
@@ -59,7 +58,7 @@ phases:
       - flake8 lambda/ --max-line-length=79 --exclude=__pycache__ --statistics
       - echo "✓ Python linting passed"
       
-      - echo "=== Python Unit Tests ==="
+      - echo "Running Python unit tests..."
       - |
         if [ -d "tests/python/unit" ]; then
           echo "Running Python unit tests..."
@@ -71,7 +70,7 @@ phases:
           echo "⚠️  Unit tests directory not found, skipping..."
         fi
       
-      - echo "=== Frontend Code Validation ==="
+      - echo "Frontend Code Validation"
       - |
         if [ -f "frontend/package.json" ]; then
           echo "Installing frontend dependencies..."
