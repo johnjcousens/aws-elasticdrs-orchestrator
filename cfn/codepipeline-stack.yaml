@@ -182,7 +182,7 @@ Resources:
                 Version: '1'
               Configuration:
                 ProjectName: !Ref DeployInfraProjectName
-                EnvironmentVariables: !Sub |
+                EnvironmentVariables: |
                   [
                     {
                       "name": "ADMIN_EMAIL",
