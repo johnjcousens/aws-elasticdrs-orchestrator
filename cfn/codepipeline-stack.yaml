@@ -1,0 +1,281 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - CodePipeline Stack'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+
+  RepositoryName:
+    Type: String
+    Description: 'CodeCommit repository name'
+
+  ArtifactBucketName:
+    Type: String
+    Description: 'S3 bucket for CI/CD artifacts'
+
+  ValidateProjectName:
+    Type: String
+    Description: 'CodeBuild project name for validation'
+
+  BuildProjectName:
+    Type: String
+    Description: 'CodeBuild project name for building'
+
+  TestProjectName:
+    Type: String
+    Description: 'CodeBuild project name for testing'
+
+  DeployInfraProjectName:
+    Type: String
+    Description: 'CodeBuild project name for infrastructure deployment'
+
+  DeployFrontendProjectName:
+    Type: String
+    Description: 'CodeBuild project name for frontend deployment'
+
+Resources:
+  # IAM Role for CodePipeline
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-codepipeline-service-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelineServicePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 Access for artifacts
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub 'arn:aws:s3:::${ArtifactBucketName}/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub 'arn:aws:s3:::${ArtifactBucketName}'
+              # CodeCommit Access
+              - Effect: Allow
+                Action:
+                  - codecommit:CancelUploadArchive
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetRepository
+                  - codecommit:ListBranches
+                  - codecommit:ListRepositories
+                  - codecommit:UploadArchive
+                  - codecommit:GetUploadArchiveStatus
+                Resource: !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${RepositoryName}'
+              # CodeBuild Access
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource:
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${ValidateProjectName}'
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${BuildProjectName}'
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${TestProjectName}'
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${DeployInfraProjectName}'
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${DeployFrontendProjectName}'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CodePipeline
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub '${ProjectName}-pipeline-${Environment}'
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucketName
+      Stages:
+        # Source Stage - CodeCommit
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: '1'
+              Configuration:
+                RepositoryName: !Ref RepositoryName
+                BranchName: main
+                PollForSourceChanges: true
+              OutputArtifacts:
+                - Name: SourceOutput
+
+        # Validate Stage - Code quality and CloudFormation validation
+        - Name: Validate
+          Actions:
+            - Name: ValidateAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref ValidateProjectName
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: ValidateOutput
+
+        # Build Stage - Lambda packages and frontend
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref BuildProjectName
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+
+        # Test Stage - Integration and E2E tests
+        - Name: Test
+          Actions:
+            - Name: TestAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref TestProjectName
+              InputArtifacts:
+                - Name: BuildOutput
+              OutputArtifacts:
+                - Name: TestOutput
+
+        # Deploy Infrastructure Stage
+        - Name: DeployInfrastructure
+          Actions:
+            - Name: DeployInfraAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref DeployInfraProjectName
+                EnvironmentVariables: !Sub |
+                  [
+                    {
+                      "name": "ADMIN_EMAIL",
+                      "value": "admin@example.com",
+                      "type": "PLAINTEXT"
+                    }
+                  ]
+              InputArtifacts:
+                - Name: BuildOutput
+              OutputArtifacts:
+                - Name: DeployInfraOutput
+
+        # Deploy Frontend Stage
+        - Name: DeployFrontend
+          Actions:
+            - Name: DeployFrontendAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref DeployFrontendProjectName
+              InputArtifacts:
+                - Name: DeployInfraOutput
+              OutputArtifacts:
+                - Name: DeployFrontendOutput
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Event Rule for Pipeline State Changes
+  PipelineEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-pipeline-events-${Environment}'
+      Description: 'Capture pipeline state changes'
+      EventPattern:
+        source:
+          - aws.codepipeline
+        detail-type:
+          - CodePipeline Pipeline Execution State Change
+          - CodePipeline Stage Execution State Change
+        detail:
+          pipeline:
+            - !Ref Pipeline
+      State: ENABLED
+      Targets:
+        - Arn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/events/codepipeline'
+          Id: PipelineLogTarget
+
+  # CloudWatch Log Group for Pipeline Events
+  PipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: '/aws/events/codepipeline'
+      RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  PipelineName:
+    Description: 'CodePipeline name'
+    Value: !Ref Pipeline
+    Export:
+      Name: !Sub '${AWS::StackName}-PipelineName'
+
+  PipelineArn:
+    Description: 'CodePipeline ARN'
+    Value: !Sub 'arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}'
+    Export:
+      Name: !Sub '${AWS::StackName}-PipelineArn'
+
+  PipelineUrl:
+    Description: 'CodePipeline console URL'
+    Value: !Sub 'https://console.aws.amazon.com/codesuite/codepipeline/pipelines/${Pipeline}/view'
+    Export:
+      Name: !Sub '${AWS::StackName}-PipelineUrl'
+
+  CodePipelineServiceRoleArn:
+    Description: 'CodePipeline service role ARN'
+    Value: !GetAtt CodePipelineServiceRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CodePipelineServiceRoleArn'
+
+  PipelineEventRuleArn:
+    Description: 'Pipeline event rule ARN'
+    Value: !GetAtt PipelineEventRule.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-PipelineEventRuleArn'

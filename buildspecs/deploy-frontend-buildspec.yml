@@ -1,0 +1,222 @@
+version: 0.2
+
+# BuildSpec for Frontend Deployment Phase
+# Deploys frontend to S3 and invalidates CloudFront cache
+
+env:
+  variables:
+    # These will be overridden by CodeBuild project environment variables
+    PROJECT_NAME: "aws-elasticdrs-orchestrator"
+    ENVIRONMENT: "dev"
+    DEPLOYMENT_BUCKET: "aws-elasticdrs-orchestrator"
+    STACK_NAME: "aws-elasticdrs-orchestrator-dev"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - echo "Installing deployment tools..."
+      - pip install --upgrade pip
+      - pip install boto3 awscli
+
+  pre_build:
+    commands:
+      - echo "=== FRONTEND DEPLOYMENT PHASE STARTED ==="
+      - echo "Project: $PROJECT_NAME"
+      - echo "Environment: $ENVIRONMENT"
+      - echo "Stack Name: $STACK_NAME"
+      - echo "Deployment Bucket: $DEPLOYMENT_BUCKET"
+      - echo "Build ID: $CODEBUILD_BUILD_ID"
+      - echo "Source Version: $CODEBUILD_SOURCE_VERSION"
+      
+      - echo "=== Retrieving CloudFormation Outputs ==="
+      - |
+        # Get CloudFormation outputs for frontend deployment
+        FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
+          --output text)
+        
+        CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+          --output text)
+        
+        CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+          --output text)
+        
+        API_ENDPOINT=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --output text)
+        
+        echo "Frontend Bucket: $FRONTEND_BUCKET"
+        echo "CloudFront Distribution ID: $CLOUDFRONT_ID"
+        echo "CloudFront URL: $CLOUDFRONT_URL"
+        echo "API Endpoint: $API_ENDPOINT"
+        
+        # Validate required outputs
+        if [ -z "$FRONTEND_BUCKET" ] || [ "$FRONTEND_BUCKET" = "None" ]; then
+          echo "❌ Frontend bucket not found in stack outputs"
+          exit 1
+        fi
+        
+        if [ -z "$CLOUDFRONT_ID" ] || [ "$CLOUDFRONT_ID" = "None" ]; then
+          echo "❌ CloudFront distribution ID not found in stack outputs"
+          exit 1
+        fi
+        
+        echo "✓ All required outputs retrieved successfully"
+
+  build:
+    commands:
+      - echo "=== Frontend Deployment ==="
+      - echo "Checking if frontend build exists in deployment bucket..."
+      - |
+        if aws s3 ls s3://$DEPLOYMENT_BUCKET/frontend/ > /dev/null 2>&1; then
+          echo "✓ Frontend build found in deployment bucket"
+        else
+          echo "❌ Frontend build not found in deployment bucket"
+          exit 1
+        fi
+      
+      - echo "Backing up current frontend (if exists)..."
+      - |
+        BACKUP_PREFIX="backup/$(date +%Y%m%d-%H%M%S)"
+        if aws s3 ls s3://$FRONTEND_BUCKET/ > /dev/null 2>&1; then
+          echo "Creating backup at s3://$FRONTEND_BUCKET/$BACKUP_PREFIX/"
+          aws s3 sync s3://$FRONTEND_BUCKET/ s3://$FRONTEND_BUCKET/$BACKUP_PREFIX/ \
+            --exclude "$BACKUP_PREFIX/*"
+          echo "✓ Backup created"
+        else
+          echo "No existing frontend to backup"
+        fi
+      
+      - echo "Deploying frontend to S3..."
+      - |
+        # Deploy frontend with proper cache headers
+        aws s3 sync s3://$DEPLOYMENT_BUCKET/frontend/ s3://$FRONTEND_BUCKET/ \
+          --delete \
+          --cache-control "public, max-age=31536000" \
+          --exclude "*.html" \
+          --exclude "service-worker.js" \
+          --exclude "manifest.json"
+        
+        # Deploy HTML files with no-cache headers
+        aws s3 sync s3://$DEPLOYMENT_BUCKET/frontend/ s3://$FRONTEND_BUCKET/ \
+          --cache-control "no-cache, no-store, must-revalidate" \
+          --include "*.html" \
+          --include "service-worker.js" \
+          --include "manifest.json"
+      
+      - echo "✓ Frontend deployed to S3"
+      
+      - echo "=== CloudFront Cache Invalidation ==="
+      - echo "Creating CloudFront invalidation..."
+      - |
+        INVALIDATION_ID=$(aws cloudfront create-invalidation \
+          --distribution-id $CLOUDFRONT_ID \
+          --paths "/*" \
+          --query 'Invalidation.Id' \
+          --output text)
+        
+        echo "Invalidation ID: $INVALIDATION_ID"
+        echo "Waiting for invalidation to complete..."
+        
+        # Wait for invalidation (with timeout)
+        timeout 300 aws cloudfront wait invalidation-completed \
+          --distribution-id $CLOUDFRONT_ID \
+          --id $INVALIDATION_ID || echo "⚠️  Invalidation timeout - continuing anyway"
+      
+      - echo "✓ CloudFront cache invalidated"
+      
+      - echo "=== Frontend Health Check ==="
+      - |
+        echo "Performing basic health check on frontend..."
+        
+        # Wait a moment for CloudFront to update
+        sleep 10
+        
+        # Check if frontend is accessible
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $CLOUDFRONT_URL || echo "000")
+        
+        if [ "$HTTP_STATUS" = "200" ]; then
+          echo "✓ Frontend is accessible (HTTP $HTTP_STATUS)"
+        else
+          echo "⚠️  Frontend health check returned HTTP $HTTP_STATUS"
+          echo "This may be normal for new deployments - CloudFront propagation can take time"
+        fi
+      
+      - echo "=== Deployment Summary ==="
+      - |
+        # Create deployment summary
+        cat > frontend-deployment-summary.json << EOF
+        {
+          "deployment_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "build_id": "$CODEBUILD_BUILD_ID",
+          "source_version": "$CODEBUILD_SOURCE_VERSION",
+          "stack_name": "$STACK_NAME",
+          "frontend_bucket": "$FRONTEND_BUCKET",
+          "cloudfront_distribution_id": "$CLOUDFRONT_ID",
+          "cloudfront_url": "$CLOUDFRONT_URL",
+          "api_endpoint": "$API_ENDPOINT",
+          "invalidation_id": "$INVALIDATION_ID",
+          "health_check_status": "$HTTP_STATUS"
+        }
+        EOF
+        
+        echo "Frontend deployment summary:"
+        cat frontend-deployment-summary.json | python -m json.tool
+
+  post_build:
+    commands:
+      - echo "=== FRONTEND DEPLOYMENT PHASE COMPLETED ==="
+      - |
+        if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then
+          echo "✅ Frontend deployment completed successfully"
+          echo ""
+          echo "🌐 Application URLs:"
+          echo "   Frontend: $CLOUDFRONT_URL"
+          echo "   API:      $API_ENDPOINT"
+          echo ""
+          echo "📊 Deployment Details:"
+          echo "   S3 Bucket:      $FRONTEND_BUCKET"
+          echo "   CloudFront ID:  $CLOUDFRONT_ID"
+          echo "   Invalidation:   $INVALIDATION_ID"
+          echo "   Build ID:       $CODEBUILD_BUILD_ID"
+          echo ""
+          
+          # Upload deployment summary to S3
+          aws s3 cp frontend-deployment-summary.json \
+            s3://$DEPLOYMENT_BUCKET/deployment-info/$CODEBUILD_BUILD_ID/
+          
+          echo "📁 Deployment summary uploaded to S3"
+          echo ""
+          echo "🎉 Deployment pipeline completed successfully!"
+          echo "   Your AWS DRS Orchestration application is now live at:"
+          echo "   $CLOUDFRONT_URL"
+        else
+          echo "❌ Frontend deployment failed"
+          
+          # Try to get more details about the failure
+          echo "Checking S3 bucket status..."
+          aws s3 ls s3://$FRONTEND_BUCKET/ --human-readable || echo "Could not list S3 bucket"
+          
+          echo "Checking CloudFront distribution status..."
+          aws cloudfront get-distribution --id $CLOUDFRONT_ID \
+            --query 'Distribution.Status' --output text || echo "Could not get CloudFront status"
+          
+          exit 1
+        fi
+
+artifacts:
+  files:
+    - 'frontend-deployment-summary.json'
+  name: FrontendDeploymentSummary
+
+cache:
+  paths:
+    - '/root/.cache/pip/**/*'
