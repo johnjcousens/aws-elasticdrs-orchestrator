@@ -151,7 +151,7 @@ class ApiClient {
               tokenKeys: session.tokens ? Object.keys(session.tokens) : null
             });
           }
-        } catch (error: any) {
+        } catch (error) {
           console.error('Error fetching auth token:', {
             error: error?.message || 'Unknown error',
             stack: error?.stack,
@@ -174,7 +174,7 @@ class ApiClient {
         if (error.response) {
           // Server responded with error status
           const status = error.response.status;
-          const data: any = error.response.data;
+          const data: unknown = error.response.data;
 
           if (status === 401) {
             // Unauthorized - token expired or invalid
@@ -185,19 +185,20 @@ class ApiClient {
             // Forbidden - insufficient permissions
             const sanitizedData = typeof data === 'string' ? data.replace(/[\r\n]/g, '') : JSON.stringify(data).replace(/[\r\n]/g, '');
             console.error('Permission denied:', sanitizedData);
-          } else if (status === 409 && data?.error === 'VERSION_CONFLICT') {
+          } else if (status === 409 && data && typeof data === 'object' && 'error' in data && data.error === 'VERSION_CONFLICT') {
             // Optimistic locking conflict - resource was modified by another user
-            const versionError = new Error(data?.message || 'Resource was modified by another user. Please refresh and try again.');
-            (versionError as any).isVersionConflict = true;
-            (versionError as any).resourceId = data?.resourceId;
-            (versionError as any).expectedVersion = data?.expectedVersion;
-            (versionError as any).currentVersion = data?.currentVersion;
+            const errorData = data as { message?: string; resourceId?: string; expectedVersion?: string; currentVersion?: string };
+            const versionError = new Error(errorData.message || 'Resource was modified by another user. Please refresh and try again.');
+            (versionError as Error & { isVersionConflict: boolean; resourceId?: string; expectedVersion?: string; currentVersion?: string }).isVersionConflict = true;
+            (versionError as Error & { isVersionConflict: boolean; resourceId?: string; expectedVersion?: string; currentVersion?: string }).resourceId = errorData.resourceId;
+            (versionError as Error & { isVersionConflict: boolean; resourceId?: string; expectedVersion?: string; currentVersion?: string }).expectedVersion = errorData.expectedVersion;
+            (versionError as Error & { isVersionConflict: boolean; resourceId?: string; expectedVersion?: string; currentVersion?: string }).currentVersion = errorData.currentVersion;
             throw versionError;
           } else if (status >= 500) {
             // Server error - provide specific messages based on status code
             const sanitizedData = typeof data === 'string' ? data.replace(/[\r\n]/g, '') : JSON.stringify(data).replace(/[\r\n]/g, '');
             console.error('Server error:', sanitizedData);
-            let serverErrorMessage = data?.message;
+            let serverErrorMessage = (data && typeof data === 'object' && 'message' in data) ? String(data.message) : undefined;
             
             if (!serverErrorMessage) {
               switch (status) {
@@ -222,7 +223,7 @@ class ApiClient {
           }
 
           // Provide specific error message or fallback with status code
-          const errorMessage = data?.message || this.getStatusCodeMessage(status);
+          const errorMessage = (data && typeof data === 'object' && 'message' in data) ? String(data.message) : this.getStatusCodeMessage(status);
           throw new Error(errorMessage);
         } else if (error.request) {
           // Request made but no response received
@@ -260,36 +261,36 @@ class ApiClient {
   /**
    * Generic GET request
    */
-  private async get<T>(path: string, params?: Record<string, any>): Promise<T> {
-    const response = await this.axiosInstance.get<any>(path, { params });
+  private async get<T>(path: string, params?: Record<string, unknown>): Promise<T> {
+    const response = await this.axiosInstance.get<T>(path, { params });
     
     // API Gateway returns data directly (not in Lambda proxy format)
-    return response.data as T;
+    return response.data;
   }
 
   /**
    * Generic POST request
    */
-  private async post<T>(path: string, data?: any): Promise<T> {
-    const response = await this.axiosInstance.post<any>(path, data);
-    return response.data as T;
+  private async post<T>(path: string, data?: unknown): Promise<T> {
+    const response = await this.axiosInstance.post<T>(path, data);
+    return response.data;
   }
 
   /**
    * Generic PUT request
    */
-  private async put<T>(path: string, data?: any): Promise<T> {
-    const response = await this.axiosInstance.put<any>(path, data);
-    return response.data as T;
+  private async put<T>(path: string, data?: unknown): Promise<T> {
+    const response = await this.axiosInstance.put<T>(path, data);
+    return response.data;
   }
 
   /**
    * Generic DELETE request
    */
-  private async delete<T>(path: string, data?: any): Promise<T> {
+  private async delete<T>(path: string, data?: unknown): Promise<T> {
     const config = data ? { data } : {};
-    const response = await this.axiosInstance.delete<any>(path, config);
-    return response.data as T;
+    const response = await this.axiosInstance.delete<T>(path, config);
+    return response.data;
   }
 
   // ============================================================================
@@ -770,7 +771,53 @@ class ApiClient {
     region: string, 
     currentProtectionGroupId?: string,
     filterByProtectionGroup?: string
-  ): Promise<any> {
+  ): Promise<{
+    servers: Array<{
+      sourceServerID: string;
+      hostname: string;
+      fqdn?: string;
+      nameTag?: string;
+      sourceInstanceId?: string;
+      sourceIp?: string;
+      sourceMac?: string;
+      sourceRegion?: string;
+      sourceAccount?: string;
+      os?: string;
+      state?: string;
+      replicationState: string;
+      lagDuration?: string;
+      lastSeen?: string;
+      hardware?: {
+        cpus?: Array<{
+          modelName: string;
+          cores: number;
+        }>;
+        totalCores?: number;
+        ramBytes?: number;
+        ramGiB?: number;
+        disks?: Array<{
+          deviceName: string;
+          bytes: number;
+          sizeGiB: number;
+        }>;
+        totalDiskGiB?: number;
+      };
+      networkInterfaces?: Array<{
+        ips: string[];
+        macAddress: string;
+        isPrimary: boolean;
+      }>;
+      drsTags?: Record<string, string>;
+      tags: Record<string, string>;
+      assignedToProtectionGroup?: {
+        protectionGroupId: string;
+        protectionGroupName: string;
+      } | null;
+      selectable?: boolean;
+    }>;
+    serverCount: number;
+    region: string;
+  }> {
     const queryParams: Record<string, string> = { region };
     if (currentProtectionGroupId) {
       queryParams.currentProtectionGroupId = currentProtectionGroupId;
@@ -779,7 +826,53 @@ class ApiClient {
       queryParams.filterByProtectionGroup = filterByProtectionGroup;
     }
     
-    const response = await this.get<any>('/drs/source-servers', queryParams);
+    const response = await this.get<{
+      servers: Array<{
+        sourceServerID: string;
+        hostname: string;
+        fqdn?: string;
+        nameTag?: string;
+        sourceInstanceId?: string;
+        sourceIp?: string;
+        sourceMac?: string;
+        sourceRegion?: string;
+        sourceAccount?: string;
+        os?: string;
+        state?: string;
+        replicationState: string;
+        lagDuration?: string;
+        lastSeen?: string;
+        hardware?: {
+          cpus?: Array<{
+            modelName: string;
+            cores: number;
+          }>;
+          totalCores?: number;
+          ramBytes?: number;
+          ramGiB?: number;
+          disks?: Array<{
+            deviceName: string;
+            bytes: number;
+            sizeGiB: number;
+          }>;
+          totalDiskGiB?: number;
+        };
+        networkInterfaces?: Array<{
+          ips: string[];
+          macAddress: string;
+          isPrimary: boolean;
+        }>;
+        drsTags?: Record<string, string>;
+        tags: Record<string, string>;
+        assignedToProtectionGroup?: {
+          protectionGroupId: string;
+          protectionGroupName: string;
+        } | null;
+        selectable?: boolean;
+      }>;
+      serverCount: number;
+      region: string;
+    }>('/drs/source-servers', queryParams);
     
     return response;
   }
@@ -795,12 +888,64 @@ class ApiClient {
    * @param accountId - AWS account ID to check quotas for
    * @param region - Optional AWS region (defaults to current region)
    */
-  public async getDRSQuotas(accountId: string, region?: string): Promise<any> {
+  public async getDRSQuotas(accountId: string, region?: string): Promise<{
+    accountId: string;
+    region: string;
+    quotas: {
+      replicatingServers: {
+        current: number;
+        limit: number;
+        percentage: number;
+        status: 'OK' | 'WARNING' | 'CRITICAL';
+      };
+      concurrentJobs: {
+        current: number;
+        limit: number;
+        percentage: number;
+        status: 'OK' | 'WARNING' | 'CRITICAL';
+      };
+      serversInActiveJobs: {
+        current: number;
+        limit: number;
+        percentage: number;
+        status: 'OK' | 'WARNING' | 'CRITICAL';
+      };
+    };
+    overallStatus: 'OK' | 'WARNING' | 'CRITICAL';
+    warnings: string[];
+    lastUpdated: string;
+  }> {
     const params = new URLSearchParams({ accountId });
     if (region) {
       params.append('region', region);
     }
-    return this.get<any>(`/drs/quotas?${params.toString()}`);
+    return this.get<{
+      accountId: string;
+      region: string;
+      quotas: {
+        replicatingServers: {
+          current: number;
+          limit: number;
+          percentage: number;
+          status: 'OK' | 'WARNING' | 'CRITICAL';
+        };
+        concurrentJobs: {
+          current: number;
+          limit: number;
+          percentage: number;
+          status: 'OK' | 'WARNING' | 'CRITICAL';
+        };
+        serversInActiveJobs: {
+          current: number;
+          limit: number;
+          percentage: number;
+          status: 'OK' | 'WARNING' | 'CRITICAL';
+        };
+      };
+      overallStatus: 'OK' | 'WARNING' | 'CRITICAL';
+      warnings: string[];
+      lastUpdated: string;
+    }>(`/drs/quotas?${params.toString()}`);
   }
 
 
@@ -808,8 +953,24 @@ class ApiClient {
   /**
    * Target Account Management
    */
-  public async getTargetAccounts(): Promise<any> {
-    return this.get<any>('/accounts/targets');
+  public async getTargetAccounts(): Promise<Array<{
+    accountId: string;
+    accountName: string;
+    roleArn: string;
+    isCurrentAccount: boolean;
+    status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
+    lastValidated?: string;
+    error?: string;
+  }>> {
+    return this.get<Array<{
+      accountId: string;
+      accountName: string;
+      roleArn: string;
+      isCurrentAccount: boolean;
+      status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
+      lastValidated?: string;
+      error?: string;
+    }>>('/accounts/targets');
   }
 
   /**
@@ -827,20 +988,79 @@ class ApiClient {
     }>('/accounts/current');
   }
 
-  public async createTargetAccount(accountData: any): Promise<any> {
-    return this.post<any>('/accounts/targets', accountData);
+  public async createTargetAccount(accountData: {
+    accountId: string;
+    accountName: string;
+    roleArn: string;
+  }): Promise<{
+    accountId: string;
+    accountName: string;
+    roleArn: string;
+    isCurrentAccount: boolean;
+    status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
+    lastValidated?: string;
+    error?: string;
+  }> {
+    return this.post<{
+      accountId: string;
+      accountName: string;
+      roleArn: string;
+      isCurrentAccount: boolean;
+      status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
+      lastValidated?: string;
+      error?: string;
+    }>('/accounts/targets', accountData);
   }
 
-  public async updateTargetAccount(accountId: string, accountData: any): Promise<any> {
-    return this.put<any>(`/accounts/targets/${accountId}`, accountData);
+  public async updateTargetAccount(accountId: string, accountData: {
+    accountName?: string;
+    roleArn?: string;
+  }): Promise<{
+    accountId: string;
+    accountName: string;
+    roleArn: string;
+    isCurrentAccount: boolean;
+    status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
+    lastValidated?: string;
+    error?: string;
+  }> {
+    return this.put<{
+      accountId: string;
+      accountName: string;
+      roleArn: string;
+      isCurrentAccount: boolean;
+      status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
+      lastValidated?: string;
+      error?: string;
+    }>(`/accounts/targets/${accountId}`, accountData);
   }
 
-  public async deleteTargetAccount(accountId: string): Promise<any> {
-    return this.delete<any>(`/accounts/targets/${accountId}`);
+  public async deleteTargetAccount(accountId: string): Promise<{ message: string }> {
+    return this.delete<{ message: string }>(`/accounts/targets/${accountId}`);
   }
 
-  public async validateTargetAccount(accountId: string): Promise<any> {
-    return this.post<any>(`/accounts/targets/${accountId}/validate`, {});
+  public async validateTargetAccount(accountId: string): Promise<{
+    accountId: string;
+    valid: boolean;
+    message: string;
+    details?: {
+      roleExists: boolean;
+      roleAccessible: boolean;
+      requiredPermissions: boolean;
+      error?: string;
+    };
+  }> {
+    return this.post<{
+      accountId: string;
+      valid: boolean;
+      message: string;
+      details?: {
+        roleExists: boolean;
+        roleAccessible: boolean;
+        requiredPermissions: boolean;
+        error?: string;
+      };
+    }>(`/accounts/targets/${accountId}/validate`, {});
   }
 
   /**
