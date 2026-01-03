@@ -46,7 +46,6 @@ phases:
     commands:
       - echo "=== CloudFormation Stack Deployment ==="
       - |
-        # Check if stack exists
         if aws cloudformation describe-stacks --stack-name $STACK_NAME > /dev/null 2>&1; then
           echo "Stack $STACK_NAME exists - performing update"
           OPERATION="update"
@@ -58,41 +57,14 @@ phases:
       - echo "Creating change set for preview..."
       - |
         CHANGE_SET_NAME="changeset-$(date +%Y%m%d-%H%M%S)"
-        aws cloudformation create-change-set \
-          --stack-name $STACK_NAME \
-          --template-body file://cfn/master-template.yaml \
-          --change-set-name $CHANGE_SET_NAME \
-          --parameters \
-            ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME \
-            ParameterKey=Environment,ParameterValue=$ENVIRONMENT \
-            ParameterKey=SourceBucket,ParameterValue=$DEPLOYMENT_BUCKET \
-            ParameterKey=AdminEmail,ParameterValue=$ADMIN_EMAIL \
-            ParameterKey=EnableAutomatedDeployment,ParameterValue=false \
-            ParameterKey=GitHubRepositoryURL,ParameterValue=https://github.com/johnjcousens/aws-elasticdrs-orchestrator \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --tags \
-            Key=Project,Value=$PROJECT_NAME \
-            Key=Environment,Value=$ENVIRONMENT \
-            Key=DeployedBy,Value=CodePipeline \
-            Key=BuildId,Value=$CODEBUILD_BUILD_ID
+        aws cloudformation create-change-set --stack-name $STACK_NAME --template-body file://cfn/master-template.yaml --change-set-name $CHANGE_SET_NAME --parameters ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME ParameterKey=Environment,ParameterValue=$ENVIRONMENT ParameterKey=SourceBucket,ParameterValue=$DEPLOYMENT_BUCKET ParameterKey=AdminEmail,ParameterValue=$ADMIN_EMAIL ParameterKey=EnableAutomatedDeployment,ParameterValue=false ParameterKey=GitHubRepositoryURL,ParameterValue=https://github.com/johnjcousens/aws-elasticdrs-orchestrator --capabilities CAPABILITY_NAMED_IAM --tags Key=Project,Value=$PROJECT_NAME Key=Environment,Value=$ENVIRONMENT Key=DeployedBy,Value=CodePipeline Key=BuildId,Value=$CODEBUILD_BUILD_ID
       
       - echo "Waiting for change set creation..."
-      - aws cloudformation wait change-set-create-complete \
-          --stack-name $STACK_NAME \
-          --change-set-name $CHANGE_SET_NAME
-      
+      - aws cloudformation wait change-set-create-complete --stack-name $STACK_NAME --change-set-name $CHANGE_SET_NAME
       - echo "Describing change set..."
-      - aws cloudformation describe-change-set \
-          --stack-name $STACK_NAME \
-          --change-set-name $CHANGE_SET_NAME \
-          --query 'Changes[].{Action:Action,ResourceType:ResourceChange.ResourceType,LogicalId:ResourceChange.LogicalResourceId,Replacement:ResourceChange.Replacement}' \
-          --output table
-      
+      - aws cloudformation describe-change-set --stack-name $STACK_NAME --change-set-name $CHANGE_SET_NAME --query 'Changes[].{Action:Action,ResourceType:ResourceChange.ResourceType,LogicalId:ResourceChange.LogicalResourceId,Replacement:ResourceChange.Replacement}' --output table
       - echo "Executing change set..."
-      - aws cloudformation execute-change-set \
-          --stack-name $STACK_NAME \
-          --change-set-name $CHANGE_SET_NAME
-      
+      - aws cloudformation execute-change-set --stack-name $STACK_NAME --change-set-name $CHANGE_SET_NAME
       - echo "Waiting for stack operation to complete..."
       - |
         if [ "$OPERATION" = "create" ]; then
@@ -103,41 +75,21 @@ phases:
       
       - echo "=== Deployment Verification ==="
       - echo "Retrieving stack outputs..."
-      - aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
-          --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' \
-          --output table
-      
+      - aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' --output table
       - echo "Verifying critical resources..."
       - |
-        # Get key outputs for verification
-        API_ENDPOINT=$(aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
-          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-          --output text)
-        
-        CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
-          --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
-          --output text)
-        
-        USER_POOL_ID=$(aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
-          --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
-          --output text)
-        
+        API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
+        CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
+        USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
         echo "API Endpoint: $API_ENDPOINT"
         echo "CloudFront URL: $CLOUDFRONT_URL"
         echo "User Pool ID: $USER_POOL_ID"
-        
-        # Basic health checks
         if [ ! -z "$API_ENDPOINT" ] && [ "$API_ENDPOINT" != "None" ]; then
           echo "✓ API Gateway deployed successfully"
         else
           echo "❌ API Gateway deployment failed"
           exit 1
         fi
-        
         if [ ! -z "$USER_POOL_ID" ] && [ "$USER_POOL_ID" != "None" ]; then
           echo "✓ Cognito User Pool deployed successfully"
         else
@@ -147,7 +99,6 @@ phases:
       
       - echo "=== Post-Deployment Configuration ==="
       - |
-        # Create deployment info file for next stage
         cat > deployment-info.json << EOF
         {
           "stack_name": "$STACK_NAME",
@@ -159,7 +110,6 @@ phases:
           "source_version": "$CODEBUILD_SOURCE_VERSION"
         }
         EOF
-        
         echo "Deployment info saved to deployment-info.json"
 
   post_build:
@@ -171,21 +121,12 @@ phases:
           echo "Stack Name: $STACK_NAME"
           echo "API Endpoint: $API_ENDPOINT"
           echo "CloudFront URL: $CLOUDFRONT_URL"
-          
-          # Upload deployment info to S3
           aws s3 cp deployment-info.json s3://$DEPLOYMENT_BUCKET/deployment-info/$CODEBUILD_BUILD_ID/
-          
           echo "Deployment info uploaded to S3"
         else
           echo "❌ Infrastructure deployment failed"
-          
-          # Get stack events for debugging
           echo "Recent stack events:"
-          aws cloudformation describe-stack-events \
-            --stack-name $STACK_NAME \
-            --query 'StackEvents[0:10].{Time:Timestamp,Status:ResourceStatus,Type:ResourceType,Reason:ResourceStatusReason}' \
-            --output table || echo "Could not retrieve stack events"
-          
+          aws cloudformation describe-stack-events --stack-name $STACK_NAME --query 'StackEvents[0:10].{Time:Timestamp,Status:ResourceStatus,Type:ResourceType,Reason:ResourceStatusReason}' --output table || echo "Could not retrieve stack events"
           exit 1
         fi
 

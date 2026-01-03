@@ -38,28 +38,16 @@ phases:
       - echo "=== Building Lambda Packages ==="
       - cd lambda
       - |
-        # Build each Lambda function package
         for dir in */; do
           if [ -d "$dir" ] && [ -f "$dir/index.py" ]; then
             echo "Building Lambda package: $dir"
             cd "$dir"
-            
-            # Install dependencies if requirements.txt exists
             if [ -f "requirements.txt" ]; then
               echo "Installing dependencies for $dir..."
               pip install -r requirements.txt -t . --no-deps
             fi
-            
-            # Create deployment package
             echo "Creating deployment package for $dir..."
-            zip -r "../${dir%/}.zip" . \
-              -x "*.pyc" \
-              -x "__pycache__/*" \
-              -x "tests/*" \
-              -x "*.md" \
-              -x ".git*" \
-              -x "requirements.txt"
-            
+            zip -r "../${dir%/}.zip" . -x "*.pyc" -x "__pycache__/*" -x "tests/*" -x "*.md" -x ".git*" -x "requirements.txt"
             echo "✓ Package created: ${dir%/}.zip"
             cd ..
           else
@@ -75,10 +63,8 @@ phases:
           cd frontend
           echo "Installing frontend dependencies..."
           npm ci --silent
-          
           echo "Building frontend application..."
           npm run build
-          
           echo "Frontend build completed"
           echo "Build output size:"
           du -sh dist/
@@ -89,31 +75,18 @@ phases:
       
       - echo "=== Uploading Build Artifacts to S3 ==="
       - echo "Uploading Lambda packages..."
-      - aws s3 sync lambda/ s3://$DEPLOYMENT_BUCKET/lambda/ \
-          --exclude "*" \
-          --include "*.zip" \
-          --delete
-      
+      - aws s3 sync lambda/ s3://$DEPLOYMENT_BUCKET/lambda/ --exclude "*" --include "*.zip" --delete
       - echo "Uploading CloudFormation templates..."
-      - aws s3 sync cfn/ s3://$DEPLOYMENT_BUCKET/cfn/ \
-          --exclude "*.md" \
-          --delete
-      
+      - aws s3 sync cfn/ s3://$DEPLOYMENT_BUCKET/cfn/ --exclude "*.md" --delete
       - |
         if [ -d "frontend/dist" ]; then
           echo "Uploading frontend build..."
-          aws s3 sync frontend/dist/ s3://$DEPLOYMENT_BUCKET/frontend/ \
-            --delete
+          aws s3 sync frontend/dist/ s3://$DEPLOYMENT_BUCKET/frontend/ --delete
         fi
-      
       - echo "Uploading BuildSpec files..."
-      - aws s3 sync buildspecs/ s3://$DEPLOYMENT_BUCKET/buildspecs/ \
-          --delete
-      
+      - aws s3 sync buildspecs/ s3://$DEPLOYMENT_BUCKET/buildspecs/ --delete
       - echo "Uploading scripts..."
-      - aws s3 sync scripts/ s3://$DEPLOYMENT_BUCKET/scripts/ \
-          --exclude "*.md" \
-          --delete
+      - aws s3 sync scripts/ s3://$DEPLOYMENT_BUCKET/scripts/ --exclude "*.md" --delete
 
   post_build:
     commands:
@@ -122,14 +95,10 @@ phases:
         if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then
           echo "✅ Build completed successfully"
           echo "Artifacts uploaded to s3://$DEPLOYMENT_BUCKET/"
-          
-          # List uploaded artifacts
           echo "Lambda packages:"
           aws s3 ls s3://$DEPLOYMENT_BUCKET/lambda/ --human-readable
-          
           echo "CloudFormation templates:"
           aws s3 ls s3://$DEPLOYMENT_BUCKET/cfn/ --human-readable
-          
           if aws s3 ls s3://$DEPLOYMENT_BUCKET/frontend/ > /dev/null 2>&1; then
             echo "Frontend files:"
             aws s3 ls s3://$DEPLOYMENT_BUCKET/frontend/ --human-readable --summarize
