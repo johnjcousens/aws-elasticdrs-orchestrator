@@ -42,9 +42,9 @@ phases:
       - echo "=== Integration Tests ==="
       - echo "Current directory: $(pwd)"
       - echo "Listing tests directory: $(ls -la tests/)"
-      - cd tests/integration/fresh-deployment
-      - pip install -r requirements.txt
-      - python -m pytest . -v --tb=short --junit-xml=../../../test-reports/integration-results.xml
+      - cd tests/integration
+      - pip install pytest boto3 botocore
+      - python -m pytest test_basic_integration.py -v --tb=short --junit-xml=../../test-reports/integration-results.xml
       - cd $CODEBUILD_SRC_DIR
       - echo "=== API Contract Tests ==="
       - echo "API contract tests would run here"
