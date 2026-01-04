@@ -13,15 +13,16 @@ from decimal import Decimal
 from typing import Any, Dict
 
 import boto3
+
 from security_utils import (
+    create_security_headers,
     log_security_event,
+    mask_sensitive_data,
+    safe_aws_client_call,
     sanitize_dynamodb_input,
     sanitize_string,
-    validate_uuid,
     validate_email,
-    safe_aws_client_call,
-    create_security_headers,
-    mask_sensitive_data,
+    validate_uuid,
 )
 
 # Initialize AWS clients

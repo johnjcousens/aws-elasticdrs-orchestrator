@@ -4,19 +4,20 @@ Formats CodePipeline and CodeBuild events into user-friendly email notifications
 """
 
 import json
-import boto3
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
+
+import boto3
 
 # Import security utilities
 try:
     from security_utils import (
-        validate_api_gateway_event,
-        sanitize_string_input,
+        create_response_with_security_headers,
         log_security_event,
         safe_aws_client_call,
-        create_response_with_security_headers,
+        sanitize_string_input,
+        validate_api_gateway_event,
     )
 
     SECURITY_ENABLED = True

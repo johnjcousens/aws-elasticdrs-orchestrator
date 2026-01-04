@@ -10,13 +10,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
 import boto3
+
 from security_utils import (
+    create_security_headers,
     log_security_event,
+    mask_sensitive_data,
+    safe_aws_client_call,
     sanitize_dynamodb_input,
     validate_aws_region,
-    safe_aws_client_call,
-    create_security_headers,
-    mask_sensitive_data,
 )
 
 # Environment variables
