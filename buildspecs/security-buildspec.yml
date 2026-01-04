@@ -58,19 +58,13 @@ phases:
       
       # Bandit security scan
       - echo "Running Bandit security scan on Python code..."
-      - |
-        bandit -r lambda/ scripts/ \
-          -f json -o reports/security/raw/bandit-report.json \
-          -ll --severity-level medium --confidence-level medium || true
+      - bandit -r lambda/ scripts/ -f json -o reports/security/raw/bandit-report.json -ll --severity-level medium --confidence-level medium || true
       - echo "Bandit scan completed, generating human-readable report..."
       - bandit -r lambda/ scripts/ -ll --severity-level medium --confidence-level medium > reports/security/formatted/bandit-report.txt || true
       
       # Semgrep security scan for Python
       - echo "Running Semgrep security scan on Python code..."
-      - |
-        semgrep --config=python.lang.security lambda/ scripts/ \
-          --json -o reports/security/raw/semgrep-python.json \
-          --severity ERROR --severity WARNING || true
+      - semgrep --config=python.lang.security lambda/ scripts/ --json -o reports/security/raw/semgrep-python.json --severity ERROR --severity WARNING || true
       - echo "Semgrep Python scan completed, generating human-readable report..."
       - semgrep --config=python.lang.security lambda/ scripts/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-python.txt || true
       
@@ -95,10 +89,7 @@ phases:
       
       # ESLint security scan
       - echo "Running ESLint security scan..."
-      - |
-        npx eslint src/ --ext .ts,.tsx \
-          --format json -o ../reports/security/raw/eslint-security.json \
-          --config .eslintrc.json || true
+      - npx eslint src/ --ext .ts,.tsx --format json -o ../reports/security/raw/eslint-security.json --config .eslintrc.json || true
       - echo "ESLint security scan completed, generating human-readable report..."
       - npx eslint src/ --ext .ts,.tsx --format compact > ../reports/security/formatted/eslint-security.txt || true
       
@@ -114,10 +105,7 @@ phases:
       
       # Semgrep security scan for CloudFormation
       - echo "Running Semgrep security scan on CloudFormation templates..."
-      - |
-        semgrep --config=yaml.lang.security cfn/ \
-          --json -o reports/security/raw/semgrep-cfn.json \
-          --severity ERROR --severity WARNING || true
+      - semgrep --config=yaml.lang.security cfn/ --json -o reports/security/raw/semgrep-cfn.json --severity ERROR --severity WARNING || true
       - echo "Semgrep CloudFormation scan completed, generating human-readable report..."
       - semgrep --config=yaml.lang.security cfn/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-cfn.txt || true
       
@@ -133,34 +121,7 @@ phases:
       
       # Check if critical security issues were found
       - echo "Checking security scan results against thresholds..."
-      - |
-        if [ -f reports/security/security-summary.json ]; then
-          CRITICAL_ISSUES=$(python -c "import json; data=json.load(open('reports/security/security-summary.json')); print(data['summary']['total_critical_issues'])")
-          HIGH_ISSUES=$(python -c "import json; data=json.load(open('reports/security/security-summary.json')); print(data['summary']['total_high_issues'])")
-          TOTAL_ISSUES=$(python -c "import json; data=json.load(open('reports/security/security-summary.json')); print(data['summary']['total_issues'])")
-          
-          echo "Security scan results:"
-          echo "  Critical issues: $CRITICAL_ISSUES (threshold: $SECURITY_THRESHOLD_CRITICAL)"
-          echo "  High issues: $HIGH_ISSUES (threshold: $SECURITY_THRESHOLD_HIGH)"
-          echo "  Total issues: $TOTAL_ISSUES (threshold: $SECURITY_THRESHOLD_TOTAL)"
-          
-          if [ "$CRITICAL_ISSUES" -gt "$SECURITY_THRESHOLD_CRITICAL" ]; then
-            echo "❌ SECURITY SCAN FAILED: Critical security issues found!"
-            echo "Build will fail due to critical security vulnerabilities."
-            exit 1
-          elif [ "$HIGH_ISSUES" -gt "$SECURITY_THRESHOLD_HIGH" ]; then
-            echo "⚠️ SECURITY SCAN WARNING: High-severity issues found!"
-            echo "Consider addressing these issues before deployment."
-          elif [ "$TOTAL_ISSUES" -gt "$SECURITY_THRESHOLD_TOTAL" ]; then
-            echo "ℹ️ SECURITY SCAN INFO: Many security issues found."
-            echo "Consider addressing medium/low severity issues."
-          else
-            echo "✅ SECURITY SCAN PASSED: Security posture is acceptable."
-          fi
-        else
-          echo "❌ ERROR: Security summary not generated!"
-          exit 1
-        fi
+      - 'if [ -f reports/security/security-summary.json ]; then CRITICAL_ISSUES=$(python -c "import json; data=json.load(open(\"reports/security/security-summary.json\")); print(data[\"summary\"][\"total_critical_issues\"])"); HIGH_ISSUES=$(python -c "import json; data=json.load(open(\"reports/security/security-summary.json\")); print(data[\"summary\"][\"total_high_issues\"])"); TOTAL_ISSUES=$(python -c "import json; data=json.load(open(\"reports/security/security-summary.json\")); print(data[\"summary\"][\"total_issues\"])"); echo "Security scan results:"; echo "  Critical issues: $CRITICAL_ISSUES (threshold: $SECURITY_THRESHOLD_CRITICAL)"; echo "  High issues: $HIGH_ISSUES (threshold: $SECURITY_THRESHOLD_HIGH)"; echo "  Total issues: $TOTAL_ISSUES (threshold: $SECURITY_THRESHOLD_TOTAL)"; if [ "$CRITICAL_ISSUES" -gt "$SECURITY_THRESHOLD_CRITICAL" ]; then echo "❌ SECURITY SCAN FAILED: Critical security issues found!"; echo "Build will fail due to critical security vulnerabilities."; exit 1; elif [ "$HIGH_ISSUES" -gt "$SECURITY_THRESHOLD_HIGH" ]; then echo "⚠️ SECURITY SCAN WARNING: High-severity issues found!"; echo "Consider addressing these issues before deployment."; elif [ "$TOTAL_ISSUES" -gt "$SECURITY_THRESHOLD_TOTAL" ]; then echo "ℹ️ SECURITY SCAN INFO: Many security issues found."; echo "Consider addressing medium/low severity issues."; else echo "✅ SECURITY SCAN PASSED: Security posture is acceptable."; fi; else echo "❌ ERROR: Security summary not generated!"; exit 1; fi'
 
   post_build:
     commands:
@@ -174,14 +135,7 @@ phases:
       - ls -la reports/security/formatted/
       
       # Generate build badge information
-      - |
-        if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then
-          echo "Security scan completed successfully"
-          echo '{"status": "passed", "message": "Security scan passed"}' > reports/security/build-status.json
-        else
-          echo "Security scan failed - check reports for details"
-          echo '{"status": "failed", "message": "Security scan failed"}' > reports/security/build-status.json
-        fi
+      - 'if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then echo "Security scan completed successfully"; echo "{\"status\": \"passed\", \"message\": \"Security scan passed\"}" > reports/security/build-status.json; else echo "Security scan failed - check reports for details"; echo "{\"status\": \"failed\", \"message\": \"Security scan failed\"}" > reports/security/build-status.json; fi'
       
       # Optional: Upload to S3 for long-term storage
       # - aws s3 cp reports/security/ s3://your-security-reports-bucket/builds/$CODEBUILD_BUILD_ID/ --recursive
