@@ -4,6 +4,7 @@ Queries DynamoDB StatusIndex GSI for executions in POLLING status.
 Implements adaptive polling intervals based on execution phase.
 Invokes Execution Poller Lambda asynchronously per execution.
 """
+
 import json
 import logging
 import os
@@ -394,7 +395,7 @@ def detect_execution_phase(waves: List[Dict[str, Any]]) -> str:
 
 
 def invoke_pollers_for_executions(
-    executions: List[Dict[str, Any]]
+    executions: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
     Invoke Execution Poller Lambda asynchronously for each execution.
