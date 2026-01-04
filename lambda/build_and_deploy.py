@@ -17,12 +17,15 @@ try:
         sanitize_string_input,
         log_security_event,
         safe_aws_client_call,
-        validate_file_path
+        validate_file_path,
     )
+
     SECURITY_ENABLED = True
 except ImportError:
     SECURITY_ENABLED = False
-    print("WARNING: security_utils not available - running without security features")
+    print(
+        "WARNING: security_utils not available - running without security features"
+    )
 
 s3 = boto3.client("s3")
 cloudfront = boto3.client("cloudfront")
@@ -32,15 +35,15 @@ helper = CfnResource()
 def use_prebuilt_dist(frontend_dir):
     """Use pre-built dist/ folder from Lambda package (no npm required)"""
     print("Using pre-built dist folder from Lambda package...")
-    
+
     # Security validation for file paths
     if SECURITY_ENABLED:
         validate_file_path(frontend_dir)
         frontend_dir = sanitize_string_input(frontend_dir)
-        log_security_event("using_prebuilt_dist", {
-            "frontend_dir": frontend_dir
-        })
-    
+        log_security_event(
+            "using_prebuilt_dist", {"frontend_dir": frontend_dir}
+        )
+
     dist_dir = os.path.join(frontend_dir, "dist")
 
     if not os.path.exists(dist_dir):
@@ -49,10 +52,10 @@ def use_prebuilt_dist(frontend_dir):
             f"Lambda package must include pre-built frontend/dist/ folder."
         )
         if SECURITY_ENABLED:
-            log_security_event("dist_directory_not_found", {
-                "dist_dir": dist_dir,
-                "error": error_msg
-            })
+            log_security_event(
+                "dist_directory_not_found",
+                {"dist_dir": dist_dir, "error": error_msg},
+            )
         raise FileNotFoundError(error_msg)
 
     # Count files in dist
@@ -70,27 +73,38 @@ def inject_aws_config_into_dist(dist_dir, properties):
     index.html
     """
     print("Injecting AWS configuration into pre-built dist...")
-    
+
     # Security validation for inputs
     if SECURITY_ENABLED:
         validate_file_path(dist_dir)
         dist_dir = sanitize_string_input(dist_dir)
-        region = sanitize_string_input(properties.get("Region", os.environ.get("AWS_REGION", "us-west-2")))
-        log_security_event("injecting_aws_config", {
-            "dist_dir": dist_dir,
-            "region": region
-        })
+        region = sanitize_string_input(
+            properties.get("Region", os.environ.get("AWS_REGION", "us-west-2"))
+        )
+        log_security_event(
+            "injecting_aws_config", {"dist_dir": dist_dir, "region": region}
+        )
     else:
-        region = properties.get("Region", os.environ.get("AWS_REGION", "us-west-2"))
+        region = properties.get(
+            "Region", os.environ.get("AWS_REGION", "us-west-2")
+        )
 
     # Create configuration object with sanitized values
     if SECURITY_ENABLED:
         config_obj = {
             "region": region,
-            "userPoolId": sanitize_string_input(properties.get("UserPoolId", "")),
-            "userPoolClientId": sanitize_string_input(properties.get("UserPoolClientId", "")),
-            "identityPoolId": sanitize_string_input(properties.get("IdentityPoolId", "")),
-            "apiEndpoint": sanitize_string_input(properties.get("ApiEndpoint", "")),
+            "userPoolId": sanitize_string_input(
+                properties.get("UserPoolId", "")
+            ),
+            "userPoolClientId": sanitize_string_input(
+                properties.get("UserPoolClientId", "")
+            ),
+            "identityPoolId": sanitize_string_input(
+                properties.get("IdentityPoolId", "")
+            ),
+            "apiEndpoint": sanitize_string_input(
+                properties.get("ApiEndpoint", "")
+            ),
         }
     else:
         config_obj = {
@@ -198,16 +212,19 @@ window.AWS_CONFIG = {{
 def create_or_update(event, context):
     """Deploy pre-built frontend"""
     properties = event["ResourceProperties"]
-    
+
     # Security validation for CloudFormation inputs
     if SECURITY_ENABLED:
         bucket_name = sanitize_string_input(properties["BucketName"])
         distribution_id = sanitize_string_input(properties["DistributionId"])
-        log_security_event("frontend_deployment_started", {
-            "bucket_name": bucket_name,
-            "distribution_id": distribution_id,
-            "request_id": context.aws_request_id
-        })
+        log_security_event(
+            "frontend_deployment_started",
+            {
+                "bucket_name": bucket_name,
+                "distribution_id": distribution_id,
+                "request_id": context.aws_request_id,
+            },
+        )
     else:
         bucket_name = properties["BucketName"]
         distribution_id = properties["DistributionId"]
@@ -226,10 +243,10 @@ def create_or_update(event, context):
                 f"{lambda_frontend_path}"
             )
             if SECURITY_ENABLED:
-                log_security_event("frontend_source_not_found", {
-                    "path": lambda_frontend_path,
-                    "error": error_msg
-                })
+                log_security_event(
+                    "frontend_source_not_found",
+                    {"path": lambda_frontend_path, "error": error_msg},
+                )
             raise FileNotFoundError(error_msg)
 
         print(
@@ -256,7 +273,7 @@ def create_or_update(event, context):
 
         # Invalidate CloudFront cache
         print("Creating CloudFront invalidation...")
-        
+
         if SECURITY_ENABLED:
             invalidation_call = lambda: cloudfront.create_invalidation(
                 DistributionId=distribution_id,
@@ -281,11 +298,14 @@ def create_or_update(event, context):
         print("🎉 Frontend deployment complete!")
 
         if SECURITY_ENABLED:
-            log_security_event("frontend_deployment_completed", {
-                "bucket_name": bucket_name,
-                "files_deployed": len(uploaded_files),
-                "invalidation_id": invalidation_id
-            })
+            log_security_event(
+                "frontend_deployment_completed",
+                {
+                    "bucket_name": bucket_name,
+                    "files_deployed": len(uploaded_files),
+                    "invalidation_id": invalidation_id,
+                },
+            )
 
         return {
             "BucketName": bucket_name,
@@ -299,11 +319,12 @@ def create_or_update(event, context):
         error_msg = f"Error deploying frontend: {str(e)}"
         print(error_msg)
         if SECURITY_ENABLED:
-            log_security_event("frontend_deployment_error", {
-                "error": str(e),
-                "bucket_name": bucket_name
-            })
+            log_security_event(
+                "frontend_deployment_error",
+                {"error": str(e), "bucket_name": bucket_name},
+            )
         import traceback
+
         traceback.print_exc()
         raise RuntimeError(error_msg)
 
