@@ -268,7 +268,8 @@ def validate_api_gateway_event(event: Dict[str, Any]) -> Dict[str, Any]:
         sanitized_query_params = {}
         for key, value in query_params.items():
             if isinstance(value, str):
-                sanitized_query_params[sanitize_string(key, 100)] = sanitize_string(value, 1024)
+                # Allow longer values for query parameters like account IDs
+                sanitized_query_params[sanitize_string(key, 100)] = sanitize_string(value, 2048)
     else:
         sanitized_query_params = {}
     
@@ -282,7 +283,9 @@ def validate_api_gateway_event(event: Dict[str, Any]) -> Dict[str, Any]:
     
     for key, value in headers.items():
         if key.lower() in allowed_headers and isinstance(value, str):
-            safe_headers[key.lower()] = sanitize_string(value, 1024)
+            # JWT tokens in Authorization header can be very long (2000+ chars)
+            max_length = 4096 if key.lower() == 'authorization' else 1024
+            safe_headers[key.lower()] = sanitize_string(value, max_length)
     
     return {
         'httpMethod': event['httpMethod'],
