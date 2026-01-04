@@ -16,7 +16,7 @@ from security_utils import (
     validate_aws_region,
     safe_aws_client_call,
     create_security_headers,
-    mask_sensitive_data
+    mask_sensitive_data,
 )
 
 # Environment variables
@@ -52,14 +52,18 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
     """
     # Log security event for function invocation
     log_security_event(
-        'lambda_invocation',
+        "lambda_invocation",
         {
-            'function_name': 'tag_discovery',
-            'event_keys': list(event.keys()) if isinstance(event, dict) else [],
-            'context_request_id': getattr(context, 'aws_request_id', 'unknown')
-        }
+            "function_name": "tag_discovery",
+            "event_keys": list(event.keys())
+            if isinstance(event, dict)
+            else [],
+            "context_request_id": getattr(
+                context, "aws_request_id", "unknown"
+            ),
+        },
     )
-    
+
     print(f"Tag Discovery received: {json.dumps(mask_sensitive_data(event))}")
 
     # Validate and sanitize input
@@ -69,13 +73,13 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         region = sanitized_event.get("region", DEFAULT_REGION)
         execution_id = sanitized_event.get("executionId")
         staging_accounts = sanitized_event.get("stagingAccounts", [])
-        
+
         # Validate region format
         if not validate_aws_region(region):
             log_security_event(
-                'input_validation_error',
-                {'error': 'Invalid AWS region format', 'region': region},
-                'WARN'
+                "input_validation_error",
+                {"error": "Invalid AWS region format", "region": region},
+                "WARN",
             )
             return {
                 "executionId": execution_id,
@@ -83,12 +87,10 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
                 "servers": [],
                 "error": "Invalid AWS region format",
             }
-            
+
     except Exception as e:
         log_security_event(
-            'input_sanitization_error',
-            {'error': str(e)},
-            'ERROR'
+            "input_sanitization_error", {"error": str(e)}, "ERROR"
         )
         return {
             "executionId": event.get("executionId"),
@@ -134,9 +136,9 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
         drs = boto3.client("drs", region_name=region)
     except Exception as e:
         log_security_event(
-            'aws_client_creation_error',
-            {'service': 'drs', 'region': region, 'error': str(e)},
-            'ERROR'
+            "aws_client_creation_error",
+            {"service": "drs", "region": region, "error": str(e)},
+            "ERROR",
         )
         return {
             "totalServers": 0,
@@ -154,12 +156,18 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
 
     try:
         # Use safe AWS client call wrapper
-        paginator = safe_aws_client_call(drs.get_paginator, "describe_source_servers")
+        paginator = safe_aws_client_call(
+            drs.get_paginator, "describe_source_servers"
+        )
         if not paginator:
             log_security_event(
-                'aws_api_error',
-                {'service': 'drs', 'operation': 'get_paginator', 'region': region},
-                'ERROR'
+                "aws_api_error",
+                {
+                    "service": "drs",
+                    "operation": "get_paginator",
+                    "region": region,
+                },
+                "ERROR",
             )
             return {
                 "totalServers": 0,
@@ -224,9 +232,7 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
 
     except Exception as e:
         log_security_event(
-            'drs_discovery_error',
-            {'region': region, 'error': str(e)},
-            'ERROR'
+            "drs_discovery_error", {"region": region, "error": str(e)}, "ERROR"
         )
         print(f"Error discovering servers in {region}: {str(e)}")
         return {
@@ -243,14 +249,14 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
     servers_by_wave = group_servers_by_wave(matching_servers)
 
     log_security_event(
-        'server_discovery_completed',
+        "server_discovery_completed",
         {
-            'region': region,
-            'total_servers': len(matching_servers),
-            'healthy_count': healthy_count,
-            'unhealthy_count': unhealthy_count,
-            'wave_count': len(servers_by_wave)
-        }
+            "region": region,
+            "total_servers": len(matching_servers),
+            "healthy_count": healthy_count,
+            "unhealthy_count": unhealthy_count,
+            "wave_count": len(servers_by_wave),
+        },
     )
 
     return {

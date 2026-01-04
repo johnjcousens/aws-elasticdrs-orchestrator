@@ -21,7 +21,7 @@ from security_utils import (
     validate_email,
     safe_aws_client_call,
     create_security_headers,
-    mask_sensitive_data
+    mask_sensitive_data,
 )
 
 # Initialize AWS clients
@@ -57,15 +57,19 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
     """
     # Log security event for function invocation
     log_security_event(
-        'lambda_invocation',
+        "lambda_invocation",
         {
-            'function_name': 'execution_registry',
-            'action': event.get('action', 'unknown'),
-            'event_keys': list(event.keys()) if isinstance(event, dict) else [],
-            'context_request_id': getattr(context, 'aws_request_id', 'unknown')
-        }
+            "function_name": "execution_registry",
+            "action": event.get("action", "unknown"),
+            "event_keys": list(event.keys())
+            if isinstance(event, dict)
+            else [],
+            "context_request_id": getattr(
+                context, "aws_request_id", "unknown"
+            ),
+        },
     )
-    
+
     print(
         f"Execution Registry received: {json.dumps(mask_sensitive_data(event), cls=DecimalEncoder)}"
     )
@@ -75,7 +79,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
     try:
         # Validate and sanitize input
         sanitized_event = sanitize_dynamodb_input(event)
-        
+
         if action == "register":
             return register_execution(sanitized_event)
         elif action == "update":
@@ -85,17 +89,13 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         elif action == "get":
             return get_execution(sanitized_event)
         else:
-            log_security_event(
-                'invalid_action',
-                {'action': action},
-                'WARN'
-            )
+            log_security_event("invalid_action", {"action": action}, "WARN")
             raise ValueError(f"Unknown action: {action}")
     except Exception as e:
         log_security_event(
-            'execution_registry_error',
-            {'action': action, 'error': str(e)},
-            'ERROR'
+            "execution_registry_error",
+            {"action": action, "error": str(e)},
+            "ERROR",
         )
         print(f"Error in execution registry: {str(e)}")
         raise
@@ -164,7 +164,7 @@ def register_execution(event: Dict) -> Dict:
 
 def build_initiated_by(source: str, details: Dict) -> str:
     """Build human-readable InitiatedBy string for display"""
-    
+
     if source == "UI":
         email = sanitize_string(details.get("userEmail", "UI User"), 100)
         # Validate email format for additional security
@@ -172,13 +172,15 @@ def build_initiated_by(source: str, details: Dict) -> str:
             return email
         else:
             log_security_event(
-                'invalid_email_format',
-                {'email': email[:20] + '...' if len(email) > 20 else email},
-                'WARN'
+                "invalid_email_format",
+                {"email": email[:20] + "..." if len(email) > 20 else email},
+                "WARN",
             )
             return "UI User"
     elif source == "CLI":
-        user = details.get("iamUser") or details.get("correlationId", "unknown")
+        user = details.get("iamUser") or details.get(
+            "correlationId", "unknown"
+        )
         user = sanitize_string(str(user), 50)
         return f"cli: {user}"
     elif source == "EVENTBRIDGE":
@@ -188,14 +190,18 @@ def build_initiated_by(source: str, details: Dict) -> str:
         doc = sanitize_string(details.get("ssmDocumentName", "unknown"), 50)
         return f"ssm: {doc}"
     elif source == "STEPFUNCTIONS":
-        parent = sanitize_string(details.get("parentExecutionId", "unknown"), 50)
+        parent = sanitize_string(
+            details.get("parentExecutionId", "unknown"), 50
+        )
         return (
             f"stepfunctions: {parent[:8]}..."
             if len(parent) > 8
             else f"stepfunctions: {parent}"
         )
     else:
-        correlation = sanitize_string(details.get("correlationId", "unknown"), 50)
+        correlation = sanitize_string(
+            details.get("correlationId", "unknown"), 50
+        )
         return f"api: {correlation}"
 
 
@@ -206,9 +212,13 @@ def update_execution(event: Dict) -> Dict:
     # Validate execution_id format using security utils
     if not validate_uuid(execution_id):
         log_security_event(
-            'invalid_execution_id',
-            {'execution_id': execution_id[:20] + '...' if len(execution_id) > 20 else execution_id},
-            'WARN'
+            "invalid_execution_id",
+            {
+                "execution_id": execution_id[:20] + "..."
+                if len(execution_id) > 20
+                else execution_id
+            },
+            "WARN",
         )
         raise ValueError(f"Invalid execution ID format: {execution_id}")
 
@@ -226,7 +236,9 @@ def update_execution(event: Dict) -> Dict:
     # Waves update
     if "waves" in event:
         # Sanitize waves data
-        sanitized_waves = sanitize_dynamodb_input({"waves": event["waves"]})["waves"]
+        sanitized_waves = sanitize_dynamodb_input({"waves": event["waves"]})[
+            "waves"
+        ]
         update_parts.append("Waves = :waves")
         expr_values[":waves"] = sanitized_waves
 
@@ -267,21 +279,23 @@ def update_execution(event: Dict) -> Dict:
     try:
         safe_aws_client_call(execution_table.update_item, **update_kwargs)
         log_security_event(
-            'execution_updated',
+            "execution_updated",
             {
-                'execution_id': execution_id,
-                'status': event.get('status', 'no status change')
-            }
+                "execution_id": execution_id,
+                "status": event.get("status", "no status change"),
+            },
         )
     except Exception as e:
         log_security_event(
-            'dynamodb_update_error',
-            {'execution_id': execution_id, 'error': str(e)},
-            'ERROR'
+            "dynamodb_update_error",
+            {"execution_id": execution_id, "error": str(e)},
+            "ERROR",
         )
         raise
 
-    print(f"Updated execution {execution_id}: {event.get('status', 'no status change')}")
+    print(
+        f"Updated execution {execution_id}: {event.get('status', 'no status change')}"
+    )
 
     return {
         "executionId": execution_id,
@@ -353,42 +367,41 @@ def get_execution(event: Dict) -> Dict:
     # Validate execution_id format using security utils
     if not validate_uuid(execution_id):
         log_security_event(
-            'invalid_execution_id_get',
-            {'execution_id': execution_id[:20] + '...' if len(execution_id) > 20 else execution_id},
-            'WARN'
+            "invalid_execution_id_get",
+            {
+                "execution_id": execution_id[:20] + "..."
+                if len(execution_id) > 20
+                else execution_id
+            },
+            "WARN",
         )
         raise ValueError(f"Invalid execution ID format: {execution_id}")
 
     try:
         result = safe_aws_client_call(
-            execution_table.get_item,
-            Key={"ExecutionId": execution_id.strip()}
+            execution_table.get_item, Key={"ExecutionId": execution_id.strip()}
         )
-        
+
         if not result:
             log_security_event(
-                'dynamodb_get_error',
-                {'execution_id': execution_id},
-                'ERROR'
+                "dynamodb_get_error", {"execution_id": execution_id}, "ERROR"
             )
             raise ValueError("Failed to query DynamoDB")
-            
+
         item = result.get("Item")
 
         if not item:
             log_security_event(
-                'execution_not_found',
-                {'execution_id': execution_id},
-                'WARN'
+                "execution_not_found", {"execution_id": execution_id}, "WARN"
             )
             raise ValueError(f"Execution not found: {execution_id}")
 
         return item
-        
+
     except Exception as e:
         log_security_event(
-            'get_execution_error',
-            {'execution_id': execution_id, 'error': str(e)},
-            'ERROR'
+            "get_execution_error",
+            {"execution_id": execution_id, "error": str(e)},
+            "ERROR",
         )
         raise
