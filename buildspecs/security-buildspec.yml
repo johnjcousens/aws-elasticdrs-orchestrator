@@ -121,7 +121,32 @@ phases:
       
       # Check if critical security issues were found
       - echo "Checking security scan results against thresholds..."
-      - 'if [ -f reports/security/security-summary.json ]; then CRITICAL_ISSUES=$(python -c "import json; data=json.load(open(\"reports/security/security-summary.json\")); print(data[\"summary\"][\"total_critical_issues\"])"); HIGH_ISSUES=$(python -c "import json; data=json.load(open(\"reports/security/security-summary.json\")); print(data[\"summary\"][\"total_high_issues\"])"); TOTAL_ISSUES=$(python -c "import json; data=json.load(open(\"reports/security/security-summary.json\")); print(data[\"summary\"][\"total_issues\"])"); echo "Security scan results:"; echo "  Critical issues: $CRITICAL_ISSUES (threshold: $SECURITY_THRESHOLD_CRITICAL)"; echo "  High issues: $HIGH_ISSUES (threshold: $SECURITY_THRESHOLD_HIGH)"; echo "  Total issues: $TOTAL_ISSUES (threshold: $SECURITY_THRESHOLD_TOTAL)"; if [ "$CRITICAL_ISSUES" -gt "$SECURITY_THRESHOLD_CRITICAL" ]; then echo "❌ SECURITY SCAN FAILED: Critical security issues found!"; echo "Build will fail due to critical security vulnerabilities."; exit 1; elif [ "$HIGH_ISSUES" -gt "$SECURITY_THRESHOLD_HIGH" ]; then echo "⚠️ SECURITY SCAN WARNING: High-severity issues found!"; echo "Consider addressing these issues before deployment."; elif [ "$TOTAL_ISSUES" -gt "$SECURITY_THRESHOLD_TOTAL" ]; then echo "ℹ️ SECURITY SCAN INFO: Many security issues found."; echo "Consider addressing medium/low severity issues."; else echo "✅ SECURITY SCAN PASSED: Security posture is acceptable."; fi; else echo "❌ ERROR: Security summary not generated!"; exit 1; fi'
+      - python -c "
+          import json, sys, os;
+          if not os.path.exists('reports/security/security-summary.json'):
+              print('ERROR: Security summary not generated!');
+              sys.exit(1);
+          data = json.load(open('reports/security/security-summary.json'));
+          critical = data['summary']['total_critical_issues'];
+          high = data['summary']['total_high_issues'];
+          total = data['summary']['total_issues'];
+          print(f'Security scan results:');
+          print(f'  Critical issues: {critical} (threshold: {os.environ.get(\"SECURITY_THRESHOLD_CRITICAL\", \"0\")})');
+          print(f'  High issues: {high} (threshold: {os.environ.get(\"SECURITY_THRESHOLD_HIGH\", \"10\")})');
+          print(f'  Total issues: {total} (threshold: {os.environ.get(\"SECURITY_THRESHOLD_TOTAL\", \"50\")})');
+          if critical > int(os.environ.get('SECURITY_THRESHOLD_CRITICAL', '0')):
+              print('❌ SECURITY SCAN FAILED: Critical security issues found!');
+              print('Build will fail due to critical security vulnerabilities.');
+              sys.exit(1);
+          elif high > int(os.environ.get('SECURITY_THRESHOLD_HIGH', '10')):
+              print('⚠️ SECURITY SCAN WARNING: High-severity issues found!');
+              print('Consider addressing these issues before deployment.');
+          elif total > int(os.environ.get('SECURITY_THRESHOLD_TOTAL', '50')):
+              print('ℹ️ SECURITY SCAN INFO: Many security issues found.');
+              print('Consider addressing medium/low severity issues.');
+          else:
+              print('✅ SECURITY SCAN PASSED: Security posture is acceptable.');
+          "
 
   post_build:
     commands:
@@ -135,7 +160,14 @@ phases:
       - ls -la reports/security/formatted/
       
       # Generate build badge information
-      - 'if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then echo "Security scan completed successfully"; echo "{\"status\": \"passed\", \"message\": \"Security scan passed\"}" > reports/security/build-status.json; else echo "Security scan failed - check reports for details"; echo "{\"status\": \"failed\", \"message\": \"Security scan failed\"}" > reports/security/build-status.json; fi'
+      - python -c "
+          import json, os;
+          status = 'passed' if os.environ.get('CODEBUILD_BUILD_SUCCEEDING', '0') == '1' else 'failed';
+          message = 'Security scan passed' if status == 'passed' else 'Security scan failed';
+          print(f'Security scan completed with status: {status}');
+          with open('reports/security/build-status.json', 'w') as f:
+              json.dump({'status': status, 'message': message}, f);
+          "
       
       # Optional: Upload to S3 for long-term storage
       # - aws s3 cp reports/security/ s3://your-security-reports-bucket/builds/$CODEBUILD_BUILD_ID/ --recursive
