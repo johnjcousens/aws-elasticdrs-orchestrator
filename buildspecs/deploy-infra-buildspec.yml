@@ -31,7 +31,6 @@ phases:
       - echo "Build ID: $CODEBUILD_BUILD_ID"
       - echo "Source Version: $CODEBUILD_SOURCE_VERSION"
       - echo "AWS Region: $AWS_DEFAULT_REGION"
-      
       - echo "=== Pre-deployment Validation ==="
       - echo "Checking if deployment bucket exists..."
       - aws s3 ls s3://$DEPLOYMENT_BUCKET/ > /dev/null || (echo "❌ Deployment bucket not found" && exit 1)
