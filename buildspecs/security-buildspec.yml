@@ -144,7 +144,6 @@ reports:
   security-scan-reports:
     files:
       - 'reports/security/**/*'
-    name: SecurityScanReports-$CODEBUILD_BUILD_ID
     base-directory: '.'
 
 artifacts:
