@@ -32,17 +32,19 @@ phases:
       - mkdir -p test-reports
       - cd tests/python
       - python -m pytest unit/ -v --tb=short --cov=../../lambda --cov-report=term-missing --cov-report=html:../../test-reports/coverage --junit-xml=../../test-reports/pytest-results.xml
-      - cd ../..
+      - cd $CODEBUILD_SRC_DIR
       - echo "=== Frontend Tests ==="
       - cd frontend
       - npm ci --silent
       - npm run type-check
       - npm run lint
-      - cd ..
+      - cd $CODEBUILD_SRC_DIR
       - echo "=== Integration Tests ==="
+      - echo "Current directory: $(pwd)"
+      - echo "Listing tests directory: $(ls -la tests/)"
       - cd tests/integration
       - python -m pytest . -v --tb=short --junit-xml=../../test-reports/integration-results.xml
-      - cd ../..
+      - cd $CODEBUILD_SRC_DIR
       - echo "=== API Contract Tests ==="
       - echo "API contract tests would run here"
       - echo "=== Security Tests ==="
