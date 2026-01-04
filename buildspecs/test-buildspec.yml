@@ -16,9 +16,6 @@ phases:
       - pip install --upgrade pip
       - pip install pytest pytest-cov pytest-html pytest-json-report
       - pip install boto3 moto requests
-      - curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-      - export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      - nvm install 18 && nvm use 18
       - npm install -g npm@latest
 
   pre_build:
