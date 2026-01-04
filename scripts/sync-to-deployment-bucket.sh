@@ -633,6 +633,10 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         fi
         
         zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py" 2>/dev/null || zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py"
+        # Add security_utils dependency
+        if [ -f "security_utils.py" ]; then
+            zip -qj "/tmp/lambda-orchestration.zip" "security_utils.py"
+        fi
         
         echo "⚡ Updating aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev..."
         aws lambda update-function-code \
@@ -656,6 +660,10 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         fi
         
         zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py" 2>/dev/null || zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py"
+        # Add security_utils dependency
+        if [ -f "security_utils.py" ]; then
+            zip -qj "/tmp/lambda-builder.zip" "security_utils.py"
+        fi
         
         echo "⚡ Updating aws-elasticdrs-orchestrator-frontend-builder-dev..."
         aws lambda update-function-code \
@@ -679,6 +687,10 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         fi
         
         zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py" 2>/dev/null || zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py"
+        # Add security_utils dependency
+        if [ -f "security_utils.py" ]; then
+            zip -qj "/tmp/lambda-finder.zip" "security_utils.py"
+        fi
         
         echo "⚡ Updating aws-elasticdrs-orchestrator-execution-finder-dev..."
         aws lambda update-function-code \
@@ -702,6 +714,10 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         fi
         
         zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py" 2>/dev/null || zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py"
+        # Add security_utils dependency
+        if [ -f "security_utils.py" ]; then
+            zip -qj "/tmp/lambda-poller.zip" "security_utils.py"
+        fi
         
         echo "⚡ Updating aws-elasticdrs-orchestrator-execution-poller-dev..."
         aws lambda update-function-code \
