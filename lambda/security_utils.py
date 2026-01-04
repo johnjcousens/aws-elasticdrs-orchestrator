@@ -7,9 +7,8 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict
 
-import boto3
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)

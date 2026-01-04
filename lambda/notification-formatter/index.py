@@ -17,7 +17,6 @@ try:
         log_security_event,
         safe_aws_client_call,
         sanitize_string_input,
-        validate_api_gateway_event,
     )
 
     SECURITY_ENABLED = True
@@ -168,7 +167,7 @@ def format_pipeline_notification(
         try:
             dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
             formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-        except:
+        except Exception:
             formatted_time = start_time
     else:
         formatted_time = "Unknown"
@@ -248,7 +247,7 @@ def format_build_notification(
         try:
             dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
             formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-        except:
+        except Exception:
             formatted_time = start_time
     else:
         formatted_time = "Unknown"
@@ -342,9 +341,11 @@ def send_formatted_notification(
                 formatted_message.get("message", "")
             )
 
-            publish_call = lambda: sns.publish(
-                TopicArn=topic_arn, Subject=subject, Message=message
-            )
+            def publish_call():
+                return sns.publish(
+                    TopicArn=topic_arn, Subject=subject, Message=message
+                )
+
             response = safe_aws_client_call(publish_call)
         else:
             response = sns.publish(
