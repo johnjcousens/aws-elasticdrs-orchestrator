@@ -28,7 +28,7 @@ export interface TargetAccount {
   stagingAccountId?: string;
   stagingAccountName?: string;
   isCurrentAccount: boolean;
-  status: 'active' | 'pending' | 'error';
+  status: 'active' | 'pending' | 'error' | 'ACTIVE' | 'INACTIVE' | 'ERROR';
   lastValidated?: string;
   crossAccountRoleArn?: string;
 }
