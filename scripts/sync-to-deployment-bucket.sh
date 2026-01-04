@@ -32,6 +32,7 @@ DRY_RUN=false
 CLEAN_ORPHANS=false
 TRIGGER_PIPELINE=false
 PUSH_TO_CODECOMMIT=false
+COMMIT_AND_PUSH=false
 EMERGENCY_DEPLOY=false  # Emergency bypass for critical fixes only
 UPDATE_LAMBDA_CODE=false  # Legacy support - will warn about pipeline
 DEPLOY_FRONTEND=false     # Legacy support - will warn about pipeline
@@ -79,6 +80,10 @@ while [[ $# -gt 0 ]]; do
             PUSH_TO_CODECOMMIT=true
             shift
             ;;
+        --commit-and-push)
+            COMMIT_AND_PUSH=true
+            shift
+            ;;
         --emergency-deploy)
             EMERGENCY_DEPLOY=true
             echo "⚠️  WARNING: Emergency deployment mode - bypassing CI/CD pipeline"
@@ -107,6 +112,7 @@ while [[ $# -gt 0 ]]; do
             echo "🚀 RECOMMENDED CI/CD WORKFLOW:"
             echo "  $0 --trigger-pipeline              # Sync to S3 + trigger full CI/CD pipeline"
             echo "  $0 --push-to-codecommit           # Push to CodeCommit (triggers pipeline automatically)"
+            echo "  $0 --commit-and-push              # Commit changes and push to CodeCommit"
             echo ""
             echo "Options:"
             echo "  --profile PROFILE                  AWS credentials profile (default: ${AWS_PROFILE})"
@@ -115,6 +121,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --clean-orphans                    Remove orphaned directories from S3"
             echo "  --trigger-pipeline                 Trigger CodePipeline after sync (RECOMMENDED)"
             echo "  --push-to-codecommit              Push to CodeCommit repository"
+            echo "  --commit-and-push                 Commit changes and push to CodeCommit"
             echo "  --list-profiles                    List available AWS profiles and exit"
             echo "  --help                             Show this help message"
             echo ""
@@ -127,6 +134,7 @@ while [[ $# -gt 0 ]]; do
             echo "  # RECOMMENDED: Full CI/CD deployment"
             echo "  $0 --trigger-pipeline              # Sync + trigger pipeline (includes security scan)"
             echo "  $0 --push-to-codecommit            # Push to CodeCommit (auto-triggers pipeline)"
+            echo "  $0 --commit-and-push               # Commit changes and push to CodeCommit"
             echo ""
             echo "  # Development workflow"
             echo "  $0                                 # Basic sync to S3 (no deployment)"
@@ -254,6 +262,10 @@ if [ "$TRIGGER_PIPELINE" = true ]; then
 fi
 if [ "$PUSH_TO_CODECOMMIT" = true ]; then
     echo "📤 CodeCommit Mode: Will push to CodeCommit repository"
+    echo "   Repository: $CODECOMMIT_REPO"
+fi
+if [ "$COMMIT_AND_PUSH" = true ]; then
+    echo "📝 Commit and Push Mode: Will commit changes and push to CodeCommit"
     echo "   Repository: $CODECOMMIT_REPO"
 fi
 if [ "$UPDATE_LAMBDA_CODE" = true ] || [ "$DEPLOY_FRONTEND" = true ] || [ "$EMERGENCY_DEPLOY" = true ]; then
@@ -1240,7 +1252,114 @@ trigger_pipeline() {
     fi
 }
 
+commit_and_push() {
+    echo "======================================"
+    echo "📝 Committing and Pushing to CodeCommit"
+    echo "======================================"
+    echo "Repository: $CODECOMMIT_REPO"
+    echo ""
+    
+    # Check if we're in a git repository
+    if ! git --no-pager rev-parse --git-dir > /dev/null 2>&1; then
+        echo "❌ ERROR: Not in a git repository"
+        exit 1
+    fi
+    
+    # Check if CodeCommit remote exists
+    if ! git --no-pager remote get-url aws-pipeline > /dev/null 2>&1; then
+        echo "❌ ERROR: CodeCommit remote 'aws-pipeline' not configured"
+        echo ""
+        echo "Configure with:"
+        echo "  git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/$CODECOMMIT_REPO"
+        exit 1
+    fi
+    
+    # Check for changes to commit
+    if git --no-pager diff --quiet && git --no-pager diff --cached --quiet; then
+        echo "ℹ️  No changes to commit"
+        echo ""
+        echo "🚀 Pushing existing commits to CodeCommit..."
+        if git --no-pager push -q aws-pipeline HEAD:main; then
+            echo "✅ Successfully pushed to CodeCommit"
+            echo "   Repository: $CODECOMMIT_REPO"
+            echo "   Branch: main"
+            echo ""
+            echo "🔄 CodePipeline will auto-trigger from this push"
+            echo ""
+        else
+            echo "❌ Failed to push to CodeCommit"
+            exit 1
+        fi
+        return
+    fi
+    
+    # Stage all changes
+    echo "📋 Staging changes..."
+    git add . > /dev/null 2>&1
+    
+    # Get current git info
+    GIT_COMMIT=$(git --no-pager rev-parse HEAD 2>/dev/null || echo "unknown")
+    GIT_SHORT=$(echo "$GIT_COMMIT" | cut -c1-8)
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Create commit message
+    COMMIT_MSG="Security and CI/CD improvements - $TIMESTAMP
+
+- Applied Black code formatting (PEP 8 compliance)
+- Fixed isort import sorting violations
+- Resolved flake8 code quality issues
+- Updated Lambda functions with security integration
+- Enhanced CI/CD pipeline coordination
+
+Deployment: $GIT_SHORT
+Timestamp: $TIMESTAMP
+Pipeline: Will auto-trigger on push"
+    
+    # Write commit message to temp file
+    echo "$COMMIT_MSG" > .git_commit_msg.txt
+    
+    # Commit changes
+    echo "💾 Committing changes..."
+    if git --no-pager commit -F .git_commit_msg.txt > /dev/null 2>&1; then
+        echo "✅ Changes committed successfully"
+        
+        # Clean up temp file
+        rm -f .git_commit_msg.txt
+        
+        # Push to CodeCommit
+        echo "🚀 Pushing to CodeCommit..."
+        if git --no-pager push -q aws-pipeline HEAD:main; then
+            echo "✅ Successfully pushed to CodeCommit"
+            echo "   Repository: $CODECOMMIT_REPO"
+            echo "   Branch: main"
+            echo "   Commit: $GIT_SHORT"
+            echo ""
+            echo "🔄 CodePipeline will auto-trigger from this push"
+            echo "   Pipeline: $PIPELINE_NAME"
+            echo "   Stages: Source → Validate → SecurityScan → Build → Deploy"
+            echo ""
+        else
+            echo "❌ Failed to push to CodeCommit"
+            rm -f .git_commit_msg.txt
+            exit 1
+        fi
+    else
+        echo "❌ Failed to commit changes"
+        rm -f .git_commit_msg.txt
+        exit 1
+    fi
+}
+
 # Execute pipeline coordination based on flags
+if [ "$COMMIT_AND_PUSH" = true ]; then
+    if [ "$DRY_RUN" = true ]; then
+        echo "ℹ️  DRY RUN: Would commit changes and push to CodeCommit"
+        echo ""
+    else
+        commit_and_push
+    fi
+fi
+
 if [ "$PUSH_TO_CODECOMMIT" = true ]; then
     if [ "$DRY_RUN" = true ]; then
         echo "ℹ️  DRY RUN: Would push to CodeCommit repository"
@@ -1322,6 +1441,14 @@ if [ "$TRIGGER_PIPELINE" = true ] && [ "$DRY_RUN" = false ]; then
     echo "  🚀 $PIPELINE_NAME"
     echo "     └─ Execution ID: $EXECUTION_ID"
     echo "     └─ Status: $PIPELINE_STATUS"
+    echo ""
+fi
+
+# Show CodeCommit commit and push status
+if [ "$COMMIT_AND_PUSH" = true ] && [ "$DRY_RUN" = false ]; then
+    echo "CodeCommit Commit & Push:"
+    echo "  ✅ Committed and pushed to $CODECOMMIT_REPO"
+    echo "     └─ Pipeline will auto-trigger from push"
     echo ""
 fi
 
