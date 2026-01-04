@@ -19,12 +19,15 @@ try:
         sanitize_string_input,
         log_security_event,
         safe_aws_client_call,
-        create_response_with_security_headers
+        create_response_with_security_headers,
     )
+
     SECURITY_ENABLED = True
 except ImportError:
     SECURITY_ENABLED = False
-    print("WARNING: security_utils not available - running without security features")
+    print(
+        "WARNING: security_utils not available - running without security features"
+    )
 
 # Configure logging
 logger = logging.getLogger()
@@ -73,31 +76,42 @@ def lambda_handler(
     try:
         # Security validation
         if SECURITY_ENABLED:
-            log_security_event("execution_poller_invoked", {
-                "function_name": context.function_name,
-                "request_id": context.aws_request_id,
-                "event_keys": list(event.keys()) if event else []
-            })
-            
+            log_security_event(
+                "execution_poller_invoked",
+                {
+                    "function_name": context.function_name,
+                    "request_id": context.aws_request_id,
+                    "event_keys": list(event.keys()) if event else [],
+                },
+            )
+
             # Validate and sanitize inputs
             execution_id = sanitize_string_input(event.get("ExecutionId", ""))
             plan_id = sanitize_string_input(event.get("PlanId", ""))
-            execution_type = sanitize_string_input(event.get("ExecutionType", "DRILL"))
-            
+            execution_type = sanitize_string_input(
+                event.get("ExecutionType", "DRILL")
+            )
+
             if not execution_id or not plan_id:
-                log_security_event("invalid_input_detected", {
-                    "error": "Missing required parameters",
-                    "execution_id": bool(execution_id),
-                    "plan_id": bool(plan_id)
-                })
-                return create_response_with_security_headers(400, {
-                    "error": "Missing required parameters: ExecutionId and PlanId"
-                })
+                log_security_event(
+                    "invalid_input_detected",
+                    {
+                        "error": "Missing required parameters",
+                        "execution_id": bool(execution_id),
+                        "plan_id": bool(plan_id),
+                    },
+                )
+                return create_response_with_security_headers(
+                    400,
+                    {
+                        "error": "Missing required parameters: ExecutionId and PlanId"
+                    },
+                )
         else:
             execution_id = event["ExecutionId"]
             plan_id = event["PlanId"]
             execution_type = event.get("ExecutionType", "DRILL")
-        
+
         start_time = event.get("StartTime")
 
         logger.info(
@@ -110,14 +124,17 @@ def lambda_handler(
         if not execution:
             logger.error(f"Execution not found: {execution_id}")
             if SECURITY_ENABLED:
-                log_security_event("execution_not_found", {
-                    "execution_id": execution_id,
-                    "plan_id": plan_id
-                })
-                return create_response_with_security_headers(404, {
-                    "error": "Execution not found",
-                    "ExecutionId": execution_id,
-                })
+                log_security_event(
+                    "execution_not_found",
+                    {"execution_id": execution_id, "plan_id": plan_id},
+                )
+                return create_response_with_security_headers(
+                    404,
+                    {
+                        "error": "Execution not found",
+                        "ExecutionId": execution_id,
+                    },
+                )
             else:
                 return {
                     "statusCode": 404,
@@ -147,11 +164,14 @@ def lambda_handler(
             )
             handle_timeout(execution_id, plan_id, execution)
             if SECURITY_ENABLED:
-                return create_response_with_security_headers(200, {
-                    "ExecutionId": execution_id,
-                    "Status": "TIMEOUT",
-                    "message": "Execution timed out",
-                })
+                return create_response_with_security_headers(
+                    200,
+                    {
+                        "ExecutionId": execution_id,
+                        "Status": "TIMEOUT",
+                        "message": "Execution timed out",
+                    },
+                )
             else:
                 return {
                     "statusCode": 200,
@@ -251,11 +271,14 @@ def lambda_handler(
                 )
 
                 if SECURITY_ENABLED:
-                    return create_response_with_security_headers(200, {
-                        "ExecutionId": execution_id,
-                        "Status": "CANCELLED",
-                        "message": "Cancelled execution finalized after in-progress waves completed",
-                    })
+                    return create_response_with_security_headers(
+                        200,
+                        {
+                            "ExecutionId": execution_id,
+                            "Status": "CANCELLED",
+                            "message": "Cancelled execution finalized after in-progress waves completed",
+                        },
+                    )
                 else:
                     return {
                         "statusCode": 200,
@@ -272,11 +295,14 @@ def lambda_handler(
                 finalize_execution(execution_id, plan_id, updated_waves)
 
                 if SECURITY_ENABLED:
-                    return create_response_with_security_headers(200, {
-                        "ExecutionId": execution_id,
-                        "Status": "COMPLETED",
-                        "message": "Execution completed successfully",
-                    })
+                    return create_response_with_security_headers(
+                        200,
+                        {
+                            "ExecutionId": execution_id,
+                            "Status": "COMPLETED",
+                            "message": "Execution completed successfully",
+                        },
+                    )
                 else:
                     return {
                         "statusCode": 200,
@@ -293,12 +319,17 @@ def lambda_handler(
         record_poller_metrics(execution_id, execution_type, updated_waves)
 
         if SECURITY_ENABLED:
-            return create_response_with_security_headers(200, {
-                "ExecutionId": execution_id,
-                "Status": execution_status,
-                "WavesPolled": waves_polled if is_cancelling else len(updated_waves),
-                "message": "Polling in progress",
-            })
+            return create_response_with_security_headers(
+                200,
+                {
+                    "ExecutionId": execution_id,
+                    "Status": execution_status,
+                    "WavesPolled": waves_polled
+                    if is_cancelling
+                    else len(updated_waves),
+                    "message": "Polling in progress",
+                },
+            )
         else:
             return {
                 "statusCode": 200,
@@ -317,15 +348,17 @@ def lambda_handler(
     except Exception as e:
         logger.error(f"Error in Execution Poller: {str(e)}", exc_info=True)
         if SECURITY_ENABLED:
-            log_security_event("execution_poller_error", {
-                "error": str(e),
-                "execution_id": event.get("ExecutionId", "unknown"),
-                "plan_id": event.get("PlanId", "unknown")
-            })
-            return create_response_with_security_headers(500, {
-                "error": str(e), 
-                "message": "Failed to poll execution"
-            })
+            log_security_event(
+                "execution_poller_error",
+                {
+                    "error": str(e),
+                    "execution_id": event.get("ExecutionId", "unknown"),
+                    "plan_id": event.get("PlanId", "unknown"),
+                },
+            )
+            return create_response_with_security_headers(
+                500, {"error": str(e), "message": "Failed to poll execution"}
+            )
         else:
             return {
                 "statusCode": 500,
@@ -354,13 +387,23 @@ def get_execution_from_dynamodb(
             validate_dynamodb_input("ExecutionId", execution_id)
             validate_dynamodb_input("PlanId", plan_id)
 
-        response = safe_aws_client_call(
-            dynamodb.get_item,
-            TableName=EXECUTION_HISTORY_TABLE,
-            Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
-        ) if SECURITY_ENABLED else dynamodb.get_item(
-            TableName=EXECUTION_HISTORY_TABLE,
-            Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
+        response = (
+            safe_aws_client_call(
+                dynamodb.get_item,
+                TableName=EXECUTION_HISTORY_TABLE,
+                Key={
+                    "ExecutionId": {"S": execution_id},
+                    "PlanId": {"S": plan_id},
+                },
+            )
+            if SECURITY_ENABLED
+            else dynamodb.get_item(
+                TableName=EXECUTION_HISTORY_TABLE,
+                Key={
+                    "ExecutionId": {"S": execution_id},
+                    "PlanId": {"S": plan_id},
+                },
+            )
         )
 
         if "Item" not in response:
@@ -373,11 +416,14 @@ def get_execution_from_dynamodb(
             f"Error getting execution from DynamoDB: {str(e)}", exc_info=True
         )
         if SECURITY_ENABLED:
-            log_security_event("dynamodb_get_error", {
-                "error": str(e),
-                "table": EXECUTION_HISTORY_TABLE,
-                "execution_id": execution_id
-            })
+            log_security_event(
+                "dynamodb_get_error",
+                {
+                    "error": str(e),
+                    "table": EXECUTION_HISTORY_TABLE,
+                    "execution_id": execution_id,
+                },
+            )
         raise
 
 
@@ -807,11 +853,11 @@ def update_execution_waves(
         if SECURITY_ENABLED:
             validate_dynamodb_input("ExecutionId", execution_id)
             validate_dynamodb_input("PlanId", plan_id)
-            
+
             # Sanitize execution_id and plan_id
             execution_id = sanitize_string_input(execution_id)
             plan_id = sanitize_string_input(plan_id)
-        
+
         # Validate input parameters to prevent injection
         if not execution_id or not isinstance(execution_id, str):
             raise ValueError("Invalid execution_id")
@@ -843,11 +889,14 @@ def update_execution_waves(
             f"Error updating execution waves: {str(e)}", exc_info=True
         )
         if SECURITY_ENABLED:
-            log_security_event("dynamodb_update_error", {
-                "error": str(e),
-                "table": EXECUTION_HISTORY_TABLE,
-                "execution_id": execution_id
-            })
+            log_security_event(
+                "dynamodb_update_error",
+                {
+                    "error": str(e),
+                    "table": EXECUTION_HISTORY_TABLE,
+                    "execution_id": execution_id,
+                },
+            )
         raise
 
 

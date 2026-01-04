@@ -37,7 +37,7 @@ from security_utils import (
     create_security_headers,
     safe_aws_client_call,
     InputValidationError,
-    SecurityError
+    SecurityError,
 )
 
 # Initialize AWS clients
@@ -385,12 +385,14 @@ def response(
 ) -> Dict:
     """Generate API Gateway response with CORS and security headers"""
     default_headers = create_security_headers()
-    default_headers.update({
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type,Authorization",
-        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-    })
+    default_headers.update(
+        {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        }
+    )
     if headers:
         default_headers.update(headers)
 
@@ -1456,12 +1458,12 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
     try:
         print("Entering try block")
-        
+
         # Validate API Gateway event structure
         try:
             validated_event = validate_api_gateway_event(event)
         except InputValidationError as e:
-            log_security_event('invalid_request', {'error': str(e)}, 'WARN')
+            log_security_event("invalid_request", {"error": str(e)}, "WARN")
             return response(400, {"error": "Invalid request format"})
 
         # Check if this is a worker invocation (async execution)
@@ -1477,7 +1479,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         path = event.get("path", "")
         path_parameters = event.get("pathParameters") or {}
         query_parameters = event.get("queryStringParameters") or {}
-        
+
         # Sanitize and validate request body
         try:
             if event.get("body"):
@@ -1486,7 +1488,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             else:
                 body = {}
         except (json.JSONDecodeError, InputValidationError) as e:
-            log_security_event('invalid_json', {'error': str(e)}, 'WARN')
+            log_security_event("invalid_json", {"error": str(e)}, "WARN")
             return response(400, {"error": "Invalid JSON in request body"})
 
         print(f"Extracted values - Method: {http_method}, Path: {path}")
