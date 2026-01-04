@@ -616,7 +616,9 @@ def validate_file_path(file_path: str) -> bool:
 
     # Allow absolute paths that start with allowed prefixes
     if file_path.startswith("/"):
-        if not any(file_path.startswith(prefix) for prefix in allowed_prefixes):
+        if not any(
+            file_path.startswith(prefix) for prefix in allowed_prefixes
+        ):
             log_security_event(
                 "unauthorized_path_access",
                 {"file_path": file_path},
@@ -673,9 +675,7 @@ def validate_dynamodb_input(field_name: str, value: str) -> bool:
         if not validate_uuid(value) and not re.match(
             r"^[a-zA-Z0-9\-_]+$", value
         ):
-            raise InputValidationError(
-                f"Invalid {field_name} format: {value}"
-            )
+            raise InputValidationError(f"Invalid {field_name} format: {value}")
 
     elif field_name == "Region":
         if not validate_aws_region(value):
