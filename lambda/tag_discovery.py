@@ -10,6 +10,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
 import boto3
+from security_utils import (
+    log_security_event,
+    sanitize_dynamodb_input,
+    validate_aws_region,
+    safe_aws_client_call,
+    create_security_headers,
+    mask_sensitive_data
+)
 
 # Environment variables
 DEFAULT_REGION = os.environ.get("AWS_REGION", "us-east-1")
@@ -42,12 +50,52 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         "unhealthyCount": 5
     }
     """
-    print(f"Tag Discovery received: {json.dumps(event)}")
+    # Log security event for function invocation
+    log_security_event(
+        'lambda_invocation',
+        {
+            'function_name': 'tag_discovery',
+            'event_keys': list(event.keys()) if isinstance(event, dict) else [],
+            'context_request_id': getattr(context, 'aws_request_id', 'unknown')
+        }
+    )
+    
+    print(f"Tag Discovery received: {json.dumps(mask_sensitive_data(event))}")
 
-    input_tags = event.get("tags", {})
-    region = event.get("region", DEFAULT_REGION)
-    execution_id = event.get("executionId")
-    staging_accounts = event.get("stagingAccounts", [])
+    # Validate and sanitize input
+    try:
+        sanitized_event = sanitize_dynamodb_input(event)
+        input_tags = sanitized_event.get("tags", {})
+        region = sanitized_event.get("region", DEFAULT_REGION)
+        execution_id = sanitized_event.get("executionId")
+        staging_accounts = sanitized_event.get("stagingAccounts", [])
+        
+        # Validate region format
+        if not validate_aws_region(region):
+            log_security_event(
+                'input_validation_error',
+                {'error': 'Invalid AWS region format', 'region': region},
+                'WARN'
+            )
+            return {
+                "executionId": execution_id,
+                "totalServers": 0,
+                "servers": [],
+                "error": "Invalid AWS region format",
+            }
+            
+    except Exception as e:
+        log_security_event(
+            'input_sanitization_error',
+            {'error': str(e)},
+            'ERROR'
+        )
+        return {
+            "executionId": event.get("executionId"),
+            "totalServers": 0,
+            "servers": [],
+            "error": "Input validation failed",
+        }
 
     if not input_tags:
         return {
@@ -82,14 +130,46 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
     Returns:
         Discovery result with servers grouped by wave
     """
-    drs = boto3.client("drs", region_name=region)
+    try:
+        drs = boto3.client("drs", region_name=region)
+    except Exception as e:
+        log_security_event(
+            'aws_client_creation_error',
+            {'service': 'drs', 'region': region, 'error': str(e)},
+            'ERROR'
+        )
+        return {
+            "totalServers": 0,
+            "servers": [],
+            "serversByWave": {},
+            "waveCount": 0,
+            "healthyCount": 0,
+            "unhealthyCount": 0,
+            "error": "Failed to create DRS client",
+        }
 
     matching_servers = []
     healthy_count = 0
     unhealthy_count = 0
 
     try:
-        paginator = drs.get_paginator("describe_source_servers")
+        # Use safe AWS client call wrapper
+        paginator = safe_aws_client_call(drs.get_paginator, "describe_source_servers")
+        if not paginator:
+            log_security_event(
+                'aws_api_error',
+                {'service': 'drs', 'operation': 'get_paginator', 'region': region},
+                'ERROR'
+            )
+            return {
+                "totalServers": 0,
+                "servers": [],
+                "serversByWave": {},
+                "waveCount": 0,
+                "healthyCount": 0,
+                "unhealthyCount": 0,
+                "error": "Failed to access DRS API",
+            }
 
         for page in paginator.paginate():
             for server in page.get("items", []):
@@ -143,6 +223,11 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
                     matching_servers.append(server_info)
 
     except Exception as e:
+        log_security_event(
+            'drs_discovery_error',
+            {'region': region, 'error': str(e)},
+            'ERROR'
+        )
         print(f"Error discovering servers in {region}: {str(e)}")
         return {
             "totalServers": 0,
@@ -156,6 +241,17 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
 
     # Group servers by wave tag
     servers_by_wave = group_servers_by_wave(matching_servers)
+
+    log_security_event(
+        'server_discovery_completed',
+        {
+            'region': region,
+            'total_servers': len(matching_servers),
+            'healthy_count': healthy_count,
+            'unhealthy_count': unhealthy_count,
+            'wave_count': len(servers_by_wave)
+        }
+    )
 
     return {
         "totalServers": len(matching_servers),

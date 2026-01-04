@@ -11,6 +11,19 @@ import tempfile
 import boto3
 from crhelper import CfnResource
 
+# Import security utilities
+try:
+    from security_utils import (
+        sanitize_string_input,
+        log_security_event,
+        safe_aws_client_call,
+        validate_file_path
+    )
+    SECURITY_ENABLED = True
+except ImportError:
+    SECURITY_ENABLED = False
+    print("WARNING: security_utils not available - running without security features")
+
 s3 = boto3.client("s3")
 cloudfront = boto3.client("cloudfront")
 helper = CfnResource()
@@ -19,13 +32,28 @@ helper = CfnResource()
 def use_prebuilt_dist(frontend_dir):
     """Use pre-built dist/ folder from Lambda package (no npm required)"""
     print("Using pre-built dist folder from Lambda package...")
+    
+    # Security validation for file paths
+    if SECURITY_ENABLED:
+        validate_file_path(frontend_dir)
+        frontend_dir = sanitize_string_input(frontend_dir)
+        log_security_event("using_prebuilt_dist", {
+            "frontend_dir": frontend_dir
+        })
+    
     dist_dir = os.path.join(frontend_dir, "dist")
 
     if not os.path.exists(dist_dir):
-        raise Exception(
+        error_msg = (
             f"Pre-built dist directory not found at {dist_dir}. "
             f"Lambda package must include pre-built frontend/dist/ folder."
         )
+        if SECURITY_ENABLED:
+            log_security_event("dist_directory_not_found", {
+                "dist_dir": dist_dir,
+                "error": error_msg
+            })
+        raise FileNotFoundError(error_msg)
 
     # Count files in dist
     file_count = sum(
@@ -42,18 +70,36 @@ def inject_aws_config_into_dist(dist_dir, properties):
     index.html
     """
     print("Injecting AWS configuration into pre-built dist...")
-    region = properties.get(
-        "Region", os.environ.get("AWS_REGION", "us-west-2")
-    )
+    
+    # Security validation for inputs
+    if SECURITY_ENABLED:
+        validate_file_path(dist_dir)
+        dist_dir = sanitize_string_input(dist_dir)
+        region = sanitize_string_input(properties.get("Region", os.environ.get("AWS_REGION", "us-west-2")))
+        log_security_event("injecting_aws_config", {
+            "dist_dir": dist_dir,
+            "region": region
+        })
+    else:
+        region = properties.get("Region", os.environ.get("AWS_REGION", "us-west-2"))
 
-    # Create configuration object
-    config_obj = {
-        "region": region,
-        "userPoolId": properties.get("UserPoolId", ""),
-        "userPoolClientId": properties.get("UserPoolClientId", ""),
-        "identityPoolId": properties.get("IdentityPoolId", ""),
-        "apiEndpoint": properties.get("ApiEndpoint", ""),
-    }
+    # Create configuration object with sanitized values
+    if SECURITY_ENABLED:
+        config_obj = {
+            "region": region,
+            "userPoolId": sanitize_string_input(properties.get("UserPoolId", "")),
+            "userPoolClientId": sanitize_string_input(properties.get("UserPoolClientId", "")),
+            "identityPoolId": sanitize_string_input(properties.get("IdentityPoolId", "")),
+            "apiEndpoint": sanitize_string_input(properties.get("ApiEndpoint", "")),
+        }
+    else:
+        config_obj = {
+            "region": region,
+            "userPoolId": properties.get("UserPoolId", ""),
+            "userPoolClientId": properties.get("UserPoolClientId", ""),
+            "identityPoolId": properties.get("IdentityPoolId", ""),
+            "apiEndpoint": properties.get("ApiEndpoint", ""),
+        }
 
     # 1. Create aws-config.json at ROOT level (for fetch() in index.html)
     config_json_path = os.path.join(dist_dir, "aws-config.json")
@@ -152,8 +198,19 @@ window.AWS_CONFIG = {{
 def create_or_update(event, context):
     """Deploy pre-built frontend"""
     properties = event["ResourceProperties"]
-    bucket_name = properties["BucketName"]
-    distribution_id = properties["DistributionId"]
+    
+    # Security validation for CloudFormation inputs
+    if SECURITY_ENABLED:
+        bucket_name = sanitize_string_input(properties["BucketName"])
+        distribution_id = sanitize_string_input(properties["DistributionId"])
+        log_security_event("frontend_deployment_started", {
+            "bucket_name": bucket_name,
+            "distribution_id": distribution_id,
+            "request_id": context.aws_request_id
+        })
+    else:
+        bucket_name = properties["BucketName"]
+        distribution_id = properties["DistributionId"]
 
     print(
         f"Frontend Builder: Deploying pre-built frontend to bucket: "
@@ -164,10 +221,16 @@ def create_or_update(event, context):
         # Get frontend source from Lambda package
         lambda_frontend_path = "/var/task/frontend"
         if not os.path.exists(lambda_frontend_path):
-            raise Exception(
+            error_msg = (
                 f"Frontend source not found in Lambda package at "
                 f"{lambda_frontend_path}"
             )
+            if SECURITY_ENABLED:
+                log_security_event("frontend_source_not_found", {
+                    "path": lambda_frontend_path,
+                    "error": error_msg
+                })
+            raise FileNotFoundError(error_msg)
 
         print(
             f"Found frontend source in Lambda package at "
@@ -193,18 +256,36 @@ def create_or_update(event, context):
 
         # Invalidate CloudFront cache
         print("Creating CloudFront invalidation...")
-        invalidation_response = cloudfront.create_invalidation(
-            DistributionId=distribution_id,
-            InvalidationBatch={
-                "Paths": {"Quantity": 1, "Items": ["/*"]},
-                "CallerReference": str(context.aws_request_id),
-            },
-        )
+        
+        if SECURITY_ENABLED:
+            invalidation_call = lambda: cloudfront.create_invalidation(
+                DistributionId=distribution_id,
+                InvalidationBatch={
+                    "Paths": {"Quantity": 1, "Items": ["/*"]},
+                    "CallerReference": str(context.aws_request_id),
+                },
+            )
+            invalidation_response = safe_aws_client_call(invalidation_call)
+        else:
+            invalidation_response = cloudfront.create_invalidation(
+                DistributionId=distribution_id,
+                InvalidationBatch={
+                    "Paths": {"Quantity": 1, "Items": ["/*"]},
+                    "CallerReference": str(context.aws_request_id),
+                },
+            )
 
         invalidation_id = invalidation_response["Invalidation"]["Id"]
         print(f"✅ CloudFront invalidation created: {invalidation_id}")
 
         print("🎉 Frontend deployment complete!")
+
+        if SECURITY_ENABLED:
+            log_security_event("frontend_deployment_completed", {
+                "bucket_name": bucket_name,
+                "files_deployed": len(uploaded_files),
+                "invalidation_id": invalidation_id
+            })
 
         return {
             "BucketName": bucket_name,
@@ -217,21 +298,35 @@ def create_or_update(event, context):
     except Exception as e:
         error_msg = f"Error deploying frontend: {str(e)}"
         print(error_msg)
+        if SECURITY_ENABLED:
+            log_security_event("frontend_deployment_error", {
+                "error": str(e),
+                "bucket_name": bucket_name
+            })
         import traceback
-
         traceback.print_exc()
-        raise Exception(error_msg)
+        raise RuntimeError(error_msg)
 
 
 def upload_to_s3(dist_dir, bucket_name):
     """Upload all files from dist directory to S3 with proper cache headers"""
     uploaded_files = []
 
+    # Security validation for S3 inputs
+    if SECURITY_ENABLED:
+        validate_file_path(dist_dir)
+        bucket_name = sanitize_string_input(bucket_name)
+
     for root, dirs, files in os.walk(dist_dir):
         for file in files:
             local_path = os.path.join(root, file)
             relative_path = os.path.relpath(local_path, dist_dir)
             s3_key = relative_path.replace("\\", "/")
+
+            # Security validation for file paths
+            if SECURITY_ENABLED:
+                validate_file_path(local_path)
+                s3_key = sanitize_string_input(s3_key)
 
             # Determine content type
             content_type = get_content_type(file)
@@ -244,15 +339,27 @@ def upload_to_s3(dist_dir, bucket_name):
             else:
                 cache_control = "public, max-age=31536000, immutable"
 
-            s3.upload_file(
-                local_path,
-                bucket_name,
-                s3_key,
-                ExtraArgs={
-                    "ContentType": content_type,
-                    "CacheControl": cache_control,
-                },
-            )
+            if SECURITY_ENABLED:
+                upload_call = lambda: s3.upload_file(
+                    local_path,
+                    bucket_name,
+                    s3_key,
+                    ExtraArgs={
+                        "ContentType": content_type,
+                        "CacheControl": cache_control,
+                    },
+                )
+                safe_aws_client_call(upload_call)
+            else:
+                s3.upload_file(
+                    local_path,
+                    bucket_name,
+                    s3_key,
+                    ExtraArgs={
+                        "ContentType": content_type,
+                        "CacheControl": cache_control,
+                    },
+                )
 
             uploaded_files.append(s3_key)
             print(f"  Uploaded: {s3_key} ({content_type}, {cache_control})")

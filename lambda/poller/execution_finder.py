@@ -11,6 +11,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import boto3
+from security_utils import (
+    log_security_event,
+    sanitize_string,
+    safe_aws_client_call,
+    mask_sensitive_data
+)
 
 # Configure logging
 logger = logging.getLogger()
@@ -54,6 +60,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         Dict containing invocation results
     """
     try:
+        # Log security event for function invocation
+        log_security_event(
+            'lambda_invocation',
+            {
+                'function_name': 'execution_finder',
+                'event_source': event.get('source', 'unknown'),
+                'context_request_id': getattr(context, 'aws_request_id', 'unknown')
+            }
+        )
+        
         logger.info("Execution Finder Lambda invoked")
         logger.info(
             f"Querying table: {EXECUTION_HISTORY_TABLE}, "
@@ -99,6 +115,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Invoke Execution Poller Lambda for each execution (async)
         invocation_results = invoke_pollers_for_executions(executions_to_poll)
 
+        log_security_event(
+            'execution_finder_completed',
+            {
+                'total_executions': len(polling_executions),
+                'executions_polled': len(executions_to_poll),
+                'executions_skipped': len(skipped_executions)
+            }
+        )
+
         return {
             "statusCode": 200,
             "body": json.dumps(
@@ -116,6 +141,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
 
     except Exception as e:
+        log_security_event(
+            'execution_finder_error',
+            {'error': str(e)},
+            'ERROR'
+        )
         logger.error(f"Error in Execution Finder: {str(e)}", exc_info=True)
         return {
             "statusCode": 500,

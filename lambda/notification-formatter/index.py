@@ -9,6 +9,20 @@ import logging
 from datetime import datetime
 from typing import Dict, Any
 
+# Import security utilities
+try:
+    from security_utils import (
+        validate_api_gateway_event,
+        sanitize_string_input,
+        log_security_event,
+        safe_aws_client_call,
+        create_response_with_security_headers
+    )
+    SECURITY_ENABLED = True
+except ImportError:
+    SECURITY_ENABLED = False
+    print("WARNING: security_utils not available - running without security features")
+
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -28,14 +42,29 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         Dict containing statusCode and response message
     """
     try:
+        # Security validation
+        if SECURITY_ENABLED:
+            log_security_event("notification_formatter_invoked", {
+                "function_name": context.function_name,
+                "request_id": context.aws_request_id,
+                "event_source": event.get('source', 'unknown')
+            })
+        
         logger.info(f"Processing notification event: {json.dumps(event, default=str)}")
         
-        # Extract event details
-        detail = event.get('detail', {})
-        source = event.get('source', '')
-        detail_type = event.get('detail-type', '')
-        region = event.get('region', 'us-east-1')
-        account = event.get('account', '')
+        # Extract and sanitize event details
+        if SECURITY_ENABLED:
+            detail = event.get('detail', {})
+            source = sanitize_string_input(event.get('source', ''))
+            detail_type = sanitize_string_input(event.get('detail-type', ''))
+            region = sanitize_string_input(event.get('region', 'us-east-1'))
+            account = sanitize_string_input(event.get('account', ''))
+        else:
+            detail = event.get('detail', {})
+            source = event.get('source', '')
+            detail_type = event.get('detail-type', '')
+            region = event.get('region', 'us-east-1')
+            account = event.get('account', '')
         
         # Format message based on event source
         if source == 'aws.codepipeline':
@@ -44,7 +73,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             formatted_message = format_build_notification(detail, detail_type, region, account)
         else:
             logger.warning(f"Unknown event source: {source}")
-            return {'statusCode': 200, 'body': 'Unknown event source'}
+            if SECURITY_ENABLED:
+                log_security_event("unknown_event_source", {"source": source})
+                return create_response_with_security_headers(200, {'message': 'Unknown event source'})
+            else:
+                return {'statusCode': 200, 'body': 'Unknown event source'}
         
         # Send formatted notification
         topic_arn = get_sns_topic_arn()
@@ -53,28 +86,52 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             logger.info("Formatted notification sent successfully")
         else:
             logger.error("SNS topic ARN not found")
-            return {'statusCode': 500, 'body': 'SNS topic not configured'}
+            if SECURITY_ENABLED:
+                log_security_event("sns_topic_not_configured", {})
+                return create_response_with_security_headers(500, {'message': 'SNS topic not configured'})
+            else:
+                return {'statusCode': 500, 'body': 'SNS topic not configured'}
         
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'message': 'Notification processed successfully'})
-        }
+        if SECURITY_ENABLED:
+            return create_response_with_security_headers(200, {
+                'message': 'Notification processed successfully'
+            })
+        else:
+            return {
+                'statusCode': 200,
+                'body': json.dumps({'message': 'Notification processed successfully'})
+            }
         
     except Exception as e:
         logger.error(f"Error processing notification: {str(e)}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': str(e)})
-        }
+        if SECURITY_ENABLED:
+            log_security_event("notification_formatter_error", {
+                "error": str(e),
+                "event_source": event.get('source', 'unknown')
+            })
+            return create_response_with_security_headers(500, {'error': str(e)})
+        else:
+            return {
+                'statusCode': 500,
+                'body': json.dumps({'error': str(e)})
+            }
 
 def format_pipeline_notification(detail: Dict[str, Any], detail_type: str, region: str, account: str) -> Dict[str, str]:
     """Format CodePipeline notification into user-friendly message."""
     
-    pipeline_name = detail.get('pipeline', 'Unknown Pipeline')
-    execution_id = detail.get('execution-id', 'Unknown')
-    state = detail.get('state', 'Unknown')
-    stage = detail.get('stage', '')
-    action = detail.get('action', '')
+    # Sanitize inputs if security is enabled
+    if SECURITY_ENABLED:
+        pipeline_name = sanitize_string_input(detail.get('pipeline', 'Unknown Pipeline'))
+        execution_id = sanitize_string_input(detail.get('execution-id', 'Unknown'))
+        state = sanitize_string_input(detail.get('state', 'Unknown'))
+        stage = sanitize_string_input(detail.get('stage', ''))
+        action = sanitize_string_input(detail.get('action', ''))
+    else:
+        pipeline_name = detail.get('pipeline', 'Unknown Pipeline')
+        execution_id = detail.get('execution-id', 'Unknown')
+        state = detail.get('state', 'Unknown')
+        stage = detail.get('stage', '')
+        action = detail.get('action', '')
     
     # Format timestamp
     start_time = detail.get('start-time', '')
@@ -139,9 +196,15 @@ Automated notification from pipeline monitoring
 def format_build_notification(detail: Dict[str, Any], detail_type: str, region: str, account: str) -> Dict[str, str]:
     """Format CodeBuild notification into user-friendly message."""
     
-    project_name = detail.get('project-name', 'Unknown Project')
-    build_id = detail.get('build-id', 'Unknown')
-    build_status = detail.get('build-status', 'Unknown')
+    # Sanitize inputs if security is enabled
+    if SECURITY_ENABLED:
+        project_name = sanitize_string_input(detail.get('project-name', 'Unknown Project'))
+        build_id = sanitize_string_input(detail.get('build-id', 'Unknown'))
+        build_status = sanitize_string_input(detail.get('build-status', 'Unknown'))
+    else:
+        project_name = detail.get('project-name', 'Unknown Project')
+        build_id = detail.get('build-id', 'Unknown')
+        build_status = detail.get('build-status', 'Unknown')
     
     # Extract build number from build ID
     build_number = build_id.split(':')[-1] if ':' in build_id else build_id
@@ -235,13 +298,32 @@ def send_formatted_notification(topic_arn: str, formatted_message: Dict[str, str
     """Send formatted notification to SNS topic."""
     
     try:
-        response = sns.publish(
-            TopicArn=topic_arn,
-            Subject=formatted_message['subject'],
-            Message=formatted_message['message']
-        )
+        # Security validation for SNS inputs
+        if SECURITY_ENABLED:
+            topic_arn = sanitize_string_input(topic_arn)
+            subject = sanitize_string_input(formatted_message.get('subject', ''))
+            message = sanitize_string_input(formatted_message.get('message', ''))
+            
+            publish_call = lambda: sns.publish(
+                TopicArn=topic_arn,
+                Subject=subject,
+                Message=message
+            )
+            response = safe_aws_client_call(publish_call)
+        else:
+            response = sns.publish(
+                TopicArn=topic_arn,
+                Subject=formatted_message['subject'],
+                Message=formatted_message['message']
+            )
+        
         logger.info(f"SNS message sent successfully: {response['MessageId']}")
         
     except Exception as e:
         logger.error(f"Error sending SNS notification: {str(e)}")
+        if SECURITY_ENABLED:
+            log_security_event("sns_publish_error", {
+                "error": str(e),
+                "topic_arn": topic_arn[:50] + "..." if len(topic_arn) > 50 else topic_arn
+            })
         raise
