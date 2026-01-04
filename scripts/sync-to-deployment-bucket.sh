@@ -476,6 +476,10 @@ package_lambda() {
     if [ -f "rbac_middleware.py" ]; then
         zip -g "$package_file" rbac_middleware.py > /dev/null
     fi
+    # Add security_utils dependency (required by index.py)
+    if [ -f "security_utils.py" ]; then
+        zip -g "$package_file" security_utils.py > /dev/null
+    fi
     if [ -d "poller" ]; then
         zip -rg "$package_file" poller/ > /dev/null
     fi
@@ -528,6 +532,10 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         # Add rbac_middleware dependency (required by index.py)
         if [ -f "rbac_middleware.py" ]; then
             zip -qg /tmp/lambda-quick.zip rbac_middleware.py
+        fi
+        # Add security_utils dependency (required by index.py)
+        if [ -f "security_utils.py" ]; then
+            zip -qg /tmp/lambda-quick.zip security_utils.py
         fi
         if [ -d "poller" ]; then
             zip -qrg /tmp/lambda-quick.zip poller/
@@ -597,6 +605,10 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         # Add rbac_middleware dependency (required by index.py)
         if [ -f "rbac_middleware.py" ]; then
             zip -qj "/tmp/lambda-index.zip" "rbac_middleware.py"
+        fi
+        # Add security_utils dependency (required by index.py)
+        if [ -f "security_utils.py" ]; then
+            zip -qj "/tmp/lambda-index.zip" "security_utils.py"
         fi
         
         echo "⚡ Updating aws-elasticdrs-orchestrator-api-handler-dev..."
@@ -933,6 +945,10 @@ if [ "$DEPLOY_CFN" = true ]; then
         # Add rbac_middleware dependency (required by index.py)
         if [ -f "rbac_middleware.py" ]; then
             zip -g "$PACKAGE_FILE" rbac_middleware.py > /dev/null
+        fi
+        # Add security_utils dependency (required by index.py)
+        if [ -f "security_utils.py" ]; then
+            zip -g "$PACKAGE_FILE" security_utils.py > /dev/null
         fi
         if [ -d "poller" ]; then
             zip -rg "$PACKAGE_FILE" poller/ > /dev/null

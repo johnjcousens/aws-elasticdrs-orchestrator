@@ -8,6 +8,7 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import type { DRSQuotaStatus } from './drsQuotaService';
 import { awsConfig } from '../aws-config';
 import { sanitizeErrorMessage, sanitizeForLogging } from '../utils/security';
 import type {
@@ -889,64 +890,12 @@ class ApiClient {
    * @param accountId - AWS account ID to check quotas for
    * @param region - Optional AWS region (defaults to current region)
    */
-  public async getDRSQuotas(accountId: string, region?: string): Promise<{
-    accountId: string;
-    region: string;
-    quotas: {
-      replicatingServers: {
-        current: number;
-        limit: number;
-        percentage: number;
-        status: 'OK' | 'WARNING' | 'CRITICAL';
-      };
-      concurrentJobs: {
-        current: number;
-        limit: number;
-        percentage: number;
-        status: 'OK' | 'WARNING' | 'CRITICAL';
-      };
-      serversInActiveJobs: {
-        current: number;
-        limit: number;
-        percentage: number;
-        status: 'OK' | 'WARNING' | 'CRITICAL';
-      };
-    };
-    overallStatus: 'OK' | 'WARNING' | 'CRITICAL';
-    warnings: string[];
-    lastUpdated: string;
-  }> {
+  public async getDRSQuotas(accountId: string, region?: string): Promise<DRSQuotaStatus> {
     const params = new URLSearchParams({ accountId });
     if (region) {
       params.append('region', region);
     }
-    return this.get<{
-      accountId: string;
-      region: string;
-      quotas: {
-        replicatingServers: {
-          current: number;
-          limit: number;
-          percentage: number;
-          status: 'OK' | 'WARNING' | 'CRITICAL';
-        };
-        concurrentJobs: {
-          current: number;
-          limit: number;
-          percentage: number;
-          status: 'OK' | 'WARNING' | 'CRITICAL';
-        };
-        serversInActiveJobs: {
-          current: number;
-          limit: number;
-          percentage: number;
-          status: 'OK' | 'WARNING' | 'CRITICAL';
-        };
-      };
-      overallStatus: 'OK' | 'WARNING' | 'CRITICAL';
-      warnings: string[];
-      lastUpdated: string;
-    }>(`/drs/quotas?${params.toString()}`);
+    return this.get<DRSQuotaStatus>(`/drs/quotas?${params.toString()}`);
   }
 
 

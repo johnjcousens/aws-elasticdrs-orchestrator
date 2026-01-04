@@ -24,22 +24,6 @@ from rbac_middleware import (
     get_user_roles,
 )
 
-# Import security utilities
-from security_utils import (
-    validate_api_gateway_event,
-    sanitize_dynamodb_input,
-    validate_protection_group_name,
-    validate_recovery_plan_name,
-    validate_drs_server_id,
-    validate_aws_region,
-    validate_uuid,
-    log_security_event,
-    create_security_headers,
-    safe_aws_client_call,
-    InputValidationError,
-    SecurityError
-)
-
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
 stepfunctions = boto3.client("stepfunctions")
@@ -383,14 +367,13 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
 def response(
     status_code: int, body: Any, headers: Optional[Dict] = None
 ) -> Dict:
-    """Generate API Gateway response with CORS and security headers"""
-    default_headers = create_security_headers()
-    default_headers.update({
+    """Generate API Gateway response with CORS headers"""
+    default_headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,Authorization",
         "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-    })
+    }
     if headers:
         default_headers.update(headers)
 
@@ -1456,13 +1439,6 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
     try:
         print("Entering try block")
-        
-        # Validate API Gateway event structure
-        try:
-            validated_event = validate_api_gateway_event(event)
-        except InputValidationError as e:
-            log_security_event('invalid_request', {'error': str(e)}, 'WARN')
-            return response(400, {"error": "Invalid request format"})
 
         # Check if this is a worker invocation (async execution)
         if event.get("worker"):
@@ -1477,17 +1453,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         path = event.get("path", "")
         path_parameters = event.get("pathParameters") or {}
         query_parameters = event.get("queryStringParameters") or {}
-        
-        # Sanitize and validate request body
-        try:
-            if event.get("body"):
-                body = json.loads(event.get("body"))
-                body = sanitize_dynamodb_input(body)
-            else:
-                body = {}
-        except (json.JSONDecodeError, InputValidationError) as e:
-            log_security_event('invalid_json', {'error': str(e)}, 'WARN')
-            return response(400, {"error": "Invalid JSON in request body"})
+        body = json.loads(event.get("body", "{}")) if event.get("body") else {}
 
         print(f"Extracted values - Method: {http_method}, Path: {path}")
 

@@ -433,14 +433,14 @@ export const ExecutionDetailsPage: React.FC = () => {
 
 
   // Check if instances have already been terminated
-  const instancesAlreadyTerminated = execution && (
+  const instancesAlreadyTerminated = execution && (() => {
     const executionWithTermination = execution as Execution & {
       instancesTerminated?: boolean;
       InstancesTerminated?: boolean;
     };
-    (executionWithTermination.instancesTerminated === true ||
-    executionWithTermination.InstancesTerminated === true)
-  );
+    return (executionWithTermination.instancesTerminated === true ||
+      executionWithTermination.InstancesTerminated === true);
+  })();
 
   // Check if recovery instances can be terminated
   // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated
