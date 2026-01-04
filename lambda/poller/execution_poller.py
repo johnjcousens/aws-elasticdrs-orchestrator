@@ -16,11 +16,11 @@ import boto3
 # Import security utilities
 try:
     from security_utils import (
-        validate_dynamodb_input,
-        sanitize_string_input,
+        create_response_with_security_headers,
         log_security_event,
         safe_aws_client_call,
-        create_response_with_security_headers,
+        sanitize_string_input,
+        validate_dynamodb_input,
     )
 
     SECURITY_ENABLED = True

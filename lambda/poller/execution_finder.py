@@ -12,11 +12,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import boto3
+
 from security_utils import (
     log_security_event,
-    sanitize_string,
-    safe_aws_client_call,
     mask_sensitive_data,
+    safe_aws_client_call,
+    sanitize_string,
 )
 
 # Configure logging
