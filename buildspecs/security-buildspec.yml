@@ -121,32 +121,7 @@ phases:
       
       # Check if critical security issues were found
       - echo "Checking security scan results against thresholds..."
-      - python -c "
-          import json, sys, os;
-          if not os.path.exists('reports/security/security-summary.json'):
-              print('ERROR: Security summary not generated!');
-              sys.exit(1);
-          data = json.load(open('reports/security/security-summary.json'));
-          critical = data['summary']['total_critical_issues'];
-          high = data['summary']['total_high_issues'];
-          total = data['summary']['total_issues'];
-          print(f'Security scan results:');
-          print(f'  Critical issues: {critical} (threshold: {os.environ.get(\"SECURITY_THRESHOLD_CRITICAL\", \"0\")})');
-          print(f'  High issues: {high} (threshold: {os.environ.get(\"SECURITY_THRESHOLD_HIGH\", \"10\")})');
-          print(f'  Total issues: {total} (threshold: {os.environ.get(\"SECURITY_THRESHOLD_TOTAL\", \"50\")})');
-          if critical > int(os.environ.get('SECURITY_THRESHOLD_CRITICAL', '0')):
-              print('❌ SECURITY SCAN FAILED: Critical security issues found!');
-              print('Build will fail due to critical security vulnerabilities.');
-              sys.exit(1);
-          elif high > int(os.environ.get('SECURITY_THRESHOLD_HIGH', '10')):
-              print('⚠️ SECURITY SCAN WARNING: High-severity issues found!');
-              print('Consider addressing these issues before deployment.');
-          elif total > int(os.environ.get('SECURITY_THRESHOLD_TOTAL', '50')):
-              print('ℹ️ SECURITY SCAN INFO: Many security issues found.');
-              print('Consider addressing medium/low severity issues.');
-          else:
-              print('✅ SECURITY SCAN PASSED: Security posture is acceptable.');
-          "
+      - python scripts/check-security-thresholds.py
 
   post_build:
     commands:
@@ -160,14 +135,7 @@ phases:
       - ls -la reports/security/formatted/
       
       # Generate build badge information
-      - python -c "
-          import json, os;
-          status = 'passed' if os.environ.get('CODEBUILD_BUILD_SUCCEEDING', '0') == '1' else 'failed';
-          message = 'Security scan passed' if status == 'passed' else 'Security scan failed';
-          print(f'Security scan completed with status: {status}');
-          with open('reports/security/build-status.json', 'w') as f:
-              json.dump({'status': status, 'message': message}, f);
-          "
+      - python scripts/generate-build-status.py
       
       # Optional: Upload to S3 for long-term storage
       # - aws s3 cp reports/security/ s3://your-security-reports-bucket/builds/$CODEBUILD_BUILD_ID/ --recursive
