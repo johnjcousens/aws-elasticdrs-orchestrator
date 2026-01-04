@@ -40,8 +40,9 @@ phases:
       - npm run lint
       - cd ..
       - echo "=== Integration Tests ==="
-      - cd tests/python
-      - python -m pytest integration/ -v --tb=short --junit-xml=../../test-reports/integration-results.xml
+      - cd ../..
+      - cd tests/integration
+      - python -m pytest . -v --tb=short --junit-xml=../../test-reports/integration-results.xml
       - cd ../..
       - echo "=== API Contract Tests ==="
       - echo "API contract tests would run here"
