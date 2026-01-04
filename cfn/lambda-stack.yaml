@@ -884,21 +884,27 @@ Outputs:
 
   NotificationFormatterFunctionArn:
     Description: "Notification Formatter Lambda Function ARN"
-    Value: !GetAtt NotificationFormatterFunction.Arn
+    Value: !If
+      - EnableNotifications
+      - !GetAtt NotificationFormatterFunction.Arn
+      - ""
     Export:
       Name: !Sub "${AWS::StackName}-NotificationFormatterArn"
-    Condition: EnableNotifications
 
   NotificationFormatterFunctionName:
     Description: "Notification Formatter Lambda Function Name"
-    Value: !Ref NotificationFormatterFunction
+    Value: !If
+      - EnableNotifications
+      - !Ref NotificationFormatterFunction
+      - ""
     Export:
       Name: !Sub "${AWS::StackName}-NotificationFormatterName"
-    Condition: EnableNotifications
 
   PipelineNotificationsTopicArn:
     Description: "Pipeline notifications SNS topic ARN"
-    Value: !Ref PipelineNotificationsTopic
+    Value: !If
+      - EnableNotifications
+      - !Ref PipelineNotificationsTopic
+      - ""
     Export:
       Name: !Sub "${AWS::StackName}-PipelineNotificationsTopicArn"
-    Condition: EnableNotifications
