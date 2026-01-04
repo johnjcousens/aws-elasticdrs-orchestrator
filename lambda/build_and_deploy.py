@@ -275,13 +275,16 @@ def create_or_update(event, context):
         print("Creating CloudFront invalidation...")
 
         if SECURITY_ENABLED:
-            invalidation_call = lambda: cloudfront.create_invalidation(
-                DistributionId=distribution_id,
-                InvalidationBatch={
-                    "Paths": {"Quantity": 1, "Items": ["/*"]},
-                    "CallerReference": str(context.aws_request_id),
-                },
-            )
+
+            def invalidation_call():
+                return cloudfront.create_invalidation(
+                    DistributionId=distribution_id,
+                    InvalidationBatch={
+                        "Paths": {"Quantity": 1, "Items": ["/*"]},
+                        "CallerReference": str(context.aws_request_id),
+                    },
+                )
+
             invalidation_response = safe_aws_client_call(invalidation_call)
         else:
             invalidation_response = cloudfront.create_invalidation(
@@ -361,15 +364,18 @@ def upload_to_s3(dist_dir, bucket_name):
                 cache_control = "public, max-age=31536000, immutable"
 
             if SECURITY_ENABLED:
-                upload_call = lambda: s3.upload_file(
-                    local_path,
-                    bucket_name,
-                    s3_key,
-                    ExtraArgs={
-                        "ContentType": content_type,
-                        "CacheControl": cache_control,
-                    },
-                )
+
+                def upload_call():
+                    return s3.upload_file(
+                        local_path,
+                        bucket_name,
+                        s3_key,
+                        ExtraArgs={
+                            "ContentType": content_type,
+                            "CacheControl": cache_control,
+                        },
+                    )
+
                 safe_aws_client_call(upload_call)
             else:
                 s3.upload_file(

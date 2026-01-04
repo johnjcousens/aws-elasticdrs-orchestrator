@@ -12,7 +12,6 @@ from typing import Any, Dict, List
 import boto3
 
 from security_utils import (
-    create_security_headers,
     log_security_event,
     mask_sensitive_data,
     safe_aws_client_call,

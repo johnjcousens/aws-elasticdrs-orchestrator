@@ -13,12 +13,7 @@ from typing import Any, Dict, List
 
 import boto3
 
-from security_utils import (
-    log_security_event,
-    mask_sensitive_data,
-    safe_aws_client_call,
-    sanitize_string,
-)
+from security_utils import log_security_event
 
 # Configure logging
 logger = logging.getLogger()

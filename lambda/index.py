@@ -27,17 +27,10 @@ from rbac_middleware import (
 # Import security utilities
 from security_utils import (
     InputValidationError,
-    SecurityError,
     create_security_headers,
     log_security_event,
-    safe_aws_client_call,
     sanitize_dynamodb_input,
     validate_api_gateway_event,
-    validate_aws_region,
-    validate_drs_server_id,
-    validate_protection_group_name,
-    validate_recovery_plan_name,
-    validate_uuid,
 )
 
 # Initialize AWS clients
