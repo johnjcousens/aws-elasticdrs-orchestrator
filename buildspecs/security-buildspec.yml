@@ -9,10 +9,6 @@ env:
     SECURITY_THRESHOLD_CRITICAL: "0"
     SECURITY_THRESHOLD_HIGH: "10"
     SECURITY_THRESHOLD_TOTAL: "50"
-  parameter-store:
-    # Optional: Store security tool configurations in Parameter Store
-    # BANDIT_CONFIG: "/security/bandit-config"
-    # SEMGREP_CONFIG: "/security/semgrep-config"
 
 phases:
   install:
