@@ -61,9 +61,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         {
             "function_name": "execution_registry",
             "action": event.get("action", "unknown"),
-            "event_keys": list(event.keys())
-            if isinstance(event, dict)
-            else [],
+            "event_keys": (
+                list(event.keys()) if isinstance(event, dict) else []
+            ),
             "context_request_id": getattr(
                 context, "aws_request_id", "unknown"
             ),
@@ -214,9 +214,11 @@ def update_execution(event: Dict) -> Dict:
         log_security_event(
             "invalid_execution_id",
             {
-                "execution_id": execution_id[:20] + "..."
-                if len(execution_id) > 20
-                else execution_id
+                "execution_id": (
+                    execution_id[:20] + "..."
+                    if len(execution_id) > 20
+                    else execution_id
+                )
             },
             "WARN",
         )
@@ -369,9 +371,11 @@ def get_execution(event: Dict) -> Dict:
         log_security_event(
             "invalid_execution_id_get",
             {
-                "execution_id": execution_id[:20] + "..."
-                if len(execution_id) > 20
-                else execution_id
+                "execution_id": (
+                    execution_id[:20] + "..."
+                    if len(execution_id) > 20
+                    else execution_id
+                )
             },
             "WARN",
         )
