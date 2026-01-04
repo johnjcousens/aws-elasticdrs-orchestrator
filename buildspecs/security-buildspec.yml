@@ -20,14 +20,14 @@ phases:
       - echo "Python version:" && python --version
       - echo "Node.js version:" && node --version
       - echo "NPM version:" && npm --version
-      
+
       # Install Python security tools
       - pip install --upgrade pip
       - pip install bandit semgrep safety cfn-lint
-      
+
       # Install Node.js security tools globally
       - npm install -g npm-audit-ci eslint
-      
+
       # Verify tool installations
       - bandit --version
       - semgrep --version
@@ -42,12 +42,12 @@ phases:
       - echo "Project: $PROJECT_NAME"
       - echo "Commit: $CODEBUILD_RESOLVED_SOURCE_VERSION"
       - echo "Branch: $CODEBUILD_SOURCE_VERSION"
-      
+
       # Create reports directory
       - mkdir -p reports/security
       - mkdir -p reports/security/raw
       - mkdir -p reports/security/formatted
-      
+
       # Set up environment
       - export PYTHONPATH="${PYTHONPATH}:$(pwd)"
       - export NODE_ENV=production
@@ -55,70 +55,70 @@ phases:
   build:
     commands:
       - echo "=== PYTHON SECURITY SCANNING ==="
-      
+
       # Bandit security scan
       - echo "Running Bandit security scan on Python code..."
       - bandit -r lambda/ scripts/ -f json -o reports/security/raw/bandit-report.json -ll --severity-level medium --confidence-level medium || true
       - echo "Bandit scan completed, generating human-readable report..."
       - bandit -r lambda/ scripts/ -ll --severity-level medium --confidence-level medium > reports/security/formatted/bandit-report.txt || true
-      
+
       # Semgrep security scan for Python
       - echo "Running Semgrep security scan on Python code..."
       - semgrep --config=python.lang.security lambda/ scripts/ --json -o reports/security/raw/semgrep-python.json --severity ERROR --severity WARNING || true
       - echo "Semgrep Python scan completed, generating human-readable report..."
       - semgrep --config=python.lang.security lambda/ scripts/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-python.txt || true
-      
+
       # Safety dependency vulnerability scan
       - echo "Running Safety dependency vulnerability scan..."
       - safety check --json -o reports/security/raw/safety-report.json || true
       - echo "Safety scan completed, generating human-readable report..."
       - safety check > reports/security/formatted/safety-report.txt || true
-      
+
       - echo "=== FRONTEND SECURITY SCANNING ==="
-      
+
       # Install frontend dependencies
       - echo "Installing frontend dependencies..."
       - cd frontend/
       - npm ci --production=false
-      
+
       # NPM audit security scan
       - echo "Running NPM audit security scan..."
       - npm audit --audit-level moderate --json > ../reports/security/raw/npm-audit.json || true
       - echo "NPM audit completed, generating human-readable report..."
       - npm audit --audit-level moderate > ../reports/security/formatted/npm-audit.txt || true
-      
+
       # ESLint security scan
       - echo "Running ESLint security scan..."
       - npx eslint src/ --ext .ts,.tsx --format json -o ../reports/security/raw/eslint-security.json --config .eslintrc.json || true
       - echo "ESLint security scan completed, generating human-readable report..."
       - npx eslint src/ --ext .ts,.tsx --format compact > ../reports/security/formatted/eslint-security.txt || true
-      
+
       - cd ../
-      
+
       - echo "=== INFRASTRUCTURE SECURITY SCANNING ==="
-      
+
       # CloudFormation security linting
       - echo "Running CloudFormation security linting..."
       - cfn-lint cfn/*.yaml --format json > reports/security/raw/cfn-lint.json || true
       - echo "CloudFormation linting completed, generating human-readable report..."
       - cfn-lint cfn/*.yaml > reports/security/formatted/cfn-lint.txt || true
-      
+
       # Semgrep security scan for CloudFormation
       - echo "Running Semgrep security scan on CloudFormation templates..."
       - semgrep --config=yaml.lang.security cfn/ --json -o reports/security/raw/semgrep-cfn.json --severity ERROR --severity WARNING || true
       - echo "Semgrep CloudFormation scan completed, generating human-readable report..."
       - semgrep --config=yaml.lang.security cfn/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-cfn.txt || true
-      
+
       - echo "=== SECURITY SUMMARY GENERATION ==="
-      
+
       # Generate comprehensive security summary
       - echo "Generating security scan summary..."
       - python scripts/generate-security-summary.py
-      
+
       # Display summary for build logs
       - echo "=== SECURITY SCAN RESULTS ==="
       - cat reports/security/security-summary.json
-      
+
       # Check if critical security issues were found
       - echo "Checking security scan results against thresholds..."
       - python scripts/check-security-thresholds.py
@@ -127,16 +127,16 @@ phases:
     commands:
       - echo "=== SECURITY SCAN COMPLETED ==="
       - echo "Build completed on $(date)"
-      
+
       # Archive security reports
       - echo "Archiving security scan reports..."
       - ls -la reports/security/
       - ls -la reports/security/raw/
       - ls -la reports/security/formatted/
-      
+
       # Generate build badge information
       - python scripts/generate-build-status.py
-      
+
       # Optional: Upload to S3 for long-term storage
       # - aws s3 cp reports/security/ s3://your-security-reports-bucket/builds/$CODEBUILD_BUILD_ID/ --recursive
 
