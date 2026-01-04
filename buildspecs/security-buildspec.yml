@@ -39,9 +39,9 @@ phases:
     commands:
       - echo "=== SECURITY SCAN PHASE STARTED ==="
       - echo "Build started on $(date)"
-      - echo "Project: $PROJECT_NAME"
-      - echo "Commit: $CODEBUILD_RESOLVED_SOURCE_VERSION"
-      - echo "Branch: $CODEBUILD_SOURCE_VERSION"
+      - echo "Project - $PROJECT_NAME"
+      - echo "Commit - $CODEBUILD_RESOLVED_SOURCE_VERSION"
+      - echo "Branch - $CODEBUILD_SOURCE_VERSION"
 
       # Create reports directory
       - mkdir -p reports/security
