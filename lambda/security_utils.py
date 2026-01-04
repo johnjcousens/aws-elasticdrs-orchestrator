@@ -515,3 +515,206 @@ def safe_aws_client_call(client_method, **kwargs):
     except Exception as e:
         logger.error(f"Unexpected error in AWS API call: {str(e)}")
         raise
+
+
+def create_response_with_security_headers(
+    status_code: int, body: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Create HTTP response with security headers
+
+    Args:
+        status_code: HTTP status code
+        body: Response body dictionary
+
+    Returns:
+        Dict containing statusCode, body, and security headers
+    """
+    return {
+        "statusCode": status_code,
+        "body": json.dumps(body),
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            **create_security_headers(),
+        },
+    }
+
+
+def sanitize_string_input(input_str: str, max_length: int = 255) -> str:
+    """
+    Wrapper for sanitize_string function for backward compatibility
+
+    Args:
+        input_str: Input string to sanitize
+        max_length: Maximum allowed length
+
+    Returns:
+        Sanitized string
+
+    Raises:
+        InputValidationError: If input is invalid
+    """
+    return sanitize_string(input_str, max_length)
+
+
+def validate_file_path(file_path: str) -> bool:
+    """
+    Validate file path to prevent path traversal attacks
+
+    Args:
+        file_path: File path to validate
+
+    Returns:
+        True if path is safe
+
+    Raises:
+        InputValidationError: If path contains dangerous patterns
+    """
+    if not isinstance(file_path, str):
+        raise InputValidationError("File path must be a string")
+
+    # Check for path traversal patterns
+    dangerous_patterns = [
+        "..",
+        "~",
+        "/etc/",
+        "/proc/",
+        "/sys/",
+        "/dev/",
+        "/var/",
+        "/tmp/",
+        "/root/",
+        "/home/",
+        "\\",  # Windows path separators
+        "%2e%2e",  # URL encoded ..
+        "%2f",  # URL encoded /
+        "%5c",  # URL encoded \
+    ]
+
+    file_path_lower = file_path.lower()
+    for pattern in dangerous_patterns:
+        if pattern in file_path_lower:
+            log_security_event(
+                "path_traversal_attempt",
+                {"file_path": file_path, "pattern": pattern},
+                "WARN",
+            )
+            raise InputValidationError(
+                f"File path contains dangerous pattern: {pattern}"
+            )
+
+    # Ensure path is within allowed directories
+    allowed_prefixes = [
+        "/var/task/",  # Lambda task directory
+        "/tmp/",  # Lambda temp directory (if explicitly allowed)
+        "./",  # Relative paths from current directory
+        "dist/",  # Build output directory
+        "frontend/",  # Frontend source directory
+        "assets/",  # Assets directory
+    ]
+
+    # Allow absolute paths that start with allowed prefixes
+    if file_path.startswith("/"):
+        if not any(file_path.startswith(prefix) for prefix in allowed_prefixes):
+            log_security_event(
+                "unauthorized_path_access",
+                {"file_path": file_path},
+                "WARN",
+            )
+            raise InputValidationError(
+                f"File path not in allowed directories: {file_path}"
+            )
+
+    return True
+
+
+def validate_dynamodb_input(field_name: str, value: str) -> bool:
+    """
+    Validate input for DynamoDB operations
+
+    Args:
+        field_name: Name of the field being validated
+        value: Value to validate
+
+    Returns:
+        True if input is valid
+
+    Raises:
+        InputValidationError: If input is invalid
+    """
+    if not isinstance(value, str):
+        raise InputValidationError(f"{field_name} must be a string")
+
+    if not value or not value.strip():
+        raise InputValidationError(f"{field_name} cannot be empty")
+
+    # Check length limits
+    max_lengths = {
+        "ExecutionId": 128,
+        "PlanId": 128,
+        "GroupId": 128,
+        "WaveId": 128,
+        "ServerId": 64,
+        "JobId": 128,
+        "Status": 32,
+        "Region": 32,
+    }
+
+    max_length = max_lengths.get(field_name, 255)
+    if len(value) > max_length:
+        raise InputValidationError(
+            f"{field_name} exceeds maximum length of {max_length}"
+        )
+
+    # Validate specific field formats
+    if field_name == "ExecutionId":
+        # Execution IDs should be UUIDs or similar format
+        if not validate_uuid(value) and not re.match(
+            r"^[a-zA-Z0-9\-_]+$", value
+        ):
+            raise InputValidationError(
+                f"Invalid {field_name} format: {value}"
+            )
+
+    elif field_name == "Region":
+        if not validate_aws_region(value):
+            raise InputValidationError(f"Invalid AWS region: {value}")
+
+    elif field_name == "ServerId":
+        # DRS server IDs have specific format
+        if value.startswith("s-") and not validate_drs_server_id(value):
+            raise InputValidationError(f"Invalid DRS server ID: {value}")
+
+    elif field_name == "Status":
+        # Validate status values
+        valid_statuses = {
+            "PENDING",
+            "IN_PROGRESS",
+            "POLLING",
+            "LAUNCHING",
+            "COMPLETED",
+            "FAILED",
+            "CANCELLED",
+            "TIMEOUT",
+            "PAUSED",
+            "RESUMED",
+            "CANCELLING",
+        }
+        if value not in valid_statuses:
+            raise InputValidationError(f"Invalid status: {value}")
+
+    # Sanitize the value
+    sanitized_value = sanitize_string(value, max_length)
+
+    # Log validation for audit trail
+    log_security_event(
+        "dynamodb_input_validated",
+        {
+            "field_name": field_name,
+            "original_length": len(value),
+            "sanitized_length": len(sanitized_value),
+        },
+    )
+
+    return True
