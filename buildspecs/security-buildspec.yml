@@ -21,9 +21,9 @@ phases:
       - echo "Node.js version:" && node --version
       - echo "NPM version:" && npm --version
 
-      # Install Python security tools
+      # Install Python security tools with pinned versions
       - pip install --upgrade pip
-      - pip install bandit semgrep safety cfn-lint
+      - pip install bandit==1.7.5 semgrep==1.45.0 safety==2.3.4 cfn-lint==0.83.8
 
       # Install Node.js security tools globally
       - npm install -g npm-audit-ci eslint
