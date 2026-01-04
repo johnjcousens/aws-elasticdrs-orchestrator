@@ -40,8 +40,9 @@ phases:
       - npm run lint
       - cd $CODEBUILD_SRC_DIR
       - echo "=== Integration Tests ==="
-      - echo "Current directory: $(pwd)"
-      - echo "Listing tests directory: $(ls -la tests/)"
+      - echo "Current directory is $(pwd)"
+      - echo "Listing tests directory"
+      - ls -la tests/
       - cd tests/integration
       - pip install pytest boto3 botocore
       - python -m pytest test_basic_integration.py -v --tb=short --junit-xml=../../test-reports/integration-results.xml
