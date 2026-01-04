@@ -40,7 +40,6 @@ phases:
       - npm run lint
       - cd ..
       - echo "=== Integration Tests ==="
-      - cd ../..
       - cd tests/integration
       - python -m pytest . -v --tb=short --junit-xml=../../test-reports/integration-results.xml
       - cd ../..
