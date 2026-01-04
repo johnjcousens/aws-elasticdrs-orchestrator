@@ -867,18 +867,21 @@ def update_execution_waves(
         if not plan_id or not isinstance(plan_id, str):
             raise ValueError("Invalid plan_id")
 
-        update_call = lambda: dynamodb.update_item(
-            TableName=EXECUTION_HISTORY_TABLE,
-            Key={
-                "ExecutionId": {"S": execution_id.strip()},
-                "PlanId": {"S": plan_id.strip()},
-            },
-            UpdateExpression="SET Waves = :waves",
-            ExpressionAttributeValues={
-                ":waves": {"L": [format_wave_for_dynamodb(w) for w in waves]}
-            },
-            ConditionExpression="attribute_exists(ExecutionId) AND attribute_exists(PlanId)",
-        )
+        def update_call():
+            return dynamodb.update_item(
+                TableName=EXECUTION_HISTORY_TABLE,
+                Key={
+                    "ExecutionId": {"S": execution_id.strip()},
+                    "PlanId": {"S": plan_id.strip()},
+                },
+                UpdateExpression="SET Waves = :waves",
+                ExpressionAttributeValues={
+                    ":waves": {
+                        "L": [format_wave_for_dynamodb(w) for w in waves]
+                    }
+                },
+                ConditionExpression="attribute_exists(ExecutionId) AND attribute_exists(PlanId)",
+            )
 
         if SECURITY_ENABLED:
             safe_aws_client_call(update_call)
