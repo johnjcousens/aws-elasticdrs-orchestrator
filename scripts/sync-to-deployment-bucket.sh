@@ -167,43 +167,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-            echo "  --list-profiles          List available AWS profiles and exit"
-            echo "  --help                   Show this help message"
-            echo ""
-            echo "Deployment Options:"
-            echo "  --deploy-cfn             Deploy ALL stacks via parent CloudFormation (5-10 min)"
-            echo "  --update-lambda-code     Update api-handler Lambda code ONLY (~5 sec)"
-            echo "  --update-all-lambda      Update ALL Lambda functions code (~15 sec)"
-            echo "  --deploy-lambda          Deploy Lambda stack via CloudFormation (~30 sec)"
-            echo "  --deploy-frontend        Sync frontend/dist to S3 + CloudFront invalidation (~10 sec)"
-            echo ""
-            echo "Examples:"
-            echo "  # Basic sync (no deployment)"
-            echo "  $0                                    # Sync all files to S3"
-            echo ""
-            echo "  # Fast Lambda code updates"
-            echo "  $0 --update-lambda-code               # Fastest: Direct Lambda update (~5s)"
-            echo "  $0 --deploy-lambda                    # Fast: Lambda stack only (~30s)"
-            echo ""
-            echo "  # Frontend deployments"
-            echo "  $0 --build-frontend --deploy-frontend # Build + deploy frontend"
-            echo ""
-            echo "  # Full deployments"
-            echo "  $0 --deploy-cfn                       # All stacks via parent (5-10 min)"
-            echo "  $0 --build-frontend --deploy-cfn      # Build + deploy everything"
-            echo ""
-            echo "  # Utilities"
-            echo "  $0 --profile MyProfile                # Use specific AWS profile"
-            echo "  $0 --dry-run --clean-orphans          # Preview cleanup"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Run '$0 --help' for usage information"
-            exit 1
-            ;;
-    esac
-done
 
 # List profiles if requested
 if [ "$LIST_PROFILES" = true ]; then
