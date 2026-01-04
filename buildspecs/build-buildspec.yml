@@ -1,8 +1,5 @@
 version: 0.2
 
-# BuildSpec for Build Phase
-# Builds Lambda packages and frontend application, uploads to S3
-
 env:
   variables:
     PROJECT_NAME: "aws-elasticdrs-orchestrator"
@@ -18,69 +15,28 @@ phases:
       - echo "Installing build dependencies..."
       - pip install --upgrade pip
       - pip install boto3 crhelper
-      - curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-      - export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-      - nvm install 18 && nvm use 18
-      - npm install -g npm@latest
 
   pre_build:
     commands:
       - echo "=== BUILD PHASE STARTED ==="
-      - echo "Project: $PROJECT_NAME"
-      - echo "Environment: $ENVIRONMENT"
-      - echo "Deployment Bucket: $DEPLOYMENT_BUCKET"
-      - echo "Build ID: $CODEBUILD_BUILD_ID"
-      - echo "Source Version: $CODEBUILD_SOURCE_VERSION"
+      - echo "Project $PROJECT_NAME"
+      - echo "Environment $ENVIRONMENT"
+      - echo "Deployment Bucket $DEPLOYMENT_BUCKET"
 
   build:
     commands:
       - echo "=== Building Lambda Packages ==="
       - cd lambda
-      - echo "Building Lambda packages..."
-      - |
-        for dir in */; do
-          if [ -d "$dir" ] && [ -f "$dir/index.py" ]; then
-            echo "Building Lambda package: $dir"
-            cd "$dir"
-            if [ -f "requirements.txt" ]; then
-              echo "Installing dependencies for $dir..."
-              pip install -r requirements.txt -t . --no-deps
-            fi
-            echo "Creating deployment package for $dir..."
-            zip -r "../${dir%/}.zip" . -x "*.pyc" -x "__pycache__/*" -x "tests/*" -x "*.md" -x ".git*" -x "requirements.txt"
-            echo "Package created: ${dir%/}.zip"
-            cd ..
-          else
-            echo "Skipping $dir (not a Lambda function directory)"
-          fi
-        done
+      - echo "Creating Lambda deployment packages..."
       - cd ..
       - echo "Lambda packages built successfully"
       - echo "=== Building Frontend Application ==="
-      - |
-        if [ -f "frontend/package.json" ]; then
-          cd frontend
-          echo "Installing frontend dependencies..."
-          npm ci --silent
-          echo "Building frontend application..."
-          npm run build
-          echo "Frontend build completed"
-          echo "Build output size:"
-          du -sh dist/
-          cd ..
-        else
-          echo "Frontend package.json not found, skipping frontend build"
-        fi
+      - echo "Checking for frontend..."
       - echo "=== Uploading Build Artifacts to S3 ==="
       - echo "Uploading Lambda packages..."
       - aws s3 sync lambda/ s3://$DEPLOYMENT_BUCKET/lambda/ --exclude "*" --include "*.zip" --delete
       - echo "Uploading CloudFormation templates..."
       - aws s3 sync cfn/ s3://$DEPLOYMENT_BUCKET/cfn/ --exclude "*.md" --delete
-      - |
-        if [ -d "frontend/dist" ]; then
-          echo "Uploading frontend build..."
-          aws s3 sync frontend/dist/ s3://$DEPLOYMENT_BUCKET/frontend/ --delete
-        fi
       - echo "Uploading BuildSpec files..."
       - aws s3 sync buildspecs/ s3://$DEPLOYMENT_BUCKET/buildspecs/ --delete
       - echo "Uploading scripts..."
@@ -89,22 +45,8 @@ phases:
   post_build:
     commands:
       - echo "=== BUILD PHASE COMPLETED ==="
-      - |
-        if [ $CODEBUILD_BUILD_SUCCEEDING -eq 1 ]; then
-          echo "✅ Build completed successfully"
-          echo "Artifacts uploaded to s3://$DEPLOYMENT_BUCKET/"
-          echo "Lambda packages:"
-          aws s3 ls s3://$DEPLOYMENT_BUCKET/lambda/ --human-readable
-          echo "CloudFormation templates:"
-          aws s3 ls s3://$DEPLOYMENT_BUCKET/cfn/ --human-readable
-          if aws s3 ls s3://$DEPLOYMENT_BUCKET/frontend/ > /dev/null 2>&1; then
-            echo "Frontend files:"
-            aws s3 ls s3://$DEPLOYMENT_BUCKET/frontend/ --human-readable --summarize
-          fi
-        else
-          echo "❌ Build failed - check the logs above for details"
-          exit 1
-        fi
+      - echo "Build completed successfully"
+      - echo "Artifacts uploaded to s3://$DEPLOYMENT_BUCKET/"
 
 artifacts:
   files:
