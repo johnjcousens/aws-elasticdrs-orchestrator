@@ -1037,6 +1037,9 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
             # Resolve servers from Protection Group tags
             server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
             server_count = len(server_ids)
+        elif wave.get("ServerIds"):
+            # Direct server IDs (for backward compatibility and testing)
+            server_count = len(wave.get("ServerIds", []))
         else:
             server_count = 0
 
