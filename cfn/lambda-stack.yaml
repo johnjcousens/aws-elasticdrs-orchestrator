@@ -803,7 +803,7 @@ Resources:
       FunctionName: !Sub "${ProjectName}-notification-formatter-${Environment}"
       Description: "Formats CodePipeline and CodeBuild events into user-friendly email notifications"
       Runtime: python3.12
-      Handler: index.lambda_handler
+      Handler: notification-formatter/index.lambda_handler
       Role: !GetAtt NotificationFormatterRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
