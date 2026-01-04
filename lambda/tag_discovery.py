@@ -55,9 +55,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
         "lambda_invocation",
         {
             "function_name": "tag_discovery",
-            "event_keys": list(event.keys())
-            if isinstance(event, dict)
-            else [],
+            "event_keys": (
+                list(event.keys()) if isinstance(event, dict) else []
+            ),
             "context_request_id": getattr(
                 context, "aws_request_id", "unknown"
             ),
@@ -208,11 +208,11 @@ def discover_single_account(tags: Dict[str, str], region: str) -> Dict:
                         "isHealthy": is_healthy,
                         "tags": server_tags,
                         "region": region,
-                        "accountId": server.get("sourceServerID", "").split(
-                            "/"
-                        )[0]
-                        if "/" in server.get("sourceServerID", "")
-                        else None,
+                        "accountId": (
+                            server.get("sourceServerID", "").split("/")[0]
+                            if "/" in server.get("sourceServerID", "")
+                            else None
+                        ),
                         "lastLaunchResult": server.get(
                             "lastLaunchResult", "NOT_STARTED"
                         ),

@@ -697,9 +697,11 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
                             "executionId": execution_id,
                             "planId": plan_id,
                             "waveName": wave_name,
-                            "waveStatus": f"Wave {idx}"
-                            if idx <= current_wave
-                            else "PENDING",
+                            "waveStatus": (
+                                f"Wave {idx}"
+                                if idx <= current_wave
+                                else "PENDING"
+                            ),
                             "executionStatus": exec_status,
                         }
 
@@ -973,9 +975,9 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
 
                 # Lazy load DRS jobs per region
                 if region not in drs_servers_by_region:
-                    drs_servers_by_region[
-                        region
-                    ] = get_servers_in_active_drs_jobs(region)
+                    drs_servers_by_region[region] = (
+                        get_servers_in_active_drs_jobs(region)
+                    )
 
                 server_ids = resolve_pg_servers_for_conflict_check(
                     pg_id, pg_cache
@@ -1095,9 +1097,11 @@ def validate_concurrent_jobs(region: str) -> Dict:
             "maxJobs": DRS_LIMITS["MAX_CONCURRENT_JOBS"],
             "availableSlots": available_slots,
             "activeJobs": active_jobs,
-            "message": f"DRS has {current_count}/{DRS_LIMITS['MAX_CONCURRENT_JOBS']} active jobs"
-            if current_count < DRS_LIMITS["MAX_CONCURRENT_JOBS"]
-            else f"DRS concurrent job limit reached ({current_count}/{DRS_LIMITS['MAX_CONCURRENT_JOBS']})",
+            "message": (
+                f"DRS has {current_count}/{DRS_LIMITS['MAX_CONCURRENT_JOBS']} active jobs"
+                if current_count < DRS_LIMITS["MAX_CONCURRENT_JOBS"]
+                else f"DRS concurrent job limit reached ({current_count}/{DRS_LIMITS['MAX_CONCURRENT_JOBS']})"
+            ),
         }
 
     except Exception as e:
@@ -1154,9 +1158,11 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
             "newServerCount": new_server_count,
             "totalAfterNew": total_after_new,
             "maxServers": DRS_LIMITS["MAX_SERVERS_IN_ALL_JOBS"],
-            "message": f"Would have {total_after_new}/{DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']} servers in active jobs"
-            if total_after_new <= DRS_LIMITS["MAX_SERVERS_IN_ALL_JOBS"]
-            else f"Would exceed max servers in all jobs ({total_after_new}/{DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']})",
+            "message": (
+                f"Would have {total_after_new}/{DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']} servers in active jobs"
+                if total_after_new <= DRS_LIMITS["MAX_SERVERS_IN_ALL_JOBS"]
+                else f"Would exceed max servers in all jobs ({total_after_new}/{DRS_LIMITS['MAX_SERVERS_IN_ALL_JOBS']})"
+            ),
         }
 
     except Exception as e:
@@ -1248,9 +1254,11 @@ def validate_server_replication_states(
             "healthyCount": len(healthy_servers),
             "unhealthyCount": len(unhealthy_servers),
             "unhealthyServers": unhealthy_servers,
-            "message": f"All {len(healthy_servers)} servers have healthy replication"
-            if len(unhealthy_servers) == 0
-            else f"{len(unhealthy_servers)} server(s) have unhealthy replication state",
+            "message": (
+                f"All {len(healthy_servers)} servers have healthy replication"
+                if len(unhealthy_servers) == 0
+                else f"{len(unhealthy_servers)} server(s) have unhealthy replication state"
+            ),
         }
 
     except Exception as e:
@@ -1946,9 +1954,11 @@ def query_drs_servers_by_tags(
                         {
                             "deviceName": disk.get("deviceName", "Unknown"),
                             "bytes": disk_bytes,
-                            "sizeGiB": round(disk_bytes / (1024**3), 1)
-                            if disk_bytes
-                            else 0,
+                            "sizeGiB": (
+                                round(disk_bytes / (1024**3), 1)
+                                if disk_bytes
+                                else 0
+                            ),
                         }
                     )
                 total_disk_gib = (
@@ -2291,9 +2301,9 @@ def create_protection_group(body: Dict) -> Dict:
 
         # Include LaunchConfig apply results if applicable
         if launch_config_apply_results:
-            response_item[
-                "launchConfigApplyResults"
-            ] = launch_config_apply_results
+            response_item["launchConfigApplyResults"] = (
+                launch_config_apply_results
+            )
 
         return response(201, response_item)
 
@@ -2691,9 +2701,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         # Include LaunchConfig apply results if applicable
         if launch_config_apply_results:
-            response_item[
-                "launchConfigApplyResults"
-            ] = launch_config_apply_results
+            response_item["launchConfigApplyResults"] = (
+                launch_config_apply_results
+            )
 
         print(f"Updated Protection Group: {group_id}")
         return response(200, response_item)
@@ -3525,11 +3535,11 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                                 "privateIp": instance.get("PrivateIpAddress"),
                                 "publicIp": instance.get("PublicIpAddress"),
                                 "instanceType": instance.get("InstanceType"),
-                                "launchTime": instance.get(
-                                    "LaunchTime"
-                                ).isoformat()
-                                if instance.get("LaunchTime")
-                                else None,
+                                "launchTime": (
+                                    instance.get("LaunchTime").isoformat()
+                                    if instance.get("LaunchTime")
+                                    else None
+                                ),
                             }
                     # Merge EC2 details into existing_instances
                     for inst in existing_instances:
@@ -4424,7 +4434,7 @@ def start_drs_recovery_for_wave(
 
         response = drs_client.start_recovery(
             sourceServers=source_servers,
-            isDrill=is_drill
+            isDrill=is_drill,
             # NO TAGS - this is the fix!
         )
 
@@ -6017,9 +6027,9 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                                 region
                                                 not in instances_by_region
                                             ):
-                                                instances_by_region[
-                                                    region
-                                                ] = []
+                                                instances_by_region[region] = (
+                                                    []
+                                                )
                                             instances_by_region[region].append(
                                                 ec2_instance_id
                                             )
@@ -6639,9 +6649,9 @@ def delete_completed_executions() -> Dict:
 
         if skipped_with_active_jobs:
             result["skippedExecutionIds"] = skipped_with_active_jobs
-            result[
-                "warning"
-            ] = f"{len(skipped_with_active_jobs)} cancelled execution(s) skipped due to active DRS jobs"
+            result["warning"] = (
+                f"{len(skipped_with_active_jobs)} cancelled execution(s) skipped due to active DRS jobs"
+            )
 
         if failed_deletes:
             result["failedDeletes"] = failed_deletes
@@ -6650,9 +6660,9 @@ def delete_completed_executions() -> Dict:
                     "warning"
                 ] += f"; {len(failed_deletes)} execution(s) failed to delete"
             else:
-                result[
-                    "warning"
-                ] = f"{len(failed_deletes)} execution(s) failed to delete"
+                result["warning"] = (
+                    f"{len(failed_deletes)} execution(s) failed to delete"
+                )
 
         print(
             f"Bulk delete completed: {deleted_count} deleted, {len(skipped_with_active_jobs)} skipped (active jobs), {len(failed_deletes)} failed"
@@ -6836,9 +6846,9 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
 
         if active_executions_skipped:
             result["activeExecutionsSkipped"] = active_executions_skipped
-            result[
-                "warning"
-            ] = f"{len(active_executions_skipped)} active execution(s) skipped"
+            result["warning"] = (
+                f"{len(active_executions_skipped)} active execution(s) skipped"
+            )
 
         if failed_deletes:
             result["failedDeletes"] = failed_deletes
@@ -6847,9 +6857,9 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
                     "warning"
                 ] += f"; {len(failed_deletes)} execution(s) failed to delete"
             else:
-                result[
-                    "warning"
-                ] = f"{len(failed_deletes)} execution(s) failed to delete"
+                result["warning"] = (
+                    f"{len(failed_deletes)} execution(s) failed to delete"
+                )
 
         print(
             f"Selective delete completed: {deleted_count} deleted, {len(active_executions_skipped)} skipped (active), {len(failed_deletes)} failed, {len(not_found)} not found"
@@ -7017,9 +7027,11 @@ def list_source_servers(
                     {
                         "deviceName": disk.get("deviceName", "Unknown"),
                         "bytes": disk_bytes,
-                        "sizeGiB": round(disk_bytes / (1024**3), 1)
-                        if disk_bytes
-                        else 0,
+                        "sizeGiB": (
+                            round(disk_bytes / (1024**3), 1)
+                            if disk_bytes
+                            else 0
+                        ),
                     }
                 )
             total_disk_gib = (
@@ -7708,9 +7720,11 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
                 "protectionGroupId": wave.get(
                     "ProtectionGroupId"
                 ),  # camelCase for frontend
-                "protectionGroupIds": [wave.get("ProtectionGroupId")]
-                if wave.get("ProtectionGroupId")
-                else [],  # Array format
+                "protectionGroupIds": (
+                    [wave.get("ProtectionGroupId")]
+                    if wave.get("ProtectionGroupId")
+                    else []
+                ),  # Array format
                 "pauseBeforeWave": wave.get(
                     "PauseBeforeWave", False
                 ),  # Pause before starting this wave
@@ -7757,9 +7771,9 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         "waves": waves,  # Now properly transformed
         "createdAt": int(created_at * 1000) if created_at else None,
         "updatedAt": int(updated_at * 1000) if updated_at else None,
-        "lastExecutedAt": int(last_executed_at * 1000)
-        if last_executed_at
-        else None,
+        "lastExecutedAt": (
+            int(last_executed_at * 1000) if last_executed_at else None
+        ),
         "lastExecutionStatus": rp.get(
             "LastExecutionStatus"
         ),  # NEW: Execution status
@@ -9222,9 +9236,9 @@ def apply_launch_config_to_servers(
             if "Licensing" in launch_config:
                 drs_update["licensing"] = launch_config["Licensing"]
             if "TargetInstanceTypeRightSizingMethod" in launch_config:
-                drs_update[
-                    "targetInstanceTypeRightSizingMethod"
-                ] = launch_config["TargetInstanceTypeRightSizingMethod"]
+                drs_update["targetInstanceTypeRightSizingMethod"] = (
+                    launch_config["TargetInstanceTypeRightSizingMethod"]
+                )
             if "LaunchDisposition" in launch_config:
                 drs_update["launchDisposition"] = launch_config[
                     "LaunchDisposition"
@@ -10117,12 +10131,12 @@ def _process_protection_group_import(
                             protection_group_id=group_id,
                             protection_group_name=pg_name,
                         )
-                        result["details"][
-                            "launchConfigApplied"
-                        ] = apply_results.get("applied", 0)
-                        result["details"][
-                            "launchConfigFailed"
-                        ] = apply_results.get("failed", 0)
+                        result["details"]["launchConfigApplied"] = (
+                            apply_results.get("applied", 0)
+                        )
+                        result["details"]["launchConfigFailed"] = (
+                            apply_results.get("failed", 0)
+                        )
                         print(
                             f"[{correlation_id}] Applied LaunchConfig to {apply_results.get('applied', 0)} servers"
                         )
@@ -10355,11 +10369,11 @@ def get_tag_sync_settings() -> Dict:
                 "intervalHours": interval_hours,
                 "scheduleExpression": schedule_expression,
                 "ruleName": rule_name,
-                "lastModified": rule_response.get(
-                    "ModifiedDate", ""
-                ).isoformat()
-                if rule_response.get("ModifiedDate")
-                else None,
+                "lastModified": (
+                    rule_response.get("ModifiedDate", "").isoformat()
+                    if rule_response.get("ModifiedDate")
+                    else None
+                ),
             }
 
             return response(200, settings)
@@ -10499,9 +10513,11 @@ def update_tag_sync_settings(body: Dict) -> Dict:
             "intervalHours": interval_hours,
             "scheduleExpression": updated_rule.get("ScheduleExpression"),
             "ruleName": rule_name,
-            "lastModified": updated_rule.get("ModifiedDate", "").isoformat()
-            if updated_rule.get("ModifiedDate")
-            else None,
+            "lastModified": (
+                updated_rule.get("ModifiedDate", "").isoformat()
+                if updated_rule.get("ModifiedDate")
+                else None
+            ),
         }
 
         return response(200, result)

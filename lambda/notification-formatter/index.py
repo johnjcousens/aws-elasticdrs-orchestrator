@@ -361,9 +361,11 @@ def send_formatted_notification(
                 "sns_publish_error",
                 {
                     "error": str(e),
-                    "topic_arn": topic_arn[:50] + "..."
-                    if len(topic_arn) > 50
-                    else topic_arn,
+                    "topic_arn": (
+                        topic_arn[:50] + "..."
+                        if len(topic_arn) > 50
+                        else topic_arn
+                    ),
                 },
             )
         raise

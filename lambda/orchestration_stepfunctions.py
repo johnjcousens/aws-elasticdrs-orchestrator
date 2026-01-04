@@ -440,9 +440,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             print(f"Protection Group {protection_group_id} not found")
             state["wave_completed"] = True
             state["status"] = "failed"
-            state[
-                "error"
-            ] = f"Protection Group {protection_group_id} not found"
+            state["error"] = (
+                f"Protection Group {protection_group_id} not found"
+            )
             return
 
         pg = pg_response["Item"]
@@ -630,9 +630,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 print("❌ Job COMPLETED but no servers")
                 state["wave_completed"] = True
                 state["status"] = "failed"
-                state[
-                    "error"
-                ] = "DRS job completed but no participating servers"
+                state["error"] = (
+                    "DRS job completed but no participating servers"
+                )
                 return state
             else:
                 state["wave_completed"] = False
@@ -765,9 +765,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             print("❌ Job COMPLETED but no instances launched")
             state["wave_completed"] = True
             state["status"] = "failed"
-            state[
-                "error"
-            ] = "DRS job completed but no recovery instances created"
+            state["error"] = (
+                "DRS job completed but no recovery instances created"
+            )
             update_wave_in_dynamodb(
                 execution_id, plan_id, wave_number, "FAILED", server_statuses
             )
@@ -939,9 +939,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             end_time = int(time.time())
             state["wave_completed"] = True
             state["status"] = "failed"
-            state[
-                "status_reason"
-            ] = f"Wave {wave_number} failed: {failed_count} servers failed to launch"
+            state["status_reason"] = (
+                f"Wave {wave_number} failed: {failed_count} servers failed to launch"
+            )
             state["error"] = f"{failed_count} servers failed to launch"
             state["error_code"] = "WAVE_LAUNCH_FAILED"
             state["failed_waves"] = 1

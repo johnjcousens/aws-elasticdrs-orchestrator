@@ -4,6 +4,7 @@ Polls DRS job status for a single execution.
 Updates DynamoDB with wave/server status.
 Handles timeouts and detects completion.
 """
+
 import json
 import logging
 import os
@@ -324,9 +325,9 @@ def lambda_handler(
                 {
                     "ExecutionId": execution_id,
                     "Status": execution_status,
-                    "WavesPolled": waves_polled
-                    if is_cancelling
-                    else len(updated_waves),
+                    "WavesPolled": (
+                        waves_polled if is_cancelling else len(updated_waves)
+                    ),
                     "message": "Polling in progress",
                 },
             )
@@ -337,9 +338,11 @@ def lambda_handler(
                     {
                         "ExecutionId": execution_id,
                         "Status": execution_status,
-                        "WavesPolled": waves_polled
-                        if is_cancelling
-                        else len(updated_waves),
+                        "WavesPolled": (
+                            waves_polled
+                            if is_cancelling
+                            else len(updated_waves)
+                        ),
                         "message": "Polling in progress",
                     }
                 ),
@@ -534,14 +537,14 @@ def handle_timeout(
                         f"Error querying DRS for job {job_id}: {str(e)}"
                     )
                     wave["Status"] = "TIMEOUT"
-                    wave[
-                        "StatusMessage"
-                    ] = f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
+                    wave["StatusMessage"] = (
+                        f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
+                    )
             else:
                 wave["Status"] = "TIMEOUT"
-                wave[
-                    "StatusMessage"
-                ] = f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
+                wave["StatusMessage"] = (
+                    f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
+                )
 
             final_waves.append(wave)
 
@@ -693,9 +696,9 @@ def poll_wave_status(
                     logger.error(
                         f"Wave {wave.get('WaveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
                     )
-                    wave[
-                        "StatusMessage"
-                    ] = f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
+                    wave["StatusMessage"] = (
+                        f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
+                    )
                 else:
                     # Fallback to DRS status if no clear success/failure
                     wave["Status"] = drs_status
@@ -740,9 +743,9 @@ def poll_wave_status(
                     logger.error(
                         f"Wave {wave.get('WaveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
                     )
-                    wave[
-                        "StatusMessage"
-                    ] = f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
+                    wave["StatusMessage"] = (
+                        f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
+                    )
                 else:
                     wave["Status"] = drs_status
             else:

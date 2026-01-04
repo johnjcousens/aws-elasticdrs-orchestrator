@@ -221,9 +221,11 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
             sanitized[sanitized_key] = value
         elif isinstance(value, list):
             sanitized[sanitized_key] = [
-                sanitize_string(str(item), 1024)
-                if isinstance(item, str)
-                else item
+                (
+                    sanitize_string(str(item), 1024)
+                    if isinstance(item, str)
+                    else item
+                )
                 for item in value
             ]
         elif isinstance(value, dict):
@@ -289,9 +291,9 @@ def validate_api_gateway_event(event: Dict[str, Any]) -> Dict[str, Any]:
         for key, value in query_params.items():
             if isinstance(value, str):
                 # Allow longer values for query parameters like account IDs
-                sanitized_query_params[
-                    sanitize_string(key, 100)
-                ] = sanitize_string(value, 2048)
+                sanitized_query_params[sanitize_string(key, 100)] = (
+                    sanitize_string(value, 2048)
+                )
     else:
         sanitized_query_params = {}
 
