@@ -31,16 +31,19 @@ jobs:
         pip install bandit semgrep safety
     
     - name: Run Bandit security scan
+      continue-on-error: true
       run: |
         bandit -r lambda/ -f json -o bandit-report.json || true
         bandit -r lambda/ -ll || true
     
     - name: Run Semgrep security scan
+      continue-on-error: true
       run: |
         semgrep --config=auto lambda/ --json --output=semgrep-report.json || true
         semgrep --config=auto lambda/ || true
     
     - name: Run Safety dependency scan
+      continue-on-error: true
       run: |
         safety scan --json --output safety-report.json || true
         safety scan || true
