@@ -67,11 +67,9 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
+      UserPoolTags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
 
   # ============================================================================
   # RBAC Groups - DRS Orchestration Roles (Aligned with RBAC Middleware)
