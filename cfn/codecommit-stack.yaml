@@ -26,6 +26,7 @@ Resources:
   # S3 Bucket for CI/CD artifacts (always created)
   ArtifactBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
     Properties:
       BucketName: !Sub '${ProjectName}-cicd-artifacts-${AWS::AccountId}-${Environment}'
       VersioningConfiguration:
@@ -48,6 +49,9 @@ Resources:
             Status: Enabled
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 7
+          - Id: ExpireCurrentVersions
+            Status: Enabled
+            ExpirationInDays: 90
       Tags:
         - Key: Project
           Value: !Ref ProjectName
