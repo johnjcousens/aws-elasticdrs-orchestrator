@@ -1,11 +1,24 @@
-# AWS DRS Orchestration CI/CD Pipeline
-# Comprehensive pipeline for CloudFormation, Lambda, and React frontend deployment
+# ============================================================================
+# DEPRECATED: GitLab CI/CD Pipeline Configuration
+# ============================================================================
 # 
-# Updated: December 31, 2025
-# - Added frontend-builder.zip Lambda function (5 total functions)
-# - Added rbac_middleware.py to api-handler package for RBAC support
-# - Updated project name to match sync script (aws-drs-orchestrator)
-# - Aligned with current CloudFormation stack structure including RBAC implementation
+# ⚠️  WARNING: This file is DEPRECATED and no longer used for deployments
+# 
+# Current CI/CD Infrastructure:
+# - AWS CodePipeline: aws-elasticdrs-orchestrator-pipeline-dev
+# - AWS CodeCommit: aws-elasticdrs-orchestrator-dev (primary repository)
+# - GitHub: Secondary repository for collaboration
+# - Account: 438465159935
+# 
+# This GitLab CI configuration is maintained for reference only.
+# All active deployments use AWS CodePipeline with buildspecs/ directory.
+# 
+# For current CI/CD documentation, see:
+# - docs/guides/deployment/CICD_SETUP_GUIDE.md
+# - docs/guides/deployment/ACTIVATE_CICD_GUIDE.md
+# 
+# Last Active: December 31, 2025 (migrated to AWS CodePipeline)
+# ============================================================================
 
 stages:
   - validate

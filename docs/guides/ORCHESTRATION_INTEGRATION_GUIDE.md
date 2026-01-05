@@ -320,7 +320,7 @@ invoke_lambda "POST" "/executions" "{\"recoveryPlanId\":\"${PLAN_ID}\",\"executi
 #### SSM Automation with Direct Lambda Invocation
 
 ```yaml
-# ssm-documents/drs-drill-iam-auth.yaml
+# Example SSM Document for DRS Drill (create as customer-specific document)
 schemaVersion: '0.3'
 description: 'Execute DRS Drill using IAM authentication (no Cognito)'
 assumeRole: '{{AutomationAssumeRole}}'
@@ -2384,12 +2384,18 @@ esac
 
 ## SSM Automation Integration
 
+### Creating SSM Documents for DRS Integration
+
+AWS Systems Manager (SSM) automation documents can be used to integrate with the DRS Orchestration platform. Below are example templates that you can customize for your environment.
+
+**Note**: Create these documents in your own `ssm-documents/` directory (this directory is gitignored to prevent customer-specific documents from being tracked).
+
 ### SSM Document for DR Drill
 
 Create an SSM Automation document that executes DR drills:
 
 ```yaml
-# ssm-documents/drs-drill-automation.yaml
+# Example SSM Document for DRS Drill Automation (create as customer-specific document)
 schemaVersion: '0.3'
 description: 'Execute DRS Orchestration Drill'
 assumeRole: '{{AutomationAssumeRole}}'

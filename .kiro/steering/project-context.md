@@ -29,14 +29,19 @@ AWS-DRS-Orchestration/
 │   ├── settings/                 # MCP and other settings
 │   ├── specs/                    # Active specifications (fresh-deployment)
 │   └── steering/                 # AI steering documents (project-context.md)
+├── buildspecs/                   # AWS CodeBuild specifications (6 active files)
+│   ├── validate-buildspec.yml    # Template validation and code quality
+│   ├── security-buildspec.yml    # Comprehensive security scanning
+│   ├── build-buildspec.yml       # Lambda and frontend builds
+│   ├── test-buildspec.yml        # Unit and integration tests
+│   ├── deploy-infra-buildspec.yml # Infrastructure deployment
+│   └── deploy-frontend-buildspec.yml # Frontend deployment with dynamic config
 ├── cfn/                          # CloudFormation Infrastructure as Code (7 templates)
 ├── frontend/                     # React + CloudScape UI (37 components, 9 pages)
 ├── lambda/                       # Python Lambda functions (5 active functions)
 ├── scripts/                      # Deployment and automation scripts
 ├── tests/                        # Python unit/integration tests (minimal, needs expansion)
-├── docs/                         # Comprehensive documentation (40+ files)
-├── ssm-documents/                # SSM automation documents
-└── archive/                      # Historical artifacts and reference implementations (6 categories)
+└── docs/                         # Comprehensive documentation (40+ files)
 ```
 
 ## Core Technologies
