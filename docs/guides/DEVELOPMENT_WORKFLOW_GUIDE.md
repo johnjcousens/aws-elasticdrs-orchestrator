@@ -33,14 +33,72 @@ cd lambda
 pip install -r requirements.txt
 ```
 
-## Deployment Architecture
+## CI/CD Pipeline Integration
 
-This solution uses a **GitOps-style deployment model** where an S3 bucket serves as the source of truth for all deployable artifacts.
+### AWS CodePipeline Infrastructure
+
+The project uses **AWS CodePipeline** for automated deployment with the following active infrastructure:
+
+| Component | Name | Purpose |
+|-----------|------|---------|
+| **Pipeline** | `aws-elasticdrs-orchestrator-pipeline-dev` | 7-stage automated deployment |
+| **Primary Repository** | `aws-elasticdrs-orchestrator-dev` (CodeCommit) | Source code repository |
+| **Secondary Repository** | GitHub mirror | Development collaboration |
+| **Account** | 777788889999 | AWS account for all resources |
+| **Deployment Bucket** | `aws-elasticdrs-orchestrator` | Artifact storage |
+
+### Pipeline Stages
+
+1. **Source** (~30s) - Code retrieval from CodeCommit
+2. **Validate** (~2-3min) - CloudFormation validation, Python linting
+3. **SecurityScan** (~3-4min) - Bandit security scan, cfn-lint checks
+4. **Build** (~4-5min) - Lambda packaging, frontend builds
+5. **Test** (~3-4min) - Unit tests, integration tests, coverage
+6. **DeployInfrastructure** (~8-10min) - CloudFormation stack updates
+7. **DeployFrontend** (~2-3min) - S3 sync, CloudFront invalidation
+
+**Total Duration**: 15-20 minutes for complete deployment
+
+### Development Workflow Options
+
+#### Option 1: CI/CD Pipeline (Recommended for Production)
+```bash
+# Configure Git for CodeCommit
+export AWS_PROFILE=777788889999_AdministratorAccess
+git config --global credential.helper '!aws codecommit credential-helper $@'
+git config --global credential.UseHttpPath true
+
+# Add CodeCommit remote
+git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-elasticdrs-orchestrator-dev
+
+# Push to trigger pipeline (15-20 minutes)
+git push aws-pipeline main
+```
+
+#### Option 2: Manual Deployment (Recommended for Development)
+```bash
+# Fast development workflow using S3 deployment bucket
+./scripts/sync-to-deployment-bucket.sh                    # Sync all to S3
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # Update Lambda functions (5s)
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn       # Deploy CloudFormation (5-10min)
+```
+
+### When to Use Each Approach
+
+| Scenario | Recommended Approach | Duration |
+|----------|---------------------|----------|
+| **Daily Development** | Manual deployment with `--update-lambda-code` | ~5 seconds |
+| **Infrastructure Changes** | Manual deployment with `--deploy-cfn` | ~5-10 minutes |
+| **Production Releases** | CI/CD Pipeline | ~15-20 minutes |
+| **Team Collaboration** | CI/CD Pipeline | ~15-20 minutes |
+| **Security Validation** | CI/CD Pipeline (includes security scanning) | ~15-20 minutes |
 
 ### S3 Deployment Bucket Structure
 
+The S3 bucket serves as the source of truth for all deployable artifacts:
+
 ```
-s3://{deployment-bucket}/
+s3://aws-elasticdrs-orchestrator/
 ├── cfn/                          # CloudFormation templates (7 total)
 ├── lambda/                       # Lambda deployment packages (5 functions)
 ├── frontend/                     # Frontend build artifacts
@@ -49,18 +107,7 @@ s3://{deployment-bucket}/
 └── docs/                         # Documentation (synced for reference)
 ```
 
-## Primary Deployment Workflow
-
-**CRITICAL**: Always sync to S3 before deployment. The S3 bucket is the source of truth for all deployments.
-
-### Daily Development Workflow
-
-1. **Make code changes**
-2. **Sync to S3**: `./scripts/sync-to-deployment-bucket.sh`
-3. **Fast Lambda updates**: `./scripts/sync-to-deployment-bucket.sh --update-lambda-code` (~5s)
-4. **Full deployment**: `./scripts/sync-to-deployment-bucket.sh --deploy-cfn` (5-10min)
-
-### Sync Script Options
+### Manual Deployment Script Options
 
 ```bash
 # Basic operations

@@ -561,13 +561,87 @@ The `baseline_violations_report.txt` provides complete documentation of all reso
 
 This comprehensive code quality implementation ensures the AWS DRS Orchestration platform maintains enterprise-grade code standards while preserving all existing functionality and performance characteristics.
 
+## CI/CD Pipeline
+
+The project uses **AWS CodePipeline** for automated deployment with the following infrastructure:
+
+### Active CI/CD Infrastructure
+- **Pipeline**: `aws-elasticdrs-orchestrator-pipeline-dev`
+- **Primary Repository**: CodeCommit (`aws-elasticdrs-orchestrator-dev`)
+- **Secondary Repository**: GitHub (mirror)
+- **Account**: 777788889999
+- **Deployment Bucket**: `aws-elasticdrs-orchestrator`
+
+### Pipeline Stages
+1. **Source** - CodeCommit repository trigger
+2. **Validate** - CloudFormation template validation and code quality checks
+3. **SecurityScan** - Security scanning with Bandit and cfn-lint
+4. **Build** - Lambda packaging and frontend builds
+5. **Test** - Unit tests and integration tests
+6. **DeployInfrastructure** - CloudFormation deployment
+7. **DeployFrontend** - S3 sync and CloudFront invalidation
+
+### Development Workflow
+
+#### Quick Setup
+```bash
+# Configure Git for CodeCommit
+git config --global credential.helper '!aws codecommit credential-helper $@'
+git config --global credential.UseHttpPath true
+
+# Add CodeCommit remote
+git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-elasticdrs-orchestrator-dev
+
+# Push to trigger pipeline
+git push aws-pipeline main
+```
+
+#### Daily Development
+```bash
+# 1. Make changes and commit
+git add .
+git commit -m "Your changes"
+
+# 2. Push to GitHub (secondary)
+git push origin main
+
+# 3. Push to CodeCommit (triggers pipeline)
+git push aws-pipeline main
+```
+
+#### Pipeline Monitoring
+- **Console**: [CodePipeline Console](https://console.aws.amazon.com/codesuite/codepipeline/pipelines/aws-elasticdrs-orchestrator-pipeline-dev/view)
+- **Status**: Monitor all 7 stages in real-time
+- **Duration**: ~15-20 minutes for full deployment
+
+### Alternative: Manual Deployment
+For development without CI/CD:
+```bash
+# Sync all changes to S3 deployment bucket
+./scripts/sync-to-deployment-bucket.sh
+
+# Fast Lambda code updates (5 seconds)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+
+# Build and deploy frontend
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+```
+
 ## Contributing
 
-1. Fork the repository
+### Using CI/CD Pipeline (Recommended)
+1. Fork the GitHub repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
+4. Push to GitHub (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+6. After merge, changes automatically deploy via CodePipeline
+
+### Direct Development (Advanced)
+1. Clone CodeCommit repository directly
+2. Make changes and commit
+3. Push to CodeCommit to trigger immediate deployment
+4. Monitor pipeline execution in AWS Console
 
 ## Repository Snapshots & Rollback
 
