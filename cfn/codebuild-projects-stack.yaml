@@ -199,6 +199,22 @@ Resources:
                   - cloudtrail:StopLogging
                   - cloudtrail:GetTrailStatus
                 Resource: '*'
+              # SNS access for pipeline notifications
+              - Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:Publish
+                  - sns:ListTopics
+                  - sns:ListSubscriptions
+                  - sns:ListSubscriptionsByTopic
+                  - sns:TagResource
+                  - sns:UntagResource
+                Resource: '*'
               # CodeBuild report group access for security scanning
               - Effect: Allow
                 Action:
