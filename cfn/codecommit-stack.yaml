@@ -10,6 +10,10 @@ Parameters:
     Type: String
     Description: 'Environment name (dev, test, prod)'
 
+  BucketCleanerFunctionArn:
+    Type: String
+    Description: 'Bucket Cleaner Lambda Function ARN'
+
 Resources:
   # CodeCommit Repository
   Repository:
@@ -57,6 +61,13 @@ Resources:
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+
+  # Custom Resource to Empty Artifact Bucket Before Deletion
+  EmptyArtifactBucketResource:
+    Type: Custom::EmptyBucket
+    Properties:
+      ServiceToken: !Ref BucketCleanerFunctionArn
+      BucketName: !Ref ArtifactBucket
 
 Outputs:
   RepositoryName:
