@@ -384,15 +384,24 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 
 ## Future Enhancements
 
+### Enhancement Roadmap
+
+📋 **[Complete Enhancement Roadmap](docs/implementation/ENHANCEMENT_ROADMAP.md)** - Comprehensive roadmap based on AWS DRS Plan Automation analysis with detailed implementation plans for 5 key enhancements.
+
 ### Planned Features
 
 | Priority | Feature | Effort | Status |
 |----------|---------|--------|--------|
-| 1 | **Fresh Deployment Setup** | 2-3w | 🟢 Ready |
-| 2 | **Scheduled Drills** | 3-5d | Planned |
-| 3 | **SNS Notification Integration** | 1-2w | Planned |
-| 4 | **Step Functions Visualization** | 2-3w | Planned |
-| 5 | **Advanced DRS Server Management** | 8-10w | Planned |
+| 1 | **SSM Automation Integration** | 4w | 📋 [Roadmap](docs/implementation/ENHANCEMENT_ROADMAP.md#1-ssm-automation-integration) |
+| 2 | **Configuration Export/Import Enhancement** | 3w | 📋 [Roadmap](docs/implementation/ENHANCEMENT_ROADMAP.md#5-configuration-exportimport-enhancement) |
+| 3 | **Enhanced Results Storage & Audit Trail** | 3w | 📋 [Roadmap](docs/implementation/ENHANCEMENT_ROADMAP.md#2-enhanced-results-storage--audit-trail) |
+| 4 | **Sample Environment Deployment** | 3w | 📋 [Roadmap](docs/implementation/ENHANCEMENT_ROADMAP.md#3-sample-environment-deployment) |
+| 5 | **Self-Updating CI/CD Pipeline** | 3w | 📋 [Roadmap](docs/implementation/ENHANCEMENT_ROADMAP.md#4-self-updating-cicd-pipeline) |
+| 6 | **Fresh Deployment Setup** | 2-3w | 🟢 Ready |
+| 7 | **Scheduled Drills** | 3-5d | Planned |
+| 8 | **SNS Notification Integration** | 1-2w | Planned |
+| 9 | **Step Functions Visualization** | 2-3w | Planned |
+| 10 | **Advanced DRS Server Management** | 8-10w | Planned |
 
 #### Priority 1: Fresh Deployment Setup
 Complete deployment automation for fresh AWS environments, including AWS native CI/CD pipeline setup. See the comprehensive [Fresh Deployment Specification](.kiro/specs/fresh-deployment/) which includes:
