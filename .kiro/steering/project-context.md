@@ -23,6 +23,12 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform f
 
 ```text
 AWS-DRS-Orchestration/
+├── .amazonq/                     # Amazon Q Developer rules and configuration
+│   └── rules/                    # Amazon Q specific project context
+├── .kiro/                        # Kiro AI assistant configuration
+│   ├── settings/                 # MCP and other settings
+│   ├── specs/                    # Active specifications (fresh-deployment)
+│   └── steering/                 # AI steering documents (project-context.md)
 ├── cfn/                          # CloudFormation Infrastructure as Code (7 templates)
 ├── frontend/                     # React + CloudScape UI (37 components, 9 pages)
 ├── lambda/                       # Python Lambda functions (5 active functions)
@@ -84,6 +90,62 @@ AWS-DRS-Orchestration/
 - [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md)
 - [DRS Source Server Management](docs/implementation/DRS_SOURCE_SERVER_MANAGEMENT.md)
 - [Automation & Orchestration](docs/implementation/AUTOMATION_AND_ORCHESTRATION.md)
+
+## CI/CD Infrastructure
+
+### AWS CodePipeline Deployment
+
+The project uses **AWS CodePipeline** for automated deployment with the following active infrastructure:
+
+| Component | Name | Purpose |
+|-----------|------|---------|
+| **Pipeline** | `aws-elasticdrs-orchestrator-pipeline-dev` | 7-stage automated deployment |
+| **Primary Repository** | `aws-elasticdrs-orchestrator-dev` (CodeCommit) | Source code repository |
+| **Secondary Repository** | GitHub mirror | Development collaboration |
+| **Account** | 438465159935 | AWS account for all resources |
+| **Deployment Bucket** | `aws-elasticdrs-orchestrator` | Artifact storage |
+
+### Pipeline Stages
+
+1. **Source** (~30s) - Code retrieval from CodeCommit
+2. **Validate** (~2-3min) - CloudFormation validation, Python linting
+3. **SecurityScan** (~3-4min) - Bandit security scan, cfn-lint checks
+4. **Build** (~4-5min) - Lambda packaging, frontend builds
+5. **Test** (~3-4min) - Unit tests, integration tests, coverage
+6. **DeployInfrastructure** (~8-10min) - CloudFormation stack updates
+7. **DeployFrontend** (~2-3min) - S3 sync, CloudFront invalidation
+
+**Total Duration**: 15-20 minutes for complete deployment
+
+### Development Workflow Options
+
+#### CI/CD Pipeline (Production)
+```bash
+# Configure Git for CodeCommit
+export AWS_PROFILE=438465159935_AdministratorAccess
+git config --global credential.helper '!aws codecommit credential-helper $@'
+git config --global credential.UseHttpPath true
+
+# Add CodeCommit remote and push to trigger pipeline
+git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-elasticdrs-orchestrator-dev
+git push aws-pipeline main  # Triggers 15-20 minute deployment
+```
+
+#### Manual Deployment (Development)
+```bash
+# Fast development workflow using S3 deployment bucket
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # 5 seconds
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn         # 5-10 minutes
+```
+
+### S3 Deployment Bucket (Source of Truth)
+
+```
+s3://aws-elasticdrs-orchestrator/
+├── cfn/                     # CloudFormation templates (7 total)
+├── lambda/                  # Lambda deployment packages (5 functions)
+└── frontend/                # Frontend build artifacts
+```
 
 ## Key Implementation Patterns
 
