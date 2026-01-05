@@ -32,6 +32,21 @@ This guide provides step-by-step instructions for deploying the AWS DRS Orchestr
   - CloudFront (full access)
   - CodeCommit, CodeBuild, CodePipeline (if CI/CD enabled)
 
+### Automated S3 Bucket Cleanup
+
+**✅ IMPLEMENTED**: The deployment includes automated S3 bucket cleanup functionality:
+
+- **Bucket Cleaner Lambda**: Automatically empties S3 buckets during stack deletion
+- **Custom Resources**: `EmptyArtifactBucketResource` and `EmptyFrontendBucketResource` handle cleanup
+- **DeletionPolicy**: All S3 buckets configured with `DeletionPolicy: Delete`
+- **Lifecycle Rules**: Automatic cleanup of old versions and incomplete uploads
+
+**Benefits**:
+- No manual S3 bucket cleanup required
+- Complete stack deletion without leaving orphaned resources
+- Prevents "bucket not empty" errors during CloudFormation deletion
+- Tested and verified working in end-to-end deployment scenarios
+
 ### Local Environment Requirements
 
 - **Operating System**: macOS, Linux, or Windows with WSL

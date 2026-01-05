@@ -569,6 +569,8 @@ This comprehensive code quality implementation ensures the AWS DRS Orchestration
 
 The project uses **AWS CodePipeline** for automated deployment with the following infrastructure:
 
+📋 **[CI/CD Platform Selection Analysis](docs/CI_CD_PLATFORM_SELECTION.md)** - Comprehensive feasibility analysis comparing AWS native tools vs GitHub Actions with CloudFormation parameter-driven platform selection.
+
 ### Active CI/CD Infrastructure
 - **Pipeline**: `aws-elasticdrs-orchestrator-pipeline-dev`
 - **Primary Repository**: CodeCommit (`aws-elasticdrs-orchestrator-dev`)

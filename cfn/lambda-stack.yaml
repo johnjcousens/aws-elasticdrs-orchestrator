@@ -701,7 +701,7 @@ Resources:
   FrontendBuilderFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${ProjectName}-frontend-builder-${Environment}"
+      FunctionName: !Sub "${ProjectName}-frontend-build-${Environment}"
       Description: "Custom resource to build and deploy React frontend"
       Runtime: python3.12
       Handler: build_and_deploy.lambda_handler
@@ -757,6 +757,19 @@ Resources:
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+
+  # Custom Resources for Bucket Cleanup (added to Lambda stack to ensure proper dependencies)
+  EmptyArtifactBucketResource:
+    Type: Custom::EmptyBucket
+    Properties:
+      ServiceToken: !GetAtt BucketCleanerFunction.Arn
+      BucketName: !Sub '${ProjectName}-cicd-artifacts-${AWS::AccountId}-${Environment}'
+
+  EmptyFrontendBucketResource:
+    Type: Custom::EmptyBucket
+    Properties:
+      ServiceToken: !GetAtt BucketCleanerFunction.Arn
+      BucketName: !Sub '${ProjectName}-fe-${AWS::AccountId}-${Environment}'
 
   # Execution Finder Lambda Function
   ExecutionFinderFunction:
@@ -834,7 +847,7 @@ Resources:
   OrchestrationStepFunctionsFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "${ProjectName}-orchestration-stepfunctions-${Environment}"
+      FunctionName: !Sub "${ProjectName}-orch-sf-${Environment}"
       Description: "Step Functions orchestrator for DRS recovery - properly waits for EC2 launch"
       Runtime: python3.12
       Handler: orchestration_stepfunctions.handler
@@ -860,7 +873,7 @@ Resources:
     Type: AWS::Lambda::Function
     Condition: EnableNotifications
     Properties:
-      FunctionName: !Sub "${ProjectName}-notification-formatter-${Environment}"
+      FunctionName: !Sub "${ProjectName}-notif-fmt-${Environment}"
       Description: "Formats CodePipeline and CodeBuild events into user-friendly email notifications"
       Runtime: python3.12
       Handler: notification-formatter/index.lambda_handler
@@ -944,28 +957,22 @@ Outputs:
 
   NotificationFormatterFunctionArn:
     Description: "Notification Formatter Lambda Function ARN"
-    Value: !If
-      - EnableNotifications
-      - !GetAtt NotificationFormatterFunction.Arn
-      - ""
+    Condition: EnableNotifications
+    Value: !GetAtt NotificationFormatterFunction.Arn
     Export:
       Name: !Sub "${AWS::StackName}-NotificationFormatterArn"
 
   NotificationFormatterFunctionName:
     Description: "Notification Formatter Lambda Function Name"
-    Value: !If
-      - EnableNotifications
-      - !Ref NotificationFormatterFunction
-      - ""
+    Condition: EnableNotifications
+    Value: !Ref NotificationFormatterFunction
     Export:
       Name: !Sub "${AWS::StackName}-NotificationFormatterName"
 
   PipelineNotificationsTopicArn:
     Description: "Pipeline notifications SNS topic ARN"
-    Value: !If
-      - EnableNotifications
-      - !Ref PipelineNotificationsTopic
-      - ""
+    Condition: EnableNotifications
+    Value: !Ref PipelineNotificationsTopic
     Export:
       Name: !Sub "${AWS::StackName}-PipelineNotificationsTopicArn"
 
