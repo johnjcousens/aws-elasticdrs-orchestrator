@@ -303,7 +303,7 @@ def main():  # noqa: C901
 
         if success:
             print(f"\n✅ User '{args.email}' created successfully")
-            print(f"   Temporary password: {args.temp_password}")
+            print("   Temporary password has been set (check with administrator)")
             print("   User must change password on first login")
         else:
             sys.exit(1)
