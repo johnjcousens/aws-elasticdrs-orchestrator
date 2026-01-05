@@ -1566,8 +1566,11 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
                 "authorizer", {}
             )
             claims = auth_context.get("claims", {})
+            # Extract safe data for logging
+            auth_context_keys = list(auth_context.keys()) if auth_context else []
+            claims_count = len(claims) if claims else 0
             print(
-                f"Auth validation - path: {path}, auth_context: {auth_context}, claims: {claims}"
+                f"Auth validation - path: {path}, auth_context_keys: {auth_context_keys}, claims_count: {claims_count}"
             )
 
             # If no claims or essential fields missing, return 401 with CORS headers
