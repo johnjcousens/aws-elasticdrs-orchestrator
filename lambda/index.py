@@ -10145,7 +10145,7 @@ def _process_protection_group_import(
                         ] = applied_count
                         result["details"]["launchConfigFailed"] = failed_count
                         print(
-                            f"[{correlation_id}] Applied LaunchConfig to {applied_count} servers"
+                            f"Applied LaunchConfig to {applied_count} servers"
                         )
                     except Exception as lc_err:
                         print(
