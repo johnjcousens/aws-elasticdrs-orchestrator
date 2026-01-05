@@ -10149,7 +10149,7 @@ def _process_protection_group_import(
                         )
                     except Exception as lc_err:
                         print(
-                            f"[{correlation_id}] Warning: Failed to apply LaunchConfig: {lc_err}"
+                            f"[{correlation_id}] Warning: Failed to apply LaunchConfig: {type(lc_err).__name__}"
                         )
         except Exception as e:
             result["reason"] = "CREATE_ERROR"
