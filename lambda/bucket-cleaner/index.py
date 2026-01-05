@@ -12,13 +12,15 @@ Version: 1.0.0
 
 import json
 import logging
+
 import boto3
-from botocore.exceptions import ClientError
 import urllib3
+from botocore.exceptions import ClientError
 
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
 
 def send_response(
     event,
@@ -30,12 +32,12 @@ def send_response(
 ):
     """
     Send response to CloudFormation custom resource.
-    
+
     This is a simplified version of cfnresponse that works in all Lambda
     environments.
     """
-    response_url = event['ResponseURL']
-    
+    response_url = event["ResponseURL"]
+
     response_body = {
         "Status": response_status,
         "Reason": (
@@ -51,11 +53,14 @@ def send_response(
         "NoEcho": no_echo,
         "Data": response_data,
     }
-    
+
     json_response_body = json.dumps(response_body)
-    
-    headers = {"content-type": "", "content-length": str(len(json_response_body))}
-    
+
+    headers = {
+        "content-type": "",
+        "content-length": str(len(json_response_body)),
+    }
+
     try:
         http = urllib3.PoolManager()
         response = http.request(
@@ -65,27 +70,28 @@ def send_response(
     except Exception as e:
         logger.error(f"Failed to send response to CloudFormation: {e}")
 
+
 def lambda_handler(event, context):
     """
     CloudFormation custom resource handler for emptying S3 buckets.
-    
+
     Args:
         event: CloudFormation custom resource event
         context: Lambda context object
-        
+
     Returns:
         CloudFormation response via send_response
     """
     logger.info(f"Received event: {json.dumps(event, default=str)}")
-    
+
     try:
         # Extract parameters
         request_type = event["RequestType"]
         bucket_name = event["ResourceProperties"]["BucketName"]
-        
+
         logger.info(f"Request type: {request_type}")
         logger.info(f"Bucket name: {bucket_name}")
-        
+
         # Only process DELETE requests - ignore CREATE and UPDATE
         if request_type == "Delete":
             empty_bucket(bucket_name)
@@ -105,7 +111,7 @@ def lambda_handler(event, context):
                 )
             },
         )
-        
+
     except Exception as e:
         logger.error(f"Error processing bucket cleanup: {str(e)}")
         send_response(
@@ -115,6 +121,7 @@ def lambda_handler(event, context):
             {"Message": f"Failed to process bucket cleanup: {str(e)}"},
         )
 
+
 def empty_bucket(bucket_name):
     """
     Empty an S3 bucket by deleting all objects, versions, and delete markers.
@@ -123,7 +130,7 @@ def empty_bucket(bucket_name):
         bucket_name: Name of the S3 bucket to empty
     """
     s3_client = boto3.client("s3")
-    
+
     try:
         # Check if bucket exists
         try:
@@ -136,9 +143,9 @@ def empty_bucket(bucket_name):
                 return
             else:
                 raise
-        
+
         logger.info(f"Starting to empty bucket: {bucket_name}")
-        
+
         # Delete all object versions and delete markers
         paginator = s3_client.get_paginator("list_object_versions")
 
@@ -150,16 +157,22 @@ def empty_bucket(bucket_name):
             if "Versions" in page:
                 for version in page["Versions"]:
                     objects_to_delete.append(
-                        {"Key": version["Key"], "VersionId": version["VersionId"]}
+                        {
+                            "Key": version["Key"],
+                            "VersionId": version["VersionId"],
+                        }
                     )
 
             # Add delete markers
             if "DeleteMarkers" in page:
                 for marker in page["DeleteMarkers"]:
                     objects_to_delete.append(
-                        {"Key": marker["Key"], "VersionId": marker["VersionId"]}
+                        {
+                            "Key": marker["Key"],
+                            "VersionId": marker["VersionId"],
+                        }
                     )
-            
+
             # Delete objects in batches (max 1000 per request)
             if objects_to_delete:
                 batch_size = 1000
@@ -183,7 +196,7 @@ def empty_bucket(bucket_name):
                                 f"Failed to delete {error['Key']}: "
                                 f"{error['Message']}"
                             )
-        
+
         # Verify bucket is empty
         response = s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
         if "Contents" in response:
@@ -206,5 +219,7 @@ def empty_bucket(bucket_name):
             )
             raise
     except Exception as e:
-        logger.error(f"Unexpected error emptying bucket {bucket_name}: {str(e)}")
+        logger.error(
+            f"Unexpected error emptying bucket {bucket_name}: {str(e)}"
+        )
         raise
