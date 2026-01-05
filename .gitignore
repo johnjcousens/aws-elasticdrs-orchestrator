@@ -133,6 +133,14 @@ archive/
 diagrams/
 
 # -------------------------
+# SSM DOCUMENTS (CUSTOMER-SPECIFIC)
+# -------------------------
+
+# SSM Documents should be customer-specific and not tracked in git
+# Create your own SSM automation documents in ssm-documents/ directory
+ssm-documents/
+
+# -------------------------
 # TEMPORARY/DEBUG FILES (PREVENT ACCUMULATION)
 # -------------------------
 

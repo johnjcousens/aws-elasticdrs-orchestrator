@@ -103,7 +103,6 @@ s3://aws-elasticdrs-orchestrator/
 ├── lambda/                       # Lambda deployment packages (5 functions)
 ├── frontend/                     # Frontend build artifacts
 ├── scripts/                      # Deployment and automation scripts
-├── ssm-documents/                # SSM automation documents
 └── docs/                         # Documentation (synced for reference)
 ```
 

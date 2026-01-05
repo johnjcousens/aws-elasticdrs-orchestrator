@@ -1107,7 +1107,7 @@ Tag-Based Protection Groups:
 - InvocationSourceBadge component displays execution source (UI, CLI, SSM, Step Functions, EventBridge, API)
 - ExecutionsPage shows Source column with badge and filter support
 - Execution registry Lambda tracks `InvocationSource` and `InvocationDetails`
-- SSM runbook (`ssm-documents/drs-orchestration-runbook.yaml`) for automated execution
+- SSM runbook for automated execution (example templates available separately)
 - Tag discovery Lambda (`lambda/tag_discovery.py`) for server resolution
 
 **UI Improvements**
