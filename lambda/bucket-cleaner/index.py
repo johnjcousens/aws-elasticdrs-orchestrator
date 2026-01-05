@@ -21,8 +21,12 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def send_response(
-    event, context, response_status, response_data, 
-    physical_resource_id=None, no_echo=False
+    event,
+    context,
+    response_status,
+    response_data,
+    physical_resource_id=None,
+    no_echo=False,
 ):
     """
     Send response to CloudFormation custom resource.
@@ -33,28 +37,29 @@ def send_response(
     response_url = event['ResponseURL']
     
     response_body = {
-        'Status': response_status,
-        'Reason': f'See the details in CloudWatch Log Stream: '
-                  f'{context.log_stream_name}',
-        'PhysicalResourceId': physical_resource_id or context.log_stream_name,
-        'StackId': event['StackId'],
-        'RequestId': event['RequestId'],
-        'LogicalResourceId': event['LogicalResourceId'],
-        'NoEcho': no_echo,
-        'Data': response_data
+        "Status": response_status,
+        "Reason": (
+            f"See the details in CloudWatch Log Stream: "
+            f"{context.log_stream_name}"
+        ),
+        "PhysicalResourceId": (
+            physical_resource_id or context.log_stream_name
+        ),
+        "StackId": event["StackId"],
+        "RequestId": event["RequestId"],
+        "LogicalResourceId": event["LogicalResourceId"],
+        "NoEcho": no_echo,
+        "Data": response_data,
     }
     
     json_response_body = json.dumps(response_body)
     
-    headers = {
-        'content-type': '',
-        'content-length': str(len(json_response_body))
-    }
+    headers = {"content-type": "", "content-length": str(len(json_response_body))}
     
     try:
         http = urllib3.PoolManager()
         response = http.request(
-            'PUT', response_url, body=json_response_body, headers=headers
+            "PUT", response_url, body=json_response_body, headers=headers
         )
         logger.info(f"Status code: {response.status}")
     except Exception as e:
@@ -75,46 +80,56 @@ def lambda_handler(event, context):
     
     try:
         # Extract parameters
-        request_type = event['RequestType']
-        bucket_name = event['ResourceProperties']['BucketName']
+        request_type = event["RequestType"]
+        bucket_name = event["ResourceProperties"]["BucketName"]
         
         logger.info(f"Request type: {request_type}")
         logger.info(f"Bucket name: {bucket_name}")
         
         # Only process DELETE requests - ignore CREATE and UPDATE
-        if request_type == 'Delete':
+        if request_type == "Delete":
             empty_bucket(bucket_name)
             logger.info(f"Successfully emptied bucket: {bucket_name}")
         else:
             logger.info(f"Skipping {request_type} request - no action needed")
-        
+
         # Send success response
-        send_response(event, context, 'SUCCESS', {
-            'Message': f'Bucket {bucket_name} processed successfully '
-                       f'for {request_type}'
-        })
+        send_response(
+            event,
+            context,
+            "SUCCESS",
+            {
+                "Message": (
+                    f"Bucket {bucket_name} processed successfully "
+                    f"for {request_type}"
+                )
+            },
+        )
         
     except Exception as e:
         logger.error(f"Error processing bucket cleanup: {str(e)}")
-        send_response(event, context, 'FAILED', {
-            'Message': f'Failed to process bucket cleanup: {str(e)}'
-        })
+        send_response(
+            event,
+            context,
+            "FAILED",
+            {"Message": f"Failed to process bucket cleanup: {str(e)}"},
+        )
 
 def empty_bucket(bucket_name):
     """
     Empty an S3 bucket by deleting all objects, versions, and delete markers.
-    
+
     Args:
         bucket_name: Name of the S3 bucket to empty
     """
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client("s3")
     
     try:
         # Check if bucket exists
         try:
             s3_client.head_bucket(Bucket=bucket_name)
         except ClientError as e:
-            if e.response['Error']['Code'] == '404':
+            if e.response["Error"]["Code"] == "404":
                 logger.info(
                     f"Bucket {bucket_name} does not exist - nothing to clean"
                 )
@@ -125,50 +140,45 @@ def empty_bucket(bucket_name):
         logger.info(f"Starting to empty bucket: {bucket_name}")
         
         # Delete all object versions and delete markers
-        paginator = s3_client.get_paginator('list_object_versions')
-        
+        paginator = s3_client.get_paginator("list_object_versions")
+
         for page in paginator.paginate(Bucket=bucket_name):
             # Collect objects to delete
             objects_to_delete = []
-            
+
             # Add current versions
-            if 'Versions' in page:
-                for version in page['Versions']:
-                    objects_to_delete.append({
-                        'Key': version['Key'],
-                        'VersionId': version['VersionId']
-                    })
-            
+            if "Versions" in page:
+                for version in page["Versions"]:
+                    objects_to_delete.append(
+                        {"Key": version["Key"], "VersionId": version["VersionId"]}
+                    )
+
             # Add delete markers
-            if 'DeleteMarkers' in page:
-                for marker in page['DeleteMarkers']:
-                    objects_to_delete.append({
-                        'Key': marker['Key'],
-                        'VersionId': marker['VersionId']
-                    })
+            if "DeleteMarkers" in page:
+                for marker in page["DeleteMarkers"]:
+                    objects_to_delete.append(
+                        {"Key": marker["Key"], "VersionId": marker["VersionId"]}
+                    )
             
             # Delete objects in batches (max 1000 per request)
             if objects_to_delete:
                 batch_size = 1000
                 for i in range(0, len(objects_to_delete), batch_size):
-                    batch = objects_to_delete[i:i + batch_size]
-                    
+                    batch = objects_to_delete[i : i + batch_size]
+
                     logger.info(
                         f"Deleting batch of {len(batch)} objects from "
                         f"{bucket_name}"
                     )
-                    
+
                     response = s3_client.delete_objects(
                         Bucket=bucket_name,
-                        Delete={
-                            'Objects': batch,
-                            'Quiet': True
-                        }
+                        Delete={"Objects": batch, "Quiet": True},
                     )
-                    
+
                     # Log any errors
-                    if 'Errors' in response and response['Errors']:
-                        for error in response['Errors']:
+                    if "Errors" in response and response["Errors"]:
+                        for error in response["Errors"]:
                             logger.warning(
                                 f"Failed to delete {error['Key']}: "
                                 f"{error['Message']}"
@@ -176,16 +186,16 @@ def empty_bucket(bucket_name):
         
         # Verify bucket is empty
         response = s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
-        if 'Contents' in response:
+        if "Contents" in response:
             logger.warning(
                 f"Bucket {bucket_name} still contains objects after cleanup"
             )
         else:
             logger.info(f"Bucket {bucket_name} is now empty")
-            
+
     except ClientError as e:
-        error_code = e.response['Error']['Code']
-        if error_code == 'NoSuchBucket':
+        error_code = e.response["Error"]["Code"]
+        if error_code == "NoSuchBucket":
             logger.info(
                 f"Bucket {bucket_name} does not exist - nothing to clean"
             )
@@ -196,7 +206,5 @@ def empty_bucket(bucket_name):
             )
             raise
     except Exception as e:
-        logger.error(
-            f"Unexpected error emptying bucket {bucket_name}: {str(e)}"
-        )
+        logger.error(f"Unexpected error emptying bucket {bucket_name}: {str(e)}")
         raise
