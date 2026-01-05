@@ -217,22 +217,44 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Stack - Cognito with RBAC, API Gateway, Step Functions
-  ApiStack:
+  # API Authentication Stack - Cognito, IAM, SNS
+  ApiAuthStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
       - DatabaseStack
-      - LambdaStack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-stack-rbac.yaml'
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-auth-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         AdminEmail: !Ref AdminEmail
         CognitoDomainPrefix: !Ref CognitoDomainPrefix
         NotificationEmail: !Ref NotificationEmail
+        ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 15
+
+  # API Gateway Stack - API Gateway, Resources, Methods
+  ApiGatewayStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - DatabaseStack
+      - LambdaStack
+      - ApiAuthStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        UserPoolId: !GetAtt ApiAuthStack.Outputs.UserPoolId
         ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
@@ -279,16 +301,16 @@ Resources:
     UpdateReplacePolicy: Delete
     DependsOn:
       - LambdaStack
-      - ApiStack
+      - ApiGatewayStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/frontend-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        UserPoolId: !GetAtt ApiStack.Outputs.UserPoolId
-        UserPoolClientId: !GetAtt ApiStack.Outputs.UserPoolClientId
-        IdentityPoolId: !GetAtt ApiStack.Outputs.IdentityPoolId
-        ApiEndpoint: !GetAtt ApiStack.Outputs.ApiEndpoint
+        UserPoolId: !GetAtt ApiAuthStack.Outputs.UserPoolId
+        UserPoolClientId: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
+        IdentityPoolId: !GetAtt ApiAuthStack.Outputs.IdentityPoolId
+        ApiEndpoint: !GetAtt ApiGatewayStack.Outputs.ApiEndpoint
         FrontendBuilderFunctionArn: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
       Tags:
         - Key: Project
@@ -304,13 +326,13 @@ Resources:
     UpdateReplacePolicy: Delete
     Condition: EnableSecurityStackCondition
     DependsOn:
-      - ApiStack
+      - ApiGatewayStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/security-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        RestApiId: !GetAtt ApiStack.Outputs.ApiId
+        RestApiId: !GetAtt ApiGatewayStack.Outputs.ApiId
         EnableWAF: !Ref EnableWAF
         EnableCloudTrail: !Ref EnableCloudTrail
       Tags:
@@ -460,31 +482,31 @@ Outputs:
   # API Stack Outputs
   UserPoolId:
     Description: 'Cognito User Pool ID'
-    Value: !GetAtt ApiStack.Outputs.UserPoolId
+    Value: !GetAtt ApiAuthStack.Outputs.UserPoolId
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolId'
 
   UserPoolClientId:
     Description: 'Cognito User Pool Client ID'
-    Value: !GetAtt ApiStack.Outputs.UserPoolClientId
+    Value: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
     Export:
       Name: !Sub '${AWS::StackName}-UserPoolClientId'
 
   IdentityPoolId:
     Description: 'Cognito Identity Pool ID'
-    Value: !GetAtt ApiStack.Outputs.IdentityPoolId
+    Value: !GetAtt ApiAuthStack.Outputs.IdentityPoolId
     Export:
       Name: !Sub '${AWS::StackName}-IdentityPoolId'
 
   ApiEndpoint:
     Description: 'API Gateway endpoint URL'
-    Value: !GetAtt ApiStack.Outputs.ApiEndpoint
+    Value: !GetAtt ApiGatewayStack.Outputs.ApiEndpoint
     Export:
       Name: !Sub '${AWS::StackName}-ApiEndpoint'
 
   ApiId:
     Description: 'API Gateway ID'
-    Value: !GetAtt ApiStack.Outputs.ApiId
+    Value: !GetAtt ApiGatewayStack.Outputs.ApiId
     Export:
       Name: !Sub '${AWS::StackName}-ApiId'
 

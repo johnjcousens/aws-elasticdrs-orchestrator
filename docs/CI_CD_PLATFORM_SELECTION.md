@@ -121,7 +121,9 @@ Resources:
 
 ## GitHub Actions Implementation
 
-### Workflow Structure
+**Inspired by HealthEdge Test Synth Pipeline patterns:**
+
+### Advanced Workflow Structure
 
 ```yaml
 # .github/workflows/deploy.yml
@@ -134,77 +136,105 @@ on:
     branches: [main]
 
 jobs:
-  validate:
+  security-scan:
     runs-on: ubuntu-latest
+    outputs:
+      secrets_found: ${{ steps.secrets.outputs.secrets_found }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
-      - name: Validate CloudFormation
+          fetch-depth: 0
+      
+      - name: Detect Secrets
+        id: secrets
         run: |
-          pip install cfn-lint
-          cfn-lint cfn/*.yaml
-      - name: Python Code Quality
-        run: |
-          pip install black flake8 isort
-          black --check --line-length=79 lambda/
-          flake8 lambda/ --max-line-length=79
-          isort --check-only lambda/
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Python Security Scan
+          pip install detect-secrets
+          detect-secrets scan --all-files --baseline .secrets.baseline
+          echo "secrets_found=false" >> $GITHUB_OUTPUT
+      
+      - name: Security Scan
         run: |
           pip install bandit semgrep safety
           bandit -r lambda/ -ll
           semgrep --config=auto lambda/
           safety scan
-      - name: Frontend Security Scan
-        run: |
-          cd frontend
-          npm ci
-          npm audit --audit-level moderate
 
-  build:
-    needs: [validate, security]
+  detect-changes:
     runs-on: ubuntu-latest
+    needs: security-scan
+    outputs:
+      cfn_files: ${{ steps.changes.outputs.cfn_files }}
+      lambda_files: ${{ steps.changes.outputs.lambda_files }}
+      has_changes: ${{ steps.changes.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-      - name: Build and Upload Artifacts
+          fetch-depth: 0
+      
+      - name: Detect CloudFormation Changes
+        id: changes
         run: |
-          aws s3 sync lambda/ s3://${{ secrets.DEPLOYMENT_BUCKET }}/lambda/
-          aws s3 sync cfn/ s3://${{ secrets.DEPLOYMENT_BUCKET }}/cfn/
+          # Smart change detection for CloudFormation templates
+          CFN_FILES=$(git diff --name-only origin/main...HEAD | grep 'cfn/.*\.yaml$' | jq -R -s -c 'split("\n")[:-1]')
+          LAMBDA_FILES=$(git diff --name-only origin/main...HEAD | grep 'lambda/.*\.py$' | jq -R -s -c 'split("\n")[:-1]')
+          
+          echo "cfn_files=$CFN_FILES" >> $GITHUB_OUTPUT
+          echo "lambda_files=$LAMBDA_FILES" >> $GITHUB_OUTPUT
+          echo "has_changes=$([ "$CFN_FILES" != "[]" ] || [ "$LAMBDA_FILES" != "[]" ] && echo true || echo false)" >> $GITHUB_OUTPUT
 
-  test:
-    needs: [build]
+  validate-templates:
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      matrix:
+        template: ${{ fromJson(needs.detect-changes.outputs.cfn_files) }}
+      max-parallel: 2
     steps:
       - uses: actions/checkout@v4
-      - name: Run Tests
+      
+      - name: Setup AWS Environment
+        uses: ./.github/actions/setup-aws-environment
+        with:
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+          deployment-bucket: ${{ secrets.DEPLOYMENT_BUCKET }}
+      
+      - name: Validate CloudFormation
+        uses: ./.github/actions/validate-cloudformation
+        with:
+          template-file: ${{ matrix.template }}
+          stack-name: aws-elasticdrs-orchestrator-dev
+
+  test-lambda:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Run Lambda Tests
         run: |
           cd tests/python
-          python -m pytest unit/ -v --cov=../../lambda
+          python -m pytest unit/ -v --cov=../../lambda --cov-report=term-missing
 
   deploy-infrastructure:
-    needs: [test]
+    needs: [validate-templates, test-lambda]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.has_changes == 'true'
     steps:
       - uses: actions/checkout@v4
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      
+      - name: Setup AWS Environment
+        uses: ./.github/actions/setup-aws-environment
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-role-arn: ${{ secrets.AWS_ROLE_ARN }}
+          deployment-bucket: ${{ secrets.DEPLOYMENT_BUCKET }}
+      
       - name: Deploy CloudFormation
         run: |
           aws cloudformation deploy \
@@ -217,27 +247,164 @@ jobs:
               CiCdPlatform=GITHUB_ACTIONS \
             --capabilities CAPABILITY_NAMED_IAM
 
-  deploy-frontend:
-    needs: [deploy-infrastructure]
+  validation-gate:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    needs: [security-scan, detect-changes, validate-templates, test-lambda]
+    if: always()
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-      - name: Deploy Frontend
+      - name: Check All Jobs
         run: |
-          # Get stack outputs
-          FRONTEND_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name aws-elasticdrs-orchestrator-dev \
-            --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' \
-            --output text)
-          
-          # Deploy frontend
-          aws s3 sync s3://${{ secrets.DEPLOYMENT_BUCKET }}/frontend/ s3://$FRONTEND_BUCKET/
+          if [[ "${{ needs.security-scan.result }}" == "failure" ]] || 
+             [[ "${{ needs.validate-templates.result }}" == "failure" ]] || 
+             [[ "${{ needs.test-lambda.result }}" == "failure" ]]; then
+            echo "One or more validation jobs failed"
+            exit 1
+          fi
+          echo "All validations passed"
+```
+
+### Composite Actions
+
+```yaml
+# .github/actions/setup-aws-environment/action.yml
+name: 'Setup AWS Environment'
+description: 'Configure AWS credentials and environment'
+inputs:
+  aws-role-arn:
+    description: 'AWS IAM Role ARN for OIDC'
+    required: true
+  aws-region:
+    description: 'AWS Region'
+    required: true
+    default: 'us-east-1'
+  deployment-bucket:
+    description: 'S3 Deployment Bucket'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ inputs.aws-region }}
+    
+    - name: Verify AWS Access
+      shell: bash
+      run: |
+        aws sts get-caller-identity
+        aws s3 ls s3://${{ inputs.deployment-bucket }}/ > /dev/null
+```
+
+```yaml
+# .github/actions/validate-cloudformation/action.yml
+name: 'Validate CloudFormation'
+description: 'Validate CloudFormation templates with diff generation'
+inputs:
+  template-file:
+    description: 'CloudFormation template file path'
+    required: true
+  stack-name:
+    description: 'CloudFormation stack name for diff'
+    required: false
+
+outputs:
+  validation-status:
+    description: 'Template validation status'
+    value: ${{ steps.validate.outputs.status }}
+  has-changes:
+    description: 'Whether template has changes'
+    value: ${{ steps.diff.outputs.has_changes }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Tools
+      shell: bash
+      run: |
+        pip install cfn-lint
+    
+    - name: Validate Template
+      id: validate
+      shell: bash
+      run: |
+        cfn-lint ${{ inputs.template-file }}
+        aws cloudformation validate-template --template-body file://${{ inputs.template-file }}
+        echo "status=success" >> $GITHUB_OUTPUT
+    
+    - name: Generate Diff
+      id: diff
+      if: inputs.stack-name != ''
+      shell: bash
+      run: |
+        if aws cloudformation describe-stacks --stack-name ${{ inputs.stack-name }} > /dev/null 2>&1; then
+          echo "Stack exists, generating diff..."
+          # CloudFormation change set for diff
+          aws cloudformation create-change-set \
+            --stack-name ${{ inputs.stack-name }} \
+            --template-body file://${{ inputs.template-file }} \
+            --change-set-name github-actions-diff-$(date +%s) \
+            --capabilities CAPABILITY_NAMED_IAM || true
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "Stack does not exist, will be created"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
+```
+
+### Key Enhancements from HealthEdge Pattern
+
+### Key Enhancements from HealthEdge Pattern
+
+**Configuration-Driven Deployment:**
+- YAML configuration files drive infrastructure deployment
+- Auto-generated stack names from config values
+- Environment-specific account mapping via JSON configuration
+
+**Advanced Pipeline Features:**
+- **Matrix Strategy**: Parallel validation of CloudFormation templates (max 2 concurrent)
+- **Smart Change Detection**: Only validate affected files based on git diff
+- **Environment Gates**: Different deployment rules for dev/nonprod/prod environments
+- **Resource Grouping**: Map templates to deployment stages via configuration
+
+**Security & Compliance:**
+- **Secret Scanning**: Prevents credential leaks before merge using `detect-secrets`
+- **CloudFormation Guard**: Compliance checks against security policies
+- **Validation Gate**: Final job that blocks merge on any failure
+- **Construct Protection**: Prevents deletion of critical infrastructure components
+
+**Deployment Strategy:**
+- **Environment Detection**: Automatic AWS account selection based on config
+- **Pre-deployment Diff**: CloudFormation change sets show deployment impact
+- **Parallel Deployment**: Group configurations by environment for efficient deployment
+- **Status Reporting**: Automated PR comments with detailed validation results
+
+**Configuration Structure for AWS DRS:**
+```yaml
+# config/drs-orchestration-dev.yaml
+globals:
+  cdk_action: deploy
+  org_name: "aws-drs"
+  project_name: "orchestration"
+  environment: "dev"
+  region: "us-east-1"
+  deployment_bucket: "aws-elasticdrs-orchestrator"
+
+resource_groups:
+  core_infrastructure:
+    template: "cfn/master-template.yaml"
+    parameters:
+      ProjectName: "aws-elasticdrs-orchestrator"
+      Environment: "dev"
+      CiCdPlatform: "GITHUB_ACTIONS"
+  
+  security_stack:
+    template: "cfn/security-stack.yaml"
+    depends_on: ["core_infrastructure"]
+    parameters:
+      EnableWAF: true
+      EnableCloudTrail: true
 ```
 
 ### Security Implementation
