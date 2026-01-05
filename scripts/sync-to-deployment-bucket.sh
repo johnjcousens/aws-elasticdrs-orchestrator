@@ -51,7 +51,7 @@ ENVIRONMENT="${ENVIRONMENT:-dev}"
 PARENT_STACK_NAME="${PARENT_STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 
 # Approved top-level directories (directories synced by this script)
-APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts" "ssm-documents")
+APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts")
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -450,15 +450,6 @@ echo "    ✅ frontend config files synced"
 # Sync scripts
 echo "  📁 Syncing scripts/..."
 aws s3 sync scripts/ s3://$BUCKET/scripts/ \
-    $PROFILE_FLAG \
-    --delete \
-    $SYNC_FLAGS \
-    --exclude ".DS_Store" \
-   
-
-# Sync SSM documents
-echo "  📁 Syncing ssm-documents/..."
-aws s3 sync ssm-documents/ s3://$BUCKET/ssm-documents/ \
     $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
@@ -1394,7 +1385,6 @@ echo "  ✅ CloudFormation templates (cfn/)"
 echo "  ✅ Lambda functions (lambda/)"
 echo "  ✅ Frontend source + dist (frontend/)"
 echo "  ✅ Automation scripts (scripts/)"
-echo "  ✅ SSM documents (ssm-documents/)"
 echo "  ✅ Documentation (docs/)"
 echo ""
 

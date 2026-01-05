@@ -567,14 +567,29 @@ The project uses **AWS CodePipeline** for automated deployment with the followin
 - **Account**: 777788889999
 - **Deployment Bucket**: `aws-elasticdrs-orchestrator`
 
-### Pipeline Stages
-1. **Source** - CodeCommit repository trigger
-2. **Validate** - CloudFormation template validation and code quality checks
-3. **SecurityScan** - Security scanning with Bandit and cfn-lint
-4. **Build** - Lambda packaging and frontend builds
-5. **Test** - Unit tests and integration tests
-6. **DeployInfrastructure** - CloudFormation deployment
-7. **DeployFrontend** - S3 sync and CloudFront invalidation
+### Pipeline Stages & BuildSpecs
+
+The pipeline uses 6 CodeBuild projects with corresponding BuildSpec files:
+
+| Stage | CodeBuild Project | BuildSpec File | Purpose |
+|-------|-------------------|----------------|---------|
+| **Validate** | `aws-elasticdrs-orchestrator-validate-dev` | `buildspecs/validate-buildspec.yml` | CloudFormation validation, Python linting, TypeScript checking |
+| **SecurityScan** | `aws-elasticdrs-orchestrator-security-scan-dev` | `buildspecs/security-buildspec.yml` | Bandit, Semgrep, Safety, npm audit security scans |
+| **Build** | `aws-elasticdrs-orchestrator-build-dev` | `buildspecs/build-buildspec.yml` | Lambda packaging, frontend builds |
+| **Test** | `aws-elasticdrs-orchestrator-test-dev` | `buildspecs/test-buildspec.yml` | Unit tests, integration tests, coverage |
+| **DeployInfrastructure** | `aws-elasticdrs-orchestrator-deploy-infra-dev` | `buildspecs/deploy-infra-buildspec.yml` | CloudFormation deployment |
+| **DeployFrontend** | `aws-elasticdrs-orchestrator-deploy-frontend-dev` | `buildspecs/deploy-frontend-buildspec.yml` | S3 sync, CloudFront invalidation, dynamic config generation |
+
+### BuildSpecs Directory Structure
+```
+buildspecs/
+├── validate-buildspec.yml          # Template validation and code quality
+├── security-buildspec.yml          # Comprehensive security scanning  
+├── build-buildspec.yml             # Lambda and frontend builds
+├── test-buildspec.yml              # Unit and integration tests
+├── deploy-infra-buildspec.yml      # Infrastructure deployment
+└── deploy-frontend-buildspec.yml   # Frontend deployment with dynamic config
+```
 
 ### Development Workflow
 
@@ -602,6 +617,28 @@ git push origin main
 
 # 3. Push to CodeCommit (triggers pipeline)
 git push aws-pipeline main
+```
+
+#### Pipeline Monitoring
+- **Console**: [CodePipeline Console](https://console.aws.amazon.com/codesuite/codepipeline/pipelines/aws-elasticdrs-orchestrator-pipeline-dev/view)
+- **Status**: Monitor all 7 stages in real-time
+- **Duration**: ~15-20 minutes for full deployment
+
+### Alternative: Manual Deployment
+For development without CI/CD:
+```bash
+# Sync all changes to S3 deployment bucket
+./scripts/sync-to-deployment-bucket.sh
+
+# Fast Lambda code updates (5 seconds)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+
+# Build and deploy frontend
+./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+```
+
+### Legacy CI/CD Notice
+⚠️ **GitLab CI/CD Deprecated**: The `.gitlab-ci.yml` file is maintained for reference only. All active deployments use AWS CodePipeline with the buildspecs listed above.s-pipeline main
 ```
 
 #### Pipeline Monitoring
