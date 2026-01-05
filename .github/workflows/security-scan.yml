@@ -33,20 +33,26 @@ jobs:
     - name: Run Bandit security scan
       continue-on-error: true
       run: |
-        bandit -r lambda/ -f json -o bandit-report.json || true
-        bandit -r lambda/ -ll || true
+        set +e
+        bandit -r lambda/ -f json -o bandit-report.json
+        bandit -r lambda/ -ll
+        exit 0
     
     - name: Run Semgrep security scan
       continue-on-error: true
       run: |
-        semgrep --config=auto lambda/ --json --output=semgrep-report.json || true
-        semgrep --config=auto lambda/ || true
+        set +e
+        semgrep --config=auto lambda/ --json --output=semgrep-report.json
+        semgrep --config=auto lambda/
+        exit 0
     
     - name: Run Safety dependency scan
       continue-on-error: true
       run: |
-        safety scan --json --output safety-report.json || true
-        safety scan || true
+        set +e
+        safety scan --json --output safety-report.json
+        safety scan
+        exit 0
     
     - name: Upload security reports
       uses: actions/upload-artifact@v4
