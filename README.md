@@ -20,18 +20,13 @@ This repository is **optimized for AI-assisted development** with comprehensive 
 | **Kiro** | [`.kiro/steering/`](.kiro/steering/) | Primary AI assistant steering documents |
 | **Amazon Q Developer** | [`.amazonq/rules/`](.amazonq/rules/) | Amazon Q specific rules and workflows |
 
-**Essential Steering Documents:**
+**Current Steering Documents:**
 - [Project Context](.kiro/steering/project-context.md) - Complete product overview, architecture, and technology stack
-- [Development Workflow](.kiro/steering/development-workflow.md) - CI/CD, debugging, and file writing rules
-- [Frontend Standards](.kiro/steering/frontend-standards.md) - CloudScape design system compliance
-- [Technical Standards](.kiro/steering/technical-standards.md) - AWS diagrams, Mermaid preferences, documentation
-- [Python Coding Standards](.kiro/steering/python-coding-standards.md) - PEP 8 compliance and code quality
 
 **Amazon Q Rules:**
 - [Project Context](.amazonq/rules/amazonq-project-context.md) - Product overview aligned with Kiro
-- [Development Workflow](.amazonq/rules/amazonq-development-workflow.md) - Deployment verification workflows
-- [Frontend Standards](.amazonq/rules/amazonq-frontend-standards.md) - CloudScape consistency rules
-- [Python Standards](.amazonq/rules/python-coding-standards.md) - Python development standards
+
+**Note**: The steering documents have been consolidated into a single comprehensive project context file that contains all essential information for AI-assisted development, including development workflow, technical standards, and coding guidelines.
 
 ### **Project Requirements (Source of Truth)**
 
@@ -48,7 +43,9 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 
 | Specification | Status | Description | Effort |
 |---------------|--------|-------------|--------|
-| **[Fresh Deployment](.kiro/specs/fresh-deployment/requirements.md)** | 🟢 Ready | Complete deployment automation for fresh environments | 2-3 weeks |
+| **[Fresh Deployment](.kiro/specs/fresh-deployment/)** | 🟢 Ready | Complete deployment automation for fresh environments | 2-3 weeks |
+
+**Note**: Historical specifications have been archived. Only active specifications for future development are maintained in the `.kiro/specs/` directory.
 
 ### **GitHub Repository**
 
