@@ -1567,7 +1567,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             )
             claims = auth_context.get("claims", {})
             # Extract safe data for logging
-            auth_context_keys = list(auth_context.keys()) if auth_context else []
+            auth_context_keys = (
+                list(auth_context.keys()) if auth_context else []
+            )
             claims_count = len(claims) if claims else 0
             print(
                 f"Auth validation - path: {path}, auth_context_keys: {auth_context_keys}, claims_count: {claims_count}"
@@ -10139,7 +10141,7 @@ def _process_protection_group_import(
                             applied_count = apply_results["applied"]
                         if apply_results and "failed" in apply_results:
                             failed_count = apply_results["failed"]
-                        
+
                         result["details"][
                             "launchConfigApplied"
                         ] = applied_count
