@@ -155,7 +155,6 @@ s3://aws-drs-orchestration/
 │   ├── tsconfig.json
 │   └── vite.config.ts
 ├── scripts/                      # Automation scripts
-├── ssm-documents/                # SSM automation documents
 ├── docs/                         # Documentation
 ├── README.md
 ├── .gitignore
@@ -250,7 +249,7 @@ The script can detect and remove files in S3 that are no longer in the approved 
 ./scripts/sync-to-deployment-bucket.sh --clean-orphans
 ```
 
-**Approved directories**: `cfn`, `docs`, `frontend`, `lambda`, `scripts`, `ssm-documents`
+**Approved directories**: `cfn`, `docs`, `frontend`, `lambda`, `scripts`
 
 ## Environment Requirements
 

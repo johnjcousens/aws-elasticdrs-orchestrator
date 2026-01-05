@@ -4,3 +4,30 @@
   "userPoolClientId": "7hccekiu9cpcm8amthfdrhodoq",
   "apiEndpoint": "https://1qr1mtiuog.execute-api.us-east-1.amazonaws.com/dev"
 }
+
+// ============================================================================
+// STATIC CONFIGURATION FILE - DEPRECATED APPROACH
+// ============================================================================
+// 
+// ⚠️  WARNING: This static configuration is deprecated
+// 
+// Current Approach (AWS CodePipeline):
+// This file is dynamically generated during frontend deployment using 
+// CloudFormation stack outputs. The deploy-frontend-buildspec.yml creates
+// aws-config.js with current stack values.
+// 
+// Dynamic Generation Process:
+// 1. CloudFormation deployment completes
+// 2. Stack outputs provide: API endpoint, Cognito User Pool ID, App Client ID
+// 3. deploy-frontend-buildspec.yml generates aws-config.js with live values
+// 4. Frontend loads configuration from aws-config.js (not this JSON file)
+// 
+// This static file is maintained for:
+// - Local development reference
+// - Manual deployment fallback
+// - Documentation of expected configuration structure
+// 
+// For current deployment process, see:
+// - buildspecs/deploy-frontend-buildspec.yml (dynamic generation)
+// - docs/guides/deployment/CICD_SETUP_GUIDE.md (deployment documentation)
+// ============================================================================

@@ -64,6 +64,7 @@ Resources:
                   - cloudformation:DescribeStacks
                   - cloudformation:DescribeStackEvents
                   - cloudformation:DescribeStackResources
+                  - cloudformation:DescribeStackResource
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
                   - cloudformation:ValidateTemplate
@@ -72,6 +73,15 @@ Resources:
                   - cloudformation:ExecuteChangeSet
                   - cloudformation:DeleteChangeSet
                   - cloudformation:ListStacks
+                  - cloudformation:ListStackResources
+                  - cloudformation:GetStackPolicy
+                  - cloudformation:SetStackPolicy
+                  - cloudformation:CancelUpdateStack
+                  - cloudformation:ContinueUpdateRollback
+                  - cloudformation:EstimateTemplateCost
+                  - cloudformation:ListChangeSets
+                  - cloudformation:ListExports
+                  - cloudformation:ListImports
                 Resource: '*'
               # IAM access for CloudFormation deployments
               - Effect: Allow
@@ -92,6 +102,14 @@ Resources:
                   - iam:AddRoleToInstanceProfile
                   - iam:RemoveRoleFromInstanceProfile
                   - iam:GetInstanceProfile
+                  - iam:ListInstanceProfiles
+                  - iam:ListRoles
+                  - iam:UpdateRole
+                  - iam:UpdateRoleDescription
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:ListRoleTags
                 Resource: '*'
               # Lambda access for function deployment
               - Effect: Allow
@@ -122,6 +140,7 @@ Resources:
                   - dynamodb:ListTables
                   - dynamodb:TagResource
                   - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
                 Resource: '*'
               # Cognito access
               - Effect: Allow
@@ -202,6 +221,40 @@ Resources:
                   - secretsmanager:DescribeSecret
                   - secretsmanager:TagResource
                   - secretsmanager:UntagResource
+                Resource: '*'
+              # CloudWatch Logs access
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:DeleteLogGroup
+                  - logs:DeleteLogStream
+                  - logs:PutRetentionPolicy
+                  - logs:TagLogGroup
+                  - logs:UntagLogGroup
+                Resource: '*'
+              # Resource tagging permissions
+              - Effect: Allow
+                Action:
+                  - tag:GetResources
+                  - tag:TagResources
+                  - tag:UntagResources
+                  - tag:GetTagKeys
+                  - tag:GetTagValues
+                Resource: '*'
+              # Additional AWS service permissions for comprehensive deployment
+              - Effect: Allow
+                Action:
+                  - application-autoscaling:*
+                  - autoscaling:*
+                  - ec2:*
+                  - elasticloadbalancing:*
+                  - route53:*
+                  - acm:*
+                  - kms:*
                 Resource: '*'
       Tags:
         - Key: Project
