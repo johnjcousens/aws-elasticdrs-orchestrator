@@ -30,7 +30,6 @@ docs/guides/DR_SOLUTIONS_API_COMPARISON.md
 
 # Test files and results
 test_results_*.json
-tests/
 test-screenshots/
 *.test.ts
 *.spec.ts
