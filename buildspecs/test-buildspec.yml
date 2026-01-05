@@ -81,6 +81,18 @@ phases:
 artifacts:
   files:
     - 'test-reports/**/*'
+    - 'buildspecs/**/*'
+    - 'cfn/**/*'
+    - 'lambda/**/*'
+    - 'frontend/**/*'
+    - 'scripts/**/*'
+    - 'tests/**/*'
+    - 'docs/**/*'
+    - '*.md'
+    - '*.json'
+    - '*.yaml'
+    - '*.yml'
+    - '.gitignore'
   name: TestReports
 
 cache:
