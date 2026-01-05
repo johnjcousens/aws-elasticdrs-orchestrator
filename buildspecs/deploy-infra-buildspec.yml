@@ -40,15 +40,26 @@ phases:
   build:
     commands:
       - echo "=== CloudFormation Stack Deployment ==="
-      - echo "Checking if stack exists..."
-      - aws cloudformation describe-stacks --stack-name $STACK_NAME > /dev/null 2>&1 && echo "Stack exists - will update" || echo "Stack does not exist - will create"
+      - echo "Checking if stack exists and its status..."
+      - |
+        if aws cloudformation describe-stacks --stack-name $STACK_NAME > /dev/null 2>&1; then
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].StackStatus' --output text)
+          echo "Stack exists with status: $STACK_STATUS"
+          if [[ "$STACK_STATUS" == *"ROLLBACK_COMPLETE"* ]] || [[ "$STACK_STATUS" == *"ROLLBACK_FAILED"* ]] || [[ "$STACK_STATUS" == *"DELETE_FAILED"* ]]; then
+            echo "Stack is in failed state ($STACK_STATUS), deleting before recreating..."
+            aws cloudformation delete-stack --stack-name $STACK_NAME
+            echo "Waiting for stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+            echo "Stack deleted successfully"
+          fi
+        else
+          echo "Stack does not exist - will create new stack"
+        fi
       - echo "=== Debugging Information ==="
       - echo "Current AWS Identity:"
       - aws sts get-caller-identity
-      - echo "Available CloudFormation permissions:"
-      - aws iam simulate-principal-policy --policy-source-arn $(aws sts get-caller-identity --query Arn --output text) --action-names cloudformation:GetTemplateSummary --resource-arns "arn:aws:cloudformation:$AWS_DEFAULT_REGION:$(aws sts get-caller-identity --query Account --output text):stack/$STACK_NAME/*" || echo "Permission simulation failed"
       - echo "Deploying CloudFormation stack..."
-      - aws cloudformation deploy --template-file cfn/master-template.yaml --stack-name $STACK_NAME --parameter-overrides ProjectName=$PROJECT_NAME Environment=$ENVIRONMENT SourceBucket=$DEPLOYMENT_BUCKET AdminEmail=$ADMIN_EMAIL EnableAutomatedDeployment=false GitHubRepositoryURL=https://github.com/johnjcousens/aws-elasticdrs-orchestrator --capabilities CAPABILITY_NAMED_IAM --tags Project=$PROJECT_NAME Environment=$ENVIRONMENT DeployedBy=CodePipeline BuildId=$CODEBUILD_BUILD_ID --no-fail-on-empty-changeset
+      - aws cloudformation deploy --template-file cfn/master-template.yaml --stack-name $STACK_NAME --parameter-overrides ProjectName=$PROJECT_NAME Environment=$ENVIRONMENT SourceBucket=$DEPLOYMENT_BUCKET AdminEmail=$ADMIN_EMAIL EnableAutomatedDeployment=true GitHubRepositoryURL=https://github.com/johnjcousens/aws-elasticdrs-orchestrator --capabilities CAPABILITY_NAMED_IAM --tags Project=$PROJECT_NAME Environment=$ENVIRONMENT DeployedBy=CodePipeline BuildId=$CODEBUILD_BUILD_ID --no-fail-on-empty-changeset
       - echo "=== Deployment Verification ==="
       - echo "Retrieving stack outputs..."
       - aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' --output table
