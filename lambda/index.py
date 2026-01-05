@@ -10144,17 +10144,15 @@ def _process_protection_group_import(
                             "launchConfigApplied"
                         ] = applied_count
                         result["details"]["launchConfigFailed"] = failed_count
-                        print(
-                            f"Applied LaunchConfig to {applied_count} servers"
-                        )
+                        # LaunchConfig applied successfully - no logging to prevent sensitive data exposure
                     except Exception as lc_err:
                         print(
-                            f"[{correlation_id}] Warning: Failed to apply LaunchConfig: {type(lc_err).__name__}"
+                            f"Warning: Failed to apply LaunchConfig: {type(lc_err).__name__}"
                         )
         except Exception as e:
             result["reason"] = "CREATE_ERROR"
             result["details"] = {"error": str(e)}
-            print(f"[{correlation_id}] Failed to create PG '{pg_name}': {e}")
+            print(f"Failed to create PG '{pg_name}': {type(e).__name__}")
             return result
     else:
         result["details"] = {"wouldCreate": True}
