@@ -633,6 +633,40 @@ git push aws-pipeline main
 - **Status**: Monitor all 7 stages in real-time
 - **Duration**: ~15-20 minutes for full deployment
 
+### Git Troubleshooting
+
+#### CodeCommit 403 Forbidden Error (macOS)
+
+**Problem**: `fatal: unable to access 'https://git-codecommit...': The requested URL returned error: 403`
+
+**Root Cause**: macOS keychain (`osxkeychain`) interferes with AWS CodeCommit credential helper.
+
+**Solution**: Add an empty credential helper to disable keychain interference:
+
+```bash
+# For repository-specific fix (recommended)
+git config --local credential.helper ""
+git config --local --add credential.helper '!aws codecommit credential-helper $@'
+git config --local credential.UseHttpPath true
+
+# Verify configuration
+git config --local --list | grep credential
+# Should show:
+# credential.helper=
+# credential.helper=!aws codecommit credential-helper $@
+# credential.usehttppath=true
+```
+
+**Alternative Global Fix**:
+```bash
+# For all repositories (use with caution)
+git config --global credential.helper ""
+git config --global --add credential.helper '!aws codecommit credential-helper $@'
+git config --global credential.UseHttpPath true
+```
+
+**Reference**: [AWS CodeCommit Troubleshooting Guide](https://docs.aws.amazon.com/codecommit/latest/userguide/troubleshooting-ch.html#troubleshooting-macoshttps)
+
 ### Alternative: Manual Deployment
 For development without CI/CD:
 ```bash
