@@ -18,9 +18,9 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Run Bandit Security Scan
-      uses: securecodewarrior/github-action-bandit@v1.0.1
-      with:
-        path: lambda/
+      run: |
+        pip install bandit
+        bandit -r lambda/ -ll
         
     - name: Run Semgrep
       uses: returntocorp/semgrep-action@v1
