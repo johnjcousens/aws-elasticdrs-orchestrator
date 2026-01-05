@@ -237,7 +237,7 @@ Resources:
                     }
                   ]
               InputArtifacts:
-                - Name: TestOutput
+                - Name: SourceOutput
               OutputArtifacts:
                 - Name: DeployInfraOutput
 
