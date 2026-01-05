@@ -758,19 +758,6 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # Custom Resources for Bucket Cleanup (added to Lambda stack to ensure proper dependencies)
-  EmptyArtifactBucketResource:
-    Type: Custom::EmptyBucket
-    Properties:
-      ServiceToken: !GetAtt BucketCleanerFunction.Arn
-      BucketName: !Sub '${ProjectName}-cicd-artifacts-${AWS::AccountId}-${Environment}'
-
-  EmptyFrontendBucketResource:
-    Type: Custom::EmptyBucket
-    Properties:
-      ServiceToken: !GetAtt BucketCleanerFunction.Arn
-      BucketName: !Sub '${ProjectName}-fe-${AWS::AccountId}-${Environment}'
-
   # Execution Finder Lambda Function
   ExecutionFinderFunction:
     Type: AWS::Lambda::Function
