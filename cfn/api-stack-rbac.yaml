@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - API Stack with RBAC (Cognito Groups, API Gateway, Step Functions)'
+Description: 'AWS DRS Orchestration - API Stack with RBAC (Cognito Groups, API Gateway, SNS Notifications)'
 
 Parameters:
   ProjectName:
