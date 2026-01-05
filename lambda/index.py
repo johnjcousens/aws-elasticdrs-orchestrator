@@ -5561,7 +5561,9 @@ def resume_execution(execution_id: str) -> Dict:
         result = execution_history_table.query(
             KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
         )
-        print(f"Query result: {json.dumps(result, default=str)}")
+        # Extract safe information for logging
+        item_count = len(result.get("Items", []))
+        print(f"Query result: Found {item_count} items")
 
         if not result.get("Items"):
             print(f"No items found for execution {execution_id}")
