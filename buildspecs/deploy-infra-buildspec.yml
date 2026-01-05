@@ -2,10 +2,10 @@ version: 0.2
 
 env:
   variables:
+    # Default values - will be overridden by CodeBuild project environment variables
     PROJECT_NAME: "aws-elasticdrs-orchestrator"
     ENVIRONMENT: "dev"
     DEPLOYMENT_BUCKET: "aws-elasticdrs-orchestrator"
-    STACK_NAME: "aws-elasticdrs-orchestrator-dev"
     ADMIN_EMAIL: "admin@example.com"
 
 phases:
@@ -22,6 +22,7 @@ phases:
       - echo "=== INFRASTRUCTURE DEPLOYMENT PHASE STARTED ==="
       - echo "Project $PROJECT_NAME"
       - echo "Environment $ENVIRONMENT"
+      - export STACK_NAME="$PROJECT_NAME-$ENVIRONMENT"
       - echo "Stack Name $STACK_NAME"
       - echo "Deployment Bucket $DEPLOYMENT_BUCKET"
       - echo "Admin Email $ADMIN_EMAIL"
@@ -41,6 +42,11 @@ phases:
       - echo "=== CloudFormation Stack Deployment ==="
       - echo "Checking if stack exists..."
       - aws cloudformation describe-stacks --stack-name $STACK_NAME > /dev/null 2>&1 && echo "Stack exists - will update" || echo "Stack does not exist - will create"
+      - echo "=== Debugging Information ==="
+      - echo "Current AWS Identity:"
+      - aws sts get-caller-identity
+      - echo "Available CloudFormation permissions:"
+      - aws iam simulate-principal-policy --policy-source-arn $(aws sts get-caller-identity --query Arn --output text) --action-names cloudformation:GetTemplateSummary --resource-arns "arn:aws:cloudformation:$AWS_DEFAULT_REGION:$(aws sts get-caller-identity --query Account --output text):stack/$STACK_NAME/*" || echo "Permission simulation failed"
       - echo "Deploying CloudFormation stack..."
       - aws cloudformation deploy --template-file cfn/master-template.yaml --stack-name $STACK_NAME --parameter-overrides ProjectName=$PROJECT_NAME Environment=$ENVIRONMENT SourceBucket=$DEPLOYMENT_BUCKET AdminEmail=$ADMIN_EMAIL EnableAutomatedDeployment=false GitHubRepositoryURL=https://github.com/johnjcousens/aws-elasticdrs-orchestrator --capabilities CAPABILITY_NAMED_IAM --tags Project=$PROJECT_NAME Environment=$ENVIRONMENT DeployedBy=CodePipeline BuildId=$CODEBUILD_BUILD_ID --no-fail-on-empty-changeset
       - echo "=== Deployment Verification ==="
