@@ -704,6 +704,26 @@ For development without CI/CD:
 ./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
 ```
 
+## Repository Security
+
+### Branch Protection (✅ Enabled)
+The repository is secured with GitHub branch protection rules:
+
+- ✅ **Pull Request Required** - Direct pushes to `main` blocked
+- ✅ **Code Owner Review** - `@johnjcousens` approval required
+- ✅ **Conversation Resolution** - All review comments must be addressed
+- ✅ **Force Push Protection** - Prevents destructive operations
+- ✅ **Large File Restrictions** - Blocks files >100MB
+- ⏳ **Status Checks** - Will be added after first CI/CD run
+
+### Security Features (✅ Enabled)
+- ✅ **Dependency Scanning** - Automated vulnerability detection
+- ✅ **Secret Scanning** - Prevents credential commits
+- ✅ **Dependabot Updates** - Automatic security patches
+- ✅ **Push Protection** - Real-time secret blocking
+
+**Setup Guide**: [Branch Protection Setup](.github/BRANCH_PROTECTION_SETUP.md)
+
 ## Contributing
 
 ### Using CI/CD Pipeline (Recommended)
@@ -711,7 +731,7 @@ For development without CI/CD:
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit changes (`git commit -m 'Add amazing feature'`)
 4. Push to GitHub (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+5. Open a Pull Request (requires `@johnjcousens` approval)
 6. After merge, changes automatically deploy via CodePipeline
 
 ### Direct Development (Advanced)
