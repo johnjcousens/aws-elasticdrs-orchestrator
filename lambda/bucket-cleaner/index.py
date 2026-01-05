@@ -3,7 +3,8 @@ AWS DRS Orchestration - S3 Bucket Cleaner Lambda Function
 
 This Lambda function is used as a CloudFormation custom resource to empty
 S3 buckets (including all versions and delete markers) before stack deletion.
-This ensures that versioned S3 buckets can be properly deleted by CloudFormation.
+This ensures that versioned S3 buckets can be properly deleted by
+CloudFormation.
 
 Author: AWS DRS Orchestration Team
 Version: 1.0.0
@@ -19,17 +20,22 @@ import urllib3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-def send_response(event, context, response_status, response_data, physical_resource_id=None, no_echo=False):
+def send_response(
+    event, context, response_status, response_data, 
+    physical_resource_id=None, no_echo=False
+):
     """
     Send response to CloudFormation custom resource.
     
-    This is a simplified version of cfnresponse that works in all Lambda environments.
+    This is a simplified version of cfnresponse that works in all Lambda
+    environments.
     """
     response_url = event['ResponseURL']
     
     response_body = {
         'Status': response_status,
-        'Reason': f'See the details in CloudWatch Log Stream: {context.log_stream_name}',
+        'Reason': f'See the details in CloudWatch Log Stream: '
+                  f'{context.log_stream_name}',
         'PhysicalResourceId': physical_resource_id or context.log_stream_name,
         'StackId': event['StackId'],
         'RequestId': event['RequestId'],
@@ -47,7 +53,9 @@ def send_response(event, context, response_status, response_data, physical_resou
     
     try:
         http = urllib3.PoolManager()
-        response = http.request('PUT', response_url, body=json_response_body, headers=headers)
+        response = http.request(
+            'PUT', response_url, body=json_response_body, headers=headers
+        )
         logger.info(f"Status code: {response.status}")
     except Exception as e:
         logger.error(f"Failed to send response to CloudFormation: {e}")
@@ -82,7 +90,8 @@ def lambda_handler(event, context):
         
         # Send success response
         send_response(event, context, 'SUCCESS', {
-            'Message': f'Bucket {bucket_name} processed successfully for {request_type}'
+            'Message': f'Bucket {bucket_name} processed successfully '
+                       f'for {request_type}'
         })
         
     except Exception as e:
@@ -106,7 +115,9 @@ def empty_bucket(bucket_name):
             s3_client.head_bucket(Bucket=bucket_name)
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
-                logger.info(f"Bucket {bucket_name} does not exist - nothing to clean")
+                logger.info(
+                    f"Bucket {bucket_name} does not exist - nothing to clean"
+                )
                 return
             else:
                 raise
@@ -142,7 +153,10 @@ def empty_bucket(bucket_name):
                 for i in range(0, len(objects_to_delete), batch_size):
                     batch = objects_to_delete[i:i + batch_size]
                     
-                    logger.info(f"Deleting batch of {len(batch)} objects from {bucket_name}")
+                    logger.info(
+                        f"Deleting batch of {len(batch)} objects from "
+                        f"{bucket_name}"
+                    )
                     
                     response = s3_client.delete_objects(
                         Bucket=bucket_name,
@@ -155,22 +169,34 @@ def empty_bucket(bucket_name):
                     # Log any errors
                     if 'Errors' in response and response['Errors']:
                         for error in response['Errors']:
-                            logger.warning(f"Failed to delete {error['Key']}: {error['Message']}")
+                            logger.warning(
+                                f"Failed to delete {error['Key']}: "
+                                f"{error['Message']}"
+                            )
         
         # Verify bucket is empty
         response = s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
         if 'Contents' in response:
-            logger.warning(f"Bucket {bucket_name} still contains objects after cleanup")
+            logger.warning(
+                f"Bucket {bucket_name} still contains objects after cleanup"
+            )
         else:
             logger.info(f"Bucket {bucket_name} is now empty")
             
     except ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code == 'NoSuchBucket':
-            logger.info(f"Bucket {bucket_name} does not exist - nothing to clean")
+            logger.info(
+                f"Bucket {bucket_name} does not exist - nothing to clean"
+            )
         else:
-            logger.error(f"AWS error emptying bucket {bucket_name}: {error_code} - {e.response['Error']['Message']}")
+            logger.error(
+                f"AWS error emptying bucket {bucket_name}: {error_code} - "
+                f"{e.response['Error']['Message']}"
+            )
             raise
     except Exception as e:
-        logger.error(f"Unexpected error emptying bucket {bucket_name}: {str(e)}")
+        logger.error(
+            f"Unexpected error emptying bucket {bucket_name}: {str(e)}"
+        )
         raise
