@@ -10127,8 +10127,14 @@ def _process_protection_group_import(
                             protection_group_id=group_id,
                             protection_group_name=pg_name,
                         )
-                        applied_count = apply_results.get("applied", 0)
-                        failed_count = apply_results.get("failed", 0)
+                        # Extract counts safely without referencing sensitive object methods
+                        applied_count = 0
+                        failed_count = 0
+                        if apply_results and "applied" in apply_results:
+                            applied_count = apply_results["applied"]
+                        if apply_results and "failed" in apply_results:
+                            failed_count = apply_results["failed"]
+                        
                         result["details"][
                             "launchConfigApplied"
                         ] = applied_count
