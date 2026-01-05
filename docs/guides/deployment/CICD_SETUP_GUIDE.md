@@ -1,41 +1,470 @@
 # AWS DRS Orchestration - CI/CD Setup Guide
 
-This guide provides detailed instructions for setting up and configuring the CI/CD pipeline for the AWS DRS Orchestration platform using AWS CodeCommit, CodeBuild, and CodePipeline.
+This guide provides detailed instructions for using and configuring the AWS CodePipeline CI/CD infrastructure for the AWS DRS Orchestration platform.
 
 ## Table of Contents
 
-1. Overview
-2. Prerequisites
-3. CI/CD Architecture
-4. Setup Process
-5. Pipeline Configuration
-6. BuildSpec Customization
-7. GitHub Integration
-8. Pipeline Monitoring
-9. Troubleshooting
-10. Best Practices
-11. Advanced Configuration
+1. [Overview](#overview)
+2. [Current Infrastructure](#current-infrastructure)
+3. [Quick Start](#quick-start)
+4. [Pipeline Architecture](#pipeline-architecture)
+5. [Development Workflow](#development-workflow)
+6. [Pipeline Monitoring](#pipeline-monitoring)
+7. [Troubleshooting](#troubleshooting)
+8. [Advanced Configuration](#advanced-configuration)
 
 ---
 
-## <a name="overview"></a>Overview
+## Overview
 
-The AWS DRS Orchestration CI/CD pipeline provides:
+The AWS DRS Orchestration platform uses **AWS CodePipeline** for automated CI/CD with the following capabilities:
 
-- **Automated Validation**: CloudFormation template validation, code quality checks
-- **Automated Building**: Lambda packaging, frontend builds
-- **Automated Testing**: Unit tests, integration tests, security scans
+- **Automated Validation**: CloudFormation template validation, Python/TypeScript linting, security scanning
+- **Automated Building**: Lambda packaging, React frontend builds
+- **Automated Testing**: Unit tests, integration tests, coverage reports
 - **Automated Deployment**: Infrastructure and application deployment
-- **GitHub Integration**: Automatic mirroring from GitHub to CodeCommit
+- **Dual Repository Support**: Primary CodeCommit with GitHub mirror
+
+### Pipeline Benefits
+
+- ✅ **7-Stage Pipeline**: Complete validation, build, test, and deployment automation
+- ✅ **Security Scanning**: Integrated Bandit and cfn-lint security checks
+- ✅ **Fast Deployments**: 15-20 minute full deployments
+- ✅ **Rollback Safety**: Automatic rollback on deployment failures
+- ✅ **Real-time Monitoring**: AWS Console integration with detailed logs
+
+## Current Infrastructure
+
+### Deployed CI/CD Components
+
+| Component | Name | Purpose |
+|-----------|------|---------|
+| **Pipeline** | `aws-elasticdrs-orchestrator-pipeline-dev` | Main CI/CD orchestration |
+| **Primary Repository** | `aws-elasticdrs-orchestrator-dev` | CodeCommit source repository |
+| **Secondary Repository** | GitHub mirror | Development and collaboration |
+| **Account** | ***REMOVED*** | AWS account for all resources |
+| **Deployment Bucket** | `aws-elasticdrs-orchestrator` | Artifact storage |
 
 ### Pipeline Stages
 
-1. **Source**: CodeCommit repository with GitHub mirroring
-2. **Validate**: CloudFormation validation, Python/TypeScript linting
-3. **Build**: Lambda packages, React frontend build
-4. **Test**: Unit tests, integration tests, coverage reports
-5. **Deploy Infrastructure**: CloudFormation deployment
-6. **Deploy Frontend**: S3 sync, CloudFront invalidation
+| Stage | Purpose | Duration | Key Actions |
+|-------|---------|----------|-------------|
+| **Source** | Code retrieval from CodeCommit | ~30s | Repository polling, artifact creation |
+| **Validate** | Template and code validation | ~2-3min | CloudFormation validation, Python linting |
+| **SecurityScan** | Security analysis | ~3-4min | Bandit security scan, cfn-lint checks |
+| **Build** | Package creation | ~4-5min | Lambda packaging, frontend build |
+| **Test** | Automated testing | ~3-4min | Unit tests, integration tests, coverage |
+| **DeployInfrastructure** | AWS resource deployment | ~8-10min | CloudFormation stack updates |
+| **DeployFrontend** | Frontend deployment | ~2-3min | S3 sync, CloudFront invalidation |
+
+## Quick Start
+
+### Prerequisites
+
+- AWS CLI configured with profile `***REMOVED***_AdministratorAccess`
+- Git configured on your local machine
+- Access to both GitHub and CodeCommit repositories
+
+### Step 1: Configure Git for CodeCommit
+
+```bash
+# Set up AWS credential helper for CodeCommit
+git config --global credential.helper '!aws codecommit credential-helper $@'
+git config --global credential.UseHttpPath true
+
+# Verify AWS profile
+export AWS_PROFILE=***REMOVED***_AdministratorAccess
+aws sts get-caller-identity
+```
+
+### Step 2: Clone and Configure Repository
+
+```bash
+# Clone from GitHub (if starting fresh)
+git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
+cd aws-elasticdrs-orchestrator
+
+# Add CodeCommit remote
+git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-elasticdrs-orchestrator-dev
+
+# Verify remotes
+git remote -v
+```
+
+### Step 3: Trigger Your First Pipeline
+
+```bash
+# Ensure you're on main branch
+git checkout main
+
+# Push to CodeCommit to trigger pipeline
+export AWS_PROFILE=***REMOVED***_AdministratorAccess
+git push aws-pipeline main
+```
+
+### Step 4: Monitor Pipeline Execution
+
+- **Pipeline Console**: [aws-elasticdrs-orchestrator-pipeline-dev](https://console.aws.amazon.com/codesuite/codepipeline/pipelines/aws-elasticdrs-orchestrator-pipeline-dev/view)
+- **Expected Duration**: 15-20 minutes for complete deployment
+- **Success Indicators**: All 7 stages show green checkmarks
+
+## Pipeline Architecture
+
+```mermaid
+flowchart TB
+    subgraph GitHub
+        GH[GitHub Repository<br/>johnjcousens/aws-elasticdrs-orchestrator]
+    end
+    
+    subgraph AWS["AWS Account: ***REMOVED***"]
+        subgraph CodeCommit
+            CC[CodeCommit Repository<br/>aws-elasticdrs-orchestrator-dev]
+        end
+        
+        subgraph CodePipeline
+            CP[Pipeline<br/>aws-elasticdrs-orchestrator-pipeline-dev]
+        end
+        
+        subgraph CodeBuild["CodeBuild Projects"]
+            CB1[Validate Project<br/>Template validation, linting]
+            CB2[SecurityScan Project<br/>Bandit, cfn-lint]
+            CB3[Build Project<br/>Lambda packaging, frontend build]
+            CB4[Test Project<br/>Unit tests, integration tests]
+            CB5[Deploy Infra Project<br/>CloudFormation deployment]
+            CB6[Deploy Frontend Project<br/>S3 sync, CloudFront invalidation]
+        end
+        
+        subgraph S3
+            S3A[Artifact Bucket<br/>Pipeline artifacts]
+            S3D[Deployment Bucket<br/>aws-elasticdrs-orchestrator]
+        end
+        
+        subgraph Target["Deployment Targets"]
+            CF[CloudFormation Stack<br/>aws-elasticdrs-orchestrator-dev]
+            S3F[Frontend Bucket]
+            CDN[CloudFront Distribution]
+        end
+    end
+    
+    GH -.->|Manual Mirror| CC
+    CC -->|Trigger| CP
+    CP -->|Stage 1| CB1
+    CP -->|Stage 2| CB2
+    CP -->|Stage 3| CB3
+    CP -->|Stage 4| CB4
+    CP -->|Stage 5| CB5
+    CP -->|Stage 6| CB6
+    CB1 -->|Artifacts| S3A
+    CB3 -->|Artifacts| S3A
+    CB5 -->|Deploy| CF
+    CB5 -->|Upload| S3D
+    CB6 -->|Deploy| S3F
+    CB6 -->|Invalidate| CDN
+```
+
+## Development Workflow
+
+### Daily Development Process
+
+#### Option A: GitHub-First Development (Recommended)
+```bash
+# 1. Work on GitHub repository
+git checkout -b feature/new-feature
+# Make changes
+git add .
+git commit -m "Add new feature"
+git push origin feature/new-feature
+
+# 2. Create Pull Request on GitHub
+# 3. After merge to main, sync to CodeCommit
+git checkout main
+git pull origin main
+git push aws-pipeline main  # Triggers pipeline
+```
+
+#### Option B: Direct CodeCommit Development
+```bash
+# 1. Work directly on CodeCommit
+git checkout -b feature/new-feature
+# Make changes
+git add .
+git commit -m "Add new feature"
+
+# 2. Push to CodeCommit (triggers pipeline immediately)
+git push aws-pipeline feature/new-feature
+
+# 3. Merge to main when ready
+git checkout main
+git merge feature/new-feature
+git push aws-pipeline main
+```
+
+### Branch Strategy
+
+- **main**: Production-ready code, triggers full deployment
+- **feature/***: Feature development branches
+- **hotfix/***: Critical fixes, can be fast-tracked
+- **develop**: Integration branch (optional)
+
+### Pipeline Triggers
+
+| Action | Trigger | Result |
+|--------|---------|--------|
+| Push to `main` | Automatic | Full 7-stage pipeline execution |
+| Push to feature branch | Manual trigger only | Pipeline can be manually started |
+| Pull Request merge | Automatic (if merged to main) | Full deployment |
+
+## Pipeline Monitoring
+
+### Real-Time Monitoring
+
+```bash
+# Check pipeline status
+export AWS_PROFILE=***REMOVED***_AdministratorAccess
+aws codepipeline get-pipeline-state \
+  --name aws-elasticdrs-orchestrator-pipeline-dev \
+  --region us-east-1
+
+# Get recent pipeline executions
+aws codepipeline list-pipeline-executions \
+  --pipeline-name aws-elasticdrs-orchestrator-pipeline-dev \
+  --region us-east-1 \
+  --max-items 5
+```
+
+### Stage-Specific Monitoring
+
+```bash
+# Monitor specific CodeBuild project
+aws codebuild list-builds-for-project \
+  --project-name aws-elasticdrs-orchestrator-validate-dev \
+  --region us-east-1
+
+# Get build logs
+aws logs tail /aws/codebuild/aws-elasticdrs-orchestrator-validate-dev \
+  --since 1h --region us-east-1
+```
+
+### Pipeline Notifications
+
+Set up SNS notifications for pipeline events:
+
+```bash
+# Create SNS topic for notifications
+aws sns create-topic \
+  --name aws-elasticdrs-orchestrator-pipeline-notifications \
+  --region us-east-1
+
+# Subscribe to notifications
+aws sns subscribe \
+  --topic-arn arn:aws:sns:us-east-1:***REMOVED***:aws-elasticdrs-orchestrator-pipeline-notifications \
+  --protocol email \
+  --notification-endpoint your-email@company.com \
+  --region us-east-1
+```
+
+## Troubleshooting
+
+### Common Pipeline Failures
+
+#### 1. Source Stage Failure
+**Symptoms**: Pipeline fails to retrieve source code
+**Solutions**:
+```bash
+# Check CodeCommit repository status
+aws codecommit get-repository \
+  --repository-name aws-elasticdrs-orchestrator-dev \
+  --region us-east-1
+
+# Verify Git credentials
+git config --get credential.helper
+```
+
+#### 2. Validate Stage Failure
+**Symptoms**: CloudFormation template validation errors
+**Solutions**:
+```bash
+# Validate templates locally
+aws cloudformation validate-template \
+  --template-body file://cfn/master-template.yaml \
+  --region us-east-1
+
+# Check Python code quality
+flake8 lambda/ --config .flake8
+black --check lambda/
+```
+
+#### 3. SecurityScan Stage Failure
+**Symptoms**: Security vulnerabilities detected
+**Solutions**:
+```bash
+# Run Bandit locally
+bandit -r lambda/ -f json
+
+# Run cfn-lint locally
+cfn-lint cfn/*.yaml
+```
+
+#### 4. Build Stage Failure
+**Symptoms**: Lambda packaging or frontend build issues
+**Solutions**:
+```bash
+# Test Lambda packaging locally
+cd lambda/api-handler
+pip install -r requirements.txt -t .
+zip -r api-handler.zip .
+
+# Test frontend build locally
+cd frontend
+npm install
+npm run build
+```
+
+#### 5. DeployInfrastructure Stage Failure
+**Symptoms**: CloudFormation deployment errors
+**Solutions**:
+```bash
+# Check CloudFormation events
+aws cloudformation describe-stack-events \
+  --stack-name aws-elasticdrs-orchestrator-dev \
+  --region us-east-1 \
+  --query 'StackEvents[?ResourceStatus==`CREATE_FAILED` || ResourceStatus==`UPDATE_FAILED`]'
+
+# Check IAM permissions
+aws iam get-role \
+  --role-name aws-elasticdrs-orchestrator-dev-cfn-deployment-role
+```
+
+### Debug Commands
+
+```bash
+# Get detailed pipeline execution information
+EXECUTION_ID=$(aws codepipeline list-pipeline-executions \
+  --pipeline-name aws-elasticdrs-orchestrator-pipeline-dev \
+  --region us-east-1 \
+  --query 'pipelineExecutionSummaries[0].pipelineExecutionId' \
+  --output text)
+
+aws codepipeline get-pipeline-execution \
+  --pipeline-name aws-elasticdrs-orchestrator-pipeline-dev \
+  --pipeline-execution-id $EXECUTION_ID \
+  --region us-east-1
+
+# Get build project details
+aws codebuild batch-get-projects \
+  --names aws-elasticdrs-orchestrator-validate-dev \
+  --region us-east-1
+```
+
+### Pipeline Recovery
+
+```bash
+# Retry failed pipeline execution
+aws codepipeline retry-stage-execution \
+  --pipeline-name aws-elasticdrs-orchestrator-pipeline-dev \
+  --stage-name DeployInfrastructure \
+  --retry-mode FAILED_ACTIONS \
+  --region us-east-1
+
+# Start new pipeline execution
+aws codepipeline start-pipeline-execution \
+  --name aws-elasticdrs-orchestrator-pipeline-dev \
+  --region us-east-1
+```
+
+## Advanced Configuration
+
+### Custom BuildSpec Modifications
+
+The pipeline uses these BuildSpec files in the `buildspecs/` directory:
+
+- `validate-buildspec.yml` - Template validation and linting
+- `security-scan-buildspec.yml` - Security scanning with Bandit
+- `build-buildspec.yml` - Lambda packaging and frontend builds
+- `test-buildspec.yml` - Unit and integration testing
+- `deploy-infra-buildspec.yml` - CloudFormation deployment
+- `deploy-frontend-buildspec.yml` - Frontend deployment
+
+### Environment Variables
+
+Key environment variables used in the pipeline:
+
+```yaml
+# Common variables across all stages
+PROJECT_NAME: aws-elasticdrs-orchestrator
+ENVIRONMENT: dev
+DEPLOYMENT_BUCKET: aws-elasticdrs-orchestrator
+AWS_REGION: us-east-1
+STACK_NAME: aws-elasticdrs-orchestrator-dev
+```
+
+### IAM Roles and Permissions
+
+The pipeline uses these service roles:
+
+1. **CodePipeline Service Role**: `aws-elasticdrs-orchestrator-dev-pipeline-service-role`
+2. **CodeBuild Service Roles**: Individual roles for each build project
+3. **CloudFormation Deployment Role**: `aws-elasticdrs-orchestrator-dev-cfn-deployment-role`
+
+### Multi-Environment Support
+
+To extend the pipeline for multiple environments:
+
+```bash
+# Create additional stacks for different environments
+aws cloudformation deploy \
+  --template-file cfn/codepipeline-stack.yaml \
+  --stack-name aws-elasticdrs-orchestrator-test \
+  --parameter-overrides Environment=test \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --region us-east-1
+```
+
+### Integration with External Tools
+
+```yaml
+# Example: Slack notifications in BuildSpec
+post_build:
+  commands:
+    - |
+      if [ "$CODEBUILD_BUILD_SUCCEEDING" = "1" ]; then
+        curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"✅ Pipeline succeeded for aws-elasticdrs-orchestrator"}' \
+          $SLACK_WEBHOOK_URL
+      else
+        curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"❌ Pipeline failed for aws-elasticdrs-orchestrator"}' \
+          $SLACK_WEBHOOK_URL
+      fi
+```
+
+## Best Practices
+
+### Security
+- ✅ Use least-privilege IAM roles for all pipeline components
+- ✅ Store sensitive data in AWS Secrets Manager
+- ✅ Enable encryption for all S3 buckets and artifacts
+- ✅ Regular security scanning with Bandit and cfn-lint
+
+### Performance
+- ✅ Use CodeBuild caching for dependencies
+- ✅ Optimize Docker images for build projects
+- ✅ Parallel execution where possible
+- ✅ Efficient artifact management
+
+### Reliability
+- ✅ Comprehensive error handling in BuildSpecs
+- ✅ Automatic rollback on deployment failures
+- ✅ Health checks and monitoring
+- ✅ Backup and recovery procedures
+
+### Cost Optimization
+- ✅ Right-sized CodeBuild instances
+- ✅ S3 lifecycle policies for artifacts
+- ✅ Scheduled builds during off-peak hours
+- ✅ Resource cleanup after deployments
+
+This comprehensive CI/CD setup provides enterprise-grade automation for the AWS DRS Orchestration platform with AWS-native services.
 
 ## <a name="prerequisites"></a>Prerequisites
 
