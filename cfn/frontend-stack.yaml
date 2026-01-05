@@ -38,6 +38,10 @@ Parameters:
     Type: String
     Description: 'Frontend Builder Lambda Function ARN'
 
+  BucketCleanerFunctionArn:
+    Type: String
+    Description: 'Bucket Cleaner Lambda Function ARN'
+
 Resources:
   # S3 Bucket for Frontend Hosting
   FrontendBucket:
@@ -161,6 +165,13 @@ Resources:
       UserPoolClientId: !Ref UserPoolClientId
       IdentityPoolId: !Ref IdentityPoolId
       Region: !Ref AWS::Region
+
+  # Custom Resource to Empty Frontend Bucket Before Deletion
+  EmptyFrontendBucketResource:
+    Type: Custom::EmptyBucket
+    Properties:
+      ServiceToken: !Ref BucketCleanerFunctionArn
+      BucketName: !Ref FrontendBucket
 
 Outputs:
   FrontendBucketName:

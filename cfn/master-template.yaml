@@ -312,6 +312,7 @@ Resources:
         IdentityPoolId: !GetAtt ApiAuthStack.Outputs.IdentityPoolId
         ApiEndpoint: !GetAtt ApiGatewayStack.Outputs.ApiEndpoint
         FrontendBuilderFunctionArn: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
+        BucketCleanerFunctionArn: !GetAtt LambdaStack.Outputs.BucketCleanerFunctionArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -348,11 +349,13 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Condition: EnableCICDCondition
+    DependsOn: LambdaStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/codecommit-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
+        BucketCleanerFunctionArn: !GetAtt LambdaStack.Outputs.BucketCleanerFunctionArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
