@@ -10129,7 +10129,9 @@ def _process_protection_group_import(
                         )
                         applied_count = apply_results.get("applied", 0)
                         failed_count = apply_results.get("failed", 0)
-                        result["details"]["launchConfigApplied"] = applied_count
+                        result["details"][
+                            "launchConfigApplied"
+                        ] = applied_count
                         result["details"]["launchConfigFailed"] = failed_count
                         print(
                             f"[{correlation_id}] Applied LaunchConfig to {applied_count} servers"
