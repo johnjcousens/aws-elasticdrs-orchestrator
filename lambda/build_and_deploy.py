@@ -176,7 +176,7 @@ window.AWS_CONFIG = {{
         import re
 
         script_pattern = r"(<script[^>]*>)"
-        match = re.search(script_pattern, html_content)
+        match = re.search(script_pattern, html_content, re.IGNORECASE)
 
         if match:
             # Insert config script before first script tag
