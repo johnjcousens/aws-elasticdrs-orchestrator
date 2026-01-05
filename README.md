@@ -45,8 +45,6 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 |---------------|--------|-------------|--------|
 | **[Fresh Deployment](.kiro/specs/fresh-deployment/)** | 🟢 Ready | Complete deployment automation for fresh environments | 2-3 weeks |
 
-**Note**: Historical specifications have been archived. Only active specifications for future development are maintained in the `.kiro/specs/` directory.
-
 ### **GitHub Repository**
 
 **Repository**: [github.com/johnjcousens/aws-elasticdrs-orchestrator](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
