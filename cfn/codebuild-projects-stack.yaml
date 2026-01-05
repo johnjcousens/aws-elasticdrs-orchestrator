@@ -272,6 +272,18 @@ Resources:
                   - acm:*
                   - kms:*
                 Resource: '*'
+              # CodePipeline access for stack management
+              - Effect: Allow
+                Action:
+                  - codepipeline:CreatePipeline
+                  - codepipeline:DeletePipeline
+                  - codepipeline:UpdatePipeline
+                  - codepipeline:GetPipeline
+                  - codepipeline:GetPipelineState
+                  - codepipeline:ListPipelines
+                  - codepipeline:TagResource
+                  - codepipeline:UntagResource
+                Resource: '*'
       Tags:
         - Key: Project
           Value: !Ref ProjectName

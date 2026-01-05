@@ -136,8 +136,10 @@ Resources:
           Value: !Ref Environment
 
   # S3 Bucket Policy for CloudFront
+  # DependsOn EmptyFrontendBucketResource ensures bucket is emptied before policy deletion
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: EmptyFrontendBucketResource
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
