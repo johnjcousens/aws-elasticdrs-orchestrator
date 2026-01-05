@@ -48,8 +48,7 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 
 | Specification | Status | Description | Effort |
 |---------------|--------|-------------|--------|
-| **[Fresh Deployment](.kiro/specs/fresh-deployment/requirements.md)** | 🟢 Ready | Complete deployment automation | 2-3 weeks |
-| **[CI/CD Migration](.kiro/specs/cicd-migration/requirements.md)** | 🟢 Ready | GitHub Actions migration | 2 weeks |
+| **[Fresh Deployment](.kiro/specs/fresh-deployment/requirements.md)** | 🟢 Ready | Complete deployment automation for fresh environments | 2-3 weeks |
 
 ### **GitHub Repository**
 
@@ -351,11 +350,40 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 - [DRS Execution Walkthrough](docs/guides/DRS_EXECUTION_WALKTHROUGH.md) - Complete drill and recovery procedures
 - [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) - Common issues and debugging
 - [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) - Complete deployment procedures
+- [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) - Development, testing, and CI/CD workflows
+
+### Deployment Guides
+- [Fresh Deployment Guide](docs/guides/deployment/FRESH_DEPLOYMENT_GUIDE.md) - Complete fresh environment setup
+- [CI/CD Setup Guide](docs/guides/deployment/CICD_SETUP_GUIDE.md) - Automated deployment pipeline configuration
+- [CI/CD Activation Guide](docs/guides/deployment/ACTIVATE_CICD_GUIDE.md) - Enable automated deployments
+
+### Development Guides
+- [Developer Onboarding Checklist](docs/guides/development/developer-onboarding-checklist.md) - New developer setup
+- [Python Coding Standards](docs/guides/development/python-coding-standards.md) - PEP 8 compliance and quality standards
+- [PyCharm Setup Guide](docs/guides/development/pycharm-setup.md) - IDE configuration for development
+- [IDE Integration Testing](docs/guides/development/ide-integration-testing.md) - Testing IDE configurations
+- [IDE Troubleshooting FAQ](docs/guides/development/ide-troubleshooting-faq.md) - Common IDE issues and solutions
+
+### Troubleshooting Guides
+- [Deployment Troubleshooting](docs/guides/troubleshooting/DEPLOYMENT_TROUBLESHOOTING_GUIDE.md) - Deployment issues and solutions
+- [DRS Execution Troubleshooting](docs/guides/troubleshooting/DRS_EXECUTION_TROUBLESHOOTING_GUIDE.md) - Recovery execution debugging
+- [DRS Service Limits Testing](docs/guides/troubleshooting/DRS_SERVICE_LIMITS_TESTING.md) - Service limits and capacity planning
 
 ### Requirements & Architecture
 - [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD v2.1
 - [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v2.1
+- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design patterns v2.1
 - [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v2.1
+
+### Implementation Features
+- [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md) - Multi-account DRS operations
+- [DRS Source Server Management](docs/implementation/DRS_SOURCE_SERVER_MANAGEMENT.md) - Advanced server management
+- [Automation & Orchestration](docs/implementation/AUTOMATION_AND_ORCHESTRATION.md) - Workflow automation patterns
+
+### Reference Documentation
+- [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Complete IAM requirements
+- [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service constraints and planning
+- [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) - Multi-account configuration
 
 *All documentation updated to v2.1 (January 1, 2026) with EventBridge security enhancements.*
 
@@ -543,7 +571,23 @@ This comprehensive code quality implementation ensures the AWS DRS Orchestration
 
 ## Repository Snapshots & Rollback
 
-The repository uses Git tags to mark significant milestones:
+The repository uses Git tags to mark significant milestones and maintains a clean structure with historical artifacts preserved in the archive:
+
+### Archive Structure
+```text
+archive/
+├── build-artifacts/          # Historical build outputs and deployment packages
+├── cfn/                     # Legacy CloudFormation templates and configurations
+├── cicd-migration/          # Completed CI/CD migration specification (AWS CodePipeline deployed)
+├── presentations/           # Project presentations and demo materials
+├── python-coding-standards/ # Completed PEP 8 implementation specification (v1.2.2)
+├── reports/                 # Historical quality reports and compliance tracking (v1.2.2)
+├── repository-cleanup/      # Completed repository cleanup specification
+├── status-reports/          # Historical status reports and project updates
+└── working-lambda-reference/ # Reference Lambda implementations and development code
+```
+
+### Git Tags & Milestones
 
 | Tag | Description | Date | Commit |
 |-----|-------------|------|--------|
