@@ -27,10 +27,10 @@ AWS-DRS-Orchestration/
 ├── frontend/                     # React + CloudScape UI (37 components, 9 pages)
 ├── lambda/                       # Python Lambda functions (5 active functions)
 ├── scripts/                      # Deployment and automation scripts
-├── tests/                        # Python unit/integration and Playwright E2E tests
-├── docs/                         # Comprehensive documentation
+├── tests/                        # Python unit/integration tests (minimal, needs expansion)
+├── docs/                         # Comprehensive documentation (40+ files)
 ├── ssm-documents/                # SSM automation documents
-└── archive/                      # Historical artifacts and reference implementations
+└── archive/                      # Historical artifacts and reference implementations (6 categories)
 ```
 
 ## Core Technologies
@@ -74,6 +74,11 @@ AWS-DRS-Orchestration/
 - [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) - Development, testing, deployment
 - [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) - CLI, SSM, Step Functions integration
 - [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) - Common issues and debugging
+
+### Specialized Guides
+- **Deployment**: [docs/guides/deployment/](docs/guides/deployment/) - Fresh deployment, CI/CD setup and activation
+- **Development**: [docs/guides/development/](docs/guides/development/) - Developer onboarding, coding standards, IDE setup
+- **Troubleshooting**: [docs/guides/troubleshooting/](docs/guides/troubleshooting/) - Deployment, execution, and service limit debugging
 
 ### Implementation Features
 - [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md)

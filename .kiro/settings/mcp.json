@@ -1,73 +1,13 @@
 {
   "mcpServers": {
-    "aws-diagram": {
-      "command": "python3",
-      "args": [
-        "-m",
-        "aws_diagram_mcp.server"
-      ],
+    "aws-diagram-mcp": {
+      "command": "python3.10",
+      "args": ["/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/aws_diagram_mcp/server.py"],
       "env": {
-        "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP",
-        "DIAGRAM_OUTPUT_DIR": "./docs/architecture"
+        "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/aws_diagram_mcp"
       },
       "disabled": false,
-      "autoApprove": [
-        "analyze_diagram",
-        "analyze_diagram",
-        "generate_ad_dns_diagram",
-        "generate_ad_dns_diagram",
-        "generate_from_template",
-        "generate_from_template",
-        "generate_ec2_s3_diagram"
-      ]
-    },
-    "context-historian": {
-      "command": "python3",
-      "args": [
-        "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/context-historian-mcp/server.py"
-      ],
-      "env": {
-        "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/context-historian-mcp"
-      },
-      "disabled": false,
-      "autoApprove": [
-        "create_checkpoint"
-      ]
-    },
-    "code-explorer": {
-      "command": "python3",
-      "args": [
-        "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/code-explorer-mcp/server.py"
-      ],
-      "env": {
-        "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/code-explorer-mcp"
-      },
-      "disabled": false
-    },
-    "research-documenter": {
-      "command": "python3",
-      "args": [
-        "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/research-documenter-mcp/server.py"
-      ],
-      "env": {
-        "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/research-documenter-mcp"
-      },
-      "disabled": false,
-      "autoApprove": [
-        "research_aws_service",
-        "find_best_practices",
-        "research_library_documentation"
-      ]
-    },
-    "cfn-linter": {
-      "command": "python3",
-      "args": [
-        "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/cfn-linter-automation/server.py"
-      ],
-      "env": {
-        "PYTHONPATH": "/Users/jocousen/Library/CloudStorage/OneDrive-amazon.com/DOCUMENTS/CODE/GITHUB/AgenticAI/MCP/cfn-linter-automation"
-      },
-      "disabled": false
+      "autoApprove": []
     }
   }
 }
