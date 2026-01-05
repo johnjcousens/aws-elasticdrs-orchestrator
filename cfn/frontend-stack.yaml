@@ -42,6 +42,7 @@ Resources:
   # S3 Bucket for Frontend Hosting
   FrontendBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
     Properties:
       BucketName: !Sub '${ProjectName}-fe-${AWS::AccountId}-${Environment}'
       BucketEncryption:
@@ -55,6 +56,14 @@ Resources:
         RestrictPublicBuckets: true
       VersioningConfiguration:
         Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+          - Id: ExpireCurrentVersions
+            Status: Enabled
+            ExpirationInDays: 90
       Tags:
         - Key: Project
           Value: !Ref ProjectName
