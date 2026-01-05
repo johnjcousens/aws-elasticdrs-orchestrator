@@ -10127,14 +10127,12 @@ def _process_protection_group_import(
                             protection_group_id=group_id,
                             protection_group_name=pg_name,
                         )
-                        result["details"]["launchConfigApplied"] = (
-                            apply_results.get("applied", 0)
-                        )
-                        result["details"]["launchConfigFailed"] = (
-                            apply_results.get("failed", 0)
-                        )
+                        applied_count = apply_results.get("applied", 0)
+                        failed_count = apply_results.get("failed", 0)
+                        result["details"]["launchConfigApplied"] = applied_count
+                        result["details"]["launchConfigFailed"] = failed_count
                         print(
-                            f"[{correlation_id}] Applied LaunchConfig to {apply_results.get('applied', 0)} servers"
+                            f"[{correlation_id}] Applied LaunchConfig to {applied_count} servers"
                         )
                     except Exception as lc_err:
                         print(
