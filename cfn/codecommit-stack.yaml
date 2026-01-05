@@ -28,7 +28,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     Properties:
-      BucketName: !Sub '${ProjectName}-cicd-artifacts-${AWS::AccountId}-${Environment}'
+      BucketName: !Sub '${ProjectName}-cicd-${Environment}-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
