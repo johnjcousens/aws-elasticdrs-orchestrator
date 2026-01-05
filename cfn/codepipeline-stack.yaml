@@ -201,21 +201,21 @@ Resources:
               OutputArtifacts:
                 - Name: BuildOutput
 
-        # Test Stage - Integration and E2E tests (DISABLED TEMPORARILY)
-        # - Name: Test
-        #   Actions:
-        #     - Name: TestAction
-        #       ActionTypeId:
-        #         Category: Build
-        #         Owner: AWS
-        #         Provider: CodeBuild
-        #         Version: '1'
-        #       Configuration:
-        #         ProjectName: !Ref TestProjectName
-        #       InputArtifacts:
-        #         - Name: BuildOutput
-        #       OutputArtifacts:
-        #         - Name: TestOutput
+        # Test Stage - Integration and E2E tests
+        - Name: Test
+          Actions:
+            - Name: TestAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref TestProjectName
+              InputArtifacts:
+                - Name: BuildOutput
+              OutputArtifacts:
+                - Name: TestOutput
 
         # Deploy Infrastructure Stage
         - Name: DeployInfrastructure
@@ -232,12 +232,12 @@ Resources:
                   [
                     {
                       "name": "ADMIN_EMAIL",
-                      "value": "admin@example.com",
+                      "value": "***REMOVED***",
                       "type": "PLAINTEXT"
                     }
                   ]
               InputArtifacts:
-                - Name: BuildOutput
+                - Name: TestOutput
               OutputArtifacts:
                 - Name: DeployInfraOutput
 
