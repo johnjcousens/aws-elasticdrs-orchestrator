@@ -309,6 +309,7 @@ Resources:
         UserPermissionsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.UserPermissionsResourceId
         ProtectionGroupsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupsResourceId
         ProtectionGroupByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupResourceId
+        ProtectionGroupResolveResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupResolveResourceId
         RecoveryPlansResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlansResourceId
         RecoveryPlanByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlanResourceId
         RecoveryPlanExecuteResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlanExecuteResourceId

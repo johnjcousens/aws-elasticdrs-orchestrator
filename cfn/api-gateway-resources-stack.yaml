@@ -83,6 +83,13 @@ Resources:
       ParentId: !Ref ProtectionGroupsResource
       PathPart: '{id}'
 
+  ProtectionGroupResolveResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ProtectionGroupsResource
+      PathPart: 'resolve'
+
   # ============================================================================
   # API Resources - Recovery Plans
   # ============================================================================
@@ -380,6 +387,12 @@ Outputs:
     Value: !Ref ProtectionGroupResource
     Export:
       Name: !Sub '${AWS::StackName}-ProtectionGroupResourceId'
+
+  ProtectionGroupResolveResourceId:
+    Description: 'Protection Group Resolve Resource ID'
+    Value: !Ref ProtectionGroupResolveResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupResolveResourceId'
 
   # Recovery Plan Resources
   RecoveryPlansResourceId:
