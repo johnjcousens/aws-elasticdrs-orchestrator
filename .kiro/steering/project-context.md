@@ -25,18 +25,17 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform f
 AWS-DRS-Orchestration/
 ├── .amazonq/                     # Amazon Q Developer rules and configuration
 │   └── rules/                    # Amazon Q specific project context
+├── .github/                      # GitHub Actions CI/CD workflows
+│   └── workflows/                # Deployment automation
+│       └── deploy.yml            # Main deployment workflow
 ├── .kiro/                        # Kiro AI assistant configuration
 │   ├── settings/                 # MCP and other settings
 │   ├── specs/                    # Active specifications (fresh-deployment)
 │   └── steering/                 # AI steering documents (project-context.md)
-├── buildspecs/                   # AWS CodeBuild specifications (6 active files)
-│   ├── validate-buildspec.yml    # Template validation and code quality
-│   ├── security-buildspec.yml    # Comprehensive security scanning
-│   ├── build-buildspec.yml       # Lambda and frontend builds
-│   ├── test-buildspec.yml        # Unit and integration tests
-│   ├── deploy-infra-buildspec.yml # Infrastructure deployment
-│   └── deploy-frontend-buildspec.yml # Frontend deployment with dynamic config
-├── cfn/                          # CloudFormation Infrastructure as Code (7 templates)
+├── cfn/                          # CloudFormation Infrastructure as Code (8 templates)
+│   ├── master-template.yaml      # Root orchestrator for nested stacks
+│   ├── github-oidc-stack.yaml    # GitHub Actions OIDC integration (deploy separately)
+│   └── ...                       # Application stacks (database, lambda, api, etc.)
 ├── frontend/                     # React + CloudScape UI (37 components, 9 pages)
 ├── lambda/                       # Python Lambda functions (5 active functions)
 ├── scripts/                      # Deployment and automation scripts
@@ -98,45 +97,56 @@ AWS-DRS-Orchestration/
 
 ## CI/CD Infrastructure
 
-### AWS CodePipeline Deployment
+### GitHub Actions Deployment
 
-The project uses **AWS CodePipeline** for automated deployment with the following active infrastructure:
+The project uses **GitHub Actions** for automated CI/CD deployment.
 
-| Component | Name | Purpose |
-|-----------|------|---------|
-| **Pipeline** | `aws-elasticdrs-orchestrator-pipeline-dev` | 7-stage automated deployment |
-| **Primary Repository** | `aws-elasticdrs-orchestrator-dev` (CodeCommit) | Source code repository |
-| **Secondary Repository** | GitHub mirror | Development collaboration |
-| **Account** | 438465159935 | AWS account for all resources |
-| **Deployment Bucket** | `aws-elasticdrs-orchestrator` | Artifact storage |
+| Component | Description |
+|-----------|-------------|
+| **Workflow** | `.github/workflows/deploy.yml` |
+| **Repository** | GitHub (primary) |
+| **Account** | 438465159935 |
+| **Deployment Bucket** | `aws-elasticdrs-orchestrator` |
+| **OIDC Stack** | `cfn/github-oidc-stack.yaml` (deploy separately) |
 
-### Pipeline Stages
+### Workflow Stages
 
-1. **Source** (~30s) - Code retrieval from CodeCommit
-2. **Validate** (~2-3min) - CloudFormation validation, Python linting
-3. **SecurityScan** (~3-4min) - Bandit security scan, cfn-lint checks
-4. **Build** (~4-5min) - Lambda packaging, frontend builds
-5. **Test** (~3-4min) - Unit tests, integration tests, coverage
-6. **DeployInfrastructure** (~8-10min) - CloudFormation stack updates
-7. **DeployFrontend** (~2-3min) - S3 sync, CloudFront invalidation
+1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
+2. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
+3. **Build** (~3 min) - Lambda packaging, frontend build
+4. **Test** (~2 min) - Unit tests
+5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
 
-**Total Duration**: 15-20 minutes for complete deployment
+**Total Duration**: ~20 minutes for complete deployment
 
-### Development Workflow Options
+### Setup Instructions
 
-#### CI/CD Pipeline (Production)
+1. Deploy the GitHub OIDC stack (one-time):
 ```bash
-# Configure Git for CodeCommit
-export AWS_PROFILE=438465159935_AdministratorAccess
-git config --global credential.helper '!aws codecommit credential-helper $@'
-git config --global credential.UseHttpPath true
-
-# Add CodeCommit remote and push to trigger pipeline
-git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-elasticdrs-orchestrator-dev
-git push aws-pipeline main  # Triggers 15-20 minute deployment
+aws cloudformation deploy \
+  --template-file cfn/github-oidc-stack.yaml \
+  --stack-name PROJECT-github-oidc \
+  --parameter-overrides \
+    ProjectName=PROJECT \
+    Environment=ENV \
+    GitHubOrg=YOUR_ORG \
+    GitHubRepo=YOUR_REPO \
+    DeploymentBucket=YOUR_BUCKET \
+    ApplicationStackName=YOUR_APP_STACK \
+  --capabilities CAPABILITY_NAMED_IAM
 ```
 
-#### Manual Deployment (Development)
+2. Add GitHub repository secrets:
+   - `AWS_ROLE_ARN` - IAM role ARN from OIDC stack
+   - `DEPLOYMENT_BUCKET` - S3 bucket name
+   - `STACK_NAME` - CloudFormation stack name
+   - `ADMIN_EMAIL` - Admin email for Cognito
+
+3. Push to main branch to trigger deployment
+
+### Manual Deployment (Development)
+
 ```bash
 # Fast development workflow using S3 deployment bucket
 ./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # 5 seconds
@@ -147,7 +157,7 @@ git push aws-pipeline main  # Triggers 15-20 minute deployment
 
 ```
 s3://aws-elasticdrs-orchestrator/
-├── cfn/                     # CloudFormation templates (7 total)
+├── cfn/                     # CloudFormation templates
 ├── lambda/                  # Lambda deployment packages (5 functions)
 └── frontend/                # Frontend build artifacts
 ```
