@@ -2891,28 +2891,25 @@ def create_recovery_plan(body: Dict) -> Dict:
 
         # Validate waves if provided
         if waves:
-            # Normalize wave data to ensure names are preserved
-            normalized_waves = []
+            # Transform frontend camelCase to backend PascalCase for storage
+            backend_waves = []
             for idx, wave in enumerate(waves):
-                # Ensure wave has a name - use existing name or generate default
-                wave_name = wave.get("name") or wave.get("WaveName") or f"Wave {idx + 1}"
-                wave_description = wave.get("description") or wave.get("WaveDescription") or ""
-                
-                # Create normalized wave with both frontend and backend field names
-                normalized_wave = {
-                    **wave,  # Keep all original fields
-                    "name": wave_name,  # Frontend format
-                    "WaveName": wave_name,  # Backend format
-                    "description": wave_description,  # Frontend format  
-                    "WaveDescription": wave_description,  # Backend format
-                    "waveNumber": idx,  # Ensure correct numbering
+                backend_wave = {
+                    "WaveNumber": idx,
+                    "WaveName": wave.get("name", f"Wave {idx + 1}"),
+                    "WaveDescription": wave.get("description", ""),
+                    "ProtectionGroupId": wave.get("protectionGroupId", ""),
+                    "ProtectionGroupIds": wave.get("protectionGroupIds", []),
+                    "ServerIds": wave.get("serverIds", []),
+                    "PauseBeforeWave": wave.get("pauseBeforeWave", False),
+                    "DependsOnWaves": wave.get("dependsOnWaves", []),
                 }
-                normalized_waves.append(normalized_wave)
+                backend_waves.append(backend_wave)
             
-            # Update the item to use normalized waves
-            item["Waves"] = normalized_waves
+            # Store in backend format
+            item["Waves"] = backend_waves
             
-            validation_error = validate_waves(normalized_waves)
+            validation_error = validate_waves(backend_waves)
             if validation_error:
                 return response(400, {"error": validation_error})
 
@@ -3209,29 +3206,26 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         if waves is not None:
             print(f"Updating plan {plan_id} with {len(waves)} waves")
             
-            # Normalize wave data to ensure names are preserved
-            normalized_waves = []
+            # Transform frontend camelCase to backend PascalCase for storage
+            backend_waves = []
             for idx, wave in enumerate(waves):
-                # Ensure wave has a name - use existing name or generate default
-                wave_name = wave.get("name") or wave.get("WaveName") or f"Wave {idx + 1}"
-                wave_description = wave.get("description") or wave.get("WaveDescription") or ""
-                
-                # Create normalized wave with both frontend and backend field names
-                normalized_wave = {
-                    **wave,  # Keep all original fields
-                    "name": wave_name,  # Frontend format
-                    "WaveName": wave_name,  # Backend format
-                    "description": wave_description,  # Frontend format  
-                    "WaveDescription": wave_description,  # Backend format
-                    "waveNumber": idx,  # Ensure correct numbering
+                backend_wave = {
+                    "WaveNumber": idx,
+                    "WaveName": wave.get("name", f"Wave {idx + 1}"),
+                    "WaveDescription": wave.get("description", ""),
+                    "ProtectionGroupId": wave.get("protectionGroupId", ""),
+                    "ProtectionGroupIds": wave.get("protectionGroupIds", []),
+                    "ServerIds": wave.get("serverIds", []),
+                    "PauseBeforeWave": wave.get("pauseBeforeWave", False),
+                    "DependsOnWaves": wave.get("dependsOnWaves", []),
                 }
-                normalized_waves.append(normalized_wave)
+                backend_waves.append(backend_wave)
             
-            # Store normalized waves in DynamoDB format
-            body["Waves"] = normalized_waves
+            # Store in backend format
+            body["Waves"] = backend_waves
 
             # DEFENSIVE: Validate ServerIds in each wave
-            for idx, wave in enumerate(normalized_waves):
+            for idx, wave in enumerate(backend_waves):
                 server_ids = wave.get("ServerIds", [])
                 if not isinstance(server_ids, list):
                     print(
@@ -7761,22 +7755,14 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         waves.append(
             {
                 "waveNumber": idx,
-                "name": wave.get("name") or wave.get("WaveName", ""),  # Support both frontend and backend formats
-                "description": wave.get("description") or wave.get("WaveDescription", ""),  # Support both formats
+                "name": wave.get("WaveName", ""),
+                "description": wave.get("WaveDescription", ""),
                 "serverIds": server_ids,  # Now guaranteed to be a list
                 "executionType": wave.get("ExecutionType", "sequential"),
                 "dependsOnWaves": depends_on_waves,
-                "protectionGroupId": wave.get(
-                    "ProtectionGroupId"
-                ) or wave.get("protectionGroupId"),  # Support both formats
-                "protectionGroupIds": (
-                    wave.get("protectionGroupIds") or 
-                    ([wave.get("ProtectionGroupId")] if wave.get("ProtectionGroupId") else []) or
-                    ([wave.get("protectionGroupId")] if wave.get("protectionGroupId") else [])
-                ),  # Support multiple formats
-                "pauseBeforeWave": wave.get(
-                    "PauseBeforeWave", False
-                ) or wave.get("pauseBeforeWave", False),  # Support both formats
+                "protectionGroupId": wave.get("ProtectionGroupId", ""),
+                "protectionGroupIds": wave.get("ProtectionGroupIds", []),
+                "pauseBeforeWave": wave.get("PauseBeforeWave", False),
             }
         )
 
