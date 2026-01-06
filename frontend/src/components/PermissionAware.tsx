@@ -79,7 +79,7 @@ export const PermissionWrapper: React.FC<PermissionWrapperProps> = ({
     if (showDisabled) {
       // Clone children and add disabled prop if it's a React element
       if (React.isValidElement(children)) {
-        return React.cloneElement(children as React.ReactElement<any>, {
+        return React.cloneElement(children as React.ReactElement<{ disabled?: boolean; title?: string }>, {
           disabled: true,
           title: `Permission required: ${requiredPermission || requiredPermissions?.join(', ')}`
         });

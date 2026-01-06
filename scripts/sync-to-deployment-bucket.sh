@@ -484,47 +484,47 @@ get_lambda_function_name() {
     echo "$function_name"
 }
 
-# Helper function to package Lambda
-package_lambda() {
-    echo "📦 Packaging Lambda function..." >&2
+# Helper function to package a single Lambda function
+# Usage: package_lambda_function <function_dir> <output_zip>
+# Example: package_lambda_function "api-handler" "/tmp/api-handler.zip"
+package_lambda_function() {
+    local function_dir="$1"
+    local output_zip="$2"
+    
+    echo "📦 Packaging $function_dir..." >&2
     cd "$PROJECT_ROOT/lambda"
     
-    # Create deployment package
-    local package_file="deployment-package.zip"
-    rm -f "$package_file"
+    rm -f "$output_zip"
     
-    # Install dependencies if requirements.txt exists
-    if [ -f requirements.txt ]; then
-        pip install -r requirements.txt -t package/ --quiet
-    fi
-    
-    # Create zip with dependencies
-    if [ -d "package" ]; then
+    # Initialize zip (create empty or with dependencies)
+    if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
         cd package
-        zip -r ../"$package_file" . > /dev/null
+        zip -qr "$output_zip" .
         cd ..
     else
-        mkdir -p package
-        cd package
-        zip -r ../"$package_file" . > /dev/null
-        cd ..
+        # Create empty zip
+        touch /tmp/empty_placeholder
+        zip -q "$output_zip" /tmp/empty_placeholder
+        zip -qd "$output_zip" empty_placeholder 2>/dev/null || true
+        rm -f /tmp/empty_placeholder
     fi
     
-    # Add Lambda code to zip
-    zip -g "$package_file" index.py > /dev/null
-    if [ -f "rbac_middleware.py" ]; then
-        zip -g "$package_file" rbac_middleware.py > /dev/null
+    # Add the function's index.py (renamed to index.py at root of zip)
+    if [ -f "$function_dir/index.py" ]; then
+        zip -qj "$output_zip" "$function_dir/index.py"
     fi
-    # Add security_utils dependency (required by index.py)
-    if [ -f "security_utils.py" ]; then
-        zip -g "$package_file" security_utils.py > /dev/null
-    fi
-    if [ -d "poller" ]; then
-        zip -rg "$package_file" poller/ > /dev/null
+    
+    # Add shared modules from lambda/shared/
+    if [ -d "shared" ]; then
+        for shared_file in shared/*.py; do
+            if [ -f "$shared_file" ]; then
+                zip -qj "$output_zip" "$shared_file"
+            fi
+        done
     fi
     
     cd "$PROJECT_ROOT"
-    echo "$package_file"
+    echo "$output_zip"
 }
 
 # Individual stack deployment: Update Lambda code directly (fastest)
@@ -534,7 +534,7 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         echo ""
     else
         echo "======================================"
-        echo "⚡ Fast Lambda Code Update"
+        echo "⚡ Fast Lambda Code Update (API Handler)"
         echo "======================================"
         echo ""
         
@@ -542,51 +542,8 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         LAMBDA_FUNCTION=$(get_lambda_function_name)
         
-        # Create proper Lambda package with dependencies
-        echo "📦 Creating Lambda package with dependencies..."
-        cd "$PROJECT_ROOT/lambda"
-        rm -f /tmp/lambda-quick.zip
-        
-        # First, add dependencies from package/ directory (at root level of zip)
-        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-            echo "  Adding dependencies from package/..."
-            cd package
-            zip -qr /tmp/lambda-quick.zip .
-            cd ..
-        else
-            # Initialize empty zip
-            echo "  No package/ dependencies found, creating minimal package..."
-            touch /tmp/empty_placeholder
-            zip -q /tmp/lambda-quick.zip /tmp/empty_placeholder
-            zip -qd /tmp/lambda-quick.zip empty_placeholder 2>/dev/null || true
-            rm -f /tmp/empty_placeholder
-        fi
-        
-        # Add Lambda code files at root level
-        echo "  Adding Lambda code files..."
-        zip -qg /tmp/lambda-quick.zip index.py
-        if [ -f "requirements.txt" ]; then
-            zip -qg /tmp/lambda-quick.zip requirements.txt
-        fi
-        # Add rbac_middleware dependency (required by index.py)
-        if [ -f "rbac_middleware.py" ]; then
-            zip -qg /tmp/lambda-quick.zip rbac_middleware.py
-        fi
-        # Add security_utils dependency (required by index.py)
-        if [ -f "security_utils.py" ]; then
-            zip -qg /tmp/lambda-quick.zip security_utils.py
-        fi
-        if [ -d "poller" ]; then
-            zip -qrg /tmp/lambda-quick.zip poller/
-        fi
-        if [ -f "orchestration_stepfunctions.py" ]; then
-            zip -qg /tmp/lambda-quick.zip orchestration_stepfunctions.py
-        fi
-        if [ -f "build_and_deploy.py" ]; then
-            zip -qg /tmp/lambda-quick.zip build_and_deploy.py
-        fi
-        
-        cd "$PROJECT_ROOT"
+        # Package API handler using new directory structure
+        package_lambda_function "api-handler" "/tmp/lambda-quick.zip"
         
         echo "⚡ Updating Lambda function code..."
         aws lambda update-function-code \
@@ -626,148 +583,44 @@ if [ "$UPDATE_ALL_LAMBDA" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
+        # Lambda functions to update (new directory structure)
+        # Format: "directory-name:lambda-function-name"
+        LAMBDA_FUNCTIONS=(
+            "api-handler:aws-elasticdrs-orchestrator-api-handler-dev"
+            "orchestration-stepfunctions:aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev"
+            "frontend-builder:aws-elasticdrs-orchestrator-frontend-builder-dev"
+            "execution-finder:aws-elasticdrs-orchestrator-execution-finder-dev"
+            "execution-poller:aws-elasticdrs-orchestrator-execution-poller-dev"
+        )
+        
         cd "$PROJECT_ROOT/lambda"
         
-        # Update each Lambda function individually with proper dependencies
-        echo "📦 Packaging index (API Handler)..."
-        rm -f "/tmp/lambda-index.zip"
-        
-        # Add dependencies if they exist
-        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-            cd package
-            zip -qr "/tmp/lambda-index.zip" .
-            cd ..
-        fi
-        
-        # Add the main handler and its dependencies (files must be at root level in zip)
-        zip -qj "/tmp/lambda-index.zip" "index.py" 2>/dev/null || zip -qj "/tmp/lambda-index.zip" "index.py"
-        # Add rbac_middleware dependency (required by index.py)
-        if [ -f "rbac_middleware.py" ]; then
-            zip -qj "/tmp/lambda-index.zip" "rbac_middleware.py"
-        fi
-        # Add security_utils dependency (required by index.py)
-        if [ -f "security_utils.py" ]; then
-            zip -qj "/tmp/lambda-index.zip" "security_utils.py"
-        fi
-        
-        echo "⚡ Updating aws-elasticdrs-orchestrator-api-handler-dev..."
-        aws lambda update-function-code \
-            --function-name "aws-elasticdrs-orchestrator-api-handler-dev" \
-            --zip-file "fileb:///tmp/lambda-index.zip" \
-            $PROFILE_FLAG \
-            --region $REGION \
-            --query 'LastModified' \
-            --output text > /dev/null 2>&1 && echo "  ✅ API Handler updated" || echo "  ⚠️  API Handler update failed"
-        
-        rm -f "/tmp/lambda-index.zip"
-        
-        # Update orchestration stepfunctions
-        echo "📦 Packaging orchestration_stepfunctions..."
-        rm -f "/tmp/lambda-orchestration.zip"
-        
-        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-            cd package
-            zip -qr "/tmp/lambda-orchestration.zip" .
-            cd ..
-        fi
-        
-        zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py" 2>/dev/null || zip -qj "/tmp/lambda-orchestration.zip" "orchestration_stepfunctions.py"
-        # Add security_utils dependency
-        if [ -f "security_utils.py" ]; then
-            zip -qj "/tmp/lambda-orchestration.zip" "security_utils.py"
-        fi
-        
-        echo "⚡ Updating aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev..."
-        aws lambda update-function-code \
-            --function-name "aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev" \
-            --zip-file "fileb:///tmp/lambda-orchestration.zip" \
-            $PROFILE_FLAG \
-            --region $REGION \
-            --query 'LastModified' \
-            --output text > /dev/null 2>&1 && echo "  ✅ Orchestration StepFunctions updated" || echo "  ⚠️  Orchestration StepFunctions update failed"
-        
-        rm -f "/tmp/lambda-orchestration.zip"
-        
-        # Update frontend builder
-        echo "📦 Packaging build_and_deploy..."
-        rm -f "/tmp/lambda-builder.zip"
-        
-        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-            cd package
-            zip -qr "/tmp/lambda-builder.zip" .
-            cd ..
-        fi
-        
-        zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py" 2>/dev/null || zip -qj "/tmp/lambda-builder.zip" "build_and_deploy.py"
-        # Add security_utils dependency
-        if [ -f "security_utils.py" ]; then
-            zip -qj "/tmp/lambda-builder.zip" "security_utils.py"
-        fi
-        
-        echo "⚡ Updating aws-elasticdrs-orchestrator-frontend-builder-dev..."
-        aws lambda update-function-code \
-            --function-name "aws-elasticdrs-orchestrator-frontend-builder-dev" \
-            --zip-file "fileb:///tmp/lambda-builder.zip" \
-            $PROFILE_FLAG \
-            --region $REGION \
-            --query 'LastModified' \
-            --output text > /dev/null 2>&1 && echo "  ✅ Frontend Builder updated" || echo "  ⚠️  Frontend Builder update failed"
-        
-        rm -f "/tmp/lambda-builder.zip"
-        
-        # Update execution finder
-        echo "📦 Packaging execution_finder..."
-        rm -f "/tmp/lambda-finder.zip"
-        
-        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-            cd package
-            zip -qr "/tmp/lambda-finder.zip" .
-            cd ..
-        fi
-        
-        zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py" 2>/dev/null || zip -qj "/tmp/lambda-finder.zip" "poller/execution_finder.py"
-        # Add security_utils dependency
-        if [ -f "security_utils.py" ]; then
-            zip -qj "/tmp/lambda-finder.zip" "security_utils.py"
-        fi
-        
-        echo "⚡ Updating aws-elasticdrs-orchestrator-execution-finder-dev..."
-        aws lambda update-function-code \
-            --function-name "aws-elasticdrs-orchestrator-execution-finder-dev" \
-            --zip-file "fileb:///tmp/lambda-finder.zip" \
-            $PROFILE_FLAG \
-            --region $REGION \
-            --query 'LastModified' \
-            --output text > /dev/null 2>&1 && echo "  ✅ Execution Finder updated" || echo "  ⚠️  Execution Finder update failed"
-        
-        rm -f "/tmp/lambda-finder.zip"
-        
-        # Update execution poller
-        echo "📦 Packaging execution_poller..."
-        rm -f "/tmp/lambda-poller.zip"
-        
-        if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-            cd package
-            zip -qr "/tmp/lambda-poller.zip" .
-            cd ..
-        fi
-        
-        zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py" 2>/dev/null || zip -qj "/tmp/lambda-poller.zip" "poller/execution_poller.py"
-        # Add security_utils dependency
-        if [ -f "security_utils.py" ]; then
-            zip -qj "/tmp/lambda-poller.zip" "security_utils.py"
-        fi
-        
-        echo "⚡ Updating aws-elasticdrs-orchestrator-execution-poller-dev..."
-        aws lambda update-function-code \
-            --function-name "aws-elasticdrs-orchestrator-execution-poller-dev" \
-            --zip-file "fileb:///tmp/lambda-poller.zip" \
-            $PROFILE_FLAG \
-            --region $REGION \
-            --query 'LastModified' \
-            --output text > /dev/null 2>&1 && echo "  ✅ Execution Poller updated" || echo "  ⚠️  Execution Poller update failed"
-        
-        rm -f "/tmp/lambda-poller.zip"
+        for func_entry in "${LAMBDA_FUNCTIONS[@]}"; do
+            # Parse directory and function name
+            func_dir="${func_entry%%:*}"
+            func_name="${func_entry##*:}"
+            
+            # Check if function directory exists
+            if [ ! -d "$func_dir" ]; then
+                echo "⚠️  Directory $func_dir not found, skipping..."
+                continue
+            fi
+            
+            # Package the function
+            package_lambda_function "$func_dir" "/tmp/lambda-${func_dir}.zip"
+            
+            # Update the Lambda function
+            echo "⚡ Updating $func_name..."
+            aws lambda update-function-code \
+                --function-name "$func_name" \
+                --zip-file "fileb:///tmp/lambda-${func_dir}.zip" \
+                $PROFILE_FLAG \
+                --region $REGION \
+                --query 'LastModified' \
+                --output text > /dev/null 2>&1 && echo "  ✅ $func_dir updated" || echo "  ⚠️  $func_dir update failed"
+            
+            rm -f "/tmp/lambda-${func_dir}.zip"
+        done
         
         cd "$PROJECT_ROOT"
         
@@ -796,16 +649,26 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
-        # Package and upload Lambda code
-        PACKAGE_FILE=$(package_lambda)
+        # Package and upload all Lambda functions
+        echo "📦 Packaging Lambda functions..."
         
-        echo "☁️  Uploading Lambda package to S3..."
-        aws s3 cp "lambda/$PACKAGE_FILE" "s3://$BUCKET/lambda/$PACKAGE_FILE" \
-            $PROFILE_FLAG \
-            --region $REGION \
-            --metadata "git-commit=$GIT_COMMIT,sync-time=$SYNC_TIME" \
-           
-        echo "  ✅ Package uploaded"
+        LAMBDA_DIRS=("api-handler" "orchestration-stepfunctions" "frontend-builder" "execution-finder" "execution-poller")
+        
+        for func_dir in "${LAMBDA_DIRS[@]}"; do
+            if [ -d "$PROJECT_ROOT/lambda/$func_dir" ]; then
+                package_lambda_function "$func_dir" "/tmp/${func_dir}.zip"
+                
+                echo "☁️  Uploading ${func_dir}.zip to S3..."
+                aws s3 cp "/tmp/${func_dir}.zip" "s3://$BUCKET/lambda/${func_dir}.zip" \
+                    $PROFILE_FLAG \
+                    --region $REGION \
+                    --metadata "git-commit=$GIT_COMMIT,sync-time=$SYNC_TIME" \
+                    > /dev/null
+                
+                rm -f "/tmp/${func_dir}.zip"
+                echo "  ✅ ${func_dir}.zip uploaded"
+            fi
+        done
         echo ""
         
         # Get Lambda stack name from parent stack
@@ -977,48 +840,27 @@ if [ "$DEPLOY_CFN" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
-        # Package Lambda function
-        echo "📦 Packaging Lambda function..."
-        cd "$PROJECT_ROOT/lambda"
+        # Package all Lambda functions using new directory structure
+        echo "📦 Packaging Lambda functions..."
         
-        # Create deployment package
-        PACKAGE_FILE="deployment-package.zip"
-        rm -f "$PACKAGE_FILE"
+        LAMBDA_DIRS=("api-handler" "orchestration-stepfunctions" "frontend-builder" "execution-finder" "execution-poller")
         
-        # Install dependencies to package directory
-        if [ -f requirements.txt ]; then
-            pip install -r requirements.txt -t package/ --quiet
-        fi
+        for func_dir in "${LAMBDA_DIRS[@]}"; do
+            if [ -d "$PROJECT_ROOT/lambda/$func_dir" ]; then
+                package_lambda_function "$func_dir" "/tmp/${func_dir}.zip"
+                
+                echo "  ☁️  Uploading ${func_dir}.zip to S3..."
+                aws s3 cp "/tmp/${func_dir}.zip" "s3://$BUCKET/lambda/${func_dir}.zip" \
+                    $PROFILE_FLAG \
+                    --region $REGION \
+                    --metadata "git-commit=$GIT_COMMIT,sync-time=$SYNC_TIME" \
+                    > /dev/null
+                
+                rm -f "/tmp/${func_dir}.zip"
+                echo "  ✅ ${func_dir}.zip uploaded"
+            fi
+        done
         
-        # Create zip with dependencies
-        cd package
-        zip -r ../"$PACKAGE_FILE" . > /dev/null
-        cd ..
-        
-        # Add Lambda code to zip with dependencies
-        zip -g "$PACKAGE_FILE" index.py > /dev/null
-        # Add rbac_middleware dependency (required by index.py)
-        if [ -f "rbac_middleware.py" ]; then
-            zip -g "$PACKAGE_FILE" rbac_middleware.py > /dev/null
-        fi
-        # Add security_utils dependency (required by index.py)
-        if [ -f "security_utils.py" ]; then
-            zip -g "$PACKAGE_FILE" security_utils.py > /dev/null
-        fi
-        if [ -d "poller" ]; then
-            zip -rg "$PACKAGE_FILE" poller/ > /dev/null
-        fi
-        
-        # Upload Lambda package to S3
-        echo "  ☁️  Uploading Lambda package to S3..."
-        aws s3 cp "$PACKAGE_FILE" "s3://$BUCKET/lambda/$PACKAGE_FILE" \
-            $PROFILE_FLAG \
-            --region $REGION \
-            --metadata "git-commit=$GIT_COMMIT,sync-time=$SYNC_TIME" \
-           
-        
-        cd "$PROJECT_ROOT"
-        echo "  ✅ Lambda package uploaded"
         echo ""
         
         # Update parent stack (will automatically propagate to nested stacks)

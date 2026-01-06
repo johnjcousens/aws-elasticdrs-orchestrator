@@ -91,12 +91,14 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     setError(null);
     try {
       const fetchedAccounts = await apiClient.getTargetAccounts();
-      setAccounts(fetchedAccounts);
-      onAccountsChange?.(fetchedAccounts);
+      // Defensive check: ensure fetchedAccounts is an array
+      const accountsArray = Array.isArray(fetchedAccounts) ? fetchedAccounts : [];
+      setAccounts(accountsArray);
+      onAccountsChange?.(accountsArray);
       
       // Auto-set default account if only one account exists and no default is set
-      if (fetchedAccounts.length === 1 && !defaultAccountId) {
-        const singleAccount = fetchedAccounts[0];
+      if (accountsArray.length === 1 && !defaultAccountId) {
+        const singleAccount = accountsArray[0];
         setDefaultAccountId(singleAccount.accountId);
         // Apply the default account selection immediately
         applyDefaultAccount(singleAccount.accountId);
@@ -107,7 +109,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [defaultAccountId, onAccountsChange]);
+  }, [defaultAccountId, onAccountsChange, setDefaultAccountId, applyDefaultAccount]);
 
   useEffect(() => {
     refreshAccounts();
@@ -131,7 +133,11 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         // No cross-account role needed for same account
       };
 
-      await apiClient.createTargetAccount(accountData);
+      await apiClient.createTargetAccount({
+        accountId: accountData.accountId,
+        accountName: accountData.accountName,
+        roleArn: '',  // No cross-account role needed for same account
+      });
       toast.success(`Current account ${currentAccount.accountName} (${currentAccount.accountId}) added successfully and set as default`);
       
       await refreshAccounts();
@@ -216,10 +222,17 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       }
 
       if (editingAccount) {
-        await apiClient.updateTargetAccount(editingAccount.accountId, accountData);
+        await apiClient.updateTargetAccount(editingAccount.accountId, {
+          accountName: accountData.accountName,
+          roleArn: accountData.crossAccountRoleArn,
+        });
         toast.success('Target account updated successfully');
       } else {
-        await apiClient.createTargetAccount(accountData);
+        await apiClient.createTargetAccount({
+          accountId: accountData.accountId,
+          accountName: accountData.accountName,
+          roleArn: accountData.crossAccountRoleArn,
+        });
         toast.success('Target account added successfully');
       }
       

@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - January 6, 2026
+
+### Added
+- **GitHub Actions CI/CD Pipeline**: Complete migration from AWS CodePipeline to GitHub Actions
+  - OIDC-based authentication (no long-lived credentials)
+  - 6-stage pipeline: Validate, Security Scan, Build, Test, Deploy Infrastructure, Deploy Frontend
+  - S3-based CloudFormation validation for large templates (>51,200 bytes)
+  - Automatic CloudFront cache invalidation on frontend deployment
+  - SNS pipeline notifications enabled by default
+
+### Fixed
+- **CORS 403 Error on API Gateway**: Resolved OPTIONS preflight failures on `/accounts/targets` endpoint
+  - Removed restrictive resource policy from API Gateway REST API
+  - Created new API deployment to apply CORS configuration changes
+  - All 68+ API methods now have proper CORS OPTIONS handlers
+- **Cognito Rate Limiting**: Fixed infinite re-render loop in AuthContext causing `TooManyRequestsException`
+  - Stabilized `useEffect` dependencies to prevent continuous token refresh
+  - Added proper memoization for auth state management
+- **Frontend Array.isArray Checks**: Added defensive checks across 9 frontend files to prevent `.map()` errors on non-array API responses
+  - AccountContext.tsx, AccountSelector.tsx, ProtectionGroupsPage.tsx
+  - RecoveryPlansPage.tsx, ExecutionsPage.tsx, Dashboard.tsx
+  - ServerSelector.tsx, WaveConfigEditor.tsx, api.ts
+- **CI/CD Large Template Validation**: Fixed CloudFormation validation for templates exceeding 51,200 bytes
+  - Templates now uploaded to S3 before validation
+  - Supports api-gateway-stack.yaml (200KB+) validation
+
+### Changed
+- **Lambda Directory Structure**: Reorganized Lambda functions into consistent directory structure
+  - Each function now in its own directory with `index.py` entry point
+  - Updated CloudFormation handlers to use `index.lambda_handler`
+  - Removed unused Lambda reference implementations
+- **API Gateway Stack**: Added all missing API methods with CORS support
+  - 68+ methods across 12 resource categories
+  - Complete OPTIONS method coverage for CORS preflight
+- **Frontend Build**: Removed FrontendBuildResource custom resource (now handled by CI/CD)
+
+### Technical Details
+- **29 commits consolidated** into this release
+- **API Gateway ID**: `bev96ut7y8` (aws-elasticdrs-orchestrator-dev)
+- **CloudFront Distribution**: `E32V6SWDNQ34DC`
+- **Deployment Duration**: ~20 minutes for full CI/CD pipeline
+
+### Migration Notes
+- GitHub Actions workflow at `.github/workflows/deploy.yml`
+- OIDC stack deployed separately via `cfn/github-oidc-stack.yaml`
+- Required GitHub secrets: `AWS_ROLE_ARN`, `DEPLOYMENT_BUCKET`, `STACK_NAME`, `ADMIN_EMAIL`
+
 ## [1.2.2] - January 2, 2026
 
 ### Enhanced

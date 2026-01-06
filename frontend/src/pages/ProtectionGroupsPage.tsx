@@ -73,7 +73,9 @@ export const ProtectionGroupsPage: React.FC = () => {
   const fetchRecoveryPlansForGroupCheck = async () => {
     try {
       const accountId = getCurrentAccountId();
-      const plans = await apiClient.listRecoveryPlans(accountId ? { accountId } : undefined);
+      const plansResponse = await apiClient.listRecoveryPlans(accountId ? { accountId } : undefined);
+      // Defensive check: ensure plans is an array
+      const plans = Array.isArray(plansResponse) ? plansResponse : [];
       const usedGroupIds = new Set<string>();
       const activeGroupIds = new Set<string>();
       
@@ -97,7 +99,8 @@ export const ProtectionGroupsPage: React.FC = () => {
       try {
         const accountId = getCurrentAccountId();
         const executionsResponse = await apiClient.listExecutions(accountId ? { accountId } : undefined);
-        const executions = executionsResponse.items || [];
+        // Defensive check: ensure items is an array
+        const executions = Array.isArray(executionsResponse?.items) ? executionsResponse.items : [];
         const activeStatuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
         executions.forEach((exec: { status?: string; recoveryPlanId?: string }) => {
           const status = String(exec.status || '').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
@@ -123,7 +126,8 @@ export const ProtectionGroupsPage: React.FC = () => {
       setError(null);
       const accountId = getCurrentAccountId();
       const data = await apiClient.listProtectionGroups(accountId ? { accountId } : undefined);
-      setGroups(data);
+      // Defensive check: ensure data is an array
+      setGroups(Array.isArray(data) ? data : []);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to load protection groups';
       setError(errorMessage);

@@ -5,7 +5,7 @@
  * Includes wave progress, server status, and cancel functionality.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   Box,
@@ -51,32 +51,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
-  // Fetch execution details
-  useEffect(() => {
-    if (open && executionId) {
-      fetchExecution();
-    }
-  }, [open, executionId]);
-
-  // Real-time polling for active executions
-  useEffect(() => {
-    if (!open || !execution) return;
-
-    const isActive = 
-      execution.status === 'in_progress' || 
-      execution.status === 'pending' ||
-      execution.status === 'paused';
-
-    if (!isActive) return;
-
-    const interval = setInterval(() => {
-      fetchExecution(true); // Silent refresh
-    }, 5000); // Poll every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [open, execution]);
-
-  const fetchExecution = async (silent = false) => {
+  const fetchExecution = useCallback(async (silent = false) => {
     if (!executionId) return;
 
     try {
@@ -94,7 +69,32 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
         setLoading(false);
       }
     }
-  };
+  }, [executionId]);
+
+  // Fetch execution details
+  useEffect(() => {
+    if (open && executionId) {
+      fetchExecution();
+    }
+  }, [open, executionId, fetchExecution]);
+
+  // Real-time polling for active executions
+  useEffect(() => {
+    if (!open || !execution) return;
+
+    const isActive = 
+      execution.status === 'in_progress' || 
+      execution.status === 'pending' ||
+      execution.status === 'paused';
+
+    if (!isActive) return;
+
+    const interval = setInterval(() => {
+      fetchExecution(true); // Silent refresh
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [open, execution, fetchExecution]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;

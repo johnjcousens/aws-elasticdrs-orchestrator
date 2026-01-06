@@ -80,8 +80,8 @@ safe_rm lambda/package/
 safe_rm lambda/deployment-package.zip
 safe_rm lambda/lambda-package.zip
 safe_rm lambda/orchestration-package.zip
-safe_rm lambda/poller/htmlcov/
-safe_rm lambda/poller/.coverage
+find lambda/ -name "htmlcov" -type d -exec rm -rf {} + 2>/dev/null || true
+find lambda/ -name ".coverage" -delete 2>/dev/null || true
 find lambda/ -name "*.zip" -delete 2>/dev/null || true
 
 # 7. Remove Python cache files

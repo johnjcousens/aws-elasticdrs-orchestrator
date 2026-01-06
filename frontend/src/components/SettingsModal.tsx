@@ -6,7 +6,7 @@
  * Import/Export tabs are only visible to users with appropriate permissions.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Modal,
   Tabs,
@@ -35,53 +35,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const canExport = hasPermission(DRSPermission.EXPORT_CONFIGURATION);
   const canImport = hasPermission(DRSPermission.IMPORT_CONFIGURATION);
 
-  // Build tabs array based on permissions
-  const tabs = [
-    {
-      id: 'accounts',
-      label: 'Account Management',
-      content: (
-        <Box padding={{ top: 'm' }}>
-          <AccountManagementPanel />
-        </Box>
-      ),
-    },
-    {
-      id: 'tag-sync',
-      label: 'Tag Sync',
-      content: (
-        <Box padding={{ top: 'm' }}>
-          <TagSyncConfigPanel />
-        </Box>
-      ),
-    },
-  ];
+  // Build tabs array based on permissions - memoized to prevent useEffect dependency changes
+  const tabs = useMemo(() => {
+    const baseTabs = [
+      {
+        id: 'accounts',
+        label: 'Account Management',
+        content: (
+          <Box padding={{ top: 'm' }}>
+            <AccountManagementPanel />
+          </Box>
+        ),
+      },
+      {
+        id: 'tag-sync',
+        label: 'Tag Sync',
+        content: (
+          <Box padding={{ top: 'm' }}>
+            <TagSyncConfigPanel />
+          </Box>
+        ),
+      },
+    ];
 
-  // Add Export tab if user has permission
-  if (canExport) {
-    tabs.push({
-      id: 'export',
-      label: 'Export Configuration',
-      content: (
-        <Box padding={{ top: 'm' }}>
-          <ConfigExportPanel onExportComplete={onDismiss} />
-        </Box>
-      ),
-    });
-  }
+    // Add Export tab if user has permission
+    if (canExport) {
+      baseTabs.push({
+        id: 'export',
+        label: 'Export Configuration',
+        content: (
+          <Box padding={{ top: 'm' }}>
+            <ConfigExportPanel onExportComplete={onDismiss} />
+          </Box>
+        ),
+      });
+    }
 
-  // Add Import tab if user has permission
-  if (canImport) {
-    tabs.push({
-      id: 'import',
-      label: 'Import Configuration',
-      content: (
-        <Box padding={{ top: 'm' }}>
-          <ConfigImportPanel onImportComplete={onDismiss} />
-        </Box>
-      ),
-    });
-  }
+    // Add Import tab if user has permission
+    if (canImport) {
+      baseTabs.push({
+        id: 'import',
+        label: 'Import Configuration',
+        content: (
+          <Box padding={{ top: 'm' }}>
+            <ConfigImportPanel onImportComplete={onDismiss} />
+          </Box>
+        ),
+      });
+    }
+    
+    return baseTabs;
+  }, [canExport, canImport, onDismiss]);
 
   // Reset active tab to 'accounts' if current tab is not available
   React.useEffect(() => {

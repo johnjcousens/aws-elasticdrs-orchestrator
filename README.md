@@ -7,7 +7,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.2.2%20Code%20Quality-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.2.2)
+[![Release](https://img.shields.io/badge/Release-v1.3.0%20GitHub%20Actions%20CI/CD-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.3.0)
 
 ## 🤖 **For AI Agents - Start Here**
 
@@ -56,11 +56,11 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 | Releases | [Releases](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases) |
 | Actions | [Actions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions) |
 
-## 🚀 **Latest Release: v1.2.2 - Code Quality Enhancement**
+## 🚀 **Latest Release: v1.3.0 - GitHub Actions CI/CD**
 
-**Latest Version**: v1.2.2 (January 2, 2026) - Complete Python coding standards implementation with 187 PEP 8 violations resolved and zero functional changes.
+**Latest Version**: v1.3.0 (January 6, 2026) - Complete migration to GitHub Actions CI/CD with OIDC authentication, CORS fixes, and frontend stability improvements.
 
-**[View Complete Release Notes →](CHANGELOG.md#122---january-2-2026)**
+**[View Complete Release Notes →](CHANGELOG.md#130---january-6-2026)**
 
 ## Overview
 
@@ -567,162 +567,57 @@ This comprehensive code quality implementation ensures the AWS DRS Orchestration
 
 ## CI/CD Pipeline
 
-The project uses **AWS CodePipeline** for automated deployment with the following infrastructure:
+The project uses **GitHub Actions** for automated deployment with OIDC-based AWS authentication.
 
-📋 **[CI/CD Platform Selection Analysis](docs/CI_CD_PLATFORM_SELECTION.md)** - Comprehensive feasibility analysis comparing AWS native tools vs GitHub Actions with CloudFormation parameter-driven platform selection.
+📋 **[GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md)** - Complete setup instructions for GitHub Actions CI/CD.
 
 ### Active CI/CD Infrastructure
-- **Pipeline**: `aws-elasticdrs-orchestrator-pipeline-dev`
-- **Primary Repository**: CodeCommit (`aws-elasticdrs-orchestrator-dev`)
-- **Secondary Repository**: GitHub (mirror)
-- **Account**: ***REMOVED***
-- **Deployment Bucket**: `aws-elasticdrs-orchestrator`
+- **Workflow**: `.github/workflows/deploy.yml`
+- **Primary Repository**: GitHub (`johnjcousens/aws-elasticdrs-orchestrator`)
+- **Authentication**: OIDC (no long-lived credentials)
+- **OIDC Stack**: `cfn/github-oidc-stack.yaml`
 
-### Pipeline Stages & BuildSpecs
+### Pipeline Stages
 
-The pipeline uses 6 CodeBuild projects with corresponding BuildSpec files:
+| Stage | Duration | Description |
+|-------|----------|-------------|
+| **Validate** | ~2 min | CloudFormation validation, Python linting, TypeScript checking |
+| **Security Scan** | ~2 min | Bandit security scan, Safety dependency check |
+| **Build** | ~3 min | Lambda packaging, frontend build |
+| **Test** | ~2 min | Unit tests |
+| **Deploy Infrastructure** | ~10 min | CloudFormation stack deployment |
+| **Deploy Frontend** | ~2 min | S3 sync, CloudFront invalidation |
 
-| Stage | CodeBuild Project | BuildSpec File | Purpose |
-|-------|-------------------|----------------|---------|
-| **Validate** | `aws-elasticdrs-orchestrator-validate-dev` | `buildspecs/validate-buildspec.yml` | CloudFormation validation, Python linting, TypeScript checking |
-| **SecurityScan** | `aws-elasticdrs-orchestrator-security-scan-dev` | `buildspecs/security-buildspec.yml` | Bandit, Semgrep, Safety, npm audit security scans |
-| **Build** | `aws-elasticdrs-orchestrator-build-dev` | `buildspecs/build-buildspec.yml` | Lambda packaging, frontend builds |
-| **Test** | `aws-elasticdrs-orchestrator-test-dev` | `buildspecs/test-buildspec.yml` | Unit tests, integration tests, coverage |
-| **DeployInfrastructure** | `aws-elasticdrs-orchestrator-deploy-infra-dev` | `buildspecs/deploy-infra-buildspec.yml` | CloudFormation deployment |
-| **DeployFrontend** | `aws-elasticdrs-orchestrator-deploy-frontend-dev` | `buildspecs/deploy-frontend-buildspec.yml` | S3 sync, CloudFront invalidation, dynamic config generation |
+**Total Duration**: ~20 minutes for complete deployment
 
-### BuildSpecs Directory Structure
-```
-buildspecs/
-├── validate-buildspec.yml          # Template validation and code quality
-├── security-buildspec.yml          # Comprehensive security scanning  
-├── build-buildspec.yml             # Lambda and frontend builds
-├── test-buildspec.yml              # Unit and integration tests
-├── deploy-infra-buildspec.yml      # Infrastructure deployment
-└── deploy-frontend-buildspec.yml   # Frontend deployment with dynamic config
-```
-
-### Development Workflow
-
-#### Quick Setup
-```bash
-# Configure Git for CodeCommit
-git config --global credential.helper '!aws codecommit credential-helper $@'
-git config --global credential.UseHttpPath true
-
-# Add CodeCommit remote
-git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-elasticdrs-orchestrator-dev
-
-# Push to trigger pipeline
-git push aws-pipeline main
-```
-
-#### Daily Development
-```bash
-# 1. Make changes and commit
-git add .
-git commit -m "Your changes"
-
-# 2. Push to GitHub (secondary)
-git push origin main
-
-# 3. Push to CodeCommit (triggers pipeline)
-git push aws-pipeline main
-```
-
-#### Pipeline Monitoring
-- **Console**: [CodePipeline Console](https://console.aws.amazon.com/codesuite/codepipeline/pipelines/aws-elasticdrs-orchestrator-pipeline-dev/view)
-- **Status**: Monitor all 7 stages in real-time
-- **Duration**: ~15-20 minutes for full deployment
-
-### Git Troubleshooting
-
-#### CodeCommit 403 Forbidden Error (macOS)
-
-**Problem**: `fatal: unable to access 'https://git-codecommit...': The requested URL returned error: 403`
-
-**Root Cause**: macOS keychain (`osxkeychain`) interferes with AWS CodeCommit credential helper.
-
-**Solution**: Add an empty credential helper to disable keychain interference:
+### Quick Start
 
 ```bash
-# For repository-specific fix (recommended)
-git config --local credential.helper ""
-git config --local --add credential.helper '!aws codecommit credential-helper $@'
-git config --local credential.UseHttpPath true
+# 1. Deploy OIDC stack (one-time)
+aws cloudformation deploy \
+  --template-file cfn/github-oidc-stack.yaml \
+  --stack-name aws-elasticdrs-orchestrator-github-oidc \
+  --parameter-overrides \
+    ProjectName=aws-elasticdrs-orchestrator \
+    Environment=dev \
+    GitHubOrg=YOUR_ORG \
+    GitHubRepo=YOUR_REPO \
+    DeploymentBucket=aws-elasticdrs-orchestrator \
+  --capabilities CAPABILITY_NAMED_IAM
 
-# Verify configuration
-git config --local --list | grep credential
-# Should show:
-# credential.helper=
-# credential.helper=!aws codecommit credential-helper $@
-# credential.usehttppath=true
+# 2. Add GitHub secrets: AWS_ROLE_ARN, DEPLOYMENT_BUCKET, STACK_NAME, ADMIN_EMAIL
+# 3. Push to main branch to trigger deployment
 ```
 
-**Alternative Global Fix**:
+### Manual Deployment (Development)
+
 ```bash
-# For all repositories (use with caution)
-git config --global credential.helper ""
-git config --global --add credential.helper '!aws codecommit credential-helper $@'
-git config --global credential.UseHttpPath true
-```
-
-**Reference**: [AWS CodeCommit Troubleshooting Guide](https://docs.aws.amazon.com/codecommit/latest/userguide/troubleshooting-ch.html#troubleshooting-macoshttps)
-
-### Alternative: Manual Deployment
-For development without CI/CD:
-```bash
-# Sync all changes to S3 deployment bucket
-./scripts/sync-to-deployment-bucket.sh
-
-# Fast Lambda code updates (5 seconds)
+# Fast Lambda code update (5 seconds)
 ./scripts/sync-to-deployment-bucket.sh --update-lambda-code
 
-# Build and deploy frontend
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+# Full CloudFormation deployment (5-10 minutes)
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
 ```
-
-### Legacy CI/CD Notice
-⚠️ **GitLab CI/CD Deprecated**: The `.gitlab-ci.yml` file is maintained for reference only. All active deployments use AWS CodePipeline with the buildspecs listed above.s-pipeline main
-```
-
-#### Pipeline Monitoring
-- **Console**: [CodePipeline Console](https://console.aws.amazon.com/codesuite/codepipeline/pipelines/aws-elasticdrs-orchestrator-pipeline-dev/view)
-- **Status**: Monitor all 7 stages in real-time
-- **Duration**: ~15-20 minutes for full deployment
-
-### Alternative: Manual Deployment
-For development without CI/CD:
-```bash
-# Sync all changes to S3 deployment bucket
-./scripts/sync-to-deployment-bucket.sh
-
-# Fast Lambda code updates (5 seconds)
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
-
-# Build and deploy frontend
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
-```
-
-## Repository Security
-
-### Branch Protection (✅ Enabled)
-The repository is secured with GitHub branch protection rules:
-
-- ✅ **Pull Request Required** - Direct pushes to `main` blocked
-- ✅ **Code Owner Review** - `@johnjcousens` approval required
-- ✅ **Conversation Resolution** - All review comments must be addressed
-- ✅ **Force Push Protection** - Prevents destructive operations
-- ✅ **Large File Restrictions** - Blocks files >100MB
-- ⏳ **Status Checks** - Will be added after first CI/CD run
-
-### Security Features (✅ Enabled)
-- ✅ **Dependency Scanning** - Automated vulnerability detection
-- ✅ **Secret Scanning** - Prevents credential commits
-- ✅ **Dependabot Updates** - Automatic security patches
-- ✅ **Push Protection** - Real-time secret blocking
-
-**Setup Guide**: [Branch Protection Setup](.github/BRANCH_PROTECTION_SETUP.md)
 
 ## Contributing
 
@@ -731,14 +626,24 @@ The repository is secured with GitHub branch protection rules:
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit changes (`git commit -m 'Add amazing feature'`)
 4. Push to GitHub (`git push origin feature/amazing-feature`)
-5. Open a Pull Request (requires `@johnjcousens` approval)
-6. After merge, changes automatically deploy via CodePipeline
+5. Open a Pull Request
+6. After merge to main, changes automatically deploy via GitHub Actions
 
-### Direct Development (Advanced)
-1. Clone CodeCommit repository directly
-2. Make changes and commit
-3. Push to CodeCommit to trigger immediate deployment
-4. Monitor pipeline execution in AWS Console
+### Manual Development
+```bash
+# Clone repository
+git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
+cd aws-elasticdrs-orchestrator
+
+# Make changes and test locally
+npm run dev  # Frontend
+pytest tests/python/unit/  # Backend
+
+# Commit and push
+git add .
+git commit -m "Your changes"
+git push origin main  # Triggers GitHub Actions deployment
+```
 
 ## Repository Snapshots & Rollback
 
