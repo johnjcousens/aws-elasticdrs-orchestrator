@@ -1,9 +1,9 @@
 # Architectural Design Document
 # AWS DRS Orchestration System
 
-**Version**: 2.1  
-**Date**: January 1, 2026  
-**Status**: Production Ready - EventBridge Security Enhancements Complete  
+**Version**: 2.2  
+**Date**: January 6, 2026  
+**Status**: Production Ready - API Gateway 6-Nested-Stack Architecture Complete  
 **Document Owner**: Technical Architecture Team  
 **Target Audience**: Software Engineers, DevOps Engineers, Solutions Architects
 
@@ -11,7 +11,7 @@
 
 ## Document Purpose
 
-This Architectural Design Document (ADD) provides comprehensive technical specifications for the AWS DRS Orchestration system version 2.1 with EventBridge security enhancements. It describes the system architecture, component interactions, data flows, integration patterns, deployment topology, EventBridge security validation, automated tag synchronization, and complete RBAC implementation for enterprise disaster recovery orchestration with AWS Elastic Disaster Recovery Service (DRS).
+This Architectural Design Document (ADD) provides comprehensive technical specifications for the AWS DRS Orchestration system version 2.2 with API Gateway 6-nested-stack architecture. It describes the system architecture, component interactions, data flows, integration patterns, deployment topology, modular API Gateway design with CloudFormation size compliance, automated tag synchronization, and complete RBAC implementation for enterprise disaster recovery orchestration with AWS Elastic Disaster Recovery Service (DRS).
 
 **Key Objective**: Enable engineers to understand, maintain, and extend the system architecture with confidence.
 
@@ -65,12 +65,12 @@ The AWS DRS Orchestration system follows a **serverless-first, cloud-native** ar
 
 ### Deployment Summary
 
-- **Infrastructure**: 100% AWS CloudFormation (6 nested stacks, 2,400+ lines)
+- **Infrastructure**: 100% AWS CloudFormation (15 nested stacks, 3,000+ lines)
 - **Compute**: 5 Lambda functions (Python 3.12)
-- **Storage**: 3 DynamoDB tables (on-demand)
+- **Storage**: 4 DynamoDB tables (on-demand)
 - **Frontend**: React 19.1 SPA on S3 + CloudFront
 - **Orchestration**: AWS Step Functions with pause/resume capability
-- **API**: API Gateway REST API with execution control endpoints
+- **API**: API Gateway REST API with 6-nested-stack architecture (42+ endpoints)
 - **Security**: Cognito + WAF + CloudTrail + IAM least-privilege
 
 ---

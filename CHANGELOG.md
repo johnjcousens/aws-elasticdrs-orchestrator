@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - January 6, 2026
+
+### Added
+- **API Gateway 6-Nested-Stack Architecture**: Complete modular API Gateway implementation for CloudFormation size compliance
+  - Split monolithic 94,861-character template into 6 compliant nested stacks (largest: 31,772 bytes)
+  - **Core Stack**: REST API, authorizer, validator (4,296 bytes)
+  - **Resources Stack**: All 35+ API path definitions (16,959 bytes)
+  - **Core Methods Stack**: Health, User, Protection Groups, Recovery Plans (23,788 bytes)
+  - **Operations Methods Stack**: All Execution endpoints (18,726 bytes)
+  - **Infrastructure Methods Stack**: DRS, EC2, Config, Target Accounts (31,772 bytes)
+  - **Deployment Stack**: Enterprise deployment orchestrator with monitoring (10,802 bytes)
+- **Enterprise Deployment Orchestration**: Custom Lambda function for API Gateway deployment coordination
+  - Ensures all methods are created before deployment
+  - Comprehensive error handling and logging
+  - Timestamp-based deployment forcing for reliable updates
+
+### Changed
+- **CloudFormation Architecture**: Updated from 7 to 15 nested stacks for better maintainability
+- **Master Template**: Updated to reference 6 API Gateway nested stacks instead of monolithic stack
+- **Documentation**: Updated all architecture references to reflect 6-nested-stack design
+
+### Removed
+- **Monolithic API Gateway Stack**: Removed `cfn/api-gateway-stack.yaml` (94,861 characters)
+- **Legacy Methods Stack**: Removed `cfn/api-gateway-methods-stack.yaml`
+
+### Technical Details
+- **Full Feature Parity**: All 42 endpoints preserved with identical functionality
+- **AWS Best Practices**: Follows AWS recommended nested stack architecture
+- **Parallel Deployment**: Independent stack deployment capabilities
+- **Selective Updates**: Update only changed components
+
 ## [1.3.1] - January 6, 2026
 
 ### Fixed
@@ -46,7 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ServerSelector.tsx, WaveConfigEditor.tsx, api.ts
 - **CI/CD Large Template Validation**: Fixed CloudFormation validation for templates exceeding 51,200 bytes
   - Templates now uploaded to S3 before validation
-  - Supports api-gateway-stack.yaml (200KB+) validation
+  - Supports large CloudFormation templates via S3 upload before validation
+  - Enables modular API Gateway architecture with 6 nested stacks
 
 ### Changed
 - **Lambda Directory Structure**: Reorganized Lambda functions into consistent directory structure

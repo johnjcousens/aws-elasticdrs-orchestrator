@@ -7,7 +7,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.3.1%20API%20Config%20Hotfix-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.3.1)
+[![Release](https://img.shields.io/badge/Release-v1.4.0%20API%20Gateway%20Architecture-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.0)
 
 ## 🤖 **For AI Agents - Start Here**
 
@@ -56,11 +56,11 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 | Releases | [Releases](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases) |
 | Actions | [Actions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions) |
 
-## 🚀 **Latest Release: v1.3.1 - API Config Hotfix**
+## 🚀 **Latest Release: v1.4.0 - API Gateway 6-Nested-Stack Architecture**
 
-**Latest Version**: v1.3.1 (January 6, 2026) - Fixed frontend API config loading bug where awsConfig was cached at module load time. Updated requirements docs to v2.2.
+**Latest Version**: v1.4.0 (January 6, 2026) - Complete modular API Gateway implementation with 6 nested stacks for CloudFormation size compliance. Split monolithic 94,861-character template into maintainable components while preserving all 42 endpoints.
 
-**[View Complete Release Notes →](CHANGELOG.md#131---january-6-2026)**
+**[View Complete Release Notes →](CHANGELOG.md#140---january-6-2026)**
 
 ## Overview
 
@@ -98,11 +98,11 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ![AWS DRS Orchestration Architecture](docs/architecture/AWS-DRS-Orchestration-Architecture.png)
 
-*Updated architecture diagrams available in [docs/architecture/](docs/architecture/) reflecting current 42+ endpoint implementation*
+*Updated architecture diagrams available in [docs/architecture/](docs/architecture/) reflecting current 6-nested-stack API Gateway architecture with 42+ endpoints*
 
 *[View/Edit Source Diagram](docs/architecture/AWS-DRS-Orchestration-Architecture.drawio)*
 
-The solution follows a serverless, event-driven architecture with clear separation between frontend, API, compute, data, and DRS integration layers. Users access the React frontend via CloudFront, authenticate through Cognito, and interact with the REST API backed by Lambda functions. Step Functions orchestrates wave-based recovery execution, coordinating with AWS DRS to launch recovery instances.
+The solution follows a serverless, event-driven architecture with clear separation between frontend, API, compute, data, and DRS integration layers. Users access the React frontend via CloudFront, authenticate through Cognito, and interact with the REST API backed by Lambda functions. The API Gateway is implemented as 6 nested CloudFormation stacks for maintainability and CloudFormation size compliance. Step Functions orchestrates wave-based recovery execution, coordinating with AWS DRS to launch recovery instances.
 
 ### Technology Stack
 
@@ -286,8 +286,14 @@ The solution uses a modular nested stack architecture for maintainability:
 | ----------------------------- | ------------------- | --------------------------------- |
 | `master-template.yaml`      | Root orchestrator   | Parameter propagation, outputs    |
 | `database-stack.yaml`       | Data persistence    | 4 DynamoDB tables with encryption |
-| `lambda-stack.yaml`         | Compute layer       | Lambda functions, IAM roles     |
-| `api-stack-rbac.yaml`       | API & Auth with RBAC | API Gateway, Cognito, RBAC endpoints |
+| `lambda-stack.yaml`         | Compute layer       | 5 Lambda functions, IAM roles     |
+| `api-auth-stack.yaml`       | Authentication      | Cognito User Pool, Identity Pool, SNS |
+| `api-gateway-core-stack.yaml` | API Gateway Core   | REST API, authorizer, validator   |
+| `api-gateway-resources-stack.yaml` | API Resources | All 35+ API path definitions      |
+| `api-gateway-core-methods-stack.yaml` | Core Methods | Health, User, Protection Groups, Recovery Plans |
+| `api-gateway-operations-methods-stack.yaml` | Operations Methods | All Execution endpoints |
+| `api-gateway-infrastructure-methods-stack.yaml` | Infrastructure Methods | DRS, EC2, Config, Target Accounts |
+| `api-gateway-deployment-stack.yaml` | API Deployment | Deployment orchestrator and stage |
 | `step-functions-stack.yaml` | Orchestration       | Step Functions state machine      |
 | `eventbridge-stack.yaml`    | Event scheduling    | EventBridge rules for polling     |
 | `security-stack.yaml`       | Security (optional) | WAF, CloudTrail                   |

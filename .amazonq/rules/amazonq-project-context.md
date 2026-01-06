@@ -120,11 +120,20 @@ AWS-ElasticDRS-Orchestration/
 Modular nested stack architecture for infrastructure deployment:
 
 - **master-template.yaml**: Root orchestrator, parameter propagation, stack outputs
-- **database-stack.yaml**: 3 DynamoDB tables (protection-groups, recovery-plans, execution-history)
+- **database-stack.yaml**: 4 DynamoDB tables (protection-groups, recovery-plans, execution-history, target-accounts)
 - **lambda-stack.yaml**: 5 Lambda functions with IAM roles and permissions
-- **api-stack-rbac.yaml**: API Gateway, Cognito User Pool, authorizer configuration
+- **api-auth-stack.yaml**: Cognito User Pool, Identity Pool, SNS notifications
+- **api-gateway-core-stack.yaml**: REST API, authorizer, validator
+- **api-gateway-resources-stack.yaml**: All API path definitions (35+ resources)
+- **api-gateway-core-methods-stack.yaml**: Health, User, Protection Groups, Recovery Plans methods
+- **api-gateway-operations-methods-stack.yaml**: All Execution endpoints
+- **api-gateway-infrastructure-methods-stack.yaml**: DRS, EC2, Config, Target Accounts methods
+- **api-gateway-deployment-stack.yaml**: Deployment orchestrator and stage
 - **step-functions-stack.yaml**: Step Functions orchestration state machine with waitForTaskToken
+- **eventbridge-stack.yaml**: EventBridge rules for scheduled operations
+- **security-stack.yaml**: WAF, CloudTrail (optional)
 - **frontend-stack.yaml**: S3 static hosting, CloudFront CDN distribution
+- **cross-account-role-stack.yaml**: Cross-account IAM roles (optional)
 - **security-stack.yaml**: Optional WAF and CloudTrail audit logging
 
 **Frontend Application (`frontend/`)**
