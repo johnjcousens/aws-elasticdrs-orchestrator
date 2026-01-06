@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 
 # AWS Config (template in public/ is OK, real values generated during build)
-# public/aws-config.json contains placeholders - safe to commit
+# public/aws-config.json contains environment-specific values - DO NOT COMMIT
 # dist/aws-config.json is generated - ignored via dist/ above
+public/aws-config.json
