@@ -58,8 +58,6 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
   const handleAddWave = useCallback(() => {
-    console.log('[WaveConfigEditor] handleAddWave called, current waves:', safeWaves.length);
-    
     const newWave: Wave = {
       waveNumber: safeWaves.length,
       name: `Wave ${safeWaves.length + 1}`,
@@ -72,7 +70,6 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
     };
     
     const updatedWaves = [...safeWaves, newWave];
-    console.log('[WaveConfigEditor] Calling onChange with waves:', updatedWaves.length);
     
     // Use setTimeout to ensure state update happens after current render cycle
     setTimeout(() => {
