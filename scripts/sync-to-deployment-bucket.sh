@@ -420,13 +420,16 @@ aws s3 sync lambda/ s3://$BUCKET/lambda/ \
 # Sync frontend (built dist/ and source)
 echo "  📁 Syncing frontend..."
 if [ -d "frontend/dist" ]; then
+    # CRITICAL: Exclude aws-config.json - it's generated from CloudFormation outputs
+    # Syncing a local aws-config.json would overwrite the correct stack values
     aws s3 sync frontend/dist/ s3://$BUCKET/frontend/dist/ \
         $PROFILE_FLAG \
         --delete \
         $SYNC_FLAGS \
         --exclude ".DS_Store" \
+        --exclude "aws-config.json" \
        
-    echo "    ✅ frontend/dist/ synced"
+    echo "    ✅ frontend/dist/ synced (excluding aws-config.json)"
 else
     echo "    ⚠️  frontend/dist/ not found (run with --build-frontend to create)"
 fi
@@ -786,13 +789,50 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
         echo "📦 Syncing frontend/dist/ to s3://$FRONTEND_BUCKET/..."
         
         # Sync frontend dist to the actual frontend bucket (not deployment bucket)
+        # CRITICAL: Exclude aws-config.json - it's generated from CloudFormation outputs
         if [ -d "frontend/dist" ]; then
             aws s3 sync frontend/dist/ s3://$FRONTEND_BUCKET/ \
                 $PROFILE_FLAG \
                 --delete \
                 --region $REGION \
+                --exclude "aws-config.json" \
                
-            echo "  ✅ Frontend files synced to $FRONTEND_BUCKET"
+            echo "  ✅ Frontend files synced to $FRONTEND_BUCKET (excluding aws-config.json)"
+            
+            # Generate and upload aws-config.json from stack outputs
+            echo "  📝 Generating aws-config.json from CloudFormation outputs..."
+            API_ENDPOINT=$(aws cloudformation describe-stacks \
+                --stack-name "$PARENT_STACK_NAME" \
+                --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+                --output text $PROFILE_FLAG --region $REGION)
+            USER_POOL_ID=$(aws cloudformation describe-stacks \
+                --stack-name "$PARENT_STACK_NAME" \
+                --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+                --output text $PROFILE_FLAG --region $REGION)
+            USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks \
+                --stack-name "$PARENT_STACK_NAME" \
+                --query "Stacks[0].Outputs[?OutputKey=='UserPoolClientId'].OutputValue" \
+                --output text $PROFILE_FLAG --region $REGION)
+            IDENTITY_POOL_ID=$(aws cloudformation describe-stacks \
+                --stack-name "$PARENT_STACK_NAME" \
+                --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" \
+                --output text $PROFILE_FLAG --region $REGION)
+            
+            cat > /tmp/aws-config.json << EOF
+{
+  "region": "$REGION",
+  "userPoolId": "$USER_POOL_ID",
+  "userPoolClientId": "$USER_POOL_CLIENT_ID",
+  "identityPoolId": "$IDENTITY_POOL_ID",
+  "apiEndpoint": "$API_ENDPOINT"
+}
+EOF
+            aws s3 cp /tmp/aws-config.json s3://$FRONTEND_BUCKET/aws-config.json \
+                $PROFILE_FLAG \
+                --region $REGION \
+                --cache-control "no-cache, no-store, must-revalidate"
+            rm -f /tmp/aws-config.json
+            echo "  ✅ aws-config.json generated from stack outputs and uploaded"
         else
             echo "  ❌ frontend/dist/ not found - run with --build-frontend first"
             exit 1
