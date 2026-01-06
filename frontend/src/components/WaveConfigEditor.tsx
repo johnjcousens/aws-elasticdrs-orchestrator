@@ -57,7 +57,13 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
-  const handleAddWave = () => {
+  const handleAddWave = (e?: React.MouseEvent) => {
+    // Prevent any form submission or event bubbling
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('[WaveConfigEditor] handleAddWave called, current waves:', safeWaves.length);
     const newWave: Wave = {
       waveNumber: safeWaves.length,
       name: `Wave ${safeWaves.length + 1}`,
@@ -68,7 +74,9 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       protectionGroupIds: [],  // Empty - user must select PG
       protectionGroupId: '',  // Empty - no default
     };
-    onChange([...safeWaves, newWave]);
+    const updatedWaves = [...safeWaves, newWave];
+    console.log('[WaveConfigEditor] Calling onChange with waves:', updatedWaves.length);
+    onChange(updatedWaves);
     setExpandedWave(safeWaves.length);
   };
 
@@ -133,7 +141,12 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
         {!readonly && (
           <Button 
             iconName="add-plus" 
-            onClick={handleAddWave}
+            onClick={(e) => {
+              console.log('[WaveConfigEditor] Add Wave button clicked');
+              e.preventDefault();
+              e.stopPropagation();
+              handleAddWave();
+            }}
             formAction="none"
           >
             Add Wave

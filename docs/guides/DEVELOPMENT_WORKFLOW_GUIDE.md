@@ -33,6 +33,43 @@ cd lambda
 pip install -r requirements.txt
 ```
 
+### Frontend Configuration (CRITICAL)
+
+The `frontend/public/aws-config.json` file contains environment-specific Cognito and API Gateway values. **This file is gitignored and must NOT be committed.**
+
+```mermaid
+flowchart LR
+    A[CloudFormation Stack] -->|Outputs| B[aws-config.json]
+    B -->|Build| C[frontend/dist/]
+    C -->|Deploy| D[S3 Frontend Bucket]
+    
+    style B fill:#ff9900,stroke:#232f3e,color:#232f3e
+```
+
+**Why this matters:**
+- `aws-config.json` contains stack-specific values (UserPoolId, UserPoolClientId, ApiEndpoint)
+- Committing old values causes "User pool client does not exist" errors after stack updates
+- GitHub Actions generates this file fresh from CloudFormation outputs during deployment
+
+**Local Development Setup:**
+```bash
+# Get current values from your deployed stack
+STACK_NAME="aws-elasticdrs-orchestrator-dev"
+
+# Create local aws-config.json from stack outputs
+cat > frontend/public/aws-config.json << EOF
+{
+  "region": "us-east-1",
+  "userPoolId": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)",
+  "userPoolClientId": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)",
+  "identityPoolId": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)",
+  "apiEndpoint": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)"
+}
+EOF
+```
+
+**Reference template:** See `frontend/public/aws-config.template.json` for the expected structure.
+
 ## CI/CD Pipeline Integration
 
 ### GitHub Actions Infrastructure
@@ -290,6 +327,54 @@ git checkout main
 | Frontend not updating | CloudFront cache | Run with `--deploy-frontend` |
 | Stack name mismatch | Using wrong stack name | Use `drs-orch-v4` |
 | Permission errors | Wrong AWS profile | Use `--profile` option |
+| "User pool client does not exist" | Stale `aws-config.json` | Regenerate from stack outputs (see below) |
+| CORS 403 errors | API Gateway not redeployed | Run `scripts/redeploy-api-gateway.sh` |
+
+### Fixing "User pool client does not exist" Error
+
+This error occurs when `aws-config.json` contains old Cognito values from a previous stack deployment.
+
+**Root Cause:** The `frontend/public/aws-config.json` file was committed or synced with old stack values.
+
+**Solution:**
+```bash
+# 1. Regenerate aws-config.json from current stack
+STACK_NAME="aws-elasticdrs-orchestrator-dev"
+
+cat > frontend/public/aws-config.json << EOF
+{
+  "region": "us-east-1",
+  "userPoolId": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)",
+  "userPoolClientId": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)",
+  "identityPoolId": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)",
+  "apiEndpoint": "$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)"
+}
+EOF
+
+# 2. Rebuild and redeploy frontend
+cd frontend && npm run build && cd ..
+./scripts/sync-to-deployment-bucket.sh --deploy-frontend
+```
+
+**Prevention:**
+- `frontend/public/aws-config.json` is gitignored - never commit it
+- GitHub Actions generates this file fresh from CloudFormation outputs
+- The sync script excludes `aws-config.json` and regenerates it from stack outputs
+
+### Fixing CORS 403 Errors
+
+If OPTIONS requests return 403 instead of 200, the API Gateway deployment may not have been applied to the stage.
+
+**Solution:**
+```bash
+# Redeploy API Gateway
+./scripts/redeploy-api-gateway.sh aws-elasticdrs-orchestrator-dev us-east-1
+```
+
+This script:
+1. Gets the API ID from CloudFormation outputs
+2. Creates a new API Gateway deployment
+3. Verifies OPTIONS endpoints return 200
 
 ### Deployment Recovery
 
