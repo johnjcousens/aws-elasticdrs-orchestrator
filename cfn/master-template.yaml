@@ -148,13 +148,14 @@ Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
   EnableSecurityStackCondition: !Equals [!Ref EnableSecurityStack, 'true']
+  ProductionEnvironmentCondition: !Equals [!Ref Environment, 'prod']
 
 Resources:
   # Database Stack - DynamoDB Tables
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/database-stack.yaml'
       Parameters:
@@ -170,8 +171,8 @@ Resources:
   # Lambda Stack - Lambda Functions and IAM Roles
   LambdaStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     DependsOn: DatabaseStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/lambda-stack.yaml'
@@ -197,8 +198,8 @@ Resources:
   # Step Functions Stack - State Machine for DRS Orchestration
   StepFunctionsStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     DependsOn:
       - DatabaseStack
       - LambdaStack
@@ -219,8 +220,8 @@ Resources:
   # API Authentication Stack - Cognito, IAM, SNS
   ApiAuthStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     DependsOn:
       - DatabaseStack
     Properties:
@@ -242,8 +243,8 @@ Resources:
   # API Gateway Stack - API Gateway, Resources, Methods
   ApiGatewayStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     DependsOn:
       - DatabaseStack
       - LambdaStack
@@ -272,8 +273,8 @@ Resources:
   # EventBridge Stack - Scheduled Drills and Tag Sync
   EventBridgeStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     DependsOn:
       - LambdaStack
       - StepFunctionsStack
@@ -297,8 +298,8 @@ Resources:
   # Frontend Stack - S3, CloudFront, Custom Resources
   FrontendStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     DependsOn:
       - LambdaStack
       - ApiGatewayStack
@@ -322,8 +323,8 @@ Resources:
   # Security Stack - WAF, CloudTrail, Secrets Manager (Optional)
   SecurityStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
+    UpdateReplacePolicy: !If [ProductionEnvironmentCondition, Retain, Delete]
     Condition: EnableSecurityStackCondition
     DependsOn:
       - ApiGatewayStack
