@@ -124,6 +124,9 @@ Resources:
                   - lambda:AddPermission
                   - lambda:RemovePermission
                   - lambda:GetPolicy
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:ListTags
                 Resource: '*'
               # API Gateway access
               - Effect: Allow
