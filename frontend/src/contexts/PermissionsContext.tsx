@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { DRSPermission, DRSRole, ROLE_PERMISSIONS, PermissionsContextType } from '../types/permissions';
+import { DRSPermission, DRSRole, ROLE_PERMISSIONS } from '../types/permissions';
+import type { PermissionsContextType } from '../types/permissions';
 
 const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
 
