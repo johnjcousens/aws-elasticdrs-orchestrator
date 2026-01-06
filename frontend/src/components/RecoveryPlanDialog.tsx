@@ -84,16 +84,9 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         };
       });
       setWaves(wavesWithPgId);
-    }
-    setErrors({});
-    setError(null);
-  // Only re-run when dialog opens, plan changes, or protection groups load
-  // Do NOT include waves.length - that causes reset when adding waves
-  }, [plan, open, protectionGroups]);
-
-  // Reset form when dialog closes or switches to create mode
-  useEffect(() => {
-    if (open && !plan) {
+      setErrors({});
+      setError(null);
+    } else if (open && !plan) {
       // Create mode - reset form once when dialog opens
       setName('');
       setDescription('');
@@ -101,7 +94,9 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       setErrors({});
       setError(null);
     }
-  }, [open, plan]);
+  // Only re-run when dialog opens, plan changes, or protection groups load
+  // Do NOT include waves.length - that causes reset when adding waves
+  }, [plan, open, protectionGroups]);
 
   const fetchProtectionGroups = async () => {
     try {
