@@ -1,9 +1,9 @@
 # Product Requirements Document
 # AWS DRS Orchestration Solution
 
-**Version**: 2.2  
+**Version**: 2.3  
 **Date**: January 6, 2026  
-**Status**: Production Ready - GitHub Actions CI/CD Migration Complete  
+**Status**: Production Ready - API Gateway 6-Nested-Stack Architecture Complete  
 **Document Owner**: AWS DRS Orchestration Team
 
 ---
@@ -48,7 +48,7 @@ AWS DRS Orchestration provides complete orchestration and management on top of A
 - AWS DRS: Core disaster recovery service integration
 
 **Infrastructure as Code**:
-- CloudFormation: 7 templates total (1 master + 6 nested stacks: database, lambda, api, step-functions, security, frontend)
+- CloudFormation: 15 templates total (1 master + 14 nested stacks: database, lambda, api-auth, api-gateway-core, api-gateway-resources, api-gateway-core-methods, api-gateway-operations-methods, api-gateway-infrastructure-methods, api-gateway-deployment, step-functions, eventbridge, security, frontend, cross-account-role)
 - Single-command deployment from S3 artifacts
 - Multi-region support (all 30 AWS DRS-supported regions)
 
