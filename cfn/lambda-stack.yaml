@@ -354,10 +354,6 @@ Resources:
                   - ec2:DescribeLaunchTemplateVersions
                   - ec2:GetLaunchTemplateData
                 Resource: "*"
-                # Allow launch template operations but require proper tagging for security
-                Condition:
-                  StringLike:
-                    "aws:userid": "*:${aws:username}"
               # EC2 Instance Operations (restricted to DRS-managed instances)
               - Effect: Allow
                 Action:
