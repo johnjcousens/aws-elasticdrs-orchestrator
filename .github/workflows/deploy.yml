@@ -444,6 +444,48 @@ jobs:
             --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
             --paths "/*"
 
+      - name: Redeploy API Gateway
+        run: |
+          echo "=== Redeploying API Gateway ==="
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          
+          # Get API ID from stack outputs
+          API_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text)
+          
+          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+            echo "API ID: $API_ID"
+            
+            # Get stage name
+            STAGE_NAME=$(aws apigateway get-stages --rest-api-id "$API_ID" \
+              --query 'item[0].stageName' --output text 2>/dev/null || echo "dev")
+            
+            echo "Stage: $STAGE_NAME"
+            
+            # Create new deployment to ensure CORS and all methods are applied
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            DEPLOYMENT_ID=$(aws apigateway create-deployment \
+              --rest-api-id "$API_ID" \
+              --stage-name "$STAGE_NAME" \
+              --description "Post-CFN deployment $TIMESTAMP" \
+              --query 'id' --output text)
+            
+            echo "New Deployment ID: $DEPLOYMENT_ID"
+            
+            # Verify OPTIONS endpoint
+            sleep 3
+            API_ENDPOINT="https://${API_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/${STAGE_NAME}"
+            OPTIONS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "${API_ENDPOINT}/protection-groups" 2>/dev/null || echo "000")
+            
+            if [ "$OPTIONS_STATUS" == "200" ]; then
+              echo "✅ API Gateway redeployed successfully (OPTIONS returns 200)"
+            else
+              echo "⚠️ OPTIONS returned $OPTIONS_STATUS - may need manual verification"
+            fi
+          else
+            echo "⚠️ Could not find API ID in stack outputs"
+          fi
+
       - name: Deployment summary
         run: |
           CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
