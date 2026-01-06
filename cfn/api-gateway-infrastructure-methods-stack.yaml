@@ -90,6 +90,123 @@ Parameters:
     Type: String
     Description: Accounts Target Validate Resource ID from Resources Stack
 
+  # Comprehensive DRS Infrastructure Resource IDs from Resources Stack
+  DrsReplicationResourceId:
+    Type: String
+    Description: DRS Replication Resource ID from Resources Stack
+
+  DrsStartReplicationResourceId:
+    Type: String
+    Description: DRS Start Replication Resource ID from Resources Stack
+
+  DrsStopReplicationResourceId:
+    Type: String
+    Description: DRS Stop Replication Resource ID from Resources Stack
+
+  DrsPauseReplicationResourceId:
+    Type: String
+    Description: DRS Pause Replication Resource ID from Resources Stack
+
+  DrsResumeReplicationResourceId:
+    Type: String
+    Description: DRS Resume Replication Resource ID from Resources Stack
+
+  DrsRetryDataReplicationResourceId:
+    Type: String
+    Description: DRS Retry Data Replication Resource ID from Resources Stack
+
+  DrsReplicationConfigurationResourceId:
+    Type: String
+    Description: DRS Replication Configuration Resource ID from Resources Stack
+
+  DrsReplicationConfigurationTemplateResourceId:
+    Type: String
+    Description: DRS Replication Configuration Template Resource ID from Resources Stack
+
+  DrsSourceServerResourceId:
+    Type: String
+    Description: DRS Source Server Resource ID from Resources Stack
+
+  DrsSourceServerByIdResourceId:
+    Type: String
+    Description: DRS Source Server By ID Resource ID from Resources Stack
+
+  DrsDisconnectSourceServerResourceId:
+    Type: String
+    Description: DRS Disconnect Source Server Resource ID from Resources Stack
+
+  DrsMarkAsArchivedResourceId:
+    Type: String
+    Description: DRS Mark As Archived Resource ID from Resources Stack
+
+  DrsExtendedSourceServersResourceId:
+    Type: String
+    Description: DRS Extended Source Servers Resource ID from Resources Stack
+
+  DrsExtensibleSourceServersResourceId:
+    Type: String
+    Description: DRS Extensible Source Servers Resource ID from Resources Stack
+
+  DrsSourceNetworksResourceId:
+    Type: String
+    Description: DRS Source Networks Resource ID from Resources Stack
+
+  DrsSourceNetworkByIdResourceId:
+    Type: String
+    Description: DRS Source Network By ID Resource ID from Resources Stack
+
+  DrsSourceNetworkRecoveryResourceId:
+    Type: String
+    Description: DRS Source Network Recovery Resource ID from Resources Stack
+
+  DrsSourceNetworkReplicationResourceId:
+    Type: String
+    Description: DRS Source Network Replication Resource ID from Resources Stack
+
+  DrsSourceNetworkStackResourceId:
+    Type: String
+    Description: DRS Source Network Stack Resource ID from Resources Stack
+
+  DrsSourceNetworkTemplateResourceId:
+    Type: String
+    Description: DRS Source Network Template Resource ID from Resources Stack
+
+  DrsLaunchConfigurationResourceId:
+    Type: String
+    Description: DRS Launch Configuration Resource ID from Resources Stack
+
+  DrsLaunchConfigurationTemplateResourceId:
+    Type: String
+    Description: DRS Launch Configuration Template Resource ID from Resources Stack
+
+  DrsLaunchActionsResourceId:
+    Type: String
+    Description: DRS Launch Actions Resource ID from Resources Stack
+
+  DrsLaunchActionByIdResourceId:
+    Type: String
+    Description: DRS Launch Action By ID Resource ID from Resources Stack
+
+  DrsServiceResourceId:
+    Type: String
+    Description: DRS Service Resource ID from Resources Stack
+
+  DrsInitializeServiceResourceId:
+    Type: String
+    Description: DRS Initialize Service Resource ID from Resources Stack
+
+  DrsRecoveryInstancesResourceId:
+    Type: String
+    Description: DRS Recovery Instances Resource ID from Resources Stack
+
+  DrsRecoveryInstanceByIdResourceId:
+    Type: String
+    Description: DRS Recovery Instance By ID Resource ID from Resources Stack
+
+  DrsRecoverySnapshotsResourceId:
+    Type: String
+    Description: DRS Recovery Snapshots Resource ID from Resources Stack
+
 Resources:
   # ============================================================================
   # Methods - DRS
@@ -842,6 +959,100 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
+  # ============================================================================
+  # Methods - DRS Replication Management
+  # ============================================================================
+
+  DrsReplicationGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsReplicationResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DrsReplicationOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsReplicationResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ============================================================================
+  # Methods - DRS Service Management
+  # ============================================================================
+
+  DrsServiceGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsServiceResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DrsServiceOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsServiceResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
 # ============================================================================
 # OUTPUTS
 # ============================================================================
@@ -849,6 +1060,6 @@ Resources:
 Outputs:
   InfrastructureMethodsStackStatus:
     Description: 'API Gateway Infrastructure Methods Stack deployment status'
-    Value: 'Infrastructure methods deployed: DRS (8), EC2 (8), Config (6), Accounts (10) = 32 methods total'
+    Value: 'Infrastructure methods deployed: DRS (8), EC2 (8), Config (6), Accounts (10), DRS Advanced (8) = 40 methods total'
     Export:
       Name: !Sub '${AWS::StackName}-InfrastructureMethodsStackStatus'
