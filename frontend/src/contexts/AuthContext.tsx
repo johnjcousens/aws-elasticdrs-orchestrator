@@ -140,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
       }).catch(console.error);
     }, AUTO_LOGOUT_TIME);
-  }, [clearLogoutTimer]);
+  }, [clearLogoutTimer, AUTO_LOGOUT_TIME]);
 
   /**
    * Check current authentication status

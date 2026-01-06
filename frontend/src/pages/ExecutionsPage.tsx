@@ -29,7 +29,7 @@ import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { CardSkeleton } from '../components/CardSkeleton';
 import { PageTransition } from '../components/PageTransition';
 import { PermissionAwareButton } from '../components/PermissionAware';
-import { DRSPermission } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { InvocationSourceBadge } from '../components/InvocationSourceBadge';
