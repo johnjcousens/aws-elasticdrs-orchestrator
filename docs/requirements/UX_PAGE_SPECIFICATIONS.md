@@ -124,16 +124,46 @@ When building each page:
 **Build Requirements**: Create DRS protection groups management interface with server discovery
 
 **Required Layout**:
-- Header with Create Group button
-- Search/filter bar with match count
-- Data table with actions, pagination
-- Server conflict detection
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Protection Groups                        [Create Group]     │
+│ Organize DRS servers for coordinated recovery              │
+├─────────────────────────────────────────────────────────────┤
+│ [Find protection groups...                    ] X matches   │
+│                                                             │
+│ Actions │ Name        │ ID  │ Region    │ Servers │ Created │
+│ [▼]     │ Database    │ 📋  │ us-east-1 │ 3       │ Jan 5   │
+│ [▼]     │ Application │ 📋  │ us-east-1 │ 5       │ Jan 4   │
+│ [▼]     │ Web Tier    │ 📋  │ us-west-2 │ 2       │ Jan 3   │
+│                                                             │
+│ [< 1 2 3 >]                                                │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Required Features**:
-- CloudScape Table with collection hooks
+- CloudScape Table with collection hooks (filtering, pagination, sorting)
 - Real-time server conflict checking
-- Tag-based server selection display
-- Auto-refresh with dialog pause logic
+- Tag-based server selection display with preview
+- Auto-refresh with dialog pause logic (30-second intervals)
+- Copy-to-clipboard for Group IDs
+- Permission-aware action buttons (Edit, Delete)
+
+**ProtectionGroupDialog Modal**:
+- Tabbed interface: Tags vs Servers selection modes
+- RegionSelector with all 30 DRS regions
+- ServerDiscoveryPanel with search and filtering
+- ServerSelector with checkbox selection and assignment status badges
+- LaunchConfigSection for DRS launch settings configuration
+- Server validation against DRS API
+
+**API Integration**:
+- `GET /protection-groups` - List all groups with server details
+- `POST /protection-groups` - Create group with tag-based or explicit server selection
+- `GET /protection-groups/{id}` - Get single group with enriched server details
+- `PUT /protection-groups/{id}` - Update group (blocked during active executions)
+- `DELETE /protection-groups/{id}` - Delete group (blocked if referenced by Recovery Plans)
+- `POST /protection-groups/resolve` - Preview servers matching specified tags
+- `GET /drs/source-servers?region={region}` - Discover DRS servers with assignment status
 
 ---
 
@@ -142,16 +172,53 @@ When building each page:
 **Build Requirements**: Create recovery plans management with wave-based execution capabilities
 
 **Required Layout**:
-- Header with Create Plan button
-- Search/filter bar
-- Data table with execution actions
-- Progress tracking for active executions
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Recovery Plans                            [Create Plan]     │
+│ Define recovery strategies with wave-based orchestration   │
+├─────────────────────────────────────────────────────────────┤
+│ [Find recovery plans...                       ] X matches   │
+│                                                             │
+│ Actions │ Plan Name   │ ID  │ Waves │ Status    │ Last Start │ Last End   │ Created │
+│ [▼]     │ HRP-Full    │ 📋  │ 3     │ ✅ Comp   │ Jan 6 10AM │ Jan 6 11AM │ Jan 1   │
+│ [▼]     │ Web-Only    │ 📋  │ 1     │ ❌ Failed │ Jan 5 2PM  │ Jan 5 3PM  │ Jan 2   │
+│ [▼]     │ DB-Tier     │ 📋  │ 2     │ Not Run   │ Never      │ Never      │ Jan 3   │
+│                                                             │
+│ [< 1 2 3 >]                                                │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Required Features**:
+- CloudScape Table with collection hooks (filtering, pagination, sorting)
 - Run Drill/Recovery actions with conflict detection
-- Existing recovery instance warnings
+- Existing recovery instance warnings before drill execution
 - Real-time execution progress (5-second polling)
 - Copy-to-clipboard for Plan IDs
+- Permission-aware action buttons (Run Drill, Run Recovery, Edit, Delete)
+- Server conflict detection with detailed error messages
+
+**RecoveryPlanDialog Modal**:
+- Plan name and description fields
+- WaveConfigEditor with expandable wave sections
+- Multi-select Protection Groups per wave
+- ServerSelector for wave-specific server selection
+- Pause-before-wave toggle for each wave
+- Wave dependency configuration
+
+**Existing Instances Warning Dialog**:
+- Alert showing count of existing recovery instances
+- Instance details: Name, IP, instance type, launch time
+- Source execution and plan name tracking
+- Options: Cancel or Continue with Drill
+
+**API Integration**:
+- `GET /recovery-plans` - List all plans with execution status
+- `POST /recovery-plans` - Create plan with wave configuration
+- `GET /recovery-plans/{id}` - Get plan with full wave details
+- `PUT /recovery-plans/{id}` - Update plan (blocked during active executions)
+- `DELETE /recovery-plans/{id}` - Delete plan (blocked during active executions)
+- `POST /executions` - Start execution (PlanId, ExecutionType: DRILL|RECOVERY)
+- `GET /recovery-plans/{id}/check-existing-instances` - Check for existing recovery instances
 
 ---
 
@@ -221,18 +288,69 @@ When building each page:
 **Build Requirements**: Create real-time monitoring interface for individual execution progress
 
 **Required Layout**:
-- Header with Back, Refresh, Resume, Cancel actions
-- Pause notification banner (when applicable)
-- Execution metadata and progress overview
-- Wave-by-wave progress tracking
-- DRS Job Events timeline
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Execution Details                                           │
+│ [← Back to Executions] [Refresh] [Resume*] [Cancel*] [Terminate*] │
+├─────────────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ ⚠️ Execution Paused (when applicable)                   │ │
+│ │ Execution is paused before starting Wave 2.            │ │
+│ │ Click Resume to continue.              [Resume]        │ │
+│ └─────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│ Recovery Plan                                               │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Web Tier Recovery                                       │ │
+│ │ 🔵 IN_PROGRESS  [Wave 2 of 3]  [By: admin@example.com] │ │
+│ │                                                         │ │
+│ │ Started          Ended           Duration    Execution ID │
+│ │ Jan 6, 10:30 AM  -              45m 23s     exec-abc123  │
+│ │                                                         │ │
+│ │ Overall Progress                                   67%  │ │
+│ │ ████████████████████████████████░░░░░░░░░░░░░░░░░░░░░░  │ │
+│ └─────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────┤
+│ Wave Progress                                               │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Wave 1: Database Tier                    ✅ COMPLETED   │ │
+│ │ ├─ s-abc123 (db-primary)      LAUNCHED   i-xxx         │ │
+│ │ └─ s-def456 (db-replica)      LAUNCHED   i-yyy         │ │
+│ │                                                         │ │
+│ │ Wave 2: Application Tier                 🔵 IN_PROGRESS │ │
+│ │ ├─ s-ghi789 (app-server-1)    LAUNCHING  -             │ │
+│ │ └─ s-jkl012 (app-server-2)    PENDING    -             │ │
+│ │                                                         │ │
+│ │ Wave 3: Web Tier                         ⏳ PENDING     │ │
+│ │ ├─ s-mno345 (web-server-1)    PENDING    -             │ │
+│ │ └─ s-pqr678 (web-server-2)    PENDING    -             │ │
+│ └─────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Required Features**:
-- Real-time progress updates
-- Pause/Resume functionality
-- Wave progress visualization
-- Job events timeline with auto-refresh
-- Terminate instances action
+- **Real-time progress updates**: 3-second polling for active executions
+- **Pause/Resume functionality**: Resume button when execution is paused
+- **Cancel execution**: Cancel button (disabled on final wave)
+- **Terminate instances**: Available only for terminal states (COMPLETED, FAILED, CANCELLED)
+- **Wave progress visualization**: WaveProgress component with server-level status
+- **Progress calculation**: Based on DRS job phases (JOB_START 5% → SNAPSHOT 15% → CONVERSION 75% → LAUNCHED 100%)
+- **Duration tracking**: Live elapsed time calculation
+- **Error handling**: Alert components for cancel/resume/terminate errors
+- **Termination progress**: Real-time progress bar during instance termination
+
+**Action Button States**:
+- **Resume**: Visible only when status is PAUSED
+- **Cancel**: Visible for active statuses, disabled on final wave
+- **Terminate Instances**: Visible only for terminal states with jobId, hidden if already terminated
+- **Instances Terminated Badge**: Shown when instances have been terminated
+
+**API Integration**:
+- `GET /executions/{id}` - Get execution details with wave progress
+- `POST /executions/{id}/resume` - Resume paused execution
+- `DELETE /executions/{id}` - Cancel running execution
+- `POST /executions/{id}/terminate-instances` - Terminate recovery instances
+- `GET /executions/{id}/termination-status` - Poll termination job status
 
 ---
 

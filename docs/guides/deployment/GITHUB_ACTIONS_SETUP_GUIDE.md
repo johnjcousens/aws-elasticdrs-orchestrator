@@ -1,16 +1,17 @@
 # GitHub Actions CI/CD Setup Guide
 
-This guide covers migrating from AWS CodePipeline to GitHub Actions for CI/CD deployment.
+This guide covers setting up GitHub Actions for CI/CD deployment of the AWS DRS Orchestration platform.
 
 ## Overview
 
-GitHub Actions provides a simpler CI/CD approach that avoids the circular dependency issues with AWS native tools (where the pipeline tries to update the stack containing itself).
+GitHub Actions provides a streamlined CI/CD approach with OIDC-based AWS authentication (no long-lived credentials required).
 
 **Benefits:**
 - No circular dependency - GitHub Actions runs outside AWS
-- Simpler architecture - One workflow file vs 3 CloudFormation stacks
+- Simpler architecture - One workflow file vs multiple CloudFormation stacks
 - Better debugging - GitHub's UI is more intuitive
-- Native Git integration - No CodeCommit mirroring needed
+- Native Git integration - Direct GitHub repository integration
+- OIDC Security - Secure AWS access without storing credentials
 
 ## Prerequisites
 
@@ -123,27 +124,24 @@ You can also trigger deployments manually:
 4. Select environment (dev/test/prod)
 5. Click "Run workflow"
 
-## Cleanup AWS Native CI/CD Resources
+## Historical: Cleanup Legacy AWS CI/CD Resources
 
-After confirming GitHub Actions works, clean up the old AWS CI/CD resources:
+> **Note**: This section is for historical reference only. If you previously used AWS CodePipeline/CodeBuild/CodeCommit and need to clean up those resources, use the commands below.
 
 ```bash
-# Delete the old CI/CD nested stacks (if they exist)
-# These should already be skipped with EnableAutomatedDeployment=false
+# Optional: Delete orphaned CodePipeline (if it exists)
+aws codepipeline delete-pipeline --name "${PROJECT_NAME}-pipeline-${ENVIRONMENT}" 2>/dev/null || true
 
-# Optional: Delete orphaned CodePipeline
-aws codepipeline delete-pipeline --name "${PROJECT_NAME}-pipeline-${ENVIRONMENT}"
-
-# Optional: Delete orphaned CodeBuild projects
-aws codebuild delete-project --name "${PROJECT_NAME}-validate-${ENVIRONMENT}"
-aws codebuild delete-project --name "${PROJECT_NAME}-security-scan-${ENVIRONMENT}"
-aws codebuild delete-project --name "${PROJECT_NAME}-build-${ENVIRONMENT}"
-aws codebuild delete-project --name "${PROJECT_NAME}-test-${ENVIRONMENT}"
-aws codebuild delete-project --name "${PROJECT_NAME}-deploy-infra-${ENVIRONMENT}"
-aws codebuild delete-project --name "${PROJECT_NAME}-deploy-frontend-${ENVIRONMENT}"
+# Optional: Delete orphaned CodeBuild projects (if they exist)
+aws codebuild delete-project --name "${PROJECT_NAME}-validate-${ENVIRONMENT}" 2>/dev/null || true
+aws codebuild delete-project --name "${PROJECT_NAME}-security-scan-${ENVIRONMENT}" 2>/dev/null || true
+aws codebuild delete-project --name "${PROJECT_NAME}-build-${ENVIRONMENT}" 2>/dev/null || true
+aws codebuild delete-project --name "${PROJECT_NAME}-test-${ENVIRONMENT}" 2>/dev/null || true
+aws codebuild delete-project --name "${PROJECT_NAME}-deploy-infra-${ENVIRONMENT}" 2>/dev/null || true
+aws codebuild delete-project --name "${PROJECT_NAME}-deploy-frontend-${ENVIRONMENT}" 2>/dev/null || true
 
 # Optional: Delete CodeCommit repository (if not needed)
-aws codecommit delete-repository --repository-name "${PROJECT_NAME}-${ENVIRONMENT}"
+aws codecommit delete-repository --repository-name "${PROJECT_NAME}-${ENVIRONMENT}" 2>/dev/null || true
 ```
 
 ## Troubleshooting

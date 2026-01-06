@@ -4,6 +4,23 @@
 
 This document consolidates infrastructure enhancement features that improve the development, deployment, and integration capabilities of the DRS orchestration platform.
 
+**Note**: The CI/CD migration from GitLab to GitHub Actions has been completed (January 2026). The CodeBuild/CodeCommit migration section below is retained for historical reference but is no longer planned - GitHub Actions is the current CI/CD platform.
+
+---
+
+## Current CI/CD Infrastructure
+
+The project uses **GitHub Actions** for automated CI/CD deployment with OIDC-based AWS authentication.
+
+| Component | Description |
+|-----------|-------------|
+| **Workflow** | `.github/workflows/deploy.yml` |
+| **Repository** | GitHub (primary) |
+| **Authentication** | OIDC (no long-lived credentials) |
+| **OIDC Stack** | `cfn/github-oidc-stack.yaml` |
+
+See [GitHub Actions Setup Guide](../guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) for complete setup instructions.
+
 ---
 
 ## Feature Overview
@@ -12,7 +29,7 @@ This document consolidates infrastructure enhancement features that improve the 
 
 | Feature | Current Status | Priority | LOE | Complexity |
 |---------|----------------|----------|-----|------------|
-| **CodeBuild/CodeCommit Migration** | Planned | Low | 4-5 weeks | Medium |
+| **GitHub Actions CI/CD** | ✅ Complete | - | - | - |
 | **Amazon Q MCP Integration** | Planned | Low | 2-3 weeks | Low |
 | **MCP Integration Platform** | Planned | Low | 3-4 weeks | Medium |
 | **EC2 Launch Template Integration** | Planned | Medium | 2-3 weeks | Low |
@@ -21,49 +38,61 @@ This document consolidates infrastructure enhancement features that improve the 
 
 Implement as **2 major releases** with focus on developer experience:
 
-1. **Development Infrastructure** (6-7 weeks) - CI/CD migration and development tools
+1. **Development Infrastructure** (Complete) - GitHub Actions CI/CD deployed
 2. **Integration Platform** (5-6 weeks) - MCP integrations and external tool support
 
 ---
 
-## Release 1: Development Infrastructure (6-7 weeks)
+## Release 1: Development Infrastructure (COMPLETED)
 
 ### Scope
-Enhanced development and deployment infrastructure with AWS-native CI/CD and improved development tools.
+Enhanced development and deployment infrastructure with GitHub Actions CI/CD.
 
-#### Components
-- **CodeBuild/CodeCommit Migration** (from CODEBUILD_CODECOMMIT_MIGRATION_PLAN.md)
-- **EC2 Launch Template Integration** (from EC2_LAUNCH_TEMPLATE_MVP_PLAN.md)
+#### Completed Components
+- **GitHub Actions CI/CD** - OIDC-based deployment with 6-stage pipeline
+- **EC2 Launch Template Integration** - Protection Group level launch configuration
 
-### CodeBuild/CodeCommit Migration (4-5 weeks)
+### GitHub Actions CI/CD (Completed January 2026)
 
 #### Overview
-Migration from GitLab CI/CD to AWS-native CI/CD pipeline using CodeBuild, CodeCommit, and CodePipeline for improved integration with AWS services and reduced external dependencies.
+The project has been migrated from GitLab CI/CD to GitHub Actions with OIDC-based AWS authentication for improved security (no long-lived credentials).
 
 #### Key Features
 
-##### AWS-Native CI/CD Pipeline
-- **CodeCommit Repository**: Migrate from GitLab to AWS CodeCommit
-- **CodeBuild Projects**: Replace GitLab runners with CodeBuild projects
-- **CodePipeline Orchestration**: Orchestrate build, test, and deployment stages
-- **CodeDeploy Integration**: Automated deployment to multiple environments
-- **AWS Integration**: Native integration with AWS services and IAM
+##### GitHub Actions Pipeline
+- **OIDC Authentication**: Secure AWS access without long-lived credentials
+- **6-Stage Pipeline**: Validate, Security Scan, Build, Test, Deploy Infrastructure, Deploy Frontend
+- **~20 Minute Deployment**: Complete deployment in approximately 20 minutes
+- **Automatic Triggers**: Deploy on push to main branch
 
-##### Enhanced Build Capabilities
-- **Multi-Environment Builds**: Separate build configurations for dev, test, prod
-- **Parallel Build Stages**: Parallel execution of independent build tasks
-- **Artifact Management**: Improved artifact storage and versioning in S3
-- **Build Caching**: Intelligent caching to reduce build times
-- **Custom Build Images**: Optimized build images for specific requirements
+##### Pipeline Stages
+1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
+2. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
+3. **Build** (~3 min) - Lambda packaging, frontend build
+4. **Test** (~2 min) - Unit tests
+5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
 
 ##### Security and Compliance
-- **IAM Integration**: Fine-grained permissions for build and deployment
-- **Secrets Management**: Secure handling of build secrets and credentials
-- **Audit Trail**: Complete audit trail for all build and deployment activities
-- **Compliance Scanning**: Automated security and compliance scanning
-- **Code Quality Gates**: Automated code quality and security checks
+- **OIDC Integration**: No long-lived AWS credentials stored in GitHub
+- **IAM Role Assumption**: Scoped permissions for deployment
+- **Audit Trail**: Complete audit trail via GitHub Actions logs
+- **Code Quality Gates**: Automated linting, type checking, and security scanning
 
-#### Architecture
+---
+
+## Historical Reference: CodeBuild/CodeCommit Migration (NOT IMPLEMENTED)
+
+**Note**: This section is retained for historical reference only. The project uses GitHub Actions instead.
+
+#### Original Overview
+Migration from GitLab CI/CD to AWS-native CI/CD pipeline using CodeBuild, CodeCommit, and CodePipeline was originally planned but GitHub Actions was chosen instead for:
+- Better developer experience and ecosystem
+- OIDC-based authentication (no long-lived credentials)
+- Simpler setup and maintenance
+- Broader community support
+
+#### Original Architecture (Not Implemented)
 ```mermaid
 flowchart LR
     subgraph Source["Source Control"]

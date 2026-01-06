@@ -7,7 +7,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.3.0%20GitHub%20Actions%20CI/CD-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.3.0)
+[![Release](https://img.shields.io/badge/Release-v1.3.1%20API%20Config%20Hotfix-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.3.1)
 
 ## 🤖 **For AI Agents - Start Here**
 
@@ -56,11 +56,11 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 | Releases | [Releases](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases) |
 | Actions | [Actions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions) |
 
-## 🚀 **Latest Release: v1.3.0 - GitHub Actions CI/CD**
+## 🚀 **Latest Release: v1.3.1 - API Config Hotfix**
 
-**Latest Version**: v1.3.0 (January 6, 2026) - Complete migration to GitHub Actions CI/CD with OIDC authentication, CORS fixes, and frontend stability improvements.
+**Latest Version**: v1.3.1 (January 6, 2026) - Fixed frontend API config loading bug where awsConfig was cached at module load time. Updated requirements docs to v2.2.
 
-**[View Complete Release Notes →](CHANGELOG.md#130---january-6-2026)**
+**[View Complete Release Notes →](CHANGELOG.md#131---january-6-2026)**
 
 ## Overview
 
@@ -416,9 +416,10 @@ Complete deployment automation for fresh AWS environments, including AWS native 
 
 ### Migration Specifications
 
-#### CI/CD Migration (GitLab → GitHub Actions)
-For migrating existing GitLab CI/CD to GitHub Actions, see the [GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) which includes:
+#### CI/CD Migration (GitLab → GitHub Actions) - COMPLETED
+The project has been fully migrated from GitLab CI/CD to GitHub Actions (January 2026). See the [GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) for current deployment instructions.
 
+**Migration Documentation** (archived for reference):
 - **[Requirements](.kiro/specs/cicd-migration/requirements.md)** - Migration requirements and acceptance criteria
 - **[Design Document](.kiro/specs/cicd-migration/design.md)** - Technical migration approach and architecture
 - **[Implementation Tasks](.kiro/specs/cicd-migration/tasks.md)** - Detailed migration task breakdown
@@ -479,7 +480,7 @@ The codebase has undergone a comprehensive code quality enhancement implementing
 **Development Workflow Integration**
 - **Flake8 Configuration**: Updated `.flake8` with project-specific rules and exclusions
 - **Pre-commit Hooks**: Enhanced `.pre-commit-config.yaml` with comprehensive Python linting
-- **CI/CD Integration**: GitLab CI pipeline includes automated code quality checks
+- **CI/CD Integration**: GitHub Actions pipeline includes automated code quality checks
 - **Development Environment**: Virtual environment (`venv/`) includes all quality tools
 
 #### Quality Assurance Tools
@@ -544,7 +545,7 @@ The `baseline_violations_report.txt` provides complete documentation of all reso
 - **Quality Metrics**: Before/after comparison showing 100% violation resolution
 
 **Continuous Quality Monitoring**
-- **GitLab CI Integration**: Automated quality checks on every commit and merge request
+- **GitHub Actions Integration**: Automated quality checks on every commit and pull request
 - **Pre-commit Hooks**: Local validation prevents quality regressions
 - **Development Environment**: Virtual environment includes all necessary quality tools
 - **Documentation Standards**: Technical writing follows established patterns and formats
@@ -654,7 +655,7 @@ The repository uses Git tags to mark significant milestones and maintains a clea
 archive/
 ├── build-artifacts/          # Historical build outputs and deployment packages
 ├── cfn/                     # Legacy CloudFormation templates and configurations
-├── cicd-migration/          # Completed CI/CD migration specification (AWS CodePipeline deployed)
+├── cicd-migration/          # Completed CI/CD migration specification (GitHub Actions deployed January 2026)
 ├── presentations/           # Project presentations and demo materials
 ├── python-coding-standards/ # Completed PEP 8 implementation specification (v1.2.2)
 ├── reports/                 # Historical quality reports and compliance tracking (v1.2.2)

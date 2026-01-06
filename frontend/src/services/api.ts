@@ -97,8 +97,8 @@ class ApiClient {
           await window.configReady;
         }
 
-        // Read endpoint fresh on each request (after window.AWS_CONFIG is loaded)
-        const apiEndpoint = awsConfig.API?.REST?.DRSOrchestration?.endpoint || '';
+        // Read endpoint fresh from window.AWS_CONFIG (not cached awsConfig)
+        const apiEndpoint = window.AWS_CONFIG?.API?.REST?.DRSOrchestration?.endpoint || '';
         config.baseURL = apiEndpoint;
 
         try {
