@@ -1623,7 +1623,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         elif path.startswith("/protection-groups"):
             print("Matched /protection-groups route")
             return handle_protection_groups(
-                http_method, path_parameters, body, query_parameters
+                http_method, path_parameters, body, query_parameters, path
             )
         elif "/execute" in path and path.startswith("/recovery-plans"):
             print("Matched /recovery-plans execute route")
@@ -1730,14 +1730,14 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
 
 def handle_protection_groups(
-    method: str, path_params: Dict, body: Dict, query_params: Dict = None
+    method: str, path_params: Dict, body: Dict, query_params: Dict = None, full_path: str = ""
 ) -> Dict:
     """Route Protection Groups requests"""
     group_id = path_params.get("id")
     query_params = query_params or {}
 
     # Handle /protection-groups/resolve endpoint (POST with tags to preview servers)
-    if method == "POST" and group_id == "resolve":
+    if method == "POST" and (group_id == "resolve" or full_path.endswith("/resolve")):
         return resolve_protection_group_tags(body)
 
     if method == "POST":
