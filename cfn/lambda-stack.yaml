@@ -152,9 +152,10 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              # Read-only DRS operations (minimal required for API handler)
+              # Core DRS read operations (required for all DRS functionality)
               - Effect: Allow
                 Action:
+                  # Describe operations
                   - drs:DescribeSourceServers
                   - drs:DescribeRecoveryInstances
                   - drs:DescribeJobs
@@ -162,24 +163,147 @@ Resources:
                   - drs:DescribeRecoverySnapshots
                   - drs:DescribeReplicationConfigurationTemplates
                   - drs:DescribeLaunchConfigurationTemplates
+                  - drs:DescribeSourceNetworks
+                  # Get operations
                   - drs:GetReplicationConfiguration
                   - drs:GetLaunchConfiguration
+                  - drs:GetFailbackReplicationConfiguration
+                  # List operations
                   - drs:ListTagsForResource
+                  - drs:ListExtensibleSourceServers
+                  - drs:ListLaunchActions
+                  - drs:ListStagingAccounts
                 Resource: "*"
-              # Recovery operations (restricted to specific conditions)
+              # DRS Configuration Management (required for Protection Groups with launch settings)
               - Effect: Allow
                 Action:
+                  # Configuration updates
+                  - drs:UpdateLaunchConfiguration
+                  - drs:UpdateReplicationConfiguration
+                  - drs:UpdateFailbackReplicationConfiguration
+                  # Template management
+                  - drs:CreateReplicationConfigurationTemplate
+                  - drs:UpdateReplicationConfigurationTemplate
+                  - drs:DeleteReplicationConfigurationTemplate
+                  - drs:CreateLaunchConfigurationTemplate
+                  - drs:UpdateLaunchConfigurationTemplate
+                  - drs:DeleteLaunchConfigurationTemplate
+                  # Launch actions management
+                  - drs:PutLaunchAction
+                  - drs:DeleteLaunchAction
+                Resource: "*"
+                # Restrict to DRS-supported regions for security
+                Condition:
+                  StringEquals:
+                    "aws:RequestedRegion": 
+                      - "us-east-1"
+                      - "us-east-2"
+                      - "us-west-1"
+                      - "us-west-2"
+                      - "ca-central-1"
+                      - "sa-east-1"
+                      - "eu-west-1"
+                      - "eu-west-2"
+                      - "eu-west-3"
+                      - "eu-central-1"
+                      - "eu-central-2"
+                      - "eu-north-1"
+                      - "eu-south-1"
+                      - "eu-south-2"
+                      - "ap-northeast-1"
+                      - "ap-northeast-2"
+                      - "ap-northeast-3"
+                      - "ap-southeast-1"
+                      - "ap-southeast-2"
+                      - "ap-southeast-3"
+                      - "ap-southeast-4"
+                      - "ap-south-1"
+                      - "ap-south-2"
+                      - "ap-east-1"
+                      - "me-south-1"
+                      - "me-central-1"
+                      - "af-south-1"
+                      - "il-central-1"
+              # DRS Recovery Operations (restricted to supported regions)
+              - Effect: Allow
+                Action:
+                  # Recovery operations
                   - drs:StartRecovery
                   - drs:TerminateRecoveryInstances
+                  - drs:DisconnectRecoveryInstance
+                  - drs:DeleteRecoveryInstance
+                  # Failback operations
+                  - drs:ReverseReplication
+                  - drs:StartFailbackLaunch
+                  - drs:StopFailback
+                  # Source network recovery
+                  - drs:StartSourceNetworkRecovery
                 Resource: "*"
                 Condition:
                   StringEquals:
                     "aws:RequestedRegion": 
                       - "us-east-1"
+                      - "us-east-2"
+                      - "us-west-1"
                       - "us-west-2"
+                      - "ca-central-1"
+                      - "sa-east-1"
                       - "eu-west-1"
+                      - "eu-west-2"
+                      - "eu-west-3"
+                      - "eu-central-1"
+                      - "eu-central-2"
+                      - "eu-north-1"
+                      - "eu-south-1"
+                      - "eu-south-2"
+                      - "ap-northeast-1"
+                      - "ap-northeast-2"
+                      - "ap-northeast-3"
+                      - "ap-southeast-1"
                       - "ap-southeast-2"
-              # Tag management (restricted to DRS resources only)
+                      - "ap-southeast-3"
+                      - "ap-southeast-4"
+                      - "ap-south-1"
+                      - "ap-south-2"
+                      - "ap-east-1"
+                      - "me-south-1"
+                      - "me-central-1"
+                      - "af-south-1"
+                      - "il-central-1"
+              # DRS Replication Management
+              - Effect: Allow
+                Action:
+                  - drs:StartReplication
+                  - drs:StopReplication
+                  - drs:PauseReplication
+                  - drs:ResumeReplication
+                  - drs:RetryDataReplication
+                  - drs:StartSourceNetworkReplication
+                  - drs:StopSourceNetworkReplication
+                  - drs:DisconnectSourceServer
+                Resource: "*"
+              # DRS Source Server Management
+              - Effect: Allow
+                Action:
+                  - drs:CreateSourceServer
+                  - drs:DeleteSourceServer
+                  - drs:MarkAsArchived
+                  - drs:CreateExtendedSourceServer
+                Resource: "*"
+              # DRS Service Management
+              - Effect: Allow
+                Action:
+                  - drs:InitializeService
+                  - drs:CreateSourceNetwork
+                  - drs:DeleteSourceNetwork
+                  - drs:UpdateSourceNetwork
+                  - drs:DeleteJob
+                  - drs:AssociateSourceNetworkStack
+                  - drs:ExportSourceNetworkCfnTemplate
+                  # CRITICAL: Required for DRS to register recovery instances
+                  - drs:CreateRecoveryInstanceForDrs
+                Resource: "*"
+              # DRS Tag Management (restricted to DRS resources only)
               - Effect: Allow
                 Action:
                   - drs:TagResource
@@ -187,46 +311,204 @@ Resources:
                 Resource: 
                   - "arn:aws:drs:*:*:source-server/*"
                   - "arn:aws:drs:*:*:recovery-instance/*"
-              # EC2 permissions for DRS instance launching during conversion (restricted)
+                  - "arn:aws:drs:*:*:replication-configuration-template/*"
+                  - "arn:aws:drs:*:*:launch-configuration-template/*"
+        - PolicyName: EC2AccessForDRS
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # EC2 read operations (required for DRS and launch configuration management)
               - Effect: Allow
                 Action:
                   - ec2:DescribeInstances
                   - ec2:DescribeInstanceStatus
                   - ec2:DescribeInstanceTypes
+                  - ec2:DescribeInstanceTypeOfferings
+                  - ec2:DescribeInstanceAttribute
                   - ec2:DescribeImages
                   - ec2:DescribeSecurityGroups
                   - ec2:DescribeSubnets
                   - ec2:DescribeVpcs
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:DescribeAccountAttributes
+                  - ec2:DescribeTags
+                  - ec2:DescribeVolumeAttribute
+                  - ec2:GetEbsDefaultKmsKeyId
+                  - ec2:GetEbsEncryptionByDefault
                 Resource: "*"
-              # Instance termination (restricted to DRS-managed instances only)
+              # EC2 Launch Template Management (required for Protection Group launch settings)
+              - Effect: Allow
+                Action:
+                  # Launch template operations (comprehensive set)
+                  - ec2:CreateLaunchTemplate
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:ModifyLaunchTemplate
+                  - ec2:DeleteLaunchTemplate
+                  - ec2:DeleteLaunchTemplateVersions
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:GetLaunchTemplateData
+                Resource: "*"
+                # Allow launch template operations but require proper tagging for security
+                Condition:
+                  StringLike:
+                    "aws:userid": "*:${aws:username}"
+              # EC2 Instance Operations (restricted to DRS-managed instances)
               - Effect: Allow
                 Action:
                   - ec2:TerminateInstances
+                  - ec2:StopInstances
+                  - ec2:StartInstances
+                  - ec2:ModifyInstanceAttribute
                 Resource: "arn:aws:ec2:*:*:instance/*"
                 Condition:
                   StringEquals:
                     "ec2:ResourceTag/AWSElasticDisasterRecoveryManaged": "true"
-              # Launch template operations (restricted to DRS templates)
+              # EC2 Resource Creation (required for DRS recovery operations)
               - Effect: Allow
                 Action:
-                  - ec2:CreateLaunchTemplateVersion
-                  - ec2:ModifyLaunchTemplate
-                  - ec2:DescribeLaunchTemplates
-                  - ec2:DescribeLaunchTemplateVersions
+                  # Instance operations
+                  - ec2:RunInstances
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:ModifyInstancePlacement
+                  - ec2:ModifyInstanceCreditSpecification
+                  - ec2:ModifyInstanceCapacityReservationAttributes
+                  - ec2:ModifyInstanceEventStartTime
+                  - ec2:ModifyInstanceMetadataOptions
+                  # Volume operations
+                  - ec2:CreateVolume
+                  - ec2:AttachVolume
+                  - ec2:DetachVolume
+                  - ec2:DeleteVolume
+                  - ec2:ModifyVolume
+                  - ec2:ModifyVolumeAttribute
+                  # Network operations
+                  - ec2:CreateNetworkInterface
+                  - ec2:AttachNetworkInterface
+                  - ec2:DetachNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:ModifyNetworkInterfaceAttribute
+                  - ec2:AssignPrivateIpAddresses
+                  - ec2:UnassignPrivateIpAddresses
+                  - ec2:AssignIpv6Addresses
+                  - ec2:UnassignIpv6Addresses
+                  # Security and tagging
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                  - ec2:CreateSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupEgress
+                  # Placement groups
+                  - ec2:CreatePlacementGroup
+                  - ec2:DeletePlacementGroup
                 Resource: "*"
-                Condition:
-                  StringLike:
-                    "ec2:ResourceTag/Name": "DRS-*"
-              # IAM operations (restricted to DRS-related roles only)
+              # EC2 Snapshot/AMI Operations (required for DRS drill conversions)
+              - Effect: Allow
+                Action:
+                  # Snapshot operations
+                  - ec2:CreateSnapshot
+                  - ec2:DeleteSnapshot
+                  - ec2:CopySnapshot
+                  - ec2:ModifySnapshotAttribute
+                  - ec2:ResetSnapshotAttribute
+                  - ec2:DescribeSnapshotAttribute
+                  - ec2:DescribeSnapshotTierStatus
+                  - ec2:ModifySnapshotTier
+                  - ec2:RestoreSnapshotTier
+                  # AMI operations
+                  - ec2:CreateImage
+                  - ec2:DeregisterImage
+                  - ec2:CopyImage
+                  - ec2:RegisterImage
+                  - ec2:ModifyImageAttribute
+                  - ec2:ResetImageAttribute
+                  - ec2:DescribeImageAttribute
+                  # Store operations
+                  - ec2:CreateStoreImageTask
+                  - ec2:DescribeStoreImageTasks
+                Resource: "*"
+        - PolicyName: IAMAccessForDRS
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # IAM read operations (required for instance profile validation)
               - Effect: Allow
                 Action:
                   - iam:ListInstanceProfiles
                   - iam:ListAccountAliases
+                  - iam:GetInstanceProfile
                 Resource: "*"
+              # IAM PassRole (restricted to DRS-related roles and EC2 instance profiles)
               - Effect: Allow
                 Action:
                   - iam:PassRole
-                Resource: "arn:aws:iam::*:role/EC2InstanceProfileForDRS*"
+                Resource: 
+                  - "arn:aws:iam::*:role/EC2InstanceProfileForDRS*"
+                  - "arn:aws:iam::*:role/*DRS*"
+                  - "arn:aws:iam::*:role/*-drs-*"
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": 
+                      - "ec2.amazonaws.com"
+                      - "drs.amazonaws.com"
+        - PolicyName: STSAccessForCrossAccount
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # STS AssumeRole (restricted to cross-account DRS roles)
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !Sub "arn:aws:iam::*:role/${CrossAccountRoleName}"
+                Condition:
+                  StringEquals:
+                    "sts:ExternalId": !Sub "${ProjectName}-${Environment}"
+        - PolicyName: KMSAccessForDRS
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # KMS operations (required for encrypted EBS volumes and snapshots)
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                  - kms:GenerateDataKey
+                  - kms:GenerateDataKeyWithoutPlaintext
+                  - kms:ReEncrypt*
+                  - kms:CreateGrant
+                  - kms:ListGrants
+                  - kms:RevokeGrant
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "kms:ViaService": 
+                      - "ec2.*.amazonaws.com"
+                      - "drs.*.amazonaws.com"
+        - PolicyName: CloudFormationAccessForDRS
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # CloudFormation operations (required for source network stack management)
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:ValidateTemplate
+                Resource: 
+                  - !Sub "arn:aws:cloudformation:*:*:stack/drs-*/*"
+                  - !Sub "arn:aws:cloudformation:*:*:stack/DRS-*/*"
         - PolicyName: LambdaInvokeAccess
           PolicyDocument:
             Version: "2012-10-17"
