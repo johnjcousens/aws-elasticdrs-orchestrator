@@ -20,7 +20,7 @@ import toast from 'react-hot-toast';
 import apiClient from '../services/api';
 import { useAccount } from '../contexts/AccountContext';
 import { PermissionAwareButton } from './PermissionAware';
-import { DRSPermission } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 
 export interface TargetAccount {
   accountId: string;

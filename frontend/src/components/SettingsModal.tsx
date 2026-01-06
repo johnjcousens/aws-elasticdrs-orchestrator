@@ -17,7 +17,8 @@ import { ConfigExportPanel } from './ConfigExportPanel';
 import { ConfigImportPanel } from './ConfigImportPanel';
 import { TagSyncConfigPanel } from './TagSyncConfigPanel';
 import AccountManagementPanel from './AccountManagementPanel';
-import { usePermissions, DRSPermission } from '../contexts/PermissionsContext';
+import { usePermissions } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 
 interface SettingsModalProps {
   visible: boolean;

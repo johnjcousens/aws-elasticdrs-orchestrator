@@ -29,7 +29,7 @@ import { useAccount } from '../contexts/AccountContext';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { PageTransition } from '../components/PageTransition';
 import { PermissionAwareButton, PermissionAwareButtonDropdown } from '../components/PermissionAware';
-import { DRSPermission } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { StatusBadge } from '../components/StatusBadge';
