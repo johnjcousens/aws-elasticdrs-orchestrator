@@ -2354,7 +2354,7 @@ Resources:
       Handler: index.lambda_handler
       Role: !Ref DeploymentOrchestratorRole
       Timeout: 300
-      ReservedConcurrency: 1
+      ReservedConcurrencyLimit: 1
       Environment:
         Variables:
           LOG_LEVEL: INFO
