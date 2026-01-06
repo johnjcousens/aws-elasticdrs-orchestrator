@@ -264,7 +264,6 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       }
     >
       <form onSubmit={(e) => { 
-        console.log('[RecoveryPlanDialog] Form submit prevented');
         e.preventDefault(); 
       }}>
         {loadingGroups ? (
@@ -321,7 +320,6 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                   protectionGroupId=""
                   protectionGroups={protectionGroups}
                   onChange={(newWaves) => {
-                    console.log('[RecoveryPlanDialog] WaveConfigEditor onChange called with', newWaves.length, 'waves');
                     setWaves(newWaves);
                   }}
                 />
