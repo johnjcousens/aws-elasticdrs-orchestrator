@@ -320,6 +320,7 @@ jobs:
           fi
           
           # Deploy stack
+          DEPLOY_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           aws cloudformation deploy \
             --template-file cfn/master-template.yaml \
             --stack-name "$STACK_NAME" \
@@ -328,6 +329,7 @@ jobs:
               Environment="$ENV" \
               SourceBucket="$BUCKET" \
               AdminEmail="$ADMIN_EMAIL" \
+              ApiDeploymentTimestamp="$DEPLOY_TIMESTAMP" \
             --capabilities CAPABILITY_NAMED_IAM \
             --tags \
               Project="${{ env.PROJECT_NAME }}" \

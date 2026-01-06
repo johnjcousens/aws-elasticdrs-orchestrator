@@ -130,6 +130,12 @@ Parameters:
     MaxValue: 24
     Description: 'Tag sync interval in hours (1-24)'
 
+  # API Gateway Deployment
+  ApiDeploymentTimestamp:
+    Type: String
+    Default: 'initial'
+    Description: 'Timestamp to force API Gateway redeployment (pass unique value on each deploy)'
+
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
@@ -239,6 +245,7 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
+        DeploymentTimestamp: !Ref ApiDeploymentTimestamp
         UserPoolId: !GetAtt ApiAuthStack.Outputs.UserPoolId
         ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
