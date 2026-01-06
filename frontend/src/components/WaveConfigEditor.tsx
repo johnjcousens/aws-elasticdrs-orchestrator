@@ -133,10 +133,8 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
         {!readonly && (
           <Button 
             iconName="add-plus" 
-            onClick={(e) => {
-              e.preventDefault();
-              handleAddWave();
-            }}
+            onClick={handleAddWave}
+            formAction="none"
           >
             Add Wave
           </Button>
