@@ -245,82 +245,76 @@ Create these files in `.amazonq/rules/` for consistent AI assistance:
 
 ---
 
-## 🔄 GitHub Enterprise CI/CD
+## 🔄 GitHub Actions CI/CD
 
-### Recommended Pipeline Structure
+### Pipeline Infrastructure
 
-#### 1. GitHub Actions Workflow
-```yaml
-# .github/workflows/deploy.yml
-name: AWS DRS Orchestration CI/CD
+The project uses **GitHub Actions** for automated CI/CD with OIDC-based AWS authentication.
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
+| Component | Description |
+|-----------|-------------|
+| **Workflow** | `.github/workflows/deploy.yml` |
+| **Repository** | GitHub (`johnjcousens/aws-elasticdrs-orchestrator`) |
+| **Authentication** | OIDC (no long-lived credentials) |
+| **OIDC Stack** | `cfn/github-oidc-stack.yaml` |
+| **Deployment Bucket** | `aws-elasticdrs-orchestrator` |
 
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate CloudFormation
-        run: make validate
-      - name: TypeScript Check
-        run: cd frontend && npm run type-check
+### Pipeline Stages
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Python Tests
-        run: cd tests/python && pytest
-      - name: Frontend Tests
-        run: cd frontend && npm test
+| Stage | Duration | Description |
+|-------|----------|-------------|
+| **Validate** | ~2 min | CloudFormation validation, Python linting, TypeScript checking |
+| **Security Scan** | ~2 min | Bandit security scan, Safety dependency check |
+| **Build** | ~3 min | Lambda packaging, frontend build |
+| **Test** | ~2 min | Unit tests |
+| **Deploy Infrastructure** | ~10 min | CloudFormation stack deployment |
+| **Deploy Frontend** | ~2 min | S3 sync, CloudFront invalidation |
 
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build Lambda Packages
-        run: make build-lambda
-      - name: Build Frontend
-        run: cd frontend && npm run build
+**Total Duration**: ~20 minutes for complete deployment
 
-  deploy-dev:
-    if: github.ref == 'refs/heads/develop'
-    needs: [validate, test, build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Development
-        run: ./scripts/sync-to-deployment-bucket.sh --deploy-cfn
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+### Deployment Workflow
 
-  deploy-prod:
-    if: github.ref == 'refs/heads/main'
-    needs: [validate, test, build]
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Deploy to Production
-        run: ./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+```bash
+# Simply push to main branch to trigger deployment
+git add .
+git commit -m "Your changes"
+git push origin main
+
+# Monitor deployment at:
+# https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
-#### 2. Branch Strategy
-- `main` - Production deployments
-- `develop` - Development environment
-- `feature/*` - Feature branches with PR reviews
-- `hotfix/*` - Emergency production fixes
+### Manual Deployment (Development)
 
-#### 3. Required Secrets
+```bash
+# Fast Lambda code update (5 seconds)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+
+# Full CloudFormation deployment (5-10 minutes)
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
 ```
-AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY
-AWS_SESSION_TOKEN (if using temporary credentials)
+
+### GitHub Actions Setup (One-Time)
+
+1. Deploy the OIDC stack:
+```bash
+aws cloudformation deploy \
+  --template-file cfn/github-oidc-stack.yaml \
+  --stack-name aws-elasticdrs-orchestrator-github-oidc \
+  --parameter-overrides \
+    ProjectName=aws-elasticdrs-orchestrator \
+    Environment=dev \
+    GitHubOrg=YOUR_ORG \
+    GitHubRepo=YOUR_REPO \
+    DeploymentBucket=aws-elasticdrs-orchestrator \
+  --capabilities CAPABILITY_NAMED_IAM
 ```
+
+2. Add GitHub repository secrets:
+   - `AWS_ROLE_ARN` - IAM role ARN from OIDC stack
+   - `DEPLOYMENT_BUCKET` - S3 bucket name
+   - `STACK_NAME` - CloudFormation stack name
+   - `ADMIN_EMAIL` - Admin email for Cognito
 
 ---
 
