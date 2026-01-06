@@ -46,10 +46,25 @@ jobs:
 
       - name: Validate CloudFormation templates
         run: |
-          echo "=== CloudFormation Validation ==="
+          echo "=== CloudFormation Lint Validation ==="
           for template in cfn/*.yaml; do
-            echo "Validating $template..."
+            echo "Validating $template with cfn-lint..."
             cfn-lint "$template" || true
+          done
+
+      - name: Configure AWS credentials for validation
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: AWS CloudFormation native validation
+        run: |
+          echo "=== AWS CloudFormation Native Validation ==="
+          for template in cfn/*.yaml; do
+            echo "Validating $template with AWS..."
+            aws cloudformation validate-template --template-body file://$template > /dev/null
+            echo "✓ $template is valid"
           done
 
       - name: Python code quality
@@ -70,6 +85,12 @@ jobs:
           npm ci
           npm run type-check || true
 
+      - name: Frontend ESLint
+        working-directory: frontend
+        run: |
+          echo "=== ESLint Validation ==="
+          npm run lint -- --max-warnings 200 || true
+
   # Stage 2: Security scanning
   security-scan:
     name: Security Scan
@@ -83,9 +104,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install security tools
         run: |
-          pip install bandit safety
+          pip install bandit safety semgrep
 
       - name: Bandit security scan
         run: |
@@ -97,6 +123,18 @@ jobs:
         run: |
           echo "=== Safety Dependency Check ==="
           safety check || true
+
+      - name: Semgrep security scan
+        run: |
+          echo "=== Semgrep Security Scan ==="
+          semgrep --config=auto lambda/ --severity ERROR --severity WARNING || true
+
+      - name: Frontend npm audit
+        working-directory: frontend
+        run: |
+          echo "=== NPM Audit Security Scan ==="
+          npm ci
+          npm audit --audit-level moderate || true
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
