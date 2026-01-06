@@ -416,8 +416,8 @@ Complete deployment automation for fresh AWS environments, including AWS native 
 
 ### Migration Specifications
 
-#### CI/CD Migration (GitLab → AWS CodeCommit/CodePipeline)
-For migrating existing GitLab CI/CD to AWS native services, see the [CI/CD Migration Specification](.kiro/specs/cicd-migration/) which includes:
+#### CI/CD Migration (GitLab → GitHub Actions)
+For migrating existing GitLab CI/CD to GitHub Actions, see the [GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) which includes:
 
 - **[Requirements](.kiro/specs/cicd-migration/requirements.md)** - Migration requirements and acceptance criteria
 - **[Design Document](.kiro/specs/cicd-migration/design.md)** - Technical migration approach and architecture

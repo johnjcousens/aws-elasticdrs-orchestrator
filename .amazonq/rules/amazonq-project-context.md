@@ -275,42 +275,41 @@ flowchart LR
 
 ## CI/CD Infrastructure
 
-### AWS CodePipeline Deployment
+### GitHub Actions Deployment
 
-The project uses **AWS CodePipeline** for automated deployment with the following active infrastructure:
+The project uses **GitHub Actions** for automated deployment with OIDC-based AWS authentication (no long-lived credentials).
 
-| Component | Name | Purpose |
-|-----------|------|---------|
-| **Pipeline** | `aws-elasticdrs-orchestrator-pipeline-dev` | 7-stage automated deployment |
-| **Primary Repository** | `aws-elasticdrs-orchestrator-dev` (CodeCommit) | Source code repository |
-| **Secondary Repository** | GitHub mirror | Development collaboration |
-| **Account** | 438465159935 | AWS account for all resources |
-| **Deployment Bucket** | `aws-elasticdrs-orchestrator` | Artifact storage |
+| Component | Description |
+|-----------|-------------|
+| **Workflow** | `.github/workflows/deploy.yml` |
+| **Repository** | GitHub (`johnjcousens/aws-elasticdrs-orchestrator`) |
+| **Authentication** | OIDC (OpenID Connect) |
+| **OIDC Stack** | `cfn/github-oidc-stack.yaml` |
+| **Account** | 438465159935 |
+| **Deployment Bucket** | `aws-elasticdrs-orchestrator` |
 
 ### Pipeline Stages
 
-1. **Source** (~30s) - Code retrieval from CodeCommit
-2. **Validate** (~2-3min) - CloudFormation validation, Python linting
-3. **SecurityScan** (~3-4min) - Bandit security scan, cfn-lint checks
-4. **Build** (~4-5min) - Lambda packaging, frontend builds
-5. **Test** (~3-4min) - Unit tests, integration tests, coverage
-6. **DeployInfrastructure** (~8-10min) - CloudFormation stack updates
-7. **DeployFrontend** (~2-3min) - S3 sync, CloudFront invalidation
+1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
+2. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
+3. **Build** (~3 min) - Lambda packaging, frontend build
+4. **Test** (~2 min) - Unit tests
+5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
 
-**Total Duration**: 15-20 minutes for complete deployment
+**Total Duration**: ~20 minutes for complete deployment
 
 ### Development Workflow Options
 
-#### CI/CD Pipeline (Production)
+#### GitHub Actions CI/CD (Production)
 ```bash
-# Configure Git for CodeCommit
-export AWS_PROFILE=438465159935_AdministratorAccess
-git config --global credential.helper '!aws codecommit credential-helper $@'
-git config --global credential.UseHttpPath true
+# Simply push to main branch to trigger deployment
+git add .
+git commit -m "Your changes"
+git push origin main  # Triggers GitHub Actions workflow
 
-# Add CodeCommit remote and push to trigger pipeline
-git remote add aws-pipeline https://git-codecommit.us-east-1.amazonaws.com/v1/repos/aws-elasticdrs-orchestrator-dev
-git push aws-pipeline main  # Triggers 15-20 minute deployment
+# Monitor deployment at:
+# https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
 #### Manual Deployment (Development)
