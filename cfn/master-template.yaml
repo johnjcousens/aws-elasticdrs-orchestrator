@@ -348,6 +348,20 @@ Resources:
         ExecutionTerminateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionTerminateInstancesResourceId
         ExecutionJobLogsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionJobLogsResourceId
         ExecutionTerminationStatusResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionTerminationStatusResourceId
+        # DRS Failover/Failback Resource IDs from Resources Stack
+        DrsFailoverResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSFailoverResourceId
+        DrsStartRecoveryResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSStartRecoveryResourceId
+        DrsTerminateRecoveryInstancesResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSTerminateRecoveryInstancesResourceId
+        DrsDisconnectRecoveryInstanceResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSDisconnectRecoveryInstanceResourceId
+        DrsFailbackResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSFailbackResourceId
+        DrsReverseReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSReverseReplicationResourceId
+        DrsStartFailbackResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSStartFailbackResourceId
+        DrsStopFailbackResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSStopFailbackResourceId
+        DrsFailbackConfigurationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSFailbackConfigurationResourceId
+        # DRS Job Management Resource IDs from Resources Stack
+        DrsJobsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSJobsResourceId
+        DrsJobByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSJobByIdResourceId
+        DrsJobLogsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSJobLogsResourceId
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -388,6 +402,36 @@ Resources:
         AccountsTargetsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetsResourceId
         AccountsTargetByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetResourceId
         AccountsTargetValidateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetValidateResourceId
+        # Comprehensive DRS Infrastructure Resource IDs from Resources Stack
+        DrsReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSReplicationResourceId
+        DrsStartReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSStartReplicationResourceId
+        DrsStopReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSStopReplicationResourceId
+        DrsPauseReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSPauseReplicationResourceId
+        DrsResumeReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSResumeReplicationResourceId
+        DrsRetryDataReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSRetryDataReplicationResourceId
+        DrsReplicationConfigurationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSReplicationConfigurationResourceId
+        DrsReplicationConfigurationTemplateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSReplicationConfigurationTemplateResourceId
+        DrsSourceServerResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceServerResourceId
+        DrsSourceServerByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceServerByIdResourceId
+        DrsDisconnectSourceServerResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSDisconnectSourceServerResourceId
+        DrsMarkAsArchivedResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSMarkAsArchivedResourceId
+        DrsExtendedSourceServersResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSExtendedSourceServersResourceId
+        DrsExtensibleSourceServersResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSExtensibleSourceServersResourceId
+        DrsSourceNetworksResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceNetworksResourceId
+        DrsSourceNetworkByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceNetworkByIdResourceId
+        DrsSourceNetworkRecoveryResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceNetworkRecoveryResourceId
+        DrsSourceNetworkReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceNetworkReplicationResourceId
+        DrsSourceNetworkStackResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceNetworkStackResourceId
+        DrsSourceNetworkTemplateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceNetworkTemplateResourceId
+        DrsLaunchConfigurationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSLaunchConfigurationResourceId
+        DrsLaunchConfigurationTemplateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSLaunchConfigurationTemplateResourceId
+        DrsLaunchActionsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSLaunchActionsResourceId
+        DrsLaunchActionByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSLaunchActionByIdResourceId
+        DrsServiceResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSServiceResourceId
+        DrsInitializeServiceResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSInitializeServiceResourceId
+        DrsRecoveryInstancesResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSRecoveryInstancesResourceId
+        DrsRecoveryInstanceByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSRecoveryInstanceByIdResourceId
+        DrsRecoverySnapshotsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSRecoverySnapshotsResourceId
       Tags:
         - Key: Project
           Value: !Ref ProjectName
