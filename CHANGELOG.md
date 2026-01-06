@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - January 6, 2026
+
+### Fixed
+- **Frontend API Config Loading Bug**: Fixed critical issue where `awsConfig` was cached at module load time instead of reading from `window.AWS_CONFIG` dynamically, causing API calls to fail with undefined endpoints
+- **CloudFront Error Caching**: Reduced error response TTL from 300s to 10s to prevent prolonged caching of 403/404 errors during deployments
+- **aws-config.json Values**: Corrected Cognito User Pool ID, Client ID, and API Gateway endpoint values
+
+### Changed
+- **Requirements Documents**: Updated to v2.2 with corrected technical specifications
+- **API Configuration**: Refactored `api.ts` to use getter functions (`getApiEndpoint()`, `getAwsConfig()`) that read config dynamically at call time rather than module initialization
+
+### Technical Details
+- Root cause: ES module initialization order caused `window.AWS_CONFIG` to be undefined when `api.ts` was first imported
+- Solution: Lazy evaluation pattern ensures config is read when API calls are made, not when module loads
+
 ## [1.3.0] - January 6, 2026
 
 ### Added

@@ -1,8 +1,17 @@
 # CI/CD Pipeline Guide
 
-## Overview
+> **⚠️ DEPRECATED**: This guide describes the legacy GitLab CI/CD pipeline. The project has migrated to **GitHub Actions** as of January 2026 (v1.3.0).
+>
+> **For current CI/CD documentation, see:**
+> - [CI/CD Setup Guide](deployment/CICD_SETUP_GUIDE.md) - GitHub Actions setup and usage
+> - [Activate CI/CD Guide](deployment/ACTIVATE_CICD_GUIDE.md) - Quick start guide
+> - [GitHub Actions Setup Guide](deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) - OIDC configuration details
 
-This guide describes the GitLab CI/CD pipeline for the AWS DRS Orchestration solution. The pipeline automates validation, building, and deployment of CloudFormation infrastructure and React frontend.
+---
+
+## Historical Reference: GitLab CI/CD Pipeline (Deprecated)
+
+This guide describes the GitLab CI/CD pipeline that was previously used for the AWS DRS Orchestration solution. This pipeline was replaced by GitHub Actions to eliminate circular dependency issues and provide better developer experience.
 
 ## Prerequisites
 

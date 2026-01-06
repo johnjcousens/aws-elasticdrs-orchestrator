@@ -2,7 +2,9 @@
 
 ## Executive Summary
 
-This document outlines a comprehensive security implementation plan for the AWS DRS Orchestration platform, focusing on automated security scanning, vulnerability detection, and CI/CD integration using AWS CodeCommit, CodeBuild, and CodePipeline.
+This document outlines a comprehensive security implementation plan for the AWS DRS Orchestration platform, focusing on automated security scanning, vulnerability detection, and CI/CD integration.
+
+> **Note**: The CI/CD examples in this document reference AWS CodePipeline/CodeBuild for historical context. The project now uses **GitHub Actions** for CI/CD (as of January 2026, v1.3.0). Security scanning is integrated into the GitHub Actions workflow via Bandit and Safety checks. See [CI/CD Setup Guide](../guides/deployment/CICD_SETUP_GUIDE.md) for current implementation.
 
 ## Current Security Assessment
 
