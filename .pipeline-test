@@ -1,2 +1,2 @@
-Pipeline test trigger - $(date)
-Testing bucket cleaner integration and deployment pipeline
+Pipeline validation test - $(date)
+Testing code compliance after recovery instance detection fix
