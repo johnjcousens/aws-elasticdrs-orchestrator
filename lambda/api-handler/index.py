@@ -2891,18 +2891,26 @@ def create_recovery_plan(body: Dict) -> Dict:
 
         # Validate waves if provided
         if waves:
-            # Transform frontend camelCase to backend PascalCase for storage
+            # Transform frontend camelCase to backend PascalCase for storage (match reference stack format)
             backend_waves = []
             for idx, wave in enumerate(waves):
+                # Convert dependsOnWaves array to Dependencies format (match reference stack)
+                dependencies = []
+                for dep_wave_num in wave.get("dependsOnWaves", []):
+                    dependencies.append({
+                        "DependsOnWaveId": f"wave-{dep_wave_num + 1}"  # Convert 0-based to 1-based wave ID
+                    })
+                
                 backend_wave = {
-                    "WaveNumber": idx,
+                    "ExecutionOrder": idx,  # Match reference stack (not WaveNumber)
+                    "WaveId": f"wave-{idx + 1}",  # Match reference stack format
                     "WaveName": wave.get("name", f"Wave {idx + 1}"),
                     "WaveDescription": wave.get("description", ""),
                     "ProtectionGroupId": wave.get("protectionGroupId", ""),
                     "ProtectionGroupIds": wave.get("protectionGroupIds", []),
                     "ServerIds": wave.get("serverIds", []),
                     "PauseBeforeWave": wave.get("pauseBeforeWave", False),
-                    "DependsOnWaves": wave.get("dependsOnWaves", []),
+                    "Dependencies": dependencies,  # Match reference stack format
                 }
                 backend_waves.append(backend_wave)
             
@@ -3206,18 +3214,26 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         if waves is not None:
             print(f"Updating plan {plan_id} with {len(waves)} waves")
             
-            # Transform frontend camelCase to backend PascalCase for storage
+            # Transform frontend camelCase to backend PascalCase for storage (match reference stack format)
             backend_waves = []
             for idx, wave in enumerate(waves):
+                # Convert dependsOnWaves array to Dependencies format (match reference stack)
+                dependencies = []
+                for dep_wave_num in wave.get("dependsOnWaves", []):
+                    dependencies.append({
+                        "DependsOnWaveId": f"wave-{dep_wave_num + 1}"  # Convert 0-based to 1-based wave ID
+                    })
+                
                 backend_wave = {
-                    "WaveNumber": idx,
+                    "ExecutionOrder": idx,  # Match reference stack (not WaveNumber)
+                    "WaveId": f"wave-{idx + 1}",  # Match reference stack format
                     "WaveName": wave.get("name", f"Wave {idx + 1}"),
                     "WaveDescription": wave.get("description", ""),
                     "ProtectionGroupId": wave.get("protectionGroupId", ""),
                     "ProtectionGroupIds": wave.get("protectionGroupIds", []),
                     "ServerIds": wave.get("serverIds", []),
                     "PauseBeforeWave": wave.get("pauseBeforeWave", False),
-                    "DependsOnWaves": wave.get("dependsOnWaves", []),
+                    "Dependencies": dependencies,  # Match reference stack format
                 }
                 backend_waves.append(backend_wave)
             
@@ -7738,7 +7754,7 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
             else:
                 server_ids = []
 
-        # Extract dependency wave numbers from WaveId format
+        # Extract dependency wave numbers from Dependencies format (match reference stack)
         depends_on_waves = []
         for dep in wave.get("Dependencies", []):
             wave_id = dep.get("DependsOnWaveId", "")
@@ -7754,7 +7770,7 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
 
         waves.append(
             {
-                "waveNumber": idx,
+                "waveNumber": wave.get("ExecutionOrder", idx),  # Use ExecutionOrder from reference stack
                 "name": wave.get("WaveName", ""),
                 "description": wave.get("WaveDescription", ""),
                 "serverIds": server_ids,  # Now guaranteed to be a list
