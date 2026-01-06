@@ -2891,7 +2891,28 @@ def create_recovery_plan(body: Dict) -> Dict:
 
         # Validate waves if provided
         if waves:
-            validation_error = validate_waves(waves)
+            # Normalize wave data to ensure names are preserved
+            normalized_waves = []
+            for idx, wave in enumerate(waves):
+                # Ensure wave has a name - use existing name or generate default
+                wave_name = wave.get("name") or wave.get("WaveName") or f"Wave {idx + 1}"
+                wave_description = wave.get("description") or wave.get("WaveDescription") or ""
+                
+                # Create normalized wave with both frontend and backend field names
+                normalized_wave = {
+                    **wave,  # Keep all original fields
+                    "name": wave_name,  # Frontend format
+                    "WaveName": wave_name,  # Backend format
+                    "description": wave_description,  # Frontend format  
+                    "WaveDescription": wave_description,  # Backend format
+                    "waveNumber": idx,  # Ensure correct numbering
+                }
+                normalized_waves.append(normalized_wave)
+            
+            # Update the item to use normalized waves
+            item["Waves"] = normalized_waves
+            
+            validation_error = validate_waves(normalized_waves)
             if validation_error:
                 return response(400, {"error": validation_error})
 
@@ -3188,11 +3209,29 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         if waves is not None:
             print(f"Updating plan {plan_id} with {len(waves)} waves")
             
-            # Store in DynamoDB format
-            body["Waves"] = waves
+            # Normalize wave data to ensure names are preserved
+            normalized_waves = []
+            for idx, wave in enumerate(waves):
+                # Ensure wave has a name - use existing name or generate default
+                wave_name = wave.get("name") or wave.get("WaveName") or f"Wave {idx + 1}"
+                wave_description = wave.get("description") or wave.get("WaveDescription") or ""
+                
+                # Create normalized wave with both frontend and backend field names
+                normalized_wave = {
+                    **wave,  # Keep all original fields
+                    "name": wave_name,  # Frontend format
+                    "WaveName": wave_name,  # Backend format
+                    "description": wave_description,  # Frontend format  
+                    "WaveDescription": wave_description,  # Backend format
+                    "waveNumber": idx,  # Ensure correct numbering
+                }
+                normalized_waves.append(normalized_wave)
+            
+            # Store normalized waves in DynamoDB format
+            body["Waves"] = normalized_waves
 
             # DEFENSIVE: Validate ServerIds in each wave
-            for idx, wave in enumerate(waves):
+            for idx, wave in enumerate(normalized_waves):
                 server_ids = wave.get("ServerIds", [])
                 if not isinstance(server_ids, list):
                     print(
