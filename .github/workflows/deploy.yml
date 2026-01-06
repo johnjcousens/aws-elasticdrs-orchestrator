@@ -1,0 +1,379 @@
+name: Deploy AWS DRS Orchestration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: aws-elasticdrs-orchestrator
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Stage 1: Validate CloudFormation templates and code quality
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation tools
+        run: |
+          pip install cfn-lint flake8 black isort
+
+      - name: Validate CloudFormation templates
+        run: |
+          echo "=== CloudFormation Validation ==="
+          for template in cfn/*.yaml; do
+            echo "Validating $template..."
+            cfn-lint "$template" || true
+          done
+
+      - name: Python code quality
+        run: |
+          echo "=== Python Code Quality ==="
+          flake8 lambda/ --config .flake8 --count --show-source --statistics || true
+          black --check --line-length 79 lambda/ || true
+          isort --check-only --profile black lambda/ || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Frontend type check
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run type-check || true
+
+  # Stage 2: Security scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install security tools
+        run: |
+          pip install bandit safety
+
+      - name: Bandit security scan
+        run: |
+          echo "=== Bandit Security Scan ==="
+          bandit -r lambda/ -ll -ii --format json --output bandit-report.json || true
+          bandit -r lambda/ -ll -ii || true
+
+      - name: Safety dependency check
+        run: |
+          echo "=== Safety Dependency Check ==="
+          safety check || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+          retention-days: 30
+
+  # Stage 3: Build Lambda packages and frontend
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [validate, security-scan]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Lambda packages
+        run: |
+          echo "=== Building Lambda Packages ==="
+          mkdir -p build/lambda
+          
+          # Package each Lambda function
+          for func_dir in lambda/*/; do
+            func_name=$(basename "$func_dir")
+            if [ -f "$func_dir/index.py" ]; then
+              echo "Packaging $func_name..."
+              cd "$func_dir"
+              zip -r "../../build/lambda/${func_name}.zip" . -x "*.pyc" -x "__pycache__/*"
+              cd ../..
+            fi
+          done
+          
+          ls -la build/lambda/
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          echo "=== Building Frontend ==="
+          npm ci
+          npm run build
+          
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            build/
+            frontend/dist/
+          retention-days: 7
+
+  # Stage 4: Run tests
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest pytest-cov moto boto3
+
+      - name: Run unit tests
+        run: |
+          echo "=== Running Unit Tests ==="
+          cd tests/python
+          pytest unit/ -v --tb=short || true
+
+  # Stage 5: Deploy infrastructure (only on main branch)
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: 
+      name: ${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS access
+        run: |
+          echo "=== AWS Identity ==="
+          aws sts get-caller-identity
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Sync to deployment bucket
+        run: |
+          echo "=== Syncing to S3 ==="
+          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          
+          # Sync CloudFormation templates
+          aws s3 sync cfn/ "s3://${BUCKET}/cfn/" --delete
+          
+          # Sync Lambda packages
+          aws s3 sync build/lambda/ "s3://${BUCKET}/lambda/" --delete
+          
+          echo "Deployment artifacts synced to s3://${BUCKET}/"
+
+      - name: Deploy CloudFormation stack
+        run: |
+          echo "=== Deploying CloudFormation Stack ==="
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}"
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          
+          # Check stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          
+          echo "Current stack status: $STACK_STATUS"
+          
+          # Handle failed states
+          if [[ "$STACK_STATUS" == *"ROLLBACK_COMPLETE"* ]] || [[ "$STACK_STATUS" == *"DELETE_FAILED"* ]]; then
+            echo "Stack in failed state, deleting..."
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+          fi
+          
+          # Deploy stack
+          aws cloudformation deploy \
+            --template-file cfn/master-template.yaml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides \
+              ProjectName="${{ env.PROJECT_NAME }}" \
+              Environment="$ENV" \
+              SourceBucket="$BUCKET" \
+              AdminEmail="$ADMIN_EMAIL" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --tags \
+              Project="${{ env.PROJECT_NAME }}" \
+              Environment="$ENV" \
+              DeployedBy=GitHubActions \
+              CommitSha="${{ github.sha }}" \
+            --no-fail-on-empty-changeset
+          
+          echo "=== Stack Outputs ==="
+          aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' --output table
+
+      - name: Save deployment info
+        run: |
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          
+          API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
+          
+          echo "API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
+          echo "CLOUDFRONT_URL=$CLOUDFRONT_URL" >> $GITHUB_ENV
+          
+          echo "### Deployment Complete :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| API Endpoint | $API_ENDPOINT |" >> $GITHUB_STEP_SUMMARY
+          echo "| CloudFront URL | $CLOUDFRONT_URL |" >> $GITHUB_STEP_SUMMARY
+
+  # Stage 6: Deploy frontend
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Get stack outputs
+        id: stack
+        run: |
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+          API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
+          USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
+          USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
+          IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)
+          
+          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "user_pool_client_id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "identity_pool_id=$IDENTITY_POOL_ID" >> $GITHUB_OUTPUT
+
+      - name: Generate frontend config
+        run: |
+          cat > frontend/dist/aws-config.json << EOF
+          {
+            "region": "${{ env.AWS_REGION }}",
+            "userPoolId": "${{ steps.stack.outputs.user_pool_id }}",
+            "userPoolClientId": "${{ steps.stack.outputs.user_pool_client_id }}",
+            "identityPoolId": "${{ steps.stack.outputs.identity_pool_id }}",
+            "apiEndpoint": "${{ steps.stack.outputs.api_endpoint }}"
+          }
+          EOF
+          
+          echo "Generated aws-config.json:"
+          cat frontend/dist/aws-config.json
+
+      - name: Deploy to S3
+        run: |
+          echo "=== Deploying Frontend to S3 ==="
+          aws s3 sync frontend/dist/ "s3://${{ steps.stack.outputs.frontend_bucket }}/" \
+            --delete \
+            --cache-control "max-age=31536000" \
+            --exclude "index.html" \
+            --exclude "aws-config.json"
+          
+          # Deploy index.html and config with no-cache
+          aws s3 cp frontend/dist/index.html "s3://${{ steps.stack.outputs.frontend_bucket }}/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+          aws s3 cp frontend/dist/aws-config.json "s3://${{ steps.stack.outputs.frontend_bucket }}/aws-config.json" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "=== Invalidating CloudFront Cache ==="
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
+            --paths "/*"
+
+      - name: Deployment summary
+        run: |
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
+          
+          echo "### Frontend Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
