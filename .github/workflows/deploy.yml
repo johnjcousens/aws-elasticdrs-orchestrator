@@ -316,6 +316,14 @@ jobs:
             echo "Termination protection will be enabled automatically"
           fi
           
+          # ENTERPRISE SAFETY: Pre-deployment validation
+          echo "🔒 ENTERPRISE SAFETY VALIDATION:"
+          echo "   - Pipeline will NEVER delete stacks automatically"
+          echo "   - Termination protection will be enabled"
+          echo "   - All destructive actions require manual intervention"
+          echo "   - Stack: $STACK_NAME"
+          echo "   - Environment: $ENV"
+          
           # Check stack status
           STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
@@ -328,16 +336,24 @@ jobs:
             echo "Stack can be updated again, but will not be auto-deleted for safety"
             echo "Current status: $STACK_STATUS"
             echo "✅ SAFE: No auto-deletion will occur"
+            echo "📋 MANUAL ACTION: If stack cleanup is needed, delete manually outside of pipeline"
           elif [[ "$STACK_STATUS" == *"DELETE_FAILED"* ]]; then
             echo "❌ Stack is in DELETE_FAILED state - manual cleanup required"
             echo "This requires manual investigation and resolution"
             echo "🛑 STOPPING DEPLOYMENT - Manual intervention needed"
+            echo "📋 MANUAL ACTION: Investigate DELETE_FAILED state and resolve manually"
             exit 1
           elif [[ "$STACK_STATUS" == *"DELETE_IN_PROGRESS"* ]]; then
             echo "❌ Stack is currently being deleted"
             echo "🛑 STOPPING DEPLOYMENT - Wait for deletion to complete"
+            echo "📋 MANUAL ACTION: Wait for deletion to complete, then redeploy"
             exit 1
           fi
+          
+          # ENTERPRISE SAFETY: Explicit no-deletion policy
+          echo "🛡️  ENTERPRISE SAFETY POLICY: This pipeline will NEVER delete stacks automatically"
+          echo "🛡️  All stack deletions must be performed manually outside of CI/CD pipeline"
+          echo "🛡️  Termination protection will be enabled to prevent accidental deletion"
           
           # Deploy stack with termination protection
           DEPLOY_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -373,9 +389,12 @@ jobs:
           if [[ "$TERMINATION_PROTECTION" == "True" ]]; then
             echo "✅ CONFIRMED: Stack termination protection is ENABLED"
             echo "🛡️  Stack is now protected from accidental deletion"
+            echo "🛡️  ENTERPRISE SAFETY: Manual action required to delete this stack"
+            echo "🛡️  To delete: 1) Disable termination protection 2) Run delete command manually"
           else
             echo "❌ WARNING: Failed to enable termination protection"
             echo "🚨 MANUAL ACTION REQUIRED: Enable termination protection manually"
+            echo "🚨 CRITICAL: Stack is vulnerable to accidental deletion"
             exit 1
           fi
           
