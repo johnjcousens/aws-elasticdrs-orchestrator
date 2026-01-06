@@ -26,7 +26,7 @@ import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { PermissionAwareButton, PermissionAwareButtonDropdown } from '../components/PermissionAware';
-import { DRSPermission } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 import apiClient from '../services/api';
 
 /**

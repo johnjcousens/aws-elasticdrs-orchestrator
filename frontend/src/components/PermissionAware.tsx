@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button, ButtonDropdown } from '@cloudscape-design/components';
 import type { ButtonProps, ButtonDropdownProps } from '@cloudscape-design/components';
-import { usePermissions, DRSPermission } from '../contexts/PermissionsContext';
+import { usePermissions } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 
 // Permission-aware Button component
 interface PermissionAwareButtonProps extends ButtonProps {
@@ -172,20 +173,4 @@ export const PermissionAwareButtonDropdown: React.FC<PermissionAwareButtonDropdo
       items={processedItems}
     />
   );
-};
-
-// Hook for permission-based conditional rendering
-export const usePermissionCheck = (
-  requiredPermission?: DRSPermission,
-  requiredPermissions?: DRSPermission[]
-) => {
-  const { hasPermission, hasAnyPermission } = usePermissions();
-
-  if (requiredPermission) {
-    return hasPermission(requiredPermission);
-  } else if (requiredPermissions && requiredPermissions.length > 0) {
-    return hasAnyPermission(requiredPermissions);
-  }
-
-  return true;
 };

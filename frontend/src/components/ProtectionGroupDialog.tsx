@@ -27,7 +27,7 @@ import { RegionSelector } from './RegionSelector';
 import { ServerDiscoveryPanel } from './ServerDiscoveryPanel';
 import { LaunchConfigSection } from './LaunchConfigSection';
 import { PermissionAwareButton } from './PermissionAware';
-import { DRSPermission } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 import { ServerListItem } from './ServerListItem';
 import apiClient from '../services/api';
 import type { ProtectionGroup, ResolvedServer, LaunchConfig } from '../types';

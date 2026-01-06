@@ -24,7 +24,7 @@ import { WaveConfigEditor } from './WaveConfigEditor';
 import apiClient from '../services/api';
 import { DRS_LIMITS } from '../services/drsQuotaService';
 import { PermissionAwareButton } from './PermissionAware';
-import { DRSPermission } from '../contexts/PermissionsContext';
+import { DRSPermission } from '../types/permissions';
 
 interface RecoveryPlanDialogProps {
   open: boolean;
