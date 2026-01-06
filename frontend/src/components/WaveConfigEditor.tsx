@@ -57,12 +57,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
-  const handleAddWave = useCallback((e?: React.MouseEvent) => {
-    // Prevent any form submission or event bubbling
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+  const handleAddWave = useCallback(() => {
     console.log('[WaveConfigEditor] handleAddWave called, current waves:', safeWaves.length);
     
     const newWave: Wave = {
@@ -148,7 +143,6 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
           <Button 
             iconName="add-plus" 
             onClick={handleAddWave}
-            type="button"
             variant="normal"
           >
             Add Wave
@@ -184,19 +178,19 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                       <Button
                         variant="icon"
                         iconName="angle-up"
-                        onClick={(e) => { e.preventDefault(); handleMoveWave(wave.waveNumber, 'up'); }}
+                        onClick={() => handleMoveWave(wave.waveNumber, 'up')}
                         disabled={wave.waveNumber === 0}
                       />
                       <Button
                         variant="icon"
                         iconName="angle-down"
-                        onClick={(e) => { e.preventDefault(); handleMoveWave(wave.waveNumber, 'down'); }}
+                        onClick={() => handleMoveWave(wave.waveNumber, 'down')}
                         disabled={wave.waveNumber === safeWaves.length - 1}
                       />
                       <Button
                         variant="icon"
                         iconName="remove"
-                        onClick={(e) => { e.preventDefault(); handleRemoveWave(wave.waveNumber); }}
+                        onClick={() => handleRemoveWave(wave.waveNumber)}
                       />
                     </div>
                   )}
