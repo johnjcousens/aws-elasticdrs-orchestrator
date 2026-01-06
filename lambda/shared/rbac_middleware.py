@@ -181,6 +181,7 @@ ENDPOINT_PERMISSIONS = {
     # Protection Groups
     ("GET", "/protection-groups"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("POST", "/protection-groups"): [DRSPermission.CREATE_PROTECTION_GROUPS],
+    ("POST", "/protection-groups/resolve"): [DRSPermission.VIEW_PROTECTION_GROUPS],  # Tag preview endpoint
     ("GET", "/protection-groups/{id}"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("PUT", "/protection-groups/{id}"): [
         DRSPermission.MODIFY_PROTECTION_GROUPS
