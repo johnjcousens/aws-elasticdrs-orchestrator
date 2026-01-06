@@ -10,7 +10,7 @@ import { Badge } from '@cloudscape-design/components';
 import type { ExecutionStatus } from '../types';
 
 export interface StatusBadgeProps {
-  status: ExecutionStatus | string;
+  status?: ExecutionStatus | string;
 }
 
 /**
@@ -22,6 +22,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
 }) => {
   const getStatusConfig = (status: string) => {
+    if (!status) {
+      return {
+        label: 'Unknown',
+        color: 'grey' as const,
+      };
+    }
+    
     const normalizedStatus = status.toLowerCase().replace(/_/g, ' ');
     
     switch (normalizedStatus) {
@@ -123,7 +130,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     }
   };
 
-  const config = getStatusConfig(status);
+  const config = getStatusConfig(status || '');
 
   return (
     <Badge color={config.color}>
