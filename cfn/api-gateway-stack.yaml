@@ -2352,7 +2352,7 @@ Resources:
       FunctionName: !Sub '${ProjectName}-deployment-orchestrator-${Environment}'
       Runtime: python3.12
       Handler: index.lambda_handler
-      Role: !Ref DeploymentOrchestratorRole
+      Role: !GetAtt DeploymentOrchestratorRole.Arn
       Timeout: 300
       Environment:
         Variables:
