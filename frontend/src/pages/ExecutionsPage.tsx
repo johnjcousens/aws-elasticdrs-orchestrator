@@ -100,7 +100,8 @@ export const ExecutionsPage: React.FC = () => {
       if (loading) setErrorMsg(null);
       const accountId = getCurrentAccountId();
       const response = await apiClient.listExecutions(accountId ? { accountId } : undefined);
-      setExecutions(response.items);
+      // Defensive check: ensure items is an array
+      setExecutions(Array.isArray(response?.items) ? response.items : []);
       setLastRefresh(new Date());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load executions';

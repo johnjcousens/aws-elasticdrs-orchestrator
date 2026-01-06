@@ -142,11 +142,11 @@ npm run lint         # ESLint validation
 #### Lambda Functions (5 Active)
 | Function | File | Purpose |
 |----------|------|---------|
-| `api-handler` | `lambda/index.py` | REST API endpoints |
-| `orchestration-stepfunctions` | `lambda/orchestration_stepfunctions.py` | Step Functions orchestration |
-| `execution-finder` | `lambda/poller/execution_finder.py` | EventBridge scheduled poller |
-| `execution-poller` | `lambda/poller/execution_poller.py` | DRS job status updates |
-| `frontend-builder` | `lambda/build_and_deploy.py` | CloudFormation custom resource |
+| `api-handler` | `lambda/api-handler/index.py` | REST API endpoints |
+| `orchestration-stepfunctions` | `lambda/orchestration-stepfunctions/index.py` | Step Functions orchestration |
+| `execution-finder` | `lambda/execution-finder/index.py` | EventBridge scheduled poller |
+| `execution-poller` | `lambda/execution-poller/index.py` | DRS job status updates |
+| `frontend-builder` | `lambda/frontend-builder/index.py` | CloudFormation custom resource |
 
 #### Backend Rules
 1. **Python 3.12** with type hints for all functions

@@ -31,7 +31,7 @@ interface DataTableSkeletonProps {
  * )}
  * ```
  */
-export const DataTableSkeleton = (): ReactElement => {
+export const DataTableSkeleton = ({ height = 600 }: DataTableSkeletonProps): ReactElement => {
   return (
     <div
       style={{

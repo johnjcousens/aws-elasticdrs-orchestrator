@@ -147,8 +147,10 @@ export const RecoveryPlansPage: React.FC = () => {
     try {
       const accountId = getCurrentAccountId();
       const response = await apiClient.listExecutions(accountId ? { accountId } : undefined);
+      // Defensive check: ensure items is an array
+      const items = Array.isArray(response?.items) ? response.items : [];
       const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
-      const activeExecutions = response.items.filter((exec) => activeStatuses.includes(exec.status.toUpperCase()));
+      const activeExecutions = items.filter((exec) => activeStatuses.includes(exec.status.toUpperCase()));
       const plansWithActiveExecution = new Set<string>(activeExecutions.map((exec) => exec.recoveryPlanId));
       setPlansWithInProgressExecution(plansWithActiveExecution);
       
@@ -171,7 +173,8 @@ export const RecoveryPlansPage: React.FC = () => {
       setError(null);
       const accountId = getCurrentAccountId();
       const data = await apiClient.listRecoveryPlans(accountId ? { accountId } : undefined);
-      setPlans(data);
+      // Defensive check: ensure data is an array
+      setPlans(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load recovery plans';
       setError(errorMessage);

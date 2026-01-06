@@ -35,8 +35,8 @@ test-screenshots/
 *.spec.ts
 playwright-report/
 playwright.config.ts
-lambda/poller/test_*.py
-lambda/poller/.coverage
+lambda/*/test_*.py
+lambda/*/.coverage
 
 # Cline memory (internal)
 .cline_memory/
@@ -78,7 +78,7 @@ scripts/wait_for_completion.sh
 lambda/deployment-package.zip
 lambda/lambda-package.zip
 lambda/orchestration-package.zip
-lambda/poller/*.zip
+lambda/*/*.zip
 lambda/__pycache__/
 lambda/package/
 

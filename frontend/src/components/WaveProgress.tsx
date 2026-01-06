@@ -5,7 +5,7 @@
  * Shows wave statuses, timing, and server details.
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Container,
   SpaceBetween,
@@ -522,7 +522,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
   const [expandedJobLogs, setExpandedJobLogs] = useState<Record<number, boolean>>({});
 
   // Fetch job logs for a wave
-  const fetchJobLogs = async (waveNumber: number, jobId: string, force = false) => {
+  const fetchJobLogs = useCallback(async (waveNumber: number, jobId: string, force = false) => {
     if (!executionId || (!force && jobLogs[waveNumber]) || loadingLogs[waveNumber]) return;
     
     setLoadingLogs(prev => ({ ...prev, [waveNumber]: true }));
@@ -530,8 +530,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
       const result = await apiClient.getJobLogs(executionId, jobId);
       
       // Find logs by wave number first, then by jobId as fallback
-      const waveLogs = result.jobLogs.find(l => l.waveNumber === waveNumber) 
-        || result.jobLogs.find(l => l.jobId === jobId);
+      const waveLogs = result.jobLogs.find((l: WaveJobLogs) => l.waveNumber === waveNumber) 
+        || result.jobLogs.find((l: WaveJobLogs) => l.jobId === jobId);
       
       if (waveLogs) {
         setJobLogs(prev => ({ ...prev, [waveNumber]: waveLogs }));
@@ -541,7 +541,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
     } finally {
       setLoadingLogs(prev => ({ ...prev, [waveNumber]: false }));
     }
-  };
+  }, [executionId, jobLogs, loadingLogs]);
 
   // Track wave statuses to detect changes
   const [prevWaveStatuses, setPrevWaveStatuses] = useState<Record<number, string>>({});
@@ -575,7 +575,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
     
     // Update previous statuses
     setPrevWaveStatuses(currentStatuses);
-  }, [executionId, waves]);
+  }, [executionId, waves, fetchJobLogs, jobLogs, prevWaveStatuses]);
 
   // Separate effect for polling - uses ref to avoid dependency issues
   useEffect(() => {
@@ -615,7 +615,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         pollingIntervalRef.current = null;
       }
     };
-  }, [executionId, waves]);
+  }, [executionId, waves, fetchJobLogs]);
 
   // Calculate progress using job logs for more accuracy
   const progress = useMemo(() => {
@@ -691,7 +691,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     </div>
                   )}
                 </div>
-                <StatusBadge status={wave.status} size="small" />
+                <StatusBadge status={wave.status} />
               </div>
 
               {/* Wave Error */}
