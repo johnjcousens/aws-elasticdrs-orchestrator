@@ -53,9 +53,6 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
   // Get the actual name tag value - prefer nameTag field, fallback to drsTags.Name
   const actualNameTag = nameTag || (drsTags?.Name);
   
-  // Filter out Name tag from DRS tags display (already shown as nameTag)
-  const displayTags = drsTags ? Object.entries(drsTags).filter(([k]) => k !== 'Name') : [];
-  
   // Display name: prefer Name tag, fall back to hostname
   const displayName = actualNameTag || hostname;
   

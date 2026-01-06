@@ -378,17 +378,22 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           />
         </FormField>
 
-        <RegionSelector
-          value={region}
-          onChange={setRegion}
-          disabled={loading || isEditMode}
-          error={Boolean(validationErrors.region)}
-          helperText={
+        <FormField
+          label="Region"
+          description={
             isEditMode
               ? 'Region cannot be changed after creation'
-              : validationErrors.region || 'Select the AWS region where DRS servers are located'
+              : 'Select the AWS region where DRS servers are located'
           }
-        />
+          errorText={validationErrors.region}
+        >
+          <RegionSelector
+            value={region}
+            onChange={setRegion}
+            disabled={loading || isEditMode}
+            error={Boolean(validationErrors.region)}
+          />
+        </FormField>
 
         {/* Server Selection - Tabs for different modes */}
         {region && (

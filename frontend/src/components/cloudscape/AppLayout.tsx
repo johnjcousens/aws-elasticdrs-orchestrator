@@ -13,6 +13,7 @@ import {
   Flashbar,
   TopNavigation,
 } from '@cloudscape-design/components';
+import type { SideNavigationProps } from '@cloudscape-design/components';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -139,7 +140,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           !navigationHide ? (
             <SideNavigation
               activeHref={location.pathname}
-              items={navigationItems as any}
+              items={navigationItems as SideNavigationProps['items']}
               onFollow={handleNavigationFollow}
             />
           ) : undefined

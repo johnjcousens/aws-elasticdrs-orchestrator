@@ -57,24 +57,6 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
-  /**
-   * Get Protection Groups for selection
-   * With tag-based PGs, servers are resolved at execution time
-   */
-  const getAvailableProtectionGroups = (_currentWaveNumber: number) => {
-    if (!protectionGroups || protectionGroups.length === 0) return [];
-
-    return protectionGroups.map(pg => {
-      // With tag-based PGs, we show tag count instead of server count
-      const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
-      return {
-        ...pg,
-        tagCount,
-        isAvailable: tagCount > 0
-      };
-    });
-  };
-
   const handleAddWave = () => {
     const newWave: Wave = {
       waveNumber: safeWaves.length,
@@ -132,7 +114,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
     setExpandedWave(newIndex);
   };
 
-  const handleUpdateWave = (waveNumber: number, field: keyof Wave, value: string | boolean | string[] | number) => {
+  const handleUpdateWave = (waveNumber: number, field: keyof Wave, value: string | boolean | string[] | number | number[]) => {
     const updatedWaves = safeWaves.map(w =>
       w.waveNumber === waveNumber ? { ...w, [field]: value } : w
     );

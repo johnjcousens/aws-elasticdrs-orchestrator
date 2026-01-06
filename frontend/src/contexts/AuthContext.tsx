@@ -5,7 +5,7 @@
  * Uses AWS Amplify for Cognito integration.
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Amplify } from 'aws-amplify';
 import {
@@ -107,53 +107,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Auto-logout timer (45 minutes)
   const AUTO_LOGOUT_TIME = 45 * 60 * 1000; // 45 minutes in milliseconds
-  const [logoutTimer, setLogoutTimer] = useState<NodeJS.Timeout | null>(null);
-
-  /**
-   * Start auto-logout timer
-   */
-  const startLogoutTimer = () => {
-    if (logoutTimer) {
-      clearTimeout(logoutTimer);
-    }
-    
-    const timer = setTimeout(() => {
-      handleSignOut();
-    }, AUTO_LOGOUT_TIME);
-    
-    setLogoutTimer(timer);
-  };
+  
+  // Use refs to avoid dependency cycles that cause infinite re-renders
+  const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const authCheckInProgressRef = useRef(false);
+  const hasCheckedAuthRef = useRef(false);
 
   /**
    * Clear auto-logout timer
    */
-  const clearLogoutTimer = () => {
-    if (logoutTimer) {
-      clearTimeout(logoutTimer);
-      setLogoutTimer(null);
+  const clearLogoutTimer = useCallback(() => {
+    if (logoutTimerRef.current) {
+      clearTimeout(logoutTimerRef.current);
+      logoutTimerRef.current = null;
     }
-  };
+  }, []);
 
   /**
-   * Check if user is authenticated on mount
+   * Start auto-logout timer
    */
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
-
-  /**
-   * Clean up timer on unmount
-   */
-  useEffect(() => {
-    return () => {
-      clearLogoutTimer();
-    };
+  const startLogoutTimer = useCallback(() => {
+    clearLogoutTimer();
+    
+    logoutTimerRef.current = setTimeout(() => {
+      // Sign out when timer expires
+      signOut().then(() => {
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          loading: false,
+          error: undefined,
+        });
+      }).catch(console.error);
+    }, AUTO_LOGOUT_TIME);
   }, [clearLogoutTimer]);
 
   /**
    * Check current authentication status
    */
-  const checkAuth = async (): Promise<void> => {
+  const checkAuth = useCallback(async (): Promise<void> => {
+    // Prevent concurrent auth checks that cause rate limiting
+    if (authCheckInProgressRef.current) {
+      return;
+    }
+    
+    authCheckInProgressRef.current = true;
+    
     try {
       // Ensure Amplify is configured before any operations
       configureAmplify();
@@ -215,7 +214,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           error: undefined,
         });
       }
-    } catch (error) {
+    } catch {
       // Not logged in is expected on login page - don't log as error
       // Clear auto-logout timer on auth failure
       clearLogoutTimer();
@@ -226,8 +225,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading: false,
         error: undefined,
       });
+    } finally {
+      authCheckInProgressRef.current = false;
     }
-  };
+  }, [clearLogoutTimer, startLogoutTimer]);
+
+  /**
+   * Check if user is authenticated on mount only once
+   */
+  useEffect(() => {
+    if (!hasCheckedAuthRef.current) {
+      hasCheckedAuthRef.current = true;
+      checkAuth();
+    }
+  }, [checkAuth]);
+
+  /**
+   * Clean up timer on unmount
+   */
+  useEffect(() => {
+    return () => {
+      if (logoutTimerRef.current) {
+        clearTimeout(logoutTimerRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Sign in user with username and password

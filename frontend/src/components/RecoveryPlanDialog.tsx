@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { RecoveryPlan, ProtectionGroup, Wave } from '../types';
+import type { RecoveryPlan, ProtectionGroup, Wave, CreateRecoveryPlanRequest, UpdateRecoveryPlanRequest } from '../types';
 import {
   Modal,
   Box,
@@ -89,13 +89,15 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
     }
     setErrors({});
     setError(null);
-  }, [plan, open, protectionGroups]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, open, protectionGroups, waves.length]);
 
   const fetchProtectionGroups = async () => {
     try {
       setLoadingGroups(true);
       const data = await apiClient.listProtectionGroups();
-      setProtectionGroups(data);
+      // Defensive check: ensure data is an array
+      setProtectionGroups(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load protection groups';
       setError(errorMessage);
@@ -165,20 +167,18 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
       if (plan) {
         // Update existing plan - each wave uses its own Protection Group
-        const updateData: Partial<RecoveryPlan> = {
-          PlanName: name,
-          Description: description,
-          Waves: waves.map((wave, index) => ({
-            WaveId: `wave-${index + 1}`,  // 1-based for user clarity
-            WaveName: wave.name,
-            WaveDescription: wave.description || '',
-            ExecutionOrder: index,
-            ProtectionGroupId: wave.protectionGroupId,  // Use wave's PG
-            ServerIds: wave.serverIds,
-            PauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
-            Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
-              DependsOnWaveId: `wave-${depNum + 1}`  // 1-based for user clarity
-            }))
+        const updateData: UpdateRecoveryPlanRequest = {
+          name: name,
+          description: description,
+          waves: waves.map((wave, index) => ({
+            waveNumber: index,
+            name: wave.name,
+            description: wave.description || '',
+            protectionGroupId: wave.protectionGroupId,  // Use wave's PG
+            protectionGroupIds: wave.protectionGroupIds || (wave.protectionGroupId ? [wave.protectionGroupId] : []),
+            serverIds: wave.serverIds || [],
+            pauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
+            dependsOnWaves: wave.dependsOnWaves || []
           }))
         };
         // Include version for optimistic locking
@@ -189,20 +189,19 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         onSave(updatedPlan);
       } else {
         // Create new plan - waves specify their own Protection Groups
-        const createData = {
-          PlanName: name,
-          Description: description,
-          Waves: waves.map((wave, index) => ({
-            WaveId: `wave-${index + 1}`,  // 1-based for user clarity
-            WaveName: wave.name,
-            WaveDescription: wave.description || '',
-            ExecutionOrder: index,
-            ProtectionGroupId: wave.protectionGroupId,  // Use wave's PG
-            ServerIds: wave.serverIds,
-            PauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
-            Dependencies: (wave.dependsOnWaves || []).map(depNum => ({
-              DependsOnWaveId: `wave-${depNum + 1}`  // 1-based for user clarity
-            }))
+        const createData: CreateRecoveryPlanRequest = {
+          name: name,
+          description: description,
+          protectionGroupId: waves[0]?.protectionGroupId || '',  // Use first wave's PG as default
+          waves: waves.map((wave, index) => ({
+            waveNumber: index,
+            name: wave.name,
+            description: wave.description || '',
+            protectionGroupId: wave.protectionGroupId,  // Use wave's PG
+            protectionGroupIds: wave.protectionGroupIds || (wave.protectionGroupId ? [wave.protectionGroupId] : []),
+            serverIds: wave.serverIds || [],
+            pauseBeforeWave: wave.pauseBeforeWave || false,  // Pause before starting this wave
+            dependsOnWaves: wave.dependsOnWaves || []
           }))
         };
         const newPlan = await apiClient.createRecoveryPlan(createData);

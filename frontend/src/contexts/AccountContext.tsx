@@ -135,7 +135,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return 'Please select a target account to continue. You can set a default account in Settings.';
   };
 
-  const refreshAccounts = async () => {
+  const refreshAccounts = useCallback(async () => {
     // Don't fetch if not authenticated
     if (!isAuthenticated || authLoading) {
       setAccountsLoading(false);
@@ -147,42 +147,50 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     
     try {
       const accounts = await apiClient.getTargetAccounts();
-      setAvailableAccounts(accounts);
+      // Defensive check: ensure accounts is an array before setting state
+      if (Array.isArray(accounts)) {
+        setAvailableAccounts(accounts);
+      } else {
+        console.warn('getTargetAccounts returned non-array:', accounts);
+        setAvailableAccounts([]);
+      }
       
       // Auto-selection will be handled by applyDefaultAccount when called from settings
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching accounts:', err);
       
+      const error = err as { response?: { status?: number; data?: { message?: string } }; message?: string; code?: string };
+      
       // Handle specific error types with descriptive messages
-      if (err?.response?.status === 401 || err?.message?.includes('Unauthorized')) {
+      if (error?.response?.status === 401 || error?.message?.includes('Unauthorized')) {
         setAccountsError('Authentication expired. Please sign in again to continue.');
         // Clear accounts when authentication fails
         setAvailableAccounts([]);
         setSelectedAccount(null);
-      } else if (err?.response?.status === 403) {
+      } else if (error?.response?.status === 403) {
         setAccountsError('Access denied. You do not have permission to view target accounts.');
-      } else if (err?.response?.status === 404) {
+      } else if (error?.response?.status === 404) {
         setAccountsError('Target accounts service not found. Please contact your administrator.');
-      } else if (err?.response?.status >= 500) {
+      } else if (error?.response?.status && error.response.status >= 500) {
         setAccountsError('Server error occurred while loading target accounts. Please try again in a few moments.');
-      } else if (err?.message?.includes('timeout')) {
+      } else if (error?.message?.includes('timeout')) {
         setAccountsError('Request timed out. The server may be busy - please try again.');
-      } else if (err?.message?.includes('CORS')) {
+      } else if (error?.message?.includes('CORS')) {
         setAccountsError('Cross-origin request blocked. Please check your browser settings or contact support.');
-      } else if (err?.message?.includes('No response from server')) {
+      } else if (error?.message?.includes('No response from server')) {
         setAccountsError('Unable to reach the server. Please check your internet connection and try again.');
-      } else if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network Error')) {
+      } else if (error?.code === 'NETWORK_ERROR' || error?.message?.includes('Network Error')) {
         setAccountsError('Network connection failed. Please check your internet connection.');
-      } else if (err?.response?.data?.message) {
+      } else if (error?.response?.data?.message) {
         // Use specific error message from API if available
-        setAccountsError(`Error: ${err.response.data.message}`);
+        setAccountsError(`Error: ${error.response.data.message}`);
       } else {
         setAccountsError('Failed to load target accounts. Please refresh the page and try again.');
       }
     } finally {
       setAccountsLoading(false);
     }
-  };
+  }, [isAuthenticated, authLoading]);
 
   const getCurrentAccountId = (): string | null => {
     return selectedAccount?.value || null;
@@ -219,7 +227,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       setAccountsLoading(false);
       setAccountsError(null);
     }
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, authLoading, refreshAccounts]);
 
   const contextValue: AccountContextType = {
     selectedAccount,

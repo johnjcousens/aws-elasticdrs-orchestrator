@@ -249,7 +249,8 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
             if (response.ok) {
               const userData = await response.json();
               
-              if (userData.roles && userData.permissions) {
+              // Defensive check: ensure roles and permissions are arrays
+              if (Array.isArray(userData.roles) && Array.isArray(userData.permissions)) {
                 const backendRoles = userData.roles.map((role: string) => {
                   // Map backend role strings to enum values
                   const roleMapping: Record<string, DRSRole> = {
@@ -273,7 +274,7 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
                 return;
               }
             }
-          } catch (apiError) {
+          } catch {
             // Fall back to JWT token processing
           }
         }
