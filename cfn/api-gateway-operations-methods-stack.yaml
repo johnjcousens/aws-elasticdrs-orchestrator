@@ -66,6 +66,56 @@ Parameters:
     Type: String
     Description: Execution Termination Status Resource ID from Resources Stack
 
+  # DRS Failover/Failback Resource IDs from Resources Stack
+  DrsFailoverResourceId:
+    Type: String
+    Description: DRS Failover Resource ID from Resources Stack
+
+  DrsStartRecoveryResourceId:
+    Type: String
+    Description: DRS Start Recovery Resource ID from Resources Stack
+
+  DrsTerminateRecoveryInstancesResourceId:
+    Type: String
+    Description: DRS Terminate Recovery Instances Resource ID from Resources Stack
+
+  DrsDisconnectRecoveryInstanceResourceId:
+    Type: String
+    Description: DRS Disconnect Recovery Instance Resource ID from Resources Stack
+
+  DrsFailbackResourceId:
+    Type: String
+    Description: DRS Failback Resource ID from Resources Stack
+
+  DrsReverseReplicationResourceId:
+    Type: String
+    Description: DRS Reverse Replication Resource ID from Resources Stack
+
+  DrsStartFailbackResourceId:
+    Type: String
+    Description: DRS Start Failback Resource ID from Resources Stack
+
+  DrsStopFailbackResourceId:
+    Type: String
+    Description: DRS Stop Failback Resource ID from Resources Stack
+
+  DrsFailbackConfigurationResourceId:
+    Type: String
+    Description: DRS Failback Configuration Resource ID from Resources Stack
+
+  # DRS Job Management Resource IDs from Resources Stack
+  DrsJobsResourceId:
+    Type: String
+    Description: DRS Jobs Resource ID from Resources Stack
+
+  DrsJobByIdResourceId:
+    Type: String
+    Description: DRS Job By ID Resource ID from Resources Stack
+
+  DrsJobLogsResourceId:
+    Type: String
+    Description: DRS Job Logs Resource ID from Resources Stack
+
 Resources:
   # ============================================================================
   # Methods - Executions
@@ -494,6 +544,148 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
+  # ============================================================================
+  # Methods - DRS Failover Operations
+  # ============================================================================
+
+  DrsFailoverGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsFailoverResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DrsFailoverOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsFailoverResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DrsStartRecoveryPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsStartRecoveryResourceId
+      HttpMethod: POST
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestValidatorId: !Ref ApiRequestValidatorId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DrsStartRecoveryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsStartRecoveryResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ============================================================================
+  # Methods - DRS Job Management
+  # ============================================================================
+
+  DrsJobsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsJobsResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestParameters:
+        method.request.querystring.region: false
+        method.request.querystring.jobType: false
+        method.request.querystring.status: false
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunctionArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  DrsJobsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref DrsJobsResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
 # ============================================================================
 # OUTPUTS
 # ============================================================================
@@ -501,6 +693,6 @@ Resources:
 Outputs:
   OperationsMethodsStackStatus:
     Description: 'API Gateway Operations Methods Stack deployment status'
-    Value: 'Operations methods deployed: Executions (18 methods) = 18 methods total'
+    Value: 'Operations methods deployed: Executions (18 methods) + DRS Failover/Failback (16 methods) + DRS Jobs (6 methods) = 40 methods total'
     Export:
       Name: !Sub '${AWS::StackName}-OperationsMethodsStackStatus'
