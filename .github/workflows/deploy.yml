@@ -306,6 +306,16 @@ jobs:
           ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}"
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           
+          # PRODUCTION SAFETY CHECK
+          if [[ "$ENV" == "prod" ]]; then
+            echo "🚨 PRODUCTION DEPLOYMENT DETECTED 🚨"
+            echo "Stack: $STACK_NAME"
+            echo "Environment: $ENV"
+            echo "Commit: ${{ github.sha }}"
+            echo "This deployment will affect PRODUCTION resources"
+            echo "Termination protection will be enabled automatically"
+          fi
+          
           # Check stack status
           STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
@@ -317,9 +327,15 @@ jobs:
             echo "⚠️  Stack is in ROLLBACK_COMPLETE state - requires manual intervention"
             echo "Stack can be updated again, but will not be auto-deleted for safety"
             echo "Current status: $STACK_STATUS"
+            echo "✅ SAFE: No auto-deletion will occur"
           elif [[ "$STACK_STATUS" == *"DELETE_FAILED"* ]]; then
             echo "❌ Stack is in DELETE_FAILED state - manual cleanup required"
             echo "This requires manual investigation and resolution"
+            echo "🛑 STOPPING DEPLOYMENT - Manual intervention needed"
+            exit 1
+          elif [[ "$STACK_STATUS" == *"DELETE_IN_PROGRESS"* ]]; then
+            echo "❌ Stack is currently being deleted"
+            echo "🛑 STOPPING DEPLOYMENT - Wait for deletion to complete"
             exit 1
           fi
           
@@ -348,6 +364,20 @@ jobs:
           aws cloudformation update-termination-protection \
             --stack-name "$STACK_NAME" \
             --enable-termination-protection
+          
+          # Verify termination protection is enabled
+          TERMINATION_PROTECTION=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].EnableTerminationProtection' --output text)
+          
+          if [[ "$TERMINATION_PROTECTION" == "True" ]]; then
+            echo "✅ CONFIRMED: Stack termination protection is ENABLED"
+            echo "🛡️  Stack is now protected from accidental deletion"
+          else
+            echo "❌ WARNING: Failed to enable termination protection"
+            echo "🚨 MANUAL ACTION REQUIRED: Enable termination protection manually"
+            exit 1
+          fi
           
           echo "=== Stack Outputs ==="
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
