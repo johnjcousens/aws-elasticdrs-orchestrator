@@ -5,19 +5,19 @@
 # ⚠️  WARNING: This file is DEPRECATED and no longer used for deployments
 # 
 # Current CI/CD Infrastructure:
-# - AWS CodePipeline: aws-elasticdrs-orchestrator-pipeline-dev
-# - AWS CodeCommit: aws-elasticdrs-orchestrator-dev (primary repository)
-# - GitHub: Secondary repository for collaboration
+# - GitHub Actions: .github/workflows/deploy.yml
+# - Repository: github.com/johnjcousens/aws-elasticdrs-orchestrator
+# - Authentication: OIDC (OpenID Connect) - no long-lived credentials
 # - Account: ***REMOVED***
 # 
 # This GitLab CI configuration is maintained for reference only.
-# All active deployments use AWS CodePipeline with buildspecs/ directory.
+# All active deployments use GitHub Actions with OIDC authentication.
 # 
 # For current CI/CD documentation, see:
 # - docs/guides/deployment/CICD_SETUP_GUIDE.md
-# - docs/guides/deployment/ACTIVATE_CICD_GUIDE.md
+# - docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md
 # 
-# Last Active: December 31, 2025 (migrated to AWS CodePipeline)
+# Last Active: December 31, 2025 (migrated to GitHub Actions January 2026)
 # ============================================================================
 
 stages:
