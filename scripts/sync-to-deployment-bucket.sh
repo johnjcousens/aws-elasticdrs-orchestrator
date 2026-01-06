@@ -868,6 +868,7 @@ if [ "$DEPLOY_CFN" = true ]; then
         echo "   This will update all nested stacks (Database, Lambda, API, Frontend)"
         echo ""
         
+        DEPLOY_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
         STACK_UPDATE_OUTPUT=$(aws cloudformation update-stack \
             --stack-name "$PARENT_STACK_NAME" \
             --template-url "https://s3.amazonaws.com/$BUCKET/cfn/master-template.yaml" \
@@ -881,6 +882,7 @@ if [ "$DEPLOY_CFN" = true ]; then
                 ParameterKey=EnableWAF,UsePreviousValue=true \
                 ParameterKey=EnableCloudTrail,UsePreviousValue=true \
                 ParameterKey=EnableSecretsManager,UsePreviousValue=true \
+                ParameterKey=ApiDeploymentTimestamp,ParameterValue="$DEPLOY_TIMESTAMP" \
             --capabilities CAPABILITY_NAMED_IAM \
             $PROFILE_FLAG \
             --region $REGION \
