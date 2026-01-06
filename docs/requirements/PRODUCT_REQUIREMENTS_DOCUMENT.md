@@ -732,7 +732,7 @@ Comprehensive security hardening addressing critical vulnerability classes with 
 
 ### 11. User Interface
 
-React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 37 components and 7 pages.
+React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 36 components, 2 CloudScape wrappers, 6 contexts, and 7 pages.
 
 **Pages**:
 
@@ -760,21 +760,22 @@ React 19.1 + TypeScript 5.9 + CloudScape Design System 3.0 with 37 components an
 - Tag-based server selection with preview
 - Existing instance detection and warning dialogs
 
-**Component Library (35+ Components)**:
+**Component Library (36 Components + 2 CloudScape Wrappers + 6 Contexts)**:
 
 | Category | Components | Count |
 |----------|------------|-------|
-| **Layout** | ErrorBoundary, ErrorFallback, ErrorState, LoadingState, CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute, AppLayout, ContentLayout | 10 |
+| **CloudScape Wrappers** | AppLayout, ContentLayout | 2 |
+| **Layout** | ErrorBoundary, ErrorFallback, ErrorState, LoadingState, CardSkeleton, DataTableSkeleton, PageTransition, ProtectedRoute | 8 |
 | **Multi-Account** | AccountSelector, AccountRequiredWrapper, AccountRequiredGuard, AccountManagementPanel | 4 |
-| **RBAC & Permissions** | PermissionAwareButton, PermissionAwareButtonDropdown, PermissionWrapper, PermissionSection, usePermissionCheck | 5 |
+| **RBAC & Permissions** | PermissionAwareButton, PermissionAwareButtonDropdown (in PermissionAware.tsx) | 2 |
 | **Dialogs** | ProtectionGroupDialog, RecoveryPlanDialog, ConfirmDialog, ConfigExportPanel, ConfigImportPanel, ImportResultsDialog, SettingsModal, TagSyncConfigPanel | 8 |
-| **Server Management** | ServerSelector, ServerDiscoveryPanel, ServerListItem, ServerInfoPanel | 4 |
-| **Form Controls** | RegionSelector, WaveConfigEditor, TagsEditor, DiskSettingsEditor, ReplicationSettingsEditor, PostLaunchSettingsEditor, PitPolicyEditor | 7 |
-| **Status Display** | StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus, InvocationSourceBadge, JobEventsTimeline | 6 |
+| **Server Management** | ServerSelector, ServerDiscoveryPanel, ServerListItem, LaunchConfigSection | 4 |
+| **Form Controls** | RegionSelector, WaveConfigEditor, PasswordChangeForm | 3 |
+| **Status Display** | StatusBadge, WaveProgress, DateTimeDisplay, DRSQuotaStatus, InvocationSourceBadge | 5 |
 | **Execution** | ExecutionDetails | 1 |
-| **Launch Config** | LaunchConfigSection | 1 |
+| **React Contexts** | AuthContext, PermissionsContext, NotificationContext, ApiContext, AccountContext, SettingsContext | 6 |
 
-**Total: 35+ Components**
+**Total: 36 Components + 2 CloudScape Wrappers + 6 Contexts = 44 Total Modules**
 
 ## Complete API Reference
 

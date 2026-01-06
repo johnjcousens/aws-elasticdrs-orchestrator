@@ -36,7 +36,7 @@ AWS-DRS-Orchestration/
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
 │   ├── github-oidc-stack.yaml    # GitHub Actions OIDC integration (deploy separately)
 │   └── ...                       # Application stacks (database, lambda, api, etc.)
-├── frontend/                     # React + CloudScape UI (37 components, 9 pages)
+├── frontend/                     # React + CloudScape UI (36 components + 2 wrappers + 6 contexts, 7 pages)
 ├── lambda/                       # Python Lambda functions (5 active functions)
 ├── scripts/                      # Deployment and automation scripts
 ├── tests/                        # Python unit/integration tests (minimal, needs expansion)
