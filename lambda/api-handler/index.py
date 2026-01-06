@@ -3642,7 +3642,7 @@ def handle_executions(
     method: str, path_params: Dict, query_params: Dict, body: Dict
 ) -> Dict:
     """Route Execution requests"""
-    execution_id = path_params.get("executionId")
+    execution_id = path_params.get("id")  # API Gateway sends "id" not "executionId"
     # Use full path for action detection (cancel, pause, resume)
     full_path = path_params.get("_full_path", "")
 
