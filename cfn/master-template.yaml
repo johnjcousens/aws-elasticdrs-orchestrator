@@ -239,8 +239,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 15
 
-  # API Gateway Stack - API Gateway, Resources, Methods
-  ApiGatewayStack:
+  # API Gateway Core Stack - REST API, Authorizer, Validator
+  ApiGatewayCoreStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -249,25 +249,175 @@ Resources:
       - LambdaStack
       - ApiAuthStack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-stack.yaml'
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-core-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        DeploymentTimestamp: !Ref ApiDeploymentTimestamp
         UserPoolId: !GetAtt ApiAuthStack.Outputs.UserPoolId
-        ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
-        RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
-        ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
-        ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
-        TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
+        UserPoolClientId: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
-        OrchestrationFunctionArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
+        DeploymentTimestamp: !Ref ApiDeploymentTimestamp
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
-      TimeoutInMinutes: 20
+      TimeoutInMinutes: 10
+
+  # API Gateway Resources Stack - All API Path Definitions
+  ApiGatewayResourcesStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ApiGatewayCoreStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-resources-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
+        RestApiRootResourceId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiRootResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
+  # API Gateway Core Methods Stack - Health, User, Protection Groups, Recovery Plans
+  ApiGatewayCoreMethodsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ApiGatewayCoreStack
+      - ApiGatewayResourcesStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-core-methods-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
+        ApiAuthorizerId: !GetAtt ApiGatewayCoreStack.Outputs.ApiAuthorizerId
+        ApiRequestValidatorId: !GetAtt ApiGatewayCoreStack.Outputs.ApiRequestValidatorId
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+        # Core Resource IDs from Resources Stack
+        HealthResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.HealthResourceId
+        UserProfileResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.UserProfileResourceId
+        UserRolesResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.UserRolesResourceId
+        UserPermissionsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.UserPermissionsResourceId
+        ProtectionGroupsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupsResourceId
+        ProtectionGroupByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ProtectionGroupResourceId
+        RecoveryPlansResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlansResourceId
+        RecoveryPlanByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlanResourceId
+        RecoveryPlanExecuteResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlanExecuteResourceId
+        RecoveryPlanCheckInstancesResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.RecoveryPlanCheckExistingInstancesResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
+  # API Gateway Operations Methods Stack - All Execution Endpoints
+  ApiGatewayOperationsMethodsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ApiGatewayCoreStack
+      - ApiGatewayResourcesStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-operations-methods-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
+        ApiAuthorizerId: !GetAtt ApiGatewayCoreStack.Outputs.ApiAuthorizerId
+        ApiRequestValidatorId: !GetAtt ApiGatewayCoreStack.Outputs.ApiRequestValidatorId
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+        # Execution Resource IDs from Resources Stack
+        ExecutionsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionsResourceId
+        ExecutionsDeleteResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionsDeleteResourceId
+        ExecutionByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionResourceId
+        ExecutionCancelResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionCancelResourceId
+        ExecutionPauseResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionPauseResourceId
+        ExecutionResumeResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionResumeResourceId
+        ExecutionTerminateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionTerminateInstancesResourceId
+        ExecutionJobLogsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionJobLogsResourceId
+        ExecutionTerminationStatusResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionTerminationStatusResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
+  # API Gateway Infrastructure Methods Stack - DRS, EC2, Config, Target Accounts
+  ApiGatewayInfrastructureMethodsStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ApiGatewayCoreStack
+      - ApiGatewayResourcesStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-infrastructure-methods-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
+        ApiAuthorizerId: !GetAtt ApiGatewayCoreStack.Outputs.ApiAuthorizerId
+        ApiRequestValidatorId: !GetAtt ApiGatewayCoreStack.Outputs.ApiRequestValidatorId
+        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+        # Infrastructure Resource IDs from Resources Stack
+        DrsSourceServersResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceServersResourceId
+        DrsQuotasResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSQuotasResourceId
+        DrsAccountsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSAccountsResourceId
+        DrsTagSyncResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSTagSyncResourceId
+        Ec2SubnetsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.EC2SubnetsResourceId
+        Ec2SecurityGroupsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.EC2SecurityGroupsResourceId
+        Ec2InstanceProfilesResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.EC2InstanceProfilesResourceId
+        Ec2InstanceTypesResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.EC2InstanceTypesResourceId
+        ConfigExportResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ConfigExportResourceId
+        ConfigImportResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ConfigImportResourceId
+        ConfigTagSyncResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ConfigTagSyncResourceId
+        AccountsCurrentResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsCurrentResourceId
+        AccountsTargetsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetsResourceId
+        AccountsTargetByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetResourceId
+        AccountsTargetValidateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetValidateResourceId
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
+  # API Gateway Deployment Stack - Deployment Orchestrator and Stage
+  ApiGatewayDeploymentStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - ApiGatewayCoreStack
+      - ApiGatewayResourcesStack
+      - ApiGatewayCoreMethodsStack
+      - ApiGatewayOperationsMethodsStack
+      - ApiGatewayInfrastructureMethodsStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-deployment-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
+        DeploymentTimestamp: !Ref ApiDeploymentTimestamp
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
 
   # EventBridge Stack - Scheduled Drills and Tag Sync
   EventBridgeStack:
@@ -301,7 +451,7 @@ Resources:
     UpdateReplacePolicy: Delete
     DependsOn:
       - LambdaStack
-      - ApiGatewayStack
+      - ApiGatewayDeploymentStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/frontend-stack.yaml'
       Parameters:
@@ -310,7 +460,7 @@ Resources:
         UserPoolId: !GetAtt ApiAuthStack.Outputs.UserPoolId
         UserPoolClientId: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
         IdentityPoolId: !GetAtt ApiAuthStack.Outputs.IdentityPoolId
-        ApiEndpoint: !GetAtt ApiGatewayStack.Outputs.ApiEndpoint
+        ApiEndpoint: !GetAtt ApiGatewayDeploymentStack.Outputs.ApiEndpoint
         BucketCleanerFunctionArn: !GetAtt LambdaStack.Outputs.BucketCleanerFunctionArn
       Tags:
         - Key: Project
@@ -326,13 +476,13 @@ Resources:
     UpdateReplacePolicy: Delete
     Condition: EnableSecurityStackCondition
     DependsOn:
-      - ApiGatewayStack
+      - ApiGatewayCoreStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/security-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        RestApiId: !GetAtt ApiGatewayStack.Outputs.ApiId
+        RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
         EnableWAF: !Ref EnableWAF
         EnableCloudTrail: !Ref EnableCloudTrail
       Tags:
@@ -426,13 +576,13 @@ Outputs:
 
   ApiEndpoint:
     Description: 'API Gateway endpoint URL'
-    Value: !GetAtt ApiGatewayStack.Outputs.ApiEndpoint
+    Value: !GetAtt ApiGatewayDeploymentStack.Outputs.ApiEndpoint
     Export:
       Name: !Sub '${AWS::StackName}-ApiEndpoint'
 
   ApiId:
     Description: 'API Gateway ID'
-    Value: !GetAtt ApiGatewayStack.Outputs.ApiId
+    Value: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
     Export:
       Name: !Sub '${AWS::StackName}-ApiId'
 
