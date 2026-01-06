@@ -7722,22 +7722,22 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         waves.append(
             {
                 "waveNumber": idx,
-                "name": wave.get("WaveName", ""),
-                "description": wave.get("WaveDescription", ""),
+                "name": wave.get("name") or wave.get("WaveName", ""),  # Support both frontend and backend formats
+                "description": wave.get("description") or wave.get("WaveDescription", ""),  # Support both formats
                 "serverIds": server_ids,  # Now guaranteed to be a list
                 "executionType": wave.get("ExecutionType", "sequential"),
                 "dependsOnWaves": depends_on_waves,
                 "protectionGroupId": wave.get(
                     "ProtectionGroupId"
-                ),  # camelCase for frontend
+                ) or wave.get("protectionGroupId"),  # Support both formats
                 "protectionGroupIds": (
-                    [wave.get("ProtectionGroupId")]
-                    if wave.get("ProtectionGroupId")
-                    else []
-                ),  # Array format
+                    wave.get("protectionGroupIds") or 
+                    ([wave.get("ProtectionGroupId")] if wave.get("ProtectionGroupId") else []) or
+                    ([wave.get("protectionGroupId")] if wave.get("protectionGroupId") else [])
+                ),  # Support multiple formats
                 "pauseBeforeWave": wave.get(
                     "PauseBeforeWave", False
-                ),  # Pause before starting this wave
+                ) or wave.get("pauseBeforeWave", False),  # Support both formats
             }
         )
 
