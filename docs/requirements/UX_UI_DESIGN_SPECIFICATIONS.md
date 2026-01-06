@@ -61,6 +61,62 @@ The application uses React 19.1.1 + TypeScript 5.9.3 + AWS CloudScape Design Sys
 | **Routes** | 7 | React Router configuration with authentication |
 | **Technology Stack** | 14 dependencies | Exact versions and build configuration |
 
+## Page Wireframes (From TSX Implementation)
+
+### Dashboard Page
+- **Layout**: 4-column metrics grid + 2-column charts/lists
+- **Metrics Cards**: Active Executions, Completed, Failed, Success Rate
+- **Charts**: Pie chart for execution status distribution
+- **Lists**: Active executions (5 items), Recent activity (5 items)
+- **DRS Capacity**: Region selector + quota status panel with tag sync button
+- **Real-time Updates**: 30-second auto-refresh for executions, DRS quotas
+
+### Protection Groups Page
+- **Layout**: Full-page table with header actions
+- **Table Columns**: Actions, Name, Description, Region, Selection Tags, Created
+- **Actions**: Create Group button (permission-aware)
+- **Row Actions**: Edit/Delete dropdown (permission-aware, conflict detection)
+- **Filtering**: Text filter with match count
+- **Pagination**: CloudScape pagination component
+- **Dialog**: ProtectionGroupDialog with tabs (Select Servers vs Select by Tags)
+
+### Recovery Plans Page
+- **Layout**: Full-page table with execution status tracking
+- **Table Columns**: Actions, Plan Name, ID (copyable), Waves, Status, Last Start/End, Created
+- **Actions**: Create Plan button (permission-aware)
+- **Row Actions**: Run Drill/Recovery, Edit, Delete (permission-aware, conflict detection)
+- **Real-time**: 5-second execution progress updates, existing instances detection
+- **Dialog**: RecoveryPlanDialog with wave configuration editor
+- **Modals**: Existing instances warning with instance details
+
+### Execution Details Page
+- **Layout**: Header with controls + wave progress + job events timeline
+- **Controls**: Pause/Resume, Cancel, Terminate Instances (permission-aware)
+- **Progress**: Wave-by-wave status with server details
+- **Timeline**: DRS job events with auto-refresh
+- **Real-time**: 3-second status polling
+
+### Component Wireframes
+
+#### ProtectionGroupDialog
+- **Tabs**: "Select Servers" vs "Select by Tags"
+- **Server Tab**: Region selector + server discovery panel with checkboxes
+- **Tags Tab**: Tag key/value editor + server preview panel
+- **Launch Config**: Collapsible section with EC2 settings
+- **Validation**: Real-time form validation with error states
+
+#### RecoveryPlanDialog
+- **Sections**: Basic Information + Wave Configuration
+- **Wave Editor**: Expandable wave cards with PG selection, server assignment
+- **Dependencies**: Wave dependency configuration
+- **Validation**: DRS limits validation (100 servers/wave)
+
+#### ServerDiscoveryPanel
+- **Layout**: Search bar + server list with status indicators
+- **Server Items**: Hostname, IP, status badges, hardware details
+- **Selection**: Checkboxes with assignment conflict detection
+- **Status Colors**: Green (available), Red (assigned), Gray (unavailable)
+
 **Required Pages**: Login, Dashboard, Getting Started, Protection Groups, Recovery Plans, Executions, Execution Details
 
 **Key Components to Build**: AccountSelector, ServerDiscoveryPanel, WaveConfigEditor, ExecutionDetails, DRSQuotaStatus, StatusBadge, InvocationSourceBadge
