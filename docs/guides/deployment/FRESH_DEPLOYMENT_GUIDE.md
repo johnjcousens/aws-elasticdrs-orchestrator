@@ -85,18 +85,42 @@ export AWS_DEFAULT_REGION=us-east-1
 
 ## Quick Start
 
-For experienced users who want to deploy immediately:
+⚠️ **CRITICAL**: Use GitHub Actions CI/CD for all deployments. Manual scripts are for emergencies only.
+
+### GitHub Actions Deployment (REQUIRED)
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
 cd aws-elasticdrs-orchestrator
 
-# 2. Run fresh deployment (replace with your admin email)
+# 2. Set up GitHub Actions CI/CD (one-time)
+# Follow: docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md
+
+# 3. Deploy via GitHub Actions
+git add .
+git commit -m "feat: initial deployment"
+git push origin main
+
+# 4. Monitor deployment at:
+# https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
+```
+
+### Emergency Manual Deployment (RESTRICTED)
+
+**ONLY use manual deployment for:**
+- GitHub Actions service outage
+- Critical production hotfix when pipeline is broken
+- Pipeline debugging (with immediate Git follow-up)
+
+```bash
+# EMERGENCY ONLY: Manual fresh deployment
 ./scripts/fresh-deployment-setup.sh --admin-email admin@yourcompany.com
 
-# 3. Wait for deployment (15-30 minutes)
-# 4. Access the application using the CloudFront URL provided
+# IMMEDIATELY follow up with proper Git commit
+git add .
+git commit -m "emergency: fresh deployment setup"
+git push  # Restores proper CI/CD tracking
 ```
 
 ## Detailed Deployment Process

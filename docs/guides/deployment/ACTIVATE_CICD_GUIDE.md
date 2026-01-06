@@ -1,7 +1,15 @@
-# Activate CI/CD Pipeline - Simple Guide
+# Activate CI/CD Pipeline - GitHub Actions First Policy
 
 ## Overview
-This guide helps you use the **GitHub Actions** CI/CD infrastructure for the AWS DRS Orchestration platform. The pipeline is ready and waiting for your code!
+
+⚠️ **CRITICAL**: This guide activates the **MANDATORY** GitHub Actions CI/CD pipeline for the AWS DRS Orchestration platform. Manual deployment scripts are for emergencies only.
+
+**GitHub Actions First Policy**: ALL deployments MUST use GitHub Actions CI/CD pipeline for:
+- ✅ **Audit Trail**: All changes tracked in Git history
+- ✅ **Quality Gates**: Automated validation, testing, security scanning
+- ✅ **Team Visibility**: All deployments visible to team members
+- ✅ **Enterprise Compliance**: Meets deployment standards and governance
+- ✅ **Rollback Capability**: Git-based rollback and deployment history
 
 ## Current CI/CD Infrastructure ✅
 

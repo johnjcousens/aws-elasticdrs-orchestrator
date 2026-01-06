@@ -17,7 +17,16 @@ This guide provides detailed instructions for using and configuring the GitHub A
 
 ## Overview
 
-The AWS DRS Orchestration platform uses **GitHub Actions** for automated CI/CD with OIDC-based AWS authentication (no long-lived credentials required).
+⚠️ **CRITICAL**: GitHub Actions CI/CD is the **MANDATORY** deployment method for the AWS DRS Orchestration platform. Manual deployment scripts are for emergencies only.
+
+### GitHub Actions First Policy
+
+**ALL deployments MUST use GitHub Actions CI/CD pipeline:**
+- ✅ **Audit Trail**: All changes tracked in Git history
+- ✅ **Quality Gates**: Automated validation, testing, security scanning
+- ✅ **Team Visibility**: All deployments visible to team members
+- ✅ **Enterprise Compliance**: Meets deployment standards and governance
+- ✅ **Rollback Capability**: Git-based rollback and deployment history
 
 ### Pipeline Benefits
 
@@ -162,32 +171,64 @@ flowchart TB
 
 ## Development Workflow
 
-### Daily Development Process
+### Standard Development Process (REQUIRED)
 
-#### Option A: GitHub CI/CD (Recommended for Production)
+⚠️ **CRITICAL**: ALL deployments MUST use GitHub Actions CI/CD pipeline.
+
 ```bash
-# 1. Make changes on feature branch
+# 1. Make changes locally
 git checkout -b feature/new-feature
-# Make changes
+# Make changes and test locally
+make validate  # Validate CloudFormation templates
+
+# 2. Commit and push (triggers GitHub Actions)
 git add .
-git commit -m "Add new feature"
+git commit -m "feat: add new feature"
 git push origin feature/new-feature
 
-# 2. Create Pull Request on GitHub
-# 3. After merge to main, pipeline triggers automatically
+# 3. Create Pull Request on GitHub
+# 4. After merge to main, pipeline triggers automatically
+# 5. Monitor at: https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
-#### Option B: Manual Deployment (Recommended for Development)
+### Emergency Manual Deployment (RESTRICTED)
+
+**Manual deployment scripts are ONLY allowed for:**
+- GitHub Actions service outage (confirmed AWS/GitHub issue)
+- Critical production hotfix when pipeline is broken
+- Pipeline debugging (with immediate Git follow-up)
+
 ```bash
-# Fast development workflow using S3 deployment bucket
-./scripts/sync-to-deployment-bucket.sh                    # Sync all to S3
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # Update Lambda functions (~5s)
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn       # Deploy CloudFormation (~5-10min)
+# EMERGENCY ONLY: Fast Lambda code update
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # ~5 seconds
+
+# EMERGENCY ONLY: Full CloudFormation deployment
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn         # ~5-10 minutes
+
+# IMMEDIATELY follow up with proper Git commit
+git add .
+git commit -m "emergency: describe the critical fix"
+git push  # Restores proper CI/CD tracking
 ```
 
-### When to Use Each Approach
+### Prohibited Practices
 
-| Scenario | Recommended Approach | Duration |
+❌ **NEVER use manual sync for regular development**  
+❌ **NEVER bypass pipeline for convenience**  
+❌ **NEVER deploy "quick fixes" without Git tracking**  
+❌ **NEVER skip the pipeline "just this once"**
+
+**Why these are prohibited:**
+- No audit trail for changes
+- Skip quality gates (validation, testing, security)
+- Team unaware of deployments
+- No rollback capability
+- Compliance violations
+
+### Deployment Comparison
+
+| Scenario | Method | Duration | Use Case |
+|----------|--------|----------|----------|
 |----------|---------------------|----------|
 | **Daily Development** | Manual deployment with `--update-lambda-code` | ~5 seconds |
 | **Infrastructure Changes** | Manual deployment with `--deploy-cfn` | ~5-10 minutes |
