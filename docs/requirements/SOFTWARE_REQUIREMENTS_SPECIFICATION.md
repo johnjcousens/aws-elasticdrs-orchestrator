@@ -1,9 +1,9 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 2.1  
-**Date**: January 1, 2026  
-**Status**: Production Ready - EventBridge Security Enhancements Complete
+**Version**: 2.2  
+**Date**: January 6, 2026  
+**Status**: Production Ready - GitHub Actions CI/CD Migration Complete
 
 ---
 
@@ -1079,16 +1079,22 @@ The system shall support automated drill scheduling:
 
 ---
 
-### FR-16: CodeBuild & CodeCommit Migration
+### FR-16: GitHub Actions CI/CD
 
-#### FR-16.1: AWS-Native CI/CD
-**Priority**: Low
+#### FR-16.1: GitHub Actions Deployment
+**Priority**: Complete (Implemented v1.3.0)
 
-The system shall migrate to AWS-native CI/CD:
-- CodePipeline orchestration
-- CodeBuild compilation
-- CodeCommit repository
-- Leverage archived DR orchestrator patterns
+The system uses GitHub Actions for automated CI/CD deployment:
+- OIDC-based AWS authentication (no long-lived credentials)
+- 6-stage pipeline: Validate, Security Scan, Build, Test, Deploy Infrastructure, Deploy Frontend
+- ~20 minute deployment duration
+- Automatic deployment on push to main branch
+
+**Infrastructure**:
+- Workflow: `.github/workflows/deploy.yml`
+- OIDC Stack: `cfn/github-oidc-stack.yaml`
+- Repository: GitHub (primary)
+- Authentication: OpenID Connect (OIDC)
 
 ---
 
