@@ -2269,6 +2269,9 @@ Resources:
       - AccountsTargetOptionsMethod
       - AccountsTargetValidatePostMethod
       - AccountsTargetValidateOptionsMethod
+      # Gateway Responses (CRITICAL for CORS)
+      - GatewayResponse4XX
+      - GatewayResponse5XX
     Properties:
       RestApiId: !Ref RestApi
       Description: !Sub 'Split Stack Deployment ${DeploymentTimestamp} - ${AWS::StackName}'

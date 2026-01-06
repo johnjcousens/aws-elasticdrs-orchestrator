@@ -60,9 +60,12 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
     }
   }, [open]);
 
-  // Populate form when editing
+  // Populate form when editing - only runs when dialog opens or plan changes
   useEffect(() => {
-    if (plan && protectionGroups.length > 0 && waves.length === 0) {
+    if (!open) return;
+    
+    if (plan && protectionGroups.length > 0) {
+      // Edit mode - populate from existing plan (only on initial load)
       setName(plan.name);
       setDescription(plan.description || '');
       
@@ -81,16 +84,24 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         };
       });
       setWaves(wavesWithPgId);
-    } else if (!plan) {
-      // Reset form for create mode
-      setName('');
-      setDescription('');
-      setWaves([]);
     }
     setErrors({});
     setError(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, open, protectionGroups, waves.length]);
+  // Only re-run when dialog opens, plan changes, or protection groups load
+  // Do NOT include waves.length - that causes reset when adding waves
+  }, [plan, open, protectionGroups]);
+
+  // Reset form when dialog closes or switches to create mode
+  useEffect(() => {
+    if (open && !plan) {
+      // Create mode - reset form once when dialog opens
+      setName('');
+      setDescription('');
+      setWaves([]);
+      setErrors({});
+      setError(null);
+    }
+  }, [open, plan]);
 
   const fetchProtectionGroups = async () => {
     try {
@@ -257,7 +268,10 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         </Box>
       }
     >
-      <form onSubmit={(e) => e.preventDefault()}>
+      <form onSubmit={(e) => { 
+        console.log('[RecoveryPlanDialog] Form submit prevented');
+        e.preventDefault(); 
+      }}>
         {loadingGroups ? (
           <LoadingState message="Loading protection groups..." />
         ) : (
@@ -311,7 +325,10 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                   waves={waves}
                   protectionGroupId=""
                   protectionGroups={protectionGroups}
-                  onChange={setWaves}
+                  onChange={(newWaves) => {
+                    console.log('[RecoveryPlanDialog] WaveConfigEditor onChange called with', newWaves.length, 'waves');
+                    setWaves(newWaves);
+                  }}
                 />
                 {errors.waves && (
                   <Alert type="error">
