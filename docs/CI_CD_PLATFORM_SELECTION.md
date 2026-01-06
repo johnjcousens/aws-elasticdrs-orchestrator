@@ -1,12 +1,29 @@
 # CI/CD Platform Selection: AWS Native vs GitHub Actions
 
+> **STATUS: DECISION IMPLEMENTED** - GitHub Actions was selected and implemented as the CI/CD platform in January 2026 (v1.3.0). See [CICD_SETUP_GUIDE.md](docs/guides/deployment/CICD_SETUP_GUIDE.md) for current implementation details.
+
 ## Executive Summary
 
 This document analyzes the feasibility of implementing CI/CD for the AWS DRS Orchestration platform using either AWS native tools (CodeCommit/CodePipeline/CodeBuild) or GitHub Actions, with a proposed CloudFormation parameter to select the deployment approach.
 
+### Decision Outcome
+
+**Selected Platform**: GitHub Actions with OIDC authentication
+
+**Rationale**:
+- Eliminates circular dependency issues (pipeline updating its own CloudFormation stack)
+- Native Git integration without CodeCommit mirroring
+- Superior developer experience with PR workflows and code review
+- OIDC authentication provides secure AWS access without long-lived credentials
+- Simpler architecture and easier debugging
+
+**Implementation**: `.github/workflows/deploy.yml` with `cfn/github-oidc-stack.yaml` for IAM role setup
+
 ## Current State Analysis
 
-### Existing AWS Native CI/CD Pipeline
+> **Note**: This section describes the historical AWS Native CI/CD pipeline that was replaced by GitHub Actions in January 2026.
+
+### Historical AWS Native CI/CD Pipeline (Deprecated)
 
 **Active Infrastructure:**
 - **Pipeline**: `aws-elasticdrs-orchestrator-pipeline-dev`
@@ -502,37 +519,51 @@ CiCdSecretKey:
 
 ## Recommendations
 
-### Recommended Approach: Hybrid Implementation
+### Implemented Solution: GitHub Actions
 
-**Primary Recommendation: AWS Native with GitHub Actions Option**
+**Decision Made**: GitHub Actions was selected and implemented in January 2026 (v1.3.0).
 
-1. **Keep AWS Native as Default** (`CiCdPlatform: "AWS_NATIVE"`)
-   - Maintains current production stability
-   - Leverages existing investment and expertise
-   - Provides enterprise-grade security and compliance
+**Implementation Details**:
+- **Workflow File**: `.github/workflows/deploy.yml`
+- **OIDC Stack**: `cfn/github-oidc-stack.yaml` (deploy separately)
+- **Authentication**: OIDC-based (no long-lived credentials)
+- **Repository**: GitHub (primary source of truth)
 
-2. **Add GitHub Actions as Alternative** (`CiCdPlatform: "GITHUB_ACTIONS"`)
-   - Enables developer-friendly workflows
-   - Supports open-source collaboration
-   - Provides flexibility for different deployment scenarios
+**Why GitHub Actions Was Chosen**:
+1. **No Circular Dependencies**: Pipeline runs outside AWS, avoiding self-update issues
+2. **Native Git Integration**: No CodeCommit mirroring required
+3. **Better Developer Experience**: Superior PR workflows, code review, and collaboration
+4. **OIDC Security**: Secure AWS access without storing credentials
+5. **Simpler Architecture**: Easier to debug and maintain
 
-3. **CloudFormation Parameter Selection**
-   ```yaml
-   # Deploy with AWS Native CI/CD (default)
-   aws cloudformation deploy --parameter-overrides CiCdPlatform=AWS_NATIVE
-   
-   # Deploy with GitHub Actions integration
-   aws cloudformation deploy --parameter-overrides CiCdPlatform=GITHUB_ACTIONS
-   ```
+**Deployment Commands**:
+```bash
+# Deploy OIDC stack (one-time setup)
+aws cloudformation deploy \
+  --template-file cfn/github-oidc-stack.yaml \
+  --stack-name PROJECT-github-oidc \
+  --parameter-overrides \
+    ProjectName=PROJECT \
+    Environment=ENV \
+    GitHubOrg=YOUR_ORG \
+    GitHubRepo=YOUR_REPO \
+  --capabilities CAPABILITY_NAMED_IAM
 
-### Implementation Priority
+# Then configure GitHub repository secrets and push to main branch
+```
 
-| Priority | Component | Effort | Benefit |
-|----------|-----------|--------|---------|
-| 1 | **CloudFormation Parameter** | 1-2 days | Enables platform selection |
-| 2 | **OIDC Provider Setup** | 2-3 days | Secure GitHub integration |
-| 3 | **GitHub Actions Workflows** | 1-2 weeks | Feature parity with BuildSpecs |
-| 4 | **Documentation & Training** | 3-5 days | Team enablement |
+### Historical Reference: AWS Native Option
+
+The AWS Native CI/CD option (CodeCommit/CodePipeline/CodeBuild) remains documented below for reference but is no longer the recommended approach due to circular dependency issues discovered during implementation.
+
+### Implementation Priority (Completed)
+
+| Priority | Component | Status | Notes |
+|----------|-----------|--------|-------|
+| 1 | **GitHub OIDC Stack** | ✅ Completed | `cfn/github-oidc-stack.yaml` |
+| 2 | **GitHub Actions Workflow** | ✅ Completed | `.github/workflows/deploy.yml` |
+| 3 | **Documentation** | ✅ Completed | `docs/guides/deployment/CICD_SETUP_GUIDE.md` |
+| 4 | **Legacy Deprecation** | ✅ Completed | `.gitlab-ci.yml` marked deprecated |
 
 ### Success Criteria
 
@@ -550,14 +581,22 @@ CiCdSecretKey:
 
 ## Next Steps
 
-1. **Create GitHub Actions specification** - Detailed workflow implementation
-2. **Prototype OIDC integration** - Test secure AWS access from GitHub
-3. **Update CloudFormation templates** - Add CiCdPlatform parameter support
-4. **Develop migration runbook** - Step-by-step migration procedures
-5. **Create cost analysis** - Detailed cost comparison for both platforms
+> **All next steps have been completed as of January 2026.**
+
+For current CI/CD setup and usage, see:
+- [CI/CD Setup Guide](docs/guides/deployment/CICD_SETUP_GUIDE.md) - Complete GitHub Actions setup
+- [Fresh Deployment Guide](docs/guides/deployment/FRESH_DEPLOYMENT_GUIDE.md) - New environment deployment
+- [GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) - Detailed OIDC configuration
 
 ## Conclusion
 
-The hybrid approach provides maximum flexibility while maintaining production stability. Organizations can choose their preferred CI/CD platform based on their specific requirements, team expertise, and strategic direction, all while using the same underlying CloudFormation infrastructure.
+**GitHub Actions was selected and implemented** as the CI/CD platform for AWS DRS Orchestration in January 2026. This decision was driven by the need to eliminate circular dependency issues where the AWS Native pipeline would attempt to update the CloudFormation stack containing itself.
 
-The AWS DRS Orchestration platform will support both AWS native tools and GitHub Actions, making it suitable for enterprise environments (AWS native) and open-source collaboration (GitHub Actions).
+The implementation provides:
+- ✅ OIDC-based secure AWS authentication
+- ✅ 6-stage pipeline (~20 minutes total)
+- ✅ Native Git integration without mirroring
+- ✅ Superior developer experience
+- ✅ Simpler architecture and debugging
+
+The AWS Native CI/CD option documentation is retained for historical reference and for organizations that may prefer AWS-native tooling despite the circular dependency challenges.

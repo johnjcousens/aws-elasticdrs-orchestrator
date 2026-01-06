@@ -55,13 +55,17 @@ The application uses React 19.1.1 + TypeScript 5.9.3 + AWS CloudScape Design Sys
 | Component | Count | Specification |
 |-----------|-------|---------------|
 | **Pages** | 7 | Complete page layouts with all functionality |
-| **Components** | 37 | Reusable UI components with CloudScape integration |
+| **Components** | 36 | Reusable UI components with CloudScape integration |
+| **CloudScape Wrappers** | 2 | AppLayout, ContentLayout |
+| **Contexts** | 6 | React context providers for state management |
 | **Routes** | 7 | React Router configuration with authentication |
 | **Technology Stack** | 14 dependencies | Exact versions and build configuration |
 
 **Required Pages**: Login, Dashboard, Getting Started, Protection Groups, Recovery Plans, Executions, Execution Details
 
 **Key Components to Build**: AccountSelector, ServerDiscoveryPanel, WaveConfigEditor, ExecutionDetails, DRSQuotaStatus, StatusBadge, InvocationSourceBadge
+
+**React Contexts**: AuthContext, PermissionsContext, NotificationContext, ApiContext, AccountContext, SettingsContext
 
 ---
 
@@ -70,7 +74,8 @@ The application uses React 19.1.1 + TypeScript 5.9.3 + AWS CloudScape Design Sys
 ✅ **Specification Complete**: All requirements defined for full system implementation  
 ✅ **MVP Drill Only Prototype**: Core drill functionality fully specified  
 ✅ **Build Ready**: Contains all detail needed to implement from scratch  
-✅ **Component Count**: 37 components fully specified  
+✅ **Component Count**: 36 components + 2 CloudScape wrappers + 6 contexts fully specified  
+✅ **CI/CD**: GitHub Actions with OIDC authentication (migrated from GitLab January 2026)  
 
 ---
 

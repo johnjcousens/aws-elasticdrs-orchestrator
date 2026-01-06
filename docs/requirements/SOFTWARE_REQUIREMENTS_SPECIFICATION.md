@@ -46,7 +46,7 @@ This Software Requirements Specification (SRS) defines the functional and non-fu
 - Cross-Account DRS Monitoring (centralized monitoring and alerting)
 - SNS Notification Integration (real-time notifications via multiple channels)
 - Scheduled Drills (automated recurring drill execution)
-- CodeBuild & CodeCommit Migration (AWS-native CI/CD pipeline)
+- GitHub Actions CI/CD (OIDC-based deployment automation)
 
 ---
 
