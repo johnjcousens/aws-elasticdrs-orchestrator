@@ -312,14 +312,18 @@ jobs:
           
           echo "Current stack status: $STACK_STATUS"
           
-          # Handle failed states
-          if [[ "$STACK_STATUS" == *"ROLLBACK_COMPLETE"* ]] || [[ "$STACK_STATUS" == *"DELETE_FAILED"* ]]; then
-            echo "Stack in failed state, deleting..."
-            aws cloudformation delete-stack --stack-name "$STACK_NAME"
-            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+          # Handle failed states - NEVER auto-delete production stacks
+          if [[ "$STACK_STATUS" == *"ROLLBACK_COMPLETE"* ]]; then
+            echo "⚠️  Stack is in ROLLBACK_COMPLETE state - requires manual intervention"
+            echo "Stack can be updated again, but will not be auto-deleted for safety"
+            echo "Current status: $STACK_STATUS"
+          elif [[ "$STACK_STATUS" == *"DELETE_FAILED"* ]]; then
+            echo "❌ Stack is in DELETE_FAILED state - manual cleanup required"
+            echo "This requires manual investigation and resolution"
+            exit 1
           fi
           
-          # Deploy stack
+          # Deploy stack with termination protection
           DEPLOY_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           aws cloudformation deploy \
             --template-file cfn/master-template.yaml \
@@ -330,6 +334,7 @@ jobs:
               SourceBucket="$BUCKET" \
               AdminEmail="$ADMIN_EMAIL" \
               ApiDeploymentTimestamp="$DEPLOY_TIMESTAMP" \
+              EnableTerminationProtection="true" \
             --capabilities CAPABILITY_NAMED_IAM \
             --tags \
               Project="${{ env.PROJECT_NAME }}" \
@@ -337,6 +342,12 @@ jobs:
               DeployedBy=GitHubActions \
               CommitSha="${{ github.sha }}" \
             --no-fail-on-empty-changeset
+          
+          # Enable termination protection after deployment
+          echo "=== Enabling Stack Termination Protection ==="
+          aws cloudformation update-termination-protection \
+            --stack-name "$STACK_NAME" \
+            --enable-termination-protection
           
           echo "=== Stack Outputs ==="
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
@@ -443,48 +454,6 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
             --paths "/*"
-
-      - name: Redeploy API Gateway
-        run: |
-          echo "=== Redeploying API Gateway ==="
-          STACK_NAME="${{ secrets.STACK_NAME }}"
-          
-          # Get API ID from stack outputs
-          API_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text)
-          
-          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
-            echo "API ID: $API_ID"
-            
-            # Get stage name
-            STAGE_NAME=$(aws apigateway get-stages --rest-api-id "$API_ID" \
-              --query 'item[0].stageName' --output text 2>/dev/null || echo "dev")
-            
-            echo "Stage: $STAGE_NAME"
-            
-            # Create new deployment to ensure CORS and all methods are applied
-            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-            DEPLOYMENT_ID=$(aws apigateway create-deployment \
-              --rest-api-id "$API_ID" \
-              --stage-name "$STAGE_NAME" \
-              --description "Post-CFN deployment $TIMESTAMP" \
-              --query 'id' --output text)
-            
-            echo "New Deployment ID: $DEPLOYMENT_ID"
-            
-            # Verify OPTIONS endpoint
-            sleep 3
-            API_ENDPOINT="https://${API_ID}.execute-api.${{ env.AWS_REGION }}.amazonaws.com/${STAGE_NAME}"
-            OPTIONS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "${API_ENDPOINT}/protection-groups" 2>/dev/null || echo "000")
-            
-            if [ "$OPTIONS_STATUS" == "200" ]; then
-              echo "✅ API Gateway redeployed successfully (OPTIONS returns 200)"
-            else
-              echo "⚠️ OPTIONS returned $OPTIONS_STATUS - may need manual verification"
-            fi
-          else
-            echo "⚠️ Could not find API ID in stack outputs"
-          fi
 
       - name: Deployment summary
         run: |
