@@ -62,16 +62,18 @@ Resources:
                   api_client = boto3.client('apigateway')
                   
                   if event['RequestType'] in ['Create', 'Update']:
-                      # Create deployment with timestamp
+                      # Small delay to ensure all methods are fully created
+                      time.sleep(2)
+                      
+                      # Create deployment with timestamp (no stageName in create_deployment)
                       deployment = api_client.create_deployment(
                           restApiId=rest_api_id,
-                          stageName=stage_name,
-                          description=f"Enterprise deployment {timestamp}",
-                          cacheClusterEnabled=False
+                          description=f"Enterprise deployment {timestamp}"
                       )
                       
                       deployment_id = deployment['id']
                       region = boto3.Session().region_name
+                      # API endpoint will be available after stage is created
                       api_endpoint = f"https://{rest_api_id}.execute-api.{region}.amazonaws.com/{stage_name}"
                       
                       logger.info(f"Deployment successful: {deployment_id}")
@@ -87,6 +89,8 @@ Resources:
                   
               except Exception as e:
                   logger.error(f"Deployment failed: {str(e)}")
+                  logger.error(f"Event: {json.dumps(event)}")
+                  logger.error(f"Context: {context}")
                   cfnresponse.send(event, context, cfnresponse.FAILED, {
                       'Error': str(e)
                   })
