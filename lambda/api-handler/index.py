@@ -1463,18 +1463,18 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
     try:
         print("Entering try block")
 
-        # Validate API Gateway event structure
+        # Check if this is a worker invocation (async execution) FIRST
+        if event.get("worker"):
+            print("Worker mode detected - executing background task")
+            execute_recovery_plan_worker(event)
+            return {"statusCode": 200, "body": "Worker completed"}
+
+        # Validate API Gateway event structure (only for non-worker events)
         try:
             validated_event = validate_api_gateway_event(event)
         except InputValidationError as e:
             log_security_event("invalid_request", {"error": str(e)}, "WARN")
             return response(400, {"error": "Invalid request format"})
-
-        # Check if this is a worker invocation (async execution)
-        if event.get("worker"):
-            print("Worker mode detected - executing background task")
-            execute_recovery_plan_worker(event)
-            return {"statusCode": 200, "body": "Worker completed"}
 
         print("Not worker mode, processing API Gateway request")
 
