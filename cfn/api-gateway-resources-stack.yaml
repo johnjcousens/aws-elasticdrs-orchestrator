@@ -1,0 +1,580 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - API Gateway Resources (All API Path Definitions)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project for resource naming
+    Default: aws-elasticdrs-orchestrator
+
+  Environment:
+    Type: String
+    Description: Environment name (dev, test, prod)
+    AllowedValues: [dev, test, prod]
+    Default: dev
+
+  RestApiId:
+    Type: String
+    Description: REST API ID from Core Stack
+
+  RestApiRootResourceId:
+    Type: String
+    Description: REST API Root Resource ID from Core Stack
+
+Resources:
+  # ============================================================================
+  # API Resources - Health Check (No Authentication Required)
+  # ============================================================================
+
+  HealthResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: health
+
+  # ============================================================================
+  # API Resources - User Management
+  # ============================================================================
+
+  UserResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: user
+
+  UserProfileResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref UserResource
+      PathPart: profile
+
+  UserRolesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref UserResource
+      PathPart: roles
+
+  UserPermissionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref UserResource
+      PathPart: permissions
+
+  # ============================================================================
+  # API Resources - Protection Groups
+  # ============================================================================
+
+  ProtectionGroupsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: protection-groups
+
+  ProtectionGroupResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ProtectionGroupsResource
+      PathPart: '{id}'
+
+  # ============================================================================
+  # API Resources - Recovery Plans
+  # ============================================================================
+
+  RecoveryPlansResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: recovery-plans
+
+  RecoveryPlanResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RecoveryPlansResource
+      PathPart: '{id}'
+
+  RecoveryPlanExecuteResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RecoveryPlanResource
+      PathPart: execute
+
+  RecoveryPlanCheckExistingInstancesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RecoveryPlanResource
+      PathPart: check-existing-instances
+
+  # ============================================================================
+  # API Resources - Executions
+  # ============================================================================
+
+  ExecutionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: executions
+
+  ExecutionResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionsResource
+      PathPart: '{id}'
+
+  ExecutionCancelResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionResource
+      PathPart: cancel
+
+  ExecutionPauseResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionResource
+      PathPart: pause
+
+  ExecutionResumeResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionResource
+      PathPart: resume
+
+  ExecutionTerminateInstancesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionResource
+      PathPart: terminate-instances
+
+  ExecutionJobLogsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionResource
+      PathPart: job-logs
+
+  ExecutionTerminationStatusResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionResource
+      PathPart: termination-status
+
+  ExecutionsDeleteResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionsResource
+      PathPart: delete
+
+  # ============================================================================
+  # API Resources - DRS
+  # ============================================================================
+
+  DRSResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: drs
+
+  DRSSourceServersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref DRSResource
+      PathPart: source-servers
+
+  DRSQuotasResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref DRSResource
+      PathPart: quotas
+
+  DRSAccountsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref DRSResource
+      PathPart: accounts
+
+  DRSTagSyncResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref DRSResource
+      PathPart: tag-sync
+
+  # ============================================================================
+  # API Resources - EC2
+  # ============================================================================
+
+  EC2Resource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: ec2
+
+  EC2SubnetsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref EC2Resource
+      PathPart: subnets
+
+  EC2SecurityGroupsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref EC2Resource
+      PathPart: security-groups
+
+  EC2InstanceProfilesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref EC2Resource
+      PathPart: instance-profiles
+
+  EC2InstanceTypesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref EC2Resource
+      PathPart: instance-types
+
+  # ============================================================================
+  # API Resources - Config
+  # ============================================================================
+
+  ConfigResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: config
+
+  ConfigExportResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ConfigResource
+      PathPart: export
+
+  ConfigImportResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ConfigResource
+      PathPart: import
+
+  ConfigTagSyncResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ConfigResource
+      PathPart: tag-sync
+
+  # ============================================================================
+  # API Resources - Target Accounts
+  # ============================================================================
+
+  AccountsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: accounts
+
+  AccountsCurrentResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsResource
+      PathPart: current
+
+  AccountsTargetsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsResource
+      PathPart: targets
+
+  AccountsTargetResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsTargetsResource
+      PathPart: '{id}'
+
+  AccountsTargetValidateResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsTargetResource
+      PathPart: validate
+
+# ============================================================================
+# OUTPUTS - All Resource IDs for Methods Stack
+# ============================================================================
+
+Outputs:
+  # Health Resources
+  HealthResourceId:
+    Description: 'Health Resource ID'
+    Value: !Ref HealthResource
+    Export:
+      Name: !Sub '${AWS::StackName}-HealthResourceId'
+
+  # User Resources
+  UserResourceId:
+    Description: 'User Resource ID'
+    Value: !Ref UserResource
+    Export:
+      Name: !Sub '${AWS::StackName}-UserResourceId'
+
+  UserProfileResourceId:
+    Description: 'User Profile Resource ID'
+    Value: !Ref UserProfileResource
+    Export:
+      Name: !Sub '${AWS::StackName}-UserProfileResourceId'
+
+  UserRolesResourceId:
+    Description: 'User Roles Resource ID'
+    Value: !Ref UserRolesResource
+    Export:
+      Name: !Sub '${AWS::StackName}-UserRolesResourceId'
+
+  UserPermissionsResourceId:
+    Description: 'User Permissions Resource ID'
+    Value: !Ref UserPermissionsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPermissionsResourceId'
+
+  # Protection Group Resources
+  ProtectionGroupsResourceId:
+    Description: 'Protection Groups Resource ID'
+    Value: !Ref ProtectionGroupsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupsResourceId'
+
+  ProtectionGroupResourceId:
+    Description: 'Protection Group Resource ID'
+    Value: !Ref ProtectionGroupResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ProtectionGroupResourceId'
+
+  # Recovery Plan Resources
+  RecoveryPlansResourceId:
+    Description: 'Recovery Plans Resource ID'
+    Value: !Ref RecoveryPlansResource
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryPlansResourceId'
+
+  RecoveryPlanResourceId:
+    Description: 'Recovery Plan Resource ID'
+    Value: !Ref RecoveryPlanResource
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryPlanResourceId'
+
+  RecoveryPlanExecuteResourceId:
+    Description: 'Recovery Plan Execute Resource ID'
+    Value: !Ref RecoveryPlanExecuteResource
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryPlanExecuteResourceId'
+
+  RecoveryPlanCheckExistingInstancesResourceId:
+    Description: 'Recovery Plan Check Existing Instances Resource ID'
+    Value: !Ref RecoveryPlanCheckExistingInstancesResource
+    Export:
+      Name: !Sub '${AWS::StackName}-RecoveryPlanCheckExistingInstancesResourceId'
+
+  # Execution Resources
+  ExecutionsResourceId:
+    Description: 'Executions Resource ID'
+    Value: !Ref ExecutionsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionsResourceId'
+
+  ExecutionResourceId:
+    Description: 'Execution Resource ID'
+    Value: !Ref ExecutionResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionResourceId'
+
+  ExecutionCancelResourceId:
+    Description: 'Execution Cancel Resource ID'
+    Value: !Ref ExecutionCancelResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionCancelResourceId'
+
+  ExecutionPauseResourceId:
+    Description: 'Execution Pause Resource ID'
+    Value: !Ref ExecutionPauseResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionPauseResourceId'
+
+  ExecutionResumeResourceId:
+    Description: 'Execution Resume Resource ID'
+    Value: !Ref ExecutionResumeResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionResumeResourceId'
+
+  ExecutionTerminateInstancesResourceId:
+    Description: 'Execution Terminate Instances Resource ID'
+    Value: !Ref ExecutionTerminateInstancesResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionTerminateInstancesResourceId'
+
+  ExecutionJobLogsResourceId:
+    Description: 'Execution Job Logs Resource ID'
+    Value: !Ref ExecutionJobLogsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionJobLogsResourceId'
+
+  ExecutionTerminationStatusResourceId:
+    Description: 'Execution Termination Status Resource ID'
+    Value: !Ref ExecutionTerminationStatusResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionTerminationStatusResourceId'
+
+  ExecutionsDeleteResourceId:
+    Description: 'Executions Delete Resource ID'
+    Value: !Ref ExecutionsDeleteResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionsDeleteResourceId'
+
+  # DRS Resources
+  DRSResourceId:
+    Description: 'DRS Resource ID'
+    Value: !Ref DRSResource
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSResourceId'
+
+  DRSSourceServersResourceId:
+    Description: 'DRS Source Servers Resource ID'
+    Value: !Ref DRSSourceServersResource
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSSourceServersResourceId'
+
+  DRSQuotasResourceId:
+    Description: 'DRS Quotas Resource ID'
+    Value: !Ref DRSQuotasResource
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSQuotasResourceId'
+
+  DRSAccountsResourceId:
+    Description: 'DRS Accounts Resource ID'
+    Value: !Ref DRSAccountsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSAccountsResourceId'
+
+  DRSTagSyncResourceId:
+    Description: 'DRS Tag Sync Resource ID'
+    Value: !Ref DRSTagSyncResource
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSTagSyncResourceId'
+
+  # EC2 Resources
+  EC2ResourceId:
+    Description: 'EC2 Resource ID'
+    Value: !Ref EC2Resource
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2ResourceId'
+
+  EC2SubnetsResourceId:
+    Description: 'EC2 Subnets Resource ID'
+    Value: !Ref EC2SubnetsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2SubnetsResourceId'
+
+  EC2SecurityGroupsResourceId:
+    Description: 'EC2 Security Groups Resource ID'
+    Value: !Ref EC2SecurityGroupsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2SecurityGroupsResourceId'
+
+  EC2InstanceProfilesResourceId:
+    Description: 'EC2 Instance Profiles Resource ID'
+    Value: !Ref EC2InstanceProfilesResource
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2InstanceProfilesResourceId'
+
+  EC2InstanceTypesResourceId:
+    Description: 'EC2 Instance Types Resource ID'
+    Value: !Ref EC2InstanceTypesResource
+    Export:
+      Name: !Sub '${AWS::StackName}-EC2InstanceTypesResourceId'
+
+  # Config Resources
+  ConfigResourceId:
+    Description: 'Config Resource ID'
+    Value: !Ref ConfigResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ConfigResourceId'
+
+  ConfigExportResourceId:
+    Description: 'Config Export Resource ID'
+    Value: !Ref ConfigExportResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ConfigExportResourceId'
+
+  ConfigImportResourceId:
+    Description: 'Config Import Resource ID'
+    Value: !Ref ConfigImportResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ConfigImportResourceId'
+
+  ConfigTagSyncResourceId:
+    Description: 'Config Tag Sync Resource ID'
+    Value: !Ref ConfigTagSyncResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ConfigTagSyncResourceId'
+
+  # Account Resources
+  AccountsResourceId:
+    Description: 'Accounts Resource ID'
+    Value: !Ref AccountsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsResourceId'
+
+  AccountsCurrentResourceId:
+    Description: 'Accounts Current Resource ID'
+    Value: !Ref AccountsCurrentResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsCurrentResourceId'
+
+  AccountsTargetsResourceId:
+    Description: 'Accounts Targets Resource ID'
+    Value: !Ref AccountsTargetsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetsResourceId'
+
+  AccountsTargetResourceId:
+    Description: 'Accounts Target Resource ID'
+    Value: !Ref AccountsTargetResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetResourceId'
+
+  AccountsTargetValidateResourceId:
+    Description: 'Accounts Target Validate Resource ID'
+    Value: !Ref AccountsTargetValidateResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetValidateResourceId'
