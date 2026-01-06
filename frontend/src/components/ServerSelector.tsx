@@ -5,7 +5,7 @@
  * Fetches servers from protection group and displays with checkboxes.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Container,
@@ -52,20 +52,17 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
   const safeSelectedServerIds = selectedServerIds || [];
   
   // Use protectionGroupIds if provided, otherwise fall back to single protectionGroupId
-  const pgIds = protectionGroupIds && protectionGroupIds.length > 0 
-    ? protectionGroupIds 
-    : (protectionGroupId ? [protectionGroupId] : []);
+  // Wrapped in useMemo to prevent dependency changes on every render
+  const pgIds = useMemo(() => {
+    return protectionGroupIds && protectionGroupIds.length > 0 
+      ? protectionGroupIds 
+      : (protectionGroupId ? [protectionGroupId] : []);
+  }, [protectionGroupIds, protectionGroupId]);
   
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-
-  useEffect(() => {
-    if (pgIds.length > 0) {
-      fetchServers();
-    }
-  }, [pgIds, fetchServers]);
 
   const fetchServers = useCallback(async () => {
     try {
@@ -83,30 +80,26 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
             pgId // filterByProtectionGroup - show only this PG's servers
           );
           
-          if (!response.initialized) {
+          // Check if DRS is initialized
+          const responseAny = response as { initialized?: boolean };
+          if (responseAny.initialized === false) {
             setError('DRS is not initialized in us-east-1. Please initialize DRS first.');
             setServers([]);
             return;
           }
           
           // Transform DRS response to Server format with PG tracking
-          const drsServers: Server[] = response.servers.map((s: {
-            sourceServerID: string;
-            hostname: string;
-            state: string;
-            replicationState: string;
-            assignedToProtectionGroup?: {
-              protectionGroupName: string;
-            };
-          }) => ({
+          // Defensive check: ensure servers is an array
+          const serversList = Array.isArray(response.servers) ? response.servers : [];
+          const drsServers: Server[] = serversList.map((s) => ({
             id: s.sourceServerID,
             hostname: s.hostname,
             protectionGroupId: pgId,
             protectionGroupName: s.assignedToProtectionGroup?.protectionGroupName || 'Unknown PG',
             tags: {
               'Protection Group': s.assignedToProtectionGroup?.protectionGroupName || 'Unknown',
-              State: s.state,
-              ReplicationState: s.replicationState
+              State: s.state || 'UNKNOWN',
+              ReplicationState: s.replicationState || 'UNKNOWN'
             }
           }));
           
@@ -124,6 +117,12 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
       setLoading(false);
     }
   }, [pgIds]);
+
+  useEffect(() => {
+    if (pgIds.length > 0) {
+      fetchServers();
+    }
+  }, [pgIds, fetchServers]);
 
   const handleToggle = (serverId: string) => {
     if (readonly) return;

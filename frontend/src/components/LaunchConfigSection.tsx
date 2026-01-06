@@ -5,7 +5,7 @@
  * Settings are applied to all servers in the group during recovery.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   SpaceBetween,
   FormField,
@@ -60,13 +60,7 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
   const [instanceTypes, setInstanceTypes] = useState<InstanceTypeOption[]>([]);
 
   // Load dropdown options when region changes or section expands
-  useEffect(() => {
-    if (region && expanded) {
-      loadDropdownOptions();
-    }
-  }, [region, expanded]);
-
-  const loadDropdownOptions = async () => {
+  const loadDropdownOptions = useCallback(async () => {
     if (!region) return;
     
     setLoading(true);
@@ -88,7 +82,13 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [region]);
+
+  useEffect(() => {
+    if (region && expanded) {
+      loadDropdownOptions();
+    }
+  }, [region, expanded, loadDropdownOptions]);
 
   const updateConfig = (key: keyof LaunchConfig, value: unknown) => {
     onChange({ ...launchConfig, [key]: value });

@@ -66,6 +66,14 @@ Parameters:
     Default: ''
     Description: 'Optional: Email address for execution notifications (leave empty to skip)'
 
+  EnablePipelineNotifications:
+    Type: String
+    Default: 'true'
+    Description: 'Enable SNS email notifications for pipeline and security scan failures'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
   EnableWAF:
     Type: String
     Default: 'true'
@@ -164,6 +172,7 @@ Resources:
         NotificationTopicArn: ""
         CrossAccountRoleName: !Ref CrossAccountRoleName
         AdminEmail: !Ref AdminEmail
+        EnablePipelineNotifications: !Ref EnablePipelineNotifications
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -207,7 +216,7 @@ Resources:
         Environment: !Ref Environment
         AdminEmail: !Ref AdminEmail
         CognitoDomainPrefix: !Ref CognitoDomainPrefix
-        NotificationEmail: !Ref NotificationEmail
+        NotificationEmail: !If [HasNotificationEmail, !Ref NotificationEmail, !Ref AdminEmail]
         ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
       Tags:
         - Key: Project
@@ -287,7 +296,6 @@ Resources:
         UserPoolClientId: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
         IdentityPoolId: !GetAtt ApiAuthStack.Outputs.IdentityPoolId
         ApiEndpoint: !GetAtt ApiGatewayStack.Outputs.ApiEndpoint
-        FrontendBuilderFunctionArn: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
         BucketCleanerFunctionArn: !GetAtt LambdaStack.Outputs.BucketCleanerFunctionArn
       Tags:
         - Key: Project
@@ -381,12 +389,6 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
     Export:
       Name: !Sub '${AWS::StackName}-OrchestrationArn'
-
-  FrontendBuilderFunctionArn:
-    Description: 'Frontend Builder Lambda Function ARN'
-    Value: !GetAtt LambdaStack.Outputs.FrontendBuilderFunctionArn
-    Export:
-      Name: !Sub '${AWS::StackName}-FrontendBuilderArn'
 
   # API Stack Outputs
   UserPoolId:

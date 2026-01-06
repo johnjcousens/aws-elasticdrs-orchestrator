@@ -34,10 +34,6 @@ Parameters:
     Description: 'API Gateway endpoint URL'
 
   # Lambda ARNs from Lambda Stack
-  FrontendBuilderFunctionArn:
-    Type: String
-    Description: 'Frontend Builder Lambda Function ARN'
-
   BucketCleanerFunctionArn:
     Type: String
     Description: 'Bucket Cleaner Lambda Function ARN'
@@ -152,23 +148,10 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
-  # Frontend Build Custom Resource
-  FrontendBuildResource:
-    Type: Custom::FrontendBuild
-    DependsOn:
-      - FrontendBucket
-      - CloudFrontDistribution
-    Properties:
-      ServiceToken: !Ref FrontendBuilderFunctionArn
-      BucketName: !Ref FrontendBucket
-      DistributionId: !Ref CloudFrontDistribution
-      ApiEndpoint: !Ref ApiEndpoint
-      UserPoolId: !Ref UserPoolId
-      UserPoolClientId: !Ref UserPoolClientId
-      IdentityPoolId: !Ref IdentityPoolId
-      Region: !Ref AWS::Region
 
   # Custom Resource to Empty Frontend Bucket Before Deletion
+  # Note: Frontend deployment is handled by GitHub Actions deploy-frontend job
+  # which deploys directly to S3 after infrastructure is created
   EmptyFrontendBucketResource:
     Type: Custom::EmptyBucket
     Properties:

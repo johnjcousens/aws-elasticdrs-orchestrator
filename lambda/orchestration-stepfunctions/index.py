@@ -131,7 +131,7 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(obj)
 
 
-def handler(event, context):
+def lambda_handler(event, context):
     """
     Step Functions orchestration handler - Archive pattern
 

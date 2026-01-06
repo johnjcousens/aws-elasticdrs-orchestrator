@@ -354,8 +354,9 @@ export const ExecutionDetailsPage: React.FC = () => {
     let totalProgress = 0;
     
     for (const wave of waves) {
-      const status = (wave.status || wave.Status || 'pending').toUpperCase();
-      const serverStatuses = wave.serverStatuses || wave.ServerStatuses || [];
+      const waveAny = wave as WaveExecution & { Status?: string; serverStatuses?: unknown[]; ServerStatuses?: unknown[] };
+      const status = (wave.status || waveAny.Status || 'pending').toUpperCase();
+      const serverStatuses = waveAny.serverStatuses || waveAny.ServerStatuses || [];
       
       // Check for specific DRS phases from server statuses
       let wavePhaseProgress = 0;
@@ -367,9 +368,10 @@ export const ExecutionDetailsPage: React.FC = () => {
         wavePhaseProgress = 0.5;
       } else if (serverStatuses.length > 0) {
         // Check individual server launch statuses
-        const launchStatuses = serverStatuses.map((s: { LaunchStatus?: string; launchStatus?: string }) => 
-          (s.LaunchStatus || s.launchStatus || 'PENDING').toUpperCase()
-        );
+        const launchStatuses = serverStatuses.map((s: unknown) => {
+          const server = s as { LaunchStatus?: string; launchStatus?: string };
+          return (server.LaunchStatus || server.launchStatus || 'PENDING').toUpperCase();
+        });
         
         if (launchStatuses.some((s: string) => s === 'LAUNCHED')) {
           wavePhaseProgress = phaseWeights.launched;

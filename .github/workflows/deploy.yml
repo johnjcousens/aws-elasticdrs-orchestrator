@@ -61,9 +61,27 @@ jobs:
       - name: AWS CloudFormation native validation
         run: |
           echo "=== AWS CloudFormation Native Validation ==="
+          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          
           for template in cfn/*.yaml; do
             echo "Validating $template with AWS..."
-            aws cloudformation validate-template --template-body file://$template > /dev/null
+            
+            # Check file size (51200 bytes = 50KB limit for inline validation)
+            FILE_SIZE=$(stat -c%s "$template" 2>/dev/null || stat -f%z "$template")
+            
+            if [ "$FILE_SIZE" -gt 51200 ]; then
+              # Large template - upload to S3 and validate via URL
+              echo "  Template is ${FILE_SIZE} bytes (>51KB), using S3 validation..."
+              TEMPLATE_NAME=$(basename "$template")
+              aws s3 cp "$template" "s3://${BUCKET}/cfn-validation/${TEMPLATE_NAME}" --quiet
+              aws cloudformation validate-template \
+                --template-url "https://${BUCKET}.s3.amazonaws.com/cfn-validation/${TEMPLATE_NAME}" > /dev/null
+              aws s3 rm "s3://${BUCKET}/cfn-validation/${TEMPLATE_NAME}" --quiet
+            else
+              # Small template - use inline validation
+              aws cloudformation validate-template --template-body file://$template > /dev/null
+            fi
+            
             echo "✓ $template is valid"
           done
 
@@ -169,17 +187,34 @@ jobs:
           echo "=== Building Lambda Packages ==="
           mkdir -p build/lambda
           
-          # Package each Lambda function
-          for func_dir in lambda/*/; do
-            func_name=$(basename "$func_dir")
-            if [ -f "$func_dir/index.py" ]; then
-              echo "Packaging $func_name..."
-              cd "$func_dir"
-              zip -r "../../build/lambda/${func_name}.zip" . -x "*.pyc" -x "__pycache__/*"
-              cd ../..
-            fi
+          # Install shared dependencies
+          pip install boto3 urllib3 crhelper -t /tmp/lambda-deps/ --quiet
+          
+          # Build each Lambda function from its subdirectory
+          # Structure: lambda/<function-name>/index.py + shared modules
+          
+          FUNCTIONS="api-handler orchestration-stepfunctions frontend-builder bucket-cleaner execution-finder execution-poller notification-formatter"
+          
+          for func in $FUNCTIONS; do
+            echo "Building ${func}.zip..."
+            
+            # Start with the function's index.py
+            cd lambda/${func}
+            zip -q ../../build/lambda/${func}.zip index.py
+            cd ../..
+            
+            # Add shared modules (rbac_middleware.py, security_utils.py)
+            cd lambda/shared
+            zip -qg ../../build/lambda/${func}.zip *.py 2>/dev/null || true
+            cd ../..
+            
+            # Add dependencies
+            cd /tmp/lambda-deps
+            zip -qr $GITHUB_WORKSPACE/build/lambda/${func}.zip .
+            cd $GITHUB_WORKSPACE
           done
           
+          echo "Lambda packages built:"
           ls -la build/lambda/
 
       - name: Build frontend

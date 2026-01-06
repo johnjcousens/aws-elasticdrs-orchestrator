@@ -355,7 +355,7 @@ graph TB
 - Case transformation (PascalCase ↔ camelCase)
 - Conflict detection for active executions and server assignments
 
-**Implementation**: `lambda/index.py` (Current Python 3.12)
+**Implementation**: `lambda/api-handler/index.py` (Current Python 3.12)
 
 **Enhanced Key Functions**:
 - `lambda_handler()` - Main entry point with RBAC middleware integration
@@ -458,7 +458,7 @@ eh_table.scan(FilterExpression=...)     # Query by PlanId or Status
 - Pause/resume state management
 - Error recovery and retry logic
 
-**Implementation**: `lambda/orchestration_stepfunctions.py`
+**Implementation**: `lambda/orchestration-stepfunctions/index.py`
 
 #### 5. Execution Poller Lambda
 **Responsibilities**:
@@ -468,7 +468,7 @@ eh_table.scan(FilterExpression=...)     # Query by PlanId or Status
 - Status updates to DynamoDB
 - Job event logging
 
-**Implementation**: `lambda/poller/execution_poller.py`
+**Implementation**: `lambda/execution-poller/index.py`
 
 #### 6. Execution Finder Lambda
 **Responsibilities**:
@@ -477,7 +477,7 @@ eh_table.scan(FilterExpression=...)     # Query by PlanId or Status
 - Trigger execution poller for active jobs
 - Cleanup stale execution states
 
-**Implementation**: `lambda/poller/execution_finder.py`
+**Implementation**: `lambda/execution-finder/index.py`
 
 #### 7. Frontend Builder Lambda
 **Responsibilities**:
@@ -486,7 +486,7 @@ eh_table.scan(FilterExpression=...)     # Query by PlanId or Status
 - AWS configuration injection
 - S3 sync and CloudFront invalidation
 
-**Implementation**: `lambda/build_and_deploy.py`
+**Implementation**: `lambda/frontend-builder/index.py`
 
 **Key Functions**:
 - `start_recovery_job()` - Calls DRS StartRecovery API

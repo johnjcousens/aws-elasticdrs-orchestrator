@@ -24,12 +24,14 @@ export const AccountSelector: React.FC = () => {
     hasSelectedAccount,
   } = useAccount();
 
-  // Convert accounts to select options
-  const accountOptions: SelectProps.Option[] = availableAccounts.map(account => ({
-    value: account.accountId,
-    label: account.accountId,
-    description: account.isCurrentAccount ? 'Current account' : undefined,
-  }));
+  // Convert accounts to select options (defensive check for non-array responses)
+  const accountOptions: SelectProps.Option[] = Array.isArray(availableAccounts) 
+    ? availableAccounts.map(account => ({
+        value: account.accountId,
+        label: account.accountId,
+        description: account.isCurrentAccount ? 'Current account' : undefined,
+      }))
+    : [];
 
   const handleSelectionChange = ({ detail }: { detail: { selectedOption: SelectProps.Option } }) => {
     setSelectedAccount(detail.selectedOption);
@@ -51,7 +53,7 @@ export const AccountSelector: React.FC = () => {
     );
   }
 
-  if (availableAccounts.length === 0) {
+  if (!Array.isArray(availableAccounts) || availableAccounts.length === 0) {
     return (
       <Box>
         <StatusIndicator type="warning">No accounts</StatusIndicator>

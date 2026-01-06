@@ -47,13 +47,25 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     try {
       const response = await apiClient.listDRSSourceServers(region, currentProtectionGroupId);
       
-      if (response.initialized === false) {
+      // Check if DRS is initialized - response may have 'initialized' field or just servers
+      const responseAny = response as { initialized?: boolean; message?: string; servers: typeof response.servers };
+      if (responseAny.initialized === false) {
         setDrsInitialized(false);
-        setError(response.message);
+        setError(responseAny.message || 'DRS not initialized');
         setServers([]);
       } else {
         setDrsInitialized(true);
-        setServers(response.servers || []);
+        // Map servers to ensure required fields have defaults
+        const mappedServers: DRSServer[] = (response.servers || []).map(s => ({
+          ...s,
+          state: s.state || 'UNKNOWN',
+          replicationState: s.replicationState || 'UNKNOWN',
+          lagDuration: s.lagDuration || '',
+          lastSeen: s.lastSeen || '',
+          assignedToProtectionGroup: s.assignedToProtectionGroup || null,
+          selectable: s.selectable ?? true,
+        }));
+        setServers(mappedServers);
       }
     } catch (err: unknown) {
       console.error('Error fetching servers:', err);

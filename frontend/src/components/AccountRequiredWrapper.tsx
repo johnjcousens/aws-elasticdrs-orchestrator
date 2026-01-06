@@ -68,7 +68,7 @@ export const AccountRequiredWrapper: React.FC<AccountRequiredWrapperProps> = ({
   }
 
   // Show no accounts state - Setup Wizard
-  if (availableAccounts.length === 0) {
+  if (!Array.isArray(availableAccounts) || availableAccounts.length === 0) {
     return (
       <Container
         header={
@@ -119,7 +119,7 @@ export const AccountRequiredWrapper: React.FC<AccountRequiredWrapperProps> = ({
   // CRITICAL: Single account auto-selection logic
   // If only one account exists, it should be auto-selected as default
   // Multiple accounts require explicit selection (enforcement only for this case)
-  if (availableAccounts.length > 1 && !hasSelectedAccount) {
+  if (Array.isArray(availableAccounts) && availableAccounts.length > 1 && !hasSelectedAccount) {
     return (
       <Container
         header={

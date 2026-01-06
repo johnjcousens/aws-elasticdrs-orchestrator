@@ -26,6 +26,7 @@ import type {
   SecurityGroupOption,
   InstanceProfileOption,
   InstanceTypeOption,
+  DRSServer,
 } from '../types';
 
 // API configuration
@@ -154,9 +155,10 @@ class ApiClient {
             });
           }
         } catch (error) {
+          const err = error as Error;
           const sanitizedError = sanitizeForLogging({
-            error: error?.message || 'Unknown error',
-            name: error?.name
+            error: err?.message || 'Unknown error',
+            name: err?.name
           });
           console.error('Error fetching auth token:', sanitizedError);
           throw error;
@@ -774,49 +776,7 @@ class ApiClient {
     currentProtectionGroupId?: string,
     filterByProtectionGroup?: string
   ): Promise<{
-    servers: Array<{
-      sourceServerID: string;
-      hostname: string;
-      fqdn?: string;
-      nameTag?: string;
-      sourceInstanceId?: string;
-      sourceIp?: string;
-      sourceMac?: string;
-      sourceRegion?: string;
-      sourceAccount?: string;
-      os?: string;
-      state?: string;
-      replicationState: string;
-      lagDuration?: string;
-      lastSeen?: string;
-      hardware?: {
-        cpus?: Array<{
-          modelName: string;
-          cores: number;
-        }>;
-        totalCores?: number;
-        ramBytes?: number;
-        ramGiB?: number;
-        disks?: Array<{
-          deviceName: string;
-          bytes: number;
-          sizeGiB: number;
-        }>;
-        totalDiskGiB?: number;
-      };
-      networkInterfaces?: Array<{
-        ips: string[];
-        macAddress: string;
-        isPrimary: boolean;
-      }>;
-      drsTags?: Record<string, string>;
-      tags: Record<string, string>;
-      assignedToProtectionGroup?: {
-        protectionGroupId: string;
-        protectionGroupName: string;
-      } | null;
-      selectable?: boolean;
-    }>;
+    servers: DRSServer[];
     serverCount: number;
     region: string;
   }> {
@@ -829,49 +789,7 @@ class ApiClient {
     }
     
     const response = await this.get<{
-      servers: Array<{
-        sourceServerID: string;
-        hostname: string;
-        fqdn?: string;
-        nameTag?: string;
-        sourceInstanceId?: string;
-        sourceIp?: string;
-        sourceMac?: string;
-        sourceRegion?: string;
-        sourceAccount?: string;
-        os?: string;
-        state?: string;
-        replicationState: string;
-        lagDuration?: string;
-        lastSeen?: string;
-        hardware?: {
-          cpus?: Array<{
-            modelName: string;
-            cores: number;
-          }>;
-          totalCores?: number;
-          ramBytes?: number;
-          ramGiB?: number;
-          disks?: Array<{
-            deviceName: string;
-            bytes: number;
-            sizeGiB: number;
-          }>;
-          totalDiskGiB?: number;
-        };
-        networkInterfaces?: Array<{
-          ips: string[];
-          macAddress: string;
-          isPrimary: boolean;
-        }>;
-        drsTags?: Record<string, string>;
-        tags: Record<string, string>;
-        assignedToProtectionGroup?: {
-          protectionGroupId: string;
-          protectionGroupName: string;
-        } | null;
-        selectable?: boolean;
-      }>;
+      servers: DRSServer[];
       serverCount: number;
       region: string;
     }>('/drs/source-servers', queryParams);

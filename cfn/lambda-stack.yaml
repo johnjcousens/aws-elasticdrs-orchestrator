@@ -704,7 +704,7 @@ Resources:
       FunctionName: !Sub "${ProjectName}-frontend-build-${Environment}"
       Description: "Custom resource to build and deploy React frontend"
       Runtime: python3.12
-      Handler: build_and_deploy.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt CustomResourceRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
@@ -765,7 +765,7 @@ Resources:
       FunctionName: !Sub "${ProjectName}-execution-finder-${Environment}"
       Description: "Queries StatusIndex GSI for executions in POLLING status"
       Runtime: python3.12
-      Handler: execution_finder.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt ExecutionFinderRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
@@ -789,7 +789,7 @@ Resources:
       FunctionName: !Sub "${ProjectName}-execution-poller-${Environment}"
       Description: "Polls DRS job status and updates execution wave states"
       Runtime: python3.12
-      Handler: execution_poller.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt ExecutionPollerRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
@@ -837,7 +837,7 @@ Resources:
       FunctionName: !Sub "${ProjectName}-orch-sf-${Environment}"
       Description: "Step Functions orchestrator for DRS recovery - properly waits for EC2 launch"
       Runtime: python3.12
-      Handler: orchestration_stepfunctions.handler
+      Handler: index.lambda_handler
       Role: !GetAtt OrchestrationRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket
@@ -863,7 +863,7 @@ Resources:
       FunctionName: !Sub "${ProjectName}-notif-fmt-${Environment}"
       Description: "Formats CodePipeline and CodeBuild events into user-friendly email notifications"
       Runtime: python3.12
-      Handler: notification-formatter/index.lambda_handler
+      Handler: index.lambda_handler
       Role: !GetAtt NotificationFormatterRole.Arn
       Code:
         S3Bucket: !Ref SourceBucket

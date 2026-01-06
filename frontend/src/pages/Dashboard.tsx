@@ -92,7 +92,8 @@ export const Dashboard: React.FC = () => {
         limit: 100,
         accountId 
       });
-      setExecutions(response.items || []);
+      // Defensive check: ensure items is an array
+      setExecutions(Array.isArray(response?.items) ? response.items : []);
       setError(null);
     } catch (err) {
       setError('Failed to load executions');
