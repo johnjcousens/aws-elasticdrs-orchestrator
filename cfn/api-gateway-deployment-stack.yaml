@@ -20,7 +20,7 @@ Parameters:
   DeploymentTimestamp:
     Type: String
     Description: Timestamp for forcing API Gateway deployments
-    Default: '2025-01-06T00:00:00Z'
+    Default: '2026-01-06T22:30:00Z'
 
 Resources:
   # ============================================================================
