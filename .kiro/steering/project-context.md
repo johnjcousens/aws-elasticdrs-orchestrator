@@ -153,6 +153,42 @@ aws cloudformation deploy \
 ./scripts/sync-to-deployment-bucket.sh --deploy-cfn         # 5-10 minutes
 ```
 
+## Deployment Discipline (CRITICAL)
+
+### PRIMARY DEPLOYMENT METHOD: GitHub Actions
+
+**ALL changes MUST go through GitHub Actions CI/CD pipeline:**
+
+1. **Make changes locally**
+2. **Commit changes**: `git add . && git commit -m "description"`
+3. **Push to trigger pipeline**: `git push`
+4. **Monitor GitHub Actions**: Verify deployment success
+5. **Never bypass the pipeline** for production changes
+
+### Manual Sync Script Usage (EMERGENCY ONLY)
+
+The `sync-to-deployment-bucket.sh` script should ONLY be used in these emergency situations:
+
+- **GitHub Actions is down** and critical production fix needed
+- **Pipeline is broken** and needs immediate bypass for hotfix
+- **Development debugging** of deployment artifacts (with immediate revert)
+
+**NEVER use manual sync for:**
+- ❌ Regular development workflow
+- ❌ Feature deployments
+- ❌ Production releases
+- ❌ "Quick fixes" that bypass review
+- ❌ Convenience to avoid waiting for pipeline
+
+### Why GitHub Actions is Required
+
+- **Audit trail**: All changes tracked in Git history
+- **Quality gates**: Validation, linting, security scanning, testing
+- **Consistent environment**: Same deployment process every time
+- **Rollback capability**: Git-based rollback and deployment history
+- **Team visibility**: All deployments visible to team members
+- **Compliance**: Meets enterprise deployment standards
+
 ### S3 Deployment Bucket (Source of Truth)
 
 ```

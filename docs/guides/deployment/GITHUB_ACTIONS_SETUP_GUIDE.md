@@ -1,17 +1,22 @@
 # GitHub Actions CI/CD Setup Guide
 
+⚠️ **CRITICAL**: This guide sets up the **MANDATORY** GitHub Actions CI/CD pipeline. Manual deployment scripts are for emergencies only.
+
 This guide covers setting up GitHub Actions for CI/CD deployment of the AWS DRS Orchestration platform.
 
 ## Overview
 
+**GitHub Actions First Policy**: ALL deployments MUST use GitHub Actions CI/CD pipeline.
+
 GitHub Actions provides a streamlined CI/CD approach with OIDC-based AWS authentication (no long-lived credentials required).
 
 **Benefits:**
-- No circular dependency - GitHub Actions runs outside AWS
-- Simpler architecture - One workflow file vs multiple CloudFormation stacks
-- Better debugging - GitHub's UI is more intuitive
-- Native Git integration - Direct GitHub repository integration
-- OIDC Security - Secure AWS access without storing credentials
+- ✅ **Audit Trail**: All changes tracked in Git history
+- ✅ **Quality Gates**: Automated validation, testing, security scanning
+- ✅ **No Circular Dependencies**: GitHub Actions runs outside AWS
+- ✅ **Enterprise Compliance**: Meets deployment standards and governance
+- ✅ **Team Visibility**: All deployments visible to team members
+- ✅ **OIDC Security**: Secure AWS access without storing credentials
 
 ## Prerequisites
 

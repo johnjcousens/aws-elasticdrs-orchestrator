@@ -301,23 +301,61 @@ The project uses **GitHub Actions** for automated deployment with OIDC-based AWS
 
 ### Development Workflow Options
 
-#### GitHub Actions CI/CD (Production)
+#### GitHub Actions CI/CD (PRIMARY - REQUIRED)
+
+**ALL deployments MUST use GitHub Actions CI/CD pipeline. Manual deployment scripts are for emergencies only.**
+
 ```bash
-# Simply push to main branch to trigger deployment
+# Standard development workflow (REQUIRED)
 git add .
-git commit -m "Your changes"
+git commit -m "feat: describe your changes"
 git push origin main  # Triggers GitHub Actions workflow
 
 # Monitor deployment at:
 # https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
-#### Manual Deployment (Development)
+**Pipeline Stages:**
+1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
+2. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
+3. **Build** (~3 min) - Lambda packaging, frontend build
+4. **Test** (~2 min) - Unit tests
+5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
+
+#### Manual Deployment (EMERGENCY ONLY)
+
+**RESTRICTED USE**: Only for genuine emergencies when GitHub Actions is unavailable.
+
 ```bash
-# Fast development workflow using S3 deployment bucket
+# EMERGENCY ONLY - when GitHub Actions is down
 ./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # 5 seconds
 ./scripts/sync-to-deployment-bucket.sh --deploy-cfn         # 5-10 minutes
+
+# IMMEDIATELY follow up with Git commit
+git add .
+git commit -m "emergency: describe the critical fix"
+git push origin main
 ```
+
+**When Manual Sync is Allowed:**
+- GitHub Actions service outage (confirmed AWS/GitHub issue)
+- Critical production hotfix when pipeline is broken
+- Pipeline debugging (with immediate revert to Git-based deployment)
+
+**NEVER use manual sync for:**
+- ❌ Regular development workflow
+- ❌ Feature deployments
+- ❌ "Quick fixes" that bypass review
+- ❌ Convenience to avoid waiting for pipeline
+
+**Why GitHub Actions is Required:**
+- **Audit trail**: All changes tracked in Git history
+- **Quality gates**: Validation, linting, security scanning, testing
+- **Consistent environment**: Same deployment process every time
+- **Rollback capability**: Git-based rollback and deployment history
+- **Team visibility**: All deployments visible to team members
+- **Compliance**: Meets enterprise deployment standards
 
 ## S3 Deployment Bucket (Source of Truth)
 

@@ -610,41 +610,94 @@ aws cloudformation deploy \
 # 3. Push to main branch to trigger deployment
 ```
 
-### Manual Deployment (Development)
+### Manual Deployment (EMERGENCY ONLY)
+
+⚠️ **CRITICAL**: Manual deployment scripts are for emergencies only. ALL regular deployments MUST use GitHub Actions CI/CD pipeline.
+
+**Emergency Use Cases Only:**
+- GitHub Actions service outage (confirmed AWS/GitHub issue)
+- Critical production hotfix when pipeline is broken
+- Pipeline debugging (with immediate Git follow-up)
 
 ```bash
-# Fast Lambda code update (5 seconds)
+# EMERGENCY ONLY: Fast Lambda code update (5 seconds)
 ./scripts/sync-to-deployment-bucket.sh --update-lambda-code
 
-# Full CloudFormation deployment (5-10 minutes)
+# EMERGENCY ONLY: Full CloudFormation deployment (5-10 minutes)
 ./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+
+# IMMEDIATELY follow up with proper Git commit and push
+git add .
+git commit -m "emergency: describe the critical fix"
+git push  # Restores proper CI/CD tracking
 ```
+
+**Why GitHub Actions is Required:**
+- ✅ **Audit Trail**: All changes tracked in Git history
+- ✅ **Quality Gates**: Automated validation, testing, security scanning
+- ✅ **Team Visibility**: All deployments visible to team members
+- ✅ **Rollback Capability**: Git-based rollback and deployment history
+- ✅ **Enterprise Compliance**: Meets deployment standards and governance
 
 ## Contributing
 
-### Using CI/CD Pipeline (Recommended)
-1. Fork the GitHub repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to GitHub (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-6. After merge to main, changes automatically deploy via GitHub Actions
+### Standard Development Workflow (REQUIRED)
 
-### Manual Development
+**ALL deployments MUST use GitHub Actions CI/CD pipeline:**
+
+1. **Fork the GitHub repository**
+2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
+3. **Make changes and test locally**
+4. **Commit changes** (`git commit -m 'Add amazing feature'`)
+5. **Push to GitHub** (`git push origin feature/amazing-feature`)
+6. **Open a Pull Request**
+7. **After merge to main**, changes automatically deploy via GitHub Actions
+
+### Local Development Setup
+
 ```bash
 # Clone repository
 git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
 cd aws-elasticdrs-orchestrator
 
-# Make changes and test locally
-npm run dev  # Frontend
-pytest tests/python/unit/  # Backend
+# Frontend development
+cd frontend
+npm install
+npm run dev  # Development server at localhost:5173
 
-# Commit and push
-git add .
-git commit -m "Your changes"
-git push origin main  # Triggers GitHub Actions deployment
+# Backend testing
+cd tests/python
+pip install -r requirements.txt
+pytest unit/ -v
+
+# Validate before committing
+make validate  # CloudFormation validation
 ```
+
+### Deployment Process
+
+```bash
+# Standard workflow - ALWAYS use this
+git add .
+git commit -m "feat: describe your changes"
+git push origin main  # Triggers GitHub Actions deployment
+
+# Monitor pipeline at: https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
+```
+
+### Prohibited Practices
+
+❌ **NEVER bypass GitHub Actions for regular development**  
+❌ **NEVER use manual sync scripts for convenience**  
+❌ **NEVER deploy "quick fixes" without Git tracking**  
+❌ **NEVER skip the pipeline "just this once"**
+
+**Why these are prohibited:**
+- No audit trail for changes
+- Skip quality gates (validation, testing, security)
+- Team unaware of deployments
+- No rollback capability
+- Compliance violations
 
 ## Repository Snapshots & Rollback
 
