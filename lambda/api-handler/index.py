@@ -2813,36 +2813,37 @@ def handle_recovery_plans(
 def create_recovery_plan(body: Dict) -> Dict:
     """Create a new Recovery Plan"""
     try:
-        # Validate required fields
-        if "PlanName" not in body:
+        # Validate required fields - accept both frontend (name) and legacy (PlanName) formats
+        plan_name = body.get("name") or body.get("PlanName")
+        if not plan_name:
             return response(
                 400,
                 {
                     "error": "MISSING_FIELD",
-                    "message": "PlanName is required",
-                    "field": "PlanName",
+                    "message": "name is required",
+                    "field": "name",
                 },
             )
 
-        if "Waves" not in body or not body["Waves"]:
+        waves = body.get("waves") or body.get("Waves")
+        if not waves:
             return response(
                 400,
                 {
                     "error": "MISSING_FIELD",
-                    "message": "At least one Wave is required",
-                    "field": "Waves",
+                    "message": "At least one wave is required",
+                    "field": "waves",
                 },
             )
 
         # Validate name is not empty or whitespace-only
-        plan_name = body["PlanName"]
         if not plan_name or not plan_name.strip():
             return response(
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "PlanName cannot be empty or whitespace-only",
-                    "field": "PlanName",
+                    "message": "name cannot be empty or whitespace-only",
+                    "field": "name",
                 },
             )
 
@@ -2852,8 +2853,8 @@ def create_recovery_plan(body: Dict) -> Dict:
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "PlanName must be 64 characters or fewer",
-                    "field": "PlanName",
+                    "message": "name must be 64 characters or fewer",
+                    "field": "name",
                     "maxLength": 64,
                     "actualLength": len(plan_name.strip()),
                 },
@@ -2880,17 +2881,17 @@ def create_recovery_plan(body: Dict) -> Dict:
         timestamp = int(time.time())
         item = {
             "PlanId": plan_id,
-            "PlanName": body["PlanName"],
-            "Description": body.get("Description", ""),  # Optional
-            "Waves": body.get("Waves", []),
+            "PlanName": plan_name,  # Use the validated plan_name variable
+            "Description": body.get("description", body.get("Description", "")),  # Accept both formats
+            "Waves": waves,  # Use the validated waves variable
             "CreatedDate": timestamp,
             "LastModifiedDate": timestamp,
             "Version": 1,  # Optimistic locking - starts at version 1
         }
 
         # Validate waves if provided
-        if item["Waves"]:
-            validation_error = validate_waves(item["Waves"])
+        if waves:
+            validation_error = validate_waves(waves)
             if validation_error:
                 return response(400, {"error": validation_error})
 
@@ -3137,18 +3138,17 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 },
             )
 
-        # Validate name if provided
-        if "PlanName" in body:
-            plan_name = body["PlanName"]
-
+        # Validate name if provided - accept both frontend (name) and legacy (PlanName) formats
+        plan_name = body.get("name") or body.get("PlanName")
+        if plan_name is not None:
             # Validate name is not empty or whitespace-only
             if not plan_name or not plan_name.strip():
                 return response(
                     400,
                     {
                         "error": "INVALID_NAME",
-                        "message": "PlanName cannot be empty or whitespace-only",
-                        "field": "PlanName",
+                        "message": "name cannot be empty or whitespace-only",
+                        "field": "name",
                     },
                 )
 
@@ -3158,34 +3158,41 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                     400,
                     {
                         "error": "INVALID_NAME",
-                        "message": "PlanName must be 64 characters or fewer",
-                        "field": "PlanName",
+                        "message": "name must be 64 characters or fewer",
+                        "field": "name",
                         "maxLength": 64,
                         "actualLength": len(plan_name.strip()),
                     },
                 )
 
-            # Trim the name
-            body["PlanName"] = plan_name.strip()
+            # Trim the name and store in both formats for compatibility
+            trimmed_name = plan_name.strip()
+            body["PlanName"] = trimmed_name  # For DynamoDB storage
+            if "name" in body:
+                body["name"] = trimmed_name  # Update frontend field too
 
             # Validate unique name if changing
-            if body["PlanName"] != existing_plan.get("PlanName"):
-                if not validate_unique_rp_name(body["PlanName"], plan_id):
+            if trimmed_name != existing_plan.get("PlanName"):
+                if not validate_unique_rp_name(trimmed_name, plan_id):
                     return response(
                         409,
                         {
                             "error": "RP_NAME_EXISTS",
-                            "message": f'A Recovery Plan named "{body["PlanName"]}" already exists',
-                            "existingName": body["PlanName"],
+                            "message": f'A Recovery Plan named "{trimmed_name}" already exists',
+                            "existingName": trimmed_name,
                         },
                     )
 
-        # NEW: Pre-write validation for Waves
-        if "Waves" in body:
-            print(f"Updating plan {plan_id} with {len(body['Waves'])} waves")
+        # NEW: Pre-write validation for Waves - accept both frontend (waves) and legacy (Waves) formats
+        waves = body.get("waves") or body.get("Waves")
+        if waves is not None:
+            print(f"Updating plan {plan_id} with {len(waves)} waves")
+            
+            # Store in DynamoDB format
+            body["Waves"] = waves
 
             # DEFENSIVE: Validate ServerIds in each wave
-            for idx, wave in enumerate(body["Waves"]):
+            for idx, wave in enumerate(waves):
                 server_ids = wave.get("ServerIds", [])
                 if not isinstance(server_ids, list):
                     print(

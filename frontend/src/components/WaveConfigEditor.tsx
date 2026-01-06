@@ -5,7 +5,7 @@
  * execution type, dependencies, and configuration options.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -57,13 +57,14 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   
   const [expandedWave, setExpandedWave] = useState<number | null>(safeWaves.length > 0 ? 0 : null);
 
-  const handleAddWave = (e?: React.MouseEvent) => {
+  const handleAddWave = useCallback((e?: React.MouseEvent) => {
     // Prevent any form submission or event bubbling
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     console.log('[WaveConfigEditor] handleAddWave called, current waves:', safeWaves.length);
+    
     const newWave: Wave = {
       waveNumber: safeWaves.length,
       name: `Wave ${safeWaves.length + 1}`,
@@ -74,11 +75,16 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       protectionGroupIds: [],  // Empty - user must select PG
       protectionGroupId: '',  // Empty - no default
     };
+    
     const updatedWaves = [...safeWaves, newWave];
     console.log('[WaveConfigEditor] Calling onChange with waves:', updatedWaves.length);
-    onChange(updatedWaves);
-    setExpandedWave(safeWaves.length);
-  };
+    
+    // Use setTimeout to ensure state update happens after current render cycle
+    setTimeout(() => {
+      onChange(updatedWaves);
+      setExpandedWave(safeWaves.length);
+    }, 0);
+  }, [safeWaves, onChange]);
 
   const handleRemoveWave = (waveNumber: number) => {
     const updatedWaves = safeWaves
@@ -141,13 +147,9 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
         {!readonly && (
           <Button 
             iconName="add-plus" 
-            onClick={(e) => {
-              console.log('[WaveConfigEditor] Add Wave button clicked');
-              e.preventDefault();
-              e.stopPropagation();
-              handleAddWave();
-            }}
-            formAction="none"
+            onClick={handleAddWave}
+            type="button"
+            variant="normal"
           >
             Add Wave
           </Button>
