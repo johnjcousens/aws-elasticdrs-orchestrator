@@ -198,6 +198,34 @@ s3://aws-elasticdrs-orchestrator/
 └── frontend/                # Frontend build artifacts
 ```
 
+## Reference Stack for Testing and Comparison
+
+### Working Reference Stack
+- **Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestrator-dev/11b25cb0-e5f7-11f0-bde4-12ca9f6188ad`
+- **API Gateway URL**: `https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev`
+- **Cognito User Pool ID**: `us-east-1_7ClH0e1NS`
+- **Cognito Client ID**: `6fepnj59rp7qup2k3n6uda5p19`
+- **Test User**: `testuser@example.com` / `TestPassword123!`
+
+### Usage Guidelines
+- Use reference stack to verify expected API behavior when debugging issues
+- Compare CloudFormation configurations when troubleshooting deployment problems
+- Test API endpoints on reference stack to understand correct response formats
+- Same test user credentials work on both current and reference stacks
+
+### Authentication Example
+```bash
+# Get JWT token for reference stack
+aws cognito-idp admin-initiate-auth \
+  --user-pool-id us-east-1_7ClH0e1NS \
+  --client-id 6fepnj59rp7qup2k3n6uda5p19 \
+  --auth-flow ADMIN_NO_SRP_AUTH \
+  --auth-parameters USERNAME=testuser@example.com,PASSWORD=TestPassword123! \
+  --region us-east-1 \
+  --query 'AuthenticationResult.IdToken' \
+  --output text
+```
+
 ## Key Implementation Patterns
 
 ### Pause/Resume Execution
