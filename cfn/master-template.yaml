@@ -344,10 +344,11 @@ Resources:
       TimeoutInMinutes: 15
 
   # CI/CD Infrastructure Stacks (Conditional)
+  # These stacks should NOT be updated by the pipeline to avoid circular dependency
   CodeCommitStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Condition: EnableCICDCondition
     DependsOn: LambdaStack
     Properties:
@@ -365,8 +366,8 @@ Resources:
 
   CodeBuildProjectsStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Condition: EnableCICDCondition
     DependsOn: CodeCommitStack
     Properties:
@@ -385,8 +386,8 @@ Resources:
 
   CodePipelineStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Condition: EnableCICDCondition
     DependsOn:
       - CodeCommitStack
