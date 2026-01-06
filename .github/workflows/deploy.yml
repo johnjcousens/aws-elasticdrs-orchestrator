@@ -317,10 +317,10 @@ jobs:
           fi
           
           # ENTERPRISE SAFETY: Pre-deployment validation
-          echo "🔒 ENTERPRISE SAFETY VALIDATION:"
+          echo "🔒 PIPELINE SAFETY POLICY:"
           echo "   - Pipeline will NEVER delete stacks automatically"
-          echo "   - Termination protection will be enabled"
-          echo "   - All destructive actions require manual intervention"
+          echo "   - Only deploys/updates stacks, never deletes"
+          echo "   - Manual deletion available when needed for development"
           echo "   - Stack: $STACK_NAME"
           echo "   - Environment: $ENV"
           
@@ -351,11 +351,11 @@ jobs:
           fi
           
           # ENTERPRISE SAFETY: Explicit no-deletion policy
-          echo "🛡️  ENTERPRISE SAFETY POLICY: This pipeline will NEVER delete stacks automatically"
-          echo "🛡️  All stack deletions must be performed manually outside of CI/CD pipeline"
-          echo "🛡️  Termination protection will be enabled to prevent accidental deletion"
+          echo "🛡️  PIPELINE SAFETY: This pipeline will NEVER delete stacks automatically"
+          echo "🛡️  All stack deletions must be performed manually when needed"
+          echo "🔧  Development flexibility: Manual deletion available without restrictions"
           
-          # Deploy stack with termination protection
+          # Deploy stack WITHOUT termination protection for development flexibility
           DEPLOY_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           aws cloudformation deploy \
             --template-file cfn/master-template.yaml \
@@ -366,7 +366,7 @@ jobs:
               SourceBucket="$BUCKET" \
               AdminEmail="$ADMIN_EMAIL" \
               ApiDeploymentTimestamp="$DEPLOY_TIMESTAMP" \
-              EnableTerminationProtection="true" \
+              EnableTerminationProtection="false" \
             --capabilities CAPABILITY_NAMED_IAM \
             --tags \
               Project="${{ env.PROJECT_NAME }}" \
@@ -375,28 +375,8 @@ jobs:
               CommitSha="${{ github.sha }}" \
             --no-fail-on-empty-changeset
           
-          # Enable termination protection after deployment
-          echo "=== Enabling Stack Termination Protection ==="
-          aws cloudformation update-termination-protection \
-            --stack-name "$STACK_NAME" \
-            --enable-termination-protection
-          
-          # Verify termination protection is enabled
-          TERMINATION_PROTECTION=$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].EnableTerminationProtection' --output text)
-          
-          if [[ "$TERMINATION_PROTECTION" == "True" ]]; then
-            echo "✅ CONFIRMED: Stack termination protection is ENABLED"
-            echo "🛡️  Stack is now protected from accidental deletion"
-            echo "🛡️  ENTERPRISE SAFETY: Manual action required to delete this stack"
-            echo "🛡️  To delete: 1) Disable termination protection 2) Run delete command manually"
-          else
-            echo "❌ WARNING: Failed to enable termination protection"
-            echo "🚨 MANUAL ACTION REQUIRED: Enable termination protection manually"
-            echo "🚨 CRITICAL: Stack is vulnerable to accidental deletion"
-            exit 1
-          fi
+          echo "✅ Stack deployed successfully without termination protection"
+          echo "🔧 Manual deletion available when needed for development"
           
           echo "=== Stack Outputs ==="
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
