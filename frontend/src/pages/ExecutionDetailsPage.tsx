@@ -492,7 +492,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     
     // Only show terminate button if execution is terminal, has job IDs, and no waves are actively running
     const result = isTerminal && hasJobId && !hasActiveWaves;
-    console.log('canTerminate final result:', result, { isTerminal, hasJobId, hasActiveWaves: !hasActiveWaves });
+    console.log('canTerminate final result:', result, { isTerminal, hasJobId, noActiveWaves: !hasActiveWaves });
     return result;
   })();
   
