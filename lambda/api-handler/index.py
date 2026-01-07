@@ -5307,6 +5307,7 @@ def get_execution_details(execution_id: str) -> Dict:
 
         # CRITICAL FIX: Reconcile wave status with actual DRS job results for cancelled executions
         # This ensures wave status reflects actual DRS job completion when execution-poller stopped
+        # Updated: 2025-01-07 - Fixed DynamoDB save operation for wave status reconciliation
         original_waves = execution.get("Waves", [])
         execution = reconcile_wave_status_with_drs(execution)
         
