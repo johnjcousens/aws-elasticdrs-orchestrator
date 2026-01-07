@@ -604,9 +604,9 @@ The project uses **GitHub Actions** for automated deployment with comprehensive 
 The pipeline includes **enterprise-grade security scanning** with automated thresholds and comprehensive reporting:
 
 #### Security Tools & Coverage
-- **Bandit** (v1.7.5) - Python security analysis with medium+ severity detection
+- **Bandit** (v1.9.2) - Python security analysis with medium+ severity detection
 - **Safety** (v2.3.4) - Python dependency vulnerability scanning
-- **Semgrep** (v1.45.0) - Advanced security pattern matching for Python and YAML
+- **Semgrep** (v1.146.0) - Advanced security pattern matching for Python and YAML
 - **CFN-Lint** (v0.83.8) - CloudFormation security linting and best practices
 - **ESLint** - Frontend TypeScript/React security rule scanning
 - **NPM Audit** - Frontend dependency vulnerability detection
