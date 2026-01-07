@@ -441,12 +441,9 @@ const calculateOverallProgressWithLogs = (
     return ['STARTED', 'IN_PROGRESS', 'POLLING', 'LAUNCHING', 'INITIATED'].includes(status);
   }).length;
   
-  // Count cancelled waves (these shouldn't contribute to progress)
-  const cancelledWaves = waves.filter(w => ['cancelled', 'CANCELLED'].includes(w.status)).length;
-  
-  // If all non-completed waves are cancelled, show progress based on completed waves only
-  const effectiveWaves = totalWaves - cancelledWaves;
-  const waveWeight = effectiveWaves > 0 ? 100 / effectiveWaves : 0;
+  // For progress calculation, use the original total waves (not reduced by cancelled waves)
+  // This ensures that completed waves are properly counted even when other waves are cancelled
+  const waveWeight = totalWaves > 0 ? 100 / totalWaves : 0;
   
   // DRS phase weights (must sum to 1.0)
   const phaseProgress: Record<string, number> = {
@@ -467,17 +464,14 @@ const calculateOverallProgressWithLogs = (
     const waveNum = wave.waveNumber ?? 0;
     const waveJobLogs = jobLogs?.[waveNum];
     
-    // Skip cancelled waves - they don't contribute to progress
-    if (status === 'CANCELLED') {
-      continue;
-    }
-    
     let wavePhaseProgress = 0;
     
     if (status === 'COMPLETED' || status === 'LAUNCHED') {
       wavePhaseProgress = 1.0;
     } else if (status === 'FAILED') {
       wavePhaseProgress = 0.5;
+    } else if (status === 'CANCELLED') {
+      wavePhaseProgress = 0; // Cancelled waves contribute 0 progress
     } else if (status === 'PAUSED' || status === 'PENDING') {
       wavePhaseProgress = 0;
     } else if (waveJobLogs && waveJobLogs.events && waveJobLogs.events.length > 0) {
