@@ -142,8 +142,8 @@ jobs:
           
           # Bandit security scan
           echo "Running Bandit security scan..."
-          bandit -r lambda/ scripts/ -f json -o reports/security/raw/bandit-report.json -ll --severity-level medium --confidence-level medium || true
-          bandit -r lambda/ scripts/ -ll --severity-level medium --confidence-level medium > reports/security/formatted/bandit-report.txt || true
+          bandit -r lambda/ scripts/ -f json -o reports/security/raw/bandit-report.json -ll || true
+          bandit -r lambda/ scripts/ -ll > reports/security/formatted/bandit-report.txt || true
           
           # Semgrep security scan for Python
           echo "Running Semgrep security scan on Python code..."
@@ -152,7 +152,7 @@ jobs:
           
           # Safety dependency vulnerability scan
           echo "Running Safety dependency vulnerability scan..."
-          safety check --json -o reports/security/raw/safety-report.json || true
+          safety check --json > reports/security/raw/safety-report.json || true
           safety check > reports/security/formatted/safety-report.txt || true
 
       - name: Frontend security scanning
