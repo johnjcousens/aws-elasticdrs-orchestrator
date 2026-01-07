@@ -19,7 +19,7 @@ The project uses **GitHub Actions** for automated CI/CD deployment with OIDC-bas
 | **Authentication** | OIDC (no long-lived credentials) |
 | **OIDC Stack** | `cfn/github-oidc-stack.yaml` |
 
-See [GitHub Actions Setup Guide](../guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) for complete setup instructions.
+See [GitHub Actions CI/CD Guide](../guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md) for complete setup instructions.
 
 ---
 
