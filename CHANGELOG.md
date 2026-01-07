@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - January 7, 2026
+
+### Fixed
+- **Critical Async Worker Validation Bug**: Fixed execution orchestration failure preventing Step Functions from starting
+  - **Root Cause**: Lambda handler called `validate_api_gateway_event()` before checking for worker mode, causing async worker invocations to fail with "Missing required field: httpMethod"
+  - **Impact**: Executions stuck in "pending" status with empty waves array, showing only "Cancel" button instead of "Resume"
+  - **Solution**: Moved worker detection (`if event.get("worker"):`) before API Gateway validation
+  - **Result**: Async workers can now successfully start Step Functions, populate wave data, and enable pause/resume orchestration
+- **Execution Management**: Cancelled stuck execution (`eee9f8bd-9193-47de-8708-e3872d58911d`) that was blocking new operations
+
+### Technical Details
+- **Commit**: `ddb0516` - "fix: move worker detection before API Gateway validation"
+- **Deployment**: Via GitHub Actions CI/CD pipeline
+- **Validation**: Confirmed through CloudWatch logs showing proper worker detection
+- **Testing**: New executions now properly show populated waves and "Resume" functionality
+
 ## [1.4.0] - January 6, 2026
 
 ### Added
