@@ -65,11 +65,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     event.preventDefault();
     const href = event.detail.href;
     
-    // Only navigate if the href is different from current location
-    if (href !== location.pathname) {
-      navigate(href);
-    }
-  }, [navigate, location.pathname]);
+    // Always navigate - React Router will handle duplicate navigation gracefully
+    navigate(href);
+  }, [navigate]);
 
   // Handle breadcrumb navigation
   const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
