@@ -24,6 +24,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { WaveProgress } from '../components/WaveProgress';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { TerminateInstancesDialog } from '../components/TerminateInstancesDialog';
 import apiClient from '../services/api';
 import type { Execution, WaveExecution } from '../types';
 
@@ -840,13 +841,10 @@ export const ExecutionDetailsPage: React.FC = () => {
         loading={cancelling}
       />
 
-      {/* Terminate Instances Confirmation Dialog */}
-      <ConfirmDialog
+      {/* Terminate Instances Dialog */}
+      <TerminateInstancesDialog
         open={terminateDialogOpen}
-        title="Terminate Recovery Instances"
-        message="Are you sure you want to terminate all recovery instances from this execution? This will permanently terminate all EC2 instances that were launched as part of this recovery. This action cannot be undone."
-        confirmLabel="Terminate Instances"
-        confirmColor="error"
+        execution={execution}
         onConfirm={handleTerminateInstances}
         onCancel={() => setTerminateDialogOpen(false)}
         loading={terminating}
