@@ -108,8 +108,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Auto-logout timer (45 minutes)
   const AUTO_LOGOUT_TIME = 45 * 60 * 1000; // 45 minutes in milliseconds
   
+  // Token refresh timer (50 minutes - before 60 minute expiry)
+  const TOKEN_REFRESH_TIME = 50 * 60 * 1000; // 50 minutes in milliseconds
+  
   // Use refs to avoid dependency cycles that cause infinite re-renders
   const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const tokenRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const authCheckInProgressRef = useRef(false);
   const hasCheckedAuthRef = useRef(false);
 
@@ -122,6 +126,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       logoutTimerRef.current = null;
     }
   }, []);
+
+  /**
+   * Clear token refresh timer
+   */
+  const clearTokenRefreshTimer = useCallback(() => {
+    if (tokenRefreshTimerRef.current) {
+      clearTimeout(tokenRefreshTimerRef.current);
+      tokenRefreshTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Refresh authentication tokens
+   */
+  const refreshTokens = useCallback(async () => {
+    try {
+      console.log('🔄 Refreshing authentication tokens...');
+      
+      // Get fresh session which will automatically refresh tokens if needed
+      const session = await fetchAuthSession({ forceRefresh: true });
+      
+      if (session.tokens) {
+        console.log('✅ Tokens refreshed successfully');
+        
+        // Restart both timers with fresh tokens
+        startTokenRefreshTimer();
+        startLogoutTimer();
+      } else {
+        console.warn('⚠️ Token refresh failed - no tokens in session');
+        // Sign out if token refresh fails - will be defined later
+        handleSignOut();
+      }
+    } catch (error) {
+      console.error('❌ Token refresh failed:', error);
+      // Sign out if token refresh fails - will be defined later
+      handleSignOut();
+    }
+  }, [startTokenRefreshTimer, startLogoutTimer]);
+
+  /**
+   * Start token refresh timer
+   */
+  const startTokenRefreshTimer = useCallback(() => {
+    clearTokenRefreshTimer();
+    
+    tokenRefreshTimerRef.current = setTimeout(() => {
+      refreshTokens();
+    }, TOKEN_REFRESH_TIME);
+  }, [clearTokenRefreshTimer, refreshTokens, TOKEN_REFRESH_TIME]);
 
   /**
    * Start auto-logout timer
@@ -141,6 +194,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }).catch(console.error);
     }, AUTO_LOGOUT_TIME);
   }, [clearLogoutTimer, AUTO_LOGOUT_TIME]);
+
+  /**
+   * Start both authentication timers (logout and token refresh)
+   */
+  const startAuthTimers = useCallback(() => {
+    startLogoutTimer();
+    startTokenRefreshTimer();
+  }, [startLogoutTimer, startTokenRefreshTimer]);
+
+  /**
+   * Clear both authentication timers
+   */
+  const clearAuthTimers = useCallback(() => {
+    clearLogoutTimer();
+    clearTokenRefreshTimer();
+  }, [clearLogoutTimer, clearTokenRefreshTimer]);
 
   /**
    * Check current authentication status
@@ -204,8 +273,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           error: undefined,
         });
         
-        // Start auto-logout timer
-        startLogoutTimer();
+        // Start both authentication timers
+        startAuthTimers();
       } else {
         setAuthState({
           isAuthenticated: false,
@@ -216,8 +285,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch {
       // Not logged in is expected on login page - don't log as error
-      // Clear auto-logout timer on auth failure
-      clearLogoutTimer();
+      // Clear both authentication timers on auth failure
+      clearAuthTimers();
       
       setAuthState({
         isAuthenticated: false,
@@ -228,7 +297,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       authCheckInProgressRef.current = false;
     }
-  }, [clearLogoutTimer, startLogoutTimer]);
+  }, [clearAuthTimers, startAuthTimers]);
 
   /**
    * Check if user is authenticated on mount only once
@@ -241,12 +310,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [checkAuth]);
 
   /**
-   * Clean up timer on unmount
+   * Clean up timers on unmount
    */
   useEffect(() => {
     return () => {
       if (logoutTimerRef.current) {
         clearTimeout(logoutTimerRef.current);
+      }
+      if (tokenRefreshTimerRef.current) {
+        clearTimeout(tokenRefreshTimerRef.current);
       }
     };
   }, []);
@@ -339,7 +411,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (isLocalDev) {
         // Mock sign-out for local development
-        clearLogoutTimer();
+        clearAuthTimers();
         setAuthState({
           isAuthenticated: false,
           user: null,
@@ -351,8 +423,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       await signOut();
 
-      // Clear auto-logout timer
-      clearLogoutTimer();
+      // Clear both authentication timers
+      clearAuthTimers();
       
       setAuthState({
         isAuthenticated: false,
@@ -362,8 +434,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
     } catch (error) {
       console.error('Sign out failed:', error);
-      // Clear timer even if sign out fails
-      clearLogoutTimer();
+      // Clear timers even if sign out fails
+      clearAuthTimers();
       
       setAuthState((prev) => ({
         ...prev,
