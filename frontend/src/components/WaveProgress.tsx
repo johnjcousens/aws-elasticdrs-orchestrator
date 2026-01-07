@@ -435,7 +435,24 @@ const calculateOverallProgressWithLogs = (
   const totalWaves = planTotalWaves || waves.length;
   const completedWaves = waves.filter(w => {
     const status = (w.status || '').toUpperCase();
-    return status === 'COMPLETED';
+    const waveNum = w.waveNumber ?? 0;
+    const waveJobLogs = jobLogs?.[waveNum];
+    
+    // Count waves as completed if they have COMPLETED status or if they have successful job completion
+    if (status === 'COMPLETED' || status === 'LAUNCHED' || status === 'SUCCESS' || status === 'FINISHED') {
+      return true;
+    }
+    
+    // Also check job logs for completion events
+    if (waveJobLogs?.events) {
+      const hasJobEnd = waveJobLogs.events.some(event => event.event === 'JOB_END');
+      const hasLaunchEnd = waveJobLogs.events.some(event => event.event === 'LAUNCH_END');
+      if (hasJobEnd || hasLaunchEnd) {
+        return true;
+      }
+    }
+    
+    return false;
   }).length;
   
   // Count waves that are actually running (not cancelled/pending)

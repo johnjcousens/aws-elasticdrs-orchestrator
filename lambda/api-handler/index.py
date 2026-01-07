@@ -5063,7 +5063,8 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
             job_id = wave.get("JobId")
             
             # Only reconcile waves with JobId that show unknown status OR started status that might be stale
-            if job_id and wave_status in ["UNKNOWN", "", "STARTED"]:
+            # Also reconcile other non-terminal statuses that might be stale
+            if job_id and wave_status in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
                 try:
                     print(f"Reconciling wave {wave.get('WaveName')} with DRS job {job_id} (current status: {wave_status})")
                     
