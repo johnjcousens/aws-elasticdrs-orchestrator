@@ -2,10 +2,10 @@
  * Terminate Instances Dialog
  * 
  * Shows a list of recovery instances that will be terminated before confirmation.
- * Displays actual EC2 instance details from the execution data.
+ * Fetches actual EC2 instance details from the DRS API via the backend.
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Box,
@@ -16,14 +16,19 @@ import {
   Alert,
   StatusIndicator,
   Pagination,
+  Spinner,
 } from '@cloudscape-design/components';
+import { apiClient } from '../utils/apiClient';
 import type { Execution } from '../types';
 
 interface RecoveryInstance {
   instanceId: string;
+  recoveryInstanceId: string;
   sourceServerId: string;
   region: string;
   waveName: string;
+  waveNumber: number;
+  jobId: string;
   status: string;
   hostname?: string;
   serverName?: string;
@@ -44,66 +49,39 @@ export const TerminateInstancesDialog: React.FC<TerminateInstancesDialogProps> =
   onCancel,
   loading = false,
 }) => {
+  const [recoveryInstances, setRecoveryInstances] = useState<RecoveryInstance[]>([]);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Extract recovery instances from execution data
-  const getRecoveryInstances = (): RecoveryInstance[] => {
-    if (!execution) return [];
-
-    const instances: RecoveryInstance[] = [];
-    const waves = (execution as any).waves || execution.waveExecutions || [];
-
-    for (const wave of waves) {
-      const waveName = wave.waveName || wave.WaveName || `Wave ${wave.waveNumber + 1}`;
-      const region = wave.region || wave.Region || 'us-east-1';
-      
-      // Check servers in wave
-      const servers = wave.servers || wave.serverExecutions || [];
-      for (const server of servers) {
-        const instanceId = server.instanceId || server.recoveredInstanceId || server.ec2InstanceId;
-        const sourceServerId = server.sourceServerId || server.serverId || server.SourceServerId;
-        
-        // Only include servers with actual EC2 instances
-        if (instanceId && instanceId.startsWith('i-')) {
-          instances.push({
-            instanceId,
-            sourceServerId: sourceServerId || 'unknown',
-            region: server.region || region,
-            waveName,
-            status: server.status || server.launchStatus || 'UNKNOWN',
-            hostname: server.hostname,
-            serverName: server.serverName,
-          });
-        }
-      }
-
-      // Also check ServerStatuses (newer format)
-      const serverStatuses = wave.ServerStatuses || wave.serverStatuses || [];
-      for (const server of serverStatuses) {
-        const instanceId = server.RecoveryInstanceID || server.recoveryInstanceId || server.EC2InstanceId || server.ec2InstanceId;
-        const sourceServerId = server.SourceServerId || server.sourceServerId;
-        
-        if (instanceId && instanceId.startsWith('i-')) {
-          // Avoid duplicates
-          const exists = instances.some(inst => inst.instanceId === instanceId);
-          if (!exists) {
-            instances.push({
-              instanceId,
-              sourceServerId: sourceServerId || 'unknown',
-              region: server.Region || region,
-              waveName,
-              status: server.LaunchStatus || server.status || 'UNKNOWN',
-              hostname: server.Hostname || server.hostname,
-              serverName: server.ServerName || server.serverName,
-            });
-          }
-        }
-      }
+  // Fetch recovery instances when dialog opens
+  useEffect(() => {
+    if (open && execution?.executionId) {
+      fetchRecoveryInstances();
     }
+  }, [open, execution?.executionId]);
 
-    return instances;
+  const fetchRecoveryInstances = async () => {
+    if (!execution?.executionId) return;
+
+    setFetchLoading(true);
+    setFetchError(null);
+    
+    try {
+      const response = await apiClient.get(`/executions/${execution.executionId}/recovery-instances`);
+      
+      if (response.instances) {
+        setRecoveryInstances(response.instances);
+      } else {
+        setRecoveryInstances([]);
+      }
+    } catch (error) {
+      console.error('Error fetching recovery instances:', error);
+      setFetchError(error instanceof Error ? error.message : 'Failed to fetch recovery instances');
+      setRecoveryInstances([]);
+    } finally {
+      setFetchLoading(false);
+    }
   };
-
-  const recoveryInstances = getRecoveryInstances();
 
   const columnDefinitions = [
     {
@@ -148,11 +126,11 @@ export const TerminateInstancesDialog: React.FC<TerminateInstancesDialogProps> =
         const status = item.status.toUpperCase();
         let type: 'success' | 'error' | 'warning' | 'info' = 'info';
         
-        if (status === 'LAUNCHED') {
+        if (status === 'RUNNING' || status === 'LAUNCHED') {
           type = 'success';
-        } else if (status === 'FAILED') {
+        } else if (status === 'TERMINATED' || status === 'FAILED') {
           type = 'error';
-        } else if (status === 'STARTED' || status === 'IN_PROGRESS') {
+        } else if (status === 'PENDING' || status === 'STARTING') {
           type = 'warning';
         }
         
@@ -171,14 +149,14 @@ export const TerminateInstancesDialog: React.FC<TerminateInstancesDialogProps> =
       footer={
         <Box float="right">
           <SpaceBetween direction="horizontal" size="xs">
-            <Button onClick={onCancel} disabled={loading}>
+            <Button onClick={onCancel} disabled={loading || fetchLoading}>
               Cancel
             </Button>
             <Button 
               variant="primary" 
               onClick={onConfirm} 
               loading={loading}
-              disabled={recoveryInstances.length === 0}
+              disabled={recoveryInstances.length === 0 || fetchLoading || fetchError !== null}
             >
               Terminate {recoveryInstances.length} Instance{recoveryInstances.length !== 1 ? 's' : ''}
             </Button>
@@ -188,7 +166,23 @@ export const TerminateInstancesDialog: React.FC<TerminateInstancesDialogProps> =
       size="large"
     >
       <SpaceBetween size="m">
-        {recoveryInstances.length === 0 ? (
+        {fetchLoading ? (
+          <Box textAlign="center" padding="l">
+            <SpaceBetween size="m" alignItems="center">
+              <Spinner size="large" />
+              <div>Loading recovery instances...</div>
+            </SpaceBetween>
+          </Box>
+        ) : fetchError ? (
+          <Alert type="error" header="Error Loading Recovery Instances">
+            {fetchError}
+            <Box padding={{ top: 's' }}>
+              <Button onClick={fetchRecoveryInstances} iconName="refresh">
+                Retry
+              </Button>
+            </Box>
+          </Alert>
+        ) : recoveryInstances.length === 0 ? (
           <Alert type="warning" header="No Recovery Instances Found">
             No recovery instances were found for this execution. This may be because:
             <ul>
@@ -244,10 +238,10 @@ export const TerminateInstancesDialog: React.FC<TerminateInstancesDialogProps> =
                   • Total instances: {recoveryInstances.length}
                 </Box>
                 <Box>
-                  • Running: {recoveryInstances.filter(i => i.status.toUpperCase() === 'LAUNCHED').length}
+                  • Running: {recoveryInstances.filter(i => i.status.toUpperCase() === 'RUNNING' || i.status.toUpperCase() === 'LAUNCHED').length}
                 </Box>
                 <Box>
-                  • Other states: {recoveryInstances.filter(i => i.status.toUpperCase() !== 'LAUNCHED').length}
+                  • Other states: {recoveryInstances.filter(i => i.status.toUpperCase() !== 'RUNNING' && i.status.toUpperCase() !== 'LAUNCHED').length}
                 </Box>
                 
                 <details>
