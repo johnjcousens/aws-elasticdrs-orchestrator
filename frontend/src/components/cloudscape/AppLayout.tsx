@@ -49,7 +49,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const { notifications } = useNotifications();
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [activeHref, setActiveHref] = useState(location.pathname);
 
+  // Update activeHref when location changes
+  React.useEffect(() => {
+    setActiveHref(location.pathname);
+  }, [location.pathname]);
   // Navigation items
   const navigationItems = [
     { type: 'link', text: 'Dashboard', href: '/' },
@@ -65,7 +70,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     event.preventDefault();
     const href = event.detail.href;
     
-    // Always navigate - React Router will handle duplicate navigation gracefully
+    // Update active href state immediately
+    setActiveHref(href);
+    
+    // Use React Router navigation
     navigate(href);
   }, [navigate]);
 
@@ -142,7 +150,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         navigation={
           !navigationHide ? (
             <SideNavigation
-              activeHref={location.pathname}
+              activeHref={activeHref}
               items={navigationItems as SideNavigationProps['items']}
               onFollow={handleNavigationFollow}
             />
