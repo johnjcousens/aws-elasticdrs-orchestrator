@@ -472,8 +472,8 @@ export const ExecutionDetailsPage: React.FC = () => {
     
     // Check if any wave has a jobId (meaning recovery instances were launched)
     const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
-    const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || wave.JobId);
-    console.log('hasJobId check:', hasJobId, 'waves:', waves.map(w => ({ jobId: w.jobId || w.JobId, status: w.status || w.Status })));
+    const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || (wave as any).JobId);
+    console.log('hasJobId check:', hasJobId, 'waves:', waves.map(w => ({ jobId: w.jobId || (w as any).JobId, status: w.status || (w as any).Status })));
     
     // Don't show button if already terminated
     if (instancesAlreadyTerminated) {
@@ -488,10 +488,10 @@ export const ExecutionDetailsPage: React.FC = () => {
       'IN_PROGRESS', 'PENDING', 'RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED'
     ];
     const hasActiveWaves = waves.some((wave: { status?: string; Status?: string }) => {
-      const waveStatus = wave.status || wave.Status;
+      const waveStatus = wave.status || (wave as any).Status;
       return waveStatus && activeWaveStatuses.includes(waveStatus);
     });
-    console.log('hasActiveWaves check:', hasActiveWaves, 'wave statuses:', waves.map(w => w.status || w.Status));
+    console.log('hasActiveWaves check:', hasActiveWaves, 'wave statuses:', waves.map(w => w.status || (w as any).Status));
     
     // Only show terminate button if execution is terminal, has job IDs, and no waves are actively running
     const result = isTerminal && hasJobId && !hasActiveWaves;
