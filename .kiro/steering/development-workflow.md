@@ -1,8 +1,10 @@
 # Development Workflow
 
-## CRITICAL: GitHub Actions First Policy
+## CRITICAL: GitHub Actions First Policy + Conflict Prevention
 
 **ALL deployments MUST use GitHub Actions CI/CD pipeline. Manual deployment scripts are for emergencies only.**
+
+**MANDATORY: Always check for running workflows before pushing to prevent deployment conflicts and failures.**
 
 ## Standard Development Workflow
 
@@ -22,8 +24,11 @@ git add .
 # Commit with descriptive message
 git commit -m "feat: add new feature description"
 
-# Push to trigger GitHub Actions
-git push
+# MANDATORY: Check for running workflows before pushing
+./scripts/check-workflow.sh && git push
+
+# OR use the safe push script (recommended)
+./scripts/safe-push.sh
 ```
 
 ### 3. Monitor Pipeline
@@ -59,6 +64,8 @@ git push
 - ❌ Make production changes without code review
 - ❌ Deploy untested changes manually
 - ❌ Skip the pipeline "just this once"
+- ❌ **Push while GitHub Actions workflow is running** (causes conflicts)
+- ❌ **Use `git push` directly without checking workflow status**
 
 ### Why These Are Prohibited
 - **No audit trail**: Changes not tracked in Git
@@ -67,6 +74,57 @@ git push
 - **Team blindness**: Other developers unaware of changes
 - **Rollback impossible**: No Git history to revert to
 - **Compliance violation**: Breaks enterprise deployment standards
+- **Deployment conflicts**: Overlapping workflows cause failures and resource conflicts
+
+## Workflow Conflict Prevention (MANDATORY)
+
+### Safe Push Scripts
+
+Two scripts are available to prevent GitHub Actions conflicts:
+
+#### Quick Check: `./scripts/check-workflow.sh`
+```bash
+# Quick status check before manual push
+./scripts/check-workflow.sh && git push
+
+# Returns exit code 0 if safe to push, 1 if workflow running
+```
+
+#### Safe Push: `./scripts/safe-push.sh` (RECOMMENDED)
+```bash
+# Automatically checks workflows and pushes when safe
+./scripts/safe-push.sh
+
+# Push to specific branch
+./scripts/safe-push.sh main
+
+# Emergency force push (skip workflow check)
+./scripts/safe-push.sh --force
+```
+
+### Prerequisites (One-time Setup)
+```bash
+# Install GitHub CLI
+brew install gh
+
+# Authenticate with GitHub
+gh auth login
+```
+
+### MANDATORY Workflow Check Rules
+
+1. **ALWAYS check for running workflows** before pushing
+2. **NEVER push while a deployment is in progress** - this causes conflicts and failures
+3. **WAIT for completion** if a workflow is running (max 30 minutes)
+4. **Use safe-push.sh script** instead of manual `git push` to automate checks
+5. **Monitor deployment** until completion before making additional changes
+
+### Workflow Status Indicators
+
+- ✅ **Safe to push**: No workflows running
+- ⏳ **Wait required**: Deployment in progress (wait for completion)
+- ❌ **Conflict risk**: Multiple workflows would overlap
+- 🚨 **Emergency only**: Use `--force` flag only for critical hotfixes
 
 ## Pipeline Troubleshooting
 
@@ -94,7 +152,9 @@ git push
 - Use conventional commit messages: `feat:`, `fix:`, `docs:`, etc.
 - Keep commits focused and atomic
 - Write descriptive commit messages
-- Push frequently to trigger pipeline validation
+- **ALWAYS use `./scripts/safe-push.sh` instead of `git push`**
+- **Check workflow status before pushing**: `./scripts/check-workflow.sh`
+- **Wait for deployment completion** before making additional changes
 
 ### Deployment Verification
 - Check CloudFormation stack status after deployment
