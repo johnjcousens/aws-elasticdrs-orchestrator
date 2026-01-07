@@ -1,6 +1,6 @@
 # CI/CD Platform Selection: AWS Native vs GitHub Actions
 
-> **STATUS: DECISION IMPLEMENTED** - GitHub Actions was selected and implemented as the CI/CD platform in January 2026 (v1.3.0). See [CICD_SETUP_GUIDE.md](docs/guides/deployment/CICD_SETUP_GUIDE.md) for current implementation details.
+> **STATUS: DECISION IMPLEMENTED** - GitHub Actions was selected and implemented as the CI/CD platform in January 2026 (v1.3.0). See [GitHub Actions CI/CD Guide](docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md) for current implementation details.
 
 ## Executive Summary
 
@@ -562,7 +562,7 @@ The AWS Native CI/CD option (CodeCommit/CodePipeline/CodeBuild) remains document
 |----------|-----------|--------|-------|
 | 1 | **GitHub OIDC Stack** | ✅ Completed | `cfn/github-oidc-stack.yaml` |
 | 2 | **GitHub Actions Workflow** | ✅ Completed | `.github/workflows/deploy.yml` |
-| 3 | **Documentation** | ✅ Completed | `docs/guides/deployment/CICD_SETUP_GUIDE.md` |
+| 3 | **Documentation** | ✅ Completed | `docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md` |
 | 4 | **Legacy Deprecation** | ✅ Completed | `.gitlab-ci.yml` marked deprecated |
 
 ### Success Criteria
@@ -584,9 +584,8 @@ The AWS Native CI/CD option (CodeCommit/CodePipeline/CodeBuild) remains document
 > **All next steps have been completed as of January 2026.**
 
 For current CI/CD setup and usage, see:
-- [CI/CD Setup Guide](docs/guides/deployment/CICD_SETUP_GUIDE.md) - Complete GitHub Actions setup
+- [GitHub Actions CI/CD Guide](docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md) - Complete GitHub Actions setup and usage
 - [Fresh Deployment Guide](docs/guides/deployment/FRESH_DEPLOYMENT_GUIDE.md) - New environment deployment
-- [GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) - Detailed OIDC configuration
 
 ## Conclusion
 
