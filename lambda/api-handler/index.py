@@ -3574,10 +3574,51 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 },
             )
 
-        # OPTIMIZATION 7: Skip EC2 enrichment for better performance
-        # EC2 details are nice-to-have but not critical for the drill decision
-        # This saves 1-2 seconds on the API call
-        
+        # OPTIMIZATION 7: Enrich with EC2 instance details (Name tag, IP, launch time)
+        # This information is critical for users to identify instances
+        if existing_instances:
+            try:
+                ec2_client = boto3.client("ec2", region_name=region)
+                ec2_ids = [
+                    inst["ec2InstanceId"]
+                    for inst in existing_instances
+                    if inst.get("ec2InstanceId")
+                ]
+                if ec2_ids:
+                    ec2_response = ec2_client.describe_instances(
+                        InstanceIds=ec2_ids
+                    )
+                    ec2_details = {}
+                    for reservation in ec2_response.get("Reservations", []):
+                        for instance in reservation.get("Instances", []):
+                            inst_id = instance.get("InstanceId")
+                            name_tag = next(
+                                (
+                                    t["Value"]
+                                    for t in instance.get("Tags", [])
+                                    if t["Key"] == "Name"
+                                ),
+                                None,
+                            )
+                            ec2_details[inst_id] = {
+                                "name": name_tag,
+                                "privateIp": instance.get("PrivateIpAddress"),
+                                "publicIp": instance.get("PublicIpAddress"),
+                                "instanceType": instance.get("InstanceType"),
+                                "launchTime": (
+                                    instance.get("LaunchTime").isoformat()
+                                    if instance.get("LaunchTime")
+                                    else None
+                                ),
+                            }
+                    # Merge EC2 details into existing_instances
+                    for inst in existing_instances:
+                        ec2_id = inst.get("ec2InstanceId")
+                        if ec2_id and ec2_id in ec2_details:
+                            inst.update(ec2_details[ec2_id])
+            except Exception as e:
+                print(f"Error fetching EC2 details: {e}")
+
         return response(
             200,
             {
