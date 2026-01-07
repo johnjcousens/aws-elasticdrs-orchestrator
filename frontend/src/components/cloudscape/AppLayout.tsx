@@ -5,7 +5,7 @@
  * Includes navigation, breadcrumbs, notifications, and content area.
  */
 
-import React, { useState, type ReactNode } from 'react';
+import React, { useState, useCallback, type ReactNode } from 'react';
 import {
   AppLayout as CloudScapeAppLayout,
   SideNavigation,
