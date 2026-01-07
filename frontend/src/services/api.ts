@@ -11,6 +11,7 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import type { DRSQuotaStatus } from './drsQuotaService';
 import { awsConfig } from '../aws-config';
 import { sanitizeErrorMessage, sanitizeForLogging } from '../utils/security';
+import { recordActivity } from '../utils/activityTracker';
 import type {
   ProtectionGroup,
   CreateProtectionGroupRequest,
@@ -92,6 +93,9 @@ class ApiClient {
     // Request interceptor - Set baseURL dynamically and add auth token
     this.axiosInstance.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
+        // Record user activity for API calls
+        recordActivity();
+        
         // Wait for AWS config to be loaded if available
         if (window.configReady) {
           await window.configReady;
