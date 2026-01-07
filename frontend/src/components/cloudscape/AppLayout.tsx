@@ -60,7 +60,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation - minimal test implementation
+  // Handle navigation - minimal test implementation (trigger redeploy)
   const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
     const href = event.detail.href;
     
