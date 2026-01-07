@@ -1,4 +1,4 @@
-"""
+stikk"""
 AWS DRS Orchestration - API Handler Lambda
 Handles REST API requests for Protection Groups, Recovery Plans, and Executions
 """
@@ -6054,14 +6054,16 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
 
             # Only process waves that have a job ID (were actually launched)
             # Include STARTED status since recovery instances may exist even if wave is still in progress
-            if job_id and wave_status in [
-                "COMPLETED",
-                "LAUNCHED",
-                "PARTIAL",
-                "STARTED",
-                "IN_PROGRESS",
-                "RUNNING",
-            ]:
+            # Handle both uppercase and lowercase status values
+            valid_statuses = [
+                "COMPLETED", "completed",
+                "LAUNCHED", "launched", 
+                "PARTIAL", "partial",
+                "STARTED", "started",
+                "IN_PROGRESS", "in_progress",
+                "RUNNING", "running",
+            ]
+            if job_id and wave_status in valid_statuses:
                 try:
                     drs_client = create_drs_client(region, account_context)
 
@@ -6096,7 +6098,8 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                 f"Server {source_server_id}: recoveryInstanceID={recovery_instance_id}"
                             )
 
-                            # Collect source server ID for alternative lookup
+                            # ALWAYS collect source server ID for alternative lookup
+                            # This is critical when recoveryInstanceID is None
                             if (
                                 source_server_id
                                 and source_server_id != "unknown"
@@ -6111,6 +6114,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                         source_server_id
                                     )
 
+                            # Only try direct recovery instance lookup if we have the ID
                             if recovery_instance_id:
                                 # Get EC2 instance ID from recovery instance
                                 try:
@@ -6158,6 +6162,10 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                     print(
                                         f"Could not get EC2 instance for recovery instance {recovery_instance_id}: {ri_err}"
                                     )
+                            else:
+                                print(
+                                    f"No recoveryInstanceID for server {source_server_id}, will use alternative lookup"
+                                )
 
                 except Exception as drs_err:
                     print(
