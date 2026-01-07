@@ -5,7 +5,7 @@
  * Includes navigation, breadcrumbs, notifications, and content area.
  */
 
-import React, { useState, useCallback, type ReactNode } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import {
   AppLayout as CloudScapeAppLayout,
   SideNavigation,
@@ -60,14 +60,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation - integrate with React Router
-  const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
+  // Handle navigation
+  const handleNavigationFollow = (event: any) => {
     event.preventDefault();
     navigate(event.detail.href);
-  }, [navigate]);
+  };
 
   // Handle breadcrumb navigation
-  const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
+  const handleBreadcrumbFollow = (event: any) => {
     event.preventDefault();
     navigate(event.detail.href);
   };
@@ -140,7 +140,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           !navigationHide ? (
             <SideNavigation
               activeHref={location.pathname}
-              items={navigationItems as SideNavigationProps['items']}
+              items={navigationItems as any}
               onFollow={handleNavigationFollow}
             />
           ) : undefined
