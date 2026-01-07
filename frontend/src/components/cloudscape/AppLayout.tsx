@@ -60,7 +60,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation - simple fallback approach
+  // Handle navigation - force page reload to bypass React Router issues
   const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
     const href = event.detail.href;
@@ -73,8 +73,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       return;
     }
     
-    // Always use window.location for now to test if this fixes the issue
-    console.log('Using window.location navigation to:', href);
+    // Force a complete page reload to bypass any React Router corruption
+    console.log('Forcing page reload to:', href);
     window.location.href = href;
   }, [location.pathname]);
 
