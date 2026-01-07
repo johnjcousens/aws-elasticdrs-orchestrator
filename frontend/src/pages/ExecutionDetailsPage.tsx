@@ -659,16 +659,36 @@ export const ExecutionDetailsPage: React.FC = () => {
           {/* Termination In Progress */}
           {terminationInProgress && (
             <Alert type="info" header="Terminating Recovery Instances">
-              <div>
-                {terminationJobInfo 
-                  ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes...`
-                  : 'Terminating recovery instances from DRS. This may take a few minutes...'}
+              <SpaceBetween size="s">
+                <div>
+                  {terminationJobInfo 
+                    ? `Terminating ${terminationJobInfo.totalInstances} recovery instance(s) via DRS. This may take a few minutes...`
+                    : 'Terminating recovery instances from DRS. This may take a few minutes...'}
+                </div>
+                
+                {/* Termination Progress Bar */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
+                      Termination Progress
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
+                      {terminationProgress}%
+                    </div>
+                  </div>
+                  <ProgressBar
+                    value={terminationProgress}
+                    variant="standalone"
+                    status={terminationProgress === 100 ? "success" : "in-progress"}
+                  />
+                </div>
+
                 {terminationJobInfo?.jobIds?.length && (
-                  <div style={{ marginTop: '8px', fontSize: '14px', color: '#5f6b7a' }}>
+                  <div style={{ fontSize: '14px', color: '#5f6b7a' }}>
                     DRS Job{terminationJobInfo.jobIds.length > 1 ? 's' : ''}: {terminationJobInfo.jobIds.join(', ')}
                   </div>
                 )}
-              </div>
+              </SpaceBetween>
             </Alert>
           )}
 

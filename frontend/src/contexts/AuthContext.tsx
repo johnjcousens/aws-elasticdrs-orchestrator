@@ -539,7 +539,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.warn('Authentication error detected, signing out user');
       await handleSignOut();
     }
-  }, []);
+  }, [handleSignOut]);
 
   /**
    * Handle successful password change
