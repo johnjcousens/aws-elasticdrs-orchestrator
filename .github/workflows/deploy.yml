@@ -379,6 +379,23 @@ jobs:
           
           echo "Current stack status: $STACK_STATUS"
           
+          # ENTERPRISE SAFETY: Check for in-progress operations before deployment
+          if [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]]; then
+            echo "❌ Stack is currently in progress: $STACK_STATUS"
+            echo "🛑 STOPPING DEPLOYMENT - Cannot update stack during active operation"
+            echo "📋 MANUAL ACTION: Wait for current operation to complete, then retry"
+            echo ""
+            echo "To monitor progress:"
+            echo "  aws cloudformation describe-stack-events --stack-name $STACK_NAME --region ${{ env.AWS_REGION }} --query 'StackEvents[0:5].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' --output table"
+            echo ""
+            echo "To check status:"
+            echo "  aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].StackStatus' --output text --region ${{ env.AWS_REGION }}"
+            echo ""
+            echo "If stuck for >30 minutes, consider canceling:"
+            echo "  aws cloudformation cancel-update-stack --stack-name $STACK_NAME --region ${{ env.AWS_REGION }}"
+            exit 1
+          fi
+          
           # Handle failed states - NEVER auto-delete production stacks
           if [[ "$STACK_STATUS" == *"ROLLBACK_COMPLETE"* ]]; then
             echo "⚠️  Stack is in ROLLBACK_COMPLETE state - requires manual intervention"
