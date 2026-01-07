@@ -140,7 +140,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (authState.isAuthenticated) {
       startInactivityTimer();
     }
-  }, [authState.isAuthenticated]);
+  }, [authState.isAuthenticated, startInactivityTimer]);
 
   /**
    * Start inactivity timer - logout after extended inactivity
@@ -149,10 +149,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     clearInactivityTimer();
     
     inactivityTimerRef.current = setTimeout(() => {
-      // Sign out due to inactivity
-      handleSignOut().catch(console.error);
+      // Use ref to avoid circular dependency
+      clearAuthTimers();
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        loading: false,
+        error: undefined,
+      });
     }, INACTIVITY_TIMEOUT);
-  }, [clearInactivityTimer, INACTIVITY_TIMEOUT]);
+  }, [clearInactivityTimer, clearAuthTimers, INACTIVITY_TIMEOUT]);
 
   /**
    * Clear token refresh timer
@@ -181,19 +187,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         clearInactivityTimer();
         inactivityTimerRef.current = setTimeout(() => {
-          handleSignOut().catch(console.error);
+          // Use direct auth clearing to avoid circular dependency
+          clearAuthTimers();
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            loading: false,
+            error: undefined,
+          });
         }, INACTIVITY_TIMEOUT);
       } else {
         // Sign out if token refresh fails
         console.warn('Token refresh failed - no tokens in session');
-        await handleSignOut();
+        clearAuthTimers();
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          loading: false,
+          error: undefined,
+        });
       }
     } catch (error) {
       console.error('❌ Token refresh failed:', error);
       // Sign out if token refresh fails
-      await handleSignOut();
+      clearAuthTimers();
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        loading: false,
+        error: undefined,
+      });
     }
-  }, [clearTokenRefreshTimer, clearInactivityTimer, TOKEN_REFRESH_TIME, INACTIVITY_TIMEOUT]);
+  }, [clearTokenRefreshTimer, clearInactivityTimer, clearAuthTimers, TOKEN_REFRESH_TIME, INACTIVITY_TIMEOUT]);
 
   /**
    * Start token refresh timer
@@ -459,7 +484,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Sign out current user
    */
-  const handleSignOut = async (): Promise<void> => {
+  const handleSignOut = useCallback(async (): Promise<void> => {
     try {
       // Ensure Amplify is configured before any operations
       configureAmplify();
@@ -504,7 +529,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }));
       throw error;
     }
-  };
+  }, [clearAuthTimers]);
 
   /**
    * Handle authentication errors from API calls
