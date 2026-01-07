@@ -18,8 +18,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add lambda directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda"))
+# Add lambda/api-handler directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda", "api-handler"))
+# Add lambda/shared directory to path for shared modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda", "shared"))
 
 # Mock environment variables before importing
 os.environ["PROTECTION_GROUPS_TABLE"] = "test-protection-groups"
@@ -27,60 +29,49 @@ os.environ["RECOVERY_PLANS_TABLE"] = "test-recovery-plans"
 os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
 os.environ["STATE_MACHINE_ARN"] = "arn:aws:states:us-east-1:123456789:stateMachine:test"
 
+# Import from the index module
+import index
+
 
 class TestDRSLimitsConstants:
     """Test DRS_LIMITS constants match AWS documented limits."""
 
     def test_max_servers_per_job(self):
         """MAX_SERVERS_PER_JOB should be 100."""
-        from index import DRS_LIMITS
-
-        assert DRS_LIMITS["MAX_SERVERS_PER_JOB"] == 100
+        assert index.DRS_LIMITS["MAX_SERVERS_PER_JOB"] == 100
 
     def test_max_concurrent_jobs(self):
         """MAX_CONCURRENT_JOBS should be 20."""
-        from index import DRS_LIMITS
-
-        assert DRS_LIMITS["MAX_CONCURRENT_JOBS"] == 20
+        assert index.DRS_LIMITS["MAX_CONCURRENT_JOBS"] == 20
 
     def test_max_servers_in_all_jobs(self):
         """MAX_SERVERS_IN_ALL_JOBS should be 500."""
-        from index import DRS_LIMITS
-
-        assert DRS_LIMITS["MAX_SERVERS_IN_ALL_JOBS"] == 500
+        assert index.DRS_LIMITS["MAX_SERVERS_IN_ALL_JOBS"] == 500
 
     def test_max_replicating_servers(self):
         """MAX_REPLICATING_SERVERS should be 300."""
-        from index import DRS_LIMITS
-
-        assert DRS_LIMITS["MAX_REPLICATING_SERVERS"] == 300
+        assert index.DRS_LIMITS["MAX_REPLICATING_SERVERS"] == 300
 
     def test_max_source_servers(self):
         """MAX_SOURCE_SERVERS should be 4000."""
-        from index import DRS_LIMITS
-
-        assert DRS_LIMITS["MAX_SOURCE_SERVERS"] == 4000
+        assert index.DRS_LIMITS["MAX_SOURCE_SERVERS"] == 4000
 
     def test_warning_threshold_less_than_max(self):
         """WARNING_REPLICATING_THRESHOLD should be less than MAX_REPLICATING_SERVERS."""
-        from index import DRS_LIMITS
-
         assert (
-            DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
-            < DRS_LIMITS["MAX_REPLICATING_SERVERS"]
+            index.DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
+            < index.DRS_LIMITS["MAX_REPLICATING_SERVERS"]
         )
 
     def test_critical_threshold_between_warning_and_max(self):
         """CRITICAL_REPLICATING_THRESHOLD should be between WARNING and MAX."""
-        from index import DRS_LIMITS
-
         assert (
-            DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
-            > DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
+            index.DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
+            > index.DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
         )
         assert (
-            DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
-            < DRS_LIMITS["MAX_REPLICATING_SERVERS"]
+            index.DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
+            < index.DRS_LIMITS["MAX_REPLICATING_SERVERS"]
         )
 
 
@@ -89,34 +80,28 @@ class TestValidateWaveSizes:
 
     def test_valid_wave_single_server(self):
         """Wave with 1 server should be valid."""
-        from index import validate_wave_sizes
-
         plan = {"Waves": [{"WaveName": "Wave 1", "ServerIds": ["s-123"]}]}
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
     def test_valid_wave_at_limit(self):
         """Wave with exactly 100 servers should be valid."""
-        from index import validate_wave_sizes
-
         plan = {
             "Waves": [
                 {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(100)]}
             ]
         }
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
     def test_invalid_wave_over_limit(self):
         """Wave with 101 servers should return error."""
-        from index import validate_wave_sizes
-
         plan = {
             "Waves": [
                 {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(101)]}
             ]
         }
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 1
         assert errors[0]["type"] == "WAVE_SIZE_EXCEEDED"
         assert errors[0]["serverCount"] == 101
@@ -124,22 +109,18 @@ class TestValidateWaveSizes:
 
     def test_invalid_wave_way_over_limit(self):
         """Wave with 200 servers should return error with correct count."""
-        from index import validate_wave_sizes
-
         plan = {
             "Waves": [
                 {"WaveName": "Big Wave", "ServerIds": [f"s-{i}" for i in range(200)]}
             ]
         }
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 1
         assert errors[0]["serverCount"] == 200
         assert "Big Wave" in errors[0]["message"]
 
     def test_multiple_waves_one_invalid(self):
         """Multiple waves with one exceeding limit should return one error."""
-        from index import validate_wave_sizes
-
         plan = {
             "Waves": [
                 {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(50)]},
@@ -147,46 +128,38 @@ class TestValidateWaveSizes:
                 {"WaveName": "Wave 3", "ServerIds": [f"s-{i}" for i in range(30)]},
             ]
         }
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 1
         assert errors[0]["wave"] == "Wave 2"
         assert errors[0]["waveIndex"] == 2
 
     def test_multiple_waves_all_invalid(self):
         """Multiple waves all exceeding limit should return multiple errors."""
-        from index import validate_wave_sizes
-
         plan = {
             "Waves": [
                 {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(101)]},
                 {"WaveName": "Wave 2", "ServerIds": [f"s-{i}" for i in range(150)]},
             ]
         }
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 2
 
     def test_empty_wave(self):
         """Wave with no servers should be valid."""
-        from index import validate_wave_sizes
-
         plan = {"Waves": [{"WaveName": "Empty Wave", "ServerIds": []}]}
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
     def test_no_waves(self):
         """Plan with no waves should be valid."""
-        from index import validate_wave_sizes
-
         plan = {"Waves": []}
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
     def test_missing_waves_key(self):
         """Plan without Waves key should be valid (empty)."""
-        from index import validate_wave_sizes
-
         plan = {}
-        errors = validate_wave_sizes(plan)
+        errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
 
@@ -196,15 +169,13 @@ class TestValidateConcurrentJobs:
     @patch("index.boto3.client")
     def test_no_active_jobs(self, mock_boto_client):
         """Should be valid when no active jobs exist."""
-        from index import validate_concurrent_jobs
-
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [{"items": []}]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
 
-        result = validate_concurrent_jobs("us-east-1")
+        result = index.validate_concurrent_jobs("us-east-1")
 
         assert result["valid"] is True
         assert result["currentJobs"] == 0
@@ -213,8 +184,6 @@ class TestValidateConcurrentJobs:
     @patch("index.boto3.client")
     def test_some_active_jobs(self, mock_boto_client):
         """Should be valid when under limit."""
-        from index import validate_concurrent_jobs
-
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [
@@ -244,7 +213,7 @@ class TestValidateConcurrentJobs:
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
 
-        result = validate_concurrent_jobs("us-east-1")
+        result = index.validate_concurrent_jobs("us-east-1")
 
         assert result["valid"] is True
         assert result["currentJobs"] == 2  # Only PENDING and STARTED
@@ -253,8 +222,6 @@ class TestValidateConcurrentJobs:
     @patch("index.boto3.client")
     def test_at_limit(self, mock_boto_client):
         """Should be invalid when at limit."""
-        from index import validate_concurrent_jobs
-
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         # Create 20 active jobs
@@ -271,7 +238,7 @@ class TestValidateConcurrentJobs:
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
 
-        result = validate_concurrent_jobs("us-east-1")
+        result = index.validate_concurrent_jobs("us-east-1")
 
         assert result["valid"] is False
         assert result["currentJobs"] == 20
@@ -280,13 +247,11 @@ class TestValidateConcurrentJobs:
     @patch("index.boto3.client")
     def test_api_error_returns_valid_with_warning(self, mock_boto_client):
         """Should return valid=True with warning on API error."""
-        from index import validate_concurrent_jobs
-
         mock_drs = MagicMock()
         mock_drs.get_paginator.side_effect = Exception("API Error")
         mock_boto_client.return_value = mock_drs
 
-        result = validate_concurrent_jobs("us-east-1")
+        result = index.validate_concurrent_jobs("us-east-1")
 
         assert result["valid"] is True
         assert "warning" in result
@@ -299,15 +264,13 @@ class TestValidateServersInAllJobs:
     @patch("index.boto3.client")
     def test_no_servers_in_jobs(self, mock_boto_client):
         """Should be valid when no servers in active jobs."""
-        from index import validate_servers_in_all_jobs
-
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [{"items": []}]
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
 
-        result = validate_servers_in_all_jobs("us-east-1", 50)
+        result = index.validate_servers_in_all_jobs("us-east-1", 50)
 
         assert result["valid"] is True
         assert result["currentServersInJobs"] == 0
@@ -316,8 +279,6 @@ class TestValidateServersInAllJobs:
     @patch("index.boto3.client")
     def test_would_exceed_limit(self, mock_boto_client):
         """Should be invalid when adding servers would exceed 500 limit."""
-        from index import validate_servers_in_all_jobs
-
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         # 450 servers already in jobs
@@ -337,7 +298,7 @@ class TestValidateServersInAllJobs:
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
 
-        result = validate_servers_in_all_jobs("us-east-1", 100)  # Would be 550 total
+        result = index.validate_servers_in_all_jobs("us-east-1", 100)  # Would be 550 total
 
         assert result["valid"] is False
         assert result["currentServersInJobs"] == 450
@@ -347,8 +308,6 @@ class TestValidateServersInAllJobs:
     @patch("index.boto3.client")
     def test_exactly_at_limit(self, mock_boto_client):
         """Should be valid when exactly at 500 limit."""
-        from index import validate_servers_in_all_jobs
-
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
         mock_paginator.paginate.return_value = [
@@ -367,7 +326,7 @@ class TestValidateServersInAllJobs:
         mock_drs.get_paginator.return_value = mock_paginator
         mock_boto_client.return_value = mock_drs
 
-        result = validate_servers_in_all_jobs("us-east-1", 100)  # Exactly 500
+        result = index.validate_servers_in_all_jobs("us-east-1", 100)  # Exactly 500
 
         assert result["valid"] is True
         assert result["totalAfterNew"] == 500
@@ -379,8 +338,6 @@ class TestValidateServerReplicationStates:
     @patch("index.boto3.client")
     def test_all_healthy_servers(self, mock_boto_client):
         """Should be valid when all servers have healthy replication."""
-        from index import validate_server_replication_states
-
         mock_drs = MagicMock()
         mock_drs.describe_source_servers.return_value = {
             "items": [
@@ -408,7 +365,7 @@ class TestValidateServerReplicationStates:
         }
         mock_boto_client.return_value = mock_drs
 
-        result = validate_server_replication_states("us-east-1", ["s-1", "s-2"])
+        result = index.validate_server_replication_states("us-east-1", ["s-1", "s-2"])
 
         assert result["valid"] is True
         assert result["healthyCount"] == 2
@@ -417,8 +374,6 @@ class TestValidateServerReplicationStates:
     @patch("index.boto3.client")
     def test_disconnected_server(self, mock_boto_client):
         """Should be invalid when server is disconnected."""
-        from index import validate_server_replication_states
-
         mock_drs = MagicMock()
         mock_drs.describe_source_servers.return_value = {
             "items": [
@@ -434,7 +389,7 @@ class TestValidateServerReplicationStates:
         }
         mock_boto_client.return_value = mock_drs
 
-        result = validate_server_replication_states("us-east-1", ["s-1"])
+        result = index.validate_server_replication_states("us-east-1", ["s-1"])
 
         assert result["valid"] is False
         assert result["unhealthyCount"] == 1
@@ -444,9 +399,7 @@ class TestValidateServerReplicationStates:
     @patch("index.boto3.client")
     def test_empty_server_list(self, mock_boto_client):
         """Should be valid for empty server list."""
-        from index import validate_server_replication_states
-
-        result = validate_server_replication_states("us-east-1", [])
+        result = index.validate_server_replication_states("us-east-1", [])
 
         assert result["valid"] is True
         assert result["healthyCount"] == 0
@@ -455,8 +408,6 @@ class TestValidateServerReplicationStates:
     @patch("index.boto3.client")
     def test_mixed_healthy_unhealthy(self, mock_boto_client):
         """Should be invalid when some servers are unhealthy."""
-        from index import validate_server_replication_states
-
         mock_drs = MagicMock()
         mock_drs.describe_source_servers.return_value = {
             "items": [
@@ -482,7 +433,7 @@ class TestValidateServerReplicationStates:
         }
         mock_boto_client.return_value = mock_drs
 
-        result = validate_server_replication_states("us-east-1", ["s-1", "s-2"])
+        result = index.validate_server_replication_states("us-east-1", ["s-1", "s-2"])
 
         assert result["valid"] is False
         assert result["healthyCount"] == 1
