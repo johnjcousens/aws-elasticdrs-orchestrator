@@ -483,19 +483,29 @@ export const ExecutionDetailsPage: React.FC = () => {
     
     // Check if any waves are still actively running
     // Note: "unknown" status means the wave completed but status wasn't updated - NOT active
+    // SPECIAL CASE: For cancelled executions, "started" status often means completed but not updated
+    // This matches the reference stack behavior where completed waves show "unknown" status
     const activeWaveStatuses = [
-      'in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated',
-      'IN_PROGRESS', 'PENDING', 'RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED'
+      'in_progress', 'pending', 'running', 'polling', 'launching', 'initiated',
+      'IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'LAUNCHING', 'INITIATED'
     ];
+    
+    // For cancelled executions, don't treat "started" as active since backend reconciliation
+    // should have updated these to completed status (matches reference stack behavior)
+    const isCancelled = execution.status === 'cancelled' || execution.status === 'CANCELLED';
+    if (!isCancelled) {
+      activeWaveStatuses.push('started', 'STARTED');
+    }
+    
     const hasActiveWaves = waves.some((wave: { status?: string; Status?: string }) => {
       const waveStatus = wave.status || (wave as any).Status;
       return waveStatus && activeWaveStatuses.includes(waveStatus);
     });
-    console.log('hasActiveWaves check:', hasActiveWaves, 'wave statuses:', waves.map(w => w.status || (w as any).Status));
+    console.log('hasActiveWaves check:', hasActiveWaves, 'wave statuses:', waves.map(w => w.status || (w as any).Status), 'isCancelled:', isCancelled);
     
     // Only show terminate button if execution is terminal, has job IDs, and no waves are actively running
     const result = isTerminal && hasJobId && !hasActiveWaves;
-    console.log('canTerminate final result:', result, { isTerminal, hasJobId, hasActiveWaves: !hasActiveWaves });
+    console.log('canTerminate final result:', result, { isTerminal, hasJobId, hasActiveWaves: !hasActiveWaves, isCancelled });
     return result;
   })();
   
