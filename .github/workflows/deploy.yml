@@ -129,30 +129,79 @@ jobs:
 
       - name: Install security tools
         run: |
-          pip install bandit safety semgrep
+          pip install bandit==1.7.5 safety==2.3.4 semgrep==1.45.0 cfn-lint==0.83.8
 
-      - name: Bandit security scan
+      - name: Create security reports directory
         run: |
-          echo "=== Bandit Security Scan ==="
-          bandit -r lambda/ -ll -ii --format json --output bandit-report.json || true
-          bandit -r lambda/ -ll -ii || true
+          mkdir -p reports/security/raw
+          mkdir -p reports/security/formatted
 
-      - name: Safety dependency check
+      - name: Python security scanning
         run: |
-          echo "=== Safety Dependency Check ==="
-          safety check || true
+          echo "=== Python Security Scanning ==="
+          
+          # Bandit security scan
+          echo "Running Bandit security scan..."
+          bandit -r lambda/ scripts/ -f json -o reports/security/raw/bandit-report.json -ll --severity-level medium --confidence-level medium || true
+          bandit -r lambda/ scripts/ -ll --severity-level medium --confidence-level medium > reports/security/formatted/bandit-report.txt || true
+          
+          # Semgrep security scan for Python
+          echo "Running Semgrep security scan on Python code..."
+          semgrep --config=python.lang.security lambda/ scripts/ --json -o reports/security/raw/semgrep-python.json --severity ERROR --severity WARNING || true
+          semgrep --config=python.lang.security lambda/ scripts/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-python.txt || true
+          
+          # Safety dependency vulnerability scan
+          echo "Running Safety dependency vulnerability scan..."
+          safety check --json -o reports/security/raw/safety-report.json || true
+          safety check > reports/security/formatted/safety-report.txt || true
 
-      - name: Semgrep security scan
-        run: |
-          echo "=== Semgrep Security Scan ==="
-          semgrep --config=auto lambda/ --severity ERROR --severity WARNING || true
-
-      - name: Frontend npm audit
+      - name: Frontend security scanning
         working-directory: frontend
         run: |
-          echo "=== NPM Audit Security Scan ==="
+          echo "=== Frontend Security Scanning ==="
           npm ci
-          npm audit --audit-level moderate || true
+          
+          # NPM audit security scan
+          echo "Running NPM audit security scan..."
+          npm audit --audit-level moderate --json > ../reports/security/raw/npm-audit.json || true
+          npm audit --audit-level moderate > ../reports/security/formatted/npm-audit.txt || true
+          
+          # ESLint security scan
+          echo "Running ESLint security scan..."
+          npx eslint src/ --ext .ts,.tsx --format json -o ../reports/security/raw/eslint-security.json || true
+          npx eslint src/ --ext .ts,.tsx --format compact > ../reports/security/formatted/eslint-security.txt || true
+
+      - name: Infrastructure security scanning
+        run: |
+          echo "=== Infrastructure Security Scanning ==="
+          
+          # CloudFormation security linting
+          echo "Running CloudFormation security linting..."
+          cfn-lint cfn/*.yaml --format json > reports/security/raw/cfn-lint.json || true
+          cfn-lint cfn/*.yaml > reports/security/formatted/cfn-lint.txt || true
+          
+          # Semgrep security scan for CloudFormation
+          echo "Running Semgrep security scan on CloudFormation templates..."
+          semgrep --config=yaml.lang.security cfn/ --json -o reports/security/raw/semgrep-cfn.json --severity ERROR --severity WARNING || true
+          semgrep --config=yaml.lang.security cfn/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-cfn.txt || true
+
+      - name: Generate security summary
+        env:
+          SECURITY_THRESHOLD_CRITICAL: "0"
+          SECURITY_THRESHOLD_HIGH: "10"
+          SECURITY_THRESHOLD_TOTAL: "50"
+        run: |
+          echo "=== Generating Security Summary ==="
+          python scripts/generate-security-summary.py
+
+      - name: Check security thresholds
+        env:
+          SECURITY_THRESHOLD_CRITICAL: "0"
+          SECURITY_THRESHOLD_HIGH: "10"
+          SECURITY_THRESHOLD_TOTAL: "50"
+        run: |
+          echo "=== Checking Security Thresholds ==="
+          python scripts/check-security-thresholds.py
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
@@ -160,7 +209,7 @@ jobs:
         with:
           name: security-reports
           path: |
-            bandit-report.json
+            reports/security/
           retention-days: 30
 
   # Stage 3: Build Lambda packages and frontend
