@@ -32,7 +32,7 @@ interface AppLayoutProps {
  * 
  * Wraps page content with CloudScape AppLayout providing:
  * - Top navigation with user menu and logout
- * - Side navigation
+ * - Side navigation with React Router integration
  * - Breadcrumb navigation
  * - Notification flashbar
  * - Consistent spacing and layout
@@ -60,11 +60,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation - let CloudScape handle React Router integration naturally
+  // Handle navigation - integrate with React Router
   const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
-    // CloudScape SideNavigation handles React Router integration automatically
-    // No custom logic needed - just let it work naturally
-  }, []);
+    event.preventDefault();
+    navigate(event.detail.href);
+  }, [navigate]);
 
   // Handle breadcrumb navigation
   const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {

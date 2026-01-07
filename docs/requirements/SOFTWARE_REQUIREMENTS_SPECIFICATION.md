@@ -1,1320 +1,419 @@
 # Software Requirements Specification
 # AWS DRS Orchestration System
 
-**Version**: 2.3  
-**Date**: January 6, 2026  
-**Status**: Production Ready - API Gateway 6-Nested-Stack Architecture Complete
+**Version**: 3.0  
+**Date**: January 7, 2026  
+**Status**: Production Ready - Complete Implementation
 
 ---
 
 ## Document Purpose
 
-This Software Requirements Specification (SRS) defines the functional and non-functional requirements for the AWS DRS Orchestration system. It serves as the authoritative source for system capabilities, API contracts, and validation criteria.
+This Software Requirements Specification (SRS) defines the functional and non-functional requirements for the AWS DRS Orchestration system based on the actual implemented codebase. It serves as the authoritative source for system capabilities, API contracts, and validation criteria.
 
 ---
 
 ## System Architecture
 
-![AWS DRS Orchestration Architecture](../architecture/AWS-DRS-Orchestration-Architecture.png)
+The system implements a 6-nested-stack API Gateway architecture with comprehensive DRS API coverage:
 
-*[View/Edit Source Diagram](../architecture/AWS-DRS-Orchestration-Architecture.drawio)*
-
----
-
-## Scope
-
-### In Scope
-- Protection Group Management (CRUD, server discovery, conflict detection)
-- Recovery Plan Management (wave configuration, multi-PG support, dependencies)
-- Recovery Execution (drill/recovery modes, wave orchestration, pause/resume)
-- DRS Service Limits Validation (300 servers, 100 per job, 20 concurrent jobs)
-- Server Discovery (DRS API integration, automatic detection, assignment tracking)
-- User Management (Cognito authentication, JWT authorization)
-- Audit Trail (execution history, CloudWatch Logs)
-- Instance Management (terminate recovery instances)
-- Real-time Execution Monitoring (3-second auto-refresh, DRS job events)
-- Loading State Management (prevents multiple operations)
-- AWS DRS Regional Support (30 regions: 28 commercial + 2 GovCloud)
-- **Multi-Account Management** (account context, enforcement, auto-selection, account switching)
-- **Enhanced Tag-Based Server Selection** (DRS source server tags, hardware details)
-- EC2 Launch Template & DRS Launch Settings (Protection Group level configuration)
-- DRS Source Server Management (Server Info, tags, disks, replication, post-launch)
-- DRS Tag Synchronization (EC2 to DRS tag sync with EventBridge scheduling and enterprise security validation)
-- SSM Automation Integration (pre/post-wave automation)
-- Step Functions Visualization (real-time state machine monitoring)
-- Cross-Account Orchestration (hub-and-spoke architecture, scale beyond 300 servers)
-- Cross-Account DRS Monitoring (centralized monitoring and alerting)
-- SNS Notification Integration (real-time notifications via multiple channels)
-- Scheduled Drills (automated recurring drill execution)
-- GitHub Actions CI/CD (OIDC-based deployment automation)
+- **Master Template**: Orchestrates 15+ nested CloudFormation stacks
+- **API Gateway**: 6 modular stacks with 80+ resources supporting 47+ DRS operations
+- **Lambda Functions**: 7 production functions with specialized roles
+- **DynamoDB**: 4 tables with optimistic locking and GSI indexes
+- **Step Functions**: Orchestration with waitForTaskToken pattern
+- **Frontend**: React 19 + CloudScape with 32+ components
 
 ---
 
 ## Functional Requirements
 
-### FR-1: Protection Group Management
-
-#### FR-1.1: Create Protection Group
-**Priority**: Critical
-
-The system shall allow users to create a Protection Group with:
-- Unique name (case-insensitive, 1-128 characters, globally unique)
-- AWS region (all 30 AWS DRS-supported regions)
-- Optional description (max 512 characters)
-- List of DRS source server IDs (minimum 1)
-
-
-**Validation Rules**:
-- Name must be globally unique (case-insensitive across all users)
-- Server IDs must exist in DRS for the specified region (validated via API)
-- Server IDs cannot be assigned to another Protection Group (conflict detection)
-- System generates UUID as GroupId
-- System records CreatedDate and LastModifiedDate timestamps
-
-**API**: `POST /protection-groups`
-```json
-{
-  "GroupName": "Database Servers",
-  "Description": "Primary database tier",
-  "Region": "us-east-1",
-  "sourceServerIds": ["s-1234567890abcdef0", "s-0987654321fedcba0"]
-}
-```
-**Response**: 201 Created with Protection Group data
-**Errors**: 
-- 400: Missing required fields, invalid server IDs
-- 409: Duplicate name (PG_NAME_EXISTS), server conflict (SERVER_ASSIGNMENT_CONFLICT)
-
-#### FR-1.2: List Protection Groups
-**Priority**: Critical
-
-The system shall return all Protection Groups with:
-- GroupId, GroupName, Region, Description
-- SourceServerIds array and server count
-- CreatedDate and LastModifiedDate timestamps
-- Enriched ServerDetails from DRS API (hostname, replication state)
-
-**API**: `GET /protection-groups`
-**Response**: `{ "groups": [...], "count": N }`
-
-#### FR-1.3: Get Protection Group
-**Priority**: Critical
-
-The system shall return a single Protection Group by ID with all fields and enriched server details.
-
-**API**: `GET /protection-groups/{id}`
-**Response**: Protection Group object with ServerDetails
-**Errors**: 404 (not found)
-
-#### FR-1.4: Update Protection Group
-**Priority**: High
-
-The system shall allow updating:
-- GroupName (with uniqueness validation)
-- Description
-- SourceServerIds (with conflict validation)
-
-**Immutable fields**: Region
-
-**Blocking Conditions**:
-- Cannot update if Protection Group is part of an active execution (PG_IN_ACTIVE_EXECUTION)
-
-**API**: `PUT /protection-groups/{id}`
-**Response**: Updated Protection Group object
-**Errors**: 400 (validation), 404 (not found), 409 (conflict or active execution)
-
-#### FR-1.5: Delete Protection Group
-**Priority**: High
-
-The system shall delete a Protection Group only if not referenced by ANY Recovery Plan.
-
-**API**: `DELETE /protection-groups/{id}`
-**Response**: 200 with success message
-**Errors**: 404 (not found), 409 (PG_IN_USE - referenced by Recovery Plans)
-
-#### FR-1.6: Server Assignment Validation
-**Priority**: Critical
-
-The system shall enforce that each DRS source server can be assigned to at most one Protection Group (globally unique constraint across all users).
-
----
-
-### FR-2: Recovery Plan Management
-
-#### FR-2.1: Create Recovery Plan
-**Priority**: Critical
-
-The system shall allow users to create a Recovery Plan with:
-- Unique name (case-insensitive, globally unique)
-- Optional description
-- One or more waves with configuration
-
-**Wave Configuration**:
-```json
-{
-  "waveNumber": 0,
-  "name": "Database Tier",
-  "description": "Primary databases",
-  "protectionGroupIds": ["pg-uuid-1", "pg-uuid-2"],
-  "serverIds": ["s-xxx", "s-yyy"],
-  "dependsOnWaves": [],
-  "pauseBeforeWave": false
-}
-```
-
-**Validation Rules**:
-- Plan name must be globally unique (case-insensitive)
-- At least one wave required
-- Each wave must have at least one Protection Group
-- Each wave must have at least one server
-- Wave numbers must be sequential starting from 0
-- Dependencies can only reference previous waves (prevents circular dependencies)
-- `pauseBeforeWave` only valid for waves after Wave 1
-
-**API**: `POST /recovery-plans`
-**Response**: 201 Created with Recovery Plan data
-**Errors**: 400 (validation), 409 (RP_NAME_EXISTS)
-
-#### FR-2.2: List Recovery Plans
-**Priority**: Critical
-
-The system shall return all Recovery Plans with:
-- PlanId, PlanName, Description
-- Waves array with configuration
-- CreatedDate, LastModifiedDate
-- LastExecutionStatus, LastStartTime, LastEndTime (from execution history)
-- hasServerConflict, conflictInfo (for active execution detection)
-
-**API**: `GET /recovery-plans`
-**Response**: `{ "plans": [...], "count": N }`
-
-#### FR-2.3: Get Recovery Plan
-**Priority**: Critical
-
-The system shall return a single Recovery Plan with full wave configuration.
-
-**API**: `GET /recovery-plans/{id}`
-**Response**: Recovery Plan object with waves array
-
-#### FR-2.4: Update Recovery Plan
-**Priority**: High
-
-The system shall allow updating:
-- PlanName (with uniqueness validation)
-- Description
-- Waves configuration
-
-**Blocking Conditions**:
-- Cannot update if plan has active execution
-
-**API**: `PUT /recovery-plans/{id}`
-**Errors**: 409 (currently executing)
-
-#### FR-2.5: Delete Recovery Plan
-**Priority**: High
-
-The system shall delete a Recovery Plan only if not currently executing.
-
-**API**: `DELETE /recovery-plans/{id}`
-**Errors**: 409 (currently executing)
-
----
-
-### FR-3: Execution Engine
-
-#### FR-3.1: Start Execution
-**Priority**: Critical
-
-The system shall start a recovery execution with:
-- PlanId (required)
-- ExecutionType: DRILL or RECOVERY (required)
-- InitiatedBy: username (optional, defaults to 'system')
-
-**API**: `POST /executions`
-```json
-{
-  "PlanId": "plan-uuid",
-  "ExecutionType": "DRILL",
-  "InitiatedBy": "admin@example.com"
-}
-```
-**Response**: 202 Accepted with execution ID and initial status
-
-**Behavior**:
-1. Validate plan exists and has valid waves
-2. Check for server conflicts with other active executions (including PAUSED)
-3. If conflicts found, return 409 with conflict details
-4. Create execution record with status PENDING
-5. Initiate Step Functions state machine
-6. Return immediately (async execution)
-
-**Server Conflict Detection**:
-- Checks all servers in the plan against servers in active executions
-- Active statuses: PENDING, POLLING, INITIATED, LAUNCHING, STARTED, IN_PROGRESS, RUNNING, PAUSED, CANCELLING
-- For PAUSED executions: looks up original Recovery Plan to get ALL servers (including upcoming waves)
-- Frontend disables Drill/Recovery buttons when conflicts exist (proactive prevention)
-- API returns 409 Conflict if execution attempted despite UI warning
-
-#### FR-3.2: Wave Orchestration
-**Priority**: Critical
-
-The system shall execute waves sequentially:
-1. Check for `pauseBeforeWave` configuration
-2. If paused: Enter waitForTaskToken state, store token in DynamoDB
-3. Launch DRS recovery for all servers in wave (single StartRecovery API call)
-4. Poll job status via Step Functions orchestration
-5. Wait for all servers to reach LAUNCHED status
-6. Update execution record in DynamoDB
-7. Proceed to next wave or complete
-
-#### FR-3.3: DRS Integration
-**Priority**: Critical
-
-The system shall call DRS StartRecovery API:
-- Pass sourceServers array with sourceServerID for each server
-- Set isDrill=true for DRILL executions, false for RECOVERY
-- Monitor returned jobID for completion via DescribeJobs
-
-#### FR-3.4: Job Monitoring
-**Priority**: Critical
-
-The system shall monitor DRS jobs:
-- Poll DescribeJobs via Step Functions orchestration
-- Track participatingServers launchStatus: PENDING → IN_PROGRESS → LAUNCHED
-- Timeout after 30 minutes per wave
-- Continue to next wave when all servers reach LAUNCHED status
-- Mark wave FAILED if any server fails to launch
-
-#### FR-3.5: Get Execution Status
-**Priority**: Critical
-
-The system shall return execution status:
-- ExecutionId, PlanId, Status
-- Per-wave status with serverStatuses array
-- JobId for each wave (for DRS job lookup)
-- StartTime, EndTime, Duration
-- CurrentWave, TotalWaves
-- PausedBeforeWave (if paused)
-- InstancesTerminated flag
-
-**API**: `GET /executions/{id}`
-
-#### FR-3.6: List Executions
-**Priority**: Critical
-
-The system shall return execution history with:
-- Pagination support (limit, nextToken)
-- All executions sorted by StartTime descending
-
-**API**: `GET /executions`
-**Response**: `{ "items": [...], "nextToken": "..." }`
-
-#### FR-3.7: Cancel Execution
-**Priority**: Medium
-
-The system shall cancel a running execution:
-- Stop Step Functions execution
-- Skip pending waves (not yet started)
-- In-progress waves continue to completion (DRS jobs cannot be cancelled)
-- Update status to CANCELLED
-
-**API**: `DELETE /executions/{id}`
-**Response**: 200 with updated execution status
-
-#### FR-3.8: Pause Before Wave
-**Priority**: High
-
-The system shall support pausing execution before specific waves:
-- Recovery Plans can configure `pauseBeforeWave: true` on any wave after Wave 1
-- When enabled, execution pauses before starting that wave
-- Step Functions uses `waitForTaskToken` callback pattern
-- Task token stored in DynamoDB execution record
-- Execution remains in PAUSED status until manually resumed
-- Maximum pause duration: 1 year (31536000 seconds)
-
-#### FR-3.9: Resume Execution
-**Priority**: High
-
-The system shall resume paused executions:
-- Retrieve stored task token from DynamoDB
-- Call Step Functions `SendTaskSuccess` with task token
-- Continue execution with next wave
-- Update status from PAUSED to appropriate active status
-
-**API**: `POST /executions/{id}/resume`
-**Response**: 200 OK with execution status
-**Errors**: 400 (not paused), 404 (not found)
-
-#### FR-3.10: Terminate Recovery Instances
-**Priority**: Medium
-
-The system shall terminate recovery instances after execution completes:
-- Only available for terminal states (COMPLETED, FAILED, CANCELLED, PARTIAL)
-- Terminates all EC2 instances launched during recovery
-- Updates execution record with `instancesTerminated: true`
-- Prevents duplicate termination attempts
-- Returns summary of terminated/failed instances
-
-**API**: `POST /executions/{id}/terminate-instances`
-**Response**: 200 OK with termination results
-**Errors**: 400 (execution still running), 404 (not found)
-
-#### FR-3.11: Get Job Logs
-**Priority**: Medium
-
-The system shall return DRS job event logs:
-- Query DescribeJobLogItems for each wave's jobId
-- Return events: JOB_START, SNAPSHOT_START/END, CONVERSION_START/END, LAUNCH_START/END
-- Include timestamps and error details
-
-**API**: `GET /executions/{id}/job-logs`
-**Response**: Job logs grouped by wave
-
-#### FR-3.12: Bulk Delete Completed Executions
-**Priority**: Low
-
-The system shall delete all completed executions:
-- Only deletes terminal states (COMPLETED, PARTIAL, FAILED, CANCELLED)
-- Preserves active executions
-- Returns count of deleted items
-
-**API**: `DELETE /executions`
-**Response**: `{ "deletedCount": N, "totalScanned": N }`
-
-#### FR-3.13: Check Existing Recovery Instances
-**Priority**: High
-
-The system shall check for existing recovery instances before starting a drill:
-- Query DRS for recovery instances associated with servers in the Recovery Plan
-- Track source execution ID and plan name for each instance
-- Return enriched instance details from EC2 (Name tag, private IP, instance type, launch time)
-- Enable frontend to display warning dialog with instance details
-- Help users understand which previous execution created the instances
-
-**API**: `GET /recovery-plans/{id}/check-existing-instances`
-**Response**:
-```json
-{
-  "hasExistingInstances": true,
-  "instanceCount": 4,
-  "instances": [
-    {
-      "instanceId": "i-xxx",
-      "sourceServerId": "s-xxx",
-      "state": "RUNNING",
-      "sourceExecutionId": "exec-xxx",
-      "sourcePlanName": "MyRecoveryPlan",
-      "name": "web-server-01",
-      "privateIp": "10.0.1.100",
-      "instanceType": "t3.medium",
-      "launchTime": "2025-12-13T10:30:00Z"
-    }
-  ],
-  "sourcePlanNames": ["MyRecoveryPlan"]
-}
-```
-
-**Behavior**:
-1. Get all servers from all waves of the Recovery Plan
-2. Query DRS DescribeRecoveryInstances for each server
-3. For each recovery instance found:
-   - Search execution history to find source execution and plan
-   - Query EC2 DescribeInstances for enriched details
-4. Return aggregated results with source tracking
-
-
----
-
-### FR-4: DRS Service Limits Validation
-
-#### FR-4.1: Validate DRS Service Limits
-**Priority**: Critical
-
-The system shall validate operations against AWS DRS service limits:
-- 300 replicating servers per account per region (hard limit)
-- 100 servers per recovery job (hard limit)
-- 20 concurrent jobs (soft limit)
-- 500 max servers in all jobs (soft limit)
-
-**Frontend Validation**:
-- Protection Group creation: Check server count against 300 limit
-- Recovery Plan execution: Validate wave sizes against 100 server limit
-- Execution start: Check concurrent job limits
-- Real-time quota display in UI
-
-**Backend Validation**:
-- API endpoints validate limits before operations
-- Return specific error codes for limit violations
-- Include current usage in error responses
-
-**API**: `GET /drs/service-limits?region={region}`
-**Response**:
-```json
-{
-  "region": "us-east-1",
-  "limits": {
-    "maxReplicatingServers": 300,
-    "maxServersPerJob": 100,
-    "maxConcurrentJobs": 20,
-    "maxServersInAllJobs": 500
-  },
-  "usage": {
-    "currentReplicatingServers": 150,
-    "currentConcurrentJobs": 2,
-    "currentServersInJobs": 75
-  }
-}
-```
-
-#### FR-4.2: Quota Enforcement
-**Priority**: Critical
-
-The system shall enforce DRS quotas:
-- Block operations that would exceed limits
-- Provide clear error messages with current usage
-- Suggest alternatives (e.g., smaller waves, multi-account setup)
-
-**Error Codes**:
-- `DRS_REPLICATING_SERVERS_LIMIT_EXCEEDED`
-- `DRS_SERVERS_PER_JOB_LIMIT_EXCEEDED`
-- `DRS_CONCURRENT_JOBS_LIMIT_EXCEEDED`
-- `DRS_TOTAL_SERVERS_IN_JOBS_LIMIT_EXCEEDED`
-
----
-
-### FR-5: Server Discovery
-
-#### FR-5.1: Discover DRS Servers
-**Priority**: Critical
-
-The system shall discover DRS source servers by region:
-- Query DRS DescribeSourceServers API
-- Return server ID, hostname, replication status, lag duration
-- Indicate assignment status (available vs assigned to Protection Group)
-- Support filtering by current Protection Group ID (for edit mode)
-
-**API**: `GET /drs/source-servers?region={region}&currentProtectionGroupId={pgId}`
-**Response**:
-```json
-{
-  "region": "us-east-1",
-  "initialized": true,
-  "servers": [
-    {
-      "sourceServerID": "s-xxx",
-      "hostname": "web-server-01",
-      "state": "READY_FOR_RECOVERY",
-      "replicationState": "CONTINUOUS",
-      "lagDuration": "PT0S",
-      "assignedToProtectionGroup": null,
-      "selectable": true
-    }
-  ],
-  "totalCount": 10,
-  "availableCount": 7,
-  "assignedCount": 3
-}
-```
-
----
-
-### FR-6: DRS Source Server Management
-
-This section defines requirements for DRS source server configuration. FR-6.1 through FR-6.18 cover server info, launch settings, EC2 templates, tags, disks, replication, and post-launch actions.
-
-#### FR-6.1: Get Server Info
-**Priority**: High
-
-The system shall return comprehensive DRS source server information:
-- Server ID, ARN, hostname
-- Lifecycle state and timestamps
-- Data replication info (state, progress, lag)
-- Source properties (OS, CPU, RAM, disks, network)
-- Last launch result
-- Tags
-
-**API**: `GET /drs/source-servers/{id}?region={region}`
-**Response**: Full server details object
-
-#### FR-6.2: Get Launch Settings
-**Priority**: High
-
-The system shall return DRS launch configuration:
-- targetInstanceTypeRightSizingMethod (NONE, BASIC, IN_AWS)
-- launchDisposition (STOPPED, STARTED)
-- copyPrivateIp (boolean)
-- copyTags (boolean)
-- licensing.osByol (boolean)
-- ec2LaunchTemplateID
-
-**Implementation**: Configured at Protection Group level via LaunchConfig field. Applied to all servers when Protection Group is saved.
-
-**API**: Protection Group endpoints with LaunchConfig field
-
-#### FR-6.3: Update Launch Settings
-**Priority**: High
-
-The system shall update DRS launch configuration:
-- All fields from FR-6.2 are updatable
-- Validation per DRS API constraints
-- Applied via `apply_launch_config_to_servers()` function
-
-**API**: `PUT /protection-groups/{id}` with LaunchConfig:
-```json
-{
-  "LaunchConfig": {
-    "TargetInstanceTypeRightSizingMethod": "BASIC",
-    "LaunchDisposition": "STARTED",
-    "CopyPrivateIp": true,
-    "CopyTags": true,
-    "Licensing": { "osByol": false }
-  }
-}
-```
-
-#### FR-6.4: Get EC2 Template Settings
-**Priority**: High
-
-The system shall return EC2 launch template configuration:
-- Instance type
-- Subnet ID
-- Security group IDs
-- IAM instance profile name
-
-**Implementation**: Configured at Protection Group level via LaunchConfig field.
-
-**API**: `GET /protection-groups/{id}` returns LaunchConfig with EC2 settings
-
-#### FR-6.5: Update EC2 Template Settings
-**Priority**: High
-
-The system shall update EC2 launch template:
-- Create new template version with updated settings
-- Set new version as default
-- Validate resources exist (subnet, security groups, instance profile)
-
-**API**: `PUT /protection-groups/{id}` with LaunchConfig:
-```json
-{
-  "LaunchConfig": {
-    "SubnetId": "subnet-xxx",
-    "SecurityGroupIds": ["sg-xxx", "sg-yyy"],
-    "InstanceProfileName": "MyInstanceProfile",
-    "InstanceType": "t3.medium"
-  }
-}
-```
-
-#### FR-6.6: Get EC2 Resources
-**Priority**: High
-
-The system shall return available EC2 resources for dropdowns:
-- Subnets (with VPC, AZ, CIDR)
-- Security groups (with VPC, description)
-- Instance types
-- IAM instance profiles
-
-**API**: `GET /ec2/resources?region={region}`
-
-#### FR-6.7: Get Server Tags
-**Priority**: Medium
-
-The system shall return all tags for a DRS source server.
-
-**API**: `GET /drs/source-servers/{id}/tags?region={region}`
-**Response**: `{ "sourceServerId": "s-xxx", "tags": { "key": "value" } }`
-
-#### FR-6.8: Update Server Tags
-**Priority**: Medium
-
-The system shall add or update tags on a DRS source server:
-- Validate tag key does not start with `aws:`
-- Validate key length (1-128 chars)
-- Validate value length (0-256 chars)
-- Validate max 50 tags per resource
-
-**API**: `PUT /drs/source-servers/{id}/tags`
-```json
-{
-  "region": "us-east-1",
-  "tags": { "Environment": "Production", "CostCenter": "CC-12345" }
-}
-```
-
-#### FR-6.9: Delete Server Tags
-**Priority**: Medium
-
-The system shall remove tags from a DRS source server by key.
-
-**API**: `DELETE /drs/source-servers/{id}/tags`
-```json
-{
-  "region": "us-east-1",
-  "tagKeys": ["Environment", "CostCenter"]
-}
-```
-
-#### FR-6.10: Get Disk Settings
-**Priority**: High
-
-The system shall return disk configuration for a DRS source server:
-- Device name
-- Is boot disk
-- Staging disk type (GP2, GP3, IO1, IO2, ST1, SC1)
-- IOPS (for applicable types)
-- Throughput (for GP3)
-- Size in bytes
-
-**API**: `GET /drs/source-servers/{id}/disks?region={region}`
-
-#### FR-6.11: Update Disk Settings
-**Priority**: High
-
-The system shall update disk configuration:
-- Staging disk type
-- IOPS (for GP3, IO1, IO2)
-- Throughput (for GP3)
-
-**API**: `PUT /drs/source-servers/{id}/disks`
-```json
-{
-  "region": "us-east-1",
-  "disks": [
-    { "deviceName": "/dev/sda1", "stagingDiskType": "GP3", "iops": 3000, "throughput": 125 },
-    { "deviceName": "/dev/sdb", "stagingDiskType": "IO1", "iops": 10000 }
-  ]
-}
-```
-
-#### FR-6.12: Get Replication Settings
-**Priority**: High
-
-The system shall return replication configuration:
-- Staging area subnet ID
-- Associate default security group
-- Replication server security group IDs
-- Replication server instance type
-- Use dedicated replication server
-- Bandwidth throttling (Mbps, 0 = unlimited)
-- Data plane routing (PRIVATE_IP, PUBLIC_IP)
-- Create public IP
-- EBS encryption settings
-- Point-in-time (PIT) policy
-
-**API**: `GET /drs/source-servers/{id}/replication?region={region}`
-
-#### FR-6.13: Update Replication Settings
-**Priority**: High
-
-The system shall update replication configuration:
-- All fields from FR-5.12 are updatable
-- Validate subnet and security groups exist
-
-**API**: `PUT /drs/source-servers/{id}/replication`
-```json
-{
-  "region": "us-east-1",
-  "stagingAreaSubnetId": "subnet-xxx",
-  "replicationServersSecurityGroupsIDs": ["sg-xxx"],
-  "replicationServerInstanceType": "t3.small",
-  "useDedicatedReplicationServer": false,
-  "bandwidthThrottling": 0,
-  "dataPlaneRouting": "PRIVATE_IP",
-  "pitPolicy": [
-    { "interval": 10, "retentionDuration": 60, "units": "MINUTE", "enabled": true }
-  ]
-}
-```
-
-#### FR-6.14: Get Staging Resources
-**Priority**: High
-
-The system shall return available staging area resources:
-- Subnets (with VPC, AZ, CIDR, name)
-- Security groups (with VPC, name, description)
-
-**API**: `GET /drs/staging-resources?region={region}`
-
-#### FR-6.15: Get Post-Launch Settings
-**Priority**: Medium
-
-The system shall return post-launch action configuration:
-- Deployment type (TEST_AND_CUTOVER, CUTOVER)
-- SSM document configuration (name, timeout, must succeed)
-- S3 log bucket
-- S3 output key prefix
-
-**API**: `GET /drs/source-servers/{id}/post-launch?region={region}`
-
-#### FR-6.16: Update Post-Launch Settings
-**Priority**: Medium
-
-The system shall update post-launch action configuration.
-
-**API**: `PUT /drs/source-servers/{id}/post-launch`
-```json
-{
-  "region": "us-east-1",
-  "deployment": "TEST_AND_CUTOVER",
-  "ssmDocument": {
-    "ssmDocumentName": "AWS-RunShellScript",
-    "timeoutSeconds": 600,
-    "mustSucceedForCutover": true
-  },
-  "s3LogBucket": "my-drs-logs",
-  "s3OutputKeyPrefix": "post-launch/"
-}
-```
-
-#### FR-6.17: List SSM Documents
-**Priority**: Medium
-
-The system shall return available SSM documents for post-launch actions.
-
-**API**: `GET /ssm/documents?region={region}&type={Command|Automation}`
-**Response**: List of documents with name, owner, type, platform types, description
-
-#### FR-6.18: List S3 Buckets
-**Priority**: Medium
-
-The system shall return available S3 buckets for post-launch logs.
-
-**API**: `GET /s3/buckets?region={region}`
-**Response**: List of buckets with name, creation date, region
-
----
-
-### FR-7: DRS Tag Synchronization
-
-#### FR-7.1: Automated Tag Synchronization with EventBridge
-**Priority**: High
-
-The system shall provide automated tag synchronization from EC2 instances to DRS source servers with EventBridge scheduling:
-
-**Scheduling Capabilities**:
-- EventBridge-triggered synchronization with configurable intervals (15 minutes to 24 hours)
-- Manual trigger capability for immediate synchronization
-- Automatic EventBridge rule creation and management
-- Schedule validation with proper rate expression handling (singular/plural forms)
-
-**Synchronization Process**:
-- Cross-region support for all 30 DRS-supported regions
-- Batch processing with 10-server chunks to avoid API limits
-- Real-time progress monitoring with detailed status updates
-- Comprehensive error handling and conflict resolution
-- Complete audit trail of sync operations and results
-
-**API Endpoints**:
-- `POST /drs/tag-sync` - Sync EC2 tags to DRS source servers (supports EventBridge authentication bypass)
-- `PUT /settings/tag-sync-schedule` - Configure EventBridge sync schedule
-- `POST /tag-sync/trigger` - Manual trigger for immediate synchronization
-
-#### FR-7.2: EventBridge Security Validation
-**Priority**: Critical
-
-The system shall implement enterprise-grade security validation for EventBridge authentication bypass:
-
-**Multi-Layer Security Validation**:
-1. **Source IP Validation**: Verify `sourceIp` equals 'eventbridge'
-2. **Invocation Source Verification**: Validate `invocationSource` equals 'EVENTBRIDGE'
-3. **API Gateway Context Validation**: Ensure request has valid requestId and stage
-4. **Authentication Header Validation**: Reject requests with unexpected Authorization headers
-5. **EventBridge Rule Name Validation**: Verify rule name matches pattern `aws-drs-orchestrator-tag-sync-schedule-*`
-
-**Security Audit Logging**:
-- Comprehensive request logging with requestId, stage, accountId, and rule name
-- Security event tracking for monitoring and compliance
-- Attack prevention logging for invalid EventBridge attempts
-
-**Zero Trust Authentication Bypass**:
-- Scoped access limited to `/drs/tag-sync` endpoint only
-- Multiple validation layers prevent authentication bypass abuse
-- Complete audit trail for all EventBridge requests
-- Attack surface reduction with minimal bypass scope
-
-**Validation Rules**:
-```javascript
-// EventBridge Detection Logic
-if (event.requestContext?.identity?.sourceIp === 'eventbridge' && 
-    event.headers?.['X-Amz-Invocation-Source'] === 'EVENTBRIDGE') {
-  // Validate API Gateway context
-  if (!event.requestContext?.requestId || !event.requestContext?.stage) {
-    return { statusCode: 403, body: 'Invalid request structure' };
-  }
-  
-  // Validate no unexpected auth headers
-  if (event.headers?.Authorization || event.headers?.authorization) {
-    return { statusCode: 403, body: 'Unexpected authentication headers' };
-  }
-  
-  // Validate EventBridge rule name
-  const ruleName = event.headers?.['X-Amz-Rule-Name'];
-  if (!ruleName?.match(/^aws-drs-orchestrator-tag-sync-schedule-/)) {
-    return { statusCode: 403, body: 'Invalid EventBridge rule source' };
-  }
-  
-  // Log security audit information
-  console.log('EventBridge Security Audit:', {
-    requestId: event.requestContext.requestId,
-    stage: event.requestContext.stage,
-    accountId: event.requestContext.accountId,
-    ruleName: ruleName
-  });
-  
-  // Proceed with tag sync
-  return handleEventbridgeTagSync(event);
-}
-```
-
-#### FR-7.3: Manual Tag Synchronization
-**Priority**: Medium
-
-The system shall support manual tag synchronization operations:
-- On-demand sync for individual servers
-- Bulk sync operations for multiple servers
-- Regional sync operations
-- Sync history and audit trail
-
-**API**: `POST /drs/source-servers/{id}/sync-tags`
-**Response**: Sync job status and progress
-
-#### FR-7.4: Sync Instance Types
-**Priority**: Medium
-
-The system shall synchronize EC2 instance types to DRS launch templates:
-- Match source instance type to target
-- Validate instance type availability in target region
-- Update launch template configuration
-
-**API**: `POST /drs/source-servers/{id}/sync-instance-type`
-
----
-
-### FR-8: SSM Automation Integration
-
-#### FR-8.1: Pre-Wave Automation
-**Priority**: Medium
-
-The system shall execute SSM automation before wave execution:
-- Manual approval gates
-- Health checks
-- Custom validation scripts
-
-#### FR-8.2: Post-Wave Automation
-**Priority**: Medium
-
-The system shall execute SSM automation after wave completion:
-- Application startup scripts
-- Health validation
-- Smoke tests
-
----
-
-### FR-9: Step Functions Visualization
-
-#### FR-9.1: Real-Time State Machine Visualization
-**Priority**: Medium
-
-The system shall provide real-time Step Functions execution visualization:
-- State timeline with current position
-- State input/output data
-- CloudWatch Logs integration
-- Error state highlighting
-
-**API**: `GET /executions/{id}/step-functions-state`
-
----
-
-### FR-10: Multi-Account Management
-
-#### FR-10.1: Account Context System
-**Priority**: Critical
-
-The system shall provide centralized account state management with:
-- Account context persistence via localStorage
-- Auto-selection for single account scenarios
-- Enforcement logic for multi-account scenarios
-- Account switching with full page context updates
-
-**API**: `GET /accounts/targets`
-```json
-{
-  "accounts": [
-    {
-      "id": "123456789012",
-      "name": "Production Account",
-      "region": "us-east-1",
-      "isDefault": true
-    }
-  ]
-}
-```
-
-#### FR-10.2: Account Selector Component
-**Priority**: Critical
-
-The system shall provide account selection via:
-- Top navigation dropdown following AWS Console patterns
-- Real-time account switching with context preservation
-- Visual indication of currently selected account
-- Integration with existing navigation structure
-
-#### FR-10.3: Account Enforcement
-**Priority**: Critical
-
-The system shall enforce account selection by:
-- Blocking protected pages when no account selected (multi-account scenarios only)
-- Displaying AccountRequiredWrapper for consistent enforcement
-- Auto-selecting single accounts as default (no enforcement needed)
-- Showing setup wizard when no accounts exist
-
-#### FR-10.4: Settings Integration
-**Priority**: High
-
-The system shall integrate account preferences by:
-- Adding default account dropdown to existing 3-tab settings panel
-- Maintaining existing AccountManagementPanel structure
-- Persisting default account selection across sessions
-- Auto-setting single account as default preference
-
-### FR-11: Enhanced Tag-Based Server Selection
-
-#### FR-11.1: DRS Source Server Tag Querying
-**Priority**: Critical
-
-The system shall query DRS source server tags by:
-- Using DRS `list_tags_for_resource` API (not EC2 instance tags)
-- Collecting comprehensive server hardware information
-- Supporting all 30 DRS-supported regions
-- Providing detailed error handling for API failures
-
-**API**: `POST /drs/query-servers-by-tags`
-```json
-{
-  "region": "us-west-2",
-  "tags": {
-    "DR-Application": "HRP",
-    "DR-Tier": "Database"
-  }
-}
-```
-
-#### FR-11.2: Hardware Details Display
-**Priority**: High
-
-The system shall display complete hardware information by:
-- Showing CPU cores, RAM (GiB), disks, FQDN, OS info
-- Matching manual server selection display format
-- Providing expandable details menu for additional information
-- Maintaining consistent ServerListItem component interface
-
-#### FR-11.3: Clean Tag Preview UX
-**Priority**: Medium
-
-The system shall provide clean tag preview by:
-- Removing non-functional checkboxes from tag preview
-- Maintaining normal server appearance (no graying out)
-- Showing identical information as manual selection
-- Using `showCheckbox={false}` prop for ServerListItem
-
-### FR-12: Cross-Account Orchestration
-
-#### FR-12.1: Cross-Account Recovery Orchestration
-**Priority**: Low
-
-The system shall orchestrate recovery across multiple AWS accounts:
-- Hub-and-spoke architecture
-- Cross-account IAM roles
-- Unified management UI
-- Scale beyond 300-server DRS limit
-
-#### FR-10.2: Account Management
-**Priority**: Low
-
-The system shall manage multiple DRS accounts:
-- Account registration and validation
-- Cross-account permission setup
-- Account health monitoring
-
----
-
-### FR-13: Cross-Account DRS Monitoring
-
-#### FR-13.1: Centralized Monitoring
-**Priority**: Low
-
-The system shall provide centralized DRS monitoring:
-- Dynamic account management
-- Cross-account metrics collection
-- Unified dashboards
-- Alerting and notifications
-
----
-
-### FR-14: SNS Notification Integration
-
-#### FR-14.1: Real-Time Notifications
-**Priority**: Low
-
-The system shall send real-time notifications:
-- Execution status changes
-- DRS events
-- System health alerts
-- Multiple channels: Email, SMS, Slack, PagerDuty
-
-**API**: `POST /notifications/configure`
-
----
-
-### FR-15: Scheduled Drills
-
-#### FR-15.1: Automated Drill Scheduling
-**Priority**: Low
-
-The system shall support automated drill scheduling:
-- Cron-based scheduling
-- Recurring drill execution
-- Automated reporting
-- Compliance tracking
-
----
-
-### FR-16: GitHub Actions CI/CD
-
-#### FR-16.1: GitHub Actions Deployment
-**Priority**: Complete (Implemented v1.3.0)
-
-The system uses GitHub Actions for automated CI/CD deployment:
-- OIDC-based AWS authentication (no long-lived credentials)
-- 6-stage pipeline: Validate, Security Scan, Build, Test, Deploy Infrastructure, Deploy Frontend
-- ~20 minute deployment duration
-- Automatic deployment on push to main branch
-
-**Infrastructure**:
-- Workflow: `.github/workflows/deploy.yml`
-- OIDC Stack: `cfn/github-oidc-stack.yaml`
-- Repository: GitHub (primary)
-- Authentication: OpenID Connect (OIDC)
-
----
-
-### FR-17: Authentication
-
-#### FR-17.1: User Authentication
-**Priority**: Critical
-
-The system shall authenticate users via AWS Cognito:
-- Username/password authentication
-- JWT token issuance (ID token for API authorization)
-- Token refresh support via Amplify
-- Session management with 45-minute auto-logout
-
-#### FR-17.2: API Authorization
-**Priority**: Critical
-
-The system shall authorize API requests:
-- Validate JWT token on each request via API Gateway Cognito Authorizer
-- Extract user identity from token claims
-- Log user actions for audit (InitiatedBy field)
+### FR-1: Lambda Functions (7 Production Functions)
+
+#### FR-1.1: API Handler Lambda
+**Function**: `api-handler`
+**Purpose**: Main REST API handler with comprehensive DRS integration
+
+**Capabilities**:
+- 47+ DRS API operations across all categories
+- RBAC middleware with 5 granular roles and 14 permissions
+- Multi-account cross-account role assumption
+- Input validation and security sanitization
+- Comprehensive error handling with detailed responses
+
+**Key Features**:
+- EventBridge authentication bypass for tag synchronization
+- Server conflict detection across active executions and DRS jobs
+- Tag-based server selection with DRS source server tags
+- Launch configuration management for Protection Groups
+- Optimistic locking with version control
+
+#### FR-1.2: Orchestration Step Functions Lambda
+**Function**: `orchestration-stepfunctions`
+**Purpose**: Step Functions orchestration engine
+
+**Capabilities**:
+- Wave-by-wave execution with pause/resume via waitForTaskToken
+- DRS job monitoring with participatingServers tracking
+- Cross-account DRS client creation with STS role assumption
+- Recovery instance termination with job status tracking
+
+#### FR-1.3: Execution Management Lambdas
+**Functions**: `execution-finder`, `execution-poller`
+
+**execution-finder**:
+- Queries StatusIndex GSI for executions in POLLING status
+- EventBridge-triggered every 1 minute
+- Invokes execution-poller for active executions
+
+**execution-poller**:
+- Polls DRS job status and updates execution wave states
+- Tracks participatingServers launchStatus progression
+- Updates DynamoDB with real-time execution progress
+
+#### FR-1.4: Infrastructure Support Lambdas
+**Functions**: `frontend-builder`, `bucket-cleaner`, `notification-formatter`
+
+**frontend-builder**:
+- CloudFormation custom resource for frontend deployment
+- S3 sync and CloudFront invalidation
+- Dynamic AWS configuration injection
+
+**bucket-cleaner**:
+- S3 bucket cleanup for CloudFormation stack deletion
+- Handles versioned objects and large buckets
+
+**notification-formatter**:
+- Formats pipeline and security scan notifications
+- SNS integration for email notifications
+
+### FR-2: API Gateway Architecture (6-Nested-Stack Design)
+
+#### FR-2.1: Core Stack
+**Template**: `api-gateway-core-stack.yaml`
+**Resources**: REST API, Cognito authorizer, request validator
+
+#### FR-2.2: Resources Stack
+**Template**: `api-gateway-resources-stack.yaml`
+**Resources**: 80+ API path definitions across all categories
+
+**Resource Categories**:
+- Health Check (no authentication)
+- User Management (profile, roles, permissions)
+- Protection Groups (CRUD, resolve, launch-config)
+- Recovery Plans (CRUD, execute, check-existing-instances)
+- Executions (CRUD, cancel, pause, resume, terminate-instances, job-logs)
+- DRS Operations (47+ operations across 8 categories)
+- EC2 Resources (subnets, security-groups, instance-profiles, instance-types)
+- Configuration Management (export, import, tag-sync)
+- Multi-Account Management (targets, validation)
+
+#### FR-2.3: Methods Stacks
+**Templates**: 
+- `api-gateway-core-methods-stack.yaml`: Health, User, Protection Groups, Recovery Plans
+- `api-gateway-operations-methods-stack.yaml`: All Execution endpoints
+- `api-gateway-infrastructure-methods-stack.yaml`: DRS, EC2, Config, Target Accounts
+
+#### FR-2.4: Deployment Stack
+**Template**: `api-gateway-deployment-stack.yaml`
+**Purpose**: Deployment orchestrator with timestamp-based redeployment
+
+### FR-3: DRS API Integration (47+ Operations)
+
+#### FR-3.1: Failover Operations
+- `POST /drs/failover/start-recovery`: Start recovery with comprehensive validation
+- `POST /drs/failover/terminate-instances`: Terminate recovery instances
+- `POST /drs/failover/disconnect-instance`: Disconnect recovery instance
+
+#### FR-3.2: Failback Operations
+- `POST /drs/failback/reverse-replication`: Reverse replication direction
+- `POST /drs/failback/start-failback`: Start failback process
+- `POST /drs/failback/stop-failback`: Stop failback process
+- `GET/PUT /drs/failback/configuration`: Failback configuration management
+
+#### FR-3.3: Replication Management
+- `POST /drs/replication/start`: Start replication
+- `POST /drs/replication/stop`: Stop replication
+- `POST /drs/replication/pause`: Pause replication
+- `POST /drs/replication/resume`: Resume replication
+- `POST /drs/replication/retry`: Retry data replication
+- `GET/PUT /drs/replication/configuration`: Replication configuration
+- `GET/PUT /drs/replication/template`: Replication configuration template
+
+#### FR-3.4: Source Server Management
+- `GET /drs/source-server/{id}`: Get source server details
+- `POST /drs/source-server/{id}/disconnect`: Disconnect source server
+- `POST /drs/source-server/{id}/archive`: Mark as archived
+- `GET /drs/extended-source-servers`: List extended source servers
+- `GET /drs/extensible-source-servers`: List extensible source servers
+
+#### FR-3.5: Source Network Management
+- `GET /drs/source-networks`: List source networks
+- `GET /drs/source-networks/{id}`: Get source network details
+- `POST /drs/source-networks/recovery`: Start source network recovery
+- `POST /drs/source-networks/replication`: Start source network replication
+- `GET /drs/source-networks/stack`: Get source network stack
+- `GET /drs/source-networks/template`: Get source network template
+
+#### FR-3.6: Launch Configuration Management
+- `GET/PUT /drs/launch-configuration`: Launch configuration management
+- `GET/PUT /drs/launch-configuration/template`: Launch configuration template
+- `GET /drs/launch-actions`: List launch actions
+- `GET/PUT /drs/launch-actions/{id}`: Launch action management
+
+#### FR-3.7: Job Management
+- `GET /drs/jobs`: List DRS jobs with filtering
+- `GET /drs/jobs/{id}`: Get job details
+- `GET /drs/jobs/{id}/logs`: Get job logs
+
+#### FR-3.8: Service Management
+- `POST /drs/service/initialize`: Initialize DRS service
+- `GET /drs/recovery-instances`: List recovery instances
+- `GET /drs/recovery-instances/{id}`: Get recovery instance details
+- `GET /drs/recovery-snapshots`: List recovery snapshots
+
+### FR-4: RBAC Security System
+
+#### FR-4.1: Role-Based Access Control
+**Implementation**: `rbac_middleware.py`
+
+**Security Roles (5 Granular Roles)**:
+1. **DRSOrchestrationAdmin**: Full administrative access
+2. **DRSRecoveryManager**: Recovery operations and configuration
+3. **DRSPlanManager**: Protection Groups and Recovery Plans management
+4. **DRSOperator**: Execute drills only
+5. **DRSReadOnly**: View-only access
+
+**Granular Permissions (14 Business-Focused)**:
+- Protection Groups: CREATE_PROTECTION_GROUP, UPDATE_PROTECTION_GROUP, DELETE_PROTECTION_GROUP
+- Recovery Plans: CREATE_RECOVERY_PLAN, UPDATE_RECOVERY_PLAN, DELETE_RECOVERY_PLAN
+- Executions: EXECUTE_RECOVERY, EXECUTE_DRILL, CONTROL_EXECUTION, TERMINATE_INSTANCES
+- Configuration: EXPORT_CONFIG, IMPORT_CONFIG
+- Server Management: MANAGE_SERVERS, VIEW_SERVERS
+
+#### FR-4.2: Security Implementation
+**Files**: `rbac_middleware.py`, `security_utils.py`
+
+**Security Features**:
+- JWT token validation with Cognito Groups integration
+- Input validation and sanitization for all requests
+- Comprehensive audit logging with role context
+- Security headers for all responses
+- Protection against SQL injection, XSS, command injection, log injection
+
+#### FR-4.3: User Management
+**Components**: `PasswordChangeForm`, `ProtectedRoute`
+
+**Features**:
+- Password reset capability for Cognito users
+- Activity-based timeout (4 hours) with comprehensive tracking
+- Automatic token refresh (50 minutes)
+- Multi-factor authentication support
+
+### FR-5: Frontend Application (7 Pages, 32+ Components)
+
+#### FR-5.1: Pages
+**Technology**: React 19.1.1 + TypeScript 5.9.3 + CloudScape 3.0.1148
+
+**Page Components**:
+- **Dashboard**: Metrics, pie charts, active executions, DRS quotas
+- **LoginPage**: Cognito authentication with password reset
+- **GettingStartedPage**: 3-step onboarding guide
+- **ProtectionGroupsPage**: CRUD table with tag/server selection
+- **RecoveryPlansPage**: Wave-based plan management
+- **ExecutionsPage**: Active and historical execution monitoring
+- **ExecutionDetailsPage**: Detailed execution view with controls
+
+#### FR-5.2: Core Components (32+ Total)
+
+**CloudScape Wrappers (2)**:
+- **AppLayout**: Main application layout with navigation
+- **ContentLayout**: Page content wrapper
+
+**Multi-Account Management (4)**:
+- **AccountSelector**: Account context switching dropdown
+- **AccountRequiredWrapper**: Feature enforcement wrapper
+- **AccountRequiredGuard**: Route-level account enforcement
+- **AccountManagementPanel**: Account configuration panel
+
+**RBAC & Security (3)**:
+- **PermissionAware**: Permission-based conditional rendering
+- **PasswordChangeForm**: Secure password change with Cognito
+- **ProtectedRoute**: Route-level permission enforcement
+
+**Server Management (4)**:
+- **ServerSelector**: Server selection with conflict detection
+- **ServerDiscoveryPanel**: Real-time DRS server discovery
+- **ServerListItem**: Server display with hardware details
+- **RegionSelector**: All 30 DRS regions selector
+
+**Execution Management (3)**:
+- **ExecutionDetails**: Real-time execution monitoring
+- **WaveProgress**: Wave-by-wave progress tracking
+- **WaveConfigEditor**: Multi-wave configuration editor
+
+**Configuration Management (4)**:
+- **ConfigExportPanel**: Configuration export functionality
+- **ConfigImportPanel**: Configuration import with validation
+- **TagSyncConfigPanel**: EventBridge tag sync configuration
+- **LaunchConfigSection**: DRS launch settings configuration
+
+**Status & Display (4)**:
+- **StatusBadge**: Execution and server status indicators
+- **InvocationSourceBadge**: Execution source tracking
+- **DateTimeDisplay**: Consistent date/time formatting
+- **DRSQuotaStatus**: Real-time service limits monitoring
+
+**Dialogs & Modals (5)**:
+- **ProtectionGroupDialog**: Protection Group CRUD with tabs
+- **RecoveryPlanDialog**: Recovery Plan CRUD with wave editor
+- **ConfirmDialog**: Confirmation dialogs with context
+- **ImportResultsDialog**: Import results display
+- **SettingsModal**: Application settings management
+
+**Layout & Utility (6)**:
+- **ErrorBoundary**: Error boundary with fallback UI
+- **ErrorFallback**: Error display component
+- **ErrorState**: Error state display
+- **LoadingState**: Loading state indicators
+- **CardSkeleton**: Loading skeleton for cards
+- **DataTableSkeleton**: Loading skeleton for tables
+- **PageTransition**: Smooth page transitions
+
+**React Contexts (6)**:
+- **AuthContext**: Authentication state management
+- **PermissionsContext**: RBAC permissions caching
+- **NotificationContext**: Toast notification management
+- **ApiContext**: API client configuration
+- **AccountContext**: Multi-account state management
+- **SettingsContext**: Application settings persistence
+
+### FR-6: Multi-Account Management
+
+#### FR-6.1: Target Accounts Table
+**Table**: `target-accounts-{env}`
+**Schema**: `AccountId` (PK), `AssumeRoleName`, `CrossAccountRoleArn`, `IsDefault`
+**GSI**: StatusIndex for health monitoring
+
+#### FR-6.2: Cross-Account Operations
+**Implementation**: STS role assumption with account context propagation
+
+**Features**:
+- Hub-and-spoke architecture with centralized orchestration
+- Cross-account DRS client creation with credential management
+- Account health monitoring and validation
+- Scale beyond 300-server DRS limit per account
+
+### FR-7: Tag Synchronization with EventBridge
+
+#### FR-7.1: EventBridge Integration
+**Function**: `api-handler` with EventBridge authentication bypass
+**Security**: Multi-layer validation for EventBridge requests
+
+**Validation Layers**:
+1. Source IP validation (sourceIp === 'eventbridge')
+2. Invocation source verification (X-Amz-Invocation-Source === 'EVENTBRIDGE')
+3. API Gateway context validation (requestId, stage)
+4. Authentication header validation (no unexpected Authorization headers)
+5. EventBridge rule name validation (pattern matching)
+
+#### FR-7.2: Tag Synchronization Process
+**Endpoint**: `POST /drs/tag-sync`
+
+**Features**:
+- EC2 to DRS source server tag synchronization
+- Cross-region support for all 30 DRS regions
+- Batch processing with 10-server chunks
+- Real-time progress monitoring
+- Comprehensive error handling and audit trails
+
+### FR-8: Performance Optimizations
+
+#### FR-8.1: Backend Optimizations
+- **Batch DynamoDB Operations**: Reduce API calls through batch operations
+- **Optimized Query Patterns**: Efficient data access with GSI indexes
+- **Connection Pooling**: Reuse AWS service connections
+- **Smart Conflict Detection**: Fast server conflict validation
+- **Reduced Scan Scope**: Limit data scanning to relevant records
+
+#### FR-8.2: Frontend Optimizations
+- **Memoization**: React.memo, useMemo, useCallback throughout
+- **Optimized Polling**: Reduced frequencies (plans: 60s, executions: 10s)
+- **Activity Tracking**: Efficient user activity detection
+- **Local Assets**: Avoid external CORS requests
+- **Smart State Management**: Efficient data structures (Map, Set)
 
 ---
 
 ## Non-Functional Requirements
 
 ### NFR-1: Performance
-
-| Metric | Requirement |
-|--------|-------------|
-| API Response Time | < 2 seconds for CRUD operations |
-| Page Load Time | < 3 seconds initial load |
-| Execution Start | < 5 seconds to initiate Step Functions |
-| DRS Job Polling | 15-second intervals during wave execution |
-| UI Status Refresh | 3-second intervals for active executions |
+| Metric | Requirement | Implementation |
+|--------|-------------|----------------|
+| API Response Time | < 2 seconds | Batch operations, connection pooling |
+| Page Load Time | < 3 seconds | Memoization, optimized polling |
+| Execution Start | < 5 seconds | Async worker pattern |
+| UI Status Refresh | 3-10 seconds | Smart polling intervals |
 
 ### NFR-2: Scalability
+| Metric | Requirement | Implementation |
+|--------|-------------|----------------|
+| Concurrent Users | 50+ | Serverless auto-scaling |
+| Protection Groups | 1000+ | DynamoDB auto-scaling |
+| Recovery Plans | 500+ | Optimistic locking |
+| Servers per Wave | 100+ | DRS API limits validation |
 
-| Metric | Requirement |
-|--------|-------------|
-| Concurrent Users | 50+ simultaneous users |
-| Protection Groups | 1000+ per deployment |
-| Recovery Plans | 500+ per deployment |
-| Execution History | Unlimited (DynamoDB auto-scaling) |
-| Servers per Wave | 100+ (DRS API limit) |
-
-### NFR-3: Availability
-
-| Metric | Requirement |
-|--------|-------------|
-| Target Availability | 99.9% (AWS serverless SLA) |
-| Recovery Time | < 15 minutes for component failure |
-| Data Durability | 99.999999999% (DynamoDB) |
-| Multi-AZ | Automatic (Lambda, DynamoDB, S3) |
-
-### NFR-4: Security
-
+### NFR-3: Security
 | Requirement | Implementation |
 |-------------|----------------|
-| Authentication | AWS Cognito User Pool with JWT tokens |
-| Authorization | API Gateway Cognito Authorizer |
+| Authentication | Cognito User Pool with JWT tokens |
+| Authorization | RBAC with 5 roles and 14 permissions |
 | Encryption at Rest | DynamoDB, S3 (AES-256) |
-| Encryption in Transit | TLS 1.2+ for all API calls |
-| Session Timeout | 45-minute auto-logout |
-| IAM Least Privilege | Scoped Lambda execution roles |
+| Encryption in Transit | TLS 1.2+ for all communications |
+| Input Validation | Comprehensive sanitization and validation |
+| Security Scanning | 6 security tools in CI/CD pipeline |
 
-### NFR-5: Maintainability
-
-| Requirement | Implementation |
-|-------------|----------------|
-| Infrastructure as Code | CloudFormation nested stacks |
-| Logging | CloudWatch Logs for all Lambda functions |
-| Monitoring | CloudWatch Metrics and Alarms |
-| Deployment | S3-based artifact deployment |
-| Version Control | Git with feature branch workflow |
-
+### NFR-4: Availability
+| Metric | Requirement | Implementation |
+|--------|-------------|----------------|
+| Target Availability | 99.9% | AWS serverless SLA |
+| Recovery Time | < 15 minutes | Multi-AZ automatic failover |
+| Data Durability | 99.999999999% | DynamoDB built-in durability |
 
 ---
 
 ## API Specifications
 
-### Base URL
-
-```
-https://{api-id}.execute-api.{region}.amazonaws.com/{stage}
-```
-
 ### Authentication
-
-All API requests require a valid JWT token in the Authorization header:
-
+All API requests require JWT token in Authorization header:
 ```
 Authorization: Bearer {id_token}
 ```
 
 ### Common Response Codes
-
 | Code | Description |
 |------|-------------|
 | 200 | Success |
 | 201 | Created |
-| 202 | Accepted (async operation started) |
+| 202 | Accepted (async operation) |
 | 400 | Bad Request (validation error) |
 | 401 | Unauthorized (missing/invalid token) |
 | 403 | Forbidden (insufficient permissions) |
 | 404 | Not Found |
-| 409 | Conflict (duplicate name, server conflict, active execution) |
+| 409 | Conflict (duplicate name, server conflict) |
+| 429 | Too Many Requests (DRS limits exceeded) |
 | 500 | Internal Server Error |
 
 ### Error Response Format
-
 ```json
 {
   "error": "ERROR_CODE",
   "message": "Human-readable error description",
-  "details": { }
+  "details": {},
+  "requiredPermission": "PERMISSION_NAME",
+  "userRoles": ["role1", "role2"]
 }
 ```
-
-### API Endpoints Summary
-
-Based on the current implementation in `lambda/index.py`, the system provides **42 REST API endpoints** across **12 categories**:
-
-#### Protection Groups (5 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /protection-groups | List all Protection Groups |
-| POST | /protection-groups | Create Protection Group |
-| POST | /protection-groups/resolve | Preview servers matching tags |
-| GET | /protection-groups/{id} | Get Protection Group by ID |
-| PUT | /protection-groups/{id} | Update Protection Group |
-| DELETE | /protection-groups/{id} | Delete Protection Group |
-
-#### Recovery Plans (6 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /recovery-plans | List all Recovery Plans |
-| POST | /recovery-plans | Create Recovery Plan |
-| GET | /recovery-plans/{id} | Get Recovery Plan by ID |
-| PUT | /recovery-plans/{id} | Update Recovery Plan |
-| DELETE | /recovery-plans/{id} | Delete Recovery Plan |
-| POST | /recovery-plans/{id}/execute | Start execution (legacy endpoint) |
-| GET | /recovery-plans/{id}/check-existing-instances | Check for existing recovery instances |
-
-#### Executions (8 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /executions | List all Executions |
-| POST | /executions | Start new Execution |
-| GET | /executions/{id} | Get Execution details |
-| POST | /executions/{id}/resume | Resume paused Execution |
-| DELETE | /executions/{id} | Cancel running Execution |
-| POST | /executions/{id}/terminate-instances | Terminate recovery instances |
-| GET | /executions/{id}/job-logs | Get DRS job event logs |
-| DELETE | /executions | Bulk delete completed Executions |
-
-#### DRS Integration (7 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /drs/source-servers | Discover DRS source servers by region |
-| GET | /drs/quotas | Get DRS service limits and usage |
-| GET | /drs/accounts | Get available DRS accounts |
-| POST | /drs/tag-sync | Sync EC2 tags to DRS servers |
-
-#### EC2 Resources (4 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /ec2/subnets | Get EC2 subnets for region |
-| GET | /ec2/security-groups | Get EC2 security groups for region |
-| GET | /ec2/instance-profiles | Get IAM instance profiles |
-| GET | /ec2/instance-types | Get EC2 instance types |
-
-#### Multi-Account Management (6 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /accounts/targets | List target accounts |
-| POST | /accounts/targets | Register new target account |
-| GET | /accounts/targets/{id} | Get target account details |
-| PUT | /accounts/targets/{id} | Update target account |
-| DELETE | /accounts/targets/{id} | Delete target account |
-| POST | /accounts/targets/{id}/test | Test target account connectivity |
-
-#### Configuration Management (2 endpoints)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /config/export | Export configuration (Protection Groups + Recovery Plans) |
-| POST | /config/import | Import configuration from JSON |
-
-#### System Health (1 endpoint)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /health | System health check |
-
-#### Future Endpoints (Documented but not yet implemented)
-
-The following endpoints are documented in requirements but not yet implemented:
-
-**DRS Source Server Management** (18 endpoints planned):
-- Server details, launch settings, EC2 templates, tags, disks, replication, post-launch configuration
-- Individual server configuration management
-
-**Supporting Resources** (4 endpoints planned):
-- DRS staging resources, SSM documents, S3 buckets
-
-**Step Functions Visualization** (1 endpoint planned):
-- Real-time state machine monitoring
-
-**Notifications** (3 endpoints planned):
-- Notification configuration and testing
-
-**Scheduled Drills** (4 endpoints planned):
-- Automated drill scheduling
 
 ---
 
@@ -1323,198 +422,101 @@ The following endpoints are documented in requirements but not yet implemented:
 ### DynamoDB Tables
 
 #### Protection Groups Table
-
 **Table Name**: `{project}-protection-groups-{env}`
-
 **Partition Key**: `GroupId` (String)
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | GroupId | String | UUID primary key |
 | GroupName | String | Unique name (case-insensitive) |
-| Description | String | Optional description |
 | Region | String | AWS region code |
 | SourceServerIds | List | Array of DRS source server IDs |
-| AccountId | String | AWS account ID |
-| Owner | String | Owner identifier |
+| ServerSelectionTags | Map | Tag-based server selection |
+| LaunchConfig | Map | DRS launch configuration |
+| AccountId | String | Target AWS account ID |
+| AssumeRoleName | String | Cross-account role name |
+| Version | Number | Optimistic locking version |
 | CreatedDate | Number | Unix timestamp |
 | LastModifiedDate | Number | Unix timestamp |
 
 #### Recovery Plans Table
-
 **Table Name**: `{project}-recovery-plans-{env}`
-
 **Partition Key**: `PlanId` (String)
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | PlanId | String | UUID primary key |
 | PlanName | String | Unique name (case-insensitive) |
-| Description | String | Optional description |
 | Waves | List | Array of wave configurations |
+| Version | Number | Optimistic locking version |
 | CreatedDate | Number | Unix timestamp |
 | LastModifiedDate | Number | Unix timestamp |
 
-**Wave Object Structure**:
-
-```json
-{
-  "WaveId": "wave-1",
-  "WaveName": "Database Tier",
-  "WaveDescription": "Primary databases",
-  "ExecutionOrder": 0,
-  "ProtectionGroupId": "pg-uuid",
-  "ServerIds": ["s-xxx", "s-yyy"],
-  "PauseBeforeWave": false,
-  "Dependencies": [{"DependsOnWaveId": "wave-1"}]
-}
-```
-
 #### Execution History Table
-
 **Table Name**: `{project}-execution-history-{env}`
-
 **Partition Key**: `ExecutionId` (String)
-
 **Sort Key**: `PlanId` (String)
-
-**Global Secondary Indexes**:
-
-- `PlanIdIndex`: PlanId (partition), StartTime (sort)
-- `StatusIndex`: Status (partition), StartTime (sort)
+**GSI**: StatusIndex (Status, StartTime), PlanIdIndex (PlanId, StartTime)
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
 | ExecutionId | String | UUID primary key |
 | PlanId | String | Reference to Recovery Plan |
+| PlanName | String | Preserved plan name |
 | ExecutionType | String | DRILL or RECOVERY |
 | Status | String | Execution status |
+| Waves | List | Array of wave execution states |
 | StartTime | Number | Unix timestamp |
 | EndTime | Number | Unix timestamp (when completed) |
 | InitiatedBy | String | User who started execution |
-| Waves | List | Array of wave execution states |
-| TotalWaves | Number | Total waves in plan |
+| AccountContext | Map | Cross-account execution context |
 | StateMachineArn | String | Step Functions execution ARN |
-| TaskToken | String | Step Functions task token (for pause/resume) |
-| PausedBeforeWave | Number | Wave number paused before |
-| InstancesTerminated | Boolean | Whether instances were terminated |
-| ErrorMessage | String | Error details if failed |
+| TaskToken | String | Step Functions task token (pause/resume) |
 
-### Execution Status Values
+#### Target Accounts Table
+**Table Name**: `{project}-target-accounts-{env}`
+**Partition Key**: `AccountId` (String)
+**GSI**: StatusIndex for health monitoring
 
-| Status | Description |
-|--------|-------------|
-| PENDING | Execution created, not yet started |
-| RUNNING | Step Functions execution in progress |
-| POLLING | Waiting for DRS job completion |
-| LAUNCHING | EC2 instances being launched |
-| PAUSED | Paused before wave (waitForTaskToken) |
-| COMPLETED | All waves completed successfully |
-| PARTIAL | Some waves completed, some failed |
-| FAILED | Execution failed |
-| CANCELLED | Execution cancelled by user |
-| CANCELLING | Cancellation in progress |
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| AccountId | String | AWS account ID |
+| AssumeRoleName | String | Cross-account IAM role name |
+| CrossAccountRoleArn | String | Full ARN of cross-account role |
+| IsDefault | Boolean | Default account flag |
+| HealthStatus | String | Account health status |
+| LastHealthCheck | Number | Unix timestamp |
 
 ---
 
-## Validation Rules Summary
+## Validation Rules
 
 ### Protection Group Validation
-
 | Rule | Error Code |
 |------|------------|
-| Name required (1-128 chars) | 400 |
-| Name must be globally unique | PG_NAME_EXISTS (409) |
-| Region required | 400 |
-| At least one server required | 400 |
-| Server IDs must exist in DRS | INVALID_SERVER_IDS (400) |
-| Servers cannot be assigned to other PGs | SERVER_ASSIGNMENT_CONFLICT (409) |
-| Cannot update if in active execution | PG_IN_ACTIVE_EXECUTION (409) |
-| Cannot delete if used in any Recovery Plan | PG_IN_USE (409) |
+| Name required (1-64 chars) | MISSING_FIELD |
+| Name globally unique | PG_NAME_EXISTS |
+| Region required | MISSING_FIELD |
+| Server selection mode required | INVALID_SELECTION_MODE |
+| Cannot update during active execution | PG_IN_ACTIVE_EXECUTION |
+| Cannot delete if referenced by plans | PG_IN_USE |
 
 ### Recovery Plan Validation
-
 | Rule | Error Code |
 |------|------------|
-| Name required | 400 |
-| Name must be globally unique | RP_NAME_EXISTS (409) |
-| At least one wave required | 400 |
-| Each wave must have Protection Group | 400 |
-| Each wave must have at least one server | 400 |
-| Wave dependencies must reference previous waves | 400 |
-| Cannot update if execution in progress | PLAN_HAS_ACTIVE_EXECUTION (409) |
-| Cannot delete if execution in progress | PLAN_HAS_ACTIVE_EXECUTION (409) |
+| Name required (1-64 chars) | MISSING_FIELD |
+| Name globally unique | RP_NAME_EXISTS |
+| At least one wave required | MISSING_WAVES |
+| Wave size ≤ 100 servers | WAVE_SIZE_LIMIT_EXCEEDED |
+| Cannot update during execution | PLAN_HAS_ACTIVE_EXECUTION |
 
 ### Execution Validation
-
 | Rule | Error Code |
 |------|------------|
-| PlanId required | 400 |
-| ExecutionType must be DRILL or RECOVERY | 400 |
-| Plan must exist | 404 |
-| Plan must have waves | 400 |
-| Plan cannot have active execution | PLAN_ALREADY_EXECUTING (409) |
-| Servers cannot be in other active executions | SERVER_CONFLICT (409) |
-| Resume only valid for PAUSED status | 400 |
-| Terminate only valid for terminal states | 400 |
-
-### DRS Server Management Validation
-
-| Rule | Error Code |
-|------|------------|
-| Server ID must exist in DRS | 404 |
-| Region required for all operations | 400 |
-| Tag key cannot start with aws: | 400 |
-| Tag key max 128 characters | 400 |
-| Tag value max 256 characters | 400 |
-| Max 50 tags per server | 400 |
-| IOPS only valid for GP3, IO1, IO2 | 400 |
-| Throughput only valid for GP3 | 400 |
-| SSM timeout must be 120-3600 seconds | 400 |
-
----
-
-## Appendix: Status Flow Diagrams
-
-### Execution Status Flow
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING: Start Execution
-    PENDING --> RUNNING: Step Functions Started
-    RUNNING --> POLLING: Wave Initiated
-    POLLING --> LAUNCHING: DRS Job Started
-    LAUNCHING --> POLLING: Next Wave
-    LAUNCHING --> PAUSED: pauseBeforeWave
-    PAUSED --> RUNNING: Resume
-    LAUNCHING --> COMPLETED: All Waves Done
-    LAUNCHING --> PARTIAL: Some Waves Failed
-    LAUNCHING --> FAILED: Critical Failure
-    RUNNING --> CANCELLED: User Cancel
-    POLLING --> CANCELLED: User Cancel
-    PAUSED --> CANCELLED: User Cancel
-    COMPLETED --> [*]
-    PARTIAL --> [*]
-    FAILED --> [*]
-    CANCELLED --> [*]
-```
-
-### Wave Execution Flow
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING: Wave Created
-    PENDING --> PAUSED: pauseBeforeWave=true
-    PAUSED --> INITIATED: Resume
-    PENDING --> INITIATED: pauseBeforeWave=false
-    INITIATED --> POLLING: DRS Job Created
-    POLLING --> LAUNCHING: Servers Launching
-    LAUNCHING --> COMPLETED: All LAUNCHED
-    LAUNCHING --> FAILED: Launch Error
-    POLLING --> FAILED: Job Failed
-    COMPLETED --> [*]
-    FAILED --> [*]
-```
+| Plan must exist | RECOVERY_PLAN_NOT_FOUND |
+| No server conflicts | SERVER_CONFLICT |
+| DRS service limits compliance | Various limit codes |
+| Healthy server replication | UNHEALTHY_SERVER_REPLICATION |
 
 ---
 
@@ -1522,10 +524,5 @@ stateDiagram-v2
 
 - [Product Requirements Document](./PRODUCT_REQUIREMENTS_DOCUMENT.md)
 - [UX/UI Design Specifications](./UX_UI_DESIGN_SPECIFICATIONS.md)
-- [DRS Server Info Implementation](../implementation/DRS_SERVER_INFO_MVP_PLAN.md)
-- [DRS Launch Settings Implementation](../implementation/DRS_LAUNCH_SETTINGS_MVP_PLAN.md)
-- [EC2 Launch Template Implementation](../implementation/EC2_LAUNCH_TEMPLATE_MVP_PLAN.md)
-- [DRS Tags Implementation](../implementation/DRS_TAGS_MVP_PLAN.md)
-- [DRS Disk Settings Implementation](../implementation/DRS_DISK_SETTINGS_MVP_PLAN.md)
-- [DRS Replication Settings Implementation](../implementation/DRS_REPLICATION_SETTINGS_MVP_PLAN.md)
-- [DRS Post-Launch Implementation](../implementation/DRS_POST_LAUNCH_MVP_PLAN.md)
+- [Architectural Design Document](../architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md)
+- [API Reference Guide](../guides/API_REFERENCE_GUIDE.md)
