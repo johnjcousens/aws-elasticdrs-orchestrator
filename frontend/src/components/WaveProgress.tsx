@@ -241,21 +241,29 @@ const formatRelativeTime = (timestamp: string | number | undefined): string => {
 const getStatusDescription = (status: string, jobEvents?: JobLogEvent[]): string => {
   const statusUpper = status.toUpperCase();
   
-  // For STARTED status, check job events to determine if it's launching or terminating
+  // For STARTED status, check job events to determine current DRS phase
   if (statusUpper === 'STARTED' && jobEvents && jobEvents.length > 0) {
-    const hasCleanupEvents = jobEvents.some(event => 
-      event.event.toUpperCase().includes('CLEANUP')
-    );
-    const hasLaunchEvents = jobEvents.some(event => 
-      event.event.toUpperCase().includes('LAUNCH')
+    // Get the most recent event to show current phase
+    const sortedEvents = [...jobEvents].sort((a, b) => 
+      new Date(b.logDateTime).getTime() - new Date(a.logDateTime).getTime()
     );
     
-    if (hasCleanupEvents) {
-      return 'DRS job initiated, terminating instances';
-    } else if (hasLaunchEvents) {
+    const latestEvent = sortedEvents[0]?.event.toUpperCase();
+    
+    // Map DRS events to current phase descriptions
+    if (latestEvent?.includes('CLEANUP')) {
+      return 'DRS job initiated, cleanup in progress';
+    } else if (latestEvent?.includes('LAUNCH')) {
       return 'DRS job initiated, launching instances';
+    } else if (latestEvent?.includes('CONVERSION')) {
+      return 'DRS job initiated, converting instances';
+    } else if (latestEvent?.includes('SNAPSHOT')) {
+      return 'DRS job initiated, taking snapshots';
+    } else if (latestEvent?.includes('JOB_START')) {
+      return 'DRS job initiated, starting recovery';
     }
-    // Default for STARTED without clear job type
+    
+    // Default for STARTED without clear phase
     return 'DRS job initiated';
   }
   
