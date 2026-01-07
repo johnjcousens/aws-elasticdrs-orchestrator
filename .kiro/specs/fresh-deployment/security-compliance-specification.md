@@ -483,7 +483,7 @@ urllib3==2.0.7
 # Security scanning in CI/CD
 pip-audit==2.6.1
 safety==2.3.5
-bandit==1.7.5
+bandit==1.9.2
 ```
 
 ## Infrastructure Security
