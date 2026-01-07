@@ -56,11 +56,13 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 | Releases | [Releases](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases) |
 | Actions | [Actions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions) |
 
-## 🚀 **Latest Release: v1.4.0 - API Gateway 6-Nested-Stack Architecture**
+## 🚀 **Latest Release: v1.4.1 - Critical Async Worker Fix**
 
-**Latest Version**: v1.4.0 (January 6, 2026) - Complete modular API Gateway implementation with 6 nested stacks for CloudFormation size compliance. Split monolithic 94,861-character template into maintainable components while preserving all 42 endpoints.
+**Latest Version**: v1.4.1 (January 7, 2026) - Fixed critical async worker validation bug that prevented Step Functions orchestration from starting. Executions now properly show populated waves and "Resume" functionality.
 
-**[View Complete Release Notes →](CHANGELOG.md#140---january-6-2026)**
+**Previous Version**: v1.4.0 (January 6, 2026) - Complete modular API Gateway implementation with 6 nested stacks for CloudFormation size compliance.
+
+**[View Complete Release Notes →](CHANGELOG.md#141---january-7-2026)**
 
 ## Overview
 
