@@ -433,7 +433,10 @@ const calculateOverallProgressWithLogs = (
   if (!waves || waves.length === 0) return { percentage: 0, completedWaves: 0, totalWaves: planTotalWaves || 0, activeWaves: 0 };
   
   const totalWaves = planTotalWaves || waves.length;
-  const completedWaves = waves.filter(w => ['completed', 'COMPLETED'].includes(w.status)).length;
+  const completedWaves = waves.filter(w => {
+    const status = (w.status || '').toUpperCase();
+    return status === 'COMPLETED';
+  }).length;
   
   // Count waves that are actually running (not cancelled/pending)
   const activeWaves = waves.filter(w => {
