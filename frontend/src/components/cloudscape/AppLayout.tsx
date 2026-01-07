@@ -60,7 +60,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation - robust approach that preserves Router context
+  // Handle navigation - simple fallback approach
   const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
     const href = event.detail.href;
@@ -73,18 +73,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       return;
     }
     
-    // Use a timeout to ensure the navigation happens after the current render cycle
-    setTimeout(() => {
-      try {
-        navigate(href);
-        console.log('Navigation completed to:', href);
-      } catch (error) {
-        console.error('Navigation error:', error);
-        // Fallback: force page reload to the target URL
-        window.location.href = href;
-      }
-    }, 0);
-  }, [navigate, location.pathname]);
+    // Always use window.location for now to test if this fixes the issue
+    console.log('Using window.location navigation to:', href);
+    window.location.href = href;
+  }, [location.pathname]);
 
   // Handle breadcrumb navigation
   const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
@@ -159,7 +151,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         navigation={
           !navigationHide ? (
             <SideNavigation
-              key={location.pathname} // Force re-render on location change
               activeHref={location.pathname}
               items={navigationItems as SideNavigationProps['items']}
               onFollow={handleNavigationFollow}
