@@ -482,6 +482,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     }
     
     // Check if any waves are still actively running
+    // Note: "unknown" status means the wave completed but status wasn't updated - NOT active
     const activeWaveStatuses = [
       'in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated',
       'IN_PROGRESS', 'PENDING', 'RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED'
