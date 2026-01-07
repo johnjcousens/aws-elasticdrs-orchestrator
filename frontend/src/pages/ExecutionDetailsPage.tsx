@@ -50,6 +50,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     jobIds: string[];
     region?: string;
   } | null>(null);
+  const [terminationProgress, setTerminationProgress] = useState<number>(0);
 
   // Fetch execution details
   const fetchExecution = useCallback(async (silent = false) => {
@@ -127,6 +128,7 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     if (isTerminated) {
       setTerminationInProgress(false);
+      setTerminationProgress(100);
       // NOW show the success message - termination is actually complete
       const instanceCount = terminationJobInfo?.totalInstances || 0;
       if (instanceCount > 0) {
@@ -146,11 +148,23 @@ export const ExecutionDetailsPage: React.FC = () => {
           const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
           
           // Update progress - handle case where DRS clears participatingServers on completion
-          // Progress tracking removed - just check completion status
+          if (statusResult.progressPercent !== undefined) {
+            setTerminationProgress(statusResult.progressPercent);
+          } else if (statusResult.allCompleted) {
+            // If all jobs completed but no progress percent, set to 100%
+            setTerminationProgress(100);
+          } else {
+            // Calculate progress based on job completion status
+            const completedJobs = statusResult.jobs?.filter(j => j.status === 'COMPLETED').length || 0;
+            const totalJobs = statusResult.jobs?.length || 1;
+            const jobProgress = Math.round((completedJobs / totalJobs) * 100);
+            setTerminationProgress(jobProgress);
+          }
           
           // Check if all jobs completed
           if (statusResult.allCompleted) {
             setTerminationInProgress(false);
+            setTerminationProgress(100);
             const instanceCount = terminationJobInfo?.totalInstances || statusResult.totalServers || 0;
             if (statusResult.anyFailed) {
               setTerminateSuccess(`Terminated ${statusResult.completedServers} of ${instanceCount} recovery instance(s). Some failed.`);
@@ -243,6 +257,8 @@ export const ExecutionDetailsPage: React.FC = () => {
           jobIds: jobIds,
           region: region
         });
+        setTerminationProgress(10); // Start with 10% to show progress has begun
+        
         // Keep terminationInProgress true - polling will detect when complete
         // Do NOT show success message yet - wait for actual completion
       } else if (result.totalFailed > 0) {
