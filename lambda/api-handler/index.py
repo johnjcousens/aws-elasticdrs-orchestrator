@@ -5090,9 +5090,9 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             )
                             
                             if all_launched:
-                                wave["Status"] = "COMPLETED"
+                                wave["Status"] = "completed"
                                 wave["EndTime"] = int(time.time())  # Set end time when reconciling to completed
-                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to COMPLETED")
+                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to completed")
                             else:
                                 wave["Status"] = "FAILED"
                                 wave["StatusMessage"] = "Some servers failed to launch"
@@ -5162,7 +5162,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
         wave_status = (wave.get("Status") or "").upper()
         if wave_status in active_statuses:
             active_waves.append(wave)
-        elif wave_status == "COMPLETED":
+        elif wave_status in ["COMPLETED", "completed"]:
             completed_waves.append(wave)
         elif wave_status == "FAILED":
             failed_waves.append(wave)
@@ -5187,8 +5187,12 @@ def recalculate_execution_status(execution: Dict) -> Dict:
         else:
             execution["Status"] = "FAILED"  # All failed
     elif cancelled_waves and not active_waves and not failed_waves:
-        # All waves cancelled
-        execution["Status"] = "CANCELLED"
+        if completed_waves:
+            # Some waves completed, some cancelled
+            execution["Status"] = "PARTIAL"  # Some completed, some cancelled
+        else:
+            # All waves cancelled
+            execution["Status"] = "CANCELLED"
     elif (
         completed_waves
         and not active_waves
@@ -5397,7 +5401,7 @@ def cancel_execution(execution_id: str) -> Dict:
         cancelled_waves = []
 
         # Statuses that indicate a wave is done
-        completed_statuses = ["COMPLETED", "FAILED", "TIMEOUT"]
+        completed_statuses = ["COMPLETED", "completed", "FAILED", "TIMEOUT"]
         # Statuses that indicate a wave is currently running
         in_progress_statuses = [
             "IN_PROGRESS",
@@ -5577,7 +5581,7 @@ def pause_execution(execution_id: str) -> Dict:
             )
 
         # Find current wave state
-        completed_statuses = ["COMPLETED", "FAILED", "TIMEOUT", "CANCELLED"]
+        completed_statuses = ["COMPLETED", "completed", "FAILED", "TIMEOUT", "CANCELLED"]
         in_progress_statuses = [
             "IN_PROGRESS",
             "POLLING",
@@ -8096,7 +8100,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         ]:
             current_wave = i
             break
-        elif wave_status == "completed":
+        elif wave_status in ["completed", "COMPLETED"]:
             current_wave = i  # Last completed wave
 
     # If all completed or no waves, current = total

@@ -38,16 +38,16 @@ This Deployment and Operations Guide provides comprehensive instructions for dep
 
 ### Deployment Overview
 
-**Deployment Method**: AWS CloudFormation (Infrastructure as Code)  
-**Deployment Time**: ~20-30 minutes (first deployment), ~5-10 minutes (updates)  
-**Deployment Regions**: Any AWS DRS-enabled region (13 regions supported)  
-**Deployment Complexity**: Medium (requires AWS CLI, parameter configuration)
+**Deployment Method**: GitHub Actions CI/CD (Primary), AWS CloudFormation (Infrastructure as Code)  
+**Deployment Time**: ~22 minutes (GitHub Actions pipeline), ~20-30 minutes (manual CloudFormation)  
+**Deployment Regions**: Any AWS DRS-enabled region (30 regions supported)  
+**Deployment Complexity**: Low (GitHub Actions), Medium (manual CloudFormation)
 
 **Stack Structure**:
 - 1 master template (orchestrates 6 nested stacks)
-- 7 CloudFormation templates (3,000+ lines total)
-- 5 Lambda functions (Python 3.12)
-- 3 DynamoDB tables with GSI
+- 15+ CloudFormation templates (6,000+ lines total)
+- 7 Lambda functions (Python 3.12)
+- 4 DynamoDB tables with GSI
 - 1 Step Functions state machine
 - 1 React frontend (S3 + CloudFront)
 
@@ -136,33 +136,43 @@ This Deployment and Operations Guide provides comprehensive instructions for dep
 
 ## Initial Deployment
 
-### Step 1: Prepare Deployment Package
+### Step 1: Deploy Using GitHub Actions (Primary Method)
 
-#### Option A: Deploy from Git Repository (Recommended)
+#### Option A: GitHub Actions CI/CD (Recommended)
+
+**ALL deployments MUST use GitHub Actions CI/CD pipeline. Manual deployment scripts are for emergencies only.**
 
 ```bash
-# Clone repository
-git clone <repo-url>
-cd AWS-DRS-Orchestration
+# Standard development workflow (REQUIRED)
+git add .
+git commit -m "feat: describe your changes"
+git push origin main  # Triggers GitHub Actions workflow
 
-# Verify file structure
-ls cfn/        # CloudFormation templates
-ls lambda/     # Lambda function code
-ls frontend/   # React application code
-ls scripts/    # Deployment scripts
-
-# Use automated sync script to prepare S3 deployment bucket
-./scripts/sync-to-deployment-bucket.sh
+# Monitor deployment at:
+# https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
-#### Option B: Manual S3 Setup (Advanced)
+**Pipeline Stages:**
+1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
+2. **Security Scan** (~3 min) - Bandit security scan, Safety dependency check, Semgrep analysis
+3. **Build** (~3 min) - Lambda packaging, frontend build
+4. **Test** (~2 min) - Unit tests
+5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
+
+#### Option B: Manual Deployment (EMERGENCY ONLY)
+
+**RESTRICTED USE**: Only for genuine emergencies when GitHub Actions is unavailable.
 
 ```bash
-# Create S3 deployment bucket
-aws s3 mb s3://aws-drs-orchestration --region us-east-1
+# EMERGENCY ONLY - when GitHub Actions is down
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # 5 seconds
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn         # 5-10 minutes
 
-# Sync all components to S3
-./scripts/sync-to-deployment-bucket.sh --build-frontend
+# IMMEDIATELY follow up with Git commit
+git add .
+git commit -m "emergency: describe the critical fix"
+git push origin main
 ```
 
 ---
@@ -376,6 +386,7 @@ aws dynamodb list-tables --region $REGION | grep drs-orchestration
 # - protection-groups-prod
 # - recovery-plans-prod
 # - execution-history-prod
+# - target-accounts-prod
 
 # 4. Check Lambda functions
 aws lambda list-functions --region $REGION | grep drs-orchestration
@@ -383,6 +394,11 @@ aws lambda list-functions --region $REGION | grep drs-orchestration
 # Expected:
 # - aws-drs-orchestrator-api-handler-prod
 # - aws-drs-orchestrator-orchestration-stepfunctions-prod
+# - aws-drs-orchestrator-frontend-builder-prod
+# - aws-drs-orchestrator-execution-finder-prod
+# - aws-drs-orchestrator-execution-poller-prod
+# - aws-drs-orchestrator-bucket-cleaner-prod
+# - aws-drs-orchestrator-notification-formatter-prod
 ```
 
 **Success Criteria**:
@@ -408,6 +424,7 @@ Environment:
     PROTECTION_GROUPS_TABLE: protection-groups-prod
     RECOVERY_PLANS_TABLE: recovery-plans-prod
     EXECUTION_HISTORY_TABLE: execution-history-prod
+    TARGET_ACCOUNTS_TABLE: target-accounts-prod
     STATE_MACHINE_ARN: arn:aws:states:us-east-1:123456789012:stateMachine:DRS-Orchestration-prod
     LOG_LEVEL: INFO
     REGION: us-east-1
@@ -837,6 +854,10 @@ aws dynamodb create-backup \
 aws dynamodb create-backup \
   --table-name execution-history-prod \
   --backup-name execution-history-manual-$(date +%Y%m%d-%H%M%S)
+
+aws dynamodb create-backup \
+  --table-name target-accounts-prod \
+  --backup-name target-accounts-manual-$(date +%Y%m%d-%H%M%S)
 
 # List backups
 aws dynamodb list-backups \
