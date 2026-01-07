@@ -61,10 +61,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   ];
 
   // Handle navigation
-  const handleNavigationFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
+  const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
-    navigate(event.detail.href);
-  };
+    const href = event.detail.href;
+    
+    // Only navigate if the href is different from current location
+    if (href !== location.pathname) {
+      navigate(href);
+    }
+  }, [navigate, location.pathname]);
 
   // Handle breadcrumb navigation
   const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
