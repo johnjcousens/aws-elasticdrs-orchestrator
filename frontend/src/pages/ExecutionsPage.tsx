@@ -34,6 +34,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { InvocationSourceBadge } from '../components/InvocationSourceBadge';
 import type { InvocationSource, InvocationDetails } from '../components/InvocationSourceBadge';
+import { useApiErrorHandler } from '../hooks/useApiErrorHandler';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
 
@@ -41,6 +42,7 @@ export const ExecutionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
   const { getCurrentAccountId } = useAccount();
+  const { handleError } = useApiErrorHandler();
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -104,9 +106,15 @@ export const ExecutionsPage: React.FC = () => {
       setExecutions(Array.isArray(response?.items) ? response.items : []);
       setLastRefresh(new Date());
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to load executions';
-      setErrorMsg(msg);
-      addNotification('error', msg);
+      const error = err instanceof Error ? err : new Error('Failed to load executions');
+      try {
+        await handleError(error);
+      } catch (handledError) {
+        // If handleError doesn't handle it (non-auth error), show the error
+        const msg = handledError instanceof Error ? handledError.message : 'Failed to load executions';
+        setErrorMsg(msg);
+        addNotification('error', msg);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -174,8 +182,14 @@ export const ExecutionsPage: React.FC = () => {
       await fetchExecutions();
     } catch (err: unknown) {
       console.error('Delete executions error:', err);
-      const msg = err instanceof Error ? err.message : 'Failed to delete selected executions';
-      addNotification('error', msg);
+      const error = err instanceof Error ? err : new Error('Failed to delete selected executions');
+      try {
+        await handleError(error);
+      } catch (handledError) {
+        // If handleError doesn't handle it (non-auth error), show the error
+        const msg = handledError instanceof Error ? handledError.message : 'Failed to delete selected executions';
+        addNotification('error', msg);
+      }
     } finally {
       setClearing(false);
     }

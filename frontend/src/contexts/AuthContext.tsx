@@ -82,6 +82,7 @@ interface AuthContextType extends AuthState {
   currentUsername: string | null;
   handlePasswordChanged: () => Promise<void>;
   recordActivity: () => void;
+  handleAuthError: (error: Error) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -183,13 +184,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           handleSignOut().catch(console.error);
         }, INACTIVITY_TIMEOUT);
       } else {
-        // Sign out if token refresh fails - will be defined later
-        handleSignOut();
+        // Sign out if token refresh fails
+        console.warn('Token refresh failed - no tokens in session');
+        await handleSignOut();
       }
     } catch (error) {
       console.error('❌ Token refresh failed:', error);
-      // Sign out if token refresh fails - will be defined later
-      handleSignOut();
+      // Sign out if token refresh fails
+      await handleSignOut();
     }
   }, [clearTokenRefreshTimer, clearInactivityTimer, TOKEN_REFRESH_TIME, INACTIVITY_TIMEOUT]);
 
@@ -505,6 +507,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   /**
+   * Handle authentication errors from API calls
+   */
+  const handleAuthError = useCallback(async (error: Error): Promise<void> => {
+    if (error.message.includes('Authentication required') || error.message.includes('token expired')) {
+      console.warn('Authentication error detected, signing out user');
+      await handleSignOut();
+    }
+  }, []);
+
+  /**
    * Handle successful password change
    */
   const handlePasswordChanged = async (): Promise<void> => {
@@ -522,6 +534,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     currentUsername,
     handlePasswordChanged,
     recordActivity,
+    handleAuthError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

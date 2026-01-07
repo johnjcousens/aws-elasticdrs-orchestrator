@@ -186,9 +186,9 @@ class ApiClient {
 
           if (status === 401) {
             // Unauthorized - token expired or invalid
-            console.error('Authentication error - redirecting to login');
-            // Trigger re-authentication
-            window.location.href = '/login';
+            console.error('Authentication error - token expired or invalid');
+            // Instead of hard redirect, throw error to let components handle auth failure
+            throw new Error('Authentication required. Please sign in again.');
           } else if (status === 403) {
             // Forbidden - insufficient permissions
             const sanitizedMessage = sanitizeErrorMessage(data);
