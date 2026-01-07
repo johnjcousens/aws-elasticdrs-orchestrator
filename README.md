@@ -7,7 +7,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.4.0%20API%20Gateway%20Architecture-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.0)
+[![Release](https://img.shields.io/badge/Release-v1.4.2%20Performance%20Optimizations-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.2)
 
 ## 🤖 **For AI Agents - Start Here**
 
@@ -32,10 +32,10 @@ This repository is **optimized for AI-assisted development** with comprehensive 
 
 The [`docs/requirements/`](docs/requirements/) directory contains the **authoritative project requirements**:
 
-- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD v2.1 with EventBridge security features
-- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v2.1 with comprehensive API catalog
-- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design and interaction patterns v2.1
-- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v2.1
+- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD v3.0 with EventBridge security features
+- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v3.0 with comprehensive API catalog
+- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design and interaction patterns v3.0
+- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v3.0
 
 **These documents are the single source of truth for all project requirements, features, and specifications.**
 
@@ -76,19 +76,184 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Sub-Second RPO**: Leverages AWS DRS continuous replication capabilities
 - **Fully Serverless**: No infrastructure to manage, scales automatically
 
+## Critical Architectural Solutions
+
+The solution addresses three fundamental challenges in enterprise disaster recovery orchestration through innovative AWS-native implementations:
+
+### 🌊 **Wave-Based Orchestration with Step Functions**
+
+**The Challenge**: Enterprise applications require coordinated recovery across multiple tiers (database → application → web) with manual validation points and dependency management.
+
+**Our Solution**: Step Functions state machine with `waitForTaskToken` callback pattern enables sophisticated orchestration:
+
+```python
+# Step Functions orchestration with pause/resume capability
+{
+  "Type": "Task",
+  "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+  "Parameters": {
+    "FunctionName": "orchestration-stepfunctions",
+    "Payload": {
+      "taskToken.$": "$$.Task.Token",
+      "executionId.$": "$.executionId",
+      "waveNumber.$": "$.currentWave"
+    }
+  }
+}
+```
+
+**Why Critical**:
+- **Manual Validation**: Pause execution before critical waves for human approval
+- **Dependency Management**: Waves only start after dependencies complete successfully
+- **Long-Running Operations**: Task tokens support up to 1-year execution timeouts
+- **Real-Time Control**: Resume, cancel, or terminate operations at any point
+- **Audit Trail**: Complete execution history with wave-by-wave progress tracking
+
+### 🏷️ **Dynamic Tag Synchronization**
+
+**The Challenge**: DRS source servers lose EC2 tags during replication, breaking tag-based protection group filtering and recovery automation.
+
+**Our Solution**: EventBridge-scheduled tag synchronization with multi-layer security validation:
+
+```python
+# Automated tag sync with security validation
+def sync_tags_across_regions(account_id: str) -> dict:
+    """Sync EC2 tags to DRS source servers across all regions."""
+    results = {}
+    for region in DRS_SUPPORTED_REGIONS:
+        # Get EC2 instances and their tags
+        ec2_tags = get_ec2_instance_tags(region, account_id)
+        
+        # Get corresponding DRS source servers
+        drs_servers = get_drs_source_servers(region, account_id)
+        
+        # Sync tags with conflict resolution
+        for server in drs_servers:
+            if server['sourceServerID'] in ec2_tags:
+                sync_server_tags(server, ec2_tags[server['sourceServerID']])
+    
+    return results
+```
+
+**Why Critical**:
+- **Dynamic Server Selection**: Protection groups automatically include/exclude servers based on current tags
+- **Operational Flexibility**: Change server assignments without modifying recovery plans
+- **Multi-Region Support**: Synchronizes across all 30 AWS DRS regions automatically
+- **Security Validation**: EventBridge rules include IP validation and request structure validation
+- **Scheduled Automation**: Configurable intervals (15min to 24hr) with manual override capability
+
+### ⚙️ **Advanced DRS Launch Settings Management**
+
+**The Challenge**: DRS launch settings (instance types, subnets, security groups) must be configured per server but managed at scale across protection groups.
+
+**Our Solution**: Hierarchical launch configuration with inheritance and override patterns:
+
+```python
+# Protection Group launch configuration inheritance
+class LaunchConfigManager:
+    def resolve_launch_config(self, server_id: str, protection_group: dict) -> dict:
+        """Resolve launch configuration with inheritance hierarchy."""
+        config = {}
+        
+        # 1. Start with DRS service defaults
+        config.update(self.get_drs_defaults())
+        
+        # 2. Apply Protection Group settings
+        if protection_group.get('launchConfig'):
+            config.update(protection_group['launchConfig'])
+        
+        # 3. Apply server-specific overrides
+        server_config = self.get_server_launch_config(server_id)
+        if server_config:
+            config.update(server_config)
+        
+        return self.validate_launch_config(config)
+```
+
+**Why Critical**:
+- **Consistent Recovery Environment**: Ensures servers launch with appropriate network and security settings
+- **Right-Sizing**: Automatic instance type selection based on source server characteristics
+- **Network Isolation**: Configurable subnet and security group assignments for recovery VPCs
+- **Compliance**: Maintains security policies and compliance requirements during recovery
+- **Cost Optimization**: Prevents over-provisioning during drill operations
+
+### 🔄 **Protection Groups & Recovery Plans Architecture**
+
+**Our Implementation**: Two-tier abstraction that separates server grouping from recovery orchestration:
+
+**Protection Groups** (Server Organization):
+- **Tag-Based Selection**: Servers automatically included based on tag criteria
+- **Explicit Selection**: Manual server assignment for precise control
+- **Conflict Detection**: Prevents servers from being assigned to multiple groups
+- **Launch Configuration**: Inherited settings applied to all group servers
+
+**Recovery Plans** (Orchestration Logic):
+- **Multi-Wave Sequences**: Unlimited waves with dependency management
+- **Multi-Protection-Group Waves**: Single wave can include multiple protection groups
+- **Pause Points**: Manual validation between waves
+- **Execution Types**: Drill vs Recovery mode with different behaviors
+
+```python
+# Recovery plan execution with wave dependencies
+class RecoveryPlanExecutor:
+    def execute_wave(self, wave: dict, execution_context: dict):
+        """Execute a recovery wave with dependency validation."""
+        # Validate wave dependencies are complete
+        self.validate_wave_dependencies(wave, execution_context)
+        
+        # Check for pause requirement
+        if wave.get('pauseBeforeWave') and wave['waveNumber'] > 0:
+            return self.pause_for_manual_validation(wave, execution_context)
+        
+        # Resolve servers from multiple protection groups
+        servers = self.resolve_wave_servers(wave['protectionGroupIds'])
+        
+        # Execute DRS recovery with parallel launch + delays
+        return self.launch_servers_with_delays(servers, execution_context)
+```
+
+**Why This Architecture is Critical**:
+- **Separation of Concerns**: Server grouping logic separate from orchestration logic
+- **Reusability**: Protection groups can be used across multiple recovery plans
+- **Flexibility**: Tag-based groups automatically adapt to infrastructure changes
+- **Scalability**: Supports enterprise environments with hundreds of servers
+- **Maintainability**: Changes to server assignments don't require recovery plan updates
+
 ## Key Features
 
+### Wave-Based Orchestration Engine
+- **Step Functions Integration**: `waitForTaskToken` pattern enables pause/resume with up to 1-year timeouts
+- **Dependency Management**: Waves execute only after dependencies complete successfully
+- **Manual Validation Points**: Pause before critical waves for human approval
+- **Real-Time Control**: Resume, cancel, or terminate operations during execution
+- **Parallel Execution**: Servers within waves launch in parallel with DRS-safe 15-second delays
+
+### Dynamic Tag Synchronization
+- **EventBridge Scheduling**: Automated EC2 → DRS tag sync with configurable intervals (15min-24hr)
+- **Multi-Region Support**: Synchronizes across all 30 AWS DRS regions automatically
+- **Security Validation**: Multi-layer EventBridge security with IP and request validation
+- **Manual Override**: Immediate sync capability regardless of schedule settings
+- **Conflict Resolution**: Handles tag conflicts and server state changes gracefully
+
+### Advanced DRS Launch Settings
+- **Hierarchical Configuration**: Protection Group → Server-specific override inheritance
+- **Right-Sizing**: Automatic instance type selection based on source characteristics
+- **Network Isolation**: Configurable subnet and security group assignments
+- **Compliance Enforcement**: Maintains security policies during recovery operations
+- **Cost Optimization**: Prevents over-provisioning during drill operations
+
+### Protection Groups & Recovery Plans
+- **Tag-Based Selection**: Servers automatically included/excluded based on current tags
+- **Multi-Protection-Group Waves**: Single wave can orchestrate multiple protection groups
+- **Conflict Detection**: Prevents servers from being assigned to multiple groups globally
+- **Launch Configuration Inheritance**: Group-level settings applied to all member servers
+- **Dynamic Server Resolution**: Server lists resolved at execution time, not plan creation
+
 ### Comprehensive REST API
-- **42+ API Endpoints**: Complete REST API across 12 categories with RBAC security
+- **47+ API Endpoints**: Complete REST API across 12 categories with RBAC security
 - **Cross-Account Operations**: Manage DRS across multiple AWS accounts
 - **Direct Lambda Invocation**: Bypass API Gateway for AWS-native automation
 - **Configuration Export/Import**: Complete backup and restore capabilities
-
-### Protection Groups & Recovery Plans
-- **Automatic Server Discovery**: Real-time DRS source server discovery across all regions
-- **Tag-Based Selection**: Define Protection Groups using DRS source server tags
-- **Wave-Based Orchestration**: Multi-wave recovery sequences with dependency management
-- **Pause/Resume Execution**: Manual validation between waves
 
 ### Execution Monitoring
 - **Real-Time Dashboard**: Live execution progress with auto-refresh
@@ -104,7 +269,9 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 *[View/Edit Source Diagram](docs/architecture/AWS-DRS-Orchestration-Architecture.drawio)*
 
-The solution follows a serverless, event-driven architecture with clear separation between frontend, API, compute, data, and DRS integration layers. Users access the React frontend via CloudFront, authenticate through Cognito, and interact with the REST API backed by Lambda functions. The API Gateway is implemented as 6 nested CloudFormation stacks for maintainability and CloudFormation size compliance. Step Functions orchestrates wave-based recovery execution, coordinating with AWS DRS to launch recovery instances.
+The solution follows a serverless, event-driven architecture with clear separation between frontend, API, compute, data, and DRS integration layers. Users access the React frontend via CloudFront, authenticate through Cognito, and interact with the REST API backed by Lambda functions. The API Gateway is implemented as 6 nested CloudFormation stacks for maintainability and CloudFormation size compliance. 
+
+**Step Functions orchestrates wave-based recovery execution** using the `waitForTaskToken` callback pattern, enabling pause/resume functionality with task tokens that can persist up to 1 year. **EventBridge schedules automated tag synchronization** across all DRS regions, ensuring protection groups dynamically adapt to infrastructure changes. **DRS launch settings are managed hierarchically** with Protection Group defaults and server-specific overrides, ensuring consistent recovery environments while maintaining operational flexibility.
 
 ### Technology Stack
 
@@ -113,7 +280,7 @@ The solution follows a serverless, event-driven architecture with clear separati
 | Frontend   | React 19.1, TypeScript 5.9, CloudScape Design System 3.0 |
 | API        | Amazon API Gateway (REST), Amazon Cognito                |
 | Compute    | AWS Lambda (Python 3.12), AWS Step Functions             |
-| Database   | Amazon DynamoDB (3 tables with GSI)                      |
+| Database   | Amazon DynamoDB (4 tables with GSI)                      |
 | Hosting    | Amazon S3, Amazon CloudFront                             |
 | DR Service | AWS Elastic Disaster Recovery (DRS)                      |
 
@@ -195,7 +362,7 @@ aws cloudformation deploy \
 ```
 
 Deployment takes approximately 20-30 minutes and provides:
-- **Complete REST API** with 42+ endpoints across 12 categories
+- **Complete REST API** with 47+ endpoints across 12 categories
 - **Role-Based Access Control** with 5 granular roles
 - **Cross-Account Operations** for enterprise environments
 - **Tag-Based Server Selection** with automated synchronization
@@ -288,7 +455,7 @@ The solution uses a modular nested stack architecture for maintainability:
 | ----------------------------- | ------------------- | --------------------------------- |
 | `master-template.yaml`      | Root orchestrator   | Parameter propagation, outputs    |
 | `database-stack.yaml`       | Data persistence    | 4 DynamoDB tables with encryption |
-| `lambda-stack.yaml`         | Compute layer       | 5 Lambda functions, IAM roles     |
+| `lambda-stack.yaml`         | Compute layer       | 7 Lambda functions, IAM roles     |
 | `api-auth-stack.yaml`       | Authentication      | Cognito User Pool, Identity Pool, SNS |
 | `api-gateway-core-stack.yaml` | API Gateway Core   | REST API, authorizer, validator   |
 | `api-gateway-resources-stack.yaml` | API Resources | All 35+ API path definitions      |
@@ -304,12 +471,12 @@ The solution uses a modular nested stack architecture for maintainability:
 
 ### DynamoDB Tables
 
-| Table                       | Purpose             | Key Schema                            |
-| --------------------------- | ------------------- | ------------------------------------- |
-| `protection-groups-{env}` | Server groupings    | `GroupId` (PK)                      |
-| `recovery-plans-{env}`    | Wave configurations | `PlanId` (PK)                       |
-| `execution-history-{env}` | Audit trail         | `ExecutionId` (PK), `PlanId` (SK) |
-| `target-accounts-{env}`   | Multi-account management | `AccountId` (PK), StatusIndex GSI |
+| Table                       | Purpose             | Key Schema                            | Critical Data |
+| --------------------------- | ------------------- | ------------------------------------- | ------------- |
+| `protection-groups-{env}` | Server groupings    | `GroupId` (PK)                      | Tag-based selection criteria, launch configurations |
+| `recovery-plans-{env}`    | Wave configurations | `PlanId` (PK)                       | Multi-wave sequences, dependencies, pause points |
+| `execution-history-{env}` | Audit trail         | `ExecutionId` (PK), `PlanId` (SK) | Step Functions tokens, wave progress, server states |
+| `target-accounts-{env}`   | Multi-account management | `AccountId` (PK), StatusIndex GSI | Cross-account role ARNs, validation status |
 
 ## Cost Estimate
 
@@ -348,7 +515,7 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 ## Documentation
 
 ### Essential Guides
-- [API Reference Guide](docs/guides/API_REFERENCE_GUIDE.md) - Complete REST API documentation (42+ endpoints)
+- [API Reference Guide](docs/guides/API_REFERENCE_GUIDE.md) - Complete REST API documentation (47+ endpoints)
 - [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) - CLI, SSM, Step Functions integration
 - [DRS Execution Walkthrough](docs/guides/DRS_EXECUTION_WALKTHROUGH.md) - Complete drill and recovery procedures
 - [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) - Common issues and debugging
@@ -357,8 +524,7 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 
 ### Deployment Guides
 - [Fresh Deployment Guide](docs/guides/deployment/FRESH_DEPLOYMENT_GUIDE.md) - Complete fresh environment setup
-- [CI/CD Setup Guide](docs/guides/deployment/CICD_SETUP_GUIDE.md) - Automated deployment pipeline configuration
-- [CI/CD Activation Guide](docs/guides/deployment/ACTIVATE_CICD_GUIDE.md) - Enable automated deployments
+- [GitHub Actions CI/CD Guide](docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md) - Complete setup, usage, and troubleshooting guide for GitHub Actions CI/CD
 
 ### Development Guides
 - [Developer Onboarding Checklist](docs/guides/development/developer-onboarding-checklist.md) - New developer setup
@@ -373,10 +539,10 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 - [DRS Service Limits Testing](docs/guides/troubleshooting/DRS_SERVICE_LIMITS_TESTING.md) - Service limits and capacity planning
 
 ### Requirements & Architecture
-- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD v2.1
-- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v2.1
-- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design patterns v2.1
-- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v2.1
+- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD v3.0
+- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v3.0
+- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design patterns v3.0
+- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v3.0
 
 ### Implementation Features
 - [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md) - Multi-account DRS operations
@@ -388,7 +554,7 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 - [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service constraints and planning
 - [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) - Multi-account configuration
 
-*All documentation updated to v2.1 (January 1, 2026) with EventBridge security enhancements.*
+*All documentation updated to v3.0 (January 8, 2026) with complete requirements alignment.*
 
 ## Future Enhancements
 
@@ -425,7 +591,7 @@ Complete deployment automation for fresh AWS environments, including AWS native 
 ### Migration Specifications
 
 #### CI/CD Migration (GitLab → GitHub Actions) - COMPLETED
-The project has been fully migrated from GitLab CI/CD to GitHub Actions (January 2026). See the [GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md) for current deployment instructions.
+The project has been fully migrated from GitLab CI/CD to GitHub Actions (January 2026). See the [GitHub Actions CI/CD Guide](docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md) for current deployment instructions.
 
 **Migration Documentation** (archived for reference):
 - **[Requirements](.kiro/specs/cicd-migration/requirements.md)** - Migration requirements and acceptance criteria
@@ -445,7 +611,7 @@ The project has been fully migrated from GitLab CI/CD to GitHub Actions (January
 - Multi-Region Support across all 28 commercial AWS DRS regions
 
 #### ✅ **Comprehensive REST API** (v1.1.0)
-- 42+ API Endpoints across 12 categories
+- 47+ API Endpoints across 12 categories
 - Cross-Account Operations with automated role assumption
 - Configuration Export/Import with dry-run validation
 

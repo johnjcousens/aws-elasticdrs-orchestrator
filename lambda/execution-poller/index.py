@@ -668,7 +668,7 @@ def poll_wave_status(
                 )
 
                 if all_launched:
-                    wave["Status"] = "COMPLETED"
+                    wave["Status"] = "completed"
                     logger.info(
                         f"Wave {wave.get('WaveId')} completed - all servers LAUNCHED"
                     )
@@ -721,7 +721,7 @@ def poll_wave_status(
                 )
 
                 if all_launched and post_launch_complete:
-                    wave["Status"] = "COMPLETED"
+                    wave["Status"] = "completed"
                     logger.info(
                         f"Wave {wave.get('WaveId')} recovery completed"
                     )
@@ -955,7 +955,7 @@ def finalize_execution(
         if final_status:
             # Use provided final status (e.g., CANCELLED)
             status = final_status
-        elif all(w.get("Status") == "COMPLETED" for w in waves):
+        elif all(w.get("Status") in ["COMPLETED", "completed"] for w in waves):
             status = "COMPLETED"
         elif any(w.get("Status") == "FAILED" for w in waves):
             status = "FAILED"
