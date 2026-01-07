@@ -149,14 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     inactivityTimerRef.current = setTimeout(() => {
       // Sign out due to inactivity
-      signOut().then(() => {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          loading: false,
-          error: undefined,
-        });
-      }).catch(console.error);
+      handleSignOut().catch(console.error);
     }, INACTIVITY_TIMEOUT);
   }, [clearInactivityTimer, INACTIVITY_TIMEOUT]);
 
@@ -187,14 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         clearInactivityTimer();
         inactivityTimerRef.current = setTimeout(() => {
-          signOut().then(() => {
-            setAuthState({
-              isAuthenticated: false,
-              user: null,
-              loading: false,
-              error: undefined,
-            });
-          }).catch(console.error);
+          handleSignOut().catch(console.error);
         }, INACTIVITY_TIMEOUT);
       } else {
         // Sign out if token refresh fails - will be defined later
