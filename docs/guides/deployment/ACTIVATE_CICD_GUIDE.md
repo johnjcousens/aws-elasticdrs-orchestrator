@@ -6,7 +6,7 @@
 
 **GitHub Actions First Policy**: ALL deployments MUST use GitHub Actions CI/CD pipeline for:
 - ✅ **Audit Trail**: All changes tracked in Git history
-- ✅ **Quality Gates**: Automated validation, testing, security scanning
+- ✅ **Quality Gates**: Automated validation, testing, **comprehensive security scanning**
 - ✅ **Team Visibility**: All deployments visible to team members
 - ✅ **Enterprise Compliance**: Meets deployment standards and governance
 - ✅ **Rollback Capability**: Git-based rollback and deployment history
@@ -25,9 +25,9 @@ Your GitHub repository has these components deployed and ready:
 | **Deployment Bucket** | `aws-elasticdrs-orchestrator` | ✅ Active |
 
 ## What You'll Get
-- ✅ **6-Stage Pipeline**: Validate → Security Scan → Build → Test → Deploy Infrastructure → Deploy Frontend
+- ✅ **6-Stage Pipeline**: Validate → **Enhanced Security Scan** → Build → Test → Deploy Infrastructure → Deploy Frontend
 - ✅ **~20 minute deployments** with automatic rollback on failures
-- ✅ **Security scanning** with Bandit and Safety integration
+- ✅ **Enhanced security scanning** with comprehensive tool coverage and automated thresholds
 - ✅ **Real-time monitoring** via GitHub Actions UI
 - ✅ **OIDC authentication** - no long-lived AWS credentials needed
 
@@ -76,13 +76,13 @@ git push origin main
 | Stage | Purpose | Duration | Status Indicator |
 |-------|---------|----------|------------------|
 | **Validate** | CloudFormation validation, Python linting, TypeScript checking | ~2 min | ✅ |
-| **Security Scan** | Bandit security scan, Safety dependency check | ~2 min | ✅ |
+| **Security Scan** | **Enhanced comprehensive security analysis with thresholds** | ~3 min | ✅ |
 | **Build** | Lambda packaging, frontend builds | ~3 min | ✅ |
 | **Test** | Unit tests, integration tests | ~2 min | ✅ |
 | **Deploy Infrastructure** | CloudFormation stack updates | ~10 min | ✅ |
 | **Deploy Frontend** | S3 sync, CloudFront invalidation | ~2 min | ✅ |
 
-**⏱️ Total Duration**: ~20 minutes for complete deployment
+**⏱️ Total Duration**: ~22 minutes for complete deployment (enhanced security scanning adds ~1 minute)
 
 ## Step 4: Verify Successful Deployment
 

@@ -111,13 +111,70 @@ The GitHub Actions workflow (`.github/workflows/deploy.yml`) runs these stages:
 | Stage | Duration | Description |
 |-------|----------|-------------|
 | **Validate** | ~2 min | CloudFormation validation, Python linting, TypeScript checking |
-| **Security Scan** | ~2 min | Bandit security scan, Safety dependency check |
+| **Security Scan** | ~3 min | **Enhanced comprehensive security scanning** |
 | **Build** | ~3 min | Lambda packaging, frontend build |
 | **Test** | ~2 min | Unit tests |
 | **Deploy Infrastructure** | ~10 min | CloudFormation stack deployment |
 | **Deploy Frontend** | ~2 min | S3 sync, CloudFront invalidation |
 
-**Total: ~20 minutes** (similar to CodePipeline)
+**Total: ~22 minutes** (enhanced security scanning adds ~1 minute)
+
+### Enhanced Security Scanning Stage
+
+The security scanning stage includes **enterprise-grade security validation** with automated thresholds:
+
+#### Security Tools & Versions
+- **Bandit v1.7.5** - Python security analysis with medium+ severity detection
+- **Safety v2.3.4** - Python dependency vulnerability scanning  
+- **Semgrep v1.45.0** - Advanced security pattern matching for Python and YAML
+- **CFN-Lint v0.83.8** - CloudFormation security linting and best practices
+- **ESLint** - Frontend TypeScript/React security rule scanning
+- **NPM Audit** - Frontend dependency vulnerability detection
+
+#### Security Thresholds & Quality Gates
+```bash
+# Environment variables controlling security thresholds
+SECURITY_THRESHOLD_CRITICAL: "0"    # No critical issues allowed (fails build)
+SECURITY_THRESHOLD_HIGH: "10"       # Max 10 high-severity issues (warning)
+SECURITY_THRESHOLD_TOTAL: "50"      # Max 50 total issues (informational)
+```
+
+#### Comprehensive Scanning Scope
+- **Python Security**: `lambda/` and `scripts/` directories
+- **Frontend Security**: TypeScript/React patterns and NPM dependencies
+- **Infrastructure Security**: CloudFormation templates and YAML configurations
+- **Dependency Scanning**: Both Python (pip) and NPM vulnerability detection
+
+#### Security Reports & Artifacts
+- **Raw Reports**: JSON format for automated processing (`reports/security/raw/`)
+- **Formatted Reports**: Human-readable text format (`reports/security/formatted/`)
+- **Security Summary**: Consolidated findings with remediation guidance
+- **Threshold Validation**: Automated pass/fail decisions based on severity
+- **Artifact Retention**: 30-day GitHub Actions artifact storage
+
+#### Security Report Structure
+```text
+reports/security/
+├── raw/                    # JSON reports for automation
+│   ├── bandit-report.json
+│   ├── safety-report.json
+│   ├── semgrep-python.json
+│   ├── semgrep-cfn.json
+│   ├── npm-audit.json
+│   ├── eslint-security.json
+│   └── cfn-lint.json
+├── formatted/              # Human-readable reports
+│   ├── bandit-report.txt
+│   ├── safety-report.txt
+│   ├── semgrep-python.txt
+│   ├── semgrep-cfn.txt
+│   ├── npm-audit.txt
+│   ├── eslint-security.txt
+│   └── cfn-lint.txt
+└── security-summary.json   # Consolidated summary with thresholds
+```
+
+This enhanced security scanning restores the comprehensive capabilities from the original CodePipeline setup, ensuring enterprise-grade security validation for all deployments.
 
 ## Manual Deployment
 

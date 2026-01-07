@@ -576,7 +576,7 @@ This comprehensive code quality implementation ensures the AWS DRS Orchestration
 
 ## CI/CD Pipeline
 
-The project uses **GitHub Actions** for automated deployment with OIDC-based AWS authentication.
+The project uses **GitHub Actions** for automated deployment with comprehensive security scanning and OIDC-based AWS authentication.
 
 📋 **[GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md)** - Complete setup instructions for GitHub Actions CI/CD.
 
@@ -591,13 +591,46 @@ The project uses **GitHub Actions** for automated deployment with OIDC-based AWS
 | Stage | Duration | Description |
 |-------|----------|-------------|
 | **Validate** | ~2 min | CloudFormation validation, Python linting, TypeScript checking |
-| **Security Scan** | ~2 min | Bandit security scan, Safety dependency check |
+| **Security Scan** | ~3 min | **Enhanced comprehensive security scanning** |
 | **Build** | ~3 min | Lambda packaging, frontend build |
 | **Test** | ~2 min | Unit tests |
 | **Deploy Infrastructure** | ~10 min | CloudFormation stack deployment |
 | **Deploy Frontend** | ~2 min | S3 sync, CloudFront invalidation |
 
-**Total Duration**: ~20 minutes for complete deployment
+**Total Duration**: ~22 minutes for complete deployment
+
+### Enhanced Security Scanning
+
+The pipeline includes **enterprise-grade security scanning** with automated thresholds and comprehensive reporting:
+
+#### Security Tools & Coverage
+- **Bandit** (v1.7.5) - Python security analysis with medium+ severity detection
+- **Safety** (v2.3.4) - Python dependency vulnerability scanning
+- **Semgrep** (v1.45.0) - Advanced security pattern matching for Python and YAML
+- **CFN-Lint** (v0.83.8) - CloudFormation security linting and best practices
+- **ESLint** - Frontend TypeScript/React security rule scanning
+- **NPM Audit** - Frontend dependency vulnerability detection
+
+#### Security Thresholds & Quality Gates
+- **Critical Issues**: 0 allowed (fails build immediately)
+- **High Issues**: 10 maximum (warning, continues deployment)
+- **Total Issues**: 50 maximum (informational tracking)
+- **Automated Reporting**: JSON + human-readable formats with 30-day retention
+
+#### Comprehensive Scanning Scope
+- **Python Code**: `lambda/` and `scripts/` directories
+- **Frontend Code**: TypeScript/React security patterns and dependencies
+- **Infrastructure**: CloudFormation template security and compliance
+- **Dependencies**: Both Python (pip) and NPM vulnerability scanning
+
+#### Security Reports & Artifacts
+- **Structured Reports**: Raw JSON data + formatted text outputs
+- **Security Summary**: Consolidated findings with remediation guidance
+- **Threshold Validation**: Automated pass/fail decisions based on severity
+- **Artifact Retention**: 30-day GitHub Actions artifact storage
+- **Build Integration**: Security findings block deployment of critical vulnerabilities
+
+This enhanced security scanning restores the comprehensive capabilities from the original CodePipeline setup, ensuring enterprise-grade security validation for all deployments.
 
 ### Quick Start
 
