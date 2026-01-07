@@ -111,14 +111,27 @@ The project uses **GitHub Actions** for automated CI/CD deployment.
 
 ### Workflow Stages
 
-1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
-2. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
-3. **Build** (~3 min) - Lambda packaging, frontend build
-4. **Test** (~2 min) - Unit tests
-5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
-6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
+1. **Detect Changes** (~10s) - Analyzes changed files to determine deployment scope
+2. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking (skip for docs-only)
+3. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check (skip for docs-only)
+4. **Build** (~3 min) - Lambda packaging, frontend build (skip for docs-only)
+5. **Test** (~2 min) - Unit tests (skip for docs-only)
+6. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment (only if infrastructure/Lambda changed)
+7. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation (only if frontend changed or infrastructure deployed)
 
-**Total Duration**: ~20 minutes for complete deployment
+**Intelligent Pipeline Optimization**:
+- **Documentation-only**: ~30 seconds (95% time savings)
+- **Frontend-only**: ~12 minutes (45% time savings)  
+- **Full deployment**: ~22 minutes (complete pipeline)
+
+**Developer Tools**:
+- `./scripts/check-deployment-scope.sh` - Preview deployment scope before pushing
+  - Analyzes git changes to predict pipeline behavior
+  - Shows time estimates and cost savings
+  - Categorizes changes (docs-only, frontend-only, infrastructure)
+  - Provides deployment tips and GitHub Actions monitoring link
+- Automatic change detection via git diff analysis
+- Conditional job execution based on file changes
 
 ### Setup Instructions
 
@@ -159,11 +172,12 @@ aws cloudformation deploy \
 
 **ALL changes MUST go through GitHub Actions CI/CD pipeline:**
 
-1. **Make changes locally**
-2. **Commit changes**: `git add . && git commit -m "description"`
-3. **Push to trigger pipeline**: `git push`
-4. **Monitor GitHub Actions**: Verify deployment success
-5. **Never bypass the pipeline** for production changes
+1. **Preview deployment scope**: `./scripts/check-deployment-scope.sh`
+2. **Make changes locally**
+3. **Commit changes**: `git add . && git commit -m "description"`
+4. **Push to trigger pipeline**: `git push`
+5. **Monitor GitHub Actions**: Verify deployment success
+6. **Never bypass the pipeline** for production changes
 
 ### Manual Sync Script Usage (EMERGENCY ONLY)
 
@@ -198,33 +212,63 @@ s3://aws-elasticdrs-orchestrator/
 └── frontend/                # Frontend build artifacts
 ```
 
-## Reference Stack for Testing and Comparison
+## Stack Configuration (CRITICAL - READ CAREFULLY)
 
-### Working Reference Stack
-- **Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestrator-dev/11b25cb0-e5f7-11f0-bde4-12ca9f6188ad`
-- **API Gateway URL**: `https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev`
+### Current Development Stack (PRIMARY)
+- **Stack Name**: `aws-elasticdrs-orchestrator-dev`
+- **Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-elasticdrs-orchestrator-dev/00c30fb0-eb2b-11f0-9ca6-12010aae964f`
+- **API Gateway URL**: `https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev`
+- **Frontend URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
 - **Cognito User Pool ID**: `us-east-1_7ClH0e1NS`
 - **Cognito Client ID**: `6fepnj59rp7qup2k3n6uda5p19`
-- **Test User**: `testuser@example.com` / `TestPassword123!`
 
-### Usage Guidelines
-- Use reference stack to verify expected API behavior when debugging issues
-- Compare CloudFormation configurations when troubleshooting deployment problems
-- Test API endpoints on reference stack to understand correct response formats
-- Same test user credentials work on both current and reference stacks
+### Reference Stack (FOR COMPARISON ONLY)
+- **Stack Name**: `aws-drs-orchestrator-dev`
+- **Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestrator-dev/11b25cb0-e5f7-11f0-bde4-12ca9f6188ad`
+- **API Gateway URL**: `https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev`
+- **Frontend URL**: `https://deyrv5c5lyjou.cloudfront.net`
+- **Cognito User Pool ID**: `us-east-1_7ClH0e1NS` (SAME AS CURRENT)
+- **Cognito Client ID**: `6fepnj59rp7qup2k3n6uda5p19` (SAME AS CURRENT)
 
-### Authentication Example
+### Authentication (SAME FOR BOTH STACKS)
+- **Username**: `testuser@example.com`
+- **Password**: `TestPassword123!`
+- **User Pool**: `us-east-1_7ClH0e1NS` (SHARED BETWEEN STACKS)
+- **Client ID**: `6fepnj59rp7qup2k3n6uda5p19` (SHARED BETWEEN STACKS)
+
+### CRITICAL RULES FOR DEVELOPMENT
+
+1. **ALWAYS work on the CURRENT stack** (`aws-elasticdrs-orchestrator-dev`)
+2. **ONLY use reference stack for comparison** when debugging issues
+3. **SAME credentials work for both stacks** (shared Cognito configuration)
+4. **Different API endpoints** - use correct URL for each stack
+5. **Reference stack has existing executions with recovery instances**
+6. **Current stack may have fewer/different executions**
+
+### Authentication Example (Works for Both Stacks)
 ```bash
-# Get JWT token for reference stack
-aws cognito-idp admin-initiate-auth \
+# Get JWT token (same command for both stacks)
+TOKEN=$(aws cognito-idp admin-initiate-auth \
   --user-pool-id us-east-1_7ClH0e1NS \
   --client-id 6fepnj59rp7qup2k3n6uda5p19 \
   --auth-flow ADMIN_NO_SRP_AUTH \
   --auth-parameters USERNAME=testuser@example.com,PASSWORD=TestPassword123! \
   --region us-east-1 \
   --query 'AuthenticationResult.IdToken' \
-  --output text
+  --output text)
+
+# Use with current stack
+curl -H "Authorization: Bearer $TOKEN" "https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev/executions"
+
+# Use with reference stack (for comparison)
+curl -H "Authorization: Bearer $TOKEN" "https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev/executions"
 ```
+
+### Usage Guidelines
+- **Primary development**: Always use current stack
+- **Debugging**: Compare behavior with reference stack when needed
+- **Testing**: Test new features on current stack
+- **Reference data**: Use reference stack executions for understanding expected data structures
 
 ## Key Implementation Patterns
 
