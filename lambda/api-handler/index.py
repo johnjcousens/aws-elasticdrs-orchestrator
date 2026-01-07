@@ -5307,11 +5307,25 @@ def get_execution_details(execution_id: str) -> Dict:
 
         # CRITICAL FIX: Reconcile wave status with actual DRS job results for cancelled executions
         # This ensures wave status reflects actual DRS job completion when execution-poller stopped
+        original_waves = execution.get("Waves", [])
         execution = reconcile_wave_status_with_drs(execution)
-
-        # CRITICAL FIX: Reconcile wave status with actual DRS job results
-        # This ensures wave status reflects actual DRS job completion, especially for cancelled executions
-        execution = reconcile_wave_status_with_drs(execution)
+        
+        # Save updated wave statuses to DynamoDB if they changed
+        updated_waves = execution.get("Waves", [])
+        if original_waves != updated_waves:
+            try:
+                print(f"Saving updated wave statuses to DynamoDB for execution {execution_id}")
+                execution_history_table.update_item(
+                    Key={
+                        "ExecutionId": execution_id,
+                        "PlanId": execution.get("PlanId"),
+                    },
+                    UpdateExpression="SET Waves = :waves",
+                    ExpressionAttributeValues={":waves": updated_waves},
+                )
+                print(f"Successfully saved updated wave statuses for execution {execution_id}")
+            except Exception as e:
+                print(f"Error saving updated wave statuses to DynamoDB: {e}")
 
         # CRITICAL FIX: Recalculate execution status based on current wave statuses
         # This ensures the overall execution status reflects the actual state of waves
