@@ -55,7 +55,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   const [terminationProgress, setTerminationProgress] = useState<number>(0);
 
   // Fetch execution details
-  const fetchExecution = useCallback(async (silent = false) => {
+  const fetchExecution = async (silent = false) => {
     if (!executionId) return;
 
     try {
@@ -86,69 +86,119 @@ export const ExecutionDetailsPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [executionId, resumeInProgress, handleError]);
+  };
 
   // Initial fetch
   useEffect(() => {
     fetchExecution();
   }, [executionId]); // Only depend on executionId, not fetchExecution
 
-  // Real-time polling for active executions - simplified
+  // Real-time polling for active executions
   useEffect(() => {
-    if (!execution || !executionId) return;
+    if (!execution) return;
 
-    const isActive = ['in_progress', 'pending', 'paused', 'running', 'started', 'polling', 'launching', 'initiated', 'cancelling'].includes(execution.status) ||
-                     ['RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED', 'CANCELLING'].includes(execution.status as string);
+    const isActive = 
+      execution.status === 'in_progress' || 
+      execution.status === 'pending' ||
+      execution.status === 'paused' ||
+      execution.status === 'running' ||
+      execution.status === 'started' ||
+      execution.status === 'polling' ||
+      execution.status === 'launching' ||
+      execution.status === 'initiated' ||
+      execution.status === 'cancelling' ||
+      (execution.status as string) === 'RUNNING' ||
+      (execution.status as string) === 'STARTED' ||
+      (execution.status as string) === 'POLLING' ||
+      (execution.status as string) === 'LAUNCHING' ||
+      (execution.status as string) === 'INITIATED' ||
+      (execution.status as string) === 'CANCELLING';
 
     if (!isActive) return;
 
     const interval = setInterval(() => {
-      // Call API directly to avoid dependency issues
-      apiClient.getExecution(executionId).then(setExecution).catch(console.error);
-    }, 3000);
+      fetchExecution(true); // Silent refresh
+    }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
-  }, [execution?.status, executionId]); // Remove fetchExecution dependency
+  }, [execution]);
 
-  // Polling while termination is in progress - simplified
+  // Polling while termination is in progress
   useEffect(() => {
-    if (!terminationInProgress || !executionId) return;
+    if (!terminationInProgress || !execution) return;
 
+    // Check if instances are now terminated
+    const executionWithTermination = execution as Execution & {
+      instancesTerminated?: boolean;
+      InstancesTerminated?: boolean;
+    };
+    const isTerminated = 
+      executionWithTermination.instancesTerminated === true ||
+      executionWithTermination.InstancesTerminated === true;
+
+    if (isTerminated) {
+      setTerminationInProgress(false);
+      setTerminationProgress(100);
+      // NOW show the success message - termination is actually complete
+      const instanceCount = terminationJobInfo?.totalInstances || 0;
+      if (instanceCount > 0) {
+        setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
+      } else {
+        setTerminateSuccess('All recovery instances have been terminated.');
+      }
+      setTerminationJobInfo(null);
+      return;
+    }
+
+    // Poll for termination job status if we have job IDs
     const pollTerminationStatus = async () => {
-      if (terminationJobInfo?.jobIds?.length) {
+      if (terminationJobInfo?.jobIds?.length && executionId) {
         try {
           const region = terminationJobInfo.region || 'us-west-2';
           const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
           
+          // Update progress - handle case where DRS clears participatingServers on completion
           if (statusResult.progressPercent !== undefined) {
             setTerminationProgress(statusResult.progressPercent);
+          } else if (statusResult.allCompleted) {
+            // If all jobs completed but no progress percent, set to 100%
+            setTerminationProgress(100);
+          } else {
+            // Calculate progress based on job completion status
+            const completedJobs = statusResult.jobs?.filter(j => j.status === 'COMPLETED').length || 0;
+            const totalJobs = statusResult.jobs?.length || 1;
+            const jobProgress = Math.round((completedJobs / totalJobs) * 100);
+            setTerminationProgress(jobProgress);
           }
           
+          // Check if all jobs completed
           if (statusResult.allCompleted) {
             setTerminationInProgress(false);
             setTerminationProgress(100);
             const instanceCount = terminationJobInfo?.totalInstances || statusResult.totalServers || 0;
-            setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
+            if (statusResult.anyFailed) {
+              setTerminateSuccess(`Terminated ${statusResult.completedServers} of ${instanceCount} recovery instance(s). Some failed.`);
+            } else {
+              setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
+            }
             setTerminationJobInfo(null);
+            // Refresh execution to update UI
+            fetchExecution(true);
           }
         } catch (err) {
           console.error('Error polling termination status:', err);
         }
       }
-      // Refresh execution data directly
-      try {
-        const data = await apiClient.getExecution(executionId);
-        setExecution(data);
-      } catch (err) {
-        console.error('Error refreshing execution:', err);
-      }
+      // Also refresh execution status
+      fetchExecution(true);
     };
 
-    const interval = setInterval(pollTerminationStatus, 3000);
+    const interval = setInterval(pollTerminationStatus, 3000); // Poll every 3 seconds
+    // Initial poll
     pollTerminationStatus();
 
     return () => clearInterval(interval);
-  }, [terminationInProgress, executionId, terminationJobInfo?.jobIds?.length]); // Remove fetchExecution dependency
+  }, [terminationInProgress, execution, terminationJobInfo, executionId]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
@@ -159,9 +209,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     try {
       await apiClient.cancelExecution(executionId);
       setCancelDialogOpen(false);
-      // Refresh execution data directly
-      const data = await apiClient.getExecution(executionId);
-      setExecution(data);
+      await fetchExecution();
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to cancel execution';
       setCancelError(errorMessage);
@@ -179,9 +227,7 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     try {
       await apiClient.resumeExecution(executionId);
-      // Refresh execution data directly
-      const data = await apiClient.getExecution(executionId);
-      setExecution(data);
+      await fetchExecution();
       // Keep resumeInProgress true - status polling will update when execution resumes
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to resume execution';
@@ -232,17 +278,13 @@ export const ExecutionDetailsPage: React.FC = () => {
         setTerminateSuccess('No recovery instances to terminate.');
         setTerminationInProgress(false);
       }
-      // Refresh execution data directly
-      const data = await apiClient.getExecution(executionId);
-      setExecution(data);
+      await fetchExecution();
     } catch (err) {
       // Check if error indicates already terminated
       const errorMsg = err instanceof Error ? err.message : '';
       if (errorMsg.includes('No recovery instances') || errorMsg.includes('already')) {
         setTerminateSuccess('Recovery instances have already been terminated or do not exist.');
-        // Refresh execution data directly
-        const data = await apiClient.getExecution(executionId);
-        setExecution(data);
+        await fetchExecution();
       } else {
         const errorMessage = err instanceof Error ? err.message : 'Failed to terminate recovery instances';
         setTerminateError(errorMessage);
