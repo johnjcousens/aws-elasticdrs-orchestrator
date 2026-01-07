@@ -1,0 +1,44 @@
+{
+  "scan_date": "2026-01-06T23:26:29.291724",
+  "project": "aws-elasticdrs-orchestrator",
+  "results": {
+    "python_security": {
+      "bandit": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "total": 0
+      },
+      "semgrep_findings": {
+        "error": 0,
+        "warning": 0,
+        "info": 0,
+        "total": 0
+      },
+      "vulnerable_dependencies": 0
+    },
+    "frontend_security": {
+      "npm_vulnerabilities": {
+        "critical": 0,
+        "high": 0,
+        "moderate": 0,
+        "low": 0,
+        "total": 0
+      }
+    },
+    "infrastructure_security": {
+      "cfn_lint_issues": 0,
+      "semgrep_findings": {
+        "error": 0,
+        "warning": 0,
+        "info": 0,
+        "total": 0
+      }
+    }
+  },
+  "summary": {
+    "total_critical_issues": 0,
+    "total_high_issues": 0,
+    "total_issues": 0
+  }
+}

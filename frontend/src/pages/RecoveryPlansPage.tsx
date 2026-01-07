@@ -3,9 +3,10 @@
  * 
  * Main page for managing DRS recovery plans.
  * Displays list of plans with CRUD operations and wave configuration.
+ * PERFORMANCE OPTIMIZED: Memoized column definitions and reduced re-renders.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { RecoveryPlan } from '../types';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -59,8 +60,12 @@ export const RecoveryPlansPage: React.FC = () => {
   const [editingPlan, setEditingPlan] = useState<RecoveryPlan | null>(null);
   const [executing, setExecuting] = useState(false);
   const [plansWithInProgressExecution, setPlansWithInProgressExecution] = useState<Set<string>>(() => {
-    const stored = sessionStorage.getItem('plansWithInProgressExecution');
-    return stored ? new Set(JSON.parse(stored)) : new Set();
+    try {
+      const stored = sessionStorage.getItem('plansWithInProgressExecution');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
   });
   const [executionProgress, setExecutionProgress] = useState<Map<string, { currentWave: number; totalWaves: number }>>(new Map());
   
@@ -108,19 +113,19 @@ export const RecoveryPlansPage: React.FC = () => {
     checkInProgressExecutions();
   }, []);
 
-  // Auto-refresh intervals - created once, check ref for dialog state
+  // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
   useEffect(() => {
     const plansInterval = setInterval(() => {
       if (!isAnyDialogOpenRef.current) {
         fetchPlans();
       }
-    }, 30000);
+    }, 60000); // Increased from 30s to 60s
     
     const executionInterval = setInterval(() => {
       if (!isAnyDialogOpenRef.current) {
         checkInProgressExecutions();
       }
-    }, 5000);
+    }, 10000); // Increased from 5s to 10s
     
     return () => {
       clearInterval(plansInterval);
@@ -140,10 +145,14 @@ export const RecoveryPlansPage: React.FC = () => {
   }, []);
   
   useEffect(() => {
-    sessionStorage.setItem('plansWithInProgressExecution', JSON.stringify([...plansWithInProgressExecution]));
+    try {
+      sessionStorage.setItem('plansWithInProgressExecution', JSON.stringify([...plansWithInProgressExecution]));
+    } catch (error) {
+      console.warn('Failed to save execution state to sessionStorage:', error);
+    }
   }, [plansWithInProgressExecution]);
   
-  const checkInProgressExecutions = async () => {
+  const checkInProgressExecutions = useCallback(async () => {
     try {
       const accountId = getCurrentAccountId();
       const response = await apiClient.listExecutions(accountId ? { accountId } : undefined);
@@ -165,9 +174,9 @@ export const RecoveryPlansPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to check in-progress executions:', err);
     }
-  };
+  }, [getCurrentAccountId]);
 
-  const fetchPlans = async () => {
+  const fetchPlans = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -182,14 +191,14 @@ export const RecoveryPlansPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getCurrentAccountId, addNotification]);
 
-  const handleDelete = (plan: RecoveryPlan) => {
+  const handleDelete = useCallback((plan: RecoveryPlan) => {
     setPlanToDelete(plan);
     setDeleteDialogOpen(true);
-  };
+  }, []);
 
-  const confirmDelete = async () => {
+  const confirmDelete = useCallback(async () => {
     if (!planToDelete || deleting) return;
 
     setDeleting(true);
@@ -207,35 +216,35 @@ export const RecoveryPlansPage: React.FC = () => {
     } finally {
       setDeleting(false);
     }
-  };
+  }, [planToDelete, deleting, plans, addNotification]);
 
-  const cancelDelete = () => {
+  const cancelDelete = useCallback(() => {
     setDeleteDialogOpen(false);
     setPlanToDelete(null);
-  };
+  }, []);
 
-  const handleCreate = () => {
+  const handleCreate = useCallback(() => {
     setEditingPlan(null);
     setDialogOpen(true);
-  };
+  }, []);
 
-  const handleEdit = (plan: RecoveryPlan) => {
+  const handleEdit = useCallback((plan: RecoveryPlan) => {
     setEditingPlan(plan);
     setDialogOpen(true);
-  };
+  }, []);
 
-  const handleDialogSave = (savedPlan: RecoveryPlan) => {
+  const handleDialogSave = useCallback((savedPlan: RecoveryPlan) => {
     const action = editingPlan ? 'updated' : 'created';
     addNotification('success', `Recovery plan "${savedPlan.name}" ${action} successfully`);
     fetchPlans();
-  };
+  }, [editingPlan, addNotification, fetchPlans]);
 
-  const handleDialogClose = () => {
+  const handleDialogClose = useCallback(() => {
     setDialogOpen(false);
     setEditingPlan(null);
-  };
+  }, []);
 
-  const handleExecute = async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
+  const handleExecute = useCallback(async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
     if (executing || checkingInstances) return;
 
     // For drills, check for existing recovery instances first
@@ -261,9 +270,9 @@ export const RecoveryPlansPage: React.FC = () => {
     }
 
     await executeRecoveryPlanInternal(plan, executionType);
-  };
+  }, [executing, checkingInstances]);
 
-  const executeRecoveryPlanInternal = async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
+  const executeRecoveryPlanInternal = useCallback(async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
     setExecuting(true);
 
     try {
@@ -353,9 +362,9 @@ export const RecoveryPlansPage: React.FC = () => {
     } finally {
       setExecuting(false);
     }
-  };
+  }, [user, plansWithInProgressExecution, addNotification, navigate, checkInProgressExecutions]);
 
-  const handleExistingInstancesConfirm = async () => {
+  const handleExistingInstancesConfirm = useCallback(async () => {
     if (!existingInstancesInfo) return;
     
     setExistingInstancesDialogOpen(false);
@@ -363,12 +372,164 @@ export const RecoveryPlansPage: React.FC = () => {
     setExistingInstancesInfo(null);
     
     await executeRecoveryPlanInternal(plan, executionType);
-  };
+  }, [existingInstancesInfo, executeRecoveryPlanInternal]);
 
-  const handleExistingInstancesCancel = () => {
+  const handleExistingInstancesCancel = useCallback(() => {
     setExistingInstancesDialogOpen(false);
     setExistingInstancesInfo(null);
-  };
+  }, []);
+
+  // PERFORMANCE OPTIMIZATION: Memoize column definitions to prevent re-creation on every render
+  const columnDefinitions = useMemo(() => [
+    {
+      id: 'actions',
+      header: 'Actions',
+      width: 70,
+      cell: (item: RecoveryPlan) => {
+        const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
+        const hasServerConflict = item.hasServerConflict === true;
+        const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
+        
+        let drillDescription = 'Test recovery without failover';
+        const recoveryDescription = 'Coming soon - actual failover operation';
+        if (hasServerConflict && item.conflictInfo?.reason) {
+          drillDescription = `Blocked: ${item.conflictInfo.reason}`;
+        }
+        
+        return (
+          <PermissionAwareButtonDropdown
+            items={[
+              { 
+                id: 'drill', 
+                text: 'Run Drill', 
+                iconName: 'check', 
+                disabled: isExecutionDisabled,
+                requiredPermission: DRSPermission.START_RECOVERY
+              },
+              { 
+                id: 'recovery', 
+                text: 'Run Recovery', 
+                iconName: 'status-warning', 
+                disabled: true,
+                requiredPermission: DRSPermission.START_RECOVERY
+              },
+              { id: 'divider', text: '-', disabled: true },
+              { 
+                id: 'edit', 
+                text: 'Edit', 
+                iconName: 'edit', 
+                disabled: hasInProgressExecution,
+                requiredPermission: DRSPermission.MODIFY_RECOVERY_PLANS
+              },
+              { 
+                id: 'delete', 
+                text: 'Delete', 
+                iconName: 'remove', 
+                disabled: hasInProgressExecution,
+                requiredPermission: DRSPermission.DELETE_RECOVERY_PLANS
+              },
+            ]}
+            onItemClick={({ detail }) => {
+              if (detail.id === 'drill') {
+                handleExecute(item, 'DRILL');
+              } else if (detail.id === 'recovery') {
+                handleExecute(item, 'RECOVERY');
+              } else if (detail.id === 'edit') {
+                handleEdit(item);
+              } else if (detail.id === 'delete') {
+                handleDelete(item);
+              }
+            }}
+            expandToViewport
+            variant="icon"
+            ariaLabel="Actions"
+          />
+        );
+      },
+    },
+    {
+      id: 'name',
+      header: 'Plan Name',
+      cell: (item: RecoveryPlan) => (
+        <span title={item.description || ''} style={{ fontWeight: 500 }}>
+          {item.name}
+        </span>
+      ),
+      sortingField: 'name',
+    },
+    {
+      id: 'planId',
+      header: 'ID',
+      width: 60,
+      cell: (item: RecoveryPlan) => (
+        <CopyToClipboard
+          copyButtonAriaLabel="Copy Plan ID"
+          copySuccessText="Plan ID copied"
+          copyErrorText="Failed to copy"
+          textToCopy={item.id}
+          variant="icon"
+        />
+      ),
+    },
+    {
+      id: 'waves',
+      header: 'Waves',
+      width: 90,
+      cell: (item: RecoveryPlan) => {
+        const progress = executionProgress.get(item.id);
+        if (progress) {
+          const sanitizedCurrentWave = Number(progress.currentWave) || 0;
+          const sanitizedTotalWaves = Number(progress.totalWaves) || 0;
+          return `${sanitizedCurrentWave} of ${sanitizedTotalWaves}`;
+        }
+        return `${Number(item.waves.length) || 0}`;
+      },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      minWidth: 120,
+      cell: (item: RecoveryPlan) => {
+        if (!item.lastExecutionStatus) {
+          return <Badge>Not Run</Badge>;
+        }
+        return <StatusBadge status={item.lastExecutionStatus} />;
+      },
+    },
+    {
+      id: 'lastStart',
+      header: 'Last Start',
+      minWidth: 180,
+      cell: (item: RecoveryPlan) => {
+        if (!item.lastStartTime) {
+          return <span style={{ color: '#5f6b7a' }}>Never</span>;
+        }
+        return <DateTimeDisplay value={item.lastStartTime * 1000} format="full" />;
+      },
+    },
+    {
+      id: 'lastEnd',
+      header: 'Last End',
+      minWidth: 180,
+      cell: (item: RecoveryPlan) => {
+        if (!item.lastEndTime) {
+          return <span style={{ color: '#5f6b7a' }}>Never</span>;
+        }
+        return <DateTimeDisplay value={item.lastEndTime * 1000} format="full" />;
+      },
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      minWidth: 180,
+      cell: (item: RecoveryPlan) => {
+        if (!item.createdAt || (typeof item.createdAt === 'number' && item.createdAt === 0)) {
+          return <span style={{ color: '#5f6b7a' }}>Unknown</span>;
+        }
+        return <DateTimeDisplay value={item.createdAt} format="full" />;
+      },
+    },
+  ], [plansWithInProgressExecution, executionProgress, executing, handleExecute, handleEdit, handleDelete]);
 
   if (loading) {
     return <LoadingState message="Loading recovery plans..." />;
@@ -402,258 +563,110 @@ export const RecoveryPlansPage: React.FC = () => {
       >
         <AccountRequiredWrapper pageName="Recovery Plans">
           <Table
-          {...collectionProps}
-          columnDefinitions={[
-            {
-              id: 'actions',
-              header: 'Actions',
-              width: 70,
-              cell: (item) => {
-                const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
-                const hasServerConflict = item.hasServerConflict === true;
-                const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
-                
-                let drillDescription = 'Test recovery without failover';
-                const recoveryDescription = 'Coming soon - actual failover operation';
-                if (hasServerConflict && item.conflictInfo?.reason) {
-                  drillDescription = `Blocked: ${item.conflictInfo.reason}`;
-                }
-                
-                return (
-                  <PermissionAwareButtonDropdown
-                    items={[
-                      { 
-                        id: 'drill', 
-                        text: 'Run Drill', 
-                        iconName: 'check', 
-                        disabled: isExecutionDisabled,
-                        requiredPermission: DRSPermission.START_RECOVERY
-                      },
-                      { 
-                        id: 'recovery', 
-                        text: 'Run Recovery', 
-                        iconName: 'status-warning', 
-                        disabled: true,
-                        requiredPermission: DRSPermission.START_RECOVERY
-                      },
-                      { id: 'divider', text: '-', disabled: true },
-                      { 
-                        id: 'edit', 
-                        text: 'Edit', 
-                        iconName: 'edit', 
-                        disabled: hasInProgressExecution,
-                        requiredPermission: DRSPermission.MODIFY_RECOVERY_PLANS
-                      },
-                      { 
-                        id: 'delete', 
-                        text: 'Delete', 
-                        iconName: 'remove', 
-                        disabled: hasInProgressExecution,
-                        requiredPermission: DRSPermission.DELETE_RECOVERY_PLANS
-                      },
-                    ]}
-                    onItemClick={({ detail }) => {
-                      if (detail.id === 'drill') {
-                        handleExecute(item, 'DRILL');
-                      } else if (detail.id === 'recovery') {
-                        handleExecute(item, 'RECOVERY');
-                      } else if (detail.id === 'edit') {
-                        handleEdit(item);
-                      } else if (detail.id === 'delete') {
-                        handleDelete(item);
-                      }
-                    }}
-                    expandToViewport
-                    variant="icon"
-                    ariaLabel="Actions"
-                  />
-                );
-              },
-            },
-            {
-              id: 'name',
-              header: 'Plan Name',
-              cell: (item) => (
-                <span title={item.description || ''} style={{ fontWeight: 500 }}>
-                  {item.name}
-                </span>
-              ),
-              sortingField: 'name',
-            },
-            {
-              id: 'planId',
-              header: 'ID',
-              width: 60,
-              cell: (item) => (
-                <CopyToClipboard
-                  copyButtonAriaLabel="Copy Plan ID"
-                  copySuccessText="Plan ID copied"
-                  copyErrorText="Failed to copy"
-                  textToCopy={item.id}
-                  variant="icon"
+            {...collectionProps}
+            columnDefinitions={columnDefinitions}
+            items={items}
+            loading={loading}
+            loadingText="Loading recovery plans"
+            empty={
+              <Box textAlign="center" color="inherit">
+                <b>No recovery plans</b>
+                <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                  No recovery plans found. Click &apos;Create Plan&apos; above to get started.
+                </Box>
+              </Box>
+            }
+            filter={
+              <TextFilter
+                {...filterProps}
+                filteringPlaceholder="Find recovery plans"
+                countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`}
+              />
+            }
+            pagination={<Pagination {...paginationProps} />}
+            variant="full-page"
+            stickyHeader
+          />
+
+          <ConfirmDialog
+            visible={deleteDialogOpen}
+            title="Delete Recovery Plan"
+            message={
+              planToDelete
+                ? `Are you sure you want to delete "${planToDelete.name}"? This action cannot be undone.`
+                : ''
+            }
+            confirmLabel="Delete"
+            onConfirm={confirmDelete}
+            onDismiss={cancelDelete}
+            loading={deleting}
+          />
+
+          <RecoveryPlanDialog
+            open={dialogOpen}
+            plan={editingPlan}
+            onClose={handleDialogClose}
+            onSave={handleDialogSave}
+          />
+
+          <Modal
+            visible={existingInstancesDialogOpen}
+            onDismiss={handleExistingInstancesCancel}
+            header="Existing Recovery Instances Found"
+            footer={
+              <Box float="right">
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button onClick={handleExistingInstancesCancel}>Cancel</Button>
+                  <Button variant="primary" onClick={handleExistingInstancesConfirm}>
+                    Continue Anyway
+                  </Button>
+                </SpaceBetween>
+              </Box>
+            }
+            size="large"
+          >
+            <SpaceBetween size="m">
+              <Alert type="warning" header="Recovery instances already exist">
+                The following recovery instances from previous executions are still running. 
+                Starting a new drill will create additional instances, which may increase costs.
+              </Alert>
+              
+              {existingInstancesInfo && (
+                <Table
+                  columnDefinitions={[
+                    {
+                      id: 'serverId',
+                      header: 'Source Server',
+                      cell: (item) => item.sourceServerId,
+                    },
+                    {
+                      id: 'instanceId',
+                      header: 'EC2 Instance',
+                      cell: (item) => item.ec2InstanceId || 'N/A',
+                    },
+                    {
+                      id: 'state',
+                      header: 'State',
+                      cell: (item) => <Badge color={item.ec2InstanceState === 'running' ? 'green' : 'grey'}>{item.ec2InstanceState}</Badge>,
+                    },
+                    {
+                      id: 'source',
+                      header: 'Created By',
+                      cell: (item) => item.sourcePlanName || 'Unknown',
+                    },
+                  ]}
+                  items={existingInstancesInfo.instances}
+                  empty="No instances found"
+                  variant="embedded"
                 />
-              ),
-            },
-            {
-              id: 'waves',
-              header: 'Waves',
-              width: 90,
-              cell: (item) => {
-                const progress = executionProgress.get(item.id);
-                if (progress) {
-                  const sanitizedCurrentWave = Number(progress.currentWave) || 0;
-                  const sanitizedTotalWaves = Number(progress.totalWaves) || 0;
-                  return `${sanitizedCurrentWave} of ${sanitizedTotalWaves}`;
-                }
-                return `${Number(item.waves.length) || 0}`;
-              },
-            },
-            {
-              id: 'status',
-              header: 'Status',
-              minWidth: 120,
-              cell: (item) => {
-                if (!item.lastExecutionStatus) {
-                  return <Badge>Not Run</Badge>;
-                }
-                return <StatusBadge status={item.lastExecutionStatus} />;
-              },
-            },
-            {
-              id: 'lastStart',
-              header: 'Last Start',
-              minWidth: 180,
-              cell: (item) => {
-                if (!item.lastStartTime) {
-                  return <span style={{ color: '#5f6b7a' }}>Never</span>;
-                }
-                return <DateTimeDisplay value={item.lastStartTime * 1000} format="full" />;
-              },
-            },
-            {
-              id: 'lastEnd',
-              header: 'Last End',
-              minWidth: 180,
-              cell: (item) => {
-                if (!item.lastEndTime) {
-                  return <span style={{ color: '#5f6b7a' }}>Never</span>;
-                }
-                return <DateTimeDisplay value={item.lastEndTime * 1000} format="full" />;
-              },
-            },
-            {
-              id: 'created',
-              header: 'Created',
-              minWidth: 180,
-              cell: (item) => {
-                if (!item.createdAt || (typeof item.createdAt === 'number' && item.createdAt === 0)) {
-                  return <span style={{ color: '#5f6b7a' }}>Unknown</span>;
-                }
-                return <DateTimeDisplay value={item.createdAt} format="full" />;
-              },
-            },
-          ]}
-          items={items}
-          loading={loading}
-          loadingText="Loading recovery plans"
-          empty={
-            <Box textAlign="center" color="inherit">
-              <b>No recovery plans</b>
-              <Box padding={{ bottom: 's' }} variant="p" color="inherit">
-                No recovery plans found. Click &apos;Create Plan&apos; above to get started.
-              </Box>
-            </Box>
-          }
-          filter={
-            <TextFilter
-              {...filterProps}
-              filteringPlaceholder="Find recovery plans"
-              countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`}
-            />
-          }
-          pagination={<Pagination {...paginationProps} />}
-          variant="full-page"
-          stickyHeader
-        />
-
-        <ConfirmDialog
-          visible={deleteDialogOpen}
-          title="Delete Recovery Plan"
-          message={
-            planToDelete
-              ? `Are you sure you want to delete "${planToDelete.name}"? This action cannot be undone.`
-              : ''
-          }
-          confirmLabel="Delete"
-          onConfirm={confirmDelete}
-          onDismiss={cancelDelete}
-          loading={deleting}
-        />
-
-        <RecoveryPlanDialog
-          open={dialogOpen}
-          plan={editingPlan}
-          onClose={handleDialogClose}
-          onSave={handleDialogSave}
-        />
-
-        <Modal
-          visible={existingInstancesDialogOpen}
-          onDismiss={handleExistingInstancesCancel}
-          header="Existing Recovery Instances Found"
-          size="medium"
-          footer={
-            <Box float="right">
-              <SpaceBetween direction="horizontal" size="xs">
-                <Button variant="link" onClick={handleExistingInstancesCancel}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleExistingInstancesConfirm}>
-                  Continue with Drill
-                </Button>
-              </SpaceBetween>
-            </Box>
-          }
-        >
-          <SpaceBetween size="m">
-            <Alert type="warning">
-              There are {existingInstancesInfo?.instances.length || 0} recovery instance(s) from a previous execution that have not been terminated.
-            </Alert>
-            <Box>
-              {existingInstancesInfo?.instances[0]?.sourcePlanName && (
-                <Box variant="p">
-                  These instances were created by: <strong>{existingInstancesInfo.instances[0].sourcePlanName}</strong>
-                </Box>
               )}
-              <Box variant="p" color="text-body-secondary">
-                Starting a new drill will <strong>terminate these existing instances</strong> before launching new ones. If you want to keep them, cancel and terminate them manually first.
+              
+              <Box variant="p">
+                You can terminate existing instances from the AWS DRS console before starting a new drill, 
+                or continue to create additional instances.
               </Box>
-            </Box>
-            <Box>
-              <Box variant="awsui-key-label">Existing instances ({existingInstancesInfo?.instances.length || 0}):</Box>
-              <SpaceBetween size="xs">
-                {existingInstancesInfo?.instances.slice(0, 6).map((inst, idx) => (
-                  <Box key={idx} padding={{ left: 's' }}>
-                    <Box fontSize="body-s">
-                      <strong>{inst.name || inst.ec2InstanceId || ''}</strong>
-                      <Box variant="span" color="text-status-success" fontSize="body-s"> ({inst.ec2InstanceState || ''})</Box>
-                    </Box>
-                    <Box fontSize="body-s" color="text-body-secondary">
-                      {inst.privateIp && <span>IP: {inst.privateIp} • </span>}
-                      {inst.instanceType && <span>{inst.instanceType} • </span>}
-                      {inst.launchTime && <span>Launched: {new Date(inst.launchTime).toLocaleString()}</span>}
-                    </Box>
-                  </Box>
-                ))}
-              </SpaceBetween>
-              {(existingInstancesInfo?.instances.length || 0) > 6 && (
-                <Box color="text-body-secondary" fontSize="body-s" padding={{ top: 'xs' }}>
-                  ... and {(existingInstancesInfo?.instances.length || 0) - 6} more
-                </Box>
-              )}
-            </Box>
-          </SpaceBetween>
-        </Modal>
+            </SpaceBetween>
+          </Modal>
         </AccountRequiredWrapper>
       </ContentLayout>
     </PageTransition>
