@@ -233,29 +233,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [clearTokenRefreshTimer, refreshTokens, TOKEN_REFRESH_TIME]);
 
   /**
-   * Start inactivity timer - logout after extended inactivity
-   */
-  const startInactivityTimer = useCallback(() => {
-    clearInactivityTimer();
-    
-    const timeoutMinutes = INACTIVITY_TIMEOUT / (60 * 1000);
-    console.log(`⏰ Inactivity timer started - will logout in ${timeoutMinutes} minutes if no activity`);
-    
-    inactivityTimerRef.current = setTimeout(() => {
-      console.log('🕐 User inactive for extended period - signing out for security');
-      // Sign out due to inactivity
-      signOut().then(() => {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          loading: false,
-          error: undefined,
-        });
-      }).catch(console.error);
-    }, INACTIVITY_TIMEOUT);
-  }, [clearInactivityTimer, INACTIVITY_TIMEOUT]);
-
-  /**
    * Start both authentication timers (inactivity and token refresh)
    */
   const startAuthTimers = useCallback(() => {
