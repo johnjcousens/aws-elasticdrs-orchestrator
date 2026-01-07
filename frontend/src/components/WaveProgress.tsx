@@ -676,9 +676,9 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const isCurrent = currentWave === wave.waveNumber || currentWave === index;
         const hasServers = wave.serverExecutions && wave.serverExecutions.length > 0;
         const statusIndicator = getWaveStatusIndicator(wave.status);
-        const statusDescription = getStatusDescription(wave.status, waveJobLogs?.events);
         const hasJobId = !!wave.jobId;
         const waveJobLogs = jobLogs[waveNum];
+        const statusDescription = getStatusDescription(wave.status, waveJobLogs?.events);
         const isLoadingLogs = loadingLogs[waveNum];
         const waveDuration = waveDurations[waveNum] || '-';
         
