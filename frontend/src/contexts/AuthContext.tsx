@@ -17,6 +17,7 @@ import {
 } from 'aws-amplify/auth';
 import type { SignInInput, SignInOutput } from 'aws-amplify/auth';
 import type { AuthState } from '../types';
+import { registerActivityRecorder, unregisterActivityRecorder } from '../utils/activityTracker';
 
 // Flag to track if Amplify has been configured
 let amplifyConfigured = false;
@@ -81,6 +82,7 @@ interface AuthContextType extends AuthState {
   needsPasswordChange: boolean;
   currentUsername: string | null;
   handlePasswordChanged: () => Promise<void>;
+  recordActivity: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -105,27 +107,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
 
-  // Auto-logout timer (45 minutes)
-  const AUTO_LOGOUT_TIME = 45 * 60 * 1000; // 45 minutes in milliseconds
+  // Inactivity timeout (4 hours) - only logout after extended inactivity
+  const INACTIVITY_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
   
   // Token refresh timer (50 minutes - before 60 minute expiry)
   const TOKEN_REFRESH_TIME = 50 * 60 * 1000; // 50 minutes in milliseconds
   
   // Use refs to avoid dependency cycles that cause infinite re-renders
-  const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const tokenRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const authCheckInProgressRef = useRef(false);
   const hasCheckedAuthRef = useRef(false);
+  const lastActivityRef = useRef<number>(Date.now());
 
   /**
-   * Clear auto-logout timer
+   * Clear inactivity timer
    */
-  const clearLogoutTimer = useCallback(() => {
-    if (logoutTimerRef.current) {
-      clearTimeout(logoutTimerRef.current);
-      logoutTimerRef.current = null;
+  const clearInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
     }
   }, []);
+
+  /**
+   * Record user activity and reset inactivity timer
+   */
+  const recordActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    
+    // Only restart inactivity timer if user is authenticated
+    if (authState.isAuthenticated) {
+      startInactivityTimer();
+    }
+  }, [authState.isAuthenticated]);
+
+  /**
+   * Start inactivity timer - logout after extended inactivity
+   */
+  const startInactivityTimer = useCallback(() => {
+    clearInactivityTimer();
+    
+    inactivityTimerRef.current = setTimeout(() => {
+      console.log('🕐 User inactive for 4 hours - signing out for security');
+      // Sign out due to inactivity
+      signOut().then(() => {
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          loading: false,
+          error: undefined,
+        });
+      }).catch(console.error);
+    }, INACTIVITY_TIMEOUT);
+  }, [clearInactivityTimer, INACTIVITY_TIMEOUT]);
 
   /**
    * Clear token refresh timer
@@ -152,7 +187,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // Restart both timers with fresh tokens
         startTokenRefreshTimer();
-        startLogoutTimer();
+        startInactivityTimer();
       } else {
         console.warn('⚠️ Token refresh failed - no tokens in session');
         // Sign out if token refresh fails - will be defined later
@@ -163,7 +198,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Sign out if token refresh fails - will be defined later
       handleSignOut();
     }
-  }, [startTokenRefreshTimer, startLogoutTimer]);
+  }, [startTokenRefreshTimer, startInactivityTimer]);
 
   /**
    * Start token refresh timer
@@ -177,39 +212,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [clearTokenRefreshTimer, refreshTokens, TOKEN_REFRESH_TIME]);
 
   /**
-   * Start auto-logout timer
-   */
-  const startLogoutTimer = useCallback(() => {
-    clearLogoutTimer();
-    
-    logoutTimerRef.current = setTimeout(() => {
-      // Sign out when timer expires
-      signOut().then(() => {
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          loading: false,
-          error: undefined,
-        });
-      }).catch(console.error);
-    }, AUTO_LOGOUT_TIME);
-  }, [clearLogoutTimer, AUTO_LOGOUT_TIME]);
-
-  /**
-   * Start both authentication timers (logout and token refresh)
+   * Start both authentication timers (inactivity and token refresh)
    */
   const startAuthTimers = useCallback(() => {
-    startLogoutTimer();
+    startInactivityTimer();
     startTokenRefreshTimer();
-  }, [startLogoutTimer, startTokenRefreshTimer]);
+  }, [startInactivityTimer, startTokenRefreshTimer]);
 
   /**
    * Clear both authentication timers
    */
   const clearAuthTimers = useCallback(() => {
-    clearLogoutTimer();
+    clearInactivityTimer();
     clearTokenRefreshTimer();
-  }, [clearLogoutTimer, clearTokenRefreshTimer]);
+  }, [clearInactivityTimer, clearTokenRefreshTimer]);
 
   /**
    * Check current authentication status
@@ -310,18 +326,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [checkAuth]);
 
   /**
+   * Set up global activity listeners to track user interactions
+   */
+  useEffect(() => {
+    // Activity events to track
+    const activityEvents = [
+      'mousedown',
+      'mousemove', 
+      'keypress',
+      'scroll',
+      'touchstart',
+      'click'
+    ];
+
+    // Throttle activity recording to avoid excessive calls
+    let activityThrottle: NodeJS.Timeout | null = null;
+    
+    const handleActivity = () => {
+      if (activityThrottle) return;
+      
+      activityThrottle = setTimeout(() => {
+        recordActivity();
+        activityThrottle = null;
+      }, 30000); // Throttle to once per 30 seconds
+    };
+
+    // Add event listeners
+    activityEvents.forEach(event => {
+      document.addEventListener(event, handleActivity, true);
+    });
+
+    // Cleanup event listeners
+    return () => {
+      if (activityThrottle) {
+        clearTimeout(activityThrottle);
+      }
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity, true);
+      });
+    };
+  }, [recordActivity]);
+
+  /**
    * Clean up timers on unmount
    */
   useEffect(() => {
+    // Register the activity recorder
+    registerActivityRecorder(recordActivity);
+    
     return () => {
-      if (logoutTimerRef.current) {
-        clearTimeout(logoutTimerRef.current);
+      // Cleanup timers
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
       }
       if (tokenRefreshTimerRef.current) {
         clearTimeout(tokenRefreshTimerRef.current);
       }
+      
+      // Unregister the activity recorder
+      unregisterActivityRecorder();
     };
-  }, []);
+  }, [recordActivity]);
 
   /**
    * Sign in user with username and password
@@ -463,6 +528,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     needsPasswordChange,
     currentUsername,
     handlePasswordChanged,
+    recordActivity,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
