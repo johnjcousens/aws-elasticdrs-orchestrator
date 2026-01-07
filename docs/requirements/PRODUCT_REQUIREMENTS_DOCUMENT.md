@@ -1,20 +1,20 @@
 # Product Requirements Document
 # AWS DRS Orchestration Solution
 
-**Version**: 2.4  
+**Version**: 3.0  
 **Date**: January 7, 2026  
-**Status**: Production Ready - Performance Optimized v1.4.1  
+**Status**: Production Ready - Complete Implementation  
 **Document Owner**: AWS DRS Orchestration Team
 
 ---
 
 ## Executive Summary
 
-AWS DRS Orchestration is a production-ready, enterprise-grade serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, comprehensive DRS source server management, multi-account support, tag-based server selection, automated tag synchronization with EventBridge scheduling, enterprise security validation, performance optimizations,ls.
+AWS DRS Orchestration is a production-ready, enterprise-grade serverless disaster recovery orchestration platform built on AWS Elastic Disaster Recovery (DRS). The solution enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, real-time monitoring, pause/resume capabilities, comprehensive DRS source server management, multi-account support, tag-based server selection, automated tag synchronization with EventBridge scheduling, enterprise RBAC security, and comprehensive DRS API coverage.
 
 ### Problem Statement
 
-AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences. Organizations need wave-based execution, dependency management, pause/resume controls, automated monitoring capabilities, centralized DRS source server configuration management, multi-account orchestration, flexible server selection methods, and.
+AWS DRS provides continuous replication but lacks native orchestration for multi-tier applications requiring coordinated recovery sequences. Organizations need wave-based execution, dependency management, pause/resume controls, automated monitoring capabilities, centralized DRS source server configuration management, multi-account orchestration, flexible server selection methods, role-based access control, and comprehensive DRS API integration.
 
 ### Solution Overview
 
@@ -24,12 +24,13 @@ AWS DRS Orchestration provides complete orchestration and management on top of A
 - Step Functions-driven automation with pause/resume capability and existing instance detection
 - Complete DRS source server management (launch settings, EC2 templates, tags, disks, replication, post-launch)
 - Multi-account hub-and-spoke architecture with centralized management
-- React 19 + CloudScape Design System UI with real-time updates and 37 components
-- Complete REST API with 42 endpoints for automation and DevOps integration
-- Tag synchronization between EC2 instances and DRS source servers
+- React 19 + CloudScape Design System UI with real-time updates and 32+ components
+- Complete REST API with 47+ DRS operations across 80+ API Gateway resources
+- Tag synchronization between EC2 instances and DRS source servers with EventBridge scheduling
 - DRS service limits validation and quota monitoring
-ls
-- Sgracefully
+- Enterprise RBAC with 5 granular roles and 14 business-focused permissions
+- Password reset capability for Cognito users
+- Comprehensive security hardening with input validation and sanitization
 
 ---
 
@@ -37,28 +38,29 @@ ls
 
 ![AWS DRS Orchestration Architecture](../architecture/AWS-DRS-Orchestration-Architecture.png)
 
-*[View/Edit Sourdrawio)*
+*[View/Edit Source Diagram](../architecture/AWS-DRS-Orchestration-Architecture.drawio)*
 
 ### AWS Services
 
 **Core Services**:
-- DynamoDB: 3 tables (protection-groups, recovery-plans, execution-history)
-- Lambda: 5 functions (API handler, orchestration-s
-- Step Functions: Workflow orchestration with waitk pattern
-- API Gateway: REST API with Cognito JWT authorizer
- CDN
-- AWS DRS: Core disaster re
+- DynamoDB: 4 tables (protection-groups, recovery-plans, execution-history, target-accounts)
+- Lambda: 7 functions (api-handler, orchestration-stepfunctions, frontend-builder, execution-finder, execution-poller, bucket-cleaner, notification-formatter)
+- Step Functions: Workflow orchestration with waitForTaskToken pattern
+- API Gateway: 6-nested-stack modular architecture with 80+ resources and 47+ DRS operations
+- CloudFront: CDN for global frontend distribution
+- AWS DRS: Core disaster recovery service integration
 
 **Infrastructure as Code**:
-- CloudFormation: 15 templates total (1 master + 14 nesteole)
- artifacts
-- Multi-region
+- CloudFormation: 15+ templates total (1 master + 14+ nested stacks)
+- S3: Deployment artifacts and static website hosting
+- Multi-region support across all 30 DRS-supported regions
 
 ### Data Model
 
-**Protection Groups**: `GroupId` (PK), `GroupName`, `Region`, `SourceServerIds[]`, `ServerSelectionTags{}`, dDate`
-`)
-**Endex
+**Protection Groups**: `GroupId` (PK), `GroupName`, `Region`, `SourceServerIds[]`, `ServerSelectionTags{}`, `LaunchConfig{}`, `CreatedDate`, `LastModifiedDate`, `Version`
+**Recovery Plans**: `PlanId` (PK), `PlanName`, `Waves[]`, `CreatedDate`, `LastModifiedDate`, `Version`
+**Execution History**: `ExecutionId` (PK), `PlanId` (SK), `Status`, `Waves[]`, `StartTime`, `EndTime`, `InitiatedBy`, with StatusIndex GSI
+**Target Accounts**: `AccountId` (PK), `AssumeRoleName`, `CrossAccountRoleArn`, `IsDefault`, with StatusIndex GSI
 
 ---
 
@@ -66,27 +68,28 @@ ls
 
 ### 1. Protection Groups
 
-Logical organization of DRS
+Logical organization of DRS source servers with flexible selection modes and launch configuration management.
 
 **Server Selection Modes**:
-e
-- **Explicit Serv
+- **Explicit Server Selection**: Direct assignment of specific DRS source server IDs
+- **Tag-Based Selection**: Dynamic server selection using DRS source server tags with AND logic matching
 
 **Performance Optimizations**:
 - **Batch DynamoDB Operations**: Fetch multiple protection groups simultaneously
-- **Efficient Server Resolution**: Optimized tag-based sers
-- **Reduced API Calls**: Minimize DRS API calls through inhing
-- **Smart Conflict Detection**: Fast server conflict validation withou
+- **Efficient Server Resolution**: Optimized tag-based server resolution with caching
+- **Reduced API Calls**: Minimize DRS API calls through intelligent batching
+- **Smart Conflict Detection**: Fast server conflict validation without full scans
 
 **Capabilities**:
- regions
-- Visual server se
+- Server discovery across all 30 DRS-supported regions
+- Visual server selection with real-time status indicators (Available/Assigned)
 - Single server per group constraint (globally enforced across all users)
 - Real-time search and filtering in server discovery panel
-- Conflict detection prevents duplicate 
-- Server validation against DRS API (prevents fa
+- Conflict detection prevents duplicate server assignments
+- Server validation against DRS API (prevents fake/invalid server IDs)
 - Tag-based server selection with preview functionality
-- Launch configuration settings applied to all servers in tp
+- Launch configuration settings applied to all servers in the group
+- Version control with optimistic locking for concurrent updates
 
 **UI Components**:
 - CloudScape Table with CRUD operations, sorting, filtering, pagination
@@ -96,14 +99,13 @@ e
 - ServerSelector with checkbox selection and assignment status badges
 - LaunchConfigSection for DRS launch settings configuration
 
-ts**:
-- `GET /protection-groups` - Lion mode
-tion
+**API Endpoints**:
+- `GET /protection-groups` - List all Protection Groups with optional account filtering
+- `POST /protection-groups` - Create Protection Group with server selection mode validation
 - `GET /protection-groups/{id}` - Get single group with enriched server details
-ns)
-- `DELETE /protection-groupy Plan)
+- `PUT /protection-groups/{id}` - Update Protection Group (blocked during active executions)
+- `DELETE /protection-groups/{id}` - Delete Protection Group (blocked if referenced by Recovery Plans)
 - `POST /protection-groups/resolve` - Preview servers matching specified tags
-- `GET /drs/source-servers?region={region}` - Discover DRS servers with assignment status
 
 ### 2. Multi-Account Management
 
@@ -350,51 +352,51 @@ ule
 
 ### 8. RBAC Security System
 
-Enterprise-grade role-based access control with 5 gra
+Enterprise-grade role-based access control with 5 granular DRS-specific roles and 14 business-focused permissions.
 
 **Security Roles (5 Granular Roles)**:
-ons
-2. **Recovery Manag
-3. **Plan Manager**: Create and manage Protection Groups and Recovery Plans, view executions (no execution control)
-4. **Operator**: Execute drills only, view assigned Protection Groups and Recovery Plans (no editing)
-5. **Read Only**: View-only access to all data with no modification capabilities
+1. **DRSOrchestrationAdmin**: Full administrative access including configuration export/import
+2. **DRSRecoveryManager**: Recovery operations and configuration management
+3. **DRSPlanManager**: Create and manage Protection Groups and Recovery Plans, view executions (no execution control)
+4. **DRSOperator**: Execute drills only, view assigned Protection Groups and Recovery Plans (no editing)
+5. **DRSReadOnly**: View-only access to all data with no modification capabilities
 
 **Granular Permissions (14 Business-Focused Permissions)**:
-- **Protection Groups**: `CREATE_PROTECTION_GROUP`, `UPDATE_PROTECTION_GROUP`, `DELETE_PROTECOUP`
-- **Recovery Plans**: `CREATE_RECOVERY_PLAN`, `UPDATE_RECOVERY_PLAN`, `DELETE_RECOVERY`
-- **Executions**: `EXECUTE_RECOVERY`, `EXECUTE_DRILL`, `CONTROL_EXECUTION`, `TERMINATE_INSTANN`
+- **Protection Groups**: `CREATE_PROTECTION_GROUP`, `UPDATE_PROTECTION_GROUP`, `DELETE_PROTECTION_GROUP`
+- **Recovery Plans**: `CREATE_RECOVERY_PLAN`, `UPDATE_RECOVERY_PLAN`, `DELETE_RECOVERY_PLAN`
+- **Executions**: `EXECUTE_RECOVERY`, `EXECUTE_DRILL`, `CONTROL_EXECUTION`, `TERMINATE_INSTANCES`
+- **Configuration**: `EXPORT_CONFIG`, `IMPORT_CONFIG`
+- **Server Management**: `MANAGE_SERVERS`, `VIEW_SERVERS`
 
-**Permission-Aware:
+**Permission-Aware UI Components**:
 - **PermissionAwareButton**: Buttons that respect user permissions (disabled/hidden based on role)
-- **PermissionAwareButtonDropdown**: Dropdown menus with permission-filteons
-- **PermissionWrapper**: Conditional rendering wrapper for permission-basontent
+- **PermissionAwareButtonDropdown**: Dropdown menus with permission-filtered options
+- **PermissionWrapper**: Conditional rendering wrapper for permission-based content
+- **usePermissionCheck**: React hook for component-level permission checking
 
-- **usePermissionCheck**: React hookc
-
-
-- All 42 REST API endpoints enforce identical permission boundaries
+**API-First Security Enforcement**:
+- All 47+ DRS API operations enforce identical permission boundaries
 - Cognito Groups integration for role assignment
-- JWT token-based permission validation
+- JWT token-based permission validation with rbac_middleware.py
 - Comprehensive audit trails with role context
 - Consistent enforcement across UI, CLI, API, and automation access methods
 
 **Security Implementation**:
-- **rbac_middleware.py**: Centralized permission enforcement for all Lambda functio
-nt
-- **Role Mapping**: Cognito
-nce
+- **rbac_middleware.py**: Centralized permission enforcement for all Lambda functions
+- **Role Mapping**: Cognito Groups to permission mapping with caching
 - **Audit Integration**: All actions logged with user role and permission context
+- **Input Validation**: Comprehensive input sanitization and validation
 
-**User Management**:
-- Password reset capability for new users with temporary passwords
-- Cognito-managed user lifecycle with group-based role assignment
-- Activity-based inactivity timeout (4 hours) with comprehensive activity tracking
-- Automatic token refresh every 50 minutes to prevent session expiration
-- Multi-factor authentication support (Cognito-managed)
+**User Management Features**:
+- **Password Reset Capability**: New users with temporary passwords can reset via Cognito
+- **PasswordChangeForm Component**: UI component for secure password changes
+- **Activity-Based Timeout**: 4-hour inactivity timeout with comprehensive activity tracking
+- **Automatic Token Refresh**: 50-minute token refresh to prevent session expiration
+- **Multi-Factor Authentication**: Support via Cognito-managed MFA
 
 **API Endpoints**:
 - `GET /user/permissions` - Get current user's permissions based on Cognito groups
-- All endpoints include role-based access validation
+- All endpoints include role-based access validation with detailed error responses
 
 t
 
