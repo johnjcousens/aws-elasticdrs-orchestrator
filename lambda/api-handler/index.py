@@ -3506,60 +3506,11 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                     },
                 )
 
-            # OPTIMIZATION 5: Build server-to-execution lookup map once
-            server_to_execution = {}
-            try:
-                # Only scan recent executions (last 50 instead of 100)
-                exec_scan = execution_history_table.scan(
-                    FilterExpression="attribute_exists(Waves)",
-                    Limit=50,  # Reduced from 100
-                )
-
-                # Build lookup map efficiently
-                for exec_item in exec_scan.get("Items", []):
-                    exec_id = exec_item.get("ExecutionId")
-                    exec_plan_id = exec_item.get("PlanId")
-                    
-                    for wave in exec_item.get("Waves", []):
-                        for server in wave.get("ServerStatuses", []):
-                            server_id = server.get("SourceServerId")
-                            if server_id and server_id not in server_to_execution:
-                                server_to_execution[server_id] = {
-                                    "executionId": exec_id,
-                                    "planId": exec_plan_id
-                                }
-            except Exception as e:
-                print(f"Error building execution lookup: {e}")
-
-            # OPTIMIZATION 6: Batch lookup plan names
-            plan_ids_to_lookup = set()
-            for mapping in server_to_execution.values():
-                if mapping.get("planId"):
-                    plan_ids_to_lookup.add(mapping["planId"])
-
-            plan_names = {}
-            if plan_ids_to_lookup:
-                plan_keys = [{"PlanId": plan_id} for plan_id in plan_ids_to_lookup]
-                plan_response = dynamodb.batch_get_item(
-                    RequestItems={
-                        recovery_plans_table.table_name: {
-                            "Keys": plan_keys
-                        }
-                    }
-                )
-                for plan_item in plan_response.get("Responses", {}).get(recovery_plans_table.table_name, []):
-                    plan_names[plan_item["PlanId"]] = plan_item.get("PlanName", plan_item["PlanId"])
-
-            # Enrich matching instances with execution info
-            for inst in matching_instances:
-                server_id = inst["sourceServerId"]
-                if server_id in server_to_execution:
-                    mapping = server_to_execution[server_id]
-                    inst["sourceExecutionId"] = mapping.get("executionId")
-                    plan_id_lookup = mapping.get("planId")
-                    if plan_id_lookup:
-                        inst["sourcePlanName"] = plan_names.get(plan_id_lookup, plan_id_lookup)
-
+            # OPTIMIZATION 5: Skip execution lookup for better performance
+            # The "Created By" information requires expensive execution history scanning
+            # and isn't critical for the user's decision to continue or cancel
+            
+            # Enrich matching instances (without execution lookup)
             existing_instances = matching_instances
 
         except Exception as e:

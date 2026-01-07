@@ -627,38 +627,137 @@ export const RecoveryPlansPage: React.FC = () => {
           >
             <SpaceBetween size="m">
               <Alert type="warning" header="Recovery instances already exist">
-                The following recovery instances from previous executions are still running. 
-                Starting a new drill will create additional instances, which may increase costs.
+                {existingInstancesInfo && existingInstancesInfo.instances.length > 1 ? (
+                  <>
+                    {existingInstancesInfo.instances.length} recovery instances from previous executions are still running. 
+                    Starting a new drill will create additional instances, which may increase costs.
+                  </>
+                ) : (
+                  <>
+                    A recovery instance from a previous execution is still running. 
+                    Starting a new drill will create an additional instance, which may increase costs.
+                  </>
+                )}
               </Alert>
               
               {existingInstancesInfo && (
-                <Table
-                  columnDefinitions={[
-                    {
-                      id: 'serverId',
-                      header: 'Source Server',
-                      cell: (item) => item.sourceServerId,
-                    },
-                    {
-                      id: 'instanceId',
-                      header: 'EC2 Instance',
-                      cell: (item) => item.ec2InstanceId || 'N/A',
-                    },
-                    {
-                      id: 'state',
-                      header: 'State',
-                      cell: (item) => <Badge color={item.ec2InstanceState === 'running' ? 'green' : 'grey'}>{item.ec2InstanceState}</Badge>,
-                    },
-                    {
-                      id: 'source',
-                      header: 'Created By',
-                      cell: (item) => item.sourcePlanName || 'Unknown',
-                    },
-                  ]}
-                  items={existingInstancesInfo.instances}
-                  empty="No instances found"
-                  variant="embedded"
-                />
+                <>
+                  {existingInstancesInfo.instances.length <= 10 ? (
+                    // Show full table for small lists
+                    <Table
+                      columnDefinitions={[
+                        {
+                          id: 'serverId',
+                          header: 'Source Server',
+                          cell: (item) => item.sourceServerId,
+                          width: 200,
+                        },
+                        {
+                          id: 'instanceId',
+                          header: 'EC2 Instance',
+                          cell: (item) => item.ec2InstanceId || 'N/A',
+                          width: 180,
+                        },
+                        {
+                          id: 'state',
+                          header: 'State',
+                          cell: (item) => (
+                            <Badge color={item.ec2InstanceState === 'running' ? 'green' : 'grey'}>
+                              {item.ec2InstanceState}
+                            </Badge>
+                          ),
+                          width: 100,
+                        },
+                        {
+                          id: 'name',
+                          header: 'Name',
+                          cell: (item) => item.name || 'N/A',
+                        },
+                        {
+                          id: 'privateIp',
+                          header: 'Private IP',
+                          cell: (item) => item.privateIp || 'N/A',
+                          width: 120,
+                        },
+                      ]}
+                      items={existingInstancesInfo.instances}
+                      empty="No instances found"
+                      variant="embedded"
+                    />
+                  ) : (
+                    // Show summary for large lists
+                    <SpaceBetween size="s">
+                      <Box>
+                        <strong>Instance Summary:</strong>
+                      </Box>
+                      <Box>
+                        • Total instances: {existingInstancesInfo.instances.length}
+                      </Box>
+                      <Box>
+                        • Running: {existingInstancesInfo.instances.filter(i => i.ec2InstanceState === 'running').length}
+                      </Box>
+                      <Box>
+                        • Other states: {existingInstancesInfo.instances.filter(i => i.ec2InstanceState !== 'running').length}
+                      </Box>
+                      
+                      <details>
+                        <summary style={{ cursor: 'pointer', padding: '8px 0' }}>
+                          <strong>Show all instances</strong>
+                        </summary>
+                        <Box padding={{ top: 's' }}>
+                          <Table
+                            columnDefinitions={[
+                              {
+                                id: 'serverId',
+                                header: 'Source Server',
+                                cell: (item) => item.sourceServerId,
+                                width: 200,
+                              },
+                              {
+                                id: 'instanceId',
+                                header: 'EC2 Instance',
+                                cell: (item) => item.ec2InstanceId || 'N/A',
+                                width: 180,
+                              },
+                              {
+                                id: 'state',
+                                header: 'State',
+                                cell: (item) => (
+                                  <Badge color={item.ec2InstanceState === 'running' ? 'green' : 'grey'}>
+                                    {item.ec2InstanceState}
+                                  </Badge>
+                                ),
+                                width: 100,
+                              },
+                              {
+                                id: 'name',
+                                header: 'Name',
+                                cell: (item) => item.name || 'N/A',
+                              },
+                              {
+                                id: 'privateIp',
+                                header: 'Private IP',
+                                cell: (item) => item.privateIp || 'N/A',
+                                width: 120,
+                              },
+                            ]}
+                            items={existingInstancesInfo.instances}
+                            empty="No instances found"
+                            variant="embedded"
+                            pagination={
+                              existingInstancesInfo.instances.length > 25 ? (
+                                <Pagination
+                                  currentPageIndex={1}
+                                  pagesCount={Math.ceil(existingInstancesInfo.instances.length / 25)}
+                                />
+                              ) : undefined
+                            }
+                          />
+                        </Box>
+                      </details>
+                    </SpaceBetween>
+                  )}
+                </>
               )}
               
               <Box variant="p">
