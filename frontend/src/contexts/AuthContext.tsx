@@ -131,16 +131,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   /**
-   * Record user activity and reset inactivity timer
+   * Clear token refresh timer
    */
-  const recordActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-    
-    // Only restart inactivity timer if user is authenticated
-    if (authState.isAuthenticated) {
-      startInactivityTimer();
+  const clearTokenRefreshTimer = useCallback(() => {
+    if (tokenRefreshTimerRef.current) {
+      clearTimeout(tokenRefreshTimerRef.current);
+      tokenRefreshTimerRef.current = null;
     }
-  }, [authState.isAuthenticated, startInactivityTimer]);
+  }, []);
+
+  /**
+   * Clear both authentication timers
+   */
+  const clearAuthTimers = useCallback(() => {
+    clearInactivityTimer();
+    clearTokenRefreshTimer();
+  }, [clearInactivityTimer, clearTokenRefreshTimer]);
 
   /**
    * Start inactivity timer - logout after extended inactivity
@@ -161,14 +167,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [clearInactivityTimer, clearAuthTimers, INACTIVITY_TIMEOUT]);
 
   /**
-   * Clear token refresh timer
+   * Record user activity and reset inactivity timer
    */
-  const clearTokenRefreshTimer = useCallback(() => {
-    if (tokenRefreshTimerRef.current) {
-      clearTimeout(tokenRefreshTimerRef.current);
-      tokenRefreshTimerRef.current = null;
+  const recordActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    
+    // Only restart inactivity timer if user is authenticated
+    if (authState.isAuthenticated) {
+      startInactivityTimer();
     }
-  }, []);
+  }, [authState.isAuthenticated, startInactivityTimer]);
 
   /**
    * Refresh authentication tokens
@@ -238,14 +246,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     startInactivityTimer();
     startTokenRefreshTimer();
   }, [startInactivityTimer, startTokenRefreshTimer]);
-
-  /**
-   * Clear both authentication timers
-   */
-  const clearAuthTimers = useCallback(() => {
-    clearInactivityTimer();
-    clearTokenRefreshTimer();
-  }, [clearInactivityTimer, clearTokenRefreshTimer]);
 
   /**
    * Check current authentication status
