@@ -451,8 +451,13 @@ export const ExecutionDetailsPage: React.FC = () => {
       instancesTerminated?: boolean;
       InstancesTerminated?: boolean;
     };
-    return (executionWithTermination.instancesTerminated === true ||
+    const result = (executionWithTermination.instancesTerminated === true ||
       executionWithTermination.InstancesTerminated === true);
+    console.log('instancesAlreadyTerminated check:', result, {
+      instancesTerminated: executionWithTermination.instancesTerminated,
+      InstancesTerminated: executionWithTermination.InstancesTerminated
+    });
+    return result;
   })();
 
   // Check if recovery instances can be terminated
@@ -463,13 +468,18 @@ export const ExecutionDetailsPage: React.FC = () => {
       'COMPLETED', 'CANCELLED', 'FAILED', 'PARTIAL'
     ];
     const isTerminal = terminalStatuses.includes(execution.status as string);
+    console.log('isTerminal check:', isTerminal, 'status:', execution.status);
     
     // Check if any wave has a jobId (meaning recovery instances were launched)
     const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
     const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || wave.JobId);
+    console.log('hasJobId check:', hasJobId, 'waves:', waves.map(w => ({ jobId: w.jobId || w.JobId, status: w.status || w.Status })));
     
     // Don't show button if already terminated
-    if (instancesAlreadyTerminated) return false;
+    if (instancesAlreadyTerminated) {
+      console.log('Button hidden: instances already terminated');
+      return false;
+    }
     
     // Check if any waves are still actively running
     const activeWaveStatuses = [
@@ -480,9 +490,12 @@ export const ExecutionDetailsPage: React.FC = () => {
       const waveStatus = wave.status || wave.Status;
       return waveStatus && activeWaveStatuses.includes(waveStatus);
     });
+    console.log('hasActiveWaves check:', hasActiveWaves, 'wave statuses:', waves.map(w => w.status || w.Status));
     
     // Only show terminate button if execution is terminal, has job IDs, and no waves are actively running
-    return isTerminal && hasJobId && !hasActiveWaves;
+    const result = isTerminal && hasJobId && !hasActiveWaves;
+    console.log('canTerminate final result:', result, { isTerminal, hasJobId, hasActiveWaves: !hasActiveWaves });
+    return result;
   })();
   
   // Show terminated status badge instead of button when already terminated
