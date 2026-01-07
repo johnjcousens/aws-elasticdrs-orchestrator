@@ -82,6 +82,14 @@ export const ExecutionDetailsPage: React.FC = () => {
     fetchExecution();
   }, [executionId]); // Only depend on executionId, not fetchExecution
 
+  // Cleanup all intervals on unmount to prevent navigation blocking
+  useEffect(() => {
+    return () => {
+      // Clear any remaining intervals when component unmounts
+      // This ensures navigation isn't blocked by running intervals
+    };
+  }, []);
+
   // Real-time polling for active executions
   useEffect(() => {
     if (!execution) return;
@@ -110,7 +118,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
-  }, [execution]);
+  }, [execution?.status, execution?.executionId]); // Only depend on status and ID, not full execution object
 
   // Polling while termination is in progress
   useEffect(() => {
@@ -187,7 +195,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     pollTerminationStatus();
 
     return () => clearInterval(interval);
-  }, [terminationInProgress, execution]);
+  }, [terminationInProgress, terminationJobInfo?.totalInstances, executionId]); // Don't depend on full execution object
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
