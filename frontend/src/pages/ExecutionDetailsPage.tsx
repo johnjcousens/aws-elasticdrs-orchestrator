@@ -5,7 +5,7 @@
  * Matches the design of the ExecutionDetails modal component.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Button,
@@ -24,14 +24,12 @@ import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { WaveProgress } from '../components/WaveProgress';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { useApiErrorHandler } from '../hooks/useApiErrorHandler';
 import apiClient from '../services/api';
 import type { Execution, WaveExecution } from '../types';
 
 export const ExecutionDetailsPage: React.FC = () => {
   const { executionId } = useParams<{ executionId: string }>();
   const navigate = useNavigate();
-  const { handleError } = useApiErrorHandler();
   
   const [execution, setExecution] = useState<Execution | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,7 +196,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     pollTerminationStatus();
 
     return () => clearInterval(interval);
-  }, [terminationInProgress, execution, terminationJobInfo, executionId]);
+  }, [terminationInProgress, execution]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
