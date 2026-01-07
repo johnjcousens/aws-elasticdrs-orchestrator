@@ -54,7 +54,6 @@ const configureAmplify = () => {
     };
     Amplify.configure(fallbackConfig);
   } else {
-    console.log('✅ Configuring Amplify with loaded AWS config');
     // Create a clean config without optional identityPoolId
     const cleanConfig = {
       Auth: {
@@ -136,9 +135,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const recordActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
     
-    // Debug logging for testing
-    console.log('🔄 Activity recorded at:', new Date().toLocaleTimeString());
-    
     // Only restart inactivity timer if user is authenticated
     if (authState.isAuthenticated) {
       startInactivityTimer();
@@ -151,11 +147,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const startInactivityTimer = useCallback(() => {
     clearInactivityTimer();
     
-    const timeoutMinutes = INACTIVITY_TIMEOUT / (60 * 1000);
-    console.log(`⏰ Inactivity timer started - will logout in ${timeoutMinutes} minutes if no activity`);
-    
     inactivityTimerRef.current = setTimeout(() => {
-      console.log('🕐 User inactive for extended period - signing out for security');
       // Sign out due to inactivity
       signOut().then(() => {
         setAuthState({
@@ -183,14 +175,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const refreshTokens = useCallback(async (): Promise<void> => {
     try {
-      console.log('🔄 Refreshing authentication tokens...');
-      
       // Get fresh session which will automatically refresh tokens if needed
       const session = await fetchAuthSession({ forceRefresh: true });
       
       if (session.tokens) {
-        console.log('✅ Tokens refreshed successfully');
-        
         // Restart both timers with fresh tokens - use refs to avoid circular deps
         clearTokenRefreshTimer();
         tokenRefreshTimerRef.current = setTimeout(() => {
@@ -199,7 +187,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         clearInactivityTimer();
         inactivityTimerRef.current = setTimeout(() => {
-          console.log('🕐 User inactive for extended period - signing out for security');
           signOut().then(() => {
             setAuthState({
               isAuthenticated: false,
@@ -210,7 +197,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }).catch(console.error);
         }, INACTIVITY_TIMEOUT);
       } else {
-        console.warn('⚠️ Token refresh failed - no tokens in session');
         // Sign out if token refresh fails - will be defined later
         handleSignOut();
       }

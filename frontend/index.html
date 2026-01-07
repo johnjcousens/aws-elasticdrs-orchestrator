@@ -14,7 +14,6 @@
           const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
           const configFile = isLocalDev ? '/aws-config.local.json' : '/aws-config.json';
           
-          console.log(`🔧 Loading config from: ${configFile}`);
           const response = await fetch(configFile);
           const config = await response.json();
           
@@ -40,8 +39,6 @@
             }
           };
           
-          console.log('✅ AWS Config loaded successfully');
-          console.log('API Endpoint:', config.apiEndpoint);
           resolve();
         } catch (error) {
           console.error('❌ Failed to load AWS config:', error);
