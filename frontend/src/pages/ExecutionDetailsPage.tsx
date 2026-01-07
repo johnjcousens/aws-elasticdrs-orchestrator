@@ -24,12 +24,14 @@ import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
 import { WaveProgress } from '../components/WaveProgress';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useApiErrorHandler } from '../hooks/useApiErrorHandler';
 import apiClient from '../services/api';
 import type { Execution, WaveExecution } from '../types';
 
 export const ExecutionDetailsPage: React.FC = () => {
   const { executionId } = useParams<{ executionId: string }>();
   const navigate = useNavigate();
+  const { handleError } = useApiErrorHandler();
   
   const [execution, setExecution] = useState<Execution | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,14 +71,22 @@ export const ExecutionDetailsPage: React.FC = () => {
         setResumeInProgress(false);
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load execution details';
-      setError(errorMessage);
+      const error = err instanceof Error ? err : new Error('Failed to load execution details');
+      
+      // Use the error handler for authentication errors
+      try {
+        await handleError(error);
+      } catch (handledError) {
+        // If error handler doesn't handle it, set local error
+        const errorMessage = handledError instanceof Error ? handledError.message : 'Failed to load execution details';
+        setError(errorMessage);
+      }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, [executionId, resumeInProgress]);
+  }, [executionId, resumeInProgress, handleError]);
 
   // Initial fetch
   useEffect(() => {
