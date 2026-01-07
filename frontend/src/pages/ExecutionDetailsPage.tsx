@@ -68,17 +68,8 @@ export const ExecutionDetailsPage: React.FC = () => {
       if (data.status !== 'paused' && resumeInProgress) {
         setResumeInProgress(false);
       }
-    } catch (err: unknown) {
-      const error = err instanceof Error ? err : new Error('Failed to load execution details');
-      
-      // Use the error handler for authentication errors
-      try {
-        await handleError(error);
-      } catch (handledError) {
-        // If error handler doesn't handle it, set local error
-        const errorMessage = handledError instanceof Error ? handledError.message : 'Failed to load execution details';
-        setError(errorMessage);
-      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load execution details');
     } finally {
       if (!silent) {
         setLoading(false);
