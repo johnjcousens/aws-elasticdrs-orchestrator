@@ -5062,10 +5062,10 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
             wave_status = wave.get("Status", "").upper()
             job_id = wave.get("JobId")
             
-            # Only reconcile waves with JobId that show unknown status
-            if job_id and wave_status in ["UNKNOWN", ""]:
+            # Only reconcile waves with JobId that show unknown status OR started status that might be stale
+            if job_id and wave_status in ["UNKNOWN", "", "STARTED"]:
                 try:
-                    print(f"Reconciling wave {wave.get('WaveName')} with DRS job {job_id}")
+                    print(f"Reconciling wave {wave.get('WaveName')} with DRS job {job_id} (current status: {wave_status})")
                     
                     # Query DRS for actual job status
                     region = wave.get("Region", "us-east-1")
@@ -5090,20 +5090,23 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             
                             if all_launched:
                                 wave["Status"] = "COMPLETED"
-                                print(f"Wave {wave.get('WaveName')} reconciled to COMPLETED")
+                                wave["EndTime"] = int(time.time())  # Set end time when reconciling to completed
+                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to COMPLETED")
                             else:
                                 wave["Status"] = "FAILED"
                                 wave["StatusMessage"] = "Some servers failed to launch"
-                                print(f"Wave {wave.get('WaveName')} reconciled to FAILED - not all servers launched")
+                                wave["EndTime"] = int(time.time())
+                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to FAILED - not all servers launched")
                         elif drs_status == "FAILED":
                             wave["Status"] = "FAILED"
                             wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
-                            print(f"Wave {wave.get('WaveName')} reconciled to FAILED")
+                            wave["EndTime"] = int(time.time())
+                            print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to FAILED")
                         else:
-                            # Keep as unknown for other statuses
-                            print(f"Wave {wave.get('WaveName')} DRS status {drs_status} - keeping as unknown")
+                            # Keep original status for other DRS statuses (PENDING, STARTED, etc.)
+                            print(f"Wave {wave.get('WaveName')} DRS status {drs_status} - keeping as {wave_status}")
                     else:
-                        print(f"DRS job {job_id} not found - keeping wave as unknown")
+                        print(f"DRS job {job_id} not found - keeping wave as {wave_status}")
                         wave["StatusMessage"] = "Job not found"
                         
                 except Exception as e:
