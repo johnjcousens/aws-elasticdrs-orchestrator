@@ -5,7 +5,7 @@
  * Matches the design of the ExecutionDetails modal component.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Button,
@@ -50,10 +50,9 @@ export const ExecutionDetailsPage: React.FC = () => {
     jobIds: string[];
     region?: string;
   } | null>(null);
-  const [terminationProgress, setTerminationProgress] = useState<number>(0);
 
   // Fetch execution details
-  const fetchExecution = async (silent = false) => {
+  const fetchExecution = useCallback(async (silent = false) => {
     if (!executionId) return;
 
     try {
@@ -76,12 +75,12 @@ export const ExecutionDetailsPage: React.FC = () => {
         setLoading(false);
       }
     }
-  };
+  }, [executionId, resumeInProgress]);
 
   // Initial fetch
   useEffect(() => {
     fetchExecution();
-  }, [executionId]);
+  }, [fetchExecution]);
 
   // Real-time polling for active executions
   useEffect(() => {
@@ -111,7 +110,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
-  }, [execution]);
+  }, [execution, fetchExecution]);
 
   // Polling while termination is in progress
   useEffect(() => {
