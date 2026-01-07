@@ -15,6 +15,7 @@ import {
   Header,
   Alert,
   StatusIndicator,
+  Pagination,
 } from '@cloudscape-design/components';
 import type { Execution } from '../types';
 
@@ -202,27 +203,84 @@ export const TerminateInstancesDialog: React.FC<TerminateInstancesDialogProps> =
               <strong>This action cannot be undone.</strong> The following {recoveryInstances.length} EC2 recovery instance{recoveryInstances.length !== 1 ? 's' : ''} will be permanently terminated:
             </Alert>
 
-            <Table
-              columnDefinitions={columnDefinitions}
-              items={recoveryInstances}
-              loadingText="Loading instances..."
-              empty={
-                <Box textAlign="center" color="inherit">
-                  <b>No recovery instances</b>
-                  <Box padding={{ bottom: 's' }} variant="p" color="inherit">
-                    No recovery instances to display.
+            {recoveryInstances.length <= 10 ? (
+              // Show full table for small lists (≤10 instances)
+              <Table
+                columnDefinitions={columnDefinitions}
+                items={recoveryInstances}
+                loadingText="Loading instances..."
+                empty={
+                  <Box textAlign="center" color="inherit">
+                    <b>No recovery instances</b>
+                    <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                      No recovery instances to display.
+                    </Box>
                   </Box>
-                </Box>
-              }
-              header={
+                }
+                header={
+                  <Header
+                    counter={`(${recoveryInstances.length})`}
+                    description="EC2 instances that will be terminated"
+                  >
+                    Recovery Instances
+                  </Header>
+                }
+                variant="embedded"
+              />
+            ) : (
+              // Show summary with collapsible details for large lists (>10 instances)
+              <SpaceBetween size="s">
                 <Header
                   counter={`(${recoveryInstances.length})`}
                   description="EC2 instances that will be terminated"
                 >
                   Recovery Instances
                 </Header>
-              }
-            />
+                
+                <Box>
+                  <strong>Instance Summary:</strong>
+                </Box>
+                <Box>
+                  • Total instances: {recoveryInstances.length}
+                </Box>
+                <Box>
+                  • Running: {recoveryInstances.filter(i => i.status.toUpperCase() === 'LAUNCHED').length}
+                </Box>
+                <Box>
+                  • Other states: {recoveryInstances.filter(i => i.status.toUpperCase() !== 'LAUNCHED').length}
+                </Box>
+                
+                <details>
+                  <summary style={{ cursor: 'pointer', padding: '8px 0' }}>
+                    <strong>Show all instances</strong>
+                  </summary>
+                  <Box padding={{ top: 's' }}>
+                    <Table
+                      columnDefinitions={columnDefinitions}
+                      items={recoveryInstances}
+                      loadingText="Loading instances..."
+                      empty={
+                        <Box textAlign="center" color="inherit">
+                          <b>No recovery instances</b>
+                          <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                            No recovery instances to display.
+                          </Box>
+                        </Box>
+                      }
+                      variant="embedded"
+                      pagination={
+                        recoveryInstances.length > 25 ? (
+                          <Pagination
+                            currentPageIndex={1}
+                            pagesCount={Math.ceil(recoveryInstances.length / 25)}
+                          />
+                        ) : undefined
+                      }
+                    />
+                  </Box>
+                </details>
+              </SpaceBetween>
+            )}
 
             <Alert type="info">
               <strong>What happens next:</strong>
