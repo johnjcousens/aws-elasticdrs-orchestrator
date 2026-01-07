@@ -49,12 +49,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const { notifications } = useNotifications();
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
-  const [activeHref, setActiveHref] = useState(location.pathname);
 
-  // Update activeHref when location changes
-  React.useEffect(() => {
-    setActiveHref(location.pathname);
-  }, [location.pathname]);
   // Navigation items
   const navigationItems = [
     { type: 'link', text: 'Dashboard', href: '/' },
@@ -65,17 +60,23 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation
+  // Handle navigation - simplified approach with debugging
   const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
     const href = event.detail.href;
     
-    // Update active href state immediately
-    setActiveHref(href);
+    console.log('Navigation requested:', href, 'Current location:', location.pathname);
     
-    // Use React Router navigation
-    navigate(href);
-  }, [navigate]);
+    // Force a clean navigation
+    try {
+      navigate(href, { replace: false });
+      console.log('Navigation completed to:', href);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Fallback: try with window.location
+      window.location.href = href;
+    }
+  }, [navigate, location.pathname]);
 
   // Handle breadcrumb navigation
   const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
@@ -150,7 +151,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         navigation={
           !navigationHide ? (
             <SideNavigation
-              activeHref={activeHref}
+              activeHref={location.pathname}
               items={navigationItems as SideNavigationProps['items']}
               onFollow={handleNavigationFollow}
             />
