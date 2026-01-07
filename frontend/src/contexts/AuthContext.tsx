@@ -136,6 +136,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const recordActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
     
+    // Debug logging for testing
+    console.log('🔄 Activity recorded at:', new Date().toLocaleTimeString());
+    
     // Only restart inactivity timer if user is authenticated
     if (authState.isAuthenticated) {
       startInactivityTimer();
@@ -148,8 +151,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const startInactivityTimer = useCallback(() => {
     clearInactivityTimer();
     
+    const timeoutMinutes = INACTIVITY_TIMEOUT / (60 * 1000);
+    console.log(`⏰ Inactivity timer started - will logout in ${timeoutMinutes} minutes if no activity`);
+    
     inactivityTimerRef.current = setTimeout(() => {
-      console.log('🕐 User inactive for 4 hours - signing out for security');
+      console.log('🕐 User inactive for extended period - signing out for security');
       // Sign out due to inactivity
       signOut().then(() => {
         setAuthState({
@@ -175,7 +181,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   /**
    * Refresh authentication tokens
    */
-  const refreshTokens = useCallback(async () => {
+  const refreshTokens = useCallback(async (): Promise<void> => {
     try {
       console.log('🔄 Refreshing authentication tokens...');
       
@@ -185,9 +191,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (session.tokens) {
         console.log('✅ Tokens refreshed successfully');
         
-        // Restart both timers with fresh tokens
-        startTokenRefreshTimer();
-        startInactivityTimer();
+        // Restart both timers with fresh tokens - use refs to avoid circular deps
+        clearTokenRefreshTimer();
+        tokenRefreshTimerRef.current = setTimeout(() => {
+          refreshTokens();
+        }, TOKEN_REFRESH_TIME);
+        
+        clearInactivityTimer();
+        inactivityTimerRef.current = setTimeout(() => {
+          console.log('🕐 User inactive for extended period - signing out for security');
+          signOut().then(() => {
+            setAuthState({
+              isAuthenticated: false,
+              user: null,
+              loading: false,
+              error: undefined,
+            });
+          }).catch(console.error);
+        }, INACTIVITY_TIMEOUT);
       } else {
         console.warn('⚠️ Token refresh failed - no tokens in session');
         // Sign out if token refresh fails - will be defined later
@@ -198,7 +219,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Sign out if token refresh fails - will be defined later
       handleSignOut();
     }
-  }, [startTokenRefreshTimer, startInactivityTimer]);
+  }, [clearTokenRefreshTimer, clearInactivityTimer, TOKEN_REFRESH_TIME, INACTIVITY_TIMEOUT]);
 
   /**
    * Start token refresh timer
@@ -210,6 +231,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       refreshTokens();
     }, TOKEN_REFRESH_TIME);
   }, [clearTokenRefreshTimer, refreshTokens, TOKEN_REFRESH_TIME]);
+
+  /**
+   * Start inactivity timer - logout after extended inactivity
+   */
+  const startInactivityTimer = useCallback(() => {
+    clearInactivityTimer();
+    
+    const timeoutMinutes = INACTIVITY_TIMEOUT / (60 * 1000);
+    console.log(`⏰ Inactivity timer started - will logout in ${timeoutMinutes} minutes if no activity`);
+    
+    inactivityTimerRef.current = setTimeout(() => {
+      console.log('🕐 User inactive for extended period - signing out for security');
+      // Sign out due to inactivity
+      signOut().then(() => {
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          loading: false,
+          error: undefined,
+        });
+      }).catch(console.error);
+    }, INACTIVITY_TIMEOUT);
+  }, [clearInactivityTimer, INACTIVITY_TIMEOUT]);
 
   /**
    * Start both authentication timers (inactivity and token refresh)
