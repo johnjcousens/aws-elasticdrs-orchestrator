@@ -60,14 +60,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation - minimal test implementation (trigger redeploy)
+  // Handle navigation - let CloudScape handle React Router integration naturally
   const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
-    const href = event.detail.href;
-    
-    console.log('Navigation clicked:', href);
-    
-    // Don't prevent default - let the browser handle it naturally
-    // This should work like a normal <a> tag
+    // CloudScape SideNavigation handles React Router integration automatically
+    // No custom logic needed - just let it work naturally
   }, []);
 
   // Handle breadcrumb navigation
