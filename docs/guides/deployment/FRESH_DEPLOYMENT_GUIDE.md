@@ -95,7 +95,7 @@ git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
 cd aws-elasticdrs-orchestrator
 
 # 2. Set up GitHub Actions CI/CD (one-time)
-# Follow: docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md
+# Follow: docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md
 
 # 3. Deploy via GitHub Actions
 git add .

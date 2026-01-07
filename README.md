@@ -578,7 +578,7 @@ This comprehensive code quality implementation ensures the AWS DRS Orchestration
 
 The project uses **GitHub Actions** for automated deployment with comprehensive security scanning and OIDC-based AWS authentication.
 
-📋 **[GitHub Actions Setup Guide](docs/guides/deployment/GITHUB_ACTIONS_SETUP_GUIDE.md)** - Complete setup instructions for GitHub Actions CI/CD.
+📋 **[GitHub Actions CI/CD Guide](docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md)** - Complete setup, usage, and troubleshooting guide for GitHub Actions CI/CD.
 
 ### Active CI/CD Infrastructure
 - **Workflow**: `.github/workflows/deploy.yml`
