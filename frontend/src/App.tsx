@@ -26,7 +26,7 @@ import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
  * Main App Component
  * 
  * Provides routing, theming, and authentication context to the entire application.
- * API client is automatically initialized with AWS config from window.AWS_CONFIG.
+ * Uses single AppLayout instance for AWS console-style navigation.
  */
 function App() {
   return (
@@ -37,105 +37,104 @@ function App() {
             <AccountProvider>
               <BrowserRouter>
                 <ErrorBoundary>
-            <Routes>
-            {/* Public routes - no AppLayout wrapper */}
-            <Route path="/login" element={<LoginPage />} />
-            
-            {/* Protected routes - wrapped with AppLayout */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/getting-started"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <GettingStartedPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            {/* Protection Groups */}
-            <Route
-              path="/protection-groups"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ProtectionGroupsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/protection-groups/new"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ProtectionGroupsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/recovery-plans"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <RecoveryPlansPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/recovery-plans/new"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <RecoveryPlansPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/executions/:executionId"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ExecutionDetailsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            <Route
-              path="/executions"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ExecutionsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            
-            {/* Catch-all redirect to home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          </ErrorBoundary>
-        </BrowserRouter>
+                  <Routes>
+                    {/* Public routes - no AppLayout wrapper */}
+                    <Route path="/login" element={<LoginPage />} />
+                    
+                    {/* Protected routes - single AppLayout wrapper */}
+                    <Route
+                      path="/"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <Dashboard />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/getting-started"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <GettingStartedPage />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/protection-groups"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <ProtectionGroupsPage />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/protection-groups/new"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <ProtectionGroupsPage />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/recovery-plans"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <RecoveryPlansPage />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/recovery-plans/new"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <RecoveryPlansPage />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/executions"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <ExecutionsPage />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    <Route
+                      path="/executions/:executionId"
+                      element={
+                        <ProtectedRoute>
+                          <AppLayout>
+                            <ExecutionDetailsPage />
+                          </AppLayout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    
+                    {/* Catch-all redirect to home */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </ErrorBoundary>
+              </BrowserRouter>
             </AccountProvider>
           </ApiProvider>
         </NotificationProvider>
