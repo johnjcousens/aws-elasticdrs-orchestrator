@@ -60,23 +60,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     { type: 'link', text: 'History', href: '/executions' },
   ];
 
-  // Handle navigation - force page reload to bypass React Router issues
+  // Handle navigation - minimal test implementation
   const handleNavigationFollow = useCallback((event: { preventDefault: () => void; detail: { href: string } }) => {
-    event.preventDefault();
     const href = event.detail.href;
     
-    console.log('Navigation requested:', href, 'Current location:', location.pathname);
+    console.log('Navigation clicked:', href);
     
-    // Don't navigate if we're already on the target page
-    if (location.pathname === href) {
-      console.log('Already on target page, skipping navigation');
-      return;
-    }
-    
-    // Force a complete page reload to bypass any React Router corruption
-    console.log('Forcing page reload to:', href);
-    window.location.href = href;
-  }, [location.pathname]);
+    // Don't prevent default - let the browser handle it naturally
+    // This should work like a normal <a> tag
+  }, []);
 
   // Handle breadcrumb navigation
   const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
