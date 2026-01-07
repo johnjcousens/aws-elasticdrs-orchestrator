@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Simple wrapper for safe-push.sh
+# Usage: ./scripts/push [branch] [--force]
+
+exec "$(dirname "$0")/safe-push.sh" "$@"
