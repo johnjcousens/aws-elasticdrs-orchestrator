@@ -23,16 +23,16 @@ This guide provides detailed instructions for using and configuring the GitHub A
 
 **ALL deployments MUST use GitHub Actions CI/CD pipeline:**
 - ✅ **Audit Trail**: All changes tracked in Git history
-- ✅ **Quality Gates**: Automated validation, testing, security scanning
+- ✅ **Quality Gates**: Automated validation, testing, **comprehensive security scanning**
 - ✅ **Team Visibility**: All deployments visible to team members
 - ✅ **Enterprise Compliance**: Meets deployment standards and governance
 - ✅ **Rollback Capability**: Git-based rollback and deployment history
 
 ### Pipeline Benefits
 
-- ✅ **6-Stage Pipeline**: Complete validation, security scan, build, test, and deployment automation
+- ✅ **6-Stage Pipeline**: Complete validation, **enhanced security scan**, build, test, and deployment automation
 - ✅ **OIDC Authentication**: Secure AWS access without long-lived credentials
-- ✅ **Security Scanning**: Integrated Bandit and Safety security checks
+- ✅ **Enhanced Security Scanning**: Comprehensive security validation with Bandit, Safety, Semgrep, CFN-Lint, ESLint, and NPM Audit
 - ✅ **Fast Deployments**: ~20 minute full deployments
 - ✅ **No Circular Dependencies**: GitHub Actions runs outside AWS, avoiding self-update issues
 - ✅ **Native Git Integration**: No CodeCommit mirroring required
@@ -55,13 +55,13 @@ This guide provides detailed instructions for using and configuring the GitHub A
 | Stage | Purpose | Duration | Key Actions |
 |-------|---------|----------|-------------|
 | **Validate** | Template and code validation | ~2 min | CloudFormation validation, Python linting, TypeScript checking |
-| **Security Scan** | Security analysis | ~2 min | Bandit security scan, Safety dependency check |
+| **Security Scan** | **Enhanced comprehensive security analysis** | ~3 min | **Bandit, Safety, Semgrep, CFN-Lint, ESLint, NPM Audit with thresholds** |
 | **Build** | Package creation | ~3 min | Lambda packaging, frontend build |
 | **Test** | Automated testing | ~2 min | Unit tests, integration tests |
 | **Deploy Infrastructure** | AWS resource deployment | ~10 min | CloudFormation stack updates |
 | **Deploy Frontend** | Frontend deployment | ~2 min | S3 sync, CloudFront invalidation |
 
-**Total Duration**: ~20 minutes for complete deployment
+**Total Duration**: ~22 minutes for complete deployment (enhanced security scanning adds ~1 minute)
 
 ## Quick Start
 
@@ -319,15 +319,38 @@ black --check lambda/
 ```
 
 #### 3. Security Scan Stage Failure
-**Symptoms**: Security vulnerabilities detected
+
+**Symptoms**: Security vulnerabilities detected, build fails due to threshold violations
 **Solutions**:
 ```bash
-# Run Bandit locally
-bandit -r lambda/ -f json
+# Run enhanced security scans locally
+bandit -r lambda/ scripts/ -ll --severity-level medium --confidence-level medium
+safety check
+semgrep --config=python.lang.security lambda/ scripts/ --severity ERROR --severity WARNING
+cfn-lint cfn/*.yaml
 
-# Run Safety check
-safety check -r lambda/requirements.txt
+# Frontend security scanning
+cd frontend/
+npm audit --audit-level moderate
+npx eslint src/ --ext .ts,.tsx
+
+# Generate security summary (requires reports directory)
+mkdir -p reports/security/raw reports/security/formatted
+python scripts/generate-security-summary.py
+python scripts/check-security-thresholds.py
 ```
+
+**Security Thresholds**:
+- **Critical Issues**: 0 allowed (fails build immediately)
+- **High Issues**: 10 maximum (warning, continues deployment)  
+- **Total Issues**: 50 maximum (informational tracking)
+
+**Common Security Issues**:
+- **Bandit B101**: Use of assert statements (replace with proper error handling)
+- **Bandit B108**: Hardcoded temporary file paths (use tempfile module)
+- **Safety**: Outdated dependencies with known vulnerabilities (update packages)
+- **CFN-Lint**: CloudFormation security misconfigurations (follow AWS best practices)
+- **NPM Audit**: Frontend dependency vulnerabilities (run `npm audit fix`)
 
 #### 4. Build Stage Failure
 **Symptoms**: Lambda packaging or frontend build issues
