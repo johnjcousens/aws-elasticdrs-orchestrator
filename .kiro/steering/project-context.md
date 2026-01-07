@@ -9,13 +9,13 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform f
 - **Wave-Based Recovery**: Execute disaster recovery in coordinated waves with explicit dependencies between tiers (database → application → web)
 - **Protection Groups**: Organize DRS source servers into logical groups for coordinated recovery with automatic discovery
 - **Pause/Resume Execution**: Pause execution before specific waves for manual validation, then resume when ready
-- **API-First Design**: Complete REST API (42 endpoints across 12 categories) for DevOps integration and automation workflows
+- **API-First Design**: Complete REST API (47+ endpoints across 12 categories) for DevOps integration and automation workflows
 - **Enterprise-Grade**: Built on AWS serverless architecture with CloudFormation IaC for reproducible deployments
 
 ## Architecture
 
-- **Serverless**: 5 Lambda functions, Step Functions, API Gateway, DynamoDB
-- **Infrastructure as Code**: 7 CloudFormation templates (1 master + 6 nested stacks)
+- **Serverless**: 7 Lambda functions, Step Functions, API Gateway, DynamoDB
+- **Infrastructure as Code**: 15+ CloudFormation templates (1 master + 14+ nested stacks)
 - **Frontend**: React 19.1.1 + TypeScript 5.9.3 + CloudScape Design System 3.0.1148
 - **Backend**: Python 3.12 Lambda functions with boto3 and crhelper 2.0.11
 
@@ -32,12 +32,12 @@ AWS-DRS-Orchestration/
 │   ├── settings/                 # MCP and other settings
 │   ├── specs/                    # Active specifications (fresh-deployment)
 │   └── steering/                 # AI steering documents (project-context.md)
-├── cfn/                          # CloudFormation Infrastructure as Code (8 templates)
+├── cfn/                          # CloudFormation Infrastructure as Code (15+ templates)
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
 │   ├── github-oidc-stack.yaml    # GitHub Actions OIDC integration (deploy separately)
 │   └── ...                       # Application stacks (database, lambda, api, etc.)
-├── frontend/                     # React + CloudScape UI (36 components + 2 wrappers + 6 contexts, 7 pages)
-├── lambda/                       # Python Lambda functions (5 active functions)
+├── frontend/                     # React + CloudScape UI (32+ components + 6 contexts, 7 pages)
+├── lambda/                       # Python Lambda functions (7 active functions)
 ├── scripts/                      # Deployment and automation scripts
 ├── tests/                        # Python unit/integration tests (minimal, needs expansion)
 └── docs/                         # Comprehensive documentation (40+ files)
@@ -56,7 +56,7 @@ AWS-DRS-Orchestration/
 - AWS Lambda (Python 3.12 runtime)
 - API Gateway with Cognito JWT authentication
 - Step Functions orchestration with waitForTaskToken
-- DynamoDB (3 tables: protection-groups, recovery-plans, execution-history)
+- DynamoDB (4 tables: protection-groups, recovery-plans, execution-history, target-accounts)
 - EventBridge for scheduled polling
 
 ### AWS Services

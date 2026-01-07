@@ -12,7 +12,7 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform f
 - **Drill Mode**: Test recovery procedures without impacting production environments
 - **Real-Time Monitoring**: Track execution progress with 3-second polling, detailed status updates, and comprehensive audit trails
 - **Instance Lifecycle Management**: Terminate recovery instances after drill completion to manage costs
-- **API-First Design**: Complete REST API (42 endpoints across 12 categories) for DevOps integration and automation workflows
+- **API-First Design**: Complete REST API (47+ endpoints across 12 categories) for DevOps integration and automation workflows
 - **Enterprise-Grade**: Built on AWS serverless architecture with CloudFormation IaC for reproducible deployments
 
 ## Key Features
@@ -107,8 +107,8 @@ AWS-ElasticDRS-Orchestration/
 │   ├── deploy-infra-buildspec.yml # Infrastructure deployment
 │   └── deploy-frontend-buildspec.yml # Frontend deployment with dynamic config
 ├── cfn/                          # CloudFormation Infrastructure as Code (7 templates)
-├── frontend/                     # React + CloudScape UI (37 components, 9 pages)
-├── lambda/                       # Python Lambda functions (5 active functions)
+├── frontend/                     # React + CloudScape UI (32+ components, 7 pages)
+├── lambda/                       # Python Lambda functions (7 active functions)
 ├── scripts/                      # Deployment and automation scripts
 ├── tests/                        # Python unit/integration and Playwright E2E tests
 └── docs/                         # Comprehensive documentation
@@ -121,7 +121,7 @@ Modular nested stack architecture for infrastructure deployment:
 
 - **master-template.yaml**: Root orchestrator, parameter propagation, stack outputs
 - **database-stack.yaml**: 4 DynamoDB tables (protection-groups, recovery-plans, execution-history, target-accounts)
-- **lambda-stack.yaml**: 5 Lambda functions with IAM roles and permissions
+- **lambda-stack.yaml**: 7 Lambda functions with IAM roles and permissions
 - **api-auth-stack.yaml**: Cognito User Pool, Identity Pool, SNS notifications
 - **api-gateway-core-stack.yaml**: REST API, authorizer, validator
 - **api-gateway-resources-stack.yaml**: All API path definitions (35+ resources)
@@ -157,12 +157,14 @@ frontend/
 **Lambda Functions (`lambda/`)**
 Python 3.12 serverless compute:
 
-**Active Functions (5 deployed):**
-- **index.py** → `api-handler`: REST API endpoints (42 endpoints across 12 categories) for protection groups, recovery plans, executions, DRS integration, terminate recovery instances
+**Active Functions (7 deployed):**
+- **index.py** → `api-handler`: REST API endpoints (47+ endpoints across 12 categories) for protection groups, recovery plans, executions, DRS integration, terminate recovery instances
 - **orchestration_stepfunctions.py** → `orchestration-stepfunctions`: Step Functions orchestration engine with wave execution, pause/resume via waitForTaskToken
 - **build_and_deploy.py** → `frontend-builder`: CloudFormation custom resource for frontend deployment
 - **poller/execution_finder.py** → `execution-finder`: Queries StatusIndex GSI for executions in POLLING status (EventBridge scheduled)
 - **poller/execution_poller.py** → `execution-poller`: Polls DRS job status and updates execution wave states
+- **bucket_cleaner.py** → `bucket-cleaner`: S3 bucket cleanup for CloudFormation stack deletion
+- **notification_formatter.py** → `notification-formatter`: Formats pipeline and security scan notifications
 
 **Dependencies**: crhelper==2.0.11 (boto3 provided by Lambda runtime)
 
@@ -190,7 +192,7 @@ Python 3.12 serverless compute:
 - **AWS Lambda**: Serverless compute (Python 3.12 runtime)
 - **boto3**: AWS SDK for Python (provided by Lambda runtime)
 - **crhelper 2.0.11**: CloudFormation custom resource helper
-- **Complete REST API**: 42 endpoints across 12 categories for comprehensive automation
+- **Complete REST API**: 47+ endpoints across 12 categories for comprehensive automation
 
 **AWS Services**
 
@@ -370,19 +372,19 @@ git push origin main
 
 ```
 s3://aws-elasticdrs-orchestrator/
-├── cfn/                     # CloudFormation templates (7 total)
-├── lambda/                  # Lambda deployment packages (5 functions)
+├── cfn/                     # CloudFormation templates (15+ total)
+├── lambda/                  # Lambda deployment packages (7 functions)
 └── frontend/                # Frontend build artifacts
 ```
 
 ## Architecture Highlights
 
-- **Serverless**: 5 Lambda functions, Step Functions, API Gateway, DynamoDB
-- **Infrastructure as Code**: 7 CloudFormation templates (1 master + 6 nested stacks)
+- **Serverless**: 7 Lambda functions, Step Functions, API Gateway, DynamoDB
+- **Infrastructure as Code**: 15+ CloudFormation templates (1 master + 14+ nested stacks)
 - **Security**: Cognito authentication, IAM least-privilege policies, encryption at rest
 - **Cost-Effective**: Pay-per-use serverless architecture ($12-40/month estimated)
 - **Scalable**: Handles multiple concurrent executions and unlimited protection groups/plans
-- **Data Storage**: 3 DynamoDB tables (protection-groups, recovery-plans, execution-history)
+- **Data Storage**: 4 DynamoDB tables (protection-groups, recovery-plans, execution-history, target-accounts)
 
 ## Key Implementation Patterns
 
