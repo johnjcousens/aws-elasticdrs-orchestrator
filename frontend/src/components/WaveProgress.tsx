@@ -236,26 +236,40 @@ const formatRelativeTime = (timestamp: string | number | undefined): string => {
 };
 
 /**
- * Get detailed status description
+ * Get detailed status description based on wave status and job events
  */
-const getStatusDescription = (status: string): string => {
+const getStatusDescription = (status: string, jobEvents?: JobLogEvent[]): string => {
+  const statusUpper = status.toUpperCase();
+  
+  // For STARTED status, check job events to determine if it's launching or terminating
+  if (statusUpper === 'STARTED' && jobEvents && jobEvents.length > 0) {
+    const hasCleanupEvents = jobEvents.some(event => 
+      event.event.toUpperCase().includes('CLEANUP')
+    );
+    const hasLaunchEvents = jobEvents.some(event => 
+      event.event.toUpperCase().includes('LAUNCH')
+    );
+    
+    if (hasCleanupEvents) {
+      return 'DRS job initiated, terminating instances';
+    } else if (hasLaunchEvents) {
+      return 'DRS job initiated, launching instances';
+    }
+    // Default for STARTED without clear job type
+    return 'DRS job initiated';
+  }
+  
   const statusMap: Record<string, string> = {
-    'pending': 'Waiting to start',
     'PENDING': 'Waiting to start',
-    'started': 'DRS job initiated, launching instances',
-    'STARTED': 'DRS job initiated, launching instances',
-    'in_progress': 'Recovery in progress',
+    'STARTED': 'DRS job initiated',
     'IN_PROGRESS': 'Recovery in progress',
-    'launching': 'EC2 instances launching',
     'LAUNCHING': 'EC2 instances launching',
-    'completed': 'Successfully completed',
     'COMPLETED': 'Successfully completed',
-    'failed': 'Failed - check error details',
     'FAILED': 'Failed - check error details',
-    'cancelled': 'Cancelled by user',
     'CANCELLED': 'Cancelled by user',
   };
-  return statusMap[status] || status;
+  
+  return statusMap[statusUpper] || status;
 };
 
 /**
@@ -654,7 +668,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const isCurrent = currentWave === wave.waveNumber || currentWave === index;
         const hasServers = wave.serverExecutions && wave.serverExecutions.length > 0;
         const statusIndicator = getWaveStatusIndicator(wave.status);
-        const statusDescription = getStatusDescription(wave.status);
+        const statusDescription = getStatusDescription(wave.status, waveJobLogs?.events);
         const hasJobId = !!wave.jobId;
         const waveJobLogs = jobLogs[waveNum];
         const isLoadingLogs = loadingLogs[waveNum];
