@@ -445,7 +445,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   })();
 
   // Check if recovery instances can be terminated
-  // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated
+  // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated AND no waves are actively running
   const canTerminate = execution && (() => {
     const terminalStatuses = [
       'completed', 'cancelled', 'failed', 'partial',
@@ -460,7 +460,18 @@ export const ExecutionDetailsPage: React.FC = () => {
     // Don't show button if already terminated
     if (instancesAlreadyTerminated) return false;
     
-    return isTerminal && hasJobId;
+    // Check if any waves are still actively running
+    const activeWaveStatuses = [
+      'in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated',
+      'IN_PROGRESS', 'PENDING', 'RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED'
+    ];
+    const hasActiveWaves = waves.some((wave: { status?: string; Status?: string }) => {
+      const waveStatus = wave.status || wave.Status;
+      return waveStatus && activeWaveStatuses.includes(waveStatus);
+    });
+    
+    // Only show terminate button if execution is terminal, has job IDs, and no waves are actively running
+    return isTerminal && hasJobId && !hasActiveWaves;
   })();
   
   // Show terminated status badge instead of button when already terminated
