@@ -4062,12 +4062,29 @@ def execute_with_step_functions(
         # Step Functions input format for step-functions-stack.yaml state machine
         # Uses 'Plan' (singular) not 'Plans' (array)
         # ALWAYS include ResumeFromWave (null for new executions) so Step Functions doesn't fail
+        
+        # CRITICAL FIX: Transform recovery plan waves to Step Functions format
+        # Recovery plan uses: waveNumber, name, protectionGroupId
+        # Step Functions expects: WaveName, ProtectionGroupId
+        transformed_waves = []
+        for wave in plan.get("Waves", []):
+            transformed_wave = {
+                "WaveName": wave.get("name", f"Wave {wave.get('waveNumber', 0) + 1}"),
+                "ProtectionGroupId": wave.get("protectionGroupId"),
+                "WaveNumber": wave.get("waveNumber", 0),
+                "Dependencies": wave.get("dependsOnWaves", []),
+                "PauseBeforeWave": wave.get("pauseBeforeWave", False),
+                "ExecutionType": wave.get("executionType", "sequential"),
+                "Description": wave.get("description", ""),
+            }
+            transformed_waves.append(transformed_wave)
+        
         sfn_input = {
             "Execution": {"Id": execution_id},
             "Plan": {
                 "PlanId": plan_id,
                 "PlanName": plan.get("PlanName", "Unknown"),
-                "Waves": plan.get("Waves", []),
+                "Waves": transformed_waves,  # Use transformed waves
             },
             "IsDrill": is_drill,
             "ResumeFromWave": resume_from_wave,  # None for new executions, wave index for resume
