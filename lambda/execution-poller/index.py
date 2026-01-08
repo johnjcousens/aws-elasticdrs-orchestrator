@@ -603,68 +603,144 @@ def poll_wave_status(
         # Update server statuses from DRS participating servers
         if "ParticipatingServers" in job_status:
             wave_region = wave.get("Region", "us-east-1")
-            updated_servers = []
+            server_statuses = []
+
+            # Get recovery instances to find instance IDs for completed jobs
+            recovery_instances = {}
+            try:
+                drs_client = boto3.client("drs", region_name=wave_region)
+                recovery_response = drs_client.describe_recovery_instances()
+                for instance in recovery_response.get("items", []):
+                    source_server_id = instance.get("sourceServerID")
+                    if source_server_id:
+                        recovery_instances[source_server_id] = {
+                            "recoveryInstanceID": instance.get("recoveryInstanceID"),
+                            "ec2InstanceID": instance.get("ec2InstanceID"),
+                            "ec2InstanceState": instance.get("ec2InstanceState"),
+                        }
+                logger.info(f"Found {len(recovery_instances)} recovery instances in {wave_region}")
+            except Exception as e:
+                logger.warning(f"Could not get recovery instances: {e}")
 
             for drs_server in job_status["ParticipatingServers"]:
+                source_server_id = drs_server.get("sourceServerID", "")
+                
+                # Get recovery instance ID from DRS job or recovery instances lookup
+                recovery_instance_id = drs_server.get("recoveryInstanceID")
+                if not recovery_instance_id and source_server_id in recovery_instances:
+                    # Fallback to recovery instances lookup for completed jobs
+                    recovery_info = recovery_instances[source_server_id]
+                    recovery_instance_id = (
+                        recovery_info.get("recoveryInstanceID") or
+                        recovery_info.get("ec2InstanceID")
+                    )
+                    logger.info(f"Found instance ID {recovery_instance_id} for server {source_server_id} via recovery instances lookup")
+
+                # Use ServerStatuses format (matches API transform function expectations)
+                server_status = {
+                    "SourceServerId": source_server_id,
+                    "LaunchStatus": drs_server.get("launchStatus", "UNKNOWN"),
+                    "RecoveryInstanceID": recovery_instance_id,
+                    "Error": None,
+                }
+
+                server_statuses.append(server_status)
+                logger.info(f"Updated server {source_server_id}: status={server_status['LaunchStatus']}, instanceId={recovery_instance_id}")
+
+            # Store in ServerStatuses format (matches API transform function expectations)
+            wave["ServerStatuses"] = server_statuses
+            
+            # Keep legacy Servers array for backward compatibility
+            legacy_servers = []
+            for server_status in server_statuses:
+                source_server_id = server_status["SourceServerId"]
+                recovery_instance_id = server_status["RecoveryInstanceID"]
+                
                 server_data = {
-                    "SourceServerId": drs_server.get("sourceServerID", ""),
-                    "Status": drs_server.get("launchStatus", "UNKNOWN"),
+                    "SourceServerId": source_server_id,
+                    "Status": server_status["LaunchStatus"],
                     "HostName": "",
-                    "LaunchTime": 0,
-                    "InstanceId": "",
+                    "LaunchTime": int(datetime.now(timezone.utc).timestamp()),
+                    "InstanceId": recovery_instance_id or "",
                     "PrivateIpAddress": "",
                 }
 
-                # Set LaunchTime when server starts launching
-                if server_data["Status"] in [
-                    "PENDING",
-                    "IN_PROGRESS",
-                    "LAUNCHED",
-                ]:
-                    server_data["LaunchTime"] = int(
-                        datetime.now(timezone.utc).timestamp()
-                    )
-
-                # Get EC2 instance details if recoveryInstanceID exists
-                recovery_instance_id = drs_server.get("recoveryInstanceID")
+                # Enrich with EC2 data if we have an instance ID
                 if recovery_instance_id:
-                    server_data["InstanceId"] = recovery_instance_id
-
-                    # Enrich with EC2 data
                     try:
                         ec2_data = get_ec2_instance_details(
                             recovery_instance_id, wave_region
                         )
                         if ec2_data:
-                            server_data["HostName"] = ec2_data.get(
-                                "HostName", ""
-                            )
-                            server_data["PrivateIpAddress"] = ec2_data.get(
-                                "PrivateIpAddress", ""
-                            )
+                            server_data["HostName"] = ec2_data.get("HostName", "")
+                            server_data["PrivateIpAddress"] = ec2_data.get("PrivateIpAddress", "")
                     except Exception as e:
-                        logger.warning(
-                            f"Could not fetch EC2 details for {recovery_instance_id}: {str(e)}"
-                        )
+                        logger.warning(f"Could not fetch EC2 details for {recovery_instance_id}: {str(e)}")
 
-                updated_servers.append(server_data)
+                legacy_servers.append(server_data)
 
-            wave["Servers"] = updated_servers
+            wave["Servers"] = legacy_servers
 
         # Determine wave status based on server launch results
-        servers = wave.get("Servers", [])
+        server_statuses = wave.get("ServerStatuses", [])
+        legacy_servers = wave.get("Servers", [])
 
         if execution_type == "DRILL":
-            if servers:
-                # Check if ALL servers launched successfully
+            if server_statuses:
+                # Use new ServerStatuses format
                 all_launched = all(
-                    s.get("Status") == "LAUNCHED" for s in servers
+                    s.get("LaunchStatus") == "LAUNCHED" for s in server_statuses
                 )
-                # Check if ANY servers failed to launch
+                any_failed = any(
+                    s.get("LaunchStatus")
+                    in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
+                    for s in server_statuses
+                )
+
+                if all_launched:
+                    wave["Status"] = "completed"
+                    logger.info(
+                        f"Wave {wave.get('WaveId')} completed - all servers LAUNCHED"
+                    )
+                elif any_failed:
+                    wave["Status"] = "FAILED"
+                    failed_servers = [
+                        s.get("SourceServerId")
+                        for s in server_statuses
+                        if s.get("LaunchStatus")
+                        in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
+                    ]
+                    logger.warning(
+                        f"Wave {wave.get('WaveId')} failed - servers {failed_servers} failed to launch"
+                    )
+                elif drs_status in ["PENDING", "STARTED"]:
+                    wave["Status"] = "LAUNCHING"
+                elif drs_status == "COMPLETED" and not all_launched:
+                    # CRITICAL BUG FIX: DRS job completed but servers never launched
+                    wave["Status"] = "FAILED"
+                    not_launched_servers = [
+                        s.get("SourceServerId")
+                        for s in server_statuses
+                        if s.get("LaunchStatus") != "LAUNCHED"
+                    ]
+                    logger.error(
+                        f"Wave {wave.get('WaveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
+                    )
+                    wave["StatusMessage"] = (
+                        f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
+                    )
+                else:
+                    # Fallback to DRS status if no clear success/failure
+                    wave["Status"] = drs_status
+            elif legacy_servers:
+                # Fallback to legacy Servers format
+                all_launched = all(
+                    s.get("Status") == "LAUNCHED" for s in legacy_servers
+                )
                 any_failed = any(
                     s.get("Status")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in servers
+                    for s in legacy_servers
                 )
 
                 if all_launched:
@@ -676,7 +752,7 @@ def poll_wave_status(
                     wave["Status"] = "FAILED"
                     failed_servers = [
                         s.get("SourceServerID")
-                        for s in servers
+                        for s in legacy_servers
                         if s.get("Status")
                         in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     ]
@@ -690,7 +766,7 @@ def poll_wave_status(
                     wave["Status"] = "FAILED"
                     not_launched_servers = [
                         s.get("SourceServerId")
-                        for s in servers
+                        for s in legacy_servers
                         if s.get("Status") != "LAUNCHED"
                     ]
                     logger.error(
@@ -707,14 +783,15 @@ def poll_wave_status(
                 wave["Status"] = drs_status
         else:  # RECOVERY
             # RECOVERY complete when all servers LAUNCHED + post-launch complete
-            if servers:
+            if server_statuses:
+                # Use new ServerStatuses format
                 all_launched = all(
-                    s.get("Status") == "LAUNCHED" for s in servers
+                    s.get("LaunchStatus") == "LAUNCHED" for s in server_statuses
                 )
                 any_failed = any(
-                    s.get("Status")
+                    s.get("LaunchStatus")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in servers
+                    for s in server_statuses
                 )
                 post_launch_complete = (
                     job_status.get("PostLaunchActionsStatus") == "COMPLETED"
@@ -737,7 +814,49 @@ def poll_wave_status(
                     wave["Status"] = "FAILED"
                     not_launched_servers = [
                         s.get("SourceServerId")
-                        for s in servers
+                        for s in server_statuses
+                        if s.get("LaunchStatus") != "LAUNCHED"
+                    ]
+                    logger.error(
+                        f"Wave {wave.get('WaveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
+                    )
+                    wave["StatusMessage"] = (
+                        f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
+                    )
+                else:
+                    wave["Status"] = drs_status
+            elif legacy_servers:
+                # Fallback to legacy Servers format
+                all_launched = all(
+                    s.get("Status") == "LAUNCHED" for s in legacy_servers
+                )
+                any_failed = any(
+                    s.get("Status")
+                    in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
+                    for s in legacy_servers
+                )
+                post_launch_complete = (
+                    job_status.get("PostLaunchActionsStatus") == "COMPLETED"
+                )
+
+                if all_launched and post_launch_complete:
+                    wave["Status"] = "completed"
+                    logger.info(
+                        f"Wave {wave.get('WaveId')} recovery completed"
+                    )
+                elif any_failed:
+                    wave["Status"] = "FAILED"
+                    logger.warning(
+                        f"Wave {wave.get('WaveId')} recovery failed"
+                    )
+                elif drs_status in ["PENDING", "STARTED"]:
+                    wave["Status"] = "LAUNCHING"
+                elif drs_status == "COMPLETED" and not all_launched:
+                    # CRITICAL BUG FIX: DRS job completed but servers never launched
+                    wave["Status"] = "FAILED"
+                    not_launched_servers = [
+                        s.get("SourceServerId")
+                        for s in legacy_servers
                         if s.get("Status") != "LAUNCHED"
                     ]
                     logger.error(
