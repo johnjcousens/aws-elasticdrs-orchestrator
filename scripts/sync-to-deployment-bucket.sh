@@ -298,7 +298,7 @@ echo ""
 
 # Helper functions for Lambda operations
 get_lambda_function_name() {
-    local function_name="aws-drs-orchestrator-api-handler-dev"
+    local function_name="aws-elasticdrs-orchestrator-api-handler-dev"
     echo "$function_name"
 }
 
@@ -356,11 +356,11 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         # Lambda functions to update (aligned with deployed stack)
         LAMBDA_FUNCTIONS=(
-            "api-handler:aws-drs-orchestrator-api-handler-dev"
-            "orchestration-stepfunctions:aws-drs-orchestrator-orchestration-stepfunctions-dev"
-            "frontend-builder:aws-drs-orchestrator-frontend-builder-dev"
-            "execution-finder:aws-drs-orchestrator-execution-finder-dev"
-            "execution-poller:aws-drs-orchestrator-execution-poller-dev"
+            "api-handler:aws-elasticdrs-orchestrator-api-handler-dev"
+            "orchestration-stepfunctions:aws-elasticdrs-orchestrator-orch-sf-dev"
+            "frontend-builder:aws-elasticdrs-orchestrator-frontend-build-dev"
+            "execution-finder:aws-elasticdrs-orchestrator-execution-finder-dev"
+            "execution-poller:aws-elasticdrs-orchestrator-execution-poller-dev"
             "bucket-cleaner:aws-elasticdrs-orchestrator-bucket-cleaner-dev"
             "notification-formatter:aws-elasticdrs-orchestrator-notif-fmt-dev"
         )
