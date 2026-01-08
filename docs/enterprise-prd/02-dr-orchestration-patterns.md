@@ -223,6 +223,12 @@ The Module Factory provides pluggable technology adapters that implement a stand
 | **EventBridge** | - | Enable rules | Disable rules | - |
 | **Lambda** | Trigger function | Trigger function | Trigger function | Trigger function |
 | **EventArchive** | - | Replay events | - | - |
+| **DRS** | - | Start recovery | Stop replication, delete source servers | Reverse replication |
+| **ElastiCache** | - | Disassociate global cluster, create new | Delete global cluster | Create replication group |
+| **MemoryDB** | - | Restore from S3 backup | Delete cluster, store config | - |
+| **OpenSearch** | Scale up cluster | - | Scale down cluster | - |
+| **SQLServer** | - | Restore from automated backup | Delete instance, store config | Start backup replication |
+| **EC2** | - | - | Stop/terminate instances | - |
 
 ### Module Interface
 
@@ -371,6 +377,119 @@ class DRModule:
 |-----------|--------|
 | **Activate** | Enable EventBridge rules |
 | **Cleanup** | Disable EventBridge rules |
+
+#### DRS Module
+
+```json
+{
+  "action": "DRS",
+  "resourceName": "application-servers",
+  "parameters": {
+    "HostNames": ["web-server-1", "app-server-1", "db-server-1"],
+    "Tags": {
+      "Environment": "DR",
+      "RecoveryType": "Failover"
+    }
+  },
+  "AccountId": "123456789012"
+}
+```
+
+| Lifecycle | Action |
+|-----------|--------|
+| **Activate** | Start DRS recovery for source servers (supports failover and failback) |
+| **Cleanup** | Stop replication, disconnect and delete source servers |
+| **Replicate** | Reverse replication or reinstall DRS agent |
+
+#### ElastiCache Module
+
+```json
+{
+  "action": "ElastiCache",
+  "resourceName": "redis-global-datastore",
+  "parameters": {
+    "DBClusterIdentifier": "redis-prod-cluster",
+    "GlobalClusterIdentifier": "global-redis",
+    "ClusterEndpointSSMKey": "/prod/redis/endpoint"
+  },
+  "AccountId": "123456789012"
+}
+```
+
+| Lifecycle | Action |
+|-----------|--------|
+| **Activate** | Disassociate from global cluster, create new global cluster in DR region |
+| **Cleanup** | Delete global replication group, store settings in SSM |
+| **Replicate** | Create replication group and join global cluster |
+
+#### MemoryDB Module
+
+```json
+{
+  "action": "MemoryDB",
+  "resourceName": "memorydb-cluster",
+  "parameters": {
+    "ClusterName": "prod-memorydb",
+    "ClusterConfigSSMKey": "/prod/memorydb/config",
+    "ClusterEndpointSSMKey": "/prod/memorydb/endpoint",
+    "BackupBucket": "dr-backups-bucket",
+    "Prefix": "memorydb/",
+    "Tags": [{"Key": "Environment", "Value": "Production"}]
+  },
+  "AccountId": "123456789012"
+}
+```
+
+| Lifecycle | Action |
+|-----------|--------|
+| **Activate** | Restore cluster from S3 backup, update endpoint in SSM |
+| **Cleanup** | Store cluster config in SSM, delete cluster |
+
+#### OpenSearch Module
+
+```json
+{
+  "action": "OpenSearchService",
+  "resourceName": "search-cluster",
+  "parameters": {
+    "DomainName": "prod-search",
+    "DataNodeType": "r6g.large.search",
+    "DataNodeCount": 3,
+    "MasterNodeType": "r6g.large.search",
+    "MasterNodeCount": 3,
+    "SubnetList": ["subnet-abc123", "subnet-def456"],
+    "AzCount": 2,
+    "TotalStorageSize": 300,
+    "AutoTune": "ENABLED"
+  },
+  "AccountId": "123456789012"
+}
+```
+
+| Lifecycle | Action |
+|-----------|--------|
+| **Instantiate** | Scale up OpenSearch cluster (add nodes, enable masters) |
+| **Cleanup** | Scale down OpenSearch cluster (reduce nodes, disable masters) |
+
+#### SQLServer Module
+
+```json
+{
+  "action": "SQLServer",
+  "resourceName": "sql-database",
+  "parameters": {
+    "DBInstanceIdentifierSource": "prod-sqlserver",
+    "ClusterConfigSSMKey": "/prod/sqlserver/config"
+  },
+  "AccountId": "123456789012"
+}
+```
+
+| Lifecycle | Action |
+|-----------|--------|
+| **Activate** | Restore from automated backup to point-in-time |
+| **Cleanup** | Store config in SSM, delete DB instance |
+| **Replicate** | Start automated backup replication to DR region |
 
 ---
 
