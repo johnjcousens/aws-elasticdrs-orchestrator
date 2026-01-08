@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.4] - January 8, 2026
+
+### Added
+- **Intelligent CI/CD Pipeline Optimization**: GitHub Actions workflow now detects file changes and skips unnecessary deployment stages
+  - Documentation-only changes: ~30 seconds deployment (95% time savings)
+  - Frontend-only changes: ~12 minutes deployment (45% time savings)
+  - Infrastructure changes: Full ~22 minutes pipeline
+- **Deployment Scope Checker**: New `scripts/check-deployment-scope.sh` script to preview what will be deployed based on git changes
+- **Change Detection Logic**: Automatic categorization of changes (infrastructure, lambda, frontend, docs) with intelligent deployment routing
+
+### Changed
+- **Pipeline Efficiency**: Eliminated waiting for full CloudFormation deployment when only documentation or frontend files change
+- **Developer Experience**: Added deployment scope preview and time estimates for different change types
+- **Cost Optimization**: Reduced GitHub Actions compute time by up to 95% for documentation updates
+
+### Technical Details
+- Added `detect-changes` job that analyzes git diff to determine deployment scope
+- Updated all pipeline jobs with conditional execution based on change detection
+- Created deployment summary for documentation-only changes
+- Enhanced README with intelligent deployment optimization documentation
+
 ## [1.4.3] - January 8, 2026
 
 ### Documentation
