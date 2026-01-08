@@ -150,10 +150,10 @@ mock-*
 
 # Test files at root level (tests should be in tests/ directory)
 test-*
-*test*.json
-*test*.py
-*test*.js
-*test*.sh
+/*test*.json
+/*test*.py
+/*test*.js
+/*test*.sh
 
 # Response files
 *response*.json
