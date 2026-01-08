@@ -83,16 +83,33 @@ export const ExecutionDetailsPage: React.FC = () => {
     fetchExecution();
   }, [executionId]); // Only depend on executionId, not fetchExecution
 
+  // Refs to track intervals for proper cleanup
+  const executionPollingRef = React.useRef<NodeJS.Timeout | null>(null);
+  const terminationPollingRef = React.useRef<NodeJS.Timeout | null>(null);
+
   // Cleanup all intervals on unmount to prevent navigation blocking
   useEffect(() => {
     return () => {
-      // Clear any remaining intervals when component unmounts
-      // This ensures navigation isn't blocked by running intervals
+      // Clear all intervals when component unmounts
+      if (executionPollingRef.current) {
+        clearInterval(executionPollingRef.current);
+        executionPollingRef.current = null;
+      }
+      if (terminationPollingRef.current) {
+        clearInterval(terminationPollingRef.current);
+        terminationPollingRef.current = null;
+      }
     };
   }, []);
 
   // Real-time polling for active executions
   useEffect(() => {
+    // Clear existing interval
+    if (executionPollingRef.current) {
+      clearInterval(executionPollingRef.current);
+      executionPollingRef.current = null;
+    }
+
     if (!execution) return;
 
     const isActive = 
@@ -114,15 +131,26 @@ export const ExecutionDetailsPage: React.FC = () => {
 
     if (!isActive) return;
 
-    const interval = setInterval(() => {
+    executionPollingRef.current = setInterval(() => {
       fetchExecution(true); // Silent refresh
     }, 3000); // Poll every 3 seconds for faster updates
 
-    return () => clearInterval(interval);
+    return () => {
+      if (executionPollingRef.current) {
+        clearInterval(executionPollingRef.current);
+        executionPollingRef.current = null;
+      }
+    };
   }, [execution?.status, execution?.executionId]); // Only depend on status and ID, not full execution object
 
   // Polling while termination is in progress
   useEffect(() => {
+    // Clear existing interval
+    if (terminationPollingRef.current) {
+      clearInterval(terminationPollingRef.current);
+      terminationPollingRef.current = null;
+    }
+
     if (!terminationInProgress || !execution) return;
 
     // Check if instances are now terminated
@@ -191,11 +219,16 @@ export const ExecutionDetailsPage: React.FC = () => {
       fetchExecution(true);
     };
 
-    const interval = setInterval(pollTerminationStatus, 3000); // Poll every 3 seconds
+    terminationPollingRef.current = setInterval(pollTerminationStatus, 3000); // Poll every 3 seconds
     // Initial poll
     pollTerminationStatus();
 
-    return () => clearInterval(interval);
+    return () => {
+      if (terminationPollingRef.current) {
+        clearInterval(terminationPollingRef.current);
+        terminationPollingRef.current = null;
+      }
+    };
   }, [terminationInProgress, terminationJobInfo?.totalInstances, executionId]); // Don't depend on full execution object
 
   const handleCancelExecution = async () => {
