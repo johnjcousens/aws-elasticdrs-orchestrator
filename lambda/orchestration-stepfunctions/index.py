@@ -147,62 +147,36 @@ def lambda_handler(event, context):
     if account_id:
         print(f"Operating in account context: {account_id}")
 
-    try:
-        if action == "begin":
-            return begin_wave_plan(event)
-        elif action == "update_wave_status":
-            return update_wave_status(event)
-        elif action == "store_task_token":
-            return store_task_token(event)
-        elif action == "resume_wave":
-            return resume_wave(event)
-        elif action == "handle_error":
-            return handle_error(event)
-        elif action == "cleanup_failed_execution":
-            return cleanup_failed_execution(event)
-        elif action == "cleanup_timeout_execution":
-            return cleanup_timeout_execution(event)
-        elif action == "cleanup_cancelled_execution":
-            return cleanup_cancelled_execution(event)
-        else:
-            raise ValueError(f"Unknown action: {action}")
-    except Exception as e:
-        print(f"ERROR in lambda_handler: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        # Return error state for Step Functions
-        return {
-            "status": "failed",
-            "error": str(e),
-            "error_code": "LAMBDA_HANDLER_ERROR",
-            "all_waves_completed": True,
-            "wave_completed": True
-        }
+    if action == "begin":
+        return begin_wave_plan(event)
+    elif action == "update_wave_status":
+        return update_wave_status(event)
+    elif action == "store_task_token":
+        return store_task_token(event)
+    elif action == "resume_wave":
+        return resume_wave(event)
+    else:
+        raise ValueError(f"Unknown action: {action}")
 
 
 def begin_wave_plan(event: Dict) -> Dict:
     """
-    Initialize wave plan execution - Enhanced for Protection Groups and Recovery Plans
+    Initialize wave plan execution
     Returns COMPLETE state object (archive pattern)
     """
     plan = event.get("plan", {})
     execution_id = event.get("execution")
     is_drill = event.get("isDrill", True)
     account_context = event.get("AccountContext", {})
-    resume_from_wave = event.get("ResumeFromWave")
 
     plan_id = plan.get("PlanId")
     waves = plan.get("Waves", [])
 
     print(f"Beginning wave plan for execution {execution_id}, plan {plan_id}")
     print(f"Total waves: {len(waves)}, isDrill: {is_drill}")
-    
-    if resume_from_wave is not None:
-        print(f"RESUMING from wave {resume_from_wave}")
 
     # Initialize state object (at root level - archive pattern)
-    # Enhanced for Protection Groups and Recovery Plans integration
+    # Enhanced for parent Step Function integration
     start_time = int(time.time())
     state = {
         # Core identifiers
@@ -211,80 +185,58 @@ def begin_wave_plan(event: Dict) -> Dict:
         "execution_id": execution_id,
         "is_drill": is_drill,
         "AccountContext": account_context,  # Step Functions expects uppercase
-        
-        # Wave tracking - enhanced for Protection Groups
+        # Wave tracking
         "waves": waves,
         "total_waves": len(waves),
-        "current_wave_number": resume_from_wave if resume_from_wave is not None else 0,
-        "completed_waves": resume_from_wave if resume_from_wave is not None else 0,
+        "current_wave_number": 0,
+        "completed_waves": 0,
         "failed_waves": 0,
-        
         # Completion flags (for Step Functions Choice states)
         "all_waves_completed": False,
         "wave_completed": False,
-        
-        # Polling configuration - adaptive based on wave complexity
+        # Polling configuration
         "current_wave_update_time": 30,
         "current_wave_total_wait_time": 0,
-        "current_wave_max_wait_time": 1800,  # 30 minutes default
-        
+        "current_wave_max_wait_time": 1800,
         # Status for parent orchestrator branching
         # Values: 'running', 'paused', 'completed', 'failed', 'cancelled'
         "status": "running",
         "status_reason": None,
-        
-        # Results for downstream processing - enhanced for Protection Groups
+        # Results for downstream processing
         "wave_results": [],
         "recovery_instance_ids": [],  # EC2 instance IDs of recovered servers
         "recovery_instance_ips": [],  # Private IPs of recovered servers
-        "protection_group_results": [],  # Results per Protection Group
-        
-        # Current wave details - enhanced for multi-PG support
+        # Current wave details
         "job_id": None,
         "region": None,
         "server_ids": [],
-        "protection_group_id": None,
-        "server_selection_method": None,  # 'discovered' or 'tag_based'
-        
         # Error handling
         "error": None,
         "error_code": None,
-        
-        # Pause/Resume - enhanced for wave-level control
+        # Pause/Resume
         "paused_before_wave": None,
-        
         # Timing for SLA tracking
         "start_time": start_time,
         "end_time": None,
         "duration_seconds": None,
-        
-        # Cross-account support
-        "cross_account_enabled": bool(account_context.get("accountId")),
-        "target_account_id": account_context.get("accountId"),
     }
 
     # Update DynamoDB execution status
     try:
         get_execution_history_table().update_item(
             Key={"ExecutionId": execution_id, "PlanId": plan_id},
-            UpdateExpression="SET #status = :status, StateMachineStartTime = :start_time",
+            UpdateExpression="SET #status = :status",
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues={
-                ":status": "RUNNING",
-                ":start_time": start_time
-            },
+            ExpressionAttributeValues={":status": "RUNNING"},
         )
     except Exception as e:
         print(f"Error updating execution status: {e}")
 
-    # Start first wave or resume from specified wave
-    start_wave_index = resume_from_wave if resume_from_wave is not None else 0
-    
-    if len(waves) > start_wave_index:
-        print(f"Starting wave {start_wave_index}")
-        start_wave_recovery(state, start_wave_index)
+    # Start first wave
+    if len(waves) > 0:
+        start_wave_recovery(state, 0)
     else:
-        print("No waves to execute or invalid resume wave index")
+        print("No waves to execute")
         state["all_waves_completed"] = True
         state["status"] = "completed"
 
@@ -390,8 +342,6 @@ def query_drs_servers_by_tags(  # noqa: C901
     This queries the DRS source server tags directly, not EC2 instance tags.
     Returns list of source server IDs for orchestration.
     """
-    print(f"🔍 Querying DRS servers in region {region} with tags: {tags}")
-    
     try:
         # Create DRS client with cross-account support
         regional_drs = create_drs_client(region, account_context)
@@ -403,10 +353,8 @@ def query_drs_servers_by_tags(  # noqa: C901
         for page in paginator.paginate():
             all_servers.extend(page.get("items", []))
 
-        print(f"📊 Found {len(all_servers)} total DRS source servers in region {region}")
-
         if not all_servers:
-            print("❌ No DRS source servers found in region")
+            print("No DRS source servers found in region")
             return []
 
         # Filter servers that match ALL specified tags
@@ -414,12 +362,9 @@ def query_drs_servers_by_tags(  # noqa: C901
 
         for server in all_servers:
             server_id = server.get("sourceServerID", "")
-            hostname = server.get("sourceProperties", {}).get("identificationHints", {}).get("hostname", "unknown")
 
             # Get DRS source server tags directly from server object
             drs_tags = server.get("tags", {})
-            
-            print(f"🖥️  Server {server_id} ({hostname}): DRS tags = {drs_tags}")
 
             # Check if DRS server has ALL required tags with matching values
             # Use case-insensitive matching and strip whitespace for robustness
@@ -440,35 +385,32 @@ def query_drs_servers_by_tags(  # noqa: C901
                         and normalized_drs_value == normalized_required_value
                     ):
                         found_match = True
-                        print(f"  ✅ Tag match: {tag_key}={tag_value}")
                         break
 
                 if not found_match:
                     matches_all = False
-                    print(f"  ❌ Missing tag: {tag_key}={tag_value}")
+                    print(
+                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"
+                    )
                     break
 
             if matches_all:
                 matching_server_ids.append(server_id)
-                print(f"  🎯 Server {server_id} ({hostname}) MATCHES all tags")
 
-        print(f"📈 Tag matching results:")
-        print(f"  - Total DRS servers: {len(all_servers)}")
-        print(f"  - Servers matching tags {tags}: {len(matching_server_ids)}")
-        print(f"  - Matching server IDs: {matching_server_ids}")
+        print("Tag matching results:")
+        print(f"- Total DRS servers: {len(all_servers)}")
+        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
 
         return matching_server_ids
 
     except Exception as e:
-        print(f"❌ Error querying DRS servers by DRS tags: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error querying DRS servers by DRS tags: {str(e)}")
         raise
 
 
 def start_wave_recovery(state: Dict, wave_number: int) -> None:
     """
-    Start DRS recovery for a wave with enhanced error handling and retry logic
+    Start DRS recovery for a wave
     Modifies state in place (archive pattern)
 
     Tag-based server resolution: Servers are resolved at execution time
@@ -512,46 +454,25 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         if selection_tags:
             # Resolve servers by tags at execution time
             print(
-                f"🔍 Resolving servers for PG {protection_group_id} with tags: {selection_tags}"
+                f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}"
             )
             account_context = get_account_context(state)
-            
-            try:
-                server_ids = query_drs_servers_by_tags(
-                    region, selection_tags, account_context
-                )
-                print(f"✅ Resolved {len(server_ids)} servers from tags: {server_ids}")
-            except Exception as e:
-                error_msg = f"Failed to query DRS servers by tags {selection_tags}: {str(e)}"
-                print(f"❌ {error_msg}")
-                state["wave_completed"] = True
-                state["status"] = "failed"
-                state["error"] = error_msg
-                state["error_code"] = "DRS_TAG_QUERY_FAILED"
-                return
+            server_ids = query_drs_servers_by_tags(
+                region, selection_tags, account_context
+            )
+            print(f"Resolved {len(server_ids)} servers from tags")
         else:
             # Fallback: Check if wave has explicit ServerIds (legacy support)
             server_ids = wave.get("ServerIds", [])
             print(
-                f"📋 Using explicit ServerIds from wave: {len(server_ids)} servers: {server_ids}"
+                f"Using explicit ServerIds from wave: {len(server_ids)} servers"
             )
 
         if not server_ids:
-            # Enhanced error reporting for debugging
-            if selection_tags:
-                error_msg = f"Wave {wave_number}: No DRS servers found matching tags {selection_tags} in region {region}"
-                print(f"❌ {error_msg}")
-                state["wave_completed"] = True
-                state["status"] = "failed"
-                state["error"] = error_msg
-                state["error_code"] = "NO_SERVERS_MATCH_TAGS"
-            else:
-                error_msg = f"Wave {wave_number}: Protection Group {protection_group_id} has no ServerSelectionTags configured and no explicit ServerIds in wave"
-                print(f"❌ {error_msg}")
-                state["wave_completed"] = True
-                state["status"] = "failed"
-                state["error"] = error_msg
-                state["error_code"] = "NO_SERVER_SELECTION_CONFIGURED"
+            print(
+                f"Wave {wave_number} has no servers (no tags matched or no servers found), marking complete"
+            )
+            state["wave_completed"] = True
             return
 
         print(f"Starting DRS recovery for wave {wave_number} ({wave_name})")
@@ -562,92 +483,55 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         drs_client = create_drs_client(region, account_context)
         source_servers = [{"sourceServerID": sid} for sid in server_ids]
 
-        # Enhanced retry logic for ConflictException
-        max_retries = 5
-        base_delay = 10  # Start with 10 seconds
-        
-        for attempt in range(max_retries):
-            try:
-                print(f"Attempt {attempt + 1}/{max_retries} to start DRS recovery")
-                response = drs_client.start_recovery(
-                    isDrill=is_drill, sourceServers=source_servers
-                )
-                
-                job_id = response["job"]["jobID"]
-                print(f"✅ DRS Job created: {job_id}")
-                
-                # Update state on success
-                state["current_wave_number"] = wave_number
-                state["job_id"] = job_id
-                state["region"] = region
-                state["server_ids"] = server_ids
-                state["wave_completed"] = False
-                state["current_wave_total_wait_time"] = 0
+        response = drs_client.start_recovery(
+            isDrill=is_drill, sourceServers=source_servers
+        )
 
-                # Store wave result
-                wave_result = {
-                    "WaveNumber": wave_number,
-                    "WaveName": wave_name,
-                    "Status": "STARTED",
-                    "JobId": job_id,
-                    "StartTime": int(time.time()),
-                    "ServerIds": server_ids,
-                    "Region": region,
-                }
-                state["wave_results"].append(wave_result)
+        job_id = response["job"]["jobID"]
+        print(f"✅ DRS Job created: {job_id}")
 
-                # Update DynamoDB
-                try:
-                    get_execution_history_table().update_item(
-                        Key={"ExecutionId": execution_id, "PlanId": state["plan_id"]},
-                        UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave)",
-                        ExpressionAttributeValues={
-                            ":empty": [],
-                            ":wave": [wave_result],
-                        },
-                        ConditionExpression="attribute_exists(ExecutionId)",
-                    )
-                except Exception as e:
-                    print(f"Error updating wave start in DynamoDB: {e}")
-                
-                return  # Success - exit retry loop
-                
-            except Exception as e:
-                error_str = str(e)
-                print(f"Attempt {attempt + 1} failed: {error_str}")
-                
-                # Check if this is a ConflictException (servers in use)
-                if "ConflictException" in error_str and "currently being processed by a Job" in error_str:
-                    if attempt < max_retries - 1:  # Not the last attempt
-                        delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        print(f"ConflictException detected. Waiting {delay} seconds before retry...")
-                        time.sleep(delay)
-                        continue
-                    else:
-                        print(f"❌ ConflictException persisted after {max_retries} attempts")
-                        state["wave_completed"] = True
-                        state["status"] = "failed"
-                        state["error"] = f"Servers are currently being processed by another DRS job. Retried {max_retries} times over {sum(base_delay * (2 ** i) for i in range(max_retries))} seconds."
-                        state["error_code"] = "DRS_CONFLICT_EXCEPTION"
-                        return
-                else:
-                    # Non-retryable error
-                    print(f"❌ Non-retryable error: {error_str}")
-                    state["wave_completed"] = True
-                    state["status"] = "failed"
-                    state["error"] = error_str
-                    state["error_code"] = "DRS_START_RECOVERY_FAILED"
-                    return
+        # Update state
+        state["current_wave_number"] = wave_number
+        state["job_id"] = job_id
+        state["region"] = region
+        state["server_ids"] = server_ids
+        state["wave_completed"] = False
+        state["current_wave_total_wait_time"] = 0
+
+        # Store wave result
+        wave_result = {
+            "WaveNumber": wave_number,
+            "WaveName": wave_name,
+            "Status": "STARTED",
+            "JobId": job_id,
+            "StartTime": int(time.time()),
+            "ServerIds": server_ids,
+            "Region": region,
+        }
+        state["wave_results"].append(wave_result)
+
+        # Update DynamoDB
+        try:
+            get_execution_history_table().update_item(
+                Key={"ExecutionId": execution_id, "PlanId": state["plan_id"]},
+                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave)",
+                ExpressionAttributeValues={
+                    ":empty": [],
+                    ":wave": [wave_result],
+                },
+                ConditionExpression="attribute_exists(ExecutionId)",
+            )
+        except Exception as e:
+            print(f"Error updating wave start in DynamoDB: {e}")
 
     except Exception as e:
-        print(f"Error in start_wave_recovery: {e}")
+        print(f"Error starting DRS recovery: {e}")
         import traceback
 
         traceback.print_exc()
         state["wave_completed"] = True
         state["status"] = "failed"
         state["error"] = str(e)
-        state["error_code"] = "WAVE_RECOVERY_ERROR"
 
 
 def update_wave_status(event: Dict) -> Dict:  # noqa: C901
@@ -1117,252 +1001,3 @@ def update_wave_in_dynamodb(
             )
     except Exception as e:
         print(f"Error updating wave in DynamoDB: {e}")
-
-
-def handle_error(event: Dict) -> Dict:
-    """
-    Handle errors in step function execution with proper cleanup and logging
-    Returns COMPLETE state object (archive pattern)
-    """
-    error_type = event.get("error_type", "unknown")
-    error_details = event.get("error_details", {})
-    cause = event.get("cause", "")
-    execution_id = event.get("execution_id")
-    plan_id = event.get("plan", {}).get("PlanId")
-    account_context = event.get("AccountContext", {})
-    
-    print(f"🚨 Handling error: {error_type}")
-    print(f"Error details: {error_details}")
-    print(f"Cause: {cause}")
-    
-    # Create error state
-    error_state = {
-        "status": "failed",
-        "error": f"{error_type}: {cause}",
-        "error_code": error_type.upper(),
-        "all_waves_completed": True,
-        "wave_completed": True,
-        "end_time": int(time.time()),
-        "AccountContext": account_context,
-    }
-    
-    # Add execution context if available
-    if execution_id:
-        error_state["execution_id"] = execution_id
-    if plan_id:
-        error_state["plan_id"] = plan_id
-    
-    # Update DynamoDB if we have execution info
-    if execution_id and plan_id:
-        try:
-            get_execution_history_table().update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
-                UpdateExpression="SET #status = :status, ErrorDetails = :error, EndTime = :end",
-                ExpressionAttributeNames={"#status": "Status"},
-                ExpressionAttributeValues={
-                    ":status": "FAILED",
-                    ":error": f"{error_type}: {cause}",
-                    ":end": int(time.time()),
-                },
-                ConditionExpression="attribute_exists(ExecutionId)",
-            )
-        except Exception as e:
-            print(f"Error updating execution status in DynamoDB: {e}")
-    
-    return error_state
-
-
-def cleanup_failed_execution(event: Dict) -> Dict:
-    """
-    Cleanup resources for failed execution
-    Returns COMPLETE state object (archive pattern)
-    """
-    state = event.get("application", event)
-    execution_id = state.get("execution_id")
-    plan_id = state.get("plan_id")
-    
-    print(f"🧹 Cleaning up failed execution: {execution_id}")
-    
-    # Update final status in DynamoDB
-    if execution_id and plan_id:
-        try:
-            end_time = int(time.time())
-            get_execution_history_table().update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
-                UpdateExpression="SET #status = :status, EndTime = :end, CleanupTime = :cleanup",
-                ExpressionAttributeNames={"#status": "Status"},
-                ExpressionAttributeValues={
-                    ":status": "FAILED",
-                    ":end": end_time,
-                    ":cleanup": end_time,
-                },
-                ConditionExpression="attribute_exists(ExecutionId)",
-            )
-            print(f"✅ Updated execution {execution_id} status to FAILED")
-        except Exception as e:
-            print(f"Error updating failed execution status: {e}")
-    
-    # Return final state
-    state["status"] = "failed"
-    state["all_waves_completed"] = True
-    state["wave_completed"] = True
-    if not state.get("end_time"):
-        state["end_time"] = int(time.time())
-    
-    return state
-
-
-def cleanup_timeout_execution(event: Dict) -> Dict:
-    """
-    Cleanup resources for timed out execution
-    Returns COMPLETE state object (archive pattern)
-    """
-    state = event.get("application", event)
-    execution_id = state.get("execution_id")
-    plan_id = state.get("plan_id")
-    
-    print(f"⏰ Cleaning up timed out execution: {execution_id}")
-    
-    # Update final status in DynamoDB
-    if execution_id and plan_id:
-        try:
-            end_time = int(time.time())
-            get_execution_history_table().update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
-                UpdateExpression="SET #status = :status, EndTime = :end, TimeoutTime = :timeout",
-                ExpressionAttributeNames={"#status": "Status"},
-                ExpressionAttributeValues={
-                    ":status": "TIMEOUT",
-                    ":end": end_time,
-                    ":timeout": end_time,
-                },
-                ConditionExpression="attribute_exists(ExecutionId)",
-            )
-            print(f"✅ Updated execution {execution_id} status to TIMEOUT")
-        except Exception as e:
-            print(f"Error updating timeout execution status: {e}")
-    
-    # Return final state
-    state["status"] = "timeout"
-    state["all_waves_completed"] = True
-    state["wave_completed"] = True
-    if not state.get("end_time"):
-        state["end_time"] = int(time.time())
-    
-    return state
-
-
-def cleanup_cancelled_execution(event: Dict) -> Dict:
-    """
-    Cleanup resources for cancelled execution
-    Returns COMPLETE state object (archive pattern)
-    """
-    state = event.get("application", event)
-    execution_id = state.get("execution_id")
-    plan_id = state.get("plan_id")
-    
-    print(f"🛑 Cleaning up cancelled execution: {execution_id}")
-    
-    # Update final status in DynamoDB
-    if execution_id and plan_id:
-        try:
-            end_time = int(time.time())
-            get_execution_history_table().update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
-                UpdateExpression="SET #status = :status, EndTime = :end, CancelledTime = :cancelled",
-                ExpressionAttributeNames={"#status": "Status"},
-                ExpressionAttributeValues={
-                    ":status": "CANCELLED",
-                    ":end": end_time,
-                    ":cancelled": end_time,
-                },
-                ConditionExpression="attribute_exists(ExecutionId)",
-            )
-            print(f"✅ Updated execution {execution_id} status to CANCELLED")
-        except Exception as e:
-            print(f"Error updating cancelled execution status: {e}")
-    
-    # Return final state
-    state["status"] = "cancelled"
-    state["all_waves_completed"] = True
-    state["wave_completed"] = True
-    if not state.get("end_time"):
-        state["end_time"] = int(time.time())
-    
-    return state
-
-
-def query_drs_servers_by_tags(
-    region: str, tags: Dict[str, str], account_context: Dict = None
-) -> List[str]:
-    """
-    Query DRS source servers that have ALL specified tags.
-    Uses AND logic - DRS source server must have all tags to be included.
-
-    This queries the DRS source server tags directly, not EC2 instance tags.
-    Returns list of source server IDs for orchestration.
-    """
-    try:
-        # Create DRS client with cross-account support
-        regional_drs = create_drs_client(region, account_context)
-
-        # Get all source servers in the region
-        all_servers = []
-        paginator = regional_drs.get_paginator("describe_source_servers")
-
-        for page in paginator.paginate():
-            all_servers.extend(page.get("items", []))
-
-        if not all_servers:
-            print("No DRS source servers found in region")
-            return []
-
-        # Filter servers that match ALL specified tags
-        matching_server_ids = []
-
-        for server in all_servers:
-            server_id = server.get("sourceServerID", "")
-
-            # Get DRS source server tags directly from server object
-            drs_tags = server.get("tags", {})
-
-            # Check if DRS server has ALL required tags with matching values
-            # Use case-insensitive matching and strip whitespace for robustness
-            matches_all = True
-            for tag_key, tag_value in tags.items():
-                # Normalize tag key and value (strip whitespace, case-insensitive)
-                normalized_required_key = tag_key.strip()
-                normalized_required_value = tag_value.strip().lower()
-
-                # Check if any DRS tag matches (case-insensitive)
-                found_match = False
-                for drs_key, drs_value in drs_tags.items():
-                    normalized_drs_key = drs_key.strip()
-                    normalized_drs_value = drs_value.strip().lower()
-
-                    if (
-                        normalized_drs_key == normalized_required_key
-                        and normalized_drs_value == normalized_required_value
-                    ):
-                        found_match = True
-                        break
-
-                if not found_match:
-                    matches_all = False
-                    print(
-                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"
-                    )
-                    break
-
-            if matches_all:
-                matching_server_ids.append(server_id)
-
-        print("Tag matching results:")
-        print(f"- Total DRS servers: {len(all_servers)}")
-        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
-
-        return matching_server_ids
-
-    except Exception as e:
-        print(f"Error querying DRS servers by DRS tags: {str(e)}")
-        raise
