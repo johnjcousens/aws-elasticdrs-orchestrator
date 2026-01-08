@@ -4144,11 +4144,11 @@ def execute_with_step_functions(
 
 
 def execute_recovery_plan_worker(payload: Dict) -> None:
-    """Background worker - starts Step Functions orchestration (January 6th working pattern)
+    """Background worker - initiates DRS jobs without waiting (async invocation)
     
-    WORKING PATTERN: Let Step Functions handle ALL server resolution and DRS job creation.
-    The worker just starts Step Functions and lets it do the heavy lifting.
-    This matches the successful January 6th execution pattern.
+    ARCHIVE PATTERN: Direct wave initiation like the working reference stack.
+    This bypasses Step Functions to avoid ConflictException issues and ensures
+    wave data gets populated in DynamoDB immediately.
     """
     try:
         execution_id = payload["executionId"]
@@ -4157,27 +4157,96 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         is_drill = payload["isDrill"]
         plan = payload["plan"]
 
-        print(f"Worker starting Step Functions orchestration for execution {execution_id} (type: {execution_type})")
+        print(f"Worker initiating execution {execution_id} (type: {execution_type})")
 
-        # Update status to RUNNING (Step Functions will handle the rest)
+        # Update status to POLLING (not IN_PROGRESS)
         execution_history_table.update_item(
             Key={"ExecutionId": execution_id, "PlanId": plan_id},
             UpdateExpression="SET #status = :status",
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues={":status": "RUNNING"},
+            ExpressionAttributeValues={":status": "POLLING"},
         )
 
-        # CRITICAL FIX: Start Step Functions immediately - let it handle server resolution
-        # This matches the working January 6th pattern where Step Functions did everything
-        print(f"Starting Step Functions orchestration for execution {execution_id}")
-        execute_with_step_functions(
-            execution_id=execution_id,
-            plan_id=plan_id,
-            plan=payload["plan"],
-            is_drill=payload["isDrill"],
-            state_machine_arn=STATE_MACHINE_ARN
-        )
-        print(f"✅ Step Functions started for execution {execution_id} - it will handle server resolution and DRS job creation")
+        # CRITICAL FIX (Archive Pattern): Only initiate waves with NO dependencies
+        # ExecutionPoller will initiate dependent waves when dependencies complete
+        wave_results = []
+        waves_list = plan.get("Waves", [])
+        print(f"Processing {len(waves_list)} waves - initiating only independent waves")
+
+        for wave_index, wave in enumerate(waves_list):
+            wave_number = wave_index + 1
+
+            # CRITICAL FIX: Support both recovery plan formats (WaveName and name)
+            # Recovery plan from UI uses 'name', older format uses 'WaveName'
+            wave_name = wave.get("WaveName") or wave.get("name", f"Wave {wave_number}")
+            pg_id = wave.get("ProtectionGroupId") or wave.get("protectionGroupId")
+
+            if not pg_id:
+                print(f"Wave {wave_number} has no Protection Group, skipping")
+                wave_results.append({
+                    "WaveName": wave_name,
+                    "WaveId": wave.get("WaveId") or wave_number,
+                    "Status": "FAILED",
+                    "StatusMessage": "No Protection Group assigned",
+                    "Servers": []
+                })
+                continue
+
+            # Check wave dependencies (support both formats)
+            dependencies = wave.get("Dependencies", []) or wave.get("dependsOnWaves", [])
+            if dependencies:
+                # Wave has dependencies - mark as PENDING for poller to initiate later
+                print(f"Wave {wave_number} ({wave_name}) has dependencies: {dependencies} - marking PENDING")
+                wave_results.append({
+                    "WaveName": wave_name,
+                    "WaveId": wave.get("WaveId") or wave_number,
+                    "ProtectionGroupId": pg_id,
+                    "Status": "PENDING",
+                    "StatusMessage": f"Waiting for dependencies: {dependencies}",
+                    "Servers": [],
+                    "Dependencies": dependencies
+                })
+            else:
+                # Wave has NO dependencies - initiate immediately
+                print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
+                wave_result = initiate_wave(
+                    wave, 
+                    pg_id, 
+                    execution_id, 
+                    is_drill, 
+                    execution_type,
+                    wave_number=wave_number
+                )
+                wave_results.append(wave_result)
+
+            # Update progress in DynamoDB after each wave
+            execution_history_table.update_item(
+                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                UpdateExpression="SET Waves = :waves",
+                ExpressionAttributeValues={":waves": wave_results}
+            )
+
+        # Final status is POLLING (not COMPLETED)
+        # External poller will update to COMPLETED when jobs finish
+        print(f"Worker completed initiation for execution {execution_id}")
+        print(f"Status: POLLING - awaiting external poller to track completion")
+
+        # CRITICAL: Start Step Functions for orchestration and pause/resume functionality
+        # Worker has populated DynamoDB with wave data, now Step Functions handles flow control
+        try:
+            print(f"Starting Step Functions orchestration for execution {execution_id}")
+            execute_with_step_functions(
+                execution_id=execution_id,
+                plan_id=plan_id,
+                plan=payload["plan"],
+                is_drill=payload["isDrill"],
+                state_machine_arn=STATE_MACHINE_ARN
+            )
+            print(f"✅ Step Functions started for execution {execution_id}")
+        except Exception as sf_error:
+            print(f"⚠️ Step Functions start failed for execution {execution_id}: {sf_error}")
+            # Don't fail the entire execution - DRS jobs are already initiated
+            # Step Functions failure only affects pause/resume, not basic execution
 
     except Exception as e:
         print(f"Worker error for execution {execution_id}: {str(e)}")
