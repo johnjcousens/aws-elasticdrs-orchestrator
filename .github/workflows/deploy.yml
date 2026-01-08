@@ -560,17 +560,17 @@ jobs:
           echo "| API Endpoint | $API_ENDPOINT |" >> $GITHUB_STEP_SUMMARY
           echo "| CloudFront URL | $CLOUDFRONT_URL |" >> $GITHUB_STEP_SUMMARY
 
-  # Stage 6: Deploy frontend
+  # Stage 6: Deploy frontend (frontend-only changes)
   deploy-frontend:
     name: Deploy Frontend
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure]
+    needs: [detect-changes, test]
     if: |
       github.ref == 'refs/heads/main' && 
       github.event_name == 'push' && 
       needs.detect-changes.outputs.docs-only != 'true' && 
-      (needs.detect-changes.outputs.frontend == 'true' || needs.deploy-infrastructure.result == 'success')
-    # Deploy frontend if: frontend changed OR infrastructure was deployed (config may have changed)
+      needs.detect-changes.outputs.frontend == 'true'
+    # Deploy frontend when frontend files change
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -654,6 +654,82 @@ jobs:
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
           
           echo "### Frontend Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
+
+  # Stage 6b: Deploy frontend after infrastructure changes
+  deploy-frontend-after-infra:
+    name: Deploy Frontend (Post-Infrastructure)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-infrastructure]
+    if: |
+      github.ref == 'refs/heads/main' && 
+      github.event_name == 'push' && 
+      needs.deploy-infrastructure.result == 'success'
+    # Deploy frontend after infrastructure deployment (config may have changed)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Get stack outputs
+        run: |
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
+          API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
+          USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
+          USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
+          
+          echo "CLOUDFRONT_URL=$CLOUDFRONT_URL" >> $GITHUB_ENV
+          echo "API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
+          echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_ENV
+          echo "USER_POOL_CLIENT_ID=$USER_POOL_CLIENT_ID" >> $GITHUB_ENV
+
+      - name: Create AWS config
+        run: |
+          cat > build/frontend/aws-config.json << EOF
+          {
+            "region": "${{ env.AWS_REGION }}",
+            "apiEndpoint": "$API_ENDPOINT",
+            "userPoolId": "$USER_POOL_ID",
+            "userPoolClientId": "$USER_POOL_CLIENT_ID"
+          }
+          EOF
+
+      - name: Deploy to S3 and invalidate CloudFront
+        run: |
+          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          
+          # Sync frontend to S3
+          aws s3 sync build/frontend/ "s3://${BUCKET}/frontend/" --delete
+          
+          # Get CloudFront distribution ID
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+          
+          # Invalidate CloudFront cache
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
+
+      - name: Deployment summary
+        run: |
+          echo "### Frontend Deployed (Post-Infrastructure) :white_check_mark:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
 
