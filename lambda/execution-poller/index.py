@@ -3,6 +3,7 @@ Execution Poller Lambda
 Polls DRS job status for a single execution.
 Updates DynamoDB with wave/server status.
 Handles timeouts and detects completion.
+Integrates with Step Functions callback pattern for wave completion.
 """
 
 import json
@@ -38,6 +39,7 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.client("dynamodb")
 drs = boto3.client("drs")
 cloudwatch = boto3.client("cloudwatch")
+stepfunctions = boto3.client("stepfunctions")  # Add Step Functions client
 
 # Environment variables (with defaults for testing)
 EXECUTION_HISTORY_TABLE = os.environ.get(
@@ -190,6 +192,7 @@ def lambda_handler(
         updated_waves = []
         all_active_waves_complete = True
         waves_polled = 0
+        wave_completed_this_cycle = False  # Track if any wave completed this cycle
 
         # Statuses that indicate a wave is in-progress and needs polling
         IN_PROGRESS_STATUSES = {
@@ -203,6 +206,7 @@ def lambda_handler(
 
         for wave in waves:
             wave_status = wave.get("Status", "")
+            previous_status = wave_status  # Track previous status
 
             # For CANCELLING executions, only poll waves that are in-progress
             if is_cancelling:
@@ -212,6 +216,12 @@ def lambda_handler(
                     )
                     updated_wave = poll_wave_status(wave, execution_type)
                     waves_polled += 1
+
+                    # Check if wave completed this cycle
+                    if (previous_status in IN_PROGRESS_STATUSES and 
+                        updated_wave.get("Status") in COMPLETED_STATUSES):
+                        wave_completed_this_cycle = True
+                        logger.info(f"Wave {wave.get('WaveId')} completed this cycle: {previous_status} -> {updated_wave.get('Status')}")
 
                     # Set EndTime on wave if it just completed
                     if updated_wave.get(
@@ -238,6 +248,12 @@ def lambda_handler(
                 # Normal polling - poll all waves
                 updated_wave = poll_wave_status(wave, execution_type)
 
+                # Check if wave completed this cycle
+                if (previous_status in IN_PROGRESS_STATUSES and 
+                    updated_wave.get("Status") in COMPLETED_STATUSES):
+                    wave_completed_this_cycle = True
+                    logger.info(f"Wave {wave.get('WaveId')} completed this cycle: {previous_status} -> {updated_wave.get('Status')}")
+
                 # Set EndTime on wave if it just completed
                 if updated_wave.get(
                     "Status"
@@ -257,6 +273,40 @@ def lambda_handler(
 
         # Update LastPolledTime for adaptive polling
         update_last_polled_time(execution_id, plan_id)
+
+        # Send Step Functions callback for wave completion (if using callback pattern)
+        if wave_completed_this_cycle and not is_cancelling:
+            try:
+                task_token = execution.get("TaskToken")
+                if task_token:
+                    # Prepare callback state for Step Functions
+                    callback_state = {
+                        "execution_id": execution_id,
+                        "plan_id": plan_id,
+                        "status": "running",
+                        "all_waves_completed": all_active_waves_complete,
+                        "wave_completed": True,
+                        "waves": updated_waves,
+                        "current_wave_number": len([w for w in updated_waves if w.get("Status") in COMPLETED_STATUSES]),
+                    }
+
+                    stepfunctions.send_task_success(
+                        taskToken=task_token,
+                        output=json.dumps(callback_state),
+                    )
+                    logger.info(f"Sent Step Functions wave completion callback for execution {execution_id}")
+
+                    # Remove TaskToken from execution since we used it
+                    dynamodb.update_item(
+                        TableName=EXECUTION_HISTORY_TABLE,
+                        Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
+                        UpdateExpression="REMOVE TaskToken",
+                        ConditionExpression="attribute_exists(ExecutionId)",
+                    )
+
+            except Exception as callback_error:
+                logger.error(f"Error sending Step Functions wave callback: {callback_error}")
+                # Don't raise - continue with normal polling
 
         # Check if execution is complete
         if all_active_waves_complete:
@@ -1058,10 +1108,11 @@ def finalize_execution(
     final_status: Optional[str] = None,
 ) -> None:
     """
-    Mark execution as complete.
+    Mark execution as complete and notify Step Functions if using callback pattern.
 
     Determines overall execution status based on wave statuses.
     Updates Status, EndTime, and removes from POLLING.
+    If execution has a TaskToken, sends callback to Step Functions.
 
     Args:
         execution_id: Execution ID
@@ -1070,6 +1121,10 @@ def finalize_execution(
         final_status: Optional override for final status (e.g., 'CANCELLED')
     """
     try:
+        # Get current execution to check for TaskToken
+        execution = get_execution_from_dynamodb(execution_id, plan_id)
+        task_token = execution.get("TaskToken") if execution else None
+
         # Determine overall status
         if final_status:
             # Use provided final status (e.g., CANCELLED)
@@ -1084,20 +1139,60 @@ def finalize_execution(
         end_time = int(datetime.now(timezone.utc).timestamp())
 
         # Update execution with final status
+        update_expression = "SET #status = :status, EndTime = :end_time, Waves = :waves"
+        expression_values = {
+            ":status": {"S": status},
+            ":end_time": {"N": str(end_time)},
+            ":waves": {"L": [format_wave_for_dynamodb(w) for w in waves]},
+        }
+
+        # Remove TaskToken if it exists
+        if task_token:
+            update_expression += " REMOVE TaskToken"
+
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
             Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
-            UpdateExpression="SET #status = :status, EndTime = :end_time, Waves = :waves",
+            UpdateExpression=update_expression,
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues={
-                ":status": {"S": status},
-                ":end_time": {"N": str(end_time)},
-                ":waves": {"L": [format_wave_for_dynamodb(w) for w in waves]},
-            },
+            ExpressionAttributeValues=expression_values,
             ConditionExpression="attribute_exists(ExecutionId)",
         )
 
         logger.info(f"Execution {execution_id} finalized with status {status}")
+
+        # Send Step Functions callback if TaskToken exists
+        if task_token:
+            try:
+                # Prepare callback state for Step Functions
+                callback_state = {
+                    "execution_id": execution_id,
+                    "plan_id": plan_id,
+                    "status": status.lower(),
+                    "all_waves_completed": True,
+                    "wave_completed": True,
+                    "waves": waves,
+                    "end_time": end_time,
+                }
+
+                if status == "COMPLETED":
+                    stepfunctions.send_task_success(
+                        taskToken=task_token,
+                        output=json.dumps(callback_state),
+                    )
+                    logger.info(f"Sent Step Functions success callback for execution {execution_id}")
+                else:
+                    # Send failure callback for failed executions
+                    stepfunctions.send_task_failure(
+                        taskToken=task_token,
+                        error="ExecutionFailed",
+                        cause=f"Execution completed with status: {status}",
+                    )
+                    logger.info(f"Sent Step Functions failure callback for execution {execution_id}")
+
+            except Exception as callback_error:
+                logger.error(f"Error sending Step Functions callback: {callback_error}")
+                # Don't raise - execution is already finalized in DynamoDB
 
     except Exception as e:
         logger.error(f"Error finalizing execution: {str(e)}", exc_info=True)
