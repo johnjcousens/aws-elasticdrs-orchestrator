@@ -1,6 +1,6 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.6  
+**Version**: 1.7  
 **Date**: January 8, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
@@ -20,6 +20,7 @@
 | 7 | [Architecture & Data Flow](./06-architecture.md) | Core components, state management, diagrams |
 | 8 | [Implementation Guide](./07-implementation.md) | Phases, success criteria, risks |
 | 9 | [CMF Learnings](./08-cmf-learnings.md) | Patterns from AWS Cloud Migration Factory for enterprise orchestration |
+| 10 | [DRS Tools Learnings](./09-drs-tools-learnings.md) | Patterns from AWS DRS Tools for configuration, observability, and automation |
 
 ---
 
@@ -38,6 +39,7 @@
 | Understand the architecture | [Architecture](./06-architecture.md) |
 | Plan implementation phases | [Implementation Guide](./07-implementation.md) |
 | Learn from CMF patterns | [CMF Learnings](./08-cmf-learnings.md) |
+| Learn from DRS Tools patterns | [DRS Tools Learnings](./09-drs-tools-learnings.md) |
 
 ### By Role
 
@@ -55,6 +57,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.7 | 2026-01-08 | Added DRS Tools Learnings document with patterns for configuration, observability, and automation |
 | 1.6 | 2026-01-08 | Added CMF Learnings document with patterns from AWS Cloud Migration Factory |
 | 1.5 | 2026-01-07 | Restructured into modular documents; Added Advanced DR Orchestration Patterns (4-phase lifecycle, module factory, manifests, approval workflows) |
 | 1.4 | 2026-01-07 | Added Reference Implementation Code section with GitHub links |
