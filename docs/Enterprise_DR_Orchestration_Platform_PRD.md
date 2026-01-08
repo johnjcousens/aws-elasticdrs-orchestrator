@@ -1,6 +1,6 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.3  
+**Version**: 1.4  
 **Date**: January 7, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
@@ -9,6 +9,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.4 | 2026-01-07 | Added Reference Implementation Code section with direct GitHub links to pause/resume, tag orchestration, tag sync, launch settings, and database schema |
 | 1.3 | 2026-01-07 | Fixed API integration examples (replaced non-existent `aws apigateway invoke-rest-api` with curl/HTTP), corrected HTTP methods for pause/resume (PUT→POST), clarified DynamoDB table comparisons |
 | 1.2 | 2026-01-07 | Added AWS LZA integration section with pre-vended IAM role templates |
 | 1.1 | 2026-01-06 | Initial draft with multi-technology DR orchestration architecture |
@@ -34,6 +35,108 @@ Create a technology-agnostic DR orchestration platform that:
 | **Database Teams** | Define database failover/failback procedures |
 | **Infrastructure Teams** | Manage underlying DR infrastructure and dependencies |
 | **Integration Partners** | Consume APIs for broader enterprise DR workflows |
+
+---
+
+## Reference Implementation Code
+
+The DRS Orchestration solution provides battle-tested, production-ready code that developers can reference when building enterprise DR orchestration solutions. All code is available in the public GitHub repository.
+
+**Repository**: [github.com/johnjcousens/aws-elasticdrs-orchestrator](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
+
+### Step Functions with Pause/Resume (waitForTaskToken)
+
+The pause/resume pattern uses Step Functions `waitForTaskToken` callback to enable human validation points between waves.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **State Machine Definition** | CloudFormation template with `WaitForResume` state using `waitForTaskToken` | [cfn/step-functions-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/step-functions-stack.yaml) |
+| **Pause Execution API** | Lambda handler that schedules pause after current wave completes | [lambda/api-handler/index.py#L5522](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L5522) |
+| **Resume Execution API** | Lambda handler that calls `SendTaskSuccess` to resume execution | [lambda/api-handler/index.py#L5667](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L5667) |
+| **Task Token Storage** | Orchestration Lambda that stores task token in DynamoDB for later resume | [lambda/orchestration-stepfunctions/index.py](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/orchestration-stepfunctions/index.py) |
+
+### Wave-Based Tag Orchestration
+
+Dynamic server discovery using AWS tags enables flexible protection group definitions without hardcoding server IDs.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **Tag-Based Server Query** | Function to query DRS source servers by tag key-value pairs | [lambda/api-handler/index.py#L1815](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L1815) |
+| **Protection Group Resolution** | Resolves `ServerSelectionTags` to actual server IDs at execution time | [lambda/orchestration-stepfunctions/index.py#L335](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/orchestration-stepfunctions/index.py#L335) |
+| **Tag Preview API** | API endpoint to preview which servers match tag criteria before creating groups | [lambda/api-handler/index.py#L1764](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L1764) |
+| **Wave Execution Logic** | Orchestration Lambda that processes waves with tag-based server resolution | [lambda/orchestration-stepfunctions/index.py](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/orchestration-stepfunctions/index.py) |
+
+### Tag Sync (EC2 to DRS)
+
+Synchronize EC2 instance tags to DRS source servers to maintain consistent tagging across services.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **Tag Sync Handler** | API handler that syncs EC2 tags to DRS source servers across regions | [lambda/api-handler/index.py#L9362](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L9362) |
+| **Tag Sync Settings** | Get/update tag sync configuration (auto-sync, tag prefixes) | [lambda/api-handler/index.py#L10747](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L10747) |
+
+### Launch Settings Configuration
+
+Per-server and per-protection-group launch configuration for DRS recovery instances.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **Launch Config in Protection Groups** | Protection group schema with embedded `LaunchConfig` for instance settings | [lambda/api-handler/index.py#L2111](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L2111) |
+| **DRS Launch Configuration API** | Get and update DRS launch configuration templates | [lambda/api-handler/index.py](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py) (search for `launch_configuration`) |
+
+### DynamoDB Database Schema
+
+Production-ready DynamoDB table definitions with GSIs, TTL, encryption, and point-in-time recovery.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **All Table Definitions** | CloudFormation template with 4 DynamoDB tables (protection-groups, recovery-plans, execution-history, target-accounts) | [cfn/database-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/database-stack.yaml) |
+| **Protection Groups Table** | Schema for server groupings with tag-based or explicit selection | [cfn/database-stack.yaml#L16](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/database-stack.yaml#L16) |
+| **Recovery Plans Table** | Schema for wave-based recovery configurations | [cfn/database-stack.yaml#L42](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/database-stack.yaml#L42) |
+| **Execution History Table** | Schema with GSIs for status and plan queries | [cfn/database-stack.yaml#L63](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/database-stack.yaml#L63) |
+| **Target Accounts Table** | Schema for cross-account hub-and-spoke configuration | [cfn/database-stack.yaml#L107](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/database-stack.yaml#L107) |
+
+### Cross-Account Role Assumption
+
+Hub-and-spoke architecture for managing DRS across multiple AWS accounts.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **Cross-Account Role Template** | CloudFormation template for target account IAM role | [cfn/cross-account-role-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/cross-account-role-stack.yaml) |
+| **Role Assumption Logic** | Lambda code for assuming cross-account roles and creating DRS clients | [lambda/api-handler/index.py#L140](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L140) |
+| **Account Context Resolution** | Determine target account from protection groups in recovery plan | [lambda/api-handler/index.py#L140](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py#L140) |
+
+### RBAC (Role-Based Access Control)
+
+Cognito group-based authorization with 5 DRS-specific roles.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **RBAC Middleware** | Complete RBAC implementation with roles, permissions, and endpoint mappings | [lambda/shared/rbac_middleware.py](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/shared/rbac_middleware.py) |
+| **Security Utilities** | Input validation, sanitization, and security headers | [lambda/shared/security_utils.py](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/shared/security_utils.py) |
+| **Cognito Auth Stack** | CloudFormation template for Cognito User Pool with groups | [cfn/api-auth-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/api-auth-stack.yaml) |
+
+### Complete API Handler
+
+Full REST API implementation with 47+ endpoints across 12 categories.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **API Handler Lambda** | Complete API implementation (~11,000 lines) | [lambda/api-handler/index.py](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/lambda/api-handler/index.py) |
+| **API Gateway Stack** | CloudFormation templates for REST API with Cognito authorizer | [cfn/api-gateway-core-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/api-gateway-core-stack.yaml) |
+
+### Infrastructure as Code
+
+Complete CloudFormation templates for the entire solution.
+
+| Component | Description | GitHub Link |
+|-----------|-------------|-------------|
+| **Master Template** | Root orchestrator for all nested stacks | [cfn/master-template.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/master-template.yaml) |
+| **Lambda Stack** | All Lambda function definitions with IAM roles | [cfn/lambda-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/lambda-stack.yaml) |
+| **EventBridge Stack** | Scheduled polling and event rules | [cfn/eventbridge-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/eventbridge-stack.yaml) |
+| **GitHub OIDC Stack** | CI/CD integration with GitHub Actions | [cfn/github-oidc-stack.yaml](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/blob/main/cfn/github-oidc-stack.yaml) |
+
+---
 
 ## Core Requirements
 

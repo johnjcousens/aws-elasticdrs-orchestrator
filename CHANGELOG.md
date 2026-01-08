@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Reference Implementation Code Links**: Added comprehensive section to Enterprise PRD with direct GitHub links to production code
+  - Step Functions pause/resume with `waitForTaskToken` callback pattern
+  - Wave-based tag orchestration for dynamic server discovery
+  - Tag sync (EC2 to DRS) implementation
+  - Launch settings configuration per protection group
+  - DynamoDB database schema with 4 tables
+  - Cross-account role assumption for hub-and-spoke architecture
+  - RBAC middleware with 5 DRS-specific roles
+  - Complete API handler with 47+ endpoints
+  - All CloudFormation infrastructure templates
+
 ### Fixed
 - **Enterprise PRD API Examples**: Fixed incorrect AWS CLI commands and HTTP methods in Enterprise_DR_Orchestration_Platform_PRD.md
   - Replaced non-existent `aws apigateway invoke-rest-api` command with correct `curl` HTTP examples
