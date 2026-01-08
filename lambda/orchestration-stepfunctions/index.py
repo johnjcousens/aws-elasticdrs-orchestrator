@@ -390,6 +390,8 @@ def query_drs_servers_by_tags(  # noqa: C901
     This queries the DRS source server tags directly, not EC2 instance tags.
     Returns list of source server IDs for orchestration.
     """
+    print(f"🔍 Querying DRS servers in region {region} with tags: {tags}")
+    
     try:
         # Create DRS client with cross-account support
         regional_drs = create_drs_client(region, account_context)
@@ -401,8 +403,10 @@ def query_drs_servers_by_tags(  # noqa: C901
         for page in paginator.paginate():
             all_servers.extend(page.get("items", []))
 
+        print(f"📊 Found {len(all_servers)} total DRS source servers in region {region}")
+
         if not all_servers:
-            print("No DRS source servers found in region")
+            print("❌ No DRS source servers found in region")
             return []
 
         # Filter servers that match ALL specified tags
@@ -410,9 +414,12 @@ def query_drs_servers_by_tags(  # noqa: C901
 
         for server in all_servers:
             server_id = server.get("sourceServerID", "")
+            hostname = server.get("sourceProperties", {}).get("identificationHints", {}).get("hostname", "unknown")
 
             # Get DRS source server tags directly from server object
             drs_tags = server.get("tags", {})
+            
+            print(f"🖥️  Server {server_id} ({hostname}): DRS tags = {drs_tags}")
 
             # Check if DRS server has ALL required tags with matching values
             # Use case-insensitive matching and strip whitespace for robustness
@@ -433,26 +440,29 @@ def query_drs_servers_by_tags(  # noqa: C901
                         and normalized_drs_value == normalized_required_value
                     ):
                         found_match = True
+                        print(f"  ✅ Tag match: {tag_key}={tag_value}")
                         break
 
                 if not found_match:
                     matches_all = False
-                    print(
-                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"
-                    )
+                    print(f"  ❌ Missing tag: {tag_key}={tag_value}")
                     break
 
             if matches_all:
                 matching_server_ids.append(server_id)
+                print(f"  🎯 Server {server_id} ({hostname}) MATCHES all tags")
 
-        print("Tag matching results:")
-        print(f"- Total DRS servers: {len(all_servers)}")
-        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
+        print(f"📈 Tag matching results:")
+        print(f"  - Total DRS servers: {len(all_servers)}")
+        print(f"  - Servers matching tags {tags}: {len(matching_server_ids)}")
+        print(f"  - Matching server IDs: {matching_server_ids}")
 
         return matching_server_ids
 
     except Exception as e:
-        print(f"Error querying DRS servers by DRS tags: {str(e)}")
+        print(f"❌ Error querying DRS servers by DRS tags: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise
 
 
@@ -502,25 +512,46 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         if selection_tags:
             # Resolve servers by tags at execution time
             print(
-                f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}"
+                f"🔍 Resolving servers for PG {protection_group_id} with tags: {selection_tags}"
             )
             account_context = get_account_context(state)
-            server_ids = query_drs_servers_by_tags(
-                region, selection_tags, account_context
-            )
-            print(f"Resolved {len(server_ids)} servers from tags")
+            
+            try:
+                server_ids = query_drs_servers_by_tags(
+                    region, selection_tags, account_context
+                )
+                print(f"✅ Resolved {len(server_ids)} servers from tags: {server_ids}")
+            except Exception as e:
+                error_msg = f"Failed to query DRS servers by tags {selection_tags}: {str(e)}"
+                print(f"❌ {error_msg}")
+                state["wave_completed"] = True
+                state["status"] = "failed"
+                state["error"] = error_msg
+                state["error_code"] = "DRS_TAG_QUERY_FAILED"
+                return
         else:
             # Fallback: Check if wave has explicit ServerIds (legacy support)
             server_ids = wave.get("ServerIds", [])
             print(
-                f"Using explicit ServerIds from wave: {len(server_ids)} servers"
+                f"📋 Using explicit ServerIds from wave: {len(server_ids)} servers: {server_ids}"
             )
 
         if not server_ids:
-            print(
-                f"Wave {wave_number} has no servers (no tags matched or no servers found), marking complete"
-            )
-            state["wave_completed"] = True
+            # Enhanced error reporting for debugging
+            if selection_tags:
+                error_msg = f"Wave {wave_number}: No DRS servers found matching tags {selection_tags} in region {region}"
+                print(f"❌ {error_msg}")
+                state["wave_completed"] = True
+                state["status"] = "failed"
+                state["error"] = error_msg
+                state["error_code"] = "NO_SERVERS_MATCH_TAGS"
+            else:
+                error_msg = f"Wave {wave_number}: Protection Group {protection_group_id} has no ServerSelectionTags configured and no explicit ServerIds in wave"
+                print(f"❌ {error_msg}")
+                state["wave_completed"] = True
+                state["status"] = "failed"
+                state["error"] = error_msg
+                state["error_code"] = "NO_SERVER_SELECTION_CONFIGURED"
             return
 
         print(f"Starting DRS recovery for wave {wave_number} ({wave_name})")
