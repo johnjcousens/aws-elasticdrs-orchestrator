@@ -4212,9 +4212,20 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
             else:
                 # Wave has NO dependencies - initiate immediately
                 print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
-                wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
-                # FIXED: Ensure WaveNumber is set in the wave result
+                wave_result = initiate_wave(
+                    wave, 
+                    pg_id, 
+                    execution_id, 
+                    is_drill, 
+                    execution_type,
+                    plan_name=plan_name,
+                    wave_name=wave_name,
+                    wave_number=wave_number,
+                    cognito_user=cognito_user
+                )
+                # FIXED: Ensure WaveNumber is set in the wave result (redundant but safe)
                 wave_result["WaveNumber"] = wave_number
+                wave_result["WaveName"] = wave_name  # FIXED: Ensure WaveName is also set
                 wave_results.append(wave_result)
 
             # Update progress in DynamoDB after each wave
@@ -4359,8 +4370,8 @@ def initiate_wave(
         wave_status = "PARTIAL" if has_failures else "INITIATED"
 
         return {
-            "WaveNumber": wave_number or wave.get("waveNumber", 1),  # FIXED: Ensure WaveNumber is included
-            "WaveName": wave.get("name", "Unknown"),
+            "WaveNumber": wave_number if wave_number is not None else wave.get("waveNumber", 1),  # FIXED: Use passed wave_number
+            "WaveName": wave_name or wave.get("name", f"Wave {wave_number or 1}"),  # FIXED: Use passed wave_name
             "WaveId": wave.get("WaveId")
             or wave.get("waveNumber"),  # Support both formats
             "JobId": wave_job_id,  # CRITICAL: Wave-level Job ID for poller
