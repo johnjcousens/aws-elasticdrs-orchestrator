@@ -410,7 +410,7 @@ ACTIVE_EXECUTION_STATUSES = [
     "IN_PROGRESS",
     "RUNNING",
     "PAUSED",
-    "CANCELLING",
+    # Removed "CANCELLING" - executions are immediately marked as CANCELLED
 ]
 
 # DRS job statuses that indicate servers are still being processed
@@ -4127,47 +4127,101 @@ def execute_with_step_functions(
 
 
 def execute_recovery_plan_worker(payload: Dict) -> None:
-    """Background worker - executes recovery via Step Functions
-
-    Handles both new executions and resumed executions.
-    For resumed executions, resumeFromWave specifies which wave to start from.
+    """Background worker - initiates DRS jobs without waiting (async invocation)
+    
+    ARCHIVE PATTERN: Direct wave initiation like the working reference stack.
+    This bypasses Step Functions to avoid ConflictException issues and ensures
+    wave data gets populated in DynamoDB immediately.
     """
     try:
         execution_id = payload["executionId"]
         plan_id = payload["planId"]
+        execution_type = payload["executionType"]
         is_drill = payload["isDrill"]
         plan = payload["plan"]
-        cognito_user = payload.get(
-            "cognitoUser", {"email": "system", "userId": "system"}
+
+        print(f"Worker initiating execution {execution_id} (type: {execution_type})")
+
+        # Update status to POLLING (not IN_PROGRESS)
+        execution_history_table.update_item(
+            Key={"ExecutionId": execution_id, "PlanId": plan_id},
+            UpdateExpression="SET #status = :status",
+            ExpressionAttributeNames={"#status": "Status"},
+            ExpressionAttributeValues={":status": "POLLING"},
         )
-        resume_from_wave = payload.get(
-            "resumeFromWave"
-        )  # None for new executions, wave index for resume
 
-        if resume_from_wave is not None:
-            print(
-                f"Worker RESUMING execution {execution_id} from wave {resume_from_wave} (isDrill: {is_drill})"
+        # CRITICAL FIX (Archive Pattern): Only initiate waves with NO dependencies
+        # ExecutionPoller will initiate dependent waves when dependencies complete
+        wave_results = []
+        waves_list = plan.get("Waves", [])
+        print(f"Processing {len(waves_list)} waves - initiating only independent waves")
+
+        for wave_index, wave in enumerate(waves_list):
+            wave_number = wave_index + 1
+
+            # Support both PascalCase and camelCase for backward compatibility
+            wave_name = wave.get("WaveName") or wave.get("name", f"Wave {wave_number}")
+            pg_id = wave.get("ProtectionGroupId") or wave.get("protectionGroupId")
+
+            if not pg_id:
+                print(f"Wave {wave_number} has no Protection Group, skipping")
+                wave_results.append({
+                    "WaveName": wave_name,
+                    "WaveId": wave.get("WaveId") or wave_number,
+                    "Status": "FAILED",
+                    "StatusMessage": "No Protection Group assigned",
+                    "Servers": []
+                })
+                continue
+
+            # Check wave dependencies
+            dependencies = wave.get("Dependencies", [])
+            if dependencies:
+                # Wave has dependencies - mark as PENDING for poller to initiate later
+                print(f"Wave {wave_number} ({wave_name}) has dependencies: {dependencies} - marking PENDING")
+                wave_results.append({
+                    "WaveName": wave_name,
+                    "WaveId": wave.get("WaveId") or wave_number,
+                    "ProtectionGroupId": pg_id,
+                    "Status": "PENDING",
+                    "StatusMessage": f"Waiting for dependencies: {dependencies}",
+                    "Servers": [],
+                    "Dependencies": dependencies
+                })
+            else:
+                # Wave has NO dependencies - initiate immediately
+                print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
+                wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
+                wave_results.append(wave_result)
+
+            # Update progress in DynamoDB after each wave
+            execution_history_table.update_item(
+                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                UpdateExpression="SET Waves = :waves",
+                ExpressionAttributeValues={":waves": wave_results}
             )
-        else:
-            print(
-                f"Worker initiating NEW execution {execution_id} (isDrill: {is_drill})"
+
+        # Final status is POLLING (not COMPLETED)
+        # External poller will update to COMPLETED when jobs finish
+        print(f"Worker completed initiation for execution {execution_id}")
+        print(f"Status: POLLING - awaiting external poller to track completion")
+
+        # CRITICAL: Start Step Functions for orchestration and pause/resume functionality
+        # Worker has populated DynamoDB with wave data, now Step Functions handles flow control
+        try:
+            print(f"Starting Step Functions orchestration for execution {execution_id}")
+            execute_with_step_functions(
+                execution_id=execution_id,
+                plan_id=plan_id,
+                plan=payload["plan"],
+                is_drill=payload["isDrill"],
+                cognito_user=payload.get("cognitoUser", {"email": "system", "userId": "system"})
             )
-        print(f"Initiated by: {cognito_user.get('email')}")
-
-        # Always use Step Functions
-        state_machine_arn = os.environ.get("STATE_MACHINE_ARN")
-        if not state_machine_arn:
-            raise ValueError("STATE_MACHINE_ARN environment variable not set")
-
-        print(f"Using Step Functions for execution {execution_id}")
-        return execute_with_step_functions(
-            execution_id,
-            plan_id,
-            plan,
-            is_drill,
-            state_machine_arn,
-            resume_from_wave,
-        )
+            print(f"✅ Step Functions started for execution {execution_id}")
+        except Exception as sf_error:
+            print(f"⚠️ Step Functions start failed for execution {execution_id}: {sf_error}")
+            # Don't fail the entire execution - DRS jobs are already initiated
+            # Step Functions failure only affects pause/resume, not basic execution
 
     except Exception as e:
         print(f"Worker error for execution {execution_id}: {str(e)}")
@@ -5054,7 +5108,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
     running before waves completed, leaving wave status as "unknown" even though
     the DRS job actually completed successfully.
     
-    Only reconciles waves that have JobId but show "unknown" or "UNKNOWN" status.
+    Also enriches waves with ServerStatuses containing instance IDs from DRS.
     """
     try:
         print(f"RECONCILE: Starting reconciliation for execution {execution.get('ExecutionId')}")
@@ -5066,17 +5120,13 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
             wave_status = wave.get("Status", "").upper()
             job_id = wave.get("JobId")
             wave_name = wave.get("WaveName", "Unknown")
+            region = wave.get("Region", "us-east-1")
             
             print(f"RECONCILE: Checking wave {wave_name} - Status: {wave_status}, JobId: {job_id}")
             
-            # Only reconcile waves with JobId that show unknown status OR started status that might be stale
-            # Also reconcile other non-terminal statuses that might be stale
-            if job_id and wave_status in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
+            # Query DRS for any wave with a JobId to get server details
+            if job_id:
                 try:
-                    print(f"RECONCILE: Reconciling wave {wave_name} with DRS job {job_id} (current status: {wave_status})")
-                    
-                    # Query DRS for actual job status
-                    region = wave.get("Region", "us-east-1")
                     print(f"RECONCILE: Querying DRS in region {region} for job {job_id}")
                     drs_client = boto3.client("drs", region_name=region)
                     
@@ -5089,50 +5139,83 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         
                         print(f"RECONCILE: DRS job {job_id} status: {drs_status}, servers: {len(participating_servers)}")
                         
-                        # Update wave status based on DRS job results
-                        if drs_status == "COMPLETED":
-                            # Check if all servers launched successfully
-                            all_launched = all(
-                                server.get("launchStatus") == "LAUNCHED" 
-                                for server in participating_servers
-                            )
+                        # Build ServerStatuses from DRS participatingServers
+                        if participating_servers:
+                            server_statuses = []
                             
-                            print(f"RECONCILE: All servers launched: {all_launched}")
+                            # Get recovery instances to find instance IDs for completed jobs
+                            recovery_instances = {}
+                            try:
+                                recovery_response = drs_client.describe_recovery_instances()
+                                for instance in recovery_response.get("items", []):
+                                    source_server_id = instance.get("sourceServerID")
+                                    if source_server_id:
+                                        recovery_instances[source_server_id] = {
+                                            "recoveryInstanceID": instance.get("recoveryInstanceID"),
+                                            "ec2InstanceID": instance.get("ec2InstanceID"),
+                                            "ec2InstanceState": instance.get("ec2InstanceState"),
+                                        }
+                                print(f"RECONCILE: Found {len(recovery_instances)} recovery instances in {region}")
+                            except Exception as e:
+                                print(f"RECONCILE: Error getting recovery instances: {e}")
                             
-                            if all_launched:
-                                wave["Status"] = "completed"
-                                wave["EndTime"] = int(time.time())  # Set end time when reconciling to completed
-                                reconciled_count += 1
-                                print(f"RECONCILE: ✅ Wave {wave_name} reconciled from {wave_status} to completed")
-                            else:
+                            for server in participating_servers:
+                                source_server_id = server.get("sourceServerID")
+                                recovery_info = recovery_instances.get(source_server_id, {})
+                                
+                                server_status = {
+                                    "SourceServerId": source_server_id,
+                                    "LaunchStatus": server.get("launchStatus", "UNKNOWN"),
+                                    "RecoveryInstanceID": (
+                                        server.get("recoveryInstanceID") or 
+                                        recovery_info.get("recoveryInstanceID") or
+                                        recovery_info.get("ec2InstanceID")
+                                    ),
+                                }
+                                server_statuses.append(server_status)
+                                print(f"RECONCILE: Server {source_server_id}: "
+                                      f"status={server.get('launchStatus')}, "
+                                      f"instanceId={server_status['RecoveryInstanceID']}")
+                            
+                            # Store ServerStatuses in wave for transform function
+                            wave["ServerStatuses"] = server_statuses
+                        
+                        # Only update wave status if it's in a non-terminal state
+                        if wave_status in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
+                            if drs_status == "COMPLETED":
+                                all_launched = all(
+                                    server.get("launchStatus") == "LAUNCHED" 
+                                    for server in participating_servers
+                                )
+                                
+                                if all_launched:
+                                    wave["Status"] = "completed"
+                                    wave["EndTime"] = int(time.time())
+                                    reconciled_count += 1
+                                    print(f"RECONCILE: ✅ Wave {wave_name} reconciled to completed")
+                                else:
+                                    wave["Status"] = "FAILED"
+                                    wave["StatusMessage"] = "Some servers failed to launch"
+                                    wave["EndTime"] = int(time.time())
+                                    reconciled_count += 1
+                            elif drs_status == "FAILED":
                                 wave["Status"] = "FAILED"
-                                wave["StatusMessage"] = "Some servers failed to launch"
+                                wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
                                 wave["EndTime"] = int(time.time())
                                 reconciled_count += 1
-                                print(f"RECONCILE: ❌ Wave {wave_name} reconciled from {wave_status} to FAILED - not all servers launched")
-                        elif drs_status == "FAILED":
-                            wave["Status"] = "FAILED"
-                            wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
-                            wave["EndTime"] = int(time.time())
-                            reconciled_count += 1
-                            print(f"RECONCILE: ❌ Wave {wave_name} reconciled from {wave_status} to FAILED")
-                        else:
-                            # Keep original status for other DRS statuses (PENDING, STARTED, etc.)
-                            print(f"RECONCILE: Wave {wave_name} DRS status {drs_status} - keeping as {wave_status}")
                     else:
-                        print(f"RECONCILE: ⚠️ DRS job {job_id} not found - keeping wave as {wave_status}")
+                        print(f"RECONCILE: ⚠️ DRS job {job_id} not found")
                         wave["StatusMessage"] = "Job not found"
                         
                 except Exception as e:
-                    print(f"RECONCILE: ❌ Error reconciling wave {wave_name} with DRS job {job_id}: {e}")
-                    # Keep original wave status on error
+                    print(f"RECONCILE: ❌ Error querying DRS for wave {wave_name}: {e}")
             else:
-                print(f"RECONCILE: Skipping wave {wave_name} - no JobId or terminal status")
+                print(f"RECONCILE: Skipping wave {wave_name} - no JobId")
             
             updated_waves.append(wave)
         
         execution["Waves"] = updated_waves
-        print(f"RECONCILE: Completed reconciliation - {reconciled_count} waves updated")
+        print(f"RECONCILE: Completed - {reconciled_count} waves status updated")
         return execution
         
     except Exception as e:
@@ -5282,6 +5365,12 @@ def get_execution_details(execution_id: str) -> Dict:
         except Exception as e:
             print(f"Error enriching execution with server details: {str(e)}")
 
+        # Reconcile wave status and get server instance IDs from DRS
+        try:
+            execution = reconcile_wave_status_with_drs(execution)
+        except Exception as e:
+            print(f"Error reconciling wave status with DRS: {str(e)}")
+
         # Get current status from Step Functions if still running and has StateMachineArn
         if execution.get("Status") == "RUNNING" and execution.get(
             "StateMachineArn"
@@ -5336,15 +5425,7 @@ def get_execution_details(execution_id: str) -> Dict:
 
 
 def cancel_execution(execution_id: str) -> Dict:
-    """Cancel a running execution - cancels only pending waves, not completed or in-progress ones.
-
-    Behavior:
-    - COMPLETED waves: Preserved as-is
-    - IN_PROGRESS/POLLING/LAUNCHING waves: Continue running (not interrupted)
-    - PENDING/NOT_STARTED waves: Marked as CANCELLED
-    - Waves not yet started (from plan): Added with CANCELLED status
-    - Overall execution status: Set to CANCELLED only if no waves are still running
-    """
+    """Cancel a running execution - immediate cancellation like archive solution."""
     try:
         # FIX: Query by ExecutionId to get PlanId (composite key required)
         result = execution_history_table.query(
@@ -5388,129 +5469,43 @@ def cancel_execution(execution_id: str) -> Dict:
                 },
             )
 
-        # Get waves from execution and plan
-        waves = execution.get("Waves", [])
-        timestamp = int(time.time())
-
-        # Get recovery plan to find waves that haven't started yet
-        plan_waves = []
-        try:
-            plan_result = recovery_plans_table.get_item(
-                Key={"PlanId": plan_id}
-            )
-            if "Item" in plan_result:
-                plan_waves = plan_result["Item"].get("Waves", [])
-        except Exception as e:
-            print(f"Error getting recovery plan: {e}")
-
-        # Track wave states
-        completed_waves = []
-        in_progress_waves = []
-        cancelled_waves = []
-
-        # Statuses that indicate a wave is done
-        completed_statuses = ["COMPLETED", "completed", "FAILED", "TIMEOUT"]
-        # Statuses that indicate a wave is currently running
-        in_progress_statuses = [
-            "IN_PROGRESS",
-            "POLLING",
-            "LAUNCHING",
-            "INITIATED",
-            "STARTED",
-        ]
-
-        # Track which wave numbers exist in execution
-        existing_wave_numbers = set()
-
-        for i, wave in enumerate(waves):
-            wave_status = (wave.get("Status") or "").upper()
-            wave_number = wave.get("WaveNumber", i)
-            existing_wave_numbers.add(wave_number)
-
-            if wave_status in completed_statuses:
-                completed_waves.append(wave_number)
-                # Leave completed waves unchanged
-            elif wave_status in in_progress_statuses:
-                in_progress_waves.append(wave_number)
-                # Leave in-progress waves running - they will complete naturally
-            else:
-                # Pending/not started waves in execution - mark as CANCELLED
-                waves[i]["Status"] = "CANCELLED"
-                waves[i]["EndTime"] = timestamp
-                cancelled_waves.append(wave_number)
-
-        # Add waves from plan that haven't started yet (not in execution's Waves array)
-        for i, plan_wave in enumerate(plan_waves):
-            wave_number = plan_wave.get("WaveNumber", i)
-            if wave_number not in existing_wave_numbers:
-                # This wave hasn't started - add it as CANCELLED
-                cancelled_wave = {
-                    "WaveNumber": wave_number,
-                    "WaveName": plan_wave.get(
-                        "WaveName", f"Wave {wave_number + 1}"
-                    ),
-                    "Status": "CANCELLED",
-                    "EndTime": timestamp,
-                    "ProtectionGroupId": plan_wave.get("ProtectionGroupId"),
-                    "ServerIds": plan_wave.get("ServerIds", []),
-                }
-                waves.append(cancelled_wave)
-                cancelled_waves.append(wave_number)
-
-        # Sort waves by wave number for consistent display
-        waves.sort(key=lambda w: w.get("WaveNumber", 0))
-
-        # Stop Step Functions execution only if no waves are in progress
-        # If a wave is running, let it complete naturally
-        if not in_progress_waves:
+        # Stop Step Functions execution (if it exists)
+        state_machine_arn = execution.get("StateMachineArn")
+        if state_machine_arn:
             try:
-                # amazonq-ignore-next-line
                 stepfunctions.stop_execution(
-                    executionArn=execution_id,
+                    executionArn=state_machine_arn,
                     error="UserCancelled",
                     cause="Execution cancelled by user",
                 )
-                print(f"Stopped Step Functions execution: {execution_id}")
+                print(f"Stopped Step Functions execution: {state_machine_arn}")
             except Exception as e:
                 print(f"Error stopping Step Functions execution: {str(e)}")
                 # Continue to update DynamoDB even if Step Functions call fails
+        else:
+            print(f"No StateMachineArn found for execution {execution_id}, skipping Step Functions stop")
 
-        # Determine final execution status
-        # If waves are still in progress, mark as CANCELLING (will be finalized when wave completes)
-        # If no waves in progress, mark as CANCELLED
-        final_status = "CANCELLING" if in_progress_waves else "CANCELLED"
-
-        # Update DynamoDB with updated waves and status
-        update_expression = "SET #status = :status, Waves = :waves"
-        expression_values = {":status": final_status, ":waves": waves}
-
-        # Only set EndTime if fully cancelled (no in-progress waves)
-        if not in_progress_waves:
-            update_expression += ", EndTime = :endtime"
-            expression_values[":endtime"] = timestamp
-
+        # SIMPLE APPROACH: Immediately mark as CANCELLED with EndTime (like archive)
+        # This prevents "ghost executions" that block new drills
+        timestamp = int(time.time())
+        
         execution_history_table.update_item(
             Key={"ExecutionId": execution_id, "PlanId": plan_id},
-            UpdateExpression=update_expression,
+            UpdateExpression="SET #status = :status, EndTime = :endtime",
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeValues={
+                ":status": "CANCELLED",
+                ":endtime": timestamp,
+            },
         )
 
-        print(
-            f"Cancel execution {execution_id}: completed={completed_waves}, in_progress={in_progress_waves}, cancelled={cancelled_waves}"
-        )
-
+        print(f"Cancelled execution: {execution_id}")
         return response(
             200,
             {
                 "executionId": execution_id,
-                "status": final_status,
-                "message": f'Execution {"cancelling" if in_progress_waves else "cancelled"} successfully',
-                "details": {
-                    "completedWaves": completed_waves,
-                    "inProgressWaves": in_progress_waves,
-                    "cancelledWaves": cancelled_waves,
-                },
+                "status": "CANCELLED",
+                "message": "Execution cancelled successfully",
             },
         )
 
