@@ -67,7 +67,7 @@ export const TerminateInstancesDialog: React.FC<TerminateInstancesDialogProps> =
     setFetchError(null);
     
     try {
-      const response = await apiClient.get(`/executions/${execution.executionId}/recovery-instances`);
+      const response = await apiClient.getRecoveryInstances(execution.executionId);
       
       if (response.instances) {
         setRecoveryInstances(response.instances);

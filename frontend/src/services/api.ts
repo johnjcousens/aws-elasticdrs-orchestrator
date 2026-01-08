@@ -599,6 +599,35 @@ class ApiClient {
   }
 
   /**
+   * Get recovery instances for an execution
+   * 
+   * Returns all EC2 recovery instances that were launched as part of this execution's waves.
+   * This allows the frontend to show users exactly what instances will be terminated.
+   * 
+   * @param executionId - Execution ID to get recovery instances for
+   * @returns List of recovery instances with details
+   */
+  public async getRecoveryInstances(executionId: string): Promise<{
+    executionId: string;
+    instances: Array<{
+      instanceId: string;
+      recoveryInstanceId: string;
+      sourceServerId: string;
+      region: string;
+      waveName: string;
+      waveNumber: number;
+      jobId: string;
+      status: string;
+      hostname?: string;
+      serverName?: string;
+    }>;
+    totalInstances: number;
+    message: string;
+  }> {
+    return this.get(`/executions/${executionId}/recovery-instances`);
+  }
+
+  /**
    * Terminate all recovery instances from an execution
    * 
    * This will terminate all EC2 recovery instances that were launched
