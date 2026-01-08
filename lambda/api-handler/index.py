@@ -4096,12 +4096,16 @@ def execute_with_step_functions(
         # Step Functions input format for step-functions-stack.yaml state machine
         # Uses 'Plan' (singular) not 'Plans' (array)
         # ALWAYS include ResumeFromWave (null for new executions) so Step Functions doesn't fail
+        
+        # CRITICAL FIX: Pass Recovery Plan waves directly - they already have correct format
+        # Recovery Plan waves have: WaveName, ProtectionGroupId, ExecutionOrder
+        # Step Functions orchestration expects: WaveName, ProtectionGroupId
         sfn_input = {
             "Execution": {"Id": execution_id},
             "Plan": {
                 "PlanId": plan_id,
                 "PlanName": plan.get("PlanName", "Unknown"),
-                "Waves": plan.get("Waves", []),
+                "Waves": plan.get("Waves", []),  # Recovery Plan format is correct
             },
             "IsDrill": is_drill,
             "ResumeFromWave": resume_from_wave,  # None for new executions, wave index for resume
