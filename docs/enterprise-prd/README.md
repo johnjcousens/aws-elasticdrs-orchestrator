@@ -1,7 +1,7 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.5  
-**Date**: January 7, 2026  
+**Version**: 1.6  
+**Date**: January 8, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
 
@@ -19,6 +19,7 @@
 | 6 | [IAM Roles & Security](./05-iam-security.md) | IAM roles, LZA integration, RBAC |
 | 7 | [Architecture & Data Flow](./06-architecture.md) | Core components, state management, diagrams |
 | 8 | [Implementation Guide](./07-implementation.md) | Phases, success criteria, risks |
+| 9 | [CMF Learnings](./08-cmf-learnings.md) | Patterns from AWS Cloud Migration Factory for enterprise orchestration |
 
 ---
 
@@ -36,6 +37,7 @@
 | Configure IAM roles for LZA | [IAM & Security](./05-iam-security.md) |
 | Understand the architecture | [Architecture](./06-architecture.md) |
 | Plan implementation phases | [Implementation Guide](./07-implementation.md) |
+| Learn from CMF patterns | [CMF Learnings](./08-cmf-learnings.md) |
 
 ### By Role
 
@@ -53,6 +55,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.6 | 2026-01-08 | Added CMF Learnings document with patterns from AWS Cloud Migration Factory |
 | 1.5 | 2026-01-07 | Restructured into modular documents; Added Advanced DR Orchestration Patterns (4-phase lifecycle, module factory, manifests, approval workflows) |
 | 1.4 | 2026-01-07 | Added Reference Implementation Code section with GitHub links |
 | 1.3 | 2026-01-07 | Fixed API examples, corrected HTTP methods |
