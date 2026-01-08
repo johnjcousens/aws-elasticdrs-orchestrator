@@ -353,9 +353,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
               <WaveProgress 
                 waves={execution.waveExecutions || []} 
                 totalWaves={execution.totalWaves}
-                executionId={execution.executionId}
-                executionStatus={execution.status}
-                executionEndTime={execution.endTime}
+                currentWave={execution.currentWave}
               />
             </Container>
           </SpaceBetween>
