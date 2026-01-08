@@ -410,7 +410,7 @@ ACTIVE_EXECUTION_STATUSES = [
     "IN_PROGRESS",
     "RUNNING",
     "PAUSED",
-    "CANCELLING",
+    # Removed "CANCELLING" - executions are immediately marked as CANCELLED
 ]
 
 # DRS job statuses that indicate servers are still being processed
@@ -5371,15 +5371,7 @@ def get_execution_details(execution_id: str) -> Dict:
 
 
 def cancel_execution(execution_id: str) -> Dict:
-    """Cancel a running execution - cancels only pending waves, not completed or in-progress ones.
-
-    Behavior:
-    - COMPLETED waves: Preserved as-is
-    - IN_PROGRESS/POLLING/LAUNCHING waves: Continue running (not interrupted)
-    - PENDING/NOT_STARTED waves: Marked as CANCELLED
-    - Waves not yet started (from plan): Added with CANCELLED status
-    - Overall execution status: Set to CANCELLED only if no waves are still running
-    """
+    """Cancel a running execution - immediate cancellation like archive solution."""
     try:
         # FIX: Query by ExecutionId to get PlanId (composite key required)
         result = execution_history_table.query(
@@ -5423,129 +5415,43 @@ def cancel_execution(execution_id: str) -> Dict:
                 },
             )
 
-        # Get waves from execution and plan
-        waves = execution.get("Waves", [])
-        timestamp = int(time.time())
-
-        # Get recovery plan to find waves that haven't started yet
-        plan_waves = []
-        try:
-            plan_result = recovery_plans_table.get_item(
-                Key={"PlanId": plan_id}
-            )
-            if "Item" in plan_result:
-                plan_waves = plan_result["Item"].get("Waves", [])
-        except Exception as e:
-            print(f"Error getting recovery plan: {e}")
-
-        # Track wave states
-        completed_waves = []
-        in_progress_waves = []
-        cancelled_waves = []
-
-        # Statuses that indicate a wave is done
-        completed_statuses = ["COMPLETED", "completed", "FAILED", "TIMEOUT"]
-        # Statuses that indicate a wave is currently running
-        in_progress_statuses = [
-            "IN_PROGRESS",
-            "POLLING",
-            "LAUNCHING",
-            "INITIATED",
-            "STARTED",
-        ]
-
-        # Track which wave numbers exist in execution
-        existing_wave_numbers = set()
-
-        for i, wave in enumerate(waves):
-            wave_status = (wave.get("Status") or "").upper()
-            wave_number = wave.get("WaveNumber", i)
-            existing_wave_numbers.add(wave_number)
-
-            if wave_status in completed_statuses:
-                completed_waves.append(wave_number)
-                # Leave completed waves unchanged
-            elif wave_status in in_progress_statuses:
-                in_progress_waves.append(wave_number)
-                # Leave in-progress waves running - they will complete naturally
-            else:
-                # Pending/not started waves in execution - mark as CANCELLED
-                waves[i]["Status"] = "CANCELLED"
-                waves[i]["EndTime"] = timestamp
-                cancelled_waves.append(wave_number)
-
-        # Add waves from plan that haven't started yet (not in execution's Waves array)
-        for i, plan_wave in enumerate(plan_waves):
-            wave_number = plan_wave.get("WaveNumber", i)
-            if wave_number not in existing_wave_numbers:
-                # This wave hasn't started - add it as CANCELLED
-                cancelled_wave = {
-                    "WaveNumber": wave_number,
-                    "WaveName": plan_wave.get(
-                        "WaveName", f"Wave {wave_number + 1}"
-                    ),
-                    "Status": "CANCELLED",
-                    "EndTime": timestamp,
-                    "ProtectionGroupId": plan_wave.get("ProtectionGroupId"),
-                    "ServerIds": plan_wave.get("ServerIds", []),
-                }
-                waves.append(cancelled_wave)
-                cancelled_waves.append(wave_number)
-
-        # Sort waves by wave number for consistent display
-        waves.sort(key=lambda w: w.get("WaveNumber", 0))
-
-        # Stop Step Functions execution only if no waves are in progress
-        # If a wave is running, let it complete naturally
-        if not in_progress_waves:
+        # Stop Step Functions execution (if it exists)
+        state_machine_arn = execution.get("StateMachineArn")
+        if state_machine_arn:
             try:
-                # amazonq-ignore-next-line
                 stepfunctions.stop_execution(
-                    executionArn=execution_id,
+                    executionArn=state_machine_arn,
                     error="UserCancelled",
                     cause="Execution cancelled by user",
                 )
-                print(f"Stopped Step Functions execution: {execution_id}")
+                print(f"Stopped Step Functions execution: {state_machine_arn}")
             except Exception as e:
                 print(f"Error stopping Step Functions execution: {str(e)}")
                 # Continue to update DynamoDB even if Step Functions call fails
+        else:
+            print(f"No StateMachineArn found for execution {execution_id}, skipping Step Functions stop")
 
-        # Determine final execution status
-        # If waves are still in progress, mark as CANCELLING (will be finalized when wave completes)
-        # If no waves in progress, mark as CANCELLED
-        final_status = "CANCELLING" if in_progress_waves else "CANCELLED"
-
-        # Update DynamoDB with updated waves and status
-        update_expression = "SET #status = :status, Waves = :waves"
-        expression_values = {":status": final_status, ":waves": waves}
-
-        # Only set EndTime if fully cancelled (no in-progress waves)
-        if not in_progress_waves:
-            update_expression += ", EndTime = :endtime"
-            expression_values[":endtime"] = timestamp
-
+        # SIMPLE APPROACH: Immediately mark as CANCELLED with EndTime (like archive)
+        # This prevents "ghost executions" that block new drills
+        timestamp = int(time.time())
+        
         execution_history_table.update_item(
             Key={"ExecutionId": execution_id, "PlanId": plan_id},
-            UpdateExpression=update_expression,
+            UpdateExpression="SET #status = :status, EndTime = :endtime",
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeValues={
+                ":status": "CANCELLED",
+                ":endtime": timestamp,
+            },
         )
 
-        print(
-            f"Cancel execution {execution_id}: completed={completed_waves}, in_progress={in_progress_waves}, cancelled={cancelled_waves}"
-        )
-
+        print(f"Cancelled execution: {execution_id}")
         return response(
             200,
             {
                 "executionId": execution_id,
-                "status": final_status,
-                "message": f'Execution {"cancelling" if in_progress_waves else "cancelled"} successfully',
-                "details": {
-                    "completedWaves": completed_waves,
-                    "inProgressWaves": in_progress_waves,
-                    "cancelledWaves": cancelled_waves,
-                },
+                "status": "CANCELLED",
+                "message": "Execution cancelled successfully",
             },
         )
 
