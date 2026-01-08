@@ -2,12 +2,12 @@
 
 Complete REST API documentation for AWS DRS Orchestration Solution.
 
-**Version**: 2.1  
-**Date**: January 1, 2026  
-**Status**: Production Ready - EventBridge Security Enhancements Complete  
-**Current Implementation**: 42+ endpoints across 12 categories  
+**Version**: 2.2  
+**Date**: January 7, 2026  
+**Status**: Production Ready - Complete RBAC Coverage  
+**Current Implementation**: 47+ endpoints across 12 categories  
 **Authentication**: Cognito JWT Bearer tokens  
-**RBAC**: 5 roles with granular permissions
+**RBAC**: 5 roles with granular permissions - 100% endpoint coverage
 
 ## Authentication & Authorization
 
@@ -18,12 +18,32 @@ curl -H "Authorization: Bearer $TOKEN" \
   https://your-api-endpoint.execute-api.us-east-1.amazonaws.com/prod/protection-groups
 ```
 
+### RBAC Enforcement
+
+**Every API endpoint** is protected by RBAC middleware that:
+1. Validates JWT token from Cognito
+2. Extracts user's Cognito groups
+3. Maps groups to DRS roles
+4. Checks endpoint-specific permissions
+5. Returns 403 Forbidden if unauthorized
+
 ### RBAC Roles
-- **DRSOrchestrationAdmin** - Full administrative access
-- **DRSRecoveryManager** - Execute and manage recovery operations  
-- **DRSPlanManager** - Create/modify recovery plans and protection groups
-- **DRSOperator** - Execute recovery but not modify plans
-- **DRSReadOnly** - View-only access for monitoring
+- **DRSOrchestrationAdmin** - Full administrative access (all permissions)
+- **DRSRecoveryManager** - Execute and manage recovery operations (no account deletion)
+- **DRSPlanManager** - Create/modify recovery plans and protection groups (no instance termination)
+- **DRSOperator** - Execute recovery but not modify plans (no create/delete)
+- **DRSReadOnly** - View-only access for monitoring (read permissions only)
+
+### Cognito Group Names
+**Primary Groups (Recommended):**
+- `DRSOrchestrationAdmin`, `DRSRecoveryManager`, `DRSPlanManager`, `DRSOperator`, `DRSReadOnly`
+
+**Legacy Groups (Backward Compatible):**
+- `DRS-Administrator` → DRSOrchestrationAdmin
+- `DRS-Infrastructure-Admin` → DRSRecoveryManager
+- `DRS-Recovery-Plan-Manager` → DRSPlanManager
+- `DRS-Operator` → DRSOperator
+- `DRS-Read-Only` → DRSReadOnly
 
 ## Core Endpoints
 
@@ -77,6 +97,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 | POST   | `/executions/{id}/terminate-instances` | Terminate recovery instances after drill completion |
 | GET    | `/executions/{id}/job-logs`            | Get DRS job logs for execution with real-time updates |
 | GET    | `/executions/{id}/termination-status`  | Check status of instance termination job |
+| GET    | `/executions/{id}/recovery-instances`  | Get recovery instances launched by execution |
 | DELETE | `/executions`                          | Bulk delete completed executions |
 | POST   | `/executions/delete`                   | Delete specific executions by IDs |
 **Query Parameters for GET `/executions`:**
