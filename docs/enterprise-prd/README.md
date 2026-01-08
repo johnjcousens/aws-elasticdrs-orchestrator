@@ -1,6 +1,6 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.7  
+**Version**: 1.8  
 **Date**: January 8, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
@@ -57,6 +57,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.8 | 2026-01-08 | Aligned all 13 modules across docs 02-04; Fixed EC2 lifecycle support; Corrected module naming (EcsService, R53Record, LambdaFunction, OpenSearchService) |
 | 1.7 | 2026-01-08 | Added DRS Tools Learnings document with patterns for configuration, observability, and automation |
 | 1.6 | 2026-01-08 | Added CMF Learnings document with patterns from AWS Cloud Migration Factory |
 | 1.5 | 2026-01-07 | Restructured into modular documents; Added Advanced DR Orchestration Patterns (4-phase lifecycle, module factory, manifests, approval workflows) |
