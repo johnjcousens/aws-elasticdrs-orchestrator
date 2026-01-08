@@ -47,8 +47,8 @@ TIMEOUT_THRESHOLD_SECONDS = int(
     os.environ.get("TIMEOUT_THRESHOLD_SECONDS", "1800")
 )  # 30 minutes
 
-# Execution completion statuses
-COMPLETED_STATUSES = {"COMPLETED", "FAILED", "TERMINATED", "TIMEOUT"}
+# Execution completion statuses (include both cases for consistency)
+COMPLETED_STATUSES = {"COMPLETED", "completed", "FAILED", "TERMINATED", "TIMEOUT"}
 
 # DRS job statuses that indicate completion
 DRS_COMPLETED_STATUSES = {"COMPLETED", "FAILED"}
