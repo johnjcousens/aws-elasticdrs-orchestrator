@@ -4127,47 +4127,105 @@ def execute_with_step_functions(
 
 
 def execute_recovery_plan_worker(payload: Dict) -> None:
-    """Background worker - executes recovery via Step Functions
-
-    Handles both new executions and resumed executions.
-    For resumed executions, resumeFromWave specifies which wave to start from.
+    """Background worker - initiates DRS jobs without waiting (async invocation)
+    
+    ARCHIVE PATTERN: Direct wave initiation like the working reference stack.
+    This bypasses Step Functions to avoid ConflictException issues and ensures
+    wave data gets populated in DynamoDB immediately.
     """
     try:
         execution_id = payload["executionId"]
         plan_id = payload["planId"]
+        execution_type = payload["executionType"]
         is_drill = payload["isDrill"]
         plan = payload["plan"]
-        cognito_user = payload.get(
-            "cognitoUser", {"email": "system", "userId": "system"}
+
+        print(f"Worker initiating execution {execution_id} (type: {execution_type})")
+
+        # Update status to POLLING (not IN_PROGRESS)
+        execution_history_table.update_item(
+            Key={"ExecutionId": execution_id, "PlanId": plan_id},
+            UpdateExpression="SET #status = :status",
+            ExpressionAttributeNames={"#status": "Status"},
+            ExpressionAttributeValues={":status": "POLLING"},
         )
-        resume_from_wave = payload.get(
-            "resumeFromWave"
-        )  # None for new executions, wave index for resume
 
-        if resume_from_wave is not None:
-            print(
-                f"Worker RESUMING execution {execution_id} from wave {resume_from_wave} (isDrill: {is_drill})"
+        # CRITICAL FIX (Archive Pattern): Only initiate waves with NO dependencies
+        # ExecutionPoller will initiate dependent waves when dependencies complete
+        wave_results = []
+        waves_list = plan.get("Waves", [])
+        print(f"Processing {len(waves_list)} waves - initiating only independent waves")
+
+        for wave_index, wave in enumerate(waves_list):
+            wave_number = wave_index + 1
+
+            # Support both PascalCase and camelCase for backward compatibility
+            wave_name = wave.get("WaveName") or wave.get("name", f"Wave {wave_number}")
+            pg_id = wave.get("ProtectionGroupId") or wave.get("protectionGroupId")
+
+            if not pg_id:
+                print(f"Wave {wave_number} has no Protection Group, skipping")
+                wave_results.append({
+                    "WaveName": wave_name,
+                    "WaveId": wave.get("WaveId") or wave_number,
+                    "Status": "FAILED",
+                    "StatusMessage": "No Protection Group assigned",
+                    "Servers": []
+                })
+                continue
+
+            # Check wave dependencies
+            dependencies = wave.get("Dependencies", [])
+            if dependencies:
+                # Wave has dependencies - mark as PENDING for poller to initiate later
+                print(f"Wave {wave_number} ({wave_name}) has dependencies: {dependencies} - marking PENDING")
+                wave_results.append({
+                    "WaveName": wave_name,
+                    "WaveId": wave.get("WaveId") or wave_number,
+                    "ProtectionGroupId": pg_id,
+                    "Status": "PENDING",
+                    "StatusMessage": f"Waiting for dependencies: {dependencies}",
+                    "Servers": [],
+                    "Dependencies": dependencies
+                })
+            else:
+                # Wave has NO dependencies - initiate immediately
+                print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
+                wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
+                wave_results.append(wave_result)
+
+            # Update progress in DynamoDB after each wave
+            execution_history_table.update_item(
+                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                UpdateExpression="SET Waves = :waves",
+                ExpressionAttributeValues={":waves": wave_results}
             )
-        else:
-            print(
-                f"Worker initiating NEW execution {execution_id} (isDrill: {is_drill})"
+
+        # Final status is POLLING (not COMPLETED)
+        # External poller will update to COMPLETED when jobs finish
+        print(f"Worker completed initiation for execution {execution_id}")
+        print(f"Status: POLLING - awaiting external poller to track completion")
+
+    except Exception as e:
+        print(f"Worker error for execution {execution_id}: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+
+        # Mark execution as failed
+        try:
+            execution_history_table.update_item(
+                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                UpdateExpression="SET #status = :status, EndTime = :endtime, ErrorMessage = :error",
+                ExpressionAttributeNames={"#status": "Status"},
+                ExpressionAttributeValues={
+                    ":status": "FAILED",
+                    ":endtime": int(time.time()),
+                    ":error": str(e),
+                },
             )
-        print(f"Initiated by: {cognito_user.get('email')}")
-
-        # Always use Step Functions
-        state_machine_arn = os.environ.get("STATE_MACHINE_ARN")
-        if not state_machine_arn:
-            raise ValueError("STATE_MACHINE_ARN environment variable not set")
-
-        print(f"Using Step Functions for execution {execution_id}")
-        return execute_with_step_functions(
-            execution_id,
-            plan_id,
-            plan,
-            is_drill,
-            state_machine_arn,
-            resume_from_wave,
-        )
+        except Exception as update_error:
+            print(f"Failed to update error status: {str(update_error)}")
 
     except Exception as e:
         print(f"Worker error for execution {execution_id}: {str(e)}")
