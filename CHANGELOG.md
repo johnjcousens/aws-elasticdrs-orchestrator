@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **DRS Tools Learnings Document**: Created comprehensive analysis of AWS DRS Tools repository (5 solutions) with patterns for enterprise orchestration
+  - `docs/enterprise-prd/09-drs-tools-learnings.md` - Patterns from DRS Plan Automation, Configuration Synchronizer, Observability, Tag Sync, Template Manager
+  - PreWave/PostWave SSM automation actions for wave-based orchestration
+  - YAML-based configuration with layered tag overrides (defaults → account → tag)
+  - Automatic subnet assignment by IP address for on-premises migrations
+  - Cross-account CloudWatch dashboards (per-account and consolidated)
+  - EventBridge notifications for DR events (failed recoveries, stalled agents)
+  - EC2 to DRS tag synchronization with instance type preservation
+  - S3-triggered batch launch template updates with tag-based matching
+  - Feature exclusion configuration per server/protection group
+  - Comparison table: DRS Plan Automation vs our solution (identified gaps)
+  - Implementation roadmap with 4 phases (11-16 weeks total)
+  - Updated Enterprise PRD index to version 1.7 with new document
 - **CMF Learnings Document**: Created comprehensive analysis of AWS Cloud Migration Factory v4.5.1 patterns applicable to enterprise orchestration
   - `docs/enterprise-prd/08-cmf-learnings.md` - Technology-agnostic patterns from CMF for any orchestration scenario
   - DynamoDB Stream-driven task orchestration pattern (alternative to Step Functions for complex workflows)
