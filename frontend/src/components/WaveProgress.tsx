@@ -16,6 +16,8 @@ import {
   Alert,
   Badge,
   ProgressBar,
+  Table,
+  Link,
 } from '@cloudscape-design/components';
 import { StatusBadge } from './StatusBadge';
 import type { WaveExecution, ServerExecution } from '../types';
@@ -25,6 +27,38 @@ interface WaveProgressProps {
   currentWave?: number;
   totalWaves?: number;
 }
+
+/**
+ * Determine effective wave status based on wave status and server statuses
+ * If wave says "started" but all servers are "LAUNCHED", it's actually completed
+ */
+const getEffectiveWaveStatus = (wave: WaveExecution): string => {
+  const waveStatus = (wave.status || 'pending').toLowerCase();
+  
+  // If wave already shows completed/failed, use that
+  if (['completed', 'failed', 'cancelled'].includes(waveStatus)) {
+    return waveStatus;
+  }
+  
+  // Check server statuses to determine if wave is actually complete
+  const servers = wave.serverExecutions || [];
+  if (servers.length > 0) {
+    const allLaunched = servers.every(s => {
+      const status = (s.launchStatus || s.status || '').toUpperCase();
+      return status === 'LAUNCHED';
+    });
+    
+    const anyFailed = servers.some(s => {
+      const status = (s.launchStatus || s.status || '').toUpperCase();
+      return status === 'FAILED';
+    });
+    
+    if (allLaunched) return 'completed';
+    if (anyFailed) return 'failed';
+  }
+  
+  return waveStatus;
+};
 
 /**
  * Get status indicator icon for wave
@@ -77,11 +111,19 @@ const parseTimestamp = (timestamp: string | number | undefined): Date | null => 
   
   if (typeof timestamp === 'number' || /^\d+$/.test(String(timestamp))) {
     const ts = typeof timestamp === 'number' ? timestamp : parseInt(String(timestamp), 10);
-    // Unix timestamps in seconds need conversion to milliseconds
     return new Date(ts < 10000000000 ? ts * 1000 : ts);
   }
   
   return new Date(timestamp);
+};
+
+/**
+ * Format timestamp for display
+ */
+const formatTimestamp = (timestamp: string | number | undefined): string => {
+  const date = parseTimestamp(timestamp);
+  if (!date) return '-';
+  return date.toLocaleString();
 };
 
 /**
@@ -146,72 +188,10 @@ const getLaunchStatusColor = (status: string | undefined): 'blue' | 'green' | 'r
 };
 
 /**
- * Server Status Row Component
+ * Generate AWS console link for EC2 instance
  */
-const ServerStatusRow: React.FC<{ server: ServerExecution }> = ({ server }) => {
-  const launchStatus = server.launchStatus || server.status || 'pending';
-  
-  return (
-    <Container>
-      <Box padding={{ vertical: 'xs', horizontal: 's' }}>
-        {/* Server Name/ID */}
-        <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontWeight: 500, fontSize: '14px' }}>
-            {server.serverName || server.hostname || server.serverId}
-          </div>
-          {server.serverName && server.serverId && (
-            <div style={{ fontSize: '12px', color: '#5f6b7a', fontFamily: 'monospace' }}>
-              {server.serverId}
-            </div>
-          )}
-        </div>
-        
-        {/* Status Badges */}
-        <SpaceBetween direction="horizontal" size="xs">
-          <Badge color={getLaunchStatusColor(launchStatus)}>
-            {launchStatus}
-          </Badge>
-          {server.region && (
-            <Badge color="grey">{server.region}</Badge>
-          )}
-        </SpaceBetween>
-        
-        {/* Recovery Instance Details */}
-        {server.recoveredInstanceId && (
-          <div style={{ 
-            marginTop: '8px', 
-            padding: '8px', 
-            backgroundColor: '#f2f8fd', 
-            borderRadius: '4px',
-            fontSize: '13px'
-          }}>
-            <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '4px' }}>
-              Recovery Instance
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-              <span>
-                <strong>Instance:</strong>{' '}
-                <code style={{ fontSize: '12px' }}>{server.recoveredInstanceId}</code>
-              </span>
-              {server.instanceType && (
-                <span><strong>Type:</strong> {server.instanceType}</span>
-              )}
-              {server.privateIp && (
-                <span><strong>IP:</strong> {server.privateIp}</span>
-              )}
-            </div>
-          </div>
-        )}
-        
-        {/* Error */}
-        {server.error && (
-          <Alert type="error" statusIconAriaLabel="Error">
-            {typeof server.error === 'string' ? server.error : server.error.message}
-          </Alert>
-        )}
-      </Box>
-    </Container>
-  );
+const getConsoleLink = (instanceId: string, region: string): string => {
+  return `https://console.aws.amazon.com/ec2/v2/home?region=${region}#Instances:instanceId=${instanceId}`;
 };
 
 /**
@@ -227,14 +207,81 @@ const calculateProgress = (
   
   const total = totalWaves || waves.length;
   const completed = waves.filter(w => {
-    const status = (w.status || '').toLowerCase();
-    return status === 'completed' || status === 'launched';
+    const effectiveStatus = getEffectiveWaveStatus(w);
+    return effectiveStatus === 'completed' || effectiveStatus === 'launched';
   }).length;
   
   const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
   
   return { percentage, completed, total };
 };
+
+/**
+ * Server table column definitions
+ */
+const serverColumnDefinitions = [
+  {
+    id: 'serverId',
+    header: 'Server ID',
+    cell: (server: ServerExecution) => (
+      <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>
+        {server.serverName || server.hostname || server.serverId}
+      </span>
+    ),
+    width: 200,
+  },
+  {
+    id: 'status',
+    header: 'Status',
+    cell: (server: ServerExecution) => {
+      const status = server.launchStatus || server.status || 'pending';
+      return <Badge color={getLaunchStatusColor(status)}>{status}</Badge>;
+    },
+    width: 120,
+  },
+  {
+    id: 'instanceId',
+    header: 'Instance ID',
+    cell: (server: ServerExecution) => {
+      const instanceId = server.recoveredInstanceId;
+      const region = server.region || 'us-east-1';
+      
+      if (instanceId) {
+        return (
+          <Link 
+            href={getConsoleLink(instanceId, region)} 
+            external
+            fontSize="body-s"
+          >
+            <span style={{ fontFamily: 'monospace' }}>{instanceId}</span>
+          </Link>
+        );
+      }
+      
+      const status = (server.launchStatus || server.status || '').toUpperCase();
+      return status === 'LAUNCHING' ? 'Launching...' : '-';
+    },
+    width: 180,
+  },
+  {
+    id: 'instanceType',
+    header: 'Type',
+    cell: (server: ServerExecution) => server.instanceType || '-',
+    width: 100,
+  },
+  {
+    id: 'privateIp',
+    header: 'Private IP',
+    cell: (server: ServerExecution) => server.privateIp || '-',
+    width: 120,
+  },
+  {
+    id: 'region',
+    header: 'Region',
+    cell: (server: ServerExecution) => server.region || '-',
+    width: 120,
+  },
+];
 
 /**
  * Wave Progress Component
@@ -247,20 +294,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
   totalWaves 
 }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(
-    new Set(currentWave !== undefined ? [currentWave] : [])
+    new Set(currentWave !== undefined ? [currentWave] : [0])
   );
-
-  const toggleWave = (waveNumber: number) => {
-    setExpandedWaves(prev => {
-      const next = new Set(prev);
-      if (next.has(waveNumber)) {
-        next.delete(waveNumber);
-      } else {
-        next.add(waveNumber);
-      }
-      return next;
-    });
-  };
 
   const progress = calculateProgress(waves, totalWaves);
   
@@ -285,8 +320,11 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const isCurrent = currentWave === waveNum;
         const isExpanded = expandedWaves.has(waveNum);
         const hasServers = wave.serverExecutions && wave.serverExecutions.length > 0;
-        const statusIndicator = getWaveStatusIndicator(wave.status);
-        const statusColor = getStatusColor(wave.status);
+        
+        // Use effective status that considers server statuses
+        const effectiveStatus = getEffectiveWaveStatus(wave);
+        const statusIndicator = getWaveStatusIndicator(effectiveStatus);
+        const statusColor = getStatusColor(effectiveStatus);
         const duration = calculateWaveDuration(wave);
         
         return (
@@ -300,7 +338,19 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                   gap: '12px',
                   cursor: hasServers ? 'pointer' : 'default'
                 }}
-                onClick={() => hasServers && toggleWave(waveNum)}
+                onClick={() => {
+                  if (hasServers) {
+                    setExpandedWaves(prev => {
+                      const next = new Set(prev);
+                      if (next.has(waveNum)) {
+                        next.delete(waveNum);
+                      } else {
+                        next.add(waveNum);
+                      }
+                      return next;
+                    });
+                  }
+                }}
               >
                 <span style={{ fontSize: '24px', color: statusColor }}>
                   {statusIndicator}
@@ -309,17 +359,21 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                   <div style={{ fontWeight: 500, fontSize: '16px' }}>
                     Wave {displayNum}: {wave.waveName || `Wave ${displayNum}`}
                   </div>
-                  {wave.startTime && (
-                    <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
-                      Started {formatRelativeTime(wave.startTime)}
-                      {' • '}Duration: {duration}
-                      {wave.jobId && (
-                        <span> • Job: <code style={{ fontSize: '11px' }}>{wave.jobId}</code></span>
-                      )}
-                    </div>
-                  )}
+                  <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
+                    {wave.startTime ? (
+                      <>
+                        Started {formatRelativeTime(wave.startTime)}
+                        {' • '}Duration: {duration}
+                        {wave.jobId && (
+                          <span> • Job: <code style={{ fontSize: '11px' }}>{wave.jobId}</code></span>
+                        )}
+                      </>
+                    ) : (
+                      'Not started'
+                    )}
+                  </div>
                 </div>
-                <StatusBadge status={wave.status} />
+                <StatusBadge status={effectiveStatus} />
               </div>
 
               {/* Wave Error */}
@@ -329,7 +383,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 </Alert>
               )}
 
-              {/* Servers - Expandable */}
+              {/* Servers Table - Expandable */}
               {hasServers && (
                 <ExpandableSection
                   headerText={`Servers (${wave.serverExecutions.length})`}
@@ -347,11 +401,33 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     }
                   }}
                 >
-                  <SpaceBetween size="s">
-                    {wave.serverExecutions.map((server) => (
-                      <ServerStatusRow key={server.serverId} server={server} />
-                    ))}
-                  </SpaceBetween>
+                  <Table
+                    columnDefinitions={serverColumnDefinitions}
+                    items={wave.serverExecutions}
+                    variant="embedded"
+                    wrapLines
+                    empty={
+                      <Box textAlign="center" color="inherit">
+                        No servers in this wave
+                      </Box>
+                    }
+                  />
+                  
+                  {/* Server Errors */}
+                  {wave.serverExecutions.some(s => s.error) && (
+                    <SpaceBetween size="xs">
+                      {wave.serverExecutions
+                        .filter(s => s.error)
+                        .map((server, idx) => (
+                          <Alert type="error" key={idx}>
+                            <strong>{server.serverName || server.serverId}:</strong>{' '}
+                            {typeof server.error === 'string' 
+                              ? server.error 
+                              : server.error?.message || 'Unknown error'}
+                          </Alert>
+                        ))}
+                    </SpaceBetween>
+                  )}
                 </ExpandableSection>
               )}
             </SpaceBetween>
