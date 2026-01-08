@@ -14,12 +14,18 @@
 # Test locally where possible
 # Validate CloudFormation templates
 make validate
+
+# MANDATORY: Check deployment scope before committing
+./scripts/check-deployment-scope.sh
 ```
 
 ### 2. Commit and Push (Required)
 ```bash
 # Stage changes
 git add .
+
+# MANDATORY: Preview deployment scope and time estimates
+./scripts/check-deployment-scope.sh
 
 # Commit with descriptive message
 git commit -m "feat: add new feature description"
@@ -113,11 +119,12 @@ gh auth login
 
 ### MANDATORY Workflow Check Rules
 
-1. **ALWAYS check for running workflows** before pushing
-2. **NEVER push while a deployment is in progress** - this causes conflicts and failures
-3. **WAIT for completion** if a workflow is running (max 30 minutes)
-4. **Use safe-push.sh script** instead of manual `git push` to automate checks
-5. **Monitor deployment** until completion before making additional changes
+1. **ALWAYS check deployment scope** before committing: `./scripts/check-deployment-scope.sh`
+2. **ALWAYS check for running workflows** before pushing
+3. **NEVER push while a deployment is in progress** - this causes conflicts and failures
+4. **WAIT for completion** if a workflow is running (max 30 minutes)
+5. **Use safe-push.sh script** instead of manual `git push` to automate checks
+6. **Monitor deployment** until completion before making additional changes
 
 ### Workflow Status Indicators
 

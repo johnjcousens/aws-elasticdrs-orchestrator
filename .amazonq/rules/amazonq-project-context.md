@@ -326,13 +326,26 @@ git push origin main  # Triggers GitHub Actions workflow
 # https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
+**Intelligent Pipeline Optimization:**
+- **Documentation-only changes** (`docs/*`, `*.md`): ~30 seconds deployment
+- **Frontend-only changes** (`frontend/*`): ~12 minutes deployment  
+- **Infrastructure changes** (`cfn/*`, `lambda/*`): ~22 minutes full pipeline
+- **Mixed changes**: Always trigger full pipeline for safety
+
+**Developer Tools:**
+```bash
+# Preview what will be deployed before pushing
+./scripts/check-deployment-scope.sh
+```
+
 **Pipeline Stages:**
-1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
-2. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
-3. **Build** (~3 min) - Lambda packaging, frontend build
-4. **Test** (~2 min) - Unit tests
-5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
-6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
+1. **Detect Changes** (~10s) - Analyzes changed files to determine deployment scope
+2. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
+3. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
+4. **Build** (~3 min) - Lambda packaging, frontend build
+5. **Test** (~2 min) - Unit tests
+6. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+7. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
 
 #### Manual Deployment (EMERGENCY ONLY)
 
@@ -367,6 +380,7 @@ git push origin main
 - **Rollback capability**: Git-based rollback and deployment history
 - **Team visibility**: All deployments visible to team members
 - **Compliance**: Meets enterprise deployment standards
+- **Intelligent optimization**: Automatic detection of change scope with time savings up to 95%
 
 ## S3 Deployment Bucket (Source of Truth)
 
