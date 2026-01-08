@@ -1,6 +1,6 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.4  
+**Version**: 1.5  
 **Date**: January 7, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
@@ -9,6 +9,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.5 | 2026-01-07 | Added Advanced DR Orchestration Patterns section documenting 4-phase DR lifecycle (Instantiate→Activate→Cleanup→Replicate), Module Factory pattern with pluggable technology adapters, manifest-driven configuration, and approval workflow patterns |
 | 1.4 | 2026-01-07 | Added Reference Implementation Code section with direct GitHub links to pause/resume, tag orchestration, tag sync, launch settings, and database schema |
 | 1.3 | 2026-01-07 | Fixed API integration examples (replaced non-existent `aws apigateway invoke-rest-api` with curl/HTTP), corrected HTTP methods for pause/resume (PUT→POST), clarified DynamoDB table comparisons |
 | 1.2 | 2026-01-07 | Added AWS LZA integration section with pre-vended IAM role templates |
@@ -138,7 +139,220 @@ Complete CloudFormation templates for the entire solution.
 
 ---
 
-## Core Requirements
+## Advanced DR Orchestration Patterns
+
+This section documents advanced DR orchestration patterns derived from enterprise implementations, providing architectural guidance for building sophisticated multi-region, multi-technology disaster recovery solutions.
+
+### 4-Phase DR Lifecycle Model
+
+Enterprise DR orchestration follows a 4-phase lifecycle that ensures complete disaster recovery with proper resource management and replication re-establishment.
+
+```mermaid
+flowchart LR
+    subgraph "Phase 1"
+        I[🔧 INSTANTIATE]
+    end
+    
+    subgraph "Phase 2"
+        A[⚡ ACTIVATE]
+    end
+    
+    subgraph "Phase 3"
+        C[🧹 CLEANUP]
+    end
+    
+    subgraph "Phase 4"
+        R[🔄 REPLICATE]
+    end
+    
+    I -->|"Prewarm DR region"| A
+    A -->|"Failover complete"| C
+    C -->|"Old primary cleaned"| R
+    R -->|"Replication restored"| I
+    
+    classDef phase1 fill:#4CAF50,stroke:#2E7D32,color:#fff
+    classDef phase2 fill:#FF9800,stroke:#E65100,color:#fff
+    classDef phase3 fill:#F44336,stroke:#C62828,color:#fff
+    classDef phase4 fill:#2196F3,stroke:#1565C0,color:#fff
+    
+    class I phase1
+    class A phase2
+    class C phase3
+    class R phase4
+```
+
+#### Phase 1: Instantiate (Prewarm)
+
+**Purpose**: Prepare the secondary region by deploying necessary infrastructure before failover.
+
+**Operations**:
+- Deploy CloudFormation stacks in DR region
+- Scale up ECS/EKS clusters to handle production load
+- Create Aurora read replicas or RDS instances
+- Provision Auto Scaling groups with desired capacity
+- Pre-warm Lambda functions and API Gateway endpoints
+
+**Example Manifest**:
+```json
+{
+  "phase": "instantiate",
+  "layers": [
+    {
+      "layer": 1,
+      "resources": [
+        {
+          "action": "AutoScaling",
+          "resourceName": "app-tier-asg",
+          "parameters": {
+            "AccountId": "123456789012",
+            "Autoscalinggroupnames": ["app-asg-dr"],
+            "DesiredCount": 4
+          }
+        }
+      ]
+    },
+    {
+      "layer": 2,
+      "resources": [
+        {
+          "action": "ECS",
+          "resourceName": "api-service",
+          "parameters": {
+            "AccountId": "123456789012",
+            "EcsClusterName": "api-cluster-dr",
+            "EcsServiceName": "api-service",
+            "EcsDesiredSize": 3
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Phase 2: Activate (Failover)
+
+**Purpose**: Execute the actual failover to make the secondary region the new primary.
+
+**Operations**:
+- Promote Aurora secondary to primary (failover database)
+- Update Route 53 DNS records to point to DR region
+- Enable EventBridge rules in DR region
+- Replay events from EventBridge archive (catch up on missed events)
+- Switch load balancer targets to DR instances
+
+**Example Manifest**:
+```json
+{
+  "phase": "activate",
+  "layers": [
+    {
+      "layer": 1,
+      "resources": [
+        {
+          "action": "AuroraMySQL",
+          "resourceName": "production-db",
+          "parameters": {
+            "AccountId": "123456789012",
+            "DBClusterIdentifier": "prod-aurora-dr",
+            "GlobalClusterIdentifier": "prod-global-cluster"
+          }
+        }
+      ]
+    },
+    {
+      "layer": 2,
+      "resources": [
+        {
+          "action": "R53Record",
+          "resourceName": "api-dns",
+          "parameters": {
+            "AccountId": "123456789012",
+            "HostedZoneId": "/hostedzone/Z123456789",
+            "R53RecordName": "api.company.com",
+            "RecordType": "A",
+            "Alias": "Yes",
+            "RecordValue": "dr-alb-name"
+          }
+        }
+      ]
+    },
+    {
+      "layer": 3,
+      "resources": [
+        {
+          "action": "EventBridge",
+          "resourceName": "enable-rules",
+          "parameters": {
+            "AccountId": "123456789012",
+            "EventRuleName": "order-processing-rule",
+            "BusName": "default"
+          }
+        },
+        {
+          "action": "EventArchive",
+          "resourceName": "replay-events",
+          "parameters": {
+            "AccountId": "123456789012",
+            "EventArchiveArn": "arn:aws:events:us-west-2:123456789012:archive/orders-archive",
+            "BusName": "default",
+            "StartTime": "2026-01-01T00:00:00",
+            "EndTime": "2026-01-07T12:00:00",
+            "ReplayNamePrefix": "dr-replay"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Phase 3: Cleanup (Resource Deletion)
+
+**Purpose**: Delete resources in the old primary region to reduce costs and prevent confusion.
+
+**Operations**:
+- Scale down Auto Scaling groups to 0
+- Scale down ECS services to 0
+- Delete old database instances (after data verification)
+- Disable EventBridge rules in old primary
+- Remove old CloudFormation stacks
+
+**Example Manifest**:
+```json
+{
+  "phase": "cleanup",
+  "layers": [
+    {
+      "layer": 1,
+      "resources": [
+        {
+          "action": "EventBridge",
+          "resourceName": "disable-rules",
+          "parameters": {
+            "AccountId": "123456789012",
+            "EventRuleName": "order-processing-rule",
+            "BusName": "default"
+          }
+        }
+      ]
+    },
+    {
+      "layer": 2,
+      "resources": [
+        {
+          "action": "ECS",
+          "resourceName": "api-service-cleanup",
+          "parameters": {
+            "AccountId": "123456789012",
+            "EcsClusterName": "api-cluster-primary",
+            "EcsServiceName": "api-service",
+            "EcsDesiredSize": 0
+          }
+        },
+        {
+          "action": "AutoScaling",
+          "r
 
 ### 1. Multi-Technology DR Orchestration
 
