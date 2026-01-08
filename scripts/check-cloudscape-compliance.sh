@@ -2,7 +2,8 @@
 # CloudScape Design System Compliance Check
 # Ensures frontend code uses only CloudScape components and doesn't use prohibited UI libraries
 
-set -e
+# Don't use set -e because ((var++)) returns 1 when var is 0
+# We handle exit codes explicitly at the end
 
 FRONTEND_DIR="${1:-frontend/src}"
 ERRORS=0
@@ -31,20 +32,20 @@ check_prohibited_lib() {
 }
 
 # Check each prohibited library
-check_prohibited_lib "@mui/material" "Material UI (MUI)" || ((ERRORS++))
-check_prohibited_lib "@material-ui" "Material UI (legacy)" || ((ERRORS++))
-check_prohibited_lib "@chakra-ui" "Chakra UI" || ((ERRORS++))
-check_prohibited_lib "antd" "Ant Design" || ((ERRORS++))
-check_prohibited_lib "@ant-design" "Ant Design" || ((ERRORS++))
-check_prohibited_lib "react-bootstrap" "React Bootstrap" || ((ERRORS++))
-check_prohibited_lib "@blueprintjs" "Blueprint.js" || ((ERRORS++))
-check_prohibited_lib "semantic-ui-react" "Semantic UI React" || ((ERRORS++))
-check_prohibited_lib "@fluentui" "Fluent UI" || ((ERRORS++))
-check_prohibited_lib "primereact" "PrimeReact" || ((ERRORS++))
-check_prohibited_lib "rsuite" "React Suite" || ((ERRORS++))
-check_prohibited_lib "grommet" "Grommet" || ((ERRORS++))
-check_prohibited_lib "rebass" "Rebass" || ((ERRORS++))
-check_prohibited_lib "theme-ui" "Theme UI" || ((ERRORS++))
+check_prohibited_lib "@mui/material" "Material UI (MUI)" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "@material-ui" "Material UI (legacy)" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "@chakra-ui" "Chakra UI" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "antd" "Ant Design" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "@ant-design" "Ant Design" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "react-bootstrap" "React Bootstrap" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "@blueprintjs" "Blueprint.js" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "semantic-ui-react" "Semantic UI React" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "@fluentui" "Fluent UI" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "primereact" "PrimeReact" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "rsuite" "React Suite" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "grommet" "Grommet" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "rebass" "Rebass" || ERRORS=$((ERRORS + 1))
+check_prohibited_lib "theme-ui" "Theme UI" || ERRORS=$((ERRORS + 1))
 
 # Check for inline styles that should use CloudScape tokens
 echo ""
@@ -56,7 +57,7 @@ if [ -n "$inline_styles" ]; then
     echo "   Consider using CloudScape Box component with design tokens instead"
     echo "   Examples of inline styles found:"
     echo "$inline_styles" | head -5
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Check for CSS files that might override CloudScape styles
@@ -68,7 +69,7 @@ if [ -n "$css_files" ]; then
     echo "⚠️  WARNING: Found $css_count custom CSS files"
     echo "   CloudScape provides complete styling - custom CSS may cause inconsistencies"
     echo "$css_files"
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Check for required CloudScape imports
@@ -79,7 +80,7 @@ echo "   Found $cloudscape_imports files importing CloudScape components"
 
 if [ "$cloudscape_imports" -eq 0 ]; then
     echo "❌ ERROR: No CloudScape component imports found!"
-    ((ERRORS++))
+    ERRORS=$((ERRORS + 1))
 fi
 
 # Check for common non-CloudScape patterns
@@ -93,7 +94,7 @@ if [ -n "$native_buttons" ]; then
     echo "⚠️  WARNING: Found $button_count native <button> elements"
     echo "   Use CloudScape <Button> component instead"
     echo "$native_buttons" | head -3
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Check for native HTML inputs (should use CloudScape Input/FormField)
@@ -103,7 +104,7 @@ if [ -n "$native_inputs" ]; then
     echo "⚠️  WARNING: Found $input_count native <input> elements"
     echo "   Use CloudScape <Input> or <FormField> components instead"
     echo "$native_inputs" | head -3
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Check for native HTML selects (should use CloudScape Select)
@@ -113,7 +114,7 @@ if [ -n "$native_selects" ]; then
     echo "⚠️  WARNING: Found $select_count native <select> elements"
     echo "   Use CloudScape <Select> component instead"
     echo "$native_selects" | head -3
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Check for native HTML tables (should use CloudScape Table)
@@ -123,7 +124,7 @@ if [ -n "$native_tables" ]; then
     echo "⚠️  WARNING: Found $table_count native <table> elements"
     echo "   Use CloudScape <Table> component instead"
     echo "$native_tables" | head -3
-    ((WARNINGS++))
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Summary
