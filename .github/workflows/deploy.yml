@@ -706,33 +706,58 @@ jobs:
           echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_ENV
           echo "USER_POOL_CLIENT_ID=$USER_POOL_CLIENT_ID" >> $GITHUB_ENV
 
-      - name: Create AWS config
+      - name: Get stack outputs for frontend deployment
+        id: stack
         run: |
-          cat > build/frontend/aws-config.json << EOF
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+          IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)
+          
+          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "identity_pool_id=$IDENTITY_POOL_ID" >> $GITHUB_OUTPUT
+
+      - name: Generate frontend config
+        run: |
+          cat > frontend/dist/aws-config.json << EOF
           {
             "region": "${{ env.AWS_REGION }}",
-            "apiEndpoint": "$API_ENDPOINT",
             "userPoolId": "$USER_POOL_ID",
-            "userPoolClientId": "$USER_POOL_CLIENT_ID"
+            "userPoolClientId": "$USER_POOL_CLIENT_ID",
+            "identityPoolId": "${{ steps.stack.outputs.identity_pool_id }}",
+            "apiEndpoint": "$API_ENDPOINT"
           }
           EOF
+          
+          echo "Generated aws-config.json:"
+          cat frontend/dist/aws-config.json
 
-      - name: Deploy to S3 and invalidate CloudFront
+      - name: Deploy to S3
         run: |
-          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          echo "=== Deploying Frontend to S3 ==="
+          aws s3 sync frontend/dist/ "s3://${{ steps.stack.outputs.frontend_bucket }}/" \
+            --delete \
+            --cache-control "max-age=31536000" \
+            --exclude "index.html" \
+            --exclude "aws-config.json"
           
-          # Sync frontend to S3
-          aws s3 sync build/frontend/ "s3://${BUCKET}/frontend/" --delete
-          
-          # Get CloudFront distribution ID
-          DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
-            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-          
-          # Invalidate CloudFront cache
-          aws cloudfront create-invalidation \
-            --distribution-id "$DISTRIBUTION_ID" \
-            --paths "/*"
+          # Deploy index.html and config with no-cache
+          aws s3 cp frontend/dist/index.html "s3://${{ steps.stack.outputs.frontend_bucket }}/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+          aws s3 cp frontend/dist/aws-config.json "s3://${{ steps.stack.outputs.frontend_bucket }}/aws-config.json" \
+            --cache-control "no-cache, no-store, must-revalidate"
 
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "=== Invalidating CloudFront Cache ==="
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
+            --paths "/*"
       - name: Deployment summary
         run: |
           echo "### Frontend Deployed (Post-Infrastructure) :white_check_mark:" >> $GITHUB_STEP_SUMMARY
