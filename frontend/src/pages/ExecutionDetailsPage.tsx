@@ -449,13 +449,8 @@ export const ExecutionDetailsPage: React.FC = () => {
       instancesTerminated?: boolean;
       InstancesTerminated?: boolean;
     };
-    const result = (executionWithTermination.instancesTerminated === true ||
+    return (executionWithTermination.instancesTerminated === true ||
       executionWithTermination.InstancesTerminated === true);
-    console.log('instancesAlreadyTerminated check:', result, {
-      instancesTerminated: executionWithTermination.instancesTerminated,
-      InstancesTerminated: executionWithTermination.InstancesTerminated
-    });
-    return result;
   })();
 
   // Check if recovery instances can be terminated
