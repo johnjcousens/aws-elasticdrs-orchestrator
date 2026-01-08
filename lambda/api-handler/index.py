@@ -5054,7 +5054,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
     running before waves completed, leaving wave status as "unknown" even though
     the DRS job actually completed successfully.
     
-    Only reconciles waves that have JobId but show "unknown" or "UNKNOWN" status.
+    Also enriches waves with ServerStatuses containing instance IDs from DRS.
     """
     try:
         print(f"RECONCILE: Starting reconciliation for execution {execution.get('ExecutionId')}")
@@ -5066,17 +5066,13 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
             wave_status = wave.get("Status", "").upper()
             job_id = wave.get("JobId")
             wave_name = wave.get("WaveName", "Unknown")
+            region = wave.get("Region", "us-east-1")
             
             print(f"RECONCILE: Checking wave {wave_name} - Status: {wave_status}, JobId: {job_id}")
             
-            # Only reconcile waves with JobId that show unknown status OR started status that might be stale
-            # Also reconcile other non-terminal statuses that might be stale
-            if job_id and wave_status in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
+            # Query DRS for any wave with a JobId to get server details
+            if job_id:
                 try:
-                    print(f"RECONCILE: Reconciling wave {wave_name} with DRS job {job_id} (current status: {wave_status})")
-                    
-                    # Query DRS for actual job status
-                    region = wave.get("Region", "us-east-1")
                     print(f"RECONCILE: Querying DRS in region {region} for job {job_id}")
                     drs_client = boto3.client("drs", region_name=region)
                     
@@ -5089,50 +5085,59 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         
                         print(f"RECONCILE: DRS job {job_id} status: {drs_status}, servers: {len(participating_servers)}")
                         
-                        # Update wave status based on DRS job results
-                        if drs_status == "COMPLETED":
-                            # Check if all servers launched successfully
-                            all_launched = all(
-                                server.get("launchStatus") == "LAUNCHED" 
-                                for server in participating_servers
-                            )
+                        # Build ServerStatuses from DRS participatingServers
+                        if participating_servers:
+                            server_statuses = []
+                            for server in participating_servers:
+                                server_status = {
+                                    "SourceServerId": server.get("sourceServerID"),
+                                    "LaunchStatus": server.get("launchStatus", "UNKNOWN"),
+                                    "RecoveryInstanceID": server.get("recoveryInstanceID"),
+                                }
+                                server_statuses.append(server_status)
+                                print(f"RECONCILE: Server {server.get('sourceServerID')}: "
+                                      f"status={server.get('launchStatus')}, "
+                                      f"instanceId={server.get('recoveryInstanceID')}")
                             
-                            print(f"RECONCILE: All servers launched: {all_launched}")
-                            
-                            if all_launched:
-                                wave["Status"] = "completed"
-                                wave["EndTime"] = int(time.time())  # Set end time when reconciling to completed
-                                reconciled_count += 1
-                                print(f"RECONCILE: ✅ Wave {wave_name} reconciled from {wave_status} to completed")
-                            else:
+                            # Store ServerStatuses in wave for transform function
+                            wave["ServerStatuses"] = server_statuses
+                        
+                        # Only update wave status if it's in a non-terminal state
+                        if wave_status in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
+                            if drs_status == "COMPLETED":
+                                all_launched = all(
+                                    server.get("launchStatus") == "LAUNCHED" 
+                                    for server in participating_servers
+                                )
+                                
+                                if all_launched:
+                                    wave["Status"] = "completed"
+                                    wave["EndTime"] = int(time.time())
+                                    reconciled_count += 1
+                                    print(f"RECONCILE: ✅ Wave {wave_name} reconciled to completed")
+                                else:
+                                    wave["Status"] = "FAILED"
+                                    wave["StatusMessage"] = "Some servers failed to launch"
+                                    wave["EndTime"] = int(time.time())
+                                    reconciled_count += 1
+                            elif drs_status == "FAILED":
                                 wave["Status"] = "FAILED"
-                                wave["StatusMessage"] = "Some servers failed to launch"
+                                wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
                                 wave["EndTime"] = int(time.time())
                                 reconciled_count += 1
-                                print(f"RECONCILE: ❌ Wave {wave_name} reconciled from {wave_status} to FAILED - not all servers launched")
-                        elif drs_status == "FAILED":
-                            wave["Status"] = "FAILED"
-                            wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
-                            wave["EndTime"] = int(time.time())
-                            reconciled_count += 1
-                            print(f"RECONCILE: ❌ Wave {wave_name} reconciled from {wave_status} to FAILED")
-                        else:
-                            # Keep original status for other DRS statuses (PENDING, STARTED, etc.)
-                            print(f"RECONCILE: Wave {wave_name} DRS status {drs_status} - keeping as {wave_status}")
                     else:
-                        print(f"RECONCILE: ⚠️ DRS job {job_id} not found - keeping wave as {wave_status}")
+                        print(f"RECONCILE: ⚠️ DRS job {job_id} not found")
                         wave["StatusMessage"] = "Job not found"
                         
                 except Exception as e:
-                    print(f"RECONCILE: ❌ Error reconciling wave {wave_name} with DRS job {job_id}: {e}")
-                    # Keep original wave status on error
+                    print(f"RECONCILE: ❌ Error querying DRS for wave {wave_name}: {e}")
             else:
-                print(f"RECONCILE: Skipping wave {wave_name} - no JobId or terminal status")
+                print(f"RECONCILE: Skipping wave {wave_name} - no JobId")
             
             updated_waves.append(wave)
         
         execution["Waves"] = updated_waves
-        print(f"RECONCILE: Completed reconciliation - {reconciled_count} waves updated")
+        print(f"RECONCILE: Completed - {reconciled_count} waves status updated")
         return execution
         
     except Exception as e:
@@ -5281,6 +5286,12 @@ def get_execution_details(execution_id: str) -> Dict:
             execution = enrich_execution_with_server_details(execution)
         except Exception as e:
             print(f"Error enriching execution with server details: {str(e)}")
+
+        # Reconcile wave status and get server instance IDs from DRS
+        try:
+            execution = reconcile_wave_status_with_drs(execution)
+        except Exception as e:
+            print(f"Error reconciling wave status with DRS: {str(e)}")
 
         # Get current status from Step Functions if still running and has StateMachineArn
         if execution.get("Status") == "RUNNING" and execution.get(
