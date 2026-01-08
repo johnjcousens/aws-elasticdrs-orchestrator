@@ -4191,7 +4191,14 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
             else:
                 # Wave has NO dependencies - initiate immediately
                 print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
-                wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
+                wave_result = initiate_wave(
+                    wave, 
+                    pg_id, 
+                    execution_id, 
+                    is_drill, 
+                    execution_type,
+                    wave_number=wave_number
+                )
                 wave_results.append(wave_result)
 
             # Update progress in DynamoDB after each wave
@@ -4264,7 +4271,7 @@ def initiate_wave(
         )
         if "Item" not in pg_result:
             return {
-                "WaveName": wave.get("name", "Unknown"),
+                "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
                 "ProtectionGroupId": protection_group_id,
                 "Status": "FAILED",
                 "Error": "Protection Group not found",
@@ -4275,8 +4282,30 @@ def initiate_wave(
         pg = pg_result["Item"]
         region = pg["Region"]
 
-        # Get servers from both wave and protection group
+        # CRITICAL FIX: Handle both tag-based and explicit server ID Protection Groups
+        selection_tags = pg.get("ServerSelectionTags", {})
         pg_servers = pg.get("SourceServerIds", [])
+
+        if selection_tags:
+            # Tag-based Protection Group - resolve servers at execution time
+            print(f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}")
+            
+            # Determine account context for cross-account support
+            account_context = None
+            if pg.get("AccountId"):
+                account_context = {
+                    "AccountId": pg.get("AccountId"),
+                    "AssumeRoleName": pg.get("AssumeRoleName"),
+                }
+            
+            # Query DRS for servers matching tags
+            resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
+            pg_servers = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
+            print(f"Resolved {len(pg_servers)} servers from tags: {pg_servers}")
+        else:
+            print(f"Using explicit server IDs from Protection Group: {len(pg_servers)} servers")
+
+        # Get servers from wave (if specified)
         wave_servers = wave.get("ServerIds", [])
 
         # Filter to only launch servers specified in this wave
@@ -4288,7 +4317,7 @@ def initiate_wave(
                 f"Wave specifies {len(wave_servers)} servers, {len(server_ids)} are in Protection Group"
             )
         else:
-            # No ServerIds in wave - launch all PG servers (legacy behavior)
+            # No ServerIds in wave - launch all PG servers (standard behavior)
             server_ids = pg_servers
             print(
                 f"Wave has no ServerIds field, launching all {len(server_ids)} Protection Group servers"
@@ -4296,7 +4325,7 @@ def initiate_wave(
 
         if not server_ids:
             return {
-                "WaveName": wave.get("name", "Unknown"),
+                "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
                 "ProtectionGroupId": protection_group_id,
                 "Status": "INITIATED",
                 "Servers": [],
@@ -4332,7 +4361,7 @@ def initiate_wave(
         wave_status = "PARTIAL" if has_failures else "INITIATED"
 
         return {
-            "WaveName": wave.get("name", "Unknown"),
+            "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
             "WaveId": wave.get("WaveId")
             or wave.get("waveNumber"),  # Support both formats
             "JobId": wave_job_id,  # CRITICAL: Wave-level Job ID for poller
@@ -4349,7 +4378,7 @@ def initiate_wave(
 
         traceback.print_exc()
         return {
-            "WaveName": wave.get("name", "Unknown"),
+            "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
             "ProtectionGroupId": protection_group_id,
             "Status": "FAILED",
             "Error": str(e),
