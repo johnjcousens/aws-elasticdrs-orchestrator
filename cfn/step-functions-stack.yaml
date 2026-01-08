@@ -125,8 +125,8 @@ Resources:
               FunctionName: !Ref OrchestrationLambdaArn
               Payload:
                 action: 'store_task_token'
-                application.$: '$.application'
-                taskToken.$: '$.Task.Token'
+                application.$: '$'
+                taskToken.$: '$$.Task.Token'
                 AccountContext.$: '$.AccountContext'
             # NOTE: No OutputPath here - callback output is returned directly at root level
             TimeoutSeconds: 31536000  # 1 year max timeout for pause/resume
@@ -144,7 +144,7 @@ Resources:
               FunctionName: !Ref OrchestrationLambdaArn
               Payload:
                 action: 'resume_wave'
-                application.$: '$.application'
+                application.$: '$'
                 AccountContext.$: '$.AccountContext'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
@@ -162,7 +162,7 @@ Resources:
             Type: Pass
             Parameters:
               action: 'update_wave_status'
-              application.$: '$.application'
+              application.$: '$'
               AccountContext.$: '$.AccountContext'
             Next: 'UpdateWaveStatus'
           
