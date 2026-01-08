@@ -194,6 +194,12 @@ jobs:
           echo "=== ESLint Validation ==="
           npm run lint -- --max-warnings 200 || true
 
+      - name: CloudScape Design System Compliance
+        run: |
+          echo "=== CloudScape Design System Compliance Check ==="
+          chmod +x scripts/check-cloudscape-compliance.sh
+          ./scripts/check-cloudscape-compliance.sh frontend/src
+
   # Stage 2: Security scanning
   security-scan:
     name: Security Scan
