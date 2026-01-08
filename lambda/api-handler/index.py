@@ -4215,7 +4215,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
                 plan_id=plan_id,
                 plan=payload["plan"],
                 is_drill=payload["isDrill"],
-                cognito_user=payload.get("cognitoUser", {"email": "system", "userId": "system"})
+                state_machine_arn=STATE_MACHINE_ARN
             )
             print(f"✅ Step Functions started for execution {execution_id}")
         except Exception as sf_error:
