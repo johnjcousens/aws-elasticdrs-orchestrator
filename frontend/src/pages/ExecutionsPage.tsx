@@ -201,8 +201,8 @@ export const ExecutionsPage: React.FC = () => {
     if (['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'PAUSED', 'RUNNING'].includes(status)) {
       return true;
     }
-    // Also include CANCELLED/CANCELLING executions that still have active DRS jobs
-    if (['CANCELLED', 'CANCELLING'].includes(status) && e.hasActiveDrsJobs) {
+    // Only include CANCELLED/CANCELLING executions that still have active DRS jobs AND no endTime
+    if (['CANCELLED', 'CANCELLING'].includes(status) && e.hasActiveDrsJobs && !e.endTime) {
       return true;
     }
     return false;
@@ -213,8 +213,9 @@ export const ExecutionsPage: React.FC = () => {
     const isTerminal = ['COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'ROLLED_BACK', 'TIMEOUT'].includes(status);
     if (!isTerminal) return false;
     
-    // Exclude CANCELLED executions that still have active DRS jobs (they show in Active)
-    if (['CANCELLED', 'CANCELLING'].includes(status) && e.hasActiveDrsJobs) {
+    // Include CANCELLED executions in history if they have endTime (execution completed)
+    // Only exclude CANCELLED executions that still have active DRS jobs AND no endTime
+    if (['CANCELLED', 'CANCELLING'].includes(status) && e.hasActiveDrsJobs && !e.endTime) {
       return false;
     }
     
