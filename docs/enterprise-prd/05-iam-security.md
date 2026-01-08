@@ -240,6 +240,8 @@ InfrastructureAdapterRole:
 
 Deploy this role in each target account for cross-account DR operations.
 
+> **Note**: The reference implementation in `archive/dr-orchestration-artifacts/role-templates/TargetAccountsAssumeRole.yaml` uses `AdministratorAccess` for simplicity. The production template below uses least-privilege permissions for security compliance.
+
 ```yaml
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Cross-Account Target Role for DRS Orchestration'
@@ -255,6 +257,14 @@ Parameters:
   OrganizationId:
     Type: String
     Description: AWS Organization ID for additional security
+  PrimaryRegion:
+    Type: String
+    Description: Primary region of the orchestrator account
+    Default: us-east-1
+  SecondaryRegion:
+    Type: String
+    Description: Secondary region of the orchestrator account
+    Default: us-west-2
 
 Resources:
   DRSCrossAccountTargetRole:
@@ -265,9 +275,18 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
+          # Allow Lambda service to assume role
           - Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${DRSOrchestrationAccountId}:role/DRS-Orchestration-Execution-Role"
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+          # Allow orchestrator master roles from both regions
+          - Effect: Allow
+            Principal:
+              AWS: 
+                - !Sub "arn:aws:iam::${DRSOrchestrationAccountId}:role/DRS-Orchestration-Execution-Role"
+                - !Sub "arn:aws:iam::${DRSOrchestrationAccountId}:role/aws-orchestrator-master-role-${PrimaryRegion}"
+                - !Sub "arn:aws:iam::${DRSOrchestrationAccountId}:role/aws-orchestrator-master-role-${SecondaryRegion}"
             Action: sts:AssumeRole
             Condition:
               StringEquals:
@@ -278,11 +297,13 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # DRS Operations
               - Sid: DRSFullAccess
                 Effect: Allow
                 Action:
                   - drs:*
                 Resource: "*"
+              # EC2 Recovery Operations
               - Sid: EC2RecoveryOperations
                 Effect: Allow
                 Action:
@@ -291,7 +312,111 @@ Resources:
                   - ec2:CreateTags
                   - ec2:TerminateInstances
                   - ec2:RunInstances
+                  - ec2:StopInstances
+                  - ec2:StartInstances
                 Resource: "*"
+              # RDS/Aurora Operations
+              - Sid: RDSOperations
+                Effect: Allow
+                Action:
+                  - rds:DescribeDBClusters
+                  - rds:DescribeDBInstances
+                  - rds:FailoverDBCluster
+                  - rds:FailoverGlobalCluster
+                  - rds:CreateDBClusterSnapshot
+                  - rds:RestoreDBInstanceToPointInTime
+                  - rds:DeleteDBInstance
+                  - rds:ModifyDBInstance
+                  - rds:StartDBInstanceAutomatedBackupsReplication
+                  - rds:DescribeDBInstanceAutomatedBackups
+                Resource: "*"
+              # ECS Operations
+              - Sid: ECSOperations
+                Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                  - ecs:DescribeClusters
+                Resource: "*"
+              # Auto Scaling Operations
+              - Sid: AutoScalingOperations
+                Effect: Allow
+                Action:
+                  - autoscaling:UpdateAutoScalingGroup
+                  - autoscaling:DescribeAutoScalingGroups
+                  - application-autoscaling:RegisterScalableTarget
+                  - application-autoscaling:DescribeScalableTargets
+                Resource: "*"
+              # Route 53 Operations
+              - Sid: Route53Operations
+                Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                  - route53:GetHostedZone
+                  - route53:ListResourceRecordSets
+                Resource: "*"
+              # EventBridge Operations
+              - Sid: EventBridgeOperations
+                Effect: Allow
+                Action:
+                  - events:EnableRule
+                  - events:DisableRule
+                  - events:DescribeRule
+                  - events:StartReplay
+                  - events:DescribeReplay
+                Resource: "*"
+              # Lambda Operations
+              - Sid: LambdaOperations
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: "*"
+              # ElastiCache Operations
+              - Sid: ElastiCacheOperations
+                Effect: Allow
+                Action:
+                  - elasticache:DescribeGlobalReplicationGroups
+                  - elasticache:DisassociateGlobalReplicationGroup
+                  - elasticache:CreateGlobalReplicationGroup
+                  - elasticache:DeleteGlobalReplicationGroup
+                  - elasticache:DescribeReplicationGroups
+                  - elasticache:CreateReplicationGroup
+                  - elasticache:DeleteReplicationGroup
+                Resource: "*"
+              # MemoryDB Operations
+              - Sid: MemoryDBOperations
+                Effect: Allow
+                Action:
+                  - memorydb:DescribeClusters
+                  - memorydb:CreateCluster
+                  - memorydb:DeleteCluster
+                Resource: "*"
+              # OpenSearch Operations
+              - Sid: OpenSearchOperations
+                Effect: Allow
+                Action:
+                  - es:UpdateDomainConfig
+                  - es:DescribeDomainChangeProgress
+                  - es:DescribeDomain
+                Resource: "*"
+              # SSM Parameter Store (for config storage)
+              - Sid: SSMParameterStore
+                Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                  - ssm:SendCommand
+                  - ssm:GetCommandInvocation
+                Resource: "*"
+              # S3 Access (for backups and manifests)
+              - Sid: S3Access
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource: "*"
+              # IAM PassRole for DRS
               - Sid: IAMPassRole
                 Effect: Allow
                 Action:
@@ -314,6 +439,10 @@ Outputs:
     Export:
       Name: DRS-CrossAccount-Target-Role-Arn
 ```
+
+### Reference Implementation Note
+
+The archive reference implementation uses `AdministratorAccess` managed policy for rapid prototyping. **For production deployments**, always use the least-privilege policy above or customize based on your specific module requirements.
 
 ---
 
