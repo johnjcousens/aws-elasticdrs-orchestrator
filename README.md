@@ -590,7 +590,7 @@ Users are assigned roles via AWS Cognito Groups. The following group names are s
 - [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v3.0
 - [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design patterns v3.0
 - [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v3.0
-- [Enterprise DR Orchestration Platform PRD](docs/Enterprise_DR_Orchestration_Platform_PRD.md) - Multi-technology DR orchestration platform requirements
+- [Enterprise DR Orchestration Platform PRD](docs/enterprise-prd/README.md) - Multi-technology DR orchestration platform requirements (modular docs)
 
 ### Implementation Features
 - [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md) - Multi-account DRS operations
