@@ -496,21 +496,67 @@ The solution uses a modular nested stack architecture for maintainability:
 ## Security & RBAC
 
 ### Role-Based Access Control
-The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
+The solution implements comprehensive RBAC with 5 granular DRS-specific roles designed for disaster recovery teams:
 
 | Role | Description | Key Permissions |
 |------|-------------|-----------------|
-| **DRSOrchestrationAdmin** | Full administrative access | All operations including configuration export/import |
-| **DRSRecoveryManager** | Recovery operations and configuration | Execute plans, manage configuration |
-| **DRSPlanManager** | Plan management focus | Create/modify protection groups & recovery plans |
-| **DRSOperator** | Execution operations only | Execute/pause/resume recovery plans |
-| **DRSReadOnly** | View-only access | Complete read-only access |
+| **DRSOrchestrationAdmin** | Full administrative access | All operations including account deletion, configuration export/import, instance termination |
+| **DRSRecoveryManager** | Recovery operations lead | Execute plans, terminate instances, manage configuration, register accounts (no account deletion) |
+| **DRSPlanManager** | DR planning focus | Create/modify/delete protection groups & recovery plans, execute recovery (no instance termination) |
+| **DRSOperator** | On-call operations | Execute/pause/resume recovery, modify existing plans (no create/delete, no instance termination) |
+| **DRSReadOnly** | Audit and monitoring | View-only access to all resources for compliance officers |
+
+### Cognito Group Mapping
+Users are assigned roles via AWS Cognito Groups. The following group names are supported:
+
+**Primary DRS Roles (Recommended):**
+- `DRSOrchestrationAdmin` - Full administrative access
+- `DRSRecoveryManager` - Recovery operations and configuration
+- `DRSPlanManager` - Plan and protection group management
+- `DRSOperator` - Execution operations only
+- `DRSReadOnly` - View-only access
+
+**Legacy Group Names (Backward Compatible):**
+- `DRS-Administrator` → DRSOrchestrationAdmin
+- `DRS-Infrastructure-Admin` → DRSRecoveryManager
+- `DRS-Recovery-Plan-Manager` → DRSPlanManager
+- `DRS-Operator` → DRSOperator
+- `DRS-Read-Only` → DRSReadOnly
+
+### Permission Matrix
+
+| Permission | Admin | Recovery Mgr | Plan Mgr | Operator | ReadOnly |
+|------------|:-----:|:------------:|:--------:|:--------:|:--------:|
+| **Account Management** |
+| Register Accounts | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Delete Accounts | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Modify Accounts | ✅ | ✅ | ❌ | ❌ | ❌ |
+| View Accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Recovery Operations** |
+| Start Recovery | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Stop Recovery | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Terminate Instances | ✅ | ✅ | ❌ | ❌ | ❌ |
+| View Executions | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Protection Groups** |
+| Create Groups | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Delete Groups | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Modify Groups | ✅ | ✅ | ✅ | ✅ | ❌ |
+| View Groups | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Recovery Plans** |
+| Create Plans | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Delete Plans | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Modify Plans | ✅ | ✅ | ✅ | ✅ | ❌ |
+| View Plans | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Configuration** |
+| Export Configuration | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Import Configuration | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ### Security Features
 - **Encryption**: All data encrypted at rest (DynamoDB, S3) and in transit (HTTPS)
 - **Authentication**: Cognito JWT token-based authentication with 45-minute sessions
-- **Authorization**: IAM least-privilege policies with comprehensive DRS permissions
+- **Authorization**: API-level RBAC enforcement - all access methods (UI, CLI, SDK) respect same permissions
 - **Audit Trails**: Complete user action logging with role context
+- **Test Coverage**: 306 automated tests including comprehensive RBAC enforcement tests
 
 ## Documentation
 

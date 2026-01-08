@@ -24,42 +24,56 @@ This document outlines a comprehensive security testing plan for the Role-Based 
 
 ### Role Hierarchy
 ```
-Super Admin (aws:admin)
-├── Admin (aws:admin-limited)
-│   ├── Power User (aws:power-user)
-│   └── Operator (aws:operator)
-└── Read-Only User (aws:read-only)
+DRSOrchestrationAdmin (Full Access)
+├── DRSRecoveryManager (Recovery Operations + Configuration)
+│   ├── DRSPlanManager (Plan Management)
+│   └── DRSOperator (Execution Only)
+└── DRSReadOnly (View Only)
 ```
+
+### Cognito Group Names
+
+**Primary DRS Roles:**
+- `DRSOrchestrationAdmin` - Full administrative access
+- `DRSRecoveryManager` - Recovery operations and configuration
+- `DRSPlanManager` - Plan and protection group management
+- `DRSOperator` - Execution operations only
+- `DRSReadOnly` - View-only access
+
+**Legacy Group Names (Backward Compatible):**
+- `DRS-Administrator` → DRSOrchestrationAdmin
+- `DRS-Infrastructure-Admin` → DRSRecoveryManager
+- `DRS-Recovery-Plan-Manager` → DRSPlanManager
+- `DRS-Operator` → DRSOperator
+- `DRS-Read-Only` → DRSReadOnly
 
 ### Permission Matrix
 
-| Resource/Action | Super Admin | Admin | Power User | Operator | Read-Only |
-|----------------|-------------|-------|------------|----------|-----------|
-| **User Management** |
-| Create Users | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Delete Users | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Modify User Roles | ✅ | ✅ | ❌ | ❌ | ❌ |
-| View Users | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Resource/Action | Admin | Recovery Mgr | Plan Mgr | Operator | ReadOnly |
+|----------------|:-----:|:------------:|:--------:|:--------:|:--------:|
 | **Account Management** |
-| Register Accounts | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Delete Accounts | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Modify Accounts | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Register Accounts | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Delete Accounts | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Modify Accounts | ✅ | ✅ | ❌ | ❌ | ❌ |
 | View Accounts | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **DRS Operations** |
+| **Recovery Operations** |
 | Start Recovery | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Stop Recovery | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Terminate Instances | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Terminate Instances | ✅ | ✅ | ❌ | ❌ | ❌ |
 | View Executions | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Protection Groups** |
-| Create Groups | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Create Groups | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Delete Groups | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Modify Groups | ✅ | ✅ | ✅ | ✅ | ❌ |
 | View Groups | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Recovery Plans** |
-| Create Plans | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Create Plans | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Delete Plans | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Modify Plans | ✅ | ✅ | ✅ | ✅ | ❌ |
 | View Plans | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Configuration** |
+| Export Configuration | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Import Configuration | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 ## Automated Security Testing Framework
 
@@ -149,11 +163,11 @@ tests/security/
 ```python
 # Create isolated test users for each role
 test_users = {
-    'super_admin': create_test_user('test-super-admin', 'aws:admin'),
-    'admin': create_test_user('test-admin', 'aws:admin-limited'),
-    'power_user': create_test_user('test-power-user', 'aws:power-user'),
-    'operator': create_test_user('test-operator', 'aws:operator'),
-    'readonly': create_test_user('test-readonly', 'aws:read-only')
+    'admin': create_test_user('test-admin', 'DRSOrchestrationAdmin'),
+    'recovery_manager': create_test_user('test-recovery-mgr', 'DRSRecoveryManager'),
+    'plan_manager': create_test_user('test-plan-mgr', 'DRSPlanManager'),
+    'operator': create_test_user('test-operator', 'DRSOperator'),
+    'readonly': create_test_user('test-readonly', 'DRSReadOnly')
 }
 ```
 

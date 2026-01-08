@@ -66,22 +66,32 @@ Framework validation completed successfully:
 
 ### ✅ Complete Role Coverage
 
-| Role | Permissions | Test Coverage |
-|------|-------------|---------------|
-| **Super Admin (aws:admin)** | Full access to all resources | ✅ 100% |
-| **Admin (aws:admin-limited)** | User/account management + operations | ✅ 100% |
-| **Power User (aws:power-user)** | Operations without user management | ✅ 100% |
-| **Operator (aws:operator)** | Limited operations, no deletions | ✅ 100% |
-| **Read-Only (aws:read-only)** | View-only access | ✅ 100% |
+| Role | Cognito Group | Test Coverage |
+|------|---------------|---------------|
+| **DRSOrchestrationAdmin** | `DRSOrchestrationAdmin` | ✅ 100% |
+| **DRSRecoveryManager** | `DRSRecoveryManager` | ✅ 100% |
+| **DRSPlanManager** | `DRSPlanManager` | ✅ 100% |
+| **DRSOperator** | `DRSOperator` | ✅ 100% |
+| **DRSReadOnly** | `DRSReadOnly` | ✅ 100% |
+
+### Legacy Group Names (Backward Compatible)
+
+| Legacy Group | Maps To | Status |
+|--------------|---------|--------|
+| `DRS-Administrator` | DRSOrchestrationAdmin | ✅ Supported |
+| `DRS-Infrastructure-Admin` | DRSRecoveryManager | ✅ Supported |
+| `DRS-Recovery-Plan-Manager` | DRSPlanManager | ✅ Supported |
+| `DRS-Operator` | DRSOperator | ✅ Supported |
+| `DRS-Read-Only` | DRSReadOnly | ✅ Supported |
 
 ### ✅ Permission Matrix Validation
 
 Complete permission matrix covering:
-- **User Management**: Create, delete, modify, view users
 - **Account Management**: Register, delete, modify, view accounts
-- **DRS Operations**: Start/stop recovery, terminate instances
+- **Recovery Operations**: Start/stop recovery, terminate instances, view executions
 - **Protection Groups**: Create, delete, modify, view groups
-- **Recovery Plans**: Create, delete, modify, view plans
+- **Recovery Plans**: Create, delete, modify, view, execute plans
+- **Configuration**: Export/import configuration
 
 ## Security Test Scenarios
 
