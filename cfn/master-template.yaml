@@ -346,6 +346,7 @@ Resources:
         ExecutionPauseResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionPauseResourceId
         ExecutionResumeResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionResumeResourceId
         ExecutionTerminateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionTerminateInstancesResourceId
+        ExecutionRecoveryInstancesResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionRecoveryInstancesResourceId
         ExecutionJobLogsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionJobLogsResourceId
         ExecutionTerminationStatusResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionTerminationStatusResourceId
         # DRS Failover/Failback Resource IDs from Resources Stack
