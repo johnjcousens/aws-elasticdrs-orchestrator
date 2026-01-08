@@ -83,153 +83,50 @@ export const ExecutionDetailsPage: React.FC = () => {
     fetchExecution();
   }, [executionId]); // Only depend on executionId, not fetchExecution
 
-  // Refs to track intervals for proper cleanup
-  const executionPollingRef = React.useRef<NodeJS.Timeout | null>(null);
-  const terminationPollingRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  // Cleanup all intervals on unmount to prevent navigation blocking
+  // Simple polling for active executions - matches reference stack approach
   useEffect(() => {
-    return () => {
-      // Clear all intervals when component unmounts
-      if (executionPollingRef.current) {
-        clearInterval(executionPollingRef.current);
-        executionPollingRef.current = null;
-      }
-      if (terminationPollingRef.current) {
-        clearInterval(terminationPollingRef.current);
-        terminationPollingRef.current = null;
-      }
-    };
-  }, []);
-
-  // Real-time polling for active executions
-  useEffect(() => {
-    // Clear existing interval
-    if (executionPollingRef.current) {
-      clearInterval(executionPollingRef.current);
-      executionPollingRef.current = null;
-    }
-
     if (!execution) return;
 
-    const isActive = 
-      execution.status === 'in_progress' || 
-      execution.status === 'pending' ||
-      execution.status === 'paused' ||
-      execution.status === 'running' ||
-      execution.status === 'started' ||
-      execution.status === 'polling' ||
-      execution.status === 'launching' ||
-      execution.status === 'initiated' ||
-      execution.status === 'cancelling' ||
-      (execution.status as string) === 'RUNNING' ||
-      (execution.status as string) === 'STARTED' ||
-      (execution.status as string) === 'POLLING' ||
-      (execution.status as string) === 'LAUNCHING' ||
-      (execution.status as string) === 'INITIATED' ||
-      (execution.status as string) === 'CANCELLING';
-
+    const isActive = ['in_progress', 'pending', 'paused', 'running', 'started', 'polling', 'launching', 'initiated', 'cancelling'].includes(execution.status);
     if (!isActive) return;
 
-    executionPollingRef.current = setInterval(() => {
+    const interval = setInterval(() => {
       fetchExecution(true); // Silent refresh
-    }, 3000); // Poll every 3 seconds for faster updates
+    }, 3000);
 
-    return () => {
-      if (executionPollingRef.current) {
-        clearInterval(executionPollingRef.current);
-        executionPollingRef.current = null;
-      }
-    };
-  }, [execution?.status, execution?.executionId]); // Only depend on status and ID, not full execution object
+    return () => clearInterval(interval);
+  }, [execution?.status, executionId]);
 
-  // Polling while termination is in progress
+  // Simple termination polling
   useEffect(() => {
-    // Clear existing interval
-    if (terminationPollingRef.current) {
-      clearInterval(terminationPollingRef.current);
-      terminationPollingRef.current = null;
-    }
+    if (!terminationInProgress) return;
 
-    if (!terminationInProgress || !execution) return;
-
-    // Check if instances are now terminated
-    const executionWithTermination = execution as Execution & {
-      instancesTerminated?: boolean;
-      InstancesTerminated?: boolean;
-    };
-    const isTerminated = 
-      executionWithTermination.instancesTerminated === true ||
-      executionWithTermination.InstancesTerminated === true;
-
-    if (isTerminated) {
-      setTerminationInProgress(false);
-      setTerminationProgress(100);
-      // NOW show the success message - termination is actually complete
-      const instanceCount = terminationJobInfo?.totalInstances || 0;
-      if (instanceCount > 0) {
-        setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
-      } else {
-        setTerminateSuccess('All recovery instances have been terminated.');
-      }
-      setTerminationJobInfo(null);
-      return;
-    }
-
-    // Poll for termination job status if we have job IDs
-    const pollTerminationStatus = async () => {
+    const interval = setInterval(async () => {
       if (terminationJobInfo?.jobIds?.length && executionId) {
         try {
           const region = terminationJobInfo.region || 'us-west-2';
           const statusResult = await apiClient.getTerminationStatus(executionId, terminationJobInfo.jobIds, region);
           
-          // Update progress - handle case where DRS clears participatingServers on completion
           if (statusResult.progressPercent !== undefined) {
             setTerminationProgress(statusResult.progressPercent);
-          } else if (statusResult.allCompleted) {
-            // If all jobs completed but no progress percent, set to 100%
-            setTerminationProgress(100);
-          } else {
-            // Calculate progress based on job completion status
-            const completedJobs = statusResult.jobs?.filter(j => j.status === 'COMPLETED').length || 0;
-            const totalJobs = statusResult.jobs?.length || 1;
-            const jobProgress = Math.round((completedJobs / totalJobs) * 100);
-            setTerminationProgress(jobProgress);
           }
           
-          // Check if all jobs completed
           if (statusResult.allCompleted) {
             setTerminationInProgress(false);
             setTerminationProgress(100);
             const instanceCount = terminationJobInfo?.totalInstances || statusResult.totalServers || 0;
-            if (statusResult.anyFailed) {
-              setTerminateSuccess(`Terminated ${statusResult.completedServers} of ${instanceCount} recovery instance(s). Some failed.`);
-            } else {
-              setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
-            }
+            setTerminateSuccess(`Successfully terminated ${instanceCount} recovery instance(s)`);
             setTerminationJobInfo(null);
-            // Refresh execution to update UI
             fetchExecution(true);
           }
         } catch (err) {
           console.error('Error polling termination status:', err);
         }
       }
-      // Also refresh execution status
-      fetchExecution(true);
-    };
+    }, 3000);
 
-    terminationPollingRef.current = setInterval(pollTerminationStatus, 3000); // Poll every 3 seconds
-    // Initial poll
-    pollTerminationStatus();
-
-    return () => {
-      if (terminationPollingRef.current) {
-        clearInterval(terminationPollingRef.current);
-        terminationPollingRef.current = null;
-      }
-    };
-  }, [terminationInProgress, terminationJobInfo?.totalInstances, executionId]); // Don't depend on full execution object
+    return () => clearInterval(interval);
+  }, [terminationInProgress, terminationJobInfo, executionId]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
