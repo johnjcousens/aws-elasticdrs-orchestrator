@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Step Functions State Machine for DRS Orchestration - Complete Archive Pattern Implementation'
+Description: 'Step Functions State Machine for DRS Orchestration - Archive pattern with OutputPath'
 
 Parameters:
   ProjectName:
@@ -21,20 +21,14 @@ Parameters:
     Description: 'Name of the API handler Lambda function'
 
 Resources:
-  # Step Functions State Machine - Complete Archive Pattern Implementation
+  # Step Functions State Machine - Archive pattern: Lambda owns ALL state via OutputPath
   DRSOrchestrationStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
       StateMachineName: !Sub '${ProjectName}-orchestration-${Environment}'
       RoleArn: !GetAtt StateMachineRole.Arn
-      LoggingConfiguration:
-        Level: ALL
-        IncludeExecutionData: true
-        Destinations:
-          - CloudWatchLogsLogGroup:
-              LogGroupArn: !GetAtt StateMachineLogGroup.Arn
       Definition:
-        Comment: 'DRS Recovery Plan Orchestration - Complete Archive Pattern with Error Handling'
+        Comment: 'DRS Recovery Plan Orchestration - Archive pattern with OutputPath (Lambda owns state)'
         StartAt: 'InitiateWavePlan'
         States:
           # Step 1: Initialize the wave plan - Lambda returns FULL state
@@ -49,7 +43,6 @@ Resources:
                 plan.$: '$.Plan'
                 isDrill.$: '$.IsDrill'
                 AccountContext.$: '$.AccountContext'
-                ResumeFromWave.$: '$.ResumeFromWave'
             OutputPath: '$.Payload'
             Next: 'DetermineWavePlanState'
             Retry:
@@ -57,37 +50,15 @@ Resources:
                   - 'Lambda.ServiceException'
                   - 'Lambda.AWSLambdaException'
                   - 'Lambda.SdkClientException'
-                  - 'Lambda.TooManyRequestsException'
                 IntervalSeconds: 2
                 MaxAttempts: 6
                 BackoffRate: 2
-            Catch:
-              - ErrorEquals:
-                  - 'States.ALL'
-                Next: 'HandleInitializationError'
-          
-          # Handle initialization errors
-          HandleInitializationError:
-            Type: Task
-            Resource: 'arn:aws:states:::lambda:invoke'
-            Parameters:
-              FunctionName: !Ref OrchestrationLambdaArn
-              Payload:
-                action: 'handle_error'
-                error_type: 'initialization_failed'
-                error_details.$: '$.Error'
-                cause.$: '$.Cause'
-                execution.$: '$.Execution.Id'
-                plan.$: '$.Plan'
-                AccountContext.$: '$.AccountContext'
-            OutputPath: '$.Payload'
-            Next: 'PlanFailed'
           
           # Step 2: Check overall plan state
           DetermineWavePlanState:
             Type: Choice
             Choices:
-              # Check for failure first
+              # Check for failure
               - Variable: '$.status'
                 StringEquals: 'failed'
                 Next: 'PlanFailed'
@@ -95,9 +66,175 @@ Resources:
               - Variable: '$.status'
                 StringEquals: 'timeout'
                 Next: 'PlanTimeout'
-              # Check for cancellation
+              # Check for paused (PauseBeforeWave)
               - Variable: '$.status'
-                StringEquals: 'cancelled'
+                StringEquals: 'paused'
+                Next: 'WaitForResume'
+              # Check if all waves completed
+              - Variable: '$.all_waves_completed'
+                BooleanEquals: true
+                Next: 'PlanCompleted'
+              # Otherwise check wave state
+              - Variable: '$.all_waves_completed'
+                BooleanEquals: false
+                Next: 'DetermineWaveState'
+            Default: 'DetermineWaveState'
+          
+          # Step 3: Check current wave state
+          DetermineWaveState:
+            Type: Choice
+            Choices:
+              # Check for failure
+              - Variable: '$.status'
+                StringEquals: 'failed'
+                Next: 'PlanFailed'
+              # Check for timeout
+              - Variable: '$.status'
+                StringEquals: 'timeout'
+                Next: 'PlanTimeout'
+              # Check for paused (PauseBeforeWave) - CRITICAL: must check before wave_completed
+              - Variable: '$.status'
+                StringEquals: 'paused'
+                Next: 'WaitForResume'
+              # Check if all waves completed (after wave completion)
+              - Variable: '$.all_waves_completed'
+                BooleanEquals: true
+                Next: 'PlanCompleted'
+              # Check if current wave is still in progress
+              - Variable: '$.wave_completed'
+                BooleanEquals: false
+                Next: 'WaitForWaveUpdate'
+              # Wave completed, check plan state
+              - Variable: '$.wave_completed'
+                BooleanEquals: true
+                Next: 'DetermineWavePlanState'
+            Default: 'WaitForWaveUpdate'
+          
+          # Step 4: Wait before polling
+          WaitForWaveUpdate:
+            Type: Wait
+            SecondsPath: '$.current_wave_update_time'
+            Next: 'TransformForUpdate'
+          
+          # Pause state: Wait for external resume signal (callback pattern)
+          # SendTaskSuccess output becomes the state (no Payload wrapper for callbacks)
+          WaitForResume:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke.waitForTaskToken'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'store_task_token'
+                application.$: '$'
+                taskToken.$: '$.Task.Token'
+                AccountContext.$: '$.AccountContext'
+            # NOTE: No OutputPath here - callback output is returned directly at root level
+            TimeoutSeconds: 31536000  # 1 year max timeout for pause/resume
+            Next: 'ResumeWavePlan'
+            Catch:
+              - ErrorEquals:
+                  - 'States.Timeout'
+                Next: 'PlanTimeout'
+          
+          # After resume, start the next wave - Lambda returns FULL state
+          ResumeWavePlan:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'resume_wave'
+                application.$: '$'
+                AccountContext.$: '$.AccountContext'
+            OutputPath: '$.Payload'
+            Next: 'DetermineWaveState'
+            Retry:
+              - ErrorEquals:
+                  - 'Lambda.ServiceException'
+                  - 'Lambda.AWSLambdaException'
+                  - 'Lambda.SdkClientException'
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+          
+          # Step 5: Transform data for Lambda compatibility
+          TransformForUpdate:
+            Type: Pass
+            Parameters:
+              action: 'update_wave_status'
+              application.$: '$'
+              AccountContext.$: '$.AccountContext'
+            Next: 'UpdateWaveStatus'
+          
+          # Step 6: Poll DRS job status - Lambda returns FULL state
+          UpdateWaveStatus:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload.$: '$'
+            OutputPath: '$.Payload'
+            Next: 'DetermineWaveState'
+            Retry:
+              - ErrorEquals:
+                  - 'Lambda.ServiceException'
+                  - 'Lambda.AWSLambdaException'
+                  - 'Lambda.SdkClientException'
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+          
+          # Success state
+          PlanCompleted:
+            Type: Succeed
+          
+          # Failure states
+          PlanFailed:
+            Type: Fail
+            Error: 'PlanExecutionFailed'
+            Cause: 'DRS recovery plan execution failed'
+          
+          PlanTimeout:
+            Type: Fail
+            Error: 'PlanExecutionTimeout'
+            Cause: 'DRS recovery plan execution timed out'
+  
+  # IAM Role for Step Functions
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-statemachine-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-statemachine-policy-${Environment}'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: !Ref OrchestrationLambdaArn
+
+Outputs:
+  StateMachineArn:
+    Description: 'ARN of the DRS Orchestration State Machine'
+    Value: !Ref DRSOrchestrationStateMachine
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-arn-${Environment}'
+  
+  StateMachineName:
+    Description: 'Name of the DRS Orchestration State Machine'
+    Value: !GetAtt DRSOrchestrationStateMachine.Name
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-name-${Environment}'
                 Next: 'PlanCancelled'
               # Check for paused (PauseBeforeWave)
               - Variable: '$.status'
