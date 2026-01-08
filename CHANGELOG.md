@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.5] - January 7, 2026
+
+### Fixed
+- **RBAC Path Normalization Bug**: Fixed critical bug in `get_endpoint_permissions()` where static path segments like `/accounts/targets/{id}` were incorrectly normalized to `/{id}/{id}/{id}`, causing authorization checks to fail silently
+  - Added `STATIC_SEGMENTS` set to preserve known API resource names during path normalization
+  - Improved path normalization to correctly handle UUIDs, execution IDs, and other dynamic segments
+  - All 50+ API endpoints now correctly resolve to their permission mappings
+
+### Added
+- **Comprehensive Test Suite**: Expanded from 27 to 306 automated tests
+  - `test_security_utils.py`: Input validation, sanitization, security functions
+  - `test_rbac_middleware.py`: Role-based access control unit tests
+  - `test_rbac_enforcement.py`: Comprehensive RBAC enforcement for ALL API endpoints
+  - `test_api_handler.py`: API handler Lambda function tests
+- **Missing Endpoint Permissions**: Added RBAC coverage for previously missing endpoints
+  - `GET/PUT /config/tag-sync` - Tag sync settings management
+  - `GET /accounts/current` - Current account information
+  - `POST /protection-groups/resolve` - Tag preview endpoint
+  - `GET /recovery-plans/{id}/check-existing-instances` - Instance check endpoint
+  - `GET /executions/{executionId}/job-logs` - Job logs endpoint
+  - `GET /executions/{executionId}/termination-status` - Termination status endpoint
+
+### Changed
+- **Updated .gitignore**: Fixed overly broad pattern that was blocking test files in `tests/` directory
+- **RBAC Documentation**: Updated all RBAC documentation with correct role names and permission matrix
+
+### Security
+- **RBAC Enforcement**: All 50+ API endpoints now have verified permission mappings with automated test coverage
+- **Role Hierarchy Validation**: Tests verify proper permission inheritance (Admin > RecoveryManager > PlanManager > Operator > ReadOnly)
+
 ## [1.4.4] - January 8, 2026
 
 ### Added
