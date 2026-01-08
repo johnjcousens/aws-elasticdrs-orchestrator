@@ -28,6 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - RBAC middleware with 5 DRS-specific roles
   - Complete API handler with 47+ endpoints
   - All CloudFormation infrastructure templates
+- **Archive Consistency Updates**: Synchronized enterprise PRD documentation with archive/dr-orchestration-artifacts reference implementation
+  - Added 6 missing module adapters: DRS, ElastiCache, MemoryDB, OpenSearch, SQLServer, EC2
+  - Updated supported modules table in `02-dr-orchestration-patterns.md` (7 → 13 modules)
+  - Added complete manifest examples for all new modules
+  - Added ElastiCache, MemoryDB, OpenSearch, SQLServer adapter implementations to `04-technology-adapters.md`
+  - Updated adapter registry with all 16 adapter types organized by category
+  - Enhanced cross-account role template with permissions for all module types
+  - Added reference to archive role template with security note about AdministratorAccess vs least-privilege
 
 ### Fixed
 - **Enterprise PRD API Examples**: Fixed incorrect AWS CLI commands and HTTP methods in Enterprise_DR_Orchestration_Platform_PRD.md
