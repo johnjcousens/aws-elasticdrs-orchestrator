@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Enterprise PRD Modular Restructure**: Reorganized the 4800+ line Enterprise PRD into 8 focused, navigable documents
+  - `docs/enterprise-prd/README.md` - Main index with TOC, executive summary, navigation by use case and role
+  - `docs/enterprise-prd/01-reference-implementation.md` - GitHub code links (Step Functions, tag orchestration, RBAC)
+  - `docs/enterprise-prd/02-dr-orchestration-patterns.md` - 4-phase DR lifecycle, module factory, manifests, approval workflows
+  - `docs/enterprise-prd/03-api-integration.md` - REST API, SSM, EventBridge, Lambda triggers, CI/CD integration
+  - `docs/enterprise-prd/04-technology-adapters.md` - DRS, Database, Application, Infrastructure, SQL Always On, NetApp ONTAP, S3 adapters
+  - `docs/enterprise-prd/05-iam-security.md` - IAM roles, LZA integration, RBAC with 5 DRS-specific roles
+  - `docs/enterprise-prd/06-architecture.md` - Core components, state management, data flow diagrams
+  - `docs/enterprise-prd/07-implementation.md` - 32-week implementation phases, success criteria, risk assessment
+  - Original `docs/Enterprise_DR_Orchestration_Platform_PRD.md` now redirects to modular structure
 - **Reference Implementation Code Links**: Added comprehensive section to Enterprise PRD with direct GitHub links to production code
   - Step Functions pause/resume with `waitForTaskToken` callback pattern
   - Wave-based tag orchestration for dynamic server discovery
