@@ -276,10 +276,14 @@ const serverColumnDefinitions = [
     width: 120,
   },
   {
-    id: 'region',
-    header: 'Region',
-    cell: (server: ServerExecution) => server.region || '-',
-    width: 120,
+    id: 'launchTime',
+    header: 'Launch Time',
+    cell: (server: ServerExecution) => {
+      // Check for various timestamp field names
+      const timestamp = (server as any).launchTime || (server as any).startTime;
+      return formatTimestamp(timestamp);
+    },
+    width: 160,
   },
 ];
 
