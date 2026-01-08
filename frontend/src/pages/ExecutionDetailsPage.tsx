@@ -509,8 +509,9 @@ export const ExecutionDetailsPage: React.FC = () => {
     const waves = (exec as Execution & { waves?: WaveExecution[] }).waves || exec.waveExecutions || [];
     return waves.map((wave: any, index: number) => {
       const waveRegion = wave.region || wave.Region || 'us-east-1';
-      // ServerIds might be an array of strings or objects
-      const serverIds = wave.serverIds || wave.ServerIds || wave.servers || wave.serverExecutions || [];
+      
+      // FIXED: API returns server data in 'servers' array with full server objects
+      const servers = wave.servers || wave.serverExecutions || [];
       
       return {
         waveNumber: wave.waveNumber ?? wave.WaveNumber ?? index,
@@ -519,25 +520,23 @@ export const ExecutionDetailsPage: React.FC = () => {
         startTime: wave.startTime || wave.StartTime,
         jobId: wave.jobId || wave.JobId,
         endTime: wave.endTime || wave.EndTime,
-        serverExecutions: serverIds.map((server: any) => {
-          // Handle both string IDs and object formats
-          const serverId = typeof server === 'string' ? server : (server.sourceServerId || server.serverId || server.SourceServerId);
+        serverExecutions: servers.map((server: any) => {
           return {
-            serverId: serverId,
-            serverName: typeof server === 'object' ? (server.serverName || server.hostname) : undefined,
-            hostname: typeof server === 'object' ? server.hostname : undefined,
-            status: typeof server === 'object' ? (server.status || server.launchStatus || 'pending') : 'pending',
-            launchStatus: typeof server === 'object' ? (server.launchStatus || server.status) : undefined,
-            recoveredInstanceId: typeof server === 'object' ? (server.instanceId || server.recoveredInstanceId || server.ec2InstanceId) : undefined,
-            instanceType: typeof server === 'object' ? server.instanceType : undefined,
-            privateIp: typeof server === 'object' ? server.privateIp : undefined,
-            region: typeof server === 'object' ? (server.region || waveRegion) : waveRegion,
-            sourceInstanceId: typeof server === 'object' ? server.sourceInstanceId : undefined,
-            sourceAccountId: typeof server === 'object' ? server.sourceAccountId : undefined,
-            sourceIp: typeof server === 'object' ? server.sourceIp : undefined,
-            sourceRegion: typeof server === 'object' ? server.sourceRegion : undefined,
-            replicationState: typeof server === 'object' ? server.replicationState : undefined,
-            error: typeof server === 'object' ? server.error : undefined,
+            serverId: server.sourceServerId || server.serverId || server.SourceServerId,
+            serverName: server.serverName || server.hostname,
+            hostname: server.hostname,
+            status: server.status || server.launchStatus || 'pending',
+            launchStatus: server.status || server.launchStatus,
+            recoveredInstanceId: server.instanceId || server.recoveredInstanceId || server.ec2InstanceId,
+            instanceType: server.instanceType,
+            privateIp: server.privateIp,
+            region: server.region || waveRegion,
+            sourceInstanceId: server.sourceInstanceId,
+            sourceAccountId: server.sourceAccountId,
+            sourceIp: server.sourceIp,
+            sourceRegion: server.sourceRegion,
+            replicationState: server.replicationState,
+            error: server.error,
           };
         }),
         error: wave.error,
