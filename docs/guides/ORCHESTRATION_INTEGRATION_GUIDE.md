@@ -1,5 +1,9 @@
 # Orchestration Integration Guide
 
+**Version**: 2.2  
+**Date**: January 7, 2026  
+**Status**: Production Ready - Complete RBAC Coverage
+
 This guide explains how to integrate AWS DRS Orchestration into larger automation workflows without using the web frontend. The solution provides a complete REST API that can be called from CLI scripts, SSM Automation, Step Functions, EventBridge schedules, or any HTTP client.
 
 ## Table of Contents
@@ -581,7 +585,7 @@ Manage multi-wave disaster recovery execution plans.
 | POST   | `/recovery-plans/{id}/execute`              | Execute recovery plan (start DR)           |
 | GET    | `/recovery-plans/{id}/check-existing-instances` | Check for conflicting recovery instances |
 
-### 3. Executions (11 endpoints)
+### 3. Executions (12 endpoints)
 
 Monitor and control disaster recovery executions with wave-based orchestration.
 
@@ -596,6 +600,7 @@ Monitor and control disaster recovery executions with wave-based orchestration.
 | POST   | `/executions/{executionId}/terminate-instances` | Terminate recovery instances         |
 | GET    | `/executions/{executionId}/job-logs`        | Get DRS job logs for troubleshooting     |
 | GET    | `/executions/{executionId}/termination-status` | Check instance termination status     |
+| GET    | `/executions/{executionId}/recovery-instances` | Get recovery instances launched by execution |
 | DELETE | `/executions`                               | Bulk delete completed executions         |
 | POST   | `/executions/delete`                        | Delete specific executions by IDs        |
 
@@ -663,15 +668,33 @@ System health and status monitoring.
 
 ### 10. RBAC System
 
-The API implements a comprehensive Role-Based Access Control (RBAC) system with 5 roles and 11 granular permissions.
+The API implements a comprehensive Role-Based Access Control (RBAC) system with 5 roles and granular permissions. All 47+ API endpoints have verified RBAC permission mappings with 100% coverage.
 
 #### Roles (5 Total)
 
 1. **DRSOrchestrationAdmin** - Full administrative access to all operations
-2. **DRSRecoveryManager** - Execute and manage recovery operations with plan modification
-3. **DRSPlanManager** - Create/modify recovery plans and protection groups
-4. **DRSOperator** - Execute recovery operations but cannot modify plans
+2. **DRSRecoveryManager** - Execute and manage recovery operations with plan modification (no account deletion)
+3. **DRSPlanManager** - Create/modify recovery plans and protection groups (no instance termination)
+4. **DRSOperator** - Execute recovery operations but cannot modify plans (no create/delete)
 5. **DRSReadOnly** - View-only access for monitoring and reporting
+
+#### Cognito Group Names
+
+Users are assigned roles via AWS Cognito Groups. The following group names are supported:
+
+**Primary DRS Roles (Recommended):**
+- `DRSOrchestrationAdmin` - Full administrative access
+- `DRSRecoveryManager` - Recovery operations and configuration
+- `DRSPlanManager` - Plan and protection group management
+- `DRSOperator` - Execution operations only
+- `DRSReadOnly` - View-only access
+
+**Legacy Group Names (Backward Compatible):**
+- `DRS-Administrator` → DRSOrchestrationAdmin
+- `DRS-Infrastructure-Admin` → DRSRecoveryManager
+- `DRS-Recovery-Plan-Manager` → DRSPlanManager
+- `DRS-Operator` → DRSOperator
+- `DRS-Read-Only` → DRSReadOnly
 
 #### Permissions (11 Total)
 
