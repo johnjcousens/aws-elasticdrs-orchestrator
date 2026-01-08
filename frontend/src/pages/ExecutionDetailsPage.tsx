@@ -22,7 +22,7 @@ import { PageTransition } from '../components/PageTransition';
 import { LoadingState } from '../components/LoadingState';
 import { StatusBadge } from '../components/StatusBadge';
 import { DateTimeDisplay } from '../components/DateTimeDisplay';
-// import { WaveProgress } from '../components/WaveProgress'; // Temporarily disabled for navigation debugging
+import { WaveProgress } from '../components/WaveProgress';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import apiClient from '../services/api';
 import type { Execution, WaveExecution } from '../types';
@@ -458,14 +458,13 @@ export const ExecutionDetailsPage: React.FC = () => {
             </Alert>
           )}
 
-          {/* Wave Progress Timeline - Temporarily simplified for debugging */}
+          {/* Wave Progress Timeline */}
           <Container header={<Header variant="h3">Wave Progress</Header>}>
-            <div>
-              <p>Waves: {execution.totalWaves || 0}</p>
-              <p>Current Wave: {execution.currentWave || 1}</p>
-              <p>Status: {execution.status}</p>
-              {/* WaveProgress component temporarily removed for navigation debugging */}
-            </div>
+            <WaveProgress 
+              waves={mapWavesToWaveExecutions(execution)} 
+              currentWave={execution.currentWave}
+              totalWaves={execution.totalWaves}
+            />
           </Container>
         </SpaceBetween>
       </ContentLayout>
