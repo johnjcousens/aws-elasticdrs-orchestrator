@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CMF Learnings Document**: Created comprehensive analysis of AWS Cloud Migration Factory v4.5.1 patterns applicable to enterprise orchestration
+  - `docs/enterprise-prd/08-cmf-learnings.md` - Technology-agnostic patterns from CMF for any orchestration scenario
+  - DynamoDB Stream-driven task orchestration pattern (alternative to Step Functions for complex workflows)
+  - Predecessor/successor task dependency management with automatic successor triggering
+  - Enhanced task states: RETRY, SKIP, ABANDON, PENDING_APPROVAL
+  - EventBridge-based email notification system with configurable recipients per task
+  - SSM script library with versioning for post-recovery automation
+  - Credential manager integration for secure automation secrets
+  - Service account management for API automation
+  - Dynamic entity schema management for custom attributes
+  - Migration tracker analytics with Glue/Athena integration
+  - Implementation roadmap with 4 phases (13-19 weeks total)
+  - Updated Enterprise PRD index to version 1.6 with new document
 - **Enterprise PRD Modular Restructure**: Reorganized the 4800+ line Enterprise PRD into 8 focused, navigable documents
   - `docs/enterprise-prd/README.md` - Main index with TOC, executive summary, navigation by use case and role
   - `docs/enterprise-prd/01-reference-implementation.md` - GitHub code links (Step Functions, tag orchestration, RBAC)
