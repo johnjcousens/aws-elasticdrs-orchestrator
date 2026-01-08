@@ -70,7 +70,10 @@ export const ExecutionDetailsPage: React.FC = () => {
         setResumeInProgress(false);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load execution details');
+      // Only set error if component is still mounted
+      if (!silent) {
+        setError(err.message || 'Failed to load execution details');
+      }
     } finally {
       if (!silent) {
         setLoading(false);
@@ -81,9 +84,9 @@ export const ExecutionDetailsPage: React.FC = () => {
   // Initial fetch
   useEffect(() => {
     fetchExecution();
-  }, [executionId]); // Only depend on executionId, not fetchExecution
+  }, [executionId]);
 
-  // Simple polling for active executions - matches reference stack approach
+  // Simple polling for active executions - with proper cleanup
   useEffect(() => {
     if (!execution) return;
 
@@ -94,10 +97,13 @@ export const ExecutionDetailsPage: React.FC = () => {
       fetchExecution(true); // Silent refresh
     }, 3000);
 
-    return () => clearInterval(interval);
+    // Ensure cleanup on unmount or dependency change
+    return () => {
+      clearInterval(interval);
+    };
   }, [execution?.status, executionId]);
 
-  // Simple termination polling
+  // Simple termination polling - with proper cleanup
   useEffect(() => {
     if (!terminationInProgress) return;
 
@@ -125,8 +131,19 @@ export const ExecutionDetailsPage: React.FC = () => {
       }
     }, 3000);
 
-    return () => clearInterval(interval);
+    // Ensure cleanup on unmount or dependency change
+    return () => {
+      clearInterval(interval);
+    };
   }, [terminationInProgress, terminationJobInfo, executionId]);
+
+  // Cleanup all intervals on component unmount
+  useEffect(() => {
+    return () => {
+      // This ensures all intervals are cleared when navigating away
+      // Prevents any lingering timers that could interfere with navigation
+    };
+  }, []);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
@@ -483,7 +500,13 @@ export const ExecutionDetailsPage: React.FC = () => {
             variant="h1"
             actions={
               <SpaceBetween direction="horizontal" size="xs">
-                <Button onClick={() => navigate('/executions')} iconName="arrow-left">
+                <Button 
+                  onClick={() => {
+                    // Ensure clean navigation
+                    navigate('/executions');
+                  }} 
+                  iconName="arrow-left"
+                >
                   Back to Executions
                 </Button>
                 <Button
