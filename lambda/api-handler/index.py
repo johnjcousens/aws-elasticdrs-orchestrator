@@ -4185,6 +4185,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
             if not pg_id:
                 print(f"Wave {wave_number} has no Protection Group, skipping")
                 wave_results.append({
+                    "WaveNumber": wave_number,  # FIXED: Add WaveNumber for proper indexing
                     "WaveName": wave_name,
                     "WaveId": wave.get("WaveId") or wave_number,
                     "Status": "FAILED",
@@ -4199,6 +4200,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
                 # Wave has dependencies - mark as PENDING for poller to initiate later
                 print(f"Wave {wave_number} ({wave_name}) has dependencies: {dependencies} - marking PENDING")
                 wave_results.append({
+                    "WaveNumber": wave_number,  # FIXED: Add WaveNumber for proper indexing
                     "WaveName": wave_name,
                     "WaveId": wave.get("WaveId") or wave_number,
                     "ProtectionGroupId": pg_id,
@@ -4211,6 +4213,8 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
                 # Wave has NO dependencies - initiate immediately
                 print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
                 wave_result = initiate_wave(wave, pg_id, execution_id, is_drill, execution_type)
+                # FIXED: Ensure WaveNumber is set in the wave result
+                wave_result["WaveNumber"] = wave_number
                 wave_results.append(wave_result)
 
             # Update progress in DynamoDB after each wave
@@ -4355,6 +4359,7 @@ def initiate_wave(
         wave_status = "PARTIAL" if has_failures else "INITIATED"
 
         return {
+            "WaveNumber": wave_number or wave.get("waveNumber", 1),  # FIXED: Ensure WaveNumber is included
             "WaveName": wave.get("name", "Unknown"),
             "WaveId": wave.get("WaveId")
             or wave.get("waveNumber"),  # Support both formats
@@ -8373,9 +8378,9 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         waves.append(
             {
                 "waveNumber": wave.get(
-                    "WaveNumber", i
-                ),  # Include wave number for frontend
-                "waveName": wave.get("WaveName"),
+                    "WaveNumber", i + 1
+                ),  # FIXED: 1-indexed for frontend display (Wave 1, Wave 2, etc.)
+                "waveName": wave.get("WaveName", f"Wave {i + 1}"),  # FIXED: Default wave name with 1-indexing
                 "protectionGroupId": wave.get("ProtectionGroupId"),
                 "region": wave.get("Region"),
                 "status": map_execution_status(
