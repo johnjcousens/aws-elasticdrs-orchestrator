@@ -1,11 +1,9 @@
 """
 Step Functions Orchestration Lambda
-Simple Map State Pattern - Working Archive Implementation
+Archive pattern: Lambda owns ALL state via OutputPath
 
-Handles three actions:
-1. initialize - Set up execution context
-2. processWave - Process a single wave with ConflictException retry
-3. finalize - Complete the execution
+State is at root level ($), not nested under $.application
+All functions return the COMPLETE state object
 """
 
 import json
@@ -15,7 +13,6 @@ from decimal import Decimal
 from typing import Dict, List
 
 import boto3
-from botocore.exceptions import ClientError
 
 # Environment variables
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
@@ -29,23 +26,6 @@ dynamodb = boto3.resource("dynamodb")
 _protection_groups_table = None
 _recovery_plans_table = None
 _execution_history_table = None
-
-# DRS Job Status Constants
-DRS_JOB_STATUS_WAIT_STATES = [
-    "PENDING",
-    "STARTED", 
-    "LAUNCHING"
-]
-
-DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES = [
-    "LAUNCHED",
-    "TERMINATED"
-]
-
-DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES = [
-    "FAILED",
-    "LAUNCH_FAILED"
-]
 
 
 def get_protection_groups_table():
@@ -71,12 +51,12 @@ def get_execution_history_table():
 
 def get_account_context(state: Dict) -> Dict:
     """
-    Extract account context from state for cross-account operations
-    
-    Returns:
-        Dict with accountId and assumeRoleName for cross-account access
+    Get account context from state, handling both PascalCase and snake_case.
+
+    Initial execution uses PascalCase (AccountContext) from Step Functions input.
+    Resume uses snake_case (account_context) from SendTaskSuccess output.
     """
-    return state.get("AccountContext", {})
+    return state.get("AccountContext") or state.get("account_context", {})
 
 
 def create_drs_client(region: str, account_context: Dict = None):
@@ -106,7 +86,7 @@ def create_drs_client(region: str, account_context: Dict = None):
 
         try:
             assumed_role = sts_client.assume_role(
-                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",
+                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",  # noqa: E231
                 RoleSessionName=session_name,
             )
 
@@ -130,6 +110,16 @@ def create_drs_client(region: str, account_context: Dict = None):
 
     # Default: use current account credentials
     return boto3.client("drs", region_name=region)
+
+
+# DRS job status constants
+DRS_JOB_STATUS_COMPLETE_STATES = ["COMPLETED"]
+DRS_JOB_STATUS_WAIT_STATES = ["PENDING", "STARTED"]
+
+# DRS server launch status constants
+DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES = ["LAUNCHED"]
+DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES = ["FAILED", "TERMINATED"]
+DRS_JOB_SERVERS_WAIT_STATES = ["PENDING", "IN_PROGRESS"]
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -180,10 +170,15 @@ def lambda_handler(event, context):
         print(f"ERROR in lambda_handler: {str(e)}")
         import traceback
         traceback.print_exc()
-        raise
-
-
-
+        
+        # Return error state for Step Functions
+        return {
+            "status": "failed",
+            "error": str(e),
+            "error_code": "LAMBDA_HANDLER_ERROR",
+            "all_waves_completed": True,
+            "wave_completed": True
+        }
 
 
 def begin_wave_plan(event: Dict) -> Dict:
@@ -1266,41 +1261,77 @@ def cleanup_cancelled_execution(event: Dict) -> Dict:
     return state
 
 
-def cleanup_completed_execution(event: Dict) -> Dict:
+def query_drs_servers_by_tags(
+    region: str, tags: Dict[str, str], account_context: Dict = None
+) -> List[str]:
     """
-    Cleanup resources for completed execution
-    Returns COMPLETE state object (archive pattern)
+    Query DRS source servers that have ALL specified tags.
+    Uses AND logic - DRS source server must have all tags to be included.
+
+    This queries the DRS source server tags directly, not EC2 instance tags.
+    Returns list of source server IDs for orchestration.
     """
-    state = event.get("application", event)
-    execution_id = state.get("execution_id")
-    plan_id = state.get("plan_id")
-    
-    print(f"✅ Cleaning up completed execution: {execution_id}")
-    
-    # Update final status in DynamoDB
-    if execution_id and plan_id:
-        try:
-            end_time = int(time.time())
-            get_execution_history_table().update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
-                UpdateExpression="SET #status = :status, EndTime = :end, CompletedTime = :completed",
-                ExpressionAttributeNames={"#status": "Status"},
-                ExpressionAttributeValues={
-                    ":status": "COMPLETED",
-                    ":end": end_time,
-                    ":completed": end_time,
-                },
-                ConditionExpression="attribute_exists(ExecutionId)",
-            )
-            print(f"✅ Updated execution {execution_id} status to COMPLETED")
-        except Exception as e:
-            print(f"Error updating completed execution status: {e}")
-    
-    # Return final state
-    state["status"] = "completed"
-    state["all_waves_completed"] = True
-    state["wave_completed"] = True
-    if not state.get("end_time"):
-        state["end_time"] = int(time.time())
-    
-    return state
+    try:
+        # Create DRS client with cross-account support
+        regional_drs = create_drs_client(region, account_context)
+
+        # Get all source servers in the region
+        all_servers = []
+        paginator = regional_drs.get_paginator("describe_source_servers")
+
+        for page in paginator.paginate():
+            all_servers.extend(page.get("items", []))
+
+        if not all_servers:
+            print("No DRS source servers found in region")
+            return []
+
+        # Filter servers that match ALL specified tags
+        matching_server_ids = []
+
+        for server in all_servers:
+            server_id = server.get("sourceServerID", "")
+
+            # Get DRS source server tags directly from server object
+            drs_tags = server.get("tags", {})
+
+            # Check if DRS server has ALL required tags with matching values
+            # Use case-insensitive matching and strip whitespace for robustness
+            matches_all = True
+            for tag_key, tag_value in tags.items():
+                # Normalize tag key and value (strip whitespace, case-insensitive)
+                normalized_required_key = tag_key.strip()
+                normalized_required_value = tag_value.strip().lower()
+
+                # Check if any DRS tag matches (case-insensitive)
+                found_match = False
+                for drs_key, drs_value in drs_tags.items():
+                    normalized_drs_key = drs_key.strip()
+                    normalized_drs_value = drs_value.strip().lower()
+
+                    if (
+                        normalized_drs_key == normalized_required_key
+                        and normalized_drs_value == normalized_required_value
+                    ):
+                        found_match = True
+                        break
+
+                if not found_match:
+                    matches_all = False
+                    print(
+                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"
+                    )
+                    break
+
+            if matches_all:
+                matching_server_ids.append(server_id)
+
+        print("Tag matching results:")
+        print(f"- Total DRS servers: {len(all_servers)}")
+        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
+
+        return matching_server_ids
+
+    except Exception as e:
+        print(f"Error querying DRS servers by DRS tags: {str(e)}")
+        raise
