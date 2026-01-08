@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.6] - January 7, 2026
+
+### Added
+- **Complete RBAC API Coverage**: Added missing `GET /executions/{executionId}/recovery-instances` endpoint to RBAC permission mappings
+  - Added endpoint to `ENDPOINT_PERMISSIONS` dictionary
+  - Added `recovery-instances` to `STATIC_SEGMENTS` for path normalization
+  - Added path handling in `get_endpoint_permissions()` function
+  - Added 2 unit tests for the new endpoint permission
+
+### Changed
+- **Test Count**: Expanded from 306 to 308 automated tests (56 RBAC middleware tests)
+- **Documentation Updates**:
+  - Updated README.md with v1.4.6 release information and 100% API coverage
+  - Updated API_REFERENCE_GUIDE.md to v2.2 with complete RBAC documentation
+  - Updated ORCHESTRATION_INTEGRATION_GUIDE.md to v2.2 with Cognito group names and recovery-instances endpoint
+  - Updated Enterprise_DR_Orchestration_Platform_PRD.md to v1.1 with RBAC roles and Cognito group names
+  - Updated RBAC_SECURITY_TESTING_STATUS.md with API endpoint coverage matrix
+  - Updated GITHUB_ACTIONS_CICD_GUIDE.md with workflow conflict prevention section
+  - Added recovery-instances endpoint to Executions API tables
+
+### Security
+- **100% RBAC Coverage**: All 47+ API endpoints now have verified RBAC permission mappings
+- **API-UI Audit Complete**: Cross-referenced all frontend API methods with backend endpoints - no gaps
+
 ## [1.4.5] - January 7, 2026
 
 ### Fixed

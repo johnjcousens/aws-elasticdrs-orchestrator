@@ -190,14 +190,63 @@ reports/security/
 # 2. Validate before committing
 make validate  # CloudFormation validation
 
-# 3. Commit and push (triggers CI/CD)
+# 3. Preview deployment scope (MANDATORY)
+./scripts/check-deployment-scope.sh
+
+# 4. Commit changes
 git add .
 git commit -m "feat: describe your changes"
-git push origin main
 
-# 4. Monitor pipeline
+# 5. Check for running workflows and push (MANDATORY)
+./scripts/safe-push.sh  # Recommended - auto-checks workflows
+
+# OR manual check:
+./scripts/check-workflow.sh && git push origin main
+
+# 6. Monitor pipeline
 # Visit: https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
+
+### Workflow Conflict Prevention (MANDATORY)
+
+**CRITICAL**: Never push while a GitHub Actions workflow is running. This causes deployment conflicts and failures.
+
+#### Safe Push Scripts
+
+Two scripts are available to prevent conflicts:
+
+**Quick Check** (`./scripts/check-workflow.sh`):
+```bash
+# Returns exit code 0 if safe to push, 1 if workflow running
+./scripts/check-workflow.sh && git push
+```
+
+**Safe Push** (`./scripts/safe-push.sh`) - RECOMMENDED:
+```bash
+# Automatically checks workflows and pushes when safe
+./scripts/safe-push.sh
+
+# Push to specific branch
+./scripts/safe-push.sh main
+
+# Emergency force push (skip workflow check)
+./scripts/safe-push.sh --force
+```
+
+#### Prerequisites (One-time Setup)
+```bash
+# Install GitHub CLI
+brew install gh
+
+# Authenticate with GitHub
+gh auth login
+```
+
+#### Workflow Status Indicators
+- ✅ **Safe to push**: No workflows running
+- ⏳ **Wait required**: Deployment in progress (wait for completion)
+- ❌ **Conflict risk**: Multiple workflows would overlap
+- 🚨 **Emergency only**: Use `--force` flag only for critical hotfixes
 
 ### Manual Deployment (EMERGENCY ONLY)
 
