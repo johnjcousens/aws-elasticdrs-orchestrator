@@ -555,6 +555,251 @@ class S3CrossRegionAdapter(TechnologyAdapter):
 
 ---
 
+## ElastiCache Adapter
+
+The ElastiCache Adapter manages Redis Global Datastore failover operations.
+
+```python
+class ElastiCacheAdapter(TechnologyAdapter):
+    """ElastiCache Global Datastore DR adapter."""
+    
+    def __init__(self, config: dict):
+        super().__init__("elasticache", config)
+        self.elasticache_client = boto3.client("elasticache")
+        self.ssm_client = boto3.client("ssm")
+    
+    def start_execution(self, resources: dict, config: dict) -> str:
+        """Execute ElastiCache global datastore failover."""
+        execution_id = f"elasticache-exec-{int(time.time())}"
+        
+        # Disassociate from global replication group
+        self.elasticache_client.disassociate_global_replication_group(
+            GlobalReplicationGroupId=resources["globalClusterId"],
+            ReplicationGroupId=resources["replicationGroupId"],
+            ReplicationGroupRegion=config["targetRegion"]
+        )
+        
+        return execution_id
+    
+    def monitor_execution(self, execution_id: str) -> None:
+        """Monitor global cluster disassociation and new cluster creation."""
+        while True:
+            response = self.elasticache_client.describe_global_replication_groups(
+                GlobalReplicationGroupId=self.global_cluster_id
+            )
+            status = response["GlobalReplicationGroups"][0]["Status"]
+            
+            if status == "primary-only":
+                # Create new global cluster in DR region
+                self._create_new_global_cluster()
+                break
+            time.sleep(30)
+    
+    def _create_new_global_cluster(self) -> None:
+        """Create new global replication group in DR region."""
+        self.elasticache_client.create_global_replication_group(
+            GlobalReplicationGroupIdSuffix=self.cluster_suffix,
+            GlobalReplicationGroupDescription="Global Datastore",
+            PrimaryReplicationGroupId=self.replication_group_id
+        )
+```
+
+---
+
+## MemoryDB Adapter
+
+The MemoryDB Adapter manages MemoryDB for Redis cluster failover using S3 backups.
+
+```python
+class MemoryDBAdapter(TechnologyAdapter):
+    """MemoryDB for Redis DR adapter."""
+    
+    def __init__(self, config: dict):
+        super().__init__("memorydb", config)
+        self.memorydb_client = boto3.client("memorydb")
+        self.s3_client = boto3.client("s3")
+        self.ssm_client = boto3.client("ssm")
+    
+    def start_execution(self, resources: dict, config: dict) -> str:
+        """Execute MemoryDB cluster restore from S3 backup."""
+        execution_id = f"memorydb-exec-{int(time.time())}"
+        
+        # Get latest backup from S3
+        backup_key = self._get_latest_backup(
+            resources["backupBucket"],
+            resources["backupPrefix"],
+            resources["clusterName"]
+        )
+        
+        # Get cluster config from SSM
+        cluster_config = self._get_ssm_parameter(resources["configSsmKey"])
+        
+        # Create cluster from backup
+        self.memorydb_client.create_cluster(
+            ClusterName=cluster_config["Name"],
+            NodeType=cluster_config["NodeType"],
+            NumShards=cluster_config["NumberOfShards"],
+            SnapshotArns=[f"arn:aws:s3:::{resources['backupBucket']}/{backup_key}"],
+            # ... additional config from SSM
+        )
+        
+        return execution_id
+    
+    def _get_latest_backup(self, bucket: str, prefix: str, cluster_name: str) -> str:
+        """Find the latest backup file in S3."""
+        response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        filtered = [obj for obj in response["Contents"] 
+                   if obj["Key"].startswith(f"{prefix}{cluster_name}-")]
+        latest = max(filtered, key=lambda x: x["Key"])
+        return latest["Key"]
+```
+
+---
+
+## OpenSearch Adapter
+
+The OpenSearch Adapter manages OpenSearch Service cluster scaling for DR.
+
+```python
+class OpenSearchAdapter(TechnologyAdapter):
+    """OpenSearch Service DR adapter."""
+    
+    def __init__(self, config: dict):
+        super().__init__("opensearch", config)
+        self.opensearch_client = boto3.client("opensearch")
+    
+    def start_execution(self, resources: dict, config: dict) -> str:
+        """Execute OpenSearch cluster scaling."""
+        execution_id = f"opensearch-exec-{int(time.time())}"
+        
+        # Scale up cluster for DR
+        response = self.opensearch_client.update_domain_config(
+            DomainName=resources["domainName"],
+            ClusterConfig={
+                "InstanceType": config["dataNodeType"],
+                "InstanceCount": config["dataNodeCount"],
+                "DedicatedMasterEnabled": True,
+                "DedicatedMasterType": config["masterNodeType"],
+                "DedicatedMasterCount": config["masterNodeCount"],
+                "ZoneAwarenessEnabled": True,
+                "ZoneAwarenessConfig": {
+                    "AvailabilityZoneCount": config["azCount"]
+                }
+            },
+            VPCOptions={
+                "SubnetIds": config["subnetIds"]
+            },
+            EBSOptions={
+                "EBSEnabled": True,
+                "VolumeType": "gp3",
+                "VolumeSize": self._calculate_storage(
+                    config["dataNodeCount"], 
+                    config["totalStorageSize"]
+                )
+            }
+        )
+        
+        return response["DomainConfig"]["ChangeProgressDetails"]["ChangeId"]
+    
+    def monitor_execution(self, change_id: str) -> None:
+        """Monitor OpenSearch cluster scaling progress."""
+        while True:
+            response = self.opensearch_client.describe_domain_change_progress(
+                DomainName=self.domain_name,
+                ChangeId=change_id
+            )
+            status = response["ChangeProgressStatus"]["Status"]
+            
+            if status == "COMPLETED":
+                break
+            elif status in ["PENDING", "PROCESSING"]:
+                time.sleep(60)
+            else:
+                raise Exception(f"Cluster change failed: {status}")
+```
+
+---
+
+## SQLServer RDS Adapter
+
+The SQLServer RDS Adapter manages SQL Server RDS instance failover using automated backups.
+
+```python
+class SQLServerAdapter(TechnologyAdapter):
+    """SQL Server RDS DR adapter using automated backup replication."""
+    
+    def __init__(self, config: dict):
+        super().__init__("sqlserver", config)
+        self.rds_client = boto3.client("rds")
+        self.ssm_client = boto3.client("ssm")
+    
+    def start_execution(self, resources: dict, config: dict) -> str:
+        """Execute SQL Server restore from automated backup."""
+        execution_id = f"sqlserver-exec-{int(time.time())}"
+        
+        # Get backup ARN
+        backup_response = self.rds_client.describe_db_instance_automated_backups(
+            DBInstanceIdentifier=resources["sourceInstanceId"]
+        )
+        backup_arn = backup_response["DBInstanceAutomatedBackups"][0]["DBInstanceAutomatedBackupsArn"]
+        
+        # Get cluster config from SSM
+        cluster_config = self._get_ssm_parameter(resources["configSsmKey"])
+        
+        # Restore to point-in-time
+        self.rds_client.restore_db_instance_to_point_in_time(
+            TargetDBInstanceIdentifier=cluster_config["DBInstanceIdentifier"],
+            SourceDBInstanceAutomatedBackupsArn=backup_arn,
+            UseLatestRestorableTime=True,
+            DBInstanceClass=cluster_config["DBInstanceClass"],
+            DBSubnetGroupName=cluster_config["DBSubnetGroup"]["DBSubnetGroupName"],
+            VpcSecurityGroupIds=[sg["VpcSecurityGroupId"] 
+                                for sg in cluster_config["VpcSecurityGroups"]],
+            DeletionProtection=True,
+            CopyTagsToSnapshot=True
+        )
+        
+        return execution_id
+    
+    def cleanup(self, resources: dict) -> str:
+        """Store config and delete SQL Server instance."""
+        # Store current config in SSM before deletion
+        config = self.rds_client.describe_db_instances(
+            DBInstanceIdentifier=resources["sourceInstanceId"]
+        )["DBInstances"][0]
+        
+        self._store_ssm_parameter(
+            resources["configSsmKey"],
+            json.dumps(config, default=str)
+        )
+        
+        # Disable deletion protection and delete
+        self.rds_client.modify_db_instance(
+            DBInstanceIdentifier=resources["sourceInstanceId"],
+            DeletionProtection=False,
+            ApplyImmediately=True
+        )
+        
+        self.rds_client.delete_db_instance(
+            DBInstanceIdentifier=resources["sourceInstanceId"],
+            DeleteAutomatedBackups=False,
+            SkipFinalSnapshot=True
+        )
+    
+    def replicate(self, resources: dict) -> None:
+        """Start automated backup replication to DR region."""
+        cluster_config = self._get_ssm_parameter(resources["configSsmKey"])
+        
+        self.rds_client.start_db_instance_automated_backups_replication(
+            SourceDBInstanceArn=f"arn:aws:rds:{self.source_region}:{self.account_id}:db:{resources['sourceInstanceId']}",
+            BackupRetentionPeriod=7,
+            KmsKeyId=cluster_config["KmsKeyId"],
+            SourceRegion=self.source_region
+        )
+```
+
+---
+
 ## Adapter Registration
 
 Register adapters with the orchestration engine:
@@ -562,13 +807,35 @@ Register adapters with the orchestration engine:
 ```python
 # Adapter registry
 ADAPTER_REGISTRY = {
+    # Core adapters
     "drs": DRSAdapter,
     "database": DatabaseAdapter,
     "application": ApplicationAdapter,
     "infrastructure": InfrastructureAdapter,
+    
+    # Database adapters
+    "aurora_mysql": AuroraMySQLAdapter,
     "sql_always_on": SQLAlwaysOnAdapter,
+    "sqlserver": SQLServerAdapter,
+    
+    # Cache/Search adapters
+    "elasticache": ElastiCacheAdapter,
+    "memorydb": MemoryDBAdapter,
+    "opensearch": OpenSearchAdapter,
+    
+    # Storage adapters
     "netapp_ontap": NetAppONTAPAdapter,
-    "s3_cross_region": S3CrossRegionAdapter
+    "s3_cross_region": S3CrossRegionAdapter,
+    
+    # Compute adapters
+    "ecs": ECSAdapter,
+    "autoscaling": AutoScalingAdapter,
+    "lambda": LambdaAdapter,
+    
+    # Network/Events adapters
+    "route53": Route53Adapter,
+    "eventbridge": EventBridgeAdapter,
+    "event_archive": EventArchiveAdapter,
 }
 
 def get_adapter(technology_type: str, config: dict) -> TechnologyAdapter:
@@ -578,6 +845,25 @@ def get_adapter(technology_type: str, config: dict) -> TechnologyAdapter:
         raise ValueError(f"Unknown technology type: {technology_type}")
     return adapter_class(config)
 ```
+
+### Module Action Mapping
+
+The following table maps module action names (used in manifests) to adapter classes:
+
+| Manifest Action | Adapter Class | Description |
+|-----------------|---------------|-------------|
+| `AuroraMySQL` | AuroraMySQLAdapter | Aurora MySQL Global Database |
+| `DRS` | DRSAdapter | AWS Elastic Disaster Recovery |
+| `ECS` | ECSAdapter | ECS Service scaling |
+| `AutoScaling` | AutoScalingAdapter | EC2 Auto Scaling groups |
+| `R53Record` | Route53Adapter | Route 53 DNS records |
+| `EventBridge` | EventBridgeAdapter | EventBridge rules |
+| `LambdaFunction` | LambdaAdapter | Lambda function triggers |
+| `EventArchive` | EventArchiveAdapter | EventBridge archive replay |
+| `ElastiCache` | ElastiCacheAdapter | ElastiCache Global Datastore |
+| `MemoryDB` | MemoryDBAdapter | MemoryDB for Redis |
+| `OpenSearchService` | OpenSearchAdapter | OpenSearch Service |
+| `SQLServer` | SQLServerAdapter | SQL Server RDS |
 
 ---
 
