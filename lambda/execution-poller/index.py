@@ -3,7 +3,6 @@ Execution Poller Lambda
 Polls DRS job status for a single execution.
 Updates DynamoDB with wave/server status.
 Handles timeouts and detects completion.
-Integrates with Step Functions callback pattern for wave completion.
 """
 
 import json
@@ -39,7 +38,6 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.client("dynamodb")
 drs = boto3.client("drs")
 cloudwatch = boto3.client("cloudwatch")
-stepfunctions = boto3.client("stepfunctions")  # Add Step Functions client
 
 # Environment variables (with defaults for testing)
 EXECUTION_HISTORY_TABLE = os.environ.get(
@@ -49,8 +47,8 @@ TIMEOUT_THRESHOLD_SECONDS = int(
     os.environ.get("TIMEOUT_THRESHOLD_SECONDS", "1800")
 )  # 30 minutes
 
-# Execution completion statuses (include both cases for consistency)
-COMPLETED_STATUSES = {"COMPLETED", "completed", "FAILED", "TERMINATED", "TIMEOUT"}
+# Execution completion statuses
+COMPLETED_STATUSES = {"COMPLETED", "FAILED", "TERMINATED", "TIMEOUT"}
 
 # DRS job statuses that indicate completion
 DRS_COMPLETED_STATUSES = {"COMPLETED", "FAILED"}
@@ -192,7 +190,6 @@ def lambda_handler(
         updated_waves = []
         all_active_waves_complete = True
         waves_polled = 0
-        wave_completed_this_cycle = False  # Track if any wave completed this cycle
 
         # Statuses that indicate a wave is in-progress and needs polling
         IN_PROGRESS_STATUSES = {
@@ -206,7 +203,6 @@ def lambda_handler(
 
         for wave in waves:
             wave_status = wave.get("Status", "")
-            previous_status = wave_status  # Track previous status
 
             # For CANCELLING executions, only poll waves that are in-progress
             if is_cancelling:
@@ -216,12 +212,6 @@ def lambda_handler(
                     )
                     updated_wave = poll_wave_status(wave, execution_type)
                     waves_polled += 1
-
-                    # Check if wave completed this cycle
-                    if (previous_status in IN_PROGRESS_STATUSES and 
-                        updated_wave.get("Status") in COMPLETED_STATUSES):
-                        wave_completed_this_cycle = True
-                        logger.info(f"Wave {wave.get('WaveId')} completed this cycle: {previous_status} -> {updated_wave.get('Status')}")
 
                     # Set EndTime on wave if it just completed
                     if updated_wave.get(
@@ -248,12 +238,6 @@ def lambda_handler(
                 # Normal polling - poll all waves
                 updated_wave = poll_wave_status(wave, execution_type)
 
-                # Check if wave completed this cycle
-                if (previous_status in IN_PROGRESS_STATUSES and 
-                    updated_wave.get("Status") in COMPLETED_STATUSES):
-                    wave_completed_this_cycle = True
-                    logger.info(f"Wave {wave.get('WaveId')} completed this cycle: {previous_status} -> {updated_wave.get('Status')}")
-
                 # Set EndTime on wave if it just completed
                 if updated_wave.get(
                     "Status"
@@ -273,40 +257,6 @@ def lambda_handler(
 
         # Update LastPolledTime for adaptive polling
         update_last_polled_time(execution_id, plan_id)
-
-        # Send Step Functions callback for wave completion (if using callback pattern)
-        if wave_completed_this_cycle and not is_cancelling:
-            try:
-                task_token = execution.get("TaskToken")
-                if task_token:
-                    # Prepare callback state for Step Functions
-                    callback_state = {
-                        "execution_id": execution_id,
-                        "plan_id": plan_id,
-                        "status": "running",
-                        "all_waves_completed": all_active_waves_complete,
-                        "wave_completed": True,
-                        "waves": updated_waves,
-                        "current_wave_number": len([w for w in updated_waves if w.get("Status") in COMPLETED_STATUSES]),
-                    }
-
-                    stepfunctions.send_task_success(
-                        taskToken=task_token,
-                        output=json.dumps(callback_state),
-                    )
-                    logger.info(f"Sent Step Functions wave completion callback for execution {execution_id}")
-
-                    # Remove TaskToken from execution since we used it
-                    dynamodb.update_item(
-                        TableName=EXECUTION_HISTORY_TABLE,
-                        Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
-                        UpdateExpression="REMOVE TaskToken",
-                        ConditionExpression="attribute_exists(ExecutionId)",
-                    )
-
-            except Exception as callback_error:
-                logger.error(f"Error sending Step Functions wave callback: {callback_error}")
-                # Don't raise - continue with normal polling
 
         # Check if execution is complete
         if all_active_waves_complete:
@@ -653,144 +603,68 @@ def poll_wave_status(
         # Update server statuses from DRS participating servers
         if "ParticipatingServers" in job_status:
             wave_region = wave.get("Region", "us-east-1")
-            server_statuses = []
-
-            # Get recovery instances to find instance IDs for completed jobs
-            recovery_instances = {}
-            try:
-                drs_client = boto3.client("drs", region_name=wave_region)
-                recovery_response = drs_client.describe_recovery_instances()
-                for instance in recovery_response.get("items", []):
-                    source_server_id = instance.get("sourceServerID")
-                    if source_server_id:
-                        recovery_instances[source_server_id] = {
-                            "recoveryInstanceID": instance.get("recoveryInstanceID"),
-                            "ec2InstanceID": instance.get("ec2InstanceID"),
-                            "ec2InstanceState": instance.get("ec2InstanceState"),
-                        }
-                logger.info(f"Found {len(recovery_instances)} recovery instances in {wave_region}")
-            except Exception as e:
-                logger.warning(f"Could not get recovery instances: {e}")
+            updated_servers = []
 
             for drs_server in job_status["ParticipatingServers"]:
-                source_server_id = drs_server.get("sourceServerID", "")
-                
-                # Get recovery instance ID from DRS job or recovery instances lookup
-                recovery_instance_id = drs_server.get("recoveryInstanceID")
-                if not recovery_instance_id and source_server_id in recovery_instances:
-                    # Fallback to recovery instances lookup for completed jobs
-                    recovery_info = recovery_instances[source_server_id]
-                    recovery_instance_id = (
-                        recovery_info.get("recoveryInstanceID") or
-                        recovery_info.get("ec2InstanceID")
-                    )
-                    logger.info(f"Found instance ID {recovery_instance_id} for server {source_server_id} via recovery instances lookup")
-
-                # Use ServerStatuses format (matches API transform function expectations)
-                server_status = {
-                    "SourceServerId": source_server_id,
-                    "LaunchStatus": drs_server.get("launchStatus", "UNKNOWN"),
-                    "RecoveryInstanceID": recovery_instance_id,
-                    "Error": None,
-                }
-
-                server_statuses.append(server_status)
-                logger.info(f"Updated server {source_server_id}: status={server_status['LaunchStatus']}, instanceId={recovery_instance_id}")
-
-            # Store in ServerStatuses format (matches API transform function expectations)
-            wave["ServerStatuses"] = server_statuses
-            
-            # Keep legacy Servers array for backward compatibility
-            legacy_servers = []
-            for server_status in server_statuses:
-                source_server_id = server_status["SourceServerId"]
-                recovery_instance_id = server_status["RecoveryInstanceID"]
-                
                 server_data = {
-                    "SourceServerId": source_server_id,
-                    "Status": server_status["LaunchStatus"],
+                    "SourceServerId": drs_server.get("sourceServerID", ""),
+                    "Status": drs_server.get("launchStatus", "UNKNOWN"),
                     "HostName": "",
-                    "LaunchTime": int(datetime.now(timezone.utc).timestamp()),
-                    "InstanceId": recovery_instance_id or "",
+                    "LaunchTime": 0,
+                    "InstanceId": "",
                     "PrivateIpAddress": "",
                 }
 
-                # Enrich with EC2 data if we have an instance ID
+                # Set LaunchTime when server starts launching
+                if server_data["Status"] in [
+                    "PENDING",
+                    "IN_PROGRESS",
+                    "LAUNCHED",
+                ]:
+                    server_data["LaunchTime"] = int(
+                        datetime.now(timezone.utc).timestamp()
+                    )
+
+                # Get EC2 instance details if recoveryInstanceID exists
+                recovery_instance_id = drs_server.get("recoveryInstanceID")
                 if recovery_instance_id:
+                    server_data["InstanceId"] = recovery_instance_id
+
+                    # Enrich with EC2 data
                     try:
                         ec2_data = get_ec2_instance_details(
                             recovery_instance_id, wave_region
                         )
                         if ec2_data:
-                            server_data["HostName"] = ec2_data.get("HostName", "")
-                            server_data["PrivateIpAddress"] = ec2_data.get("PrivateIpAddress", "")
+                            server_data["HostName"] = ec2_data.get(
+                                "HostName", ""
+                            )
+                            server_data["PrivateIpAddress"] = ec2_data.get(
+                                "PrivateIpAddress", ""
+                            )
                     except Exception as e:
-                        logger.warning(f"Could not fetch EC2 details for {recovery_instance_id}: {str(e)}")
+                        logger.warning(
+                            f"Could not fetch EC2 details for {recovery_instance_id}: {str(e)}"
+                        )
 
-                legacy_servers.append(server_data)
+                updated_servers.append(server_data)
 
-            wave["Servers"] = legacy_servers
+            wave["Servers"] = updated_servers
 
         # Determine wave status based on server launch results
-        server_statuses = wave.get("ServerStatuses", [])
-        legacy_servers = wave.get("Servers", [])
+        servers = wave.get("Servers", [])
 
         if execution_type == "DRILL":
-            if server_statuses:
-                # Use new ServerStatuses format
+            if servers:
+                # Check if ALL servers launched successfully
                 all_launched = all(
-                    s.get("LaunchStatus") == "LAUNCHED" for s in server_statuses
+                    s.get("Status") == "LAUNCHED" for s in servers
                 )
-                any_failed = any(
-                    s.get("LaunchStatus")
-                    in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in server_statuses
-                )
-
-                if all_launched:
-                    wave["Status"] = "completed"
-                    logger.info(
-                        f"Wave {wave.get('WaveId')} completed - all servers LAUNCHED"
-                    )
-                elif any_failed:
-                    wave["Status"] = "FAILED"
-                    failed_servers = [
-                        s.get("SourceServerId")
-                        for s in server_statuses
-                        if s.get("LaunchStatus")
-                        in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    ]
-                    logger.warning(
-                        f"Wave {wave.get('WaveId')} failed - servers {failed_servers} failed to launch"
-                    )
-                elif drs_status in ["PENDING", "STARTED"]:
-                    wave["Status"] = "LAUNCHING"
-                elif drs_status == "COMPLETED" and not all_launched:
-                    # CRITICAL BUG FIX: DRS job completed but servers never launched
-                    wave["Status"] = "FAILED"
-                    not_launched_servers = [
-                        s.get("SourceServerId")
-                        for s in server_statuses
-                        if s.get("LaunchStatus") != "LAUNCHED"
-                    ]
-                    logger.error(
-                        f"Wave {wave.get('WaveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
-                    )
-                    wave["StatusMessage"] = (
-                        f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
-                    )
-                else:
-                    # Fallback to DRS status if no clear success/failure
-                    wave["Status"] = drs_status
-            elif legacy_servers:
-                # Fallback to legacy Servers format
-                all_launched = all(
-                    s.get("Status") == "LAUNCHED" for s in legacy_servers
-                )
+                # Check if ANY servers failed to launch
                 any_failed = any(
                     s.get("Status")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in legacy_servers
+                    for s in servers
                 )
 
                 if all_launched:
@@ -802,7 +676,7 @@ def poll_wave_status(
                     wave["Status"] = "FAILED"
                     failed_servers = [
                         s.get("SourceServerID")
-                        for s in legacy_servers
+                        for s in servers
                         if s.get("Status")
                         in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     ]
@@ -816,7 +690,7 @@ def poll_wave_status(
                     wave["Status"] = "FAILED"
                     not_launched_servers = [
                         s.get("SourceServerId")
-                        for s in legacy_servers
+                        for s in servers
                         if s.get("Status") != "LAUNCHED"
                     ]
                     logger.error(
@@ -833,57 +707,14 @@ def poll_wave_status(
                 wave["Status"] = drs_status
         else:  # RECOVERY
             # RECOVERY complete when all servers LAUNCHED + post-launch complete
-            if server_statuses:
-                # Use new ServerStatuses format
+            if servers:
                 all_launched = all(
-                    s.get("LaunchStatus") == "LAUNCHED" for s in server_statuses
-                )
-                any_failed = any(
-                    s.get("LaunchStatus")
-                    in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in server_statuses
-                )
-                post_launch_complete = (
-                    job_status.get("PostLaunchActionsStatus") == "COMPLETED"
-                )
-
-                if all_launched and post_launch_complete:
-                    wave["Status"] = "completed"
-                    logger.info(
-                        f"Wave {wave.get('WaveId')} recovery completed"
-                    )
-                elif any_failed:
-                    wave["Status"] = "FAILED"
-                    logger.warning(
-                        f"Wave {wave.get('WaveId')} recovery failed"
-                    )
-                elif drs_status in ["PENDING", "STARTED"]:
-                    wave["Status"] = "LAUNCHING"
-                elif drs_status == "COMPLETED" and not all_launched:
-                    # CRITICAL BUG FIX: DRS job completed but servers never launched
-                    wave["Status"] = "FAILED"
-                    not_launched_servers = [
-                        s.get("SourceServerId")
-                        for s in server_statuses
-                        if s.get("LaunchStatus") != "LAUNCHED"
-                    ]
-                    logger.error(
-                        f"Wave {wave.get('WaveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
-                    )
-                    wave["StatusMessage"] = (
-                        f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
-                    )
-                else:
-                    wave["Status"] = drs_status
-            elif legacy_servers:
-                # Fallback to legacy Servers format
-                all_launched = all(
-                    s.get("Status") == "LAUNCHED" for s in legacy_servers
+                    s.get("Status") == "LAUNCHED" for s in servers
                 )
                 any_failed = any(
                     s.get("Status")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in legacy_servers
+                    for s in servers
                 )
                 post_launch_complete = (
                     job_status.get("PostLaunchActionsStatus") == "COMPLETED"
@@ -906,7 +737,7 @@ def poll_wave_status(
                     wave["Status"] = "FAILED"
                     not_launched_servers = [
                         s.get("SourceServerId")
-                        for s in legacy_servers
+                        for s in servers
                         if s.get("Status") != "LAUNCHED"
                     ]
                     logger.error(
@@ -1108,11 +939,10 @@ def finalize_execution(
     final_status: Optional[str] = None,
 ) -> None:
     """
-    Mark execution as complete and notify Step Functions if using callback pattern.
+    Mark execution as complete.
 
     Determines overall execution status based on wave statuses.
     Updates Status, EndTime, and removes from POLLING.
-    If execution has a TaskToken, sends callback to Step Functions.
 
     Args:
         execution_id: Execution ID
@@ -1121,10 +951,6 @@ def finalize_execution(
         final_status: Optional override for final status (e.g., 'CANCELLED')
     """
     try:
-        # Get current execution to check for TaskToken
-        execution = get_execution_from_dynamodb(execution_id, plan_id)
-        task_token = execution.get("TaskToken") if execution else None
-
         # Determine overall status
         if final_status:
             # Use provided final status (e.g., CANCELLED)
@@ -1139,60 +965,20 @@ def finalize_execution(
         end_time = int(datetime.now(timezone.utc).timestamp())
 
         # Update execution with final status
-        update_expression = "SET #status = :status, EndTime = :end_time, Waves = :waves"
-        expression_values = {
-            ":status": {"S": status},
-            ":end_time": {"N": str(end_time)},
-            ":waves": {"L": [format_wave_for_dynamodb(w) for w in waves]},
-        }
-
-        # Remove TaskToken if it exists
-        if task_token:
-            update_expression += " REMOVE TaskToken"
-
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
             Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
-            UpdateExpression=update_expression,
+            UpdateExpression="SET #status = :status, EndTime = :end_time, Waves = :waves",
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeValues={
+                ":status": {"S": status},
+                ":end_time": {"N": str(end_time)},
+                ":waves": {"L": [format_wave_for_dynamodb(w) for w in waves]},
+            },
             ConditionExpression="attribute_exists(ExecutionId)",
         )
 
         logger.info(f"Execution {execution_id} finalized with status {status}")
-
-        # Send Step Functions callback if TaskToken exists
-        if task_token:
-            try:
-                # Prepare callback state for Step Functions
-                callback_state = {
-                    "execution_id": execution_id,
-                    "plan_id": plan_id,
-                    "status": status.lower(),
-                    "all_waves_completed": True,
-                    "wave_completed": True,
-                    "waves": waves,
-                    "end_time": end_time,
-                }
-
-                if status == "COMPLETED":
-                    stepfunctions.send_task_success(
-                        taskToken=task_token,
-                        output=json.dumps(callback_state),
-                    )
-                    logger.info(f"Sent Step Functions success callback for execution {execution_id}")
-                else:
-                    # Send failure callback for failed executions
-                    stepfunctions.send_task_failure(
-                        taskToken=task_token,
-                        error="ExecutionFailed",
-                        cause=f"Execution completed with status: {status}",
-                    )
-                    logger.info(f"Sent Step Functions failure callback for execution {execution_id}")
-
-            except Exception as callback_error:
-                logger.error(f"Error sending Step Functions callback: {callback_error}")
-                # Don't raise - execution is already finalized in DynamoDB
 
     except Exception as e:
         logger.error(f"Error finalizing execution: {str(e)}", exc_info=True)
