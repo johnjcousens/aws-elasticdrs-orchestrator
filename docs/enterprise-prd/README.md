@@ -1,6 +1,6 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.8  
+**Version**: 1.9  
 **Date**: January 8, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
@@ -21,6 +21,7 @@
 | 8 | [Implementation Guide](./07-implementation.md) | Phases, success criteria, risks |
 | 9 | [CMF Learnings](./08-cmf-learnings.md) | Patterns from AWS Cloud Migration Factory for enterprise orchestration |
 | 10 | [DRS Tools Learnings](./09-drs-tools-learnings.md) | Patterns from AWS DRS Tools for configuration, observability, and automation |
+| 11 | [Integration Plan](./10-integration-plan.md) | Codebase alignment analysis and 16-week integration roadmap |
 
 ---
 
@@ -40,6 +41,7 @@
 | Plan implementation phases | [Implementation Guide](./07-implementation.md) |
 | Learn from CMF patterns | [CMF Learnings](./08-cmf-learnings.md) |
 | Learn from DRS Tools patterns | [DRS Tools Learnings](./09-drs-tools-learnings.md) |
+| Plan enterprise integration | [Integration Plan](./10-integration-plan.md) |
 
 ### By Role
 
@@ -57,6 +59,7 @@
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.9 | 2026-01-08 | Added Integration Plan with codebase alignment analysis and 16-week roadmap for enterprise pattern adoption |
 | 1.8 | 2026-01-08 | Aligned all 13 modules across docs 02-04; Fixed EC2 lifecycle support; Corrected module naming (EcsService, R53Record, LambdaFunction, OpenSearchService) |
 | 1.7 | 2026-01-08 | Added DRS Tools Learnings document with patterns for configuration, observability, and automation |
 | 1.6 | 2026-01-08 | Added CMF Learnings document with patterns from AWS Cloud Migration Factory |
