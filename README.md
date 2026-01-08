@@ -7,7 +7,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.4.2%20Performance%20Optimizations-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.2)
+[![Release](https://img.shields.io/badge/Release-v1.4.4%20Pipeline%20Optimization-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.4)
 
 ## 🤖 **For AI Agents - Start Here**
 
@@ -56,13 +56,13 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 | Releases | [Releases](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases) |
 | Actions | [Actions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions) |
 
-## 🚀 **Latest Release: v1.4.2 - Performance Optimizations**
+## 🚀 **Latest Release: v1.4.4 - Pipeline Optimization**
 
-**Latest Version**: v1.4.2 (January 7, 2026) - Dramatically improved "Run Drill" performance with backend and frontend optimizations. Enhanced existing instances dialog UX for large server deployments.
+**Latest Version**: v1.4.4 (January 8, 2026) - Intelligent CI/CD pipeline optimization with 95% time savings for documentation-only changes and 45% savings for frontend-only changes.
 
-**Previous Version**: v1.4.1 (January 7, 2026) - Fixed critical async worker validation bug that prevented Step Functions orchestration from starting.
+**Previous Version**: v1.4.3 (January 8, 2026) - Complete documentation alignment with actual codebase implementation.
 
-**[View Complete Release Notes →](CHANGELOG.md#142---january-7-2026)**
+**[View Complete Release Notes →](CHANGELOG.md#144---january-8-2026)**
 
 ## Overview
 
@@ -543,6 +543,7 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 - [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v3.0
 - [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design patterns v3.0
 - [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v3.0
+- [Enterprise DR Orchestration Platform PRD](docs/Enterprise_DR_Orchestration_Platform_PRD.md) - Multi-technology DR orchestration platform requirements
 
 ### Implementation Features
 - [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md) - Multi-account DRS operations
@@ -754,16 +755,49 @@ The project uses **GitHub Actions** for automated deployment with comprehensive 
 
 ### Pipeline Stages
 
-| Stage | Duration | Description |
-|-------|----------|-------------|
-| **Validate** | ~2 min | CloudFormation validation, Python linting, TypeScript checking |
-| **Security Scan** | ~3 min | **Enhanced comprehensive security scanning** |
-| **Build** | ~3 min | Lambda packaging, frontend build |
-| **Test** | ~2 min | Unit tests |
-| **Deploy Infrastructure** | ~10 min | CloudFormation stack deployment |
-| **Deploy Frontend** | ~2 min | S3 sync, CloudFront invalidation |
+| Stage | Duration | Description | Triggers |
+|-------|----------|-------------|----------|
+| **Detect Changes** | ~10s | Analyzes changed files to determine deployment scope | Always |
+| **Validate** | ~2 min | CloudFormation validation, Python linting, TypeScript checking | Skip for docs-only |
+| **Security Scan** | ~3 min | **Enhanced comprehensive security scanning** | Skip for docs-only |
+| **Build** | ~3 min | Lambda packaging, frontend build | Skip for docs-only |
+| **Test** | ~2 min | Unit tests | Skip for docs-only |
+| **Deploy Infrastructure** | ~10 min | CloudFormation stack deployment | Only if infrastructure/Lambda changed |
+| **Deploy Frontend** | ~2 min | S3 sync, CloudFront invalidation | Only if frontend changed or infrastructure deployed |
 
-**Total Duration**: ~22 minutes for complete deployment
+**Optimized Durations**:
+- **Documentation-only**: ~30 seconds (95% time savings)
+- **Frontend-only**: ~12 minutes (45% time savings)  
+- **Full deployment**: ~22 minutes (complete pipeline)
+
+### Intelligent Deployment Optimization
+
+The pipeline automatically detects changes and skips unnecessary stages:
+
+**📝 Documentation-Only Changes**
+```bash
+# Only *.md files, docs/* changed
+./scripts/check-deployment-scope.sh  # Preview what will deploy
+git push origin main                  # ~30 seconds deployment
+```
+
+**🌐 Frontend-Only Changes**
+```bash
+# Only frontend/* files changed
+git push origin main  # Skips infrastructure deployment (~12 minutes)
+```
+
+**🏗️ Infrastructure Changes**
+```bash
+# cfn/*, lambda/*, or mixed changes
+git push origin main  # Full pipeline (~22 minutes)
+```
+
+**💡 Check Before Push**
+```bash
+# Preview deployment scope before pushing
+./scripts/check-deployment-scope.sh
+```
 
 ### Enhanced Security Scanning
 

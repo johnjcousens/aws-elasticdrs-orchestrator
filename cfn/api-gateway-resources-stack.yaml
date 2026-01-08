@@ -168,6 +168,13 @@ Resources:
       ParentId: !Ref ExecutionResource
       PathPart: terminate-instances
 
+  ExecutionRecoveryInstancesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref ExecutionResource
+      PathPart: recovery-instances
+
   ExecutionJobLogsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -755,6 +762,12 @@ Outputs:
     Value: !Ref ExecutionTerminateInstancesResource
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionTerminateInstancesResourceId'
+
+  ExecutionRecoveryInstancesResourceId:
+    Description: 'Execution Recovery Instances Resource ID'
+    Value: !Ref ExecutionRecoveryInstancesResource
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionRecoveryInstancesResourceId'
 
   ExecutionJobLogsResourceId:
     Description: 'Execution Job Logs Resource ID'
