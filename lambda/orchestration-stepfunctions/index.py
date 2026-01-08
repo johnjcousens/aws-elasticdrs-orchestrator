@@ -30,6 +30,23 @@ _protection_groups_table = None
 _recovery_plans_table = None
 _execution_history_table = None
 
+# DRS Job Status Constants
+DRS_JOB_STATUS_WAIT_STATES = [
+    "PENDING",
+    "STARTED", 
+    "LAUNCHING"
+]
+
+DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES = [
+    "LAUNCHED",
+    "TERMINATED"
+]
+
+DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES = [
+    "FAILED",
+    "LAUNCH_FAILED"
+]
+
 
 def get_protection_groups_table():
     global _protection_groups_table
@@ -50,6 +67,16 @@ def get_execution_history_table():
     if _execution_history_table is None:
         _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
     return _execution_history_table
+
+
+def get_account_context(state: Dict) -> Dict:
+    """
+    Extract account context from state for cross-account operations
+    
+    Returns:
+        Dict with accountId and assumeRoleName for cross-account access
+    """
+    return state.get("AccountContext", {})
 
 
 def create_drs_client(region: str, account_context: Dict = None):
@@ -1486,79 +1513,3 @@ def cleanup_cancelled_execution(event: Dict) -> Dict:
         state["end_time"] = int(time.time())
     
     return state
-
-
-def query_drs_servers_by_tags(
-    region: str, tags: Dict[str, str], account_context: Dict = None
-) -> List[str]:
-    """
-    Query DRS source servers that have ALL specified tags.
-    Uses AND logic - DRS source server must have all tags to be included.
-
-    This queries the DRS source server tags directly, not EC2 instance tags.
-    Returns list of source server IDs for orchestration.
-    """
-    try:
-        # Create DRS client with cross-account support
-        regional_drs = create_drs_client(region, account_context)
-
-        # Get all source servers in the region
-        all_servers = []
-        paginator = regional_drs.get_paginator("describe_source_servers")
-
-        for page in paginator.paginate():
-            all_servers.extend(page.get("items", []))
-
-        if not all_servers:
-            print("No DRS source servers found in region")
-            return []
-
-        # Filter servers that match ALL specified tags
-        matching_server_ids = []
-
-        for server in all_servers:
-            server_id = server.get("sourceServerID", "")
-
-            # Get DRS source server tags directly from server object
-            drs_tags = server.get("tags", {})
-
-            # Check if DRS server has ALL required tags with matching values
-            # Use case-insensitive matching and strip whitespace for robustness
-            matches_all = True
-            for tag_key, tag_value in tags.items():
-                # Normalize tag key and value (strip whitespace, case-insensitive)
-                normalized_required_key = tag_key.strip()
-                normalized_required_value = tag_value.strip().lower()
-
-                # Check if any DRS tag matches (case-insensitive)
-                found_match = False
-                for drs_key, drs_value in drs_tags.items():
-                    normalized_drs_key = drs_key.strip()
-                    normalized_drs_value = drs_value.strip().lower()
-
-                    if (
-                        normalized_drs_key == normalized_required_key
-                        and normalized_drs_value == normalized_required_value
-                    ):
-                        found_match = True
-                        break
-
-                if not found_match:
-                    matches_all = False
-                    print(
-                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"
-                    )
-                    break
-
-            if matches_all:
-                matching_server_ids.append(server_id)
-
-        print("Tag matching results:")
-        print(f"- Total DRS servers: {len(all_servers)}")
-        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
-
-        return matching_server_ids
-
-    except Exception as e:
-        print(f"Error querying DRS servers by DRS tags: {str(e)}")
-        raise
