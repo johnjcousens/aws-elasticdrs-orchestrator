@@ -19,7 +19,7 @@ import { Dashboard } from './pages/Dashboard';
 import { GettingStartedPage } from './pages/GettingStartedPage';
 import { ProtectionGroupsPage } from './pages/ProtectionGroupsPage';
 import { ExecutionsPage } from './pages/ExecutionsPage';
-import { ExecutionDetailsPage } from './pages/ExecutionDetailsPage';
+import { ExecutionDetailsPageMinimal } from './pages/ExecutionDetailsPageMinimal';
 import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
 
 /**
@@ -124,7 +124,7 @@ function App() {
                       element={
                         <ProtectedRoute>
                           <AppLayout>
-                            <ExecutionDetailsPage />
+                            <ExecutionDetailsPageMinimal />
                           </AppLayout>
                         </ProtectedRoute>
                       }
