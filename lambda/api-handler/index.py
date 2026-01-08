@@ -3961,40 +3961,9 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         # Store execution history immediately
         execution_history_table.put_item(Item=history_item)
 
-        # Invoke this same Lambda asynchronously to do the actual work
-        # AWS_LAMBDA_FUNCTION_NAME is automatically set by Lambda runtime
-        current_function_name = os.environ["AWS_LAMBDA_FUNCTION_NAME"]
-
-        # Prepare payload for async worker
-        worker_payload = {
-            "worker": True,  # Flag to route to worker handler
-            "executionId": execution_id,
-            "planId": plan_id,
-            "executionType": execution_type,
-            "isDrill": execution_type == "DRILL",
-            "plan": plan,
-            "cognitoUser": cognito_user,  # Pass Cognito user info to worker
-        }
-
-        # Invoke async (Event invocation type = fire and forget)
-        try:
-            invoke_response = lambda_client.invoke(
-                FunctionName=current_function_name,
-                InvocationType="Event",  # Async invocation
-                Payload=json.dumps(worker_payload, cls=DecimalEncoder),
-            )
-            # Check for invocation errors (StatusCode should be 202 for async)
-            status_code = invoke_response.get("StatusCode", 0)
-            if status_code != 202:
-                raise Exception(
-                    f"Async invocation returned unexpected status: {status_code}"
-                )
-            print(
-                f"Async worker invoked for execution {execution_id}, StatusCode: {status_code}"
-            )
-        except Exception as invoke_error:
-            # If async invocation fails, mark execution as FAILED immediately
-            print(f"ERROR: Failed to invoke async worker: {str(invoke_error)}")
+        # Use Step Functions for orchestration (restored callback pattern)
+        if not STATE_MACHINE_ARN:
+            print("ERROR: STATE_MACHINE_ARN environment variable not set")
             execution_history_table.update_item(
                 Key={"ExecutionId": execution_id, "PlanId": plan_id},
                 UpdateExpression="SET #status = :status, EndTime = :end_time, ErrorMessage = :error",
@@ -4002,13 +3971,45 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 ExpressionAttributeValues={
                     ":status": "FAILED",
                     ":end_time": timestamp,
-                    ":error": f"Failed to start worker: {str(invoke_error)}",
+                    ":error": "Step Functions state machine ARN not configured",
                 },
             )
             return response(
                 500,
                 {
-                    "error": f"Failed to start execution worker: {str(invoke_error)}",
+                    "error": "Step Functions state machine not configured",
+                    "executionId": execution_id,
+                },
+            )
+
+        # Start Step Functions execution (callback pattern for pause/resume)
+        try:
+            execute_with_step_functions(
+                execution_id=execution_id,
+                plan_id=plan_id,
+                plan=plan,
+                is_drill=execution_type == "DRILL",
+                state_machine_arn=STATE_MACHINE_ARN,
+                resume_from_wave=None,  # New execution
+            )
+            print(f"Step Functions execution started for {execution_id}")
+        except Exception as sf_error:
+            # If Step Functions fails, mark execution as FAILED immediately
+            print(f"ERROR: Failed to start Step Functions: {str(sf_error)}")
+            execution_history_table.update_item(
+                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                UpdateExpression="SET #status = :status, EndTime = :end_time, ErrorMessage = :error",
+                ExpressionAttributeNames={"#status": "Status"},
+                ExpressionAttributeValues={
+                    ":status": "FAILED",
+                    ":end_time": timestamp,
+                    ":error": f"Failed to start Step Functions: {str(sf_error)}",
+                },
+            )
+            return response(
+                500,
+                {
+                    "error": f"Failed to start Step Functions execution: {str(sf_error)}",
                     "executionId": execution_id,
                 },
             )
@@ -4018,8 +4019,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             202,
             {
                 "executionId": execution_id,
-                "status": "PENDING",
-                "message": "Execution started - check status with GET /executions/{id}",
+                "status": "RUNNING",  # Step Functions execution started
+                "message": "Execution started via Step Functions - check status with GET /executions/{id}",
                 "statusUrl": f"/executions/{execution_id}",
             },
         )
