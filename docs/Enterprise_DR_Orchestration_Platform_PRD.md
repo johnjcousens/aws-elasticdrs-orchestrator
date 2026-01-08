@@ -1,7 +1,7 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.0  
-**Date**: January 8, 2026  
+**Version**: 1.1  
+**Date**: January 7, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
 
@@ -1700,6 +1700,36 @@ Your DRS solution supports **flexible authentication deployment** allowing organ
 - Headless operation for enterprise automation
 - Full API functionality maintained
 
+#### RBAC Roles (5 Total)
+
+The DRS solution implements comprehensive Role-Based Access Control with 5 granular roles:
+
+| Role | Description | Key Permissions |
+|------|-------------|-----------------|
+| **DRSOrchestrationAdmin** | Full administrative access | All operations including account deletion, configuration export/import, instance termination |
+| **DRSRecoveryManager** | Recovery operations lead | Execute plans, terminate instances, manage configuration, register accounts (no account deletion) |
+| **DRSPlanManager** | DR planning focus | Create/modify/delete protection groups & recovery plans, execute recovery (no instance termination) |
+| **DRSOperator** | On-call operations | Execute/pause/resume recovery, modify existing plans (no create/delete, no instance termination) |
+| **DRSReadOnly** | Audit and monitoring | View-only access to all resources for compliance officers |
+
+#### Cognito Group Names
+
+Users are assigned roles via AWS Cognito Groups. The following group names are supported:
+
+**Primary DRS Roles (Recommended):**
+- `DRSOrchestrationAdmin` - Full administrative access
+- `DRSRecoveryManager` - Recovery operations and configuration
+- `DRSPlanManager` - Plan and protection group management
+- `DRSOperator` - Execution operations only
+- `DRSReadOnly` - View-only access
+
+**Legacy Group Names (Backward Compatible):**
+- `DRS-Administrator` → DRSOrchestrationAdmin
+- `DRS-Infrastructure-Admin` → DRSRecoveryManager
+- `DRS-Recovery-Plan-Manager` → DRSPlanManager
+- `DRS-Operator` → DRSOperator
+- `DRS-Read-Only` → DRSReadOnly
+
 #### Enhanced Authentication Implementation
 
 ```python
@@ -1736,13 +1766,17 @@ def check_role_based_authorization(event: Dict) -> Dict:
     # Extract role name from ARN
     role_name = user_arn.split('/')[-2] if 'assumed-role' in user_arn else ''
     
-    # Map role to your existing permission system
-    if 'DRS-Admin-Role' in role_name:
+    # Map role to DRS permission system
+    if 'DRSOrchestrationAdmin' in role_name or 'DRS-Admin-Role' in role_name:
         allowed_permissions = [DRSPermission.ALL]  # Full access
-    elif 'DRS-Execution-Role' in role_name:
-        allowed_permissions = [DRSPermission.START_RECOVERY, DRSPermission.STOP_RECOVERY]
-    elif 'DRS-ReadOnly-Role' in role_name:
-        allowed_permissions = [DRSPermission.VIEW_EXECUTIONS, DRSPermission.VIEW_RECOVERY_PLANS]
+    elif 'DRSRecoveryManager' in role_name or 'DRS-Execution-Role' in role_name:
+        allowed_permissions = [DRSPermission.START_RECOVERY, DRSPermission.STOP_RECOVERY, DRSPermission.TERMINATE_INSTANCES]
+    elif 'DRSPlanManager' in role_name:
+        allowed_permissions = [DRSPermission.CREATE_PROTECTION_GROUPS, DRSPermission.CREATE_RECOVERY_PLANS, DRSPermission.START_RECOVERY]
+    elif 'DRSOperator' in role_name:
+        allowed_permissions = [DRSPermission.START_RECOVERY, DRSPermission.STOP_RECOVERY, DRSPermission.MODIFY_RECOVERY_PLANS]
+    elif 'DRSReadOnly' in role_name or 'DRS-ReadOnly-Role' in role_name:
+        allowed_permissions = [DRSPermission.VIEW_EXECUTIONS, DRSPermission.VIEW_RECOVERY_PLANS, DRSPermission.VIEW_PROTECTION_GROUPS]
     else:
         return {"authorized": False, "reason": "Unknown role"}
     

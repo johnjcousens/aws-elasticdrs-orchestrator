@@ -7,7 +7,7 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.4.4%20Pipeline%20Optimization-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.4)
+[![Release](https://img.shields.io/badge/Release-v1.4.6%20RBAC%20Complete-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.6)
 
 ## 🤖 **For AI Agents - Start Here**
 
@@ -56,13 +56,13 @@ The [`docs/requirements/`](docs/requirements/) directory contains the **authorit
 | Releases | [Releases](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases) |
 | Actions | [Actions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions) |
 
-## 🚀 **Latest Release: v1.4.4 - Pipeline Optimization**
+## 🚀 **Latest Release: v1.4.6 - RBAC Complete Coverage**
 
-**Latest Version**: v1.4.4 (January 8, 2026) - Intelligent CI/CD pipeline optimization with 95% time savings for documentation-only changes and 45% savings for frontend-only changes.
+**Latest Version**: v1.4.6 (January 7, 2026) - Complete RBAC coverage for all 47+ API endpoints with 308 automated tests.
 
-**Previous Version**: v1.4.3 (January 8, 2026) - Complete documentation alignment with actual codebase implementation.
+**Previous Version**: v1.4.5 (January 7, 2026) - Comprehensive RBAC test suite expansion with path normalization bug fix.
 
-**[View Complete Release Notes →](CHANGELOG.md#144---january-8-2026)**
+**[View Complete Release Notes →](CHANGELOG.md#146---january-7-2026)**
 
 ## Overview
 
@@ -554,9 +554,10 @@ Users are assigned roles via AWS Cognito Groups. The following group names are s
 ### Security Features
 - **Encryption**: All data encrypted at rest (DynamoDB, S3) and in transit (HTTPS)
 - **Authentication**: Cognito JWT token-based authentication with 45-minute sessions
-- **Authorization**: API-level RBAC enforcement - all access methods (UI, CLI, SDK) respect same permissions
+- **Authorization**: API-level RBAC enforcement - all 47+ endpoints protected with granular permissions
 - **Audit Trails**: Complete user action logging with role context
-- **Test Coverage**: 306 automated tests including comprehensive RBAC enforcement tests
+- **Test Coverage**: 308 automated tests including comprehensive RBAC enforcement tests
+- **100% API Coverage**: Every API endpoint has RBAC permission mapping and enforcement
 
 ## Documentation
 
