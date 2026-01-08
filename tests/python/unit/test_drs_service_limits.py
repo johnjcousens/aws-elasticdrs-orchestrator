@@ -18,6 +18,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Set AWS region BEFORE any boto3 imports
+os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+
 # Add lambda/api-handler directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda", "api-handler"))
 # Add lambda/shared directory to path for shared modules
@@ -29,8 +32,9 @@ os.environ["RECOVERY_PLANS_TABLE"] = "test-recovery-plans"
 os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
 os.environ["STATE_MACHINE_ARN"] = "arn:aws:states:us-east-1:123456789:stateMachine:test"
 
-# Import from the index module
-import index
+# Mock boto3 before importing index to prevent actual AWS calls
+with patch("boto3.resource"), patch("boto3.client"):
+    import index
 
 
 class TestDRSLimitsConstants:
