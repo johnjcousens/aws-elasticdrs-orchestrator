@@ -224,6 +224,9 @@ ENDPOINT_PERMISSIONS = {
     ("GET", "/executions/{executionId}/termination-status"): [
         DRSPermission.VIEW_EXECUTIONS
     ],
+    ("GET", "/executions/{executionId}/recovery-instances"): [
+        DRSPermission.VIEW_EXECUTIONS
+    ],
     # Account Management (CRITICAL - these were missing!)
     ("GET", "/accounts/targets"): [DRSPermission.VIEW_ACCOUNTS],
     ("POST", "/accounts/targets"): [DRSPermission.REGISTER_ACCOUNTS],
@@ -398,6 +401,7 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
         "terminate-instances",
         "job-logs",
         "termination-status",
+        "recovery-instances",
         "check-existing-instances",
         "validate",
         "tag-sync",
@@ -488,6 +492,10 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
         elif path.endswith("/termination-status"):
             return ENDPOINT_PERMISSIONS.get(
                 (method, "/executions/{executionId}/termination-status"), []
+            )
+        elif path.endswith("/recovery-instances"):
+            return ENDPOINT_PERMISSIONS.get(
+                (method, "/executions/{executionId}/recovery-instances"), []
             )
         # Single execution by ID
         elif path.count("/") == 2:
