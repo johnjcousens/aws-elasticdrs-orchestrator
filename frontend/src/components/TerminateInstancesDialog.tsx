@@ -18,7 +18,7 @@ import {
   Pagination,
   Spinner,
 } from '@cloudscape-design/components';
-import { apiClient } from '../utils/apiClient';
+import { apiClient } from '../services/api';
 import type { Execution } from '../types';
 
 interface RecoveryInstance {
