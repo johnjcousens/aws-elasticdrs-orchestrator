@@ -373,18 +373,8 @@ export const ExecutionDetailsPage: React.FC = () => {
 
 
 
-  // Check if instances have already been terminated
-  const instancesAlreadyTerminated = execution && (() => {
-    const executionWithTermination = execution as Execution & {
-      instancesTerminated?: boolean;
-      InstancesTerminated?: boolean;
-    };
-    return (executionWithTermination.instancesTerminated === true ||
-      executionWithTermination.InstancesTerminated === true);
-  })();
-
   // Check if recovery instances can be terminated
-  // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated
+  // Only enabled when execution is in terminal state AND has at least one wave with a jobId
   const canTerminate = execution && (() => {
     const terminalStatuses = [
       'completed', 'cancelled', 'failed', 'partial',
@@ -396,14 +386,8 @@ export const ExecutionDetailsPage: React.FC = () => {
     const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
     const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || (wave as any).JobId);
     
-    // Don't show button if already terminated
-    if (instancesAlreadyTerminated) return false;
-    
     return isTerminal && hasJobId;
   })();
-  
-  // Show terminated status badge instead of button when already terminated
-  const showTerminatedBadge = execution && instancesAlreadyTerminated;
 
   // Map API response (waves/servers) to frontend types (waveExecutions/serverExecutions)
   const mapWavesToWaveExecutions = (exec: Execution): WaveExecution[] => {
@@ -532,7 +516,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                     Cancel Execution
                   </Button>
                 )}
-                {canTerminate && !instancesAlreadyTerminated && !terminationInProgress && (
+                {canTerminate && !terminationInProgress && (
                   <Button
                     onClick={() => setTerminateDialogOpen(true)}
                     disabled={terminating}
@@ -543,9 +527,6 @@ export const ExecutionDetailsPage: React.FC = () => {
                 )}
                 {terminationInProgress && (
                   <Badge color="blue">Terminating...</Badge>
-                )}
-                {showTerminatedBadge && !terminationInProgress && (
-                  <Badge color="grey">Instances Terminated</Badge>
                 )}
               </SpaceBetween>
             }
