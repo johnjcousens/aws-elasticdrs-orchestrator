@@ -219,16 +219,16 @@ The Module Factory provides pluggable technology adapters that implement a stand
 | **AuroraMySQL** | Create reader instances | Failover cluster | Delete instances | - |
 | **ECS** | Scale up services | - | Scale to 0 | - |
 | **AutoScaling** | Scale up groups | - | Scale to 0 | - |
-| **Route53** | - | Update DNS records | - | - |
+| **R53Record** | - | Update DNS records | - | - |
 | **EventBridge** | - | Enable rules | Disable rules | - |
-| **Lambda** | Trigger function | Trigger function | Trigger function | Trigger function |
+| **LambdaFunction** | Trigger function | Trigger function | Trigger function | Trigger function |
 | **EventArchive** | - | Replay events | - | - |
-| **DRS** | - | Start recovery | Stop replication, delete source servers | Reverse replication |
+| **DRS** | - | Start recovery (failover/failback) | Stop replication, disconnect/delete source servers | Reverse replication or reinstall agent |
 | **ElastiCache** | - | Disassociate global cluster, create new | Delete global cluster | Create replication group |
 | **MemoryDB** | - | Restore from S3 backup | Delete cluster, store config | - |
-| **OpenSearch** | Scale up cluster | - | Scale down cluster | - |
+| **OpenSearchService** | Scale up cluster | - | Scale down cluster | - |
 | **SQLServer** | - | Restore from automated backup | Delete instance, store config | Start backup replication |
-| **EC2** | - | - | Stop/terminate instances | - |
+| **EC2** | Start instances | Start instances | Stop instances | - |
 
 ### Module Interface
 
@@ -490,6 +490,25 @@ class DRModule:
 | **Activate** | Restore from automated backup to point-in-time |
 | **Cleanup** | Store config in SSM, delete DB instance |
 | **Replicate** | Start automated backup replication to DR region |
+
+#### EC2 Module
+
+```json
+{
+  "action": "EC2",
+  "resourceName": "application-servers",
+  "parameters": {
+    "Orchestrator_HostNames": ["web-server-1", "app-server-1", "db-server-1"]
+  },
+  "AccountId": "123456789012"
+}
+```
+
+| Lifecycle | Action |
+|-----------|--------|
+| **Instantiate** | Start EC2 instances by Orchestrator:HostName tag |
+| **Activate** | Start EC2 instances by Orchestrator:HostName tag |
+| **Cleanup** | Stop EC2 instances by Orchestrator:HostName tag |
 
 ---
 

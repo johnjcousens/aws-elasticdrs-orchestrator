@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Enterprise PRD Module Alignment (v1.8)**: Aligned all 13 modules across enterprise PRD documents with dr-orchestration-artifacts source of truth
+  - Fixed `02-dr-orchestration-patterns.md` Supported Modules table: EC2 now shows correct lifecycle support (Instantiate, Activate, Cleanup)
+  - Fixed module naming to match service_module.py enum: R53Record, LambdaFunction, OpenSearchService, EcsService
+  - Updated DRS module description with failover/failback details and disconnect/delete operations
+  - Added EC2 Adapter section to `04-technology-adapters.md` with Orchestrator:HostName tag-based discovery
+  - Added EC2 to Module Action Mapping table in `04-technology-adapters.md`
+  - Added EC2Adapter to ADAPTER_REGISTRY in technology adapters
+
 ### Added
 - **DRS Tools Learnings Document**: Created comprehensive analysis of AWS DRS Tools repository (5 solutions) with patterns for enterprise orchestration
   - `docs/enterprise-prd/09-drs-tools-learnings.md` - Patterns from DRS Plan Automation, Configuration Synchronizer, Observability, Tag Sync, Template Manager

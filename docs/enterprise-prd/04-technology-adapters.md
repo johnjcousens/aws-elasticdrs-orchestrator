@@ -800,6 +800,88 @@ class SQLServerAdapter(TechnologyAdapter):
 
 ---
 
+## EC2 Adapter
+
+The EC2 Adapter manages EC2 instance start/stop operations using the `Orchestrator:HostName` tag for instance discovery.
+
+```python
+class EC2Adapter(TechnologyAdapter):
+    """EC2 instance start/stop DR adapter."""
+    
+    def __init__(self, config: dict):
+        super().__init__("ec2", config)
+        self.ec2_client = boto3.client("ec2")
+    
+    def get_instance_ids(self, host_names: list) -> list:
+        """Look up EC2 instance IDs by Orchestrator:HostName tag."""
+        response = self.ec2_client.describe_instances(
+            Filters=[
+                {
+                    "Name": "tag:Orchestrator:HostName",
+                    "Values": host_names
+                }
+            ]
+        )
+        return [
+            instance["InstanceId"]
+            for reservation in response["Reservations"]
+            for instance in reservation["Instances"]
+        ]
+    
+    def start_execution(self, resources: dict, config: dict) -> str:
+        """Execute EC2 instance operations."""
+        execution_id = f"ec2-exec-{int(time.time())}"
+        host_names = resources["Orchestrator_HostNames"]
+        instance_ids = self.get_instance_ids(host_names)
+        
+        lifecycle = config.get("lifecycle", "instantiate")
+        
+        if lifecycle in ["instantiate", "activate"]:
+            self.ec2_client.start_instances(InstanceIds=instance_ids)
+        elif lifecycle == "cleanup":
+            self.ec2_client.stop_instances(InstanceIds=instance_ids)
+        
+        return execution_id
+    
+    def monitor_execution(self, execution_id: str) -> None:
+        """Monitor EC2 instance state changes."""
+        target_state = "running" if self.lifecycle in ["instantiate", "activate"] else "stopped"
+        
+        while True:
+            response = self.ec2_client.describe_instances(
+                InstanceIds=self.instance_ids
+            )
+            all_ready = all(
+                instance["State"]["Name"] == target_state
+                for reservation in response["Reservations"]
+                for instance in reservation["Instances"]
+            )
+            if all_ready:
+                break
+            time.sleep(30)
+```
+
+### EC2 Manifest Configuration
+
+```json
+{
+  "action": "EC2",
+  "resourceName": "application-servers",
+  "parameters": {
+    "Orchestrator_HostNames": ["web-server-1", "app-server-1", "db-server-1"]
+  },
+  "AccountId": "123456789012"
+}
+```
+
+| Lifecycle | Action |
+|-----------|--------|
+| **Instantiate** | Start EC2 instances |
+| **Activate** | Start EC2 instances |
+| **Cleanup** | Stop EC2 instances |
+
+---
+
 ## Adapter Registration
 
 Register adapters with the orchestration engine:
@@ -829,6 +911,7 @@ ADAPTER_REGISTRY = {
     
     # Compute adapters
     "ecs": ECSAdapter,
+    "ec2": EC2Adapter,
     "autoscaling": AutoScalingAdapter,
     "lambda": LambdaAdapter,
     
@@ -854,7 +937,7 @@ The following table maps module action names (used in manifests) to adapter clas
 |-----------------|---------------|-------------|
 | `AuroraMySQL` | AuroraMySQLAdapter | Aurora MySQL Global Database |
 | `DRS` | DRSAdapter | AWS Elastic Disaster Recovery |
-| `ECS` | ECSAdapter | ECS Service scaling |
+| `EcsService` | ECSAdapter | ECS Service scaling |
 | `AutoScaling` | AutoScalingAdapter | EC2 Auto Scaling groups |
 | `R53Record` | Route53Adapter | Route 53 DNS records |
 | `EventBridge` | EventBridgeAdapter | EventBridge rules |
@@ -864,6 +947,7 @@ The following table maps module action names (used in manifests) to adapter clas
 | `MemoryDB` | MemoryDBAdapter | MemoryDB for Redis |
 | `OpenSearchService` | OpenSearchAdapter | OpenSearch Service |
 | `SQLServer` | SQLServerAdapter | SQL Server RDS |
+| `EC2` | EC2Adapter | EC2 instance start/stop |
 
 ---
 
