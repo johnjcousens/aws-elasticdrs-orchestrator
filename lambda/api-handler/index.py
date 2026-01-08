@@ -410,7 +410,7 @@ ACTIVE_EXECUTION_STATUSES = [
     "IN_PROGRESS",
     "RUNNING",
     "PAUSED",
-    # Removed "CANCELLING" - executions are immediately marked as CANCELLED
+    "CANCELLING",
 ]
 
 # DRS job statuses that indicate servers are still being processed
@@ -1463,18 +1463,18 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
     try:
         print("Entering try block")
 
-        # Check if this is a worker invocation (async execution) FIRST
-        if event.get("worker"):
-            print("Worker mode detected - executing background task")
-            execute_recovery_plan_worker(event)
-            return {"statusCode": 200, "body": "Worker completed"}
-
-        # Validate API Gateway event structure (only for non-worker events)
+        # Validate API Gateway event structure
         try:
             validated_event = validate_api_gateway_event(event)
         except InputValidationError as e:
             log_security_event("invalid_request", {"error": str(e)}, "WARN")
             return response(400, {"error": "Invalid request format"})
+
+        # Check if this is a worker invocation (async execution)
+        if event.get("worker"):
+            print("Worker mode detected - executing background task")
+            execute_recovery_plan_worker(event)
+            return {"statusCode": 200, "body": "Worker completed"}
 
         print("Not worker mode, processing API Gateway request")
 
@@ -3378,8 +3378,6 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
 
     Returns info about any recovery instances that haven't been terminated yet.
     Used by frontend to prompt user before starting a new drill.
-    
-    PERFORMANCE OPTIMIZED: Reduced from O(n*m*k) to O(n+m) complexity.
     """
     try:
         # Get the recovery plan
@@ -3396,55 +3394,37 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
 
         plan = plan_result["Item"]
 
-        # OPTIMIZATION 1: Batch fetch all protection groups at once
-        wave_pg_ids = [wave.get("ProtectionGroupId") for wave in plan.get("Waves", []) if wave.get("ProtectionGroupId")]
-        if not wave_pg_ids:
-            return response(
-                200,
-                {
-                    "hasExistingInstances": False,
-                    "existingInstances": [],
-                    "planId": plan_id,
-                },
-            )
-
-        # Batch get protection groups
-        pg_keys = [{"GroupId": pg_id} for pg_id in wave_pg_ids]
-        pg_response = dynamodb.batch_get_item(
-            RequestItems={
-                protection_groups_table.table_name: {
-                    "Keys": pg_keys
-                }
-            }
-        )
-        protection_groups = {
-            pg["GroupId"]: pg 
-            for pg in pg_response.get("Responses", {}).get(protection_groups_table.table_name, [])
-        }
-
-        # OPTIMIZATION 2: Collect all server IDs efficiently
+        # Collect all server IDs from all waves by resolving protection groups
         all_server_ids = set()
         region = "us-east-1"
 
         for wave in plan.get("Waves", []):
             pg_id = wave.get("ProtectionGroupId")
-            if not pg_id or pg_id not in protection_groups:
+            if not pg_id:
                 continue
 
-            pg = protection_groups[pg_id]
-            
+            pg_result = protection_groups_table.get_item(
+                Key={"GroupId": pg_id}
+            )
+            pg = pg_result.get("Item", {})
+            if not pg:
+                continue
+
             # Get region from protection group
             pg_region = pg.get("Region", "us-east-1")
             if pg_region:
                 region = pg_region
 
-            # Check for explicit server IDs first (fastest path)
+            # Check for explicit server IDs first
             explicit_servers = pg.get("SourceServerIds", [])
             if explicit_servers:
-                all_server_ids.update(explicit_servers)
+                print(f"PG {pg_id} has explicit servers: {explicit_servers}")
+                for server_id in explicit_servers:
+                    all_server_ids.add(server_id)
             else:
-                # Only resolve tags if no explicit servers (slower path)
+                # Resolve servers from tags using EC2 instance tags (not DRS tags)
                 selection_tags = pg.get("ServerSelectionTags", {})
+                print(f"PG {pg_id} has selection tags: {selection_tags}")
                 if selection_tags:
                     try:
                         # Extract account context from Protection Group
@@ -3457,12 +3437,20 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                         resolved = query_drs_servers_by_tags(
                             pg_region, selection_tags, account_context
                         )
+                        print(f"Resolved {len(resolved)} servers from tags")
                         for server in resolved:
                             server_id = server.get("sourceServerID")
                             if server_id:
                                 all_server_ids.add(server_id)
+                                print(
+                                    f"Added server {server_id} to check list"
+                                )
                     except Exception as e:
                         print(f"Error resolving tags for PG {pg_id}: {e}")
+
+        print(
+            f"Total servers to check for recovery instances: {len(all_server_ids)}: {all_server_ids}"
+        )
 
         if not all_server_ids:
             return response(
@@ -3474,59 +3462,107 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                 },
             )
 
-        # OPTIMIZATION 3: Query DRS recovery instances with early filtering
+        # Query DRS for recovery instances
         drs_client = boto3.client("drs", region_name=region)
+
         existing_instances = []
-        
         try:
-            # Get all recovery instances in the region (unavoidable API call)
+            # Get all recovery instances in the region
             paginator = drs_client.get_paginator("describe_recovery_instances")
-            matching_instances = []
-            
+            ri_count = 0
             for page in paginator.paginate():
                 for ri in page.get("items", []):
+                    ri_count += 1
                     source_server_id = ri.get("sourceServerID")
+                    ec2_state = ri.get("ec2InstanceState")
+                    print(
+                        f"Recovery instance: source={source_server_id}, state={ec2_state}, in_list={source_server_id in all_server_ids}"
+                    )
                     if source_server_id in all_server_ids:
-                        matching_instances.append({
-                            "sourceServerId": source_server_id,
-                            "recoveryInstanceId": ri.get("recoveryInstanceID"),
-                            "ec2InstanceId": ri.get("ec2InstanceID"),
-                            "ec2InstanceState": ri.get("ec2InstanceState"),
-                            "region": region,
-                        })
+                        ec2_instance_id = ri.get("ec2InstanceID")
+                        recovery_instance_id = ri.get("recoveryInstanceID")
 
-            # OPTIMIZATION 4: Skip expensive execution lookup if no instances found
-            if not matching_instances:
-                return response(
-                    200,
-                    {
-                        "hasExistingInstances": False,
-                        "existingInstances": [],
-                        "planId": plan_id,
-                    },
-                )
+                        # Find which execution created this instance
+                        source_execution = None
+                        source_plan_name = None
 
-            # OPTIMIZATION 5: Skip execution lookup for better performance
-            # The "Created By" information requires expensive execution history scanning
-            # and isn't critical for the user's decision to continue or cancel
-            
-            # Enrich matching instances (without execution lookup)
-            existing_instances = matching_instances
+                        # Search execution history for this recovery instance
+                        # Structure: Waves[].ServerStatuses[] with SourceServerId, RecoveryInstanceID
+                        try:
+                            # Scan recent executions that have Waves data
+                            exec_scan = execution_history_table.scan(
+                                FilterExpression="attribute_exists(Waves)",
+                                Limit=100,  # Check last 100 executions
+                            )
 
+                            # Sort by StartTime descending to find most recent match
+                            exec_items = sorted(
+                                exec_scan.get("Items", []),
+                                key=lambda x: x.get("StartTime", 0),
+                                reverse=True,
+                            )
+
+                            for exec_item in exec_items:
+                                exec_waves = exec_item.get("Waves", [])
+                                found = False
+                                for wave in exec_waves:
+                                    # Check ServerStatuses array (correct structure)
+                                    for server in wave.get(
+                                        "ServerStatuses", []
+                                    ):
+                                        # Match by source server ID (most reliable)
+                                        if (
+                                            server.get("SourceServerId")
+                                            == source_server_id
+                                        ):
+                                            source_execution = exec_item.get(
+                                                "ExecutionId"
+                                            )
+                                            # Get plan name
+                                            exec_plan_id = exec_item.get(
+                                                "PlanId"
+                                            )
+                                            if exec_plan_id:
+                                                plan_lookup = recovery_plans_table.get_item(
+                                                    Key={
+                                                        "PlanId": exec_plan_id
+                                                    }
+                                                )
+                                                source_plan_name = (
+                                                    plan_lookup.get(
+                                                        "Item", {}
+                                                    ).get(
+                                                        "PlanName",
+                                                        exec_plan_id,
+                                                    )
+                                                )
+                                            found = True
+                                            break
+                                    if found:
+                                        break
+                                if found:
+                                    break
+                        except Exception as e:
+                            print(
+                                f"Error looking up execution for recovery instance: {e}"
+                            )
+
+                        existing_instances.append(
+                            {
+                                "sourceServerId": source_server_id,
+                                "recoveryInstanceId": recovery_instance_id,
+                                "ec2InstanceId": ec2_instance_id,
+                                "ec2InstanceState": ri.get("ec2InstanceState"),
+                                "sourceExecutionId": source_execution,
+                                "sourcePlanName": source_plan_name,
+                                "region": region,
+                            }
+                        )
         except Exception as e:
             print(f"Error querying DRS recovery instances: {e}")
             # Don't fail the whole request, just return empty
-            return response(
-                200,
-                {
-                    "hasExistingInstances": False,
-                    "existingInstances": [],
-                    "planId": plan_id,
-                },
-            )
 
-        # OPTIMIZATION 7: Enrich with EC2 instance details (Name tag, IP, launch time)
-        # This information is critical for users to identify instances
+        # Enrich with EC2 instance details (Name tag, IP, launch time)
         if existing_instances:
             try:
                 ec2_client = boto3.client("ec2", region_name=region)
@@ -3606,7 +3642,7 @@ def handle_executions(
     method: str, path_params: Dict, query_params: Dict, body: Dict
 ) -> Dict:
     """Route Execution requests"""
-    execution_id = path_params.get("id")  # API Gateway sends "id" not "executionId"
+    execution_id = path_params.get("executionId")
     # Use full path for action detection (cancel, pause, resume)
     full_path = path_params.get("_full_path", "")
 
@@ -3623,8 +3659,6 @@ def handle_executions(
         return resume_execution(execution_id)
     elif execution_id and "/terminate-instances" in full_path:
         return terminate_recovery_instances(execution_id)
-    elif execution_id and "/recovery-instances" in full_path:
-        return get_recovery_instances(execution_id)
     elif execution_id and "/termination-status" in full_path:
         job_ids = query_params.get("jobIds", "")
         region = query_params.get("region", "us-west-2")
@@ -4062,29 +4096,12 @@ def execute_with_step_functions(
         # Step Functions input format for step-functions-stack.yaml state machine
         # Uses 'Plan' (singular) not 'Plans' (array)
         # ALWAYS include ResumeFromWave (null for new executions) so Step Functions doesn't fail
-        
-        # CRITICAL FIX: Transform recovery plan waves to Step Functions format
-        # Recovery plan uses: waveNumber, name, protectionGroupId
-        # Step Functions expects: WaveName, ProtectionGroupId
-        transformed_waves = []
-        for wave in plan.get("Waves", []):
-            transformed_wave = {
-                "WaveName": wave.get("name", f"Wave {wave.get('waveNumber', 0) + 1}"),
-                "ProtectionGroupId": wave.get("protectionGroupId"),
-                "WaveNumber": wave.get("waveNumber", 0),
-                "Dependencies": wave.get("dependsOnWaves", []),
-                "PauseBeforeWave": wave.get("pauseBeforeWave", False),
-                "ExecutionType": wave.get("executionType", "sequential"),
-                "Description": wave.get("description", ""),
-            }
-            transformed_waves.append(transformed_wave)
-        
         sfn_input = {
             "Execution": {"Id": execution_id},
             "Plan": {
                 "PlanId": plan_id,
                 "PlanName": plan.get("PlanName", "Unknown"),
-                "Waves": transformed_waves,  # Use transformed waves
+                "Waves": plan.get("Waves", []),
             },
             "IsDrill": is_drill,
             "ResumeFromWave": resume_from_wave,  # None for new executions, wave index for resume
@@ -4144,109 +4161,47 @@ def execute_with_step_functions(
 
 
 def execute_recovery_plan_worker(payload: Dict) -> None:
-    """Background worker - initiates DRS jobs without waiting (async invocation)
-    
-    ARCHIVE PATTERN: Direct wave initiation like the working reference stack.
-    This bypasses Step Functions to avoid ConflictException issues and ensures
-    wave data gets populated in DynamoDB immediately.
+    """Background worker - executes recovery via Step Functions
+
+    Handles both new executions and resumed executions.
+    For resumed executions, resumeFromWave specifies which wave to start from.
     """
     try:
         execution_id = payload["executionId"]
         plan_id = payload["planId"]
-        execution_type = payload["executionType"]
         is_drill = payload["isDrill"]
         plan = payload["plan"]
-
-        print(f"Worker initiating execution {execution_id} (type: {execution_type})")
-
-        # Update status to POLLING (not IN_PROGRESS)
-        execution_history_table.update_item(
-            Key={"ExecutionId": execution_id, "PlanId": plan_id},
-            UpdateExpression="SET #status = :status",
-            ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues={":status": "POLLING"},
+        cognito_user = payload.get(
+            "cognitoUser", {"email": "system", "userId": "system"}
         )
+        resume_from_wave = payload.get(
+            "resumeFromWave"
+        )  # None for new executions, wave index for resume
 
-        # CRITICAL FIX (Archive Pattern): Only initiate waves with NO dependencies
-        # ExecutionPoller will initiate dependent waves when dependencies complete
-        wave_results = []
-        waves_list = plan.get("Waves", [])
-        print(f"Processing {len(waves_list)} waves - initiating only independent waves")
-
-        for wave_index, wave in enumerate(waves_list):
-            wave_number = wave_index + 1
-
-            # CRITICAL FIX: Support both recovery plan formats (WaveName and name)
-            # Recovery plan from UI uses 'name', older format uses 'WaveName'
-            wave_name = wave.get("WaveName") or wave.get("name", f"Wave {wave_number}")
-            pg_id = wave.get("ProtectionGroupId") or wave.get("protectionGroupId")
-
-            if not pg_id:
-                print(f"Wave {wave_number} has no Protection Group, skipping")
-                wave_results.append({
-                    "WaveName": wave_name,
-                    "WaveId": wave.get("WaveId") or wave_number,
-                    "Status": "FAILED",
-                    "StatusMessage": "No Protection Group assigned",
-                    "Servers": []
-                })
-                continue
-
-            # Check wave dependencies (support both formats)
-            dependencies = wave.get("Dependencies", []) or wave.get("dependsOnWaves", [])
-            if dependencies:
-                # Wave has dependencies - mark as PENDING for poller to initiate later
-                print(f"Wave {wave_number} ({wave_name}) has dependencies: {dependencies} - marking PENDING")
-                wave_results.append({
-                    "WaveName": wave_name,
-                    "WaveId": wave.get("WaveId") or wave_number,
-                    "ProtectionGroupId": pg_id,
-                    "Status": "PENDING",
-                    "StatusMessage": f"Waiting for dependencies: {dependencies}",
-                    "Servers": [],
-                    "Dependencies": dependencies
-                })
-            else:
-                # Wave has NO dependencies - initiate immediately
-                print(f"Wave {wave_number} ({wave_name}) has no dependencies - initiating now")
-                wave_result = initiate_wave(
-                    wave, 
-                    pg_id, 
-                    execution_id, 
-                    is_drill, 
-                    execution_type,
-                    wave_number=wave_number
-                )
-                wave_results.append(wave_result)
-
-            # Update progress in DynamoDB after each wave
-            execution_history_table.update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
-                UpdateExpression="SET Waves = :waves",
-                ExpressionAttributeValues={":waves": wave_results}
+        if resume_from_wave is not None:
+            print(
+                f"Worker RESUMING execution {execution_id} from wave {resume_from_wave} (isDrill: {is_drill})"
             )
-
-        # Final status is POLLING (not COMPLETED)
-        # External poller will update to COMPLETED when jobs finish
-        print(f"Worker completed initiation for execution {execution_id}")
-        print(f"Status: POLLING - awaiting external poller to track completion")
-
-        # CRITICAL: Start Step Functions for orchestration and pause/resume functionality
-        # Worker has populated DynamoDB with wave data, now Step Functions handles flow control
-        try:
-            print(f"Starting Step Functions orchestration for execution {execution_id}")
-            execute_with_step_functions(
-                execution_id=execution_id,
-                plan_id=plan_id,
-                plan=payload["plan"],
-                is_drill=payload["isDrill"],
-                state_machine_arn=STATE_MACHINE_ARN
+        else:
+            print(
+                f"Worker initiating NEW execution {execution_id} (isDrill: {is_drill})"
             )
-            print(f"✅ Step Functions started for execution {execution_id}")
-        except Exception as sf_error:
-            print(f"⚠️ Step Functions start failed for execution {execution_id}: {sf_error}")
-            # Don't fail the entire execution - DRS jobs are already initiated
-            # Step Functions failure only affects pause/resume, not basic execution
+        print(f"Initiated by: {cognito_user.get('email')}")
+
+        # Always use Step Functions
+        state_machine_arn = os.environ.get("STATE_MACHINE_ARN")
+        if not state_machine_arn:
+            raise ValueError("STATE_MACHINE_ARN environment variable not set")
+
+        print(f"Using Step Functions for execution {execution_id}")
+        return execute_with_step_functions(
+            execution_id,
+            plan_id,
+            plan,
+            is_drill,
+            state_machine_arn,
+            resume_from_wave,
+        )
 
     except Exception as e:
         print(f"Worker error for execution {execution_id}: {str(e)}")
@@ -4289,7 +4244,7 @@ def initiate_wave(
         )
         if "Item" not in pg_result:
             return {
-                "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
+                "WaveName": wave.get("name", "Unknown"),
                 "ProtectionGroupId": protection_group_id,
                 "Status": "FAILED",
                 "Error": "Protection Group not found",
@@ -4300,30 +4255,8 @@ def initiate_wave(
         pg = pg_result["Item"]
         region = pg["Region"]
 
-        # CRITICAL FIX: Handle both tag-based and explicit server ID Protection Groups
-        selection_tags = pg.get("ServerSelectionTags", {})
+        # Get servers from both wave and protection group
         pg_servers = pg.get("SourceServerIds", [])
-
-        if selection_tags:
-            # Tag-based Protection Group - resolve servers at execution time
-            print(f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}")
-            
-            # Determine account context for cross-account support
-            account_context = None
-            if pg.get("AccountId"):
-                account_context = {
-                    "AccountId": pg.get("AccountId"),
-                    "AssumeRoleName": pg.get("AssumeRoleName"),
-                }
-            
-            # Query DRS for servers matching tags
-            resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
-            pg_servers = resolved_servers  # Function already returns list of server IDs
-            print(f"Resolved {len(pg_servers)} servers from tags: {pg_servers}")
-        else:
-            print(f"Using explicit server IDs from Protection Group: {len(pg_servers)} servers")
-
-        # Get servers from wave (if specified)
         wave_servers = wave.get("ServerIds", [])
 
         # Filter to only launch servers specified in this wave
@@ -4335,7 +4268,7 @@ def initiate_wave(
                 f"Wave specifies {len(wave_servers)} servers, {len(server_ids)} are in Protection Group"
             )
         else:
-            # No ServerIds in wave - launch all PG servers (standard behavior)
+            # No ServerIds in wave - launch all PG servers (legacy behavior)
             server_ids = pg_servers
             print(
                 f"Wave has no ServerIds field, launching all {len(server_ids)} Protection Group servers"
@@ -4343,7 +4276,7 @@ def initiate_wave(
 
         if not server_ids:
             return {
-                "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
+                "WaveName": wave.get("name", "Unknown"),
                 "ProtectionGroupId": protection_group_id,
                 "Status": "INITIATED",
                 "Servers": [],
@@ -4379,7 +4312,7 @@ def initiate_wave(
         wave_status = "PARTIAL" if has_failures else "INITIATED"
 
         return {
-            "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
+            "WaveName": wave.get("name", "Unknown"),
             "WaveId": wave.get("WaveId")
             or wave.get("waveNumber"),  # Support both formats
             "JobId": wave_job_id,  # CRITICAL: Wave-level Job ID for poller
@@ -4396,7 +4329,7 @@ def initiate_wave(
 
         traceback.print_exc()
         return {
-            "WaveName": wave.get("WaveName") or wave.get("name", f"Wave {wave_number or 1}"),
+            "WaveName": wave.get("name", "Unknown"),
             "ProtectionGroupId": protection_group_id,
             "Status": "FAILED",
             "Error": str(e),
@@ -5147,129 +5080,6 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     return execution
 
 
-def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
-    """
-    Reconcile wave status with actual DRS job results.
-    
-    This is critical for cancelled executions where the execution-poller stopped
-    running before waves completed, leaving wave status as "unknown" even though
-    the DRS job actually completed successfully.
-    
-    Also enriches waves with ServerStatuses containing instance IDs from DRS.
-    """
-    try:
-        print(f"RECONCILE: Starting reconciliation for execution {execution.get('ExecutionId')}")
-        waves = execution.get("Waves", [])
-        updated_waves = []
-        reconciled_count = 0
-        
-        for wave in waves:
-            wave_status = wave.get("Status", "").upper()
-            job_id = wave.get("JobId")
-            wave_name = wave.get("WaveName", "Unknown")
-            region = wave.get("Region", "us-east-1")
-            
-            print(f"RECONCILE: Checking wave {wave_name} - Status: {wave_status}, JobId: {job_id}")
-            
-            # Query DRS for any wave with a JobId to get server details
-            if job_id:
-                try:
-                    print(f"RECONCILE: Querying DRS in region {region} for job {job_id}")
-                    drs_client = boto3.client("drs", region_name=region)
-                    
-                    response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
-                    
-                    if response.get("items"):
-                        job = response["items"][0]
-                        drs_status = job.get("status", "UNKNOWN")
-                        participating_servers = job.get("participatingServers", [])
-                        
-                        print(f"RECONCILE: DRS job {job_id} status: {drs_status}, servers: {len(participating_servers)}")
-                        
-                        # Build ServerStatuses from DRS participatingServers
-                        if participating_servers:
-                            server_statuses = []
-                            
-                            # Get recovery instances to find instance IDs for completed jobs
-                            recovery_instances = {}
-                            try:
-                                recovery_response = drs_client.describe_recovery_instances()
-                                for instance in recovery_response.get("items", []):
-                                    source_server_id = instance.get("sourceServerID")
-                                    if source_server_id:
-                                        recovery_instances[source_server_id] = {
-                                            "recoveryInstanceID": instance.get("recoveryInstanceID"),
-                                            "ec2InstanceID": instance.get("ec2InstanceID"),
-                                            "ec2InstanceState": instance.get("ec2InstanceState"),
-                                        }
-                                print(f"RECONCILE: Found {len(recovery_instances)} recovery instances in {region}")
-                            except Exception as e:
-                                print(f"RECONCILE: Error getting recovery instances: {e}")
-                            
-                            for server in participating_servers:
-                                source_server_id = server.get("sourceServerID")
-                                recovery_info = recovery_instances.get(source_server_id, {})
-                                
-                                server_status = {
-                                    "SourceServerId": source_server_id,
-                                    "LaunchStatus": server.get("launchStatus", "UNKNOWN"),
-                                    "RecoveryInstanceID": (
-                                        server.get("recoveryInstanceID") or 
-                                        recovery_info.get("recoveryInstanceID") or
-                                        recovery_info.get("ec2InstanceID")
-                                    ),
-                                }
-                                server_statuses.append(server_status)
-                                print(f"RECONCILE: Server {source_server_id}: "
-                                      f"status={server.get('launchStatus')}, "
-                                      f"instanceId={server_status['RecoveryInstanceID']}")
-                            
-                            # Store ServerStatuses in wave for transform function
-                            wave["ServerStatuses"] = server_statuses
-                        
-                        # Only update wave status if it's in a non-terminal state
-                        if wave_status in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
-                            if drs_status == "COMPLETED":
-                                all_launched = all(
-                                    server.get("launchStatus") == "LAUNCHED" 
-                                    for server in participating_servers
-                                )
-                                
-                                if all_launched:
-                                    wave["Status"] = "completed"
-                                    wave["EndTime"] = int(time.time())
-                                    reconciled_count += 1
-                                    print(f"RECONCILE: ✅ Wave {wave_name} reconciled to completed")
-                                else:
-                                    wave["Status"] = "FAILED"
-                                    wave["StatusMessage"] = "Some servers failed to launch"
-                                    wave["EndTime"] = int(time.time())
-                                    reconciled_count += 1
-                            elif drs_status == "FAILED":
-                                wave["Status"] = "FAILED"
-                                wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
-                                wave["EndTime"] = int(time.time())
-                                reconciled_count += 1
-                    else:
-                        print(f"RECONCILE: ⚠️ DRS job {job_id} not found")
-                        wave["StatusMessage"] = "Job not found"
-                        
-                except Exception as e:
-                    print(f"RECONCILE: ❌ Error querying DRS for wave {wave_name}: {e}")
-            else:
-                print(f"RECONCILE: Skipping wave {wave_name} - no JobId")
-            
-            updated_waves.append(wave)
-        
-        execution["Waves"] = updated_waves
-        print(f"RECONCILE: Completed - {reconciled_count} waves status updated")
-        return execution
-        
-    except Exception as e:
-        print(f"RECONCILE: ❌ Error in reconcile_wave_status_with_drs: {e}")
-        return execution
-
-
 def recalculate_execution_status(execution: Dict) -> Dict:
     """
     Recalculate overall execution status based on current wave statuses.
@@ -5308,7 +5118,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
         wave_status = (wave.get("Status") or "").upper()
         if wave_status in active_statuses:
             active_waves.append(wave)
-        elif wave_status in ["COMPLETED", "completed"]:
+        elif wave_status == "COMPLETED":
             completed_waves.append(wave)
         elif wave_status == "FAILED":
             failed_waves.append(wave)
@@ -5333,12 +5143,8 @@ def recalculate_execution_status(execution: Dict) -> Dict:
         else:
             execution["Status"] = "FAILED"  # All failed
     elif cancelled_waves and not active_waves and not failed_waves:
-        if completed_waves:
-            # Some waves completed, some cancelled
-            execution["Status"] = "PARTIAL"  # Some completed, some cancelled
-        else:
-            # All waves cancelled
-            execution["Status"] = "CANCELLED"
+        # All waves cancelled
+        execution["Status"] = "CANCELLED"
     elif (
         completed_waves
         and not active_waves
@@ -5412,12 +5218,6 @@ def get_execution_details(execution_id: str) -> Dict:
         except Exception as e:
             print(f"Error enriching execution with server details: {str(e)}")
 
-        # Reconcile wave status and get server instance IDs from DRS
-        try:
-            execution = reconcile_wave_status_with_drs(execution)
-        except Exception as e:
-            print(f"Error reconciling wave status with DRS: {str(e)}")
-
         # Get current status from Step Functions if still running and has StateMachineArn
         if execution.get("Status") == "RUNNING" and execution.get(
             "StateMachineArn"
@@ -5472,7 +5272,15 @@ def get_execution_details(execution_id: str) -> Dict:
 
 
 def cancel_execution(execution_id: str) -> Dict:
-    """Cancel a running execution - immediate cancellation like archive solution."""
+    """Cancel a running execution - cancels only pending waves, not completed or in-progress ones.
+
+    Behavior:
+    - COMPLETED waves: Preserved as-is
+    - IN_PROGRESS/POLLING/LAUNCHING waves: Continue running (not interrupted)
+    - PENDING/NOT_STARTED waves: Marked as CANCELLED
+    - Waves not yet started (from plan): Added with CANCELLED status
+    - Overall execution status: Set to CANCELLED only if no waves are still running
+    """
     try:
         # FIX: Query by ExecutionId to get PlanId (composite key required)
         result = execution_history_table.query(
@@ -5516,43 +5324,129 @@ def cancel_execution(execution_id: str) -> Dict:
                 },
             )
 
-        # Stop Step Functions execution (if it exists)
-        state_machine_arn = execution.get("StateMachineArn")
-        if state_machine_arn:
+        # Get waves from execution and plan
+        waves = execution.get("Waves", [])
+        timestamp = int(time.time())
+
+        # Get recovery plan to find waves that haven't started yet
+        plan_waves = []
+        try:
+            plan_result = recovery_plans_table.get_item(
+                Key={"PlanId": plan_id}
+            )
+            if "Item" in plan_result:
+                plan_waves = plan_result["Item"].get("Waves", [])
+        except Exception as e:
+            print(f"Error getting recovery plan: {e}")
+
+        # Track wave states
+        completed_waves = []
+        in_progress_waves = []
+        cancelled_waves = []
+
+        # Statuses that indicate a wave is done
+        completed_statuses = ["COMPLETED", "FAILED", "TIMEOUT"]
+        # Statuses that indicate a wave is currently running
+        in_progress_statuses = [
+            "IN_PROGRESS",
+            "POLLING",
+            "LAUNCHING",
+            "INITIATED",
+            "STARTED",
+        ]
+
+        # Track which wave numbers exist in execution
+        existing_wave_numbers = set()
+
+        for i, wave in enumerate(waves):
+            wave_status = (wave.get("Status") or "").upper()
+            wave_number = wave.get("WaveNumber", i)
+            existing_wave_numbers.add(wave_number)
+
+            if wave_status in completed_statuses:
+                completed_waves.append(wave_number)
+                # Leave completed waves unchanged
+            elif wave_status in in_progress_statuses:
+                in_progress_waves.append(wave_number)
+                # Leave in-progress waves running - they will complete naturally
+            else:
+                # Pending/not started waves in execution - mark as CANCELLED
+                waves[i]["Status"] = "CANCELLED"
+                waves[i]["EndTime"] = timestamp
+                cancelled_waves.append(wave_number)
+
+        # Add waves from plan that haven't started yet (not in execution's Waves array)
+        for i, plan_wave in enumerate(plan_waves):
+            wave_number = plan_wave.get("WaveNumber", i)
+            if wave_number not in existing_wave_numbers:
+                # This wave hasn't started - add it as CANCELLED
+                cancelled_wave = {
+                    "WaveNumber": wave_number,
+                    "WaveName": plan_wave.get(
+                        "WaveName", f"Wave {wave_number + 1}"
+                    ),
+                    "Status": "CANCELLED",
+                    "EndTime": timestamp,
+                    "ProtectionGroupId": plan_wave.get("ProtectionGroupId"),
+                    "ServerIds": plan_wave.get("ServerIds", []),
+                }
+                waves.append(cancelled_wave)
+                cancelled_waves.append(wave_number)
+
+        # Sort waves by wave number for consistent display
+        waves.sort(key=lambda w: w.get("WaveNumber", 0))
+
+        # Stop Step Functions execution only if no waves are in progress
+        # If a wave is running, let it complete naturally
+        if not in_progress_waves:
             try:
+                # amazonq-ignore-next-line
                 stepfunctions.stop_execution(
-                    executionArn=state_machine_arn,
+                    executionArn=execution_id,
                     error="UserCancelled",
                     cause="Execution cancelled by user",
                 )
-                print(f"Stopped Step Functions execution: {state_machine_arn}")
+                print(f"Stopped Step Functions execution: {execution_id}")
             except Exception as e:
                 print(f"Error stopping Step Functions execution: {str(e)}")
                 # Continue to update DynamoDB even if Step Functions call fails
-        else:
-            print(f"No StateMachineArn found for execution {execution_id}, skipping Step Functions stop")
 
-        # SIMPLE APPROACH: Immediately mark as CANCELLED with EndTime (like archive)
-        # This prevents "ghost executions" that block new drills
-        timestamp = int(time.time())
-        
+        # Determine final execution status
+        # If waves are still in progress, mark as CANCELLING (will be finalized when wave completes)
+        # If no waves in progress, mark as CANCELLED
+        final_status = "CANCELLING" if in_progress_waves else "CANCELLED"
+
+        # Update DynamoDB with updated waves and status
+        update_expression = "SET #status = :status, Waves = :waves"
+        expression_values = {":status": final_status, ":waves": waves}
+
+        # Only set EndTime if fully cancelled (no in-progress waves)
+        if not in_progress_waves:
+            update_expression += ", EndTime = :endtime"
+            expression_values[":endtime"] = timestamp
+
         execution_history_table.update_item(
             Key={"ExecutionId": execution_id, "PlanId": plan_id},
-            UpdateExpression="SET #status = :status, EndTime = :endtime",
+            UpdateExpression=update_expression,
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues={
-                ":status": "CANCELLED",
-                ":endtime": timestamp,
-            },
+            ExpressionAttributeValues=expression_values,
         )
 
-        print(f"Cancelled execution: {execution_id}")
+        print(
+            f"Cancel execution {execution_id}: completed={completed_waves}, in_progress={in_progress_waves}, cancelled={cancelled_waves}"
+        )
+
         return response(
             200,
             {
                 "executionId": execution_id,
-                "status": "CANCELLED",
-                "message": "Execution cancelled successfully",
+                "status": final_status,
+                "message": f'Execution {"cancelling" if in_progress_waves else "cancelled"} successfully',
+                "details": {
+                    "completedWaves": completed_waves,
+                    "inProgressWaves": in_progress_waves,
+                    "cancelledWaves": cancelled_waves,
+                },
             },
         )
 
@@ -5631,7 +5525,7 @@ def pause_execution(execution_id: str) -> Dict:
             )
 
         # Find current wave state
-        completed_statuses = ["COMPLETED", "completed", "FAILED", "TIMEOUT", "CANCELLED"]
+        completed_statuses = ["COMPLETED", "FAILED", "TIMEOUT", "CANCELLED"]
         in_progress_statuses = [
             "IN_PROGRESS",
             "POLLING",
@@ -6001,282 +5895,6 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
         return response(500, {"error": str(e)})
 
 
-def get_recovery_instances(execution_id: str) -> Dict:
-    """Get all recovery instances from an execution without terminating them.
-
-    This returns the same instance data that would be terminated, allowing
-    the frontend to show users exactly what instances exist before confirmation.
-    
-    Returns:
-        Dict containing:
-        - executionId: The execution ID
-        - instances: List of recovery instance details
-        - totalInstances: Total count of instances found
-    """
-    try:
-        # Get execution details
-        result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
-        )
-
-        if not result.get("Items"):
-            return response(
-                404,
-                {
-                    "error": "EXECUTION_NOT_FOUND",
-                    "message": f"Execution with ID {execution_id} not found",
-                    "executionId": execution_id,
-                },
-            )
-
-        execution = result["Items"][0]
-        plan_id = execution.get("PlanId")
-        waves = execution.get("Waves", [])
-
-        # Get the Recovery Plan to determine account context (for cross-account support)
-        account_context = None
-        if plan_id:
-            try:
-                plan_result = recovery_plans_table.get_item(
-                    Key={"PlanId": plan_id}
-                )
-                if "Item" in plan_result:
-                    plan = plan_result["Item"]
-                    account_context = determine_target_account_context(plan)
-                    print(
-                        f"Using account context for recovery instances lookup: {account_context}"
-                    )
-                else:
-                    print(
-                        f"WARNING: Recovery Plan {plan_id} not found, using current account"
-                    )
-            except Exception as e:
-                print(
-                    f"ERROR: Could not get Recovery Plan {plan_id} for account context: {e}"
-                )
-                print(
-                    "Falling back to current account for recovery instances lookup"
-                )
-
-        if not waves:
-            return response(
-                200,
-                {
-                    "executionId": execution_id,
-                    "instances": [],
-                    "totalInstances": 0,
-                    "message": "No waves found in execution"
-                },
-            )
-
-        # Collect all recovery instance details from all waves
-        recovery_instances = []
-        source_server_ids_by_region = {}
-
-        print(f"Processing {len(waves)} waves for execution {execution_id}")
-
-        # First, try to get instance IDs from DRS jobs
-        for wave in waves:
-            wave_number = wave.get("WaveNumber", 0)
-            wave_name = wave.get("WaveName", f"Wave {wave_number + 1}")
-            job_id = wave.get("JobId")
-            region = wave.get("Region", "us-east-1")
-            wave_status = wave.get("Status", "")
-
-            print(
-                f"Wave {wave_number} ({wave_name}): status={wave_status}, job_id={job_id}, region={region}"
-            )
-
-            # Collect source server IDs from wave for alternative lookup
-            wave_server_ids = wave.get("ServerIds", [])
-            for srv_id in wave_server_ids:
-                if srv_id:
-                    if region not in source_server_ids_by_region:
-                        source_server_ids_by_region[region] = []
-                    if srv_id not in source_server_ids_by_region[region]:
-                        source_server_ids_by_region[region].append(srv_id)
-
-            # Only process waves that have a job ID (were actually launched)
-            # Handle both uppercase and lowercase status values
-            valid_statuses = [
-                "COMPLETED", "completed",
-                "LAUNCHED", "launched", 
-                "PARTIAL", "partial",
-                "STARTED", "started",
-                "IN_PROGRESS", "in_progress",
-                "RUNNING", "running",
-            ]
-            if job_id and wave_status in valid_statuses:
-                try:
-                    drs_client = create_drs_client(region, account_context)
-
-                    # Get recovery instances from DRS job
-                    job_response = drs_client.describe_jobs(
-                        filters={"jobIDs": [job_id]}
-                    )
-
-                    print(
-                        f"DRS describe_jobs response for {job_id}: {len(job_response.get('items', []))} items"
-                    )
-
-                    if job_response.get("items"):
-                        job = job_response["items"][0]
-                        participating_servers = job.get(
-                            "participatingServers", []
-                        )
-
-                        print(
-                            f"Job {job_id} has {len(participating_servers)} participating servers"
-                        )
-
-                        for server in participating_servers:
-                            recovery_instance_id = server.get(
-                                "recoveryInstanceID"
-                            )
-                            source_server_id = server.get(
-                                "sourceServerID", "unknown"
-                            )
-
-                            print(
-                                f"Server {source_server_id}: recoveryInstanceID={recovery_instance_id}"
-                            )
-
-                            # Only try direct recovery instance lookup if we have the ID
-                            if recovery_instance_id:
-                                # Get EC2 instance ID from recovery instance
-                                try:
-                                    ri_response = (
-                                        drs_client.describe_recovery_instances(
-                                            filters={
-                                                "recoveryInstanceIDs": [
-                                                    recovery_instance_id
-                                                ]
-                                            }
-                                        )
-                                    )
-                                    if ri_response.get("items"):
-                                        ri_item = ri_response["items"][0]
-                                        ec2_instance_id = ri_item.get("ec2InstanceID")
-                                        if (
-                                            ec2_instance_id
-                                            and ec2_instance_id.startswith("i-")
-                                        ):
-                                            recovery_instances.append(
-                                                {
-                                                    "instanceId": ec2_instance_id,
-                                                    "recoveryInstanceId": recovery_instance_id,
-                                                    "sourceServerId": source_server_id,
-                                                    "region": region,
-                                                    "waveName": wave_name,
-                                                    "waveNumber": wave_number,
-                                                    "jobId": job_id,
-                                                    "status": ri_item.get("ec2InstanceState", "unknown"),
-                                                    "hostname": server.get("hostname", ""),
-                                                    "serverName": server.get("serverName", ""),
-                                                }
-                                            )
-                                except Exception as ri_err:
-                                    print(
-                                        f"Could not get EC2 instance for recovery instance {recovery_instance_id}: {ri_err}"
-                                    )
-                            else:
-                                print(
-                                    f"No recoveryInstanceID for server {source_server_id}, will use alternative lookup"
-                                )
-
-                except Exception as drs_err:
-                    print(
-                        f"Could not query DRS job {job_id} in {region}: {drs_err}"
-                    )
-
-        # Alternative approach: Query describe_recovery_instances by source server IDs
-        # This works even when job's participatingServers doesn't have recoveryInstanceID
-        if not recovery_instances and source_server_ids_by_region:
-            print(
-                f"Trying alternative approach: query recovery instances by source server IDs"
-            )
-
-            for region, source_ids in source_server_ids_by_region.items():
-                print(
-                    f"Querying recovery instances for {len(source_ids)} source servers in {region}: {source_ids}"
-                )
-
-                try:
-                    drs_client = create_drs_client(region, account_context)
-
-                    # Query recovery instances by source server IDs
-                    ri_response = drs_client.describe_recovery_instances(
-                        filters={"sourceServerIDs": source_ids}
-                    )
-
-                    ri_items = ri_response.get("items", [])
-                    print(
-                        f"Found {len(ri_items)} recovery instances for source servers"
-                    )
-
-                    for ri in ri_items:
-                        ec2_instance_id = ri.get("ec2InstanceID")
-                        recovery_instance_id = ri.get("recoveryInstanceID")
-                        source_server_id = ri.get("sourceServerID", "unknown")
-
-                        print(
-                            f"Recovery instance: ec2={ec2_instance_id}, ri={recovery_instance_id}, source={source_server_id}"
-                        )
-
-                        if ec2_instance_id and ec2_instance_id.startswith("i-"):
-                            # Find which wave this server belongs to
-                            wave_info = None
-                            for wave in waves:
-                                wave_server_ids = wave.get("ServerIds", [])
-                                if source_server_id in wave_server_ids:
-                                    wave_info = wave
-                                    break
-                            
-                            wave_name = "Unknown Wave"
-                            wave_number = 0
-                            job_id = ""
-                            if wave_info:
-                                wave_name = wave_info.get("WaveName", f"Wave {wave_info.get('WaveNumber', 0) + 1}")
-                                wave_number = wave_info.get("WaveNumber", 0)
-                                job_id = wave_info.get("JobId", "")
-
-                            recovery_instances.append(
-                                {
-                                    "instanceId": ec2_instance_id,
-                                    "recoveryInstanceId": recovery_instance_id,
-                                    "sourceServerId": source_server_id,
-                                    "region": region,
-                                    "waveName": wave_name,
-                                    "waveNumber": wave_number,
-                                    "jobId": job_id,
-                                    "status": ri.get("ec2InstanceState", "unknown"),
-                                    "hostname": "",
-                                    "serverName": "",
-                                }
-                            )
-
-                except Exception as e:
-                    print(
-                        f"Error querying recovery instances by source server IDs in {region}: {e}"
-                    )
-
-        print(f"Found {len(recovery_instances)} total recovery instances for execution {execution_id}")
-
-        return response(
-            200,
-            {
-                "executionId": execution_id,
-                "instances": recovery_instances,
-                "totalInstances": len(recovery_instances),
-                "message": f"Found {len(recovery_instances)} recovery instances" if recovery_instances else "No recovery instances found"
-            },
-        )
-
-    except Exception as e:
-        print(f"Error getting recovery instances: {str(e)}")
-        return response(500, {"error": str(e)})
-
-
 def terminate_recovery_instances(execution_id: str) -> Dict:
     """Terminate all recovery instances from an execution.
 
@@ -6374,16 +5992,14 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
 
             # Only process waves that have a job ID (were actually launched)
             # Include STARTED status since recovery instances may exist even if wave is still in progress
-            # Handle both uppercase and lowercase status values
-            valid_statuses = [
-                "COMPLETED", "completed",
-                "LAUNCHED", "launched", 
-                "PARTIAL", "partial",
-                "STARTED", "started",
-                "IN_PROGRESS", "in_progress",
-                "RUNNING", "running",
-            ]
-            if job_id and wave_status in valid_statuses:
+            if job_id and wave_status in [
+                "COMPLETED",
+                "LAUNCHED",
+                "PARTIAL",
+                "STARTED",
+                "IN_PROGRESS",
+                "RUNNING",
+            ]:
                 try:
                     drs_client = create_drs_client(region, account_context)
 
@@ -6418,8 +6034,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                 f"Server {source_server_id}: recoveryInstanceID={recovery_instance_id}"
                             )
 
-                            # ALWAYS collect source server ID for alternative lookup
-                            # This is critical when recoveryInstanceID is None
+                            # Collect source server ID for alternative lookup
                             if (
                                 source_server_id
                                 and source_server_id != "unknown"
@@ -6434,7 +6049,6 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                         source_server_id
                                     )
 
-                            # Only try direct recovery instance lookup if we have the ID
                             if recovery_instance_id:
                                 # Get EC2 instance ID from recovery instance
                                 try:
@@ -6482,10 +6096,6 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                     print(
                                         f"Could not get EC2 instance for recovery instance {recovery_instance_id}: {ri_err}"
                                     )
-                            else:
-                                print(
-                                    f"No recoveryInstanceID for server {source_server_id}, will use alternative lookup"
-                                )
 
                 except Exception as drs_err:
                     print(
@@ -8434,7 +8044,7 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
         ]:
             current_wave = i
             break
-        elif wave_status in ["completed", "COMPLETED"]:
+        elif wave_status == "completed":
             current_wave = i  # Last completed wave
 
     # If all completed or no waves, current = total
