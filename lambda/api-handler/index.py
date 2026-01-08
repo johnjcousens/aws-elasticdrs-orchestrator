@@ -1,4 +1,4 @@
-stikk"""
+"""
 AWS DRS Orchestration - API Handler Lambda
 Handles REST API requests for Protection Groups, Recovery Plans, and Executions
 """
