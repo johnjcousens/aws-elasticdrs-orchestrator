@@ -21,13 +21,6 @@ Parameters:
     Description: 'Name of the API handler Lambda function'
 
 Resources:
-  # CloudWatch Log Group for Step Functions
-  StateMachineLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/vendedlogs/states/${ProjectName}-orchestration-${Environment}'
-      RetentionInDays: 30
-
   # Step Functions State Machine - Complete Archive Pattern Implementation
   DRSOrchestrationStateMachine:
     Type: AWS::StepFunctions::StateMachine
@@ -106,7 +99,7 @@ Resources:
               - Variable: '$.status'
                 StringEquals: 'cancelled'
                 Next: 'PlanCancelled'
-              # Check for paused (PauseBeforeWave) - CRITICAL: must check before all_waves_completed
+              # Check for paused (PauseBeforeWave)
               - Variable: '$.status'
                 StringEquals: 'paused'
                 Next: 'WaitForResume'
@@ -169,7 +162,7 @@ Resources:
               Payload:
                 action: 'store_task_token'
                 application.$: '$'
-                taskToken.$: '$$.Task.Token'
+                taskToken.$: '$.Task.Token'
                 AccountContext.$: '$.AccountContext'
             # NOTE: No OutputPath here - callback output is returned directly at root level
             TimeoutSeconds: 31536000  # 1 year max timeout for pause/resume
@@ -251,20 +244,27 @@ Resources:
                 IntervalSeconds: 2
                 MaxAttempts: 6
                 BackoffRate: 2
+              # DRS-specific retries
+              - ErrorEquals:
+                  - 'ConflictException'
+                  - 'ThrottlingException'
+                IntervalSeconds: 5
+                MaxAttempts: 10
+                BackoffRate: 2
             Catch:
               - ErrorEquals:
                   - 'States.ALL'
-                Next: 'HandleUpdateError'
+                Next: 'HandlePollingError'
           
-          # Handle update errors
-          HandleUpdateError:
+          # Handle polling errors
+          HandlePollingError:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
             Parameters:
               FunctionName: !Ref OrchestrationLambdaArn
               Payload:
                 action: 'handle_error'
-                error_type: 'update_failed'
+                error_type: 'polling_failed'
                 error_details.$: '$.Error'
                 cause.$: '$.Cause'
                 application.$: '$'
@@ -274,18 +274,9 @@ Resources:
           
           # Success state
           PlanCompleted:
-            Type: Task
-            Resource: 'arn:aws:states:::lambda:invoke'
-            Parameters:
-              FunctionName: !Ref OrchestrationLambdaArn
-              Payload:
-                action: 'cleanup_completed_execution'
-                application.$: '$'
-                AccountContext.$: '$.AccountContext'
-            OutputPath: '$.Payload'
-            End: true
+            Type: Succeed
           
-          # Failure states with cleanup
+          # Failure states with proper cleanup
           PlanFailed:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
@@ -295,8 +286,7 @@ Resources:
                 action: 'cleanup_failed_execution'
                 application.$: '$'
                 AccountContext.$: '$.AccountContext'
-            OutputPath: '$.Payload'
-            Next: 'FailState'
+            End: true
           
           PlanTimeout:
             Type: Task
@@ -307,8 +297,7 @@ Resources:
                 action: 'cleanup_timeout_execution'
                 application.$: '$'
                 AccountContext.$: '$.AccountContext'
-            OutputPath: '$.Payload'
-            Next: 'TimeoutState'
+            End: true
           
           PlanCancelled:
             Type: Task
@@ -319,24 +308,16 @@ Resources:
                 action: 'cleanup_cancelled_execution'
                 application.$: '$'
                 AccountContext.$: '$.AccountContext'
-            OutputPath: '$.Payload'
-            Next: 'CancelledState'
-          
-          # Final states
-          FailState:
-            Type: Fail
-            Error: 'PlanExecutionFailed'
-            Cause: 'DRS recovery plan execution failed'
-          
-          TimeoutState:
-            Type: Fail
-            Error: 'PlanExecutionTimeout'
-            Cause: 'DRS recovery plan execution timed out'
-          
-          CancelledState:
-            Type: Succeed
-  
-  # IAM Role for Step Functions
+            End: true
+
+  # CloudWatch Log Group for Step Functions
+  StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/stepfunctions/${ProjectName}-orchestration-${Environment}'
+      RetentionInDays: 30
+
+  # IAM Role for Step Functions with enhanced permissions
   StateMachineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -348,17 +329,18 @@ Resources:
             Principal:
               Service: states.amazonaws.com
             Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
       Policies:
         - PolicyName: !Sub '${ProjectName}-statemachine-policy-${Environment}'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # Lambda invocation permissions
               - Effect: Allow
                 Action:
                   - 'lambda:InvokeFunction'
                 Resource: !Ref OrchestrationLambdaArn
+              
+              # CloudWatch Logs permissions for Step Functions logging
               - Effect: Allow
                 Action:
                   - 'logs:CreateLogDelivery'
@@ -369,6 +351,17 @@ Resources:
                   - 'logs:PutResourcePolicy'
                   - 'logs:DescribeResourcePolicies'
                   - 'logs:DescribeLogGroups'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+              
+              # X-Ray tracing permissions (optional but recommended)
+              - Effect: Allow
+                Action:
+                  - 'xray:PutTraceSegments'
+                  - 'xray:PutTelemetryRecords'
+                  - 'xray:GetSamplingRules'
+                  - 'xray:GetSamplingTargets'
                 Resource: '*'
 
 Outputs:
@@ -383,3 +376,9 @@ Outputs:
     Value: !GetAtt DRSOrchestrationStateMachine.Name
     Export:
       Name: !Sub '${ProjectName}-state-machine-name-${Environment}'
+  
+  StateMachineLogGroupArn:
+    Description: 'ARN of the Step Functions Log Group'
+    Value: !GetAtt StateMachineLogGroup.Arn
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-logs-arn-${Environment}'

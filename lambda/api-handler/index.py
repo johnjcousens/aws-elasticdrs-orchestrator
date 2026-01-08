@@ -4318,7 +4318,7 @@ def initiate_wave(
             
             # Query DRS for servers matching tags
             resolved_servers = query_drs_servers_by_tags(region, selection_tags, account_context)
-            pg_servers = [s.get("sourceServerID") for s in resolved_servers if s.get("sourceServerID")]
+            pg_servers = resolved_servers  # Function already returns list of server IDs
             print(f"Resolved {len(pg_servers)} servers from tags: {pg_servers}")
         else:
             print(f"Using explicit server IDs from Protection Group: {len(pg_servers)} servers")
