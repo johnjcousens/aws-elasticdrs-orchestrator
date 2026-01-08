@@ -5088,16 +5088,40 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         # Build ServerStatuses from DRS participatingServers
                         if participating_servers:
                             server_statuses = []
+                            
+                            # Get recovery instances to find instance IDs for completed jobs
+                            recovery_instances = {}
+                            try:
+                                recovery_response = drs_client.describe_recovery_instances()
+                                for instance in recovery_response.get("items", []):
+                                    source_server_id = instance.get("sourceServerID")
+                                    if source_server_id:
+                                        recovery_instances[source_server_id] = {
+                                            "recoveryInstanceID": instance.get("recoveryInstanceID"),
+                                            "ec2InstanceID": instance.get("ec2InstanceID"),
+                                            "ec2InstanceState": instance.get("ec2InstanceState"),
+                                        }
+                                print(f"RECONCILE: Found {len(recovery_instances)} recovery instances in {region}")
+                            except Exception as e:
+                                print(f"RECONCILE: Error getting recovery instances: {e}")
+                            
                             for server in participating_servers:
+                                source_server_id = server.get("sourceServerID")
+                                recovery_info = recovery_instances.get(source_server_id, {})
+                                
                                 server_status = {
-                                    "SourceServerId": server.get("sourceServerID"),
+                                    "SourceServerId": source_server_id,
                                     "LaunchStatus": server.get("launchStatus", "UNKNOWN"),
-                                    "RecoveryInstanceID": server.get("recoveryInstanceID"),
+                                    "RecoveryInstanceID": (
+                                        server.get("recoveryInstanceID") or 
+                                        recovery_info.get("recoveryInstanceID") or
+                                        recovery_info.get("ec2InstanceID")
+                                    ),
                                 }
                                 server_statuses.append(server_status)
-                                print(f"RECONCILE: Server {server.get('sourceServerID')}: "
+                                print(f"RECONCILE: Server {source_server_id}: "
                                       f"status={server.get('launchStatus')}, "
-                                      f"instanceId={server.get('recoveryInstanceID')}")
+                                      f"instanceId={server_status['RecoveryInstanceID']}")
                             
                             # Store ServerStatuses in wave for transform function
                             wave["ServerStatuses"] = server_statuses
