@@ -393,6 +393,21 @@ class TestGetEndpointPermissions:
         )
         assert DRSPermission.TERMINATE_INSTANCES in perms
 
+    def test_recovery_instances_endpoint(self):
+        """Should return view executions permission for recovery-instances endpoint."""
+        perms = get_endpoint_permissions(
+            "GET", "/executions/abc-123/recovery-instances"
+        )
+        assert DRSPermission.VIEW_EXECUTIONS in perms
+
+    def test_recovery_instances_endpoint_raw(self):
+        """Should have view executions permission in ENDPOINT_PERMISSIONS."""
+        perms = ENDPOINT_PERMISSIONS.get(
+            ("GET", "/executions/{executionId}/recovery-instances")
+        )
+        assert perms is not None, "GET /executions/{executionId}/recovery-instances should have permissions"
+        assert DRSPermission.VIEW_EXECUTIONS in perms
+
 
 class TestCheckAuthorization:
     """Test check_authorization function."""
