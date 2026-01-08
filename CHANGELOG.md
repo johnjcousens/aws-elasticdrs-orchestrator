@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Enterprise PRD API Examples**: Fixed incorrect AWS CLI commands and HTTP methods in Enterprise_DR_Orchestration_Platform_PRD.md
+  - Replaced non-existent `aws apigateway invoke-rest-api` command with correct `curl` HTTP examples
+  - Corrected pause/resume HTTP methods from `PUT` to `POST` to match actual API implementation
+  - Clarified DynamoDB table comparison (DRS solution uses 4 tables for full CRUD, Enterprise Platform proposes 2 for automation-only)
+  - Updated GitHub Actions workflow example with proper Cognito authentication flow
+  - Added revision history to track document changes
+
 ## [1.4.6] - January 7, 2026
 
 ### Added
@@ -15,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `recovery-instances` to `STATIC_SEGMENTS` for path normalization
   - Added path handling in `get_endpoint_permissions()` function
   - Added 2 unit tests for the new endpoint permission
+- **AWS Landing Zone Accelerator (LZA) Integration**: Added comprehensive documentation for integrating pre-vended IAM roles
+  - LZA integration architecture diagram
+  - Pre-vended IAM role templates for DRS Orchestration Execution Role
+  - Pre-vended IAM role templates for DRS Cross-Account Target Role
+  - CloudFormation parameter configuration for LZA mode
+  - Python code updates for cross-account role assumption
+  - LZA deployment workflow and administrator checklist
+  - Troubleshooting guide for LZA integration issues
 
 ### Changed
 - **Test Count**: Expanded from 306 to 308 automated tests (56 RBAC middleware tests)
@@ -22,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated README.md with v1.4.6 release information and 100% API coverage
   - Updated API_REFERENCE_GUIDE.md to v2.2 with complete RBAC documentation
   - Updated ORCHESTRATION_INTEGRATION_GUIDE.md to v2.2 with Cognito group names and recovery-instances endpoint
-  - Updated Enterprise_DR_Orchestration_Platform_PRD.md to v1.1 with RBAC roles and Cognito group names
+  - Updated Enterprise_DR_Orchestration_Platform_PRD.md to v1.2 with RBAC roles, Cognito group names, and LZA integration
   - Updated RBAC_SECURITY_TESTING_STATUS.md with API endpoint coverage matrix
   - Updated GITHUB_ACTIONS_CICD_GUIDE.md with workflow conflict prevention section
   - Added recovery-instances endpoint to Executions API tables

@@ -1,9 +1,17 @@
 # Enterprise DR Orchestration Platform - Product Requirements Document
 
-**Version**: 1.1  
+**Version**: 1.3  
 **Date**: January 7, 2026  
 **Author**: Technical Architecture Team  
 **Status**: Draft  
+
+### Revision History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.3 | 2026-01-07 | Fixed API integration examples (replaced non-existent `aws apigateway invoke-rest-api` with curl/HTTP), corrected HTTP methods for pause/resume (PUT→POST), clarified DynamoDB table comparisons |
+| 1.2 | 2026-01-07 | Added AWS LZA integration section with pre-vended IAM role templates |
+| 1.1 | 2026-01-06 | Initial draft with multi-technology DR orchestration architecture |
 
 ## Executive Summary
 
@@ -145,44 +153,64 @@ flowchart TD
     class CW,SNS,WEBHOOK,EVENTS monitor
 ```
 
-### 1. AWS CLI Integration
+### 1. REST API Integration (curl/HTTP)
+
+**Note**: AWS CLI does not have a direct `invoke-rest-api` command for API Gateway. Use `curl` with the API Gateway URL or invoke Lambda functions directly.
 
 ```bash
-# Start DR execution via AWS CLI
-aws apigateway invoke-rest-api \
-  --rest-api-id $API_ID \
-  --resource-path "/executions" \
-  --method POST \
-  --payload '{
+# Set environment variables
+export API_URL="https://<api-id>.execute-api.us-east-1.amazonaws.com/dev"
+export TOKEN=$(aws cognito-idp admin-initiate-auth \
+  --user-pool-id <user-pool-id> \
+  --client-id <client-id> \
+  --auth-flow ADMIN_NO_SRP_AUTH \
+  --auth-parameters USERNAME=<username>,PASSWORD=<password> \
+  --region us-east-1 \
+  --query 'AuthenticationResult.IdToken' \
+  --output text)
+
+# Start DR execution via REST API
+curl -X POST "$API_URL/executions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
     "planId": "enterprise-app-recovery",
     "executionType": "recovery",
     "tags": {
       "Environment": "production",
       "Application": "core-banking"
     }
-  }' \
-  --region us-east-1
+  }'
 
 # Monitor execution status
-aws apigateway invoke-rest-api \
-  --rest-api-id $API_ID \
-  --resource-path "/executions/$EXECUTION_ID" \
-  --method GET \
-  --region us-east-1
+curl -X GET "$API_URL/executions/$EXECUTION_ID" \
+  -H "Authorization: Bearer $TOKEN"
 
-# Pause execution for validation
-aws apigateway invoke-rest-api \
-  --rest-api-id $API_ID \
-  --resource-path "/executions/$EXECUTION_ID/pause" \
-  --method PUT \
-  --region us-east-1
+# Pause execution for validation (POST method)
+curl -X POST "$API_URL/executions/$EXECUTION_ID/pause" \
+  -H "Authorization: Bearer $TOKEN"
 
-# Resume after validation
-aws apigateway invoke-rest-api \
-  --rest-api-id $API_ID \
-  --resource-path "/executions/$EXECUTION_ID/resume" \
-  --method PUT \
-  --region us-east-1
+# Resume after validation (POST method)
+curl -X POST "$API_URL/executions/$EXECUTION_ID/resume" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Cancel execution
+curl -X POST "$API_URL/executions/$EXECUTION_ID/cancel" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### Alternative: Direct Lambda Invocation
+
+```bash
+# Start DR execution via Lambda invoke
+aws lambda invoke \
+  --function-name drs-orchestration-api-handler \
+  --payload '{"httpMethod":"POST","path":"/executions","body":"{\"planId\":\"enterprise-app-recovery\",\"executionType\":\"recovery\"}"}' \
+  --region us-east-1 \
+  response.json
+
+# View response
+cat response.json | jq .
 ```
 
 ### 2. SSM Document Integration
@@ -449,6 +477,9 @@ on:
           - staging
           - production
 
+env:
+  API_URL: ${{ secrets.DR_API_URL }}  # e.g., https://<api-id>.execute-api.us-east-1.amazonaws.com/dev
+
 jobs:
   execute-dr-drill:
     runs-on: ubuntu-latest
@@ -459,14 +490,26 @@ jobs:
           role-to-assume: ${{ secrets.DR_EXECUTION_ROLE_ARN }}
           aws-region: us-east-1
 
+      - name: Get authentication token
+        id: auth
+        run: |
+          TOKEN=$(aws cognito-idp admin-initiate-auth \
+            --user-pool-id ${{ secrets.COGNITO_USER_POOL_ID }} \
+            --client-id ${{ secrets.COGNITO_CLIENT_ID }} \
+            --auth-flow ADMIN_NO_SRP_AUTH \
+            --auth-parameters USERNAME=${{ secrets.DR_SERVICE_USER }},PASSWORD=${{ secrets.DR_SERVICE_PASSWORD }} \
+            --region us-east-1 \
+            --query 'AuthenticationResult.IdToken' \
+            --output text)
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
       - name: Start DR execution
         id: start-dr
         run: |
-          EXECUTION_RESPONSE=$(aws apigateway invoke-rest-api \
-            --rest-api-id ${{ secrets.DR_API_GATEWAY_ID }} \
-            --resource-path "/executions" \
-            --method POST \
-            --payload '{
+          EXECUTION_RESPONSE=$(curl -s -X POST "${{ env.API_URL }}/executions" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
               "planId": "ci-cd-drill-plan",
               "executionType": "${{ github.event.inputs.execution_type || 'drill' }}",
               "tags": {
@@ -474,38 +517,31 @@ jobs:
                 "TriggerSource": "GitHub Actions",
                 "WorkflowRun": "${{ github.run_id }}"
               }
-            }' \
-            --region us-east-1 \
-            --query 'body' \
-            --output text)
+            }')
           
           EXECUTION_ID=$(echo $EXECUTION_RESPONSE | jq -r '.executionId')
           echo "execution_id=$EXECUTION_ID" >> $GITHUB_OUTPUT
+          echo "Started execution: $EXECUTION_ID"
 
       - name: Monitor DR execution
         run: |
           EXECUTION_ID="${{ steps.start-dr.outputs.execution_id }}"
           
           while true; do
-            STATUS_RESPONSE=$(aws apigateway invoke-rest-api \
-              --rest-api-id ${{ secrets.DR_API_GATEWAY_ID }} \
-              --resource-path "/executions/$EXECUTION_ID" \
-              --method GET \
-              --region us-east-1 \
-              --query 'body' \
-              --output text)
+            STATUS_RESPONSE=$(curl -s -X GET "${{ env.API_URL }}/executions/$EXECUTION_ID" \
+              -H "Authorization: Bearer ${{ steps.auth.outputs.token }}")
             
-            STATUS=$(echo $STATUS_RESPONSE | jq -r '.status')
+            STATUS=$(echo $STATUS_RESPONSE | jq -r '.Status')
             echo "Current status: $STATUS"
             
-            if [[ "$STATUS" == "completed" || "$STATUS" == "failed" || "$STATUS" == "cancelled" ]]; then
+            if [[ "$STATUS" == "COMPLETED" || "$STATUS" == "FAILED" || "$STATUS" == "CANCELLED" ]]; then
               break
             fi
             
             sleep 30
           done
           
-          if [[ "$STATUS" != "completed" ]]; then
+          if [[ "$STATUS" != "COMPLETED" ]]; then
             echo "DR execution failed with status: $STATUS"
             exit 1
           fi
@@ -514,13 +550,8 @@ jobs:
         run: |
           EXECUTION_ID="${{ steps.start-dr.outputs.execution_id }}"
           
-          aws apigateway invoke-rest-api \
-            --rest-api-id ${{ secrets.DR_API_GATEWAY_ID }} \
-            --resource-path "/executions/$EXECUTION_ID/export" \
-            --method GET \
-            --region us-east-1 \
-            --query 'body' \
-            --output text | jq .
+          curl -s -X GET "${{ env.API_URL }}/executions/$EXECUTION_ID" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" | jq .
 ```
 
 ### Configuration Management & Data Storage
@@ -638,17 +669,19 @@ Secrets Manager:
 
 #### DynamoDB Requirements Analysis
 
-**Comparison with Your DRS Solution:**
+**Comparison: DRS Orchestration Solution vs Enterprise Platform:**
 
-| Data Type | Your DRS Solution | Enterprise Platform | Storage Recommendation |
-|-----------|-------------------|---------------------|------------------------|
-| **Protection Groups** | DynamoDB | Not needed | Parameter Store (static config) |
-| **Recovery Plans** | DynamoDB | Simplified | Parameter Store (JSON config) |
-| **Execution History** | DynamoDB | **Required** | DynamoDB (real-time updates) |
-| **Wave Definitions** | In Recovery Plans | Simplified | Parameter Store (static config) |
-| **Server Assignments** | DynamoDB | Tag-based | No storage (dynamic discovery) |
-| **User Management** | Cognito + DynamoDB | Not needed | IAM Roles only |
-| **Target Accounts** | DynamoDB | **Required** | DynamoDB (cross-account config) |
+| Data Type | DRS Orchestration Solution (4 Tables) | Enterprise Platform | Storage Recommendation |
+|-----------|---------------------------------------|---------------------|------------------------|
+| **Protection Groups** | DynamoDB (`protection-groups`) | Not needed | Parameter Store (static config) |
+| **Recovery Plans** | DynamoDB (`recovery-plans`) | Simplified | Parameter Store (JSON config) |
+| **Execution History** | DynamoDB (`execution-history`) | **Required** | DynamoDB (real-time updates) |
+| **Wave Definitions** | Embedded in Recovery Plans | Simplified | Parameter Store (static config) |
+| **Server Assignments** | Tag-based + explicit IDs in PGs | Tag-based | No storage (dynamic discovery) |
+| **User Management** | Cognito Groups (RBAC) | Not needed | IAM Roles only |
+| **Target Accounts** | DynamoDB (`target-accounts`) | **Required** | DynamoDB (cross-account config) |
+
+**Note**: The DRS Orchestration solution uses 4 DynamoDB tables to support full CRUD operations via REST API and UI. The Enterprise Platform proposes a simplified 2-table approach using Parameter Store for static configuration, which is appropriate for API-only automation scenarios.
 
 #### Minimal DynamoDB Schema
 
@@ -658,7 +691,12 @@ class EnterpriseDRTables:
     def __init__(self):
         self.dynamodb = boto3.resource('dynamodb')
         
-        # Only 2 tables needed vs 4 in your DRS solution
+        # Enterprise platform uses 2 tables for simplified configuration-driven approach
+        # Note: The DRS Orchestration solution uses 4 tables for full CRUD operations:
+        # - protection-groups: Server groupings with tag-based or explicit selection
+        # - recovery-plans: Wave-based recovery configurations
+        # - execution-history: Execution state and progress tracking
+        # - target-accounts: Cross-account configuration for hub-and-spoke
         self.execution_history = self.dynamodb.Table('dr-execution-history')
         self.cross_account_config = self.dynamodb.Table('dr-cross-account-config')
     
@@ -834,17 +872,18 @@ flowchart TD
     class TAGS,API discovery
 ```
 
-**Key Differences from Your DRS Solution:**
+**Key Differences: DRS Orchestration Solution vs Enterprise Platform:**
 
-| Aspect | Your DRS Solution | Enterprise Platform |
-|--------|-------------------|---------------------|
-| **Tables** | 4 DynamoDB tables | 2 DynamoDB tables |
-| **Configuration** | Database-stored | Parameter Store |
-| **Resource Discovery** | Database + Tags | Tags only |
-| **User Management** | Cognito + DynamoDB | IAM Roles |
-| **Plan Storage** | DynamoDB | Parameter Store |
-| **Secrets** | Environment variables | Secrets Manager |
-| **Cost** | Higher (more tables) | Lower (minimal storage) |
+| Aspect | DRS Orchestration Solution | Enterprise Platform |
+|--------|----------------------------|---------------------|
+| **DynamoDB Tables** | 4 tables (protection-groups, recovery-plans, execution-history, target-accounts) | 2 tables (execution-history, cross-account-config) |
+| **Configuration** | DynamoDB with REST API CRUD | Parameter Store (static JSON) |
+| **Resource Discovery** | Tag-based + explicit server IDs | Tags only |
+| **User Management** | Cognito Groups with RBAC (5 roles) | IAM Roles only |
+| **Plan Storage** | DynamoDB with versioning | Parameter Store |
+| **Secrets** | Cognito for auth, env vars for config | Secrets Manager |
+| **UI** | Full React/CloudScape frontend | API-only (headless) |
+| **Use Case** | Interactive DR management + automation | Pure automation/integration |
 
 ### IAM Roles & Permissions
 
@@ -1338,6 +1377,657 @@ EnterpriseIntegrationRole:
 - **Least privilege** principle with specific resource ARNs
 - **Condition-based access** for enhanced security
 - **Regional restrictions** for compliance requirements
+
+---
+
+### AWS Landing Zone Accelerator (LZA) Integration
+
+Enterprise customers using AWS Landing Zone Accelerator (LZA) typically have centralized IAM role management where all roles are created and managed from a central identity account. This section describes how to integrate pre-vended IAM roles into the DRS Orchestration solution instead of having the solution create its own roles.
+
+#### LZA Integration Architecture
+
+```mermaid
+flowchart TB
+    subgraph "🏢 LZA Management Account"
+        LZA["🔧 Landing Zone Accelerator"]
+        IAM_FACTORY["🏭 IAM Role Factory"]
+        SCPs["📋 Service Control Policies"]
+    end
+    
+    subgraph "🔐 Identity Account"
+        ROLE_TEMPLATES["📝 Role Templates"]
+        PERMISSION_SETS["🎫 Permission Sets"]
+    end
+    
+    subgraph "🎯 DRS Orchestration Account"
+        DRS_SOLUTION["⚡ DRS Orchestration Solution"]
+        LAMBDA["λ Lambda Functions"]
+        STEP_FN["🔄 Step Functions"]
+        API_GW["🌐 API Gateway"]
+    end
+    
+    subgraph "🖥️ Target Accounts (Workloads)"
+        TARGET_ROLE["🔑 DRS-CrossAccount-Role"]
+        DRS_SERVICE["💾 AWS DRS"]
+        EC2["🖥️ EC2 Instances"]
+    end
+    
+    LZA --> IAM_FACTORY
+    IAM_FACTORY --> ROLE_TEMPLATES
+    ROLE_TEMPLATES --> |"Pre-vended roles"| DRS_SOLUTION
+    ROLE_TEMPLATES --> |"Cross-account roles"| TARGET_ROLE
+    SCPs --> |"Guardrails"| DRS_SOLUTION
+    
+    DRS_SOLUTION --> LAMBDA
+    DRS_SOLUTION --> STEP_FN
+    DRS_SOLUTION --> API_GW
+    
+    LAMBDA --> |"AssumeRole"| TARGET_ROLE
+    TARGET_ROLE --> DRS_SERVICE
+    TARGET_ROLE --> EC2
+    
+    classDef lza fill:#FF9800,stroke:#E65100,color:#fff
+    classDef identity fill:#9C27B0,stroke:#6A1B9A,color:#fff
+    classDef drs fill:#2196F3,stroke:#1565C0,color:#fff
+    classDef target fill:#4CAF50,stroke:#2E7D32,color:#fff
+    
+    class LZA,IAM_FACTORY,SCPs lza
+    class ROLE_TEMPLATES,PERMISSION_SETS identity
+    class DRS_SOLUTION,LAMBDA,STEP_FN,API_GW drs
+    class TARGET_ROLE,DRS_SERVICE,EC2 target
+```
+
+#### Pre-Vended IAM Roles for LZA Environments
+
+When deploying in an LZA environment, the LZA administrator should create the following roles that the DRS Orchestration solution will use instead of creating its own:
+
+##### 1. DRS Orchestration Execution Role (Hub Account)
+
+This is the primary execution role used by Lambda functions and Step Functions in the DRS Orchestration solution.
+
+**Role Name**: `DRS-Orchestration-Execution-Role` (or organization-specific naming convention)
+
+```yaml
+# LZA IAM Role Template for DRS Orchestration Execution Role
+# Deploy to: DRS Orchestration Hub Account
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LZA Pre-vended IAM Role for DRS Orchestration Solution'
+
+Parameters:
+  OrganizationId:
+    Type: String
+    Description: AWS Organization ID for cross-account trust
+  DRSAccountId:
+    Type: String
+    Description: Account ID where DRS Orchestration is deployed
+  TargetAccountOUs:
+    Type: CommaDelimitedList
+    Description: List of OU IDs containing target workload accounts
+    Default: "ou-xxxx-xxxxxxxx,ou-yyyy-yyyyyyyy"
+
+Resources:
+  DRSOrchestrationExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DRS-Orchestration-Execution-Role
+      Description: "LZA pre-vended role for DRS Orchestration Lambda and Step Functions"
+      MaxSessionDuration: 43200  # 12 hours for long-running DR operations
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Allow Lambda service to assume this role
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+          # Allow Step Functions service to assume this role
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+          # Allow API Gateway for Lambda proxy integration
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DRSOrchestrationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DRS Operations (local account)
+              - Sid: DRSOperations
+                Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  - drs:DescribeRecoveryInstances
+                  - drs:DescribeRecoverySnapshots
+                  - drs:DescribeLaunchConfigurationTemplates
+                  - drs:StartRecovery
+                  - drs:TerminateRecoveryInstances
+                  - drs:GetLaunchConfiguration
+                  - drs:UpdateLaunchConfiguration
+                  - drs:ListTagsForResource
+                  - drs:TagResource
+                  - drs:UntagResource
+                Resource: "*"
+              
+              # Step Functions Orchestration
+              - Sid: StepFunctionsOrchestration
+                Effect: Allow
+                Action:
+                  - states:StartExecution
+                  - states:StopExecution
+                  - states:DescribeExecution
+                  - states:ListExecutions
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:SendTaskHeartbeat
+                  - states:GetExecutionHistory
+                Resource:
+                  - !Sub "arn:aws:states:*:${DRSAccountId}:stateMachine:*drs*"
+                  - !Sub "arn:aws:states:*:${DRSAccountId}:execution:*drs*:*"
+              
+              # DynamoDB for execution state
+              - Sid: DynamoDBAccess
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub "arn:aws:dynamodb:*:${DRSAccountId}:table/*drs*"
+                  - !Sub "arn:aws:dynamodb:*:${DRSAccountId}:table/*drs*/index/*"
+              
+              # EC2 for launch configuration and instance management
+              - Sid: EC2Operations
+                Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:DescribeImages
+                  - ec2:DescribeTags
+                  - ec2:CreateTags
+                  - ec2:TerminateInstances
+                Resource: "*"
+              
+              # Cross-account role assumption for target accounts
+              - Sid: CrossAccountAssumeRole
+                Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - "arn:aws:iam::*:role/DRS-CrossAccount-Target-Role"
+                Condition:
+                  StringEquals:
+                    'aws:PrincipalOrgID': !Ref OrganizationId
+              
+              # CloudWatch Logs
+              - Sid: CloudWatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource:
+                  - !Sub "arn:aws:logs:*:${DRSAccountId}:log-group:/aws/lambda/*drs*"
+                  - !Sub "arn:aws:logs:*:${DRSAccountId}:log-group:/aws/stepfunctions/*drs*"
+              
+              # EventBridge for notifications
+              - Sid: EventBridgeNotifications
+                Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - !Sub "arn:aws:events:*:${DRSAccountId}:event-bus/default"
+              
+              # SNS for notifications
+              - Sid: SNSNotifications
+                Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub "arn:aws:sns:*:${DRSAccountId}:*drs*"
+              
+              # Lambda invocation for internal functions
+              - Sid: LambdaInvocation
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:aws:lambda:*:${DRSAccountId}:function:*drs*"
+      Tags:
+        - Key: ManagedBy
+          Value: LZA
+        - Key: Purpose
+          Value: DRS-Orchestration
+        - Key: Environment
+          Value: Production
+
+Outputs:
+  RoleArn:
+    Description: ARN of the DRS Orchestration Execution Role
+    Value: !GetAtt DRSOrchestrationExecutionRole.Arn
+    Export:
+      Name: DRS-Orchestration-Execution-Role-Arn
+  RoleName:
+    Description: Name of the DRS Orchestration Execution Role
+    Value: !Ref DRSOrchestrationExecutionRole
+    Export:
+      Name: DRS-Orchestration-Execution-Role-Name
+```
+
+##### 2. DRS Cross-Account Target Role (Workload Accounts)
+
+This role is deployed to each workload account that contains DRS source servers and needs to be managed by the orchestration solution.
+
+**Role Name**: `DRS-CrossAccount-Target-Role` (or organization-specific naming convention)
+
+```yaml
+# LZA IAM Role Template for DRS Cross-Account Target Role
+# Deploy to: All workload accounts with DRS source servers
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LZA Pre-vended Cross-Account Role for DRS Orchestration'
+
+Parameters:
+  DRSOrchestrationAccountId:
+    Type: String
+    Description: Account ID where DRS Orchestration solution is deployed
+  ExternalId:
+    Type: String
+    Description: External ID for secure cross-account access
+    NoEcho: true
+  OrganizationId:
+    Type: String
+    Description: AWS Organization ID for additional security
+
+Resources:
+  DRSCrossAccountTargetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DRS-CrossAccount-Target-Role
+      Description: "LZA pre-vended role for DRS Orchestration cross-account access"
+      MaxSessionDuration: 43200  # 12 hours for long-running DR operations
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${DRSOrchestrationAccountId}:role/DRS-Orchestration-Execution-Role"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref ExternalId
+                'aws:PrincipalOrgID': !Ref OrganizationId
+      Policies:
+        - PolicyName: DRSCrossAccountPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Full DRS operations in target account
+              - Sid: DRSFullAccess
+                Effect: Allow
+                Action:
+                  - drs:*
+                Resource: "*"
+              
+              # EC2 operations for recovery instances
+              - Sid: EC2RecoveryOperations
+                Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeSnapshots
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:DescribeImages
+                  - ec2:DescribeTags
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                  - ec2:TerminateInstances
+                  - ec2:StopInstances
+                  - ec2:StartInstances
+                  - ec2:RunInstances
+                  - ec2:CreateVolume
+                  - ec2:AttachVolume
+                  - ec2:DetachVolume
+                  - ec2:CreateSnapshot
+                  - ec2:CreateLaunchTemplate
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:ModifyLaunchTemplate
+                Resource: "*"
+              
+              # IAM PassRole for DRS service role
+              - Sid: IAMPassRole
+                Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSElasticDisasterRecovery*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/service-role/AWSElasticDisasterRecovery*"
+                Condition:
+                  StringEquals:
+                    'iam:PassedToService': 
+                      - drs.amazonaws.com
+                      - ec2.amazonaws.com
+              
+              # CloudWatch for monitoring
+              - Sid: CloudWatchMonitoring
+                Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:GetLogEvents
+                Resource: "*"
+      Tags:
+        - Key: ManagedBy
+          Value: LZA
+        - Key: Purpose
+          Value: DRS-CrossAccount-Access
+        - Key: TrustingAccount
+          Value: !Ref DRSOrchestrationAccountId
+
+Outputs:
+  RoleArn:
+    Description: ARN of the DRS Cross-Account Target Role
+    Value: !GetAtt DRSCrossAccountTargetRole.Arn
+    Export:
+      Name: DRS-CrossAccount-Target-Role-Arn
+```
+
+##### 3. DRS API Gateway Authorizer Role (Optional - for Cognito-less deployments)
+
+For API-only deployments without Cognito, this role enables IAM-based API authorization.
+
+**Role Name**: `DRS-API-Authorizer-Role`
+
+```yaml
+# LZA IAM Role Template for DRS API Authorization
+# Deploy to: DRS Orchestration Hub Account (optional for IAM-based auth)
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LZA Pre-vended Role for DRS API Gateway IAM Authorization'
+
+Parameters:
+  DRSAccountId:
+    Type: String
+    Description: Account ID where DRS Orchestration is deployed
+  AllowedPrincipalArns:
+    Type: CommaDelimitedList
+    Description: List of IAM role/user ARNs allowed to invoke the API
+    Default: ""
+
+Resources:
+  DRSAPIAuthorizerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: DRS-API-Authorizer-Role
+      Description: "LZA pre-vended role for DRS API Gateway authorization"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: APIGatewayAuthorizerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: InvokeLambdaAuthorizer
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:aws:lambda:*:${DRSAccountId}:function:*drs*authorizer*"
+      Tags:
+        - Key: ManagedBy
+          Value: LZA
+        - Key: Purpose
+          Value: DRS-API-Authorization
+```
+
+#### Integrating Pre-Vended Roles into DRS Orchestration Solution
+
+##### CloudFormation Parameter Configuration
+
+Update the DRS Orchestration master template to accept pre-vended role ARNs:
+
+```yaml
+# Master template parameters for LZA integration
+Parameters:
+  # LZA Integration Mode
+  UseLZAPrevendedRoles:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: "Use pre-vended IAM roles from LZA instead of creating new roles"
+  
+  # Pre-vended Role ARNs (required when UseLZAPrevendedRoles is true)
+  LZAExecutionRoleArn:
+    Type: String
+    Default: ""
+    Description: "ARN of LZA pre-vended DRS Orchestration Execution Role"
+  
+  LZACrossAccountRoleName:
+    Type: String
+    Default: "DRS-CrossAccount-Target-Role"
+    Description: "Name of LZA pre-vended cross-account role in target accounts"
+  
+  LZAAPIAuthorizerRoleArn:
+    Type: String
+    Default: ""
+    Description: "ARN of LZA pre-vended API Gateway Authorizer Role (optional)"
+
+Conditions:
+  CreateIAMRoles: !Equals [!Ref UseLZAPrevendedRoles, "false"]
+  UseLZARoles: !Equals [!Ref UseLZAPrevendedRoles, "true"]
+
+Resources:
+  # Only create roles if not using LZA pre-vended roles
+  DRSExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: CreateIAMRoles
+    Properties:
+      # ... existing role definition ...
+  
+  # Lambda function using conditional role reference
+  APIHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-api-handler-${Environment}"
+      Role: !If 
+        - UseLZARoles
+        - !Ref LZAExecutionRoleArn
+        - !GetAtt DRSExecutionRole.Arn
+      # ... rest of function configuration ...
+  
+  # Step Functions using conditional role reference
+  OrchestrationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub "${ProjectName}-orchestration-${Environment}"
+      RoleArn: !If 
+        - UseLZARoles
+        - !Ref LZAExecutionRoleArn
+        - !GetAtt DRSExecutionRole.Arn
+      # ... rest of state machine configuration ...
+```
+
+##### Lambda Environment Configuration
+
+Configure Lambda functions to use the correct cross-account role name:
+
+```yaml
+# Lambda function environment variables for LZA integration
+APIHandlerFunction:
+  Type: AWS::Lambda::Function
+  Properties:
+    Environment:
+      Variables:
+        # Cross-account role name (configurable for LZA)
+        CROSS_ACCOUNT_ROLE_NAME: !Ref LZACrossAccountRoleName
+        # Flag to indicate LZA mode
+        LZA_INTEGRATION_MODE: !Ref UseLZAPrevendedRoles
+        # Other existing environment variables...
+```
+
+##### Python Code Updates for LZA Integration
+
+```python
+# lambda/shared/cross_account.py
+import os
+import boto3
+from typing import Optional
+
+def get_cross_account_role_name() -> str:
+    """Get the cross-account role name (supports LZA pre-vended roles)."""
+    return os.environ.get(
+        'CROSS_ACCOUNT_ROLE_NAME', 
+        'DRS-CrossAccount-Target-Role'
+    )
+
+def assume_cross_account_role(
+    target_account_id: str,
+    region: str,
+    external_id: Optional[str] = None,
+    session_name: str = "DRSOrchestration"
+) -> boto3.Session:
+    """
+    Assume cross-account role in target account.
+    
+    Supports both solution-created roles and LZA pre-vended roles.
+    
+    Args:
+        target_account_id: AWS account ID to assume role in
+        region: AWS region for the session
+        external_id: External ID for role assumption (optional)
+        session_name: Name for the assumed role session
+    
+    Returns:
+        boto3.Session configured with assumed role credentials
+    """
+    sts_client = boto3.client('sts', region_name=region)
+    
+    role_name = get_cross_account_role_name()
+    role_arn = f"arn:aws:iam::{target_account_id}:role/{role_name}"
+    
+    assume_role_params = {
+        'RoleArn': role_arn,
+        'RoleSessionName': session_name,
+        'DurationSeconds': 3600  # 1 hour
+    }
+    
+    # Add external ID if provided (required for LZA roles)
+    if external_id:
+        assume_role_params['ExternalId'] = external_id
+    
+    response = sts_client.assume_role(**assume_role_params)
+    
+    credentials = response['Credentials']
+    
+    return boto3.Session(
+        aws_access_key_id=credentials['AccessKeyId'],
+        aws_secret_access_key=credentials['SecretAccessKey'],
+        aws_session_token=credentials['SessionToken'],
+        region_name=region
+    )
+
+def is_lza_integration_mode() -> bool:
+    """Check if running in LZA integration mode."""
+    return os.environ.get('LZA_INTEGRATION_MODE', 'false').lower() == 'true'
+```
+
+#### LZA Deployment Workflow
+
+```mermaid
+sequenceDiagram
+    participant LZA as LZA Admin
+    participant IAM as IAM Role Factory
+    participant HUB as DRS Hub Account
+    participant TARGET as Target Accounts
+    participant DRS as DRS Solution
+    
+    Note over LZA,DRS: Phase 1: LZA Role Provisioning
+    LZA->>IAM: Define DRS role templates
+    IAM->>HUB: Deploy DRS-Orchestration-Execution-Role
+    IAM->>TARGET: Deploy DRS-CrossAccount-Target-Role (all workload accounts)
+    
+    Note over LZA,DRS: Phase 2: DRS Solution Deployment
+    LZA->>DRS: Deploy DRS Orchestration with LZA parameters
+    DRS->>DRS: Configure UseLZAPrevendedRoles=true
+    DRS->>DRS: Set LZAExecutionRoleArn
+    DRS->>DRS: Set LZACrossAccountRoleName
+    
+    Note over LZA,DRS: Phase 3: Validation
+    DRS->>HUB: Lambda assumes execution role
+    HUB->>TARGET: Cross-account role assumption
+    TARGET-->>DRS: DRS operations successful
+    
+    Note over LZA,DRS: Phase 4: Ongoing Operations
+    DRS->>TARGET: Execute DR operations using pre-vended roles
+```
+
+#### LZA Administrator Checklist
+
+| Step | Action | Account | Notes |
+|------|--------|---------|-------|
+| 1 | Create DRS Orchestration Execution Role | Hub Account | Use template above |
+| 2 | Create DRS Cross-Account Target Role | All Workload Accounts | Deploy via StackSets |
+| 3 | Configure External ID | All Accounts | Store in Secrets Manager |
+| 4 | Update SCPs if needed | Organization | Allow DRS operations |
+| 5 | Provide role ARNs to DRS deployment | - | For CloudFormation parameters |
+| 6 | Deploy DRS Orchestration | Hub Account | With LZA parameters |
+| 7 | Validate cross-account access | - | Test role assumption |
+
+#### Benefits of LZA Pre-Vended Roles
+
+| Benefit | Description |
+|---------|-------------|
+| **Centralized Management** | All IAM roles managed from single location |
+| **Consistent Naming** | Organization-wide role naming conventions |
+| **Audit Compliance** | Roles created through approved change process |
+| **SCP Compatibility** | Roles designed to work with existing SCPs |
+| **Least Privilege** | Security team reviews and approves permissions |
+| **Easy Updates** | Update roles across all accounts via StackSets |
+| **No IAM Creation** | DRS solution doesn't need IAM create permissions |
+
+#### Troubleshooting LZA Integration
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| `AccessDenied` on role assumption | External ID mismatch | Verify External ID in target account role |
+| `Role does not exist` | Role not deployed to target account | Deploy cross-account role via StackSets |
+| Lambda execution fails | Execution role ARN incorrect | Verify `LZAExecutionRoleArn` parameter |
+| Cross-account DRS fails | Missing DRS permissions | Update cross-account role policy |
+| SCP blocking operations | Restrictive SCP | Add DRS service to SCP allow list |
+
+---
 
 ```python
 # ServiceNow workflow integration
