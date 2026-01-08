@@ -14,8 +14,11 @@ if ! git rev-parse --git-dir > /dev/null 2>&1; then
     exit 1
 fi
 
-# Get changed files since last commit
-CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only --cached)
+# Get changed files - prioritize staged changes, fallback to last commit
+CHANGED_FILES=$(git diff --name-only --cached)
+if [ -z "$CHANGED_FILES" ]; then
+    CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+fi
 
 if [ -z "$CHANGED_FILES" ]; then
     echo "ℹ️  No changes detected since last commit"
