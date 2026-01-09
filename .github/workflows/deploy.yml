@@ -414,21 +414,15 @@ jobs:
     strategy:
       matrix:
         stack:
-          - name: "aws-elasticdrs-orchestrator-dev"
-            display_name: "Current Stack (Primary)"
-            bucket_secret: "DEPLOYMENT_BUCKET"
-            stack_secret: "STACK_NAME"
-            admin_email_secret: "ADMIN_EMAIL"
-            role_arn_secret: "AWS_ROLE_ARN"
-            project_name: "aws-elasticdrs-orchestrator"
+          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
           - name: "aws-drs-orchestrator-archive-test"
-            display_name: "Archive Test Stack"
+            display_name: "Archive Test Stack (FOCUS)"
             bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
             stack_secret: "ARCHIVE_STACK_NAME"
             admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
             role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
             project_name: "aws-drs-orchestrator"
-      max-parallel: 1  # CRITICAL: Sequential deployment to avoid S3 conflicts
+      max-parallel: 1  # Single stack deployment
     environment: 
       name: ${{ github.event.inputs.environment || 'dev' }}
     steps:
@@ -609,19 +603,14 @@ jobs:
     strategy:
       matrix:
         stack:
-          - name: "aws-elasticdrs-orchestrator-dev"
-            display_name: "Current Stack (Primary)"
-            bucket_secret: "DEPLOYMENT_BUCKET"
-            stack_secret: "STACK_NAME"
-            admin_email_secret: "ADMIN_EMAIL"
-            role_arn_secret: "AWS_ROLE_ARN"
+          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
           - name: "aws-drs-orchestrator-archive-test"
-            display_name: "Archive Test Stack"
+            display_name: "Archive Test Stack (FOCUS)"
             bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
             stack_secret: "ARCHIVE_STACK_NAME"
             admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
             role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
-      max-parallel: 1  # Sequential deployment
+      max-parallel: 1  # Single stack deployment
     # Deploy frontend when frontend files change
     steps:
       - name: Checkout code
@@ -739,19 +728,14 @@ jobs:
     strategy:
       matrix:
         stack:
-          - name: "aws-elasticdrs-orchestrator-dev"
-            display_name: "Current Stack (Primary)"
-            bucket_secret: "DEPLOYMENT_BUCKET"
-            stack_secret: "STACK_NAME"
-            admin_email_secret: "ADMIN_EMAIL"
-            role_arn_secret: "AWS_ROLE_ARN"
+          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
           - name: "aws-drs-orchestrator-archive-test"
-            display_name: "Archive Test Stack"
+            display_name: "Archive Test Stack (FOCUS)"
             bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
             stack_secret: "ARCHIVE_STACK_NAME"
             admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
             role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
-      max-parallel: 1  # Sequential deployment
+      max-parallel: 1  # Single stack deployment
     # Deploy frontend after infrastructure deployment (config may have changed)
     steps:
       - name: Checkout code
