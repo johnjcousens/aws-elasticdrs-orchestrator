@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - January 9, 2026
+
+### Added
+- **Fresh Deployment Foundation**: Restored codebase to working commit `59bed2d` (January 7, 2026) with complete DRS functionality
+  - ✅ **Complete DRS endpoint coverage** (all 4 core DRS endpoints + recovery instances)  
+  - ✅ **Full RBAC implementation** (47+ endpoints with proper permissions)  
+  - ✅ **Working application functionality** (from peak working period)  
+  - ✅ **Comprehensive DRS integration** (quotas, accounts, source servers, tag sync)
+- **Modern CI/CD Pipeline**: Cherry-picked latest GitHub Actions workflow and supporting scripts
+  - **GitHub Actions Workflow** (`.github/workflows/deploy.yml`) with intelligent change detection
+  - **Deployment Scripts** (`sync-to-deployment-bucket.sh`) for emergency deployments
+  - **Workflow Conflict Prevention** (`check-workflow.sh`, `safe-push.sh`) to prevent deployment conflicts
+  - **Deployment Scope Checking** (`check-deployment-scope.sh`) for deployment optimization
+  - **Security Scan Automation** for comprehensive security analysis
+- **Updated Steering Documents**: Refreshed project guidance for fresh deployment approach
+  - Updated `.kiro/steering/qa-stack-fix-focus.md` for fresh deployment strategy
+  - Enhanced `.kiro/steering/development-workflow.md` with workflow conflict prevention
+  - Added `.kiro/steering/security-scan-automation.md` for automated security scanning
+
+### Changed
+- **Deployment Strategy**: Shifted from fixing broken QA stack to fresh deployment with working code
+- **Stack Naming Convention**: Prepared for proper naming (`ProjectName=aws-drs-orchestrator-qa`, `Environment=dev`)
+- **CI/CD Integration**: Ready for GitHub Actions deployment with existing OIDC role (`aws-elasticdrs-orchestrator-github-actions-dev`)
+
+### Technical Details
+- **Base Commit**: `59bed2d` (January 7, 2026) - "fix(rbac): add missing recovery-instances endpoint permission"
+- **Cherry-picked Files**: Modern CI/CD pipeline from commits `b498f4a`, `b34aa08`, `94d38c3`, `cc20893`, `7c06243`
+- **DRS Endpoints**: All 5 DRS endpoints functional (source-servers, quotas, accounts, tag-sync, recovery-instances)
+- **RBAC Coverage**: Complete permission matrix for 47+ API endpoints with 5 DRS-specific roles
+- **Next Steps**: Deploy fresh stack and update CI/CD configuration for new stack
+
 ## [1.4.5] - January 7, 2026
 
 ### Fixed
