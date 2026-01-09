@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 
 import boto3
 
-from security_utils import log_security_event
+from shared.security_utils import log_security_event
 
 # Configure logging
 logger = logging.getLogger()
