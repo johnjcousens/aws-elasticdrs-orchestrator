@@ -479,15 +479,15 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
-        # Lambda functions to update (aligned with deployed stack)
+        # Lambda functions to update (aligned with actual deployed functions)
         LAMBDA_FUNCTIONS=(
             "api-handler:aws-drs-orchestrator-qa-api-handler-dev"
             "orchestration-stepfunctions:aws-drs-orchestrator-qa-orch-sf-dev"
-            "deployment-orchestrator:aws-drs-orchestrator-qa-deployment-orchestrator-dev"
+            "frontend-builder:aws-drs-orchestrator-qa-frontend-build-dev"
+            "bucket-cleaner:aws-drs-orchestrator-qa-bucket-cleaner-dev"
             "execution-finder:aws-drs-orchestrator-qa-execution-finder-dev"
             "execution-poller:aws-drs-orchestrator-qa-execution-poller-dev"
-            "bucket-cleaner:aws-drs-orchestrator-qa-bucket-cleaner-dev"
-            "notification-formatter:aws-drs-orchestrator-qa-notification-formatter-dev"
+            "notification-formatter:aws-drs-orchestrator-qa-notif-fmt-dev"
         )
         
         LAMBDA_DIR="$PROJECT_ROOT/lambda"
