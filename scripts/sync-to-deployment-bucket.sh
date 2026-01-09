@@ -429,30 +429,37 @@ package_lambda_function() {
     local output_zip="$2"
     
     echo "📦 Packaging $function_dir..." >&2
-    cd "$PROJECT_ROOT/lambda"
+    cd "$PROJECT_ROOT/lambda/$function_dir"
     
     rm -f "$output_zip"
     
-    # Initialize zip
-    if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
-        cd package
-        zip -qr "$output_zip" .
-        cd ..
+    # Create zip with function code at root level
+    if [ -f "index.py" ]; then
+        zip -q "$output_zip" index.py
     else
-        touch /tmp/empty_placeholder
-        zip -q "$output_zip" /tmp/empty_placeholder
-        zip -qd "$output_zip" empty_placeholder 2>/dev/null || true
-        rm -f /tmp/empty_placeholder
+        echo "  ❌ index.py not found in $function_dir"
+        return 1
     fi
     
-    # Add the function's index.py
-    if [ -f "$function_dir/index.py" ]; then
-        zip -qj "$output_zip" "$function_dir/index.py"
-    fi
+    # Add any other Python files in the function directory
+    for py_file in *.py; do
+        if [ "$py_file" != "index.py" ] && [ -f "$py_file" ]; then
+            zip -q "$output_zip" "$py_file"
+        fi
+    done
     
     # Add shared modules maintaining folder structure
-    if [ -d "shared" ]; then
-        zip -qgr "$output_zip" shared/ 2>/dev/null || true
+    if [ -d "../shared" ]; then
+        cd ..
+        zip -qgr "$output_zip" shared/
+        cd "$function_dir"
+    fi
+    
+    # Add any dependencies from package directory if it exists
+    if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
+        cd package
+        zip -qgr "$output_zip" .
+        cd ..
     fi
     
     cd "$PROJECT_ROOT"
@@ -474,22 +481,23 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         # Lambda functions to update (aligned with deployed stack)
         LAMBDA_FUNCTIONS=(
-            "api-handler:aws-elasticdrs-orchestrator-api-handler-dev"
-            "orchestration-stepfunctions:aws-elasticdrs-orchestrator-orch-sf-dev"
-            "frontend-builder:aws-elasticdrs-orchestrator-frontend-build-dev"
-            "execution-finder:aws-elasticdrs-orchestrator-execution-finder-dev"
-            "execution-poller:aws-elasticdrs-orchestrator-execution-poller-dev"
-            "bucket-cleaner:aws-elasticdrs-orchestrator-bucket-cleaner-dev"
-            "notification-formatter:aws-elasticdrs-orchestrator-notif-fmt-dev"
+            "api-handler:aws-drs-orchestrator-qa-api-handler-dev"
+            "orchestration-stepfunctions:aws-drs-orchestrator-qa-orch-sf-dev"
+            "deployment-orchestrator:aws-drs-orchestrator-qa-deployment-orchestrator-dev"
+            "execution-finder:aws-drs-orchestrator-qa-execution-finder-dev"
+            "execution-poller:aws-drs-orchestrator-qa-execution-poller-dev"
+            "bucket-cleaner:aws-drs-orchestrator-qa-bucket-cleaner-dev"
+            "notification-formatter:aws-drs-orchestrator-qa-notification-formatter-dev"
         )
         
-        cd "$PROJECT_ROOT/lambda"
+        LAMBDA_DIR="$PROJECT_ROOT/lambda"
         
         for func_entry in "${LAMBDA_FUNCTIONS[@]}"; do
             func_dir="${func_entry%%:*}"
             func_name="${func_entry##*:}"
             
-            if [ ! -d "$func_dir" ]; then
+            echo "🔍 Looking for directory: $LAMBDA_DIR/$func_dir"
+            if [ ! -d "$LAMBDA_DIR/$func_dir" ]; then
                 echo "⚠️  Directory $func_dir not found, skipping..."
                 continue
             fi
