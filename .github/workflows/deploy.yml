@@ -545,7 +545,7 @@ jobs:
   deploy-frontend-only:
     name: Deploy Frontend Only
     runs-on: ubuntu-latest
-    needs: [build, detect-changes]
+    needs: [validate, security-scan, build, detect-changes]
     if: |
       github.ref == 'refs/heads/main' && 
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
@@ -643,5 +643,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Quality Gates Passed:** ✅ Validation, ✅ Security Scan, ✅ Build" >> $GITHUB_STEP_SUMMARY
           echo "**Time Saved:** ~12 minutes (45% pipeline optimization)" >> $GITHUB_STEP_SUMMARY
           echo "**Infrastructure:** Skipped (no changes detected)" >> $GITHUB_STEP_SUMMARY
