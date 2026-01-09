@@ -415,8 +415,8 @@ jobs:
       matrix:
         stack:
           # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
-          - name: "aws-drs-orchestrator-archive-test-v2"
-            display_name: "Archive Test Stack v2 - FOCUS"
+          - name: "aws-drs-orchestrator-qa"
+            display_name: "QA Stack - FOCUS"
             bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
             stack_secret: "ARCHIVE_STACK_NAME"
             admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
@@ -604,8 +604,8 @@ jobs:
       matrix:
         stack:
           # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
-          - name: "aws-drs-orchestrator-archive-test-v2"
-            display_name: "Archive Test Stack v2 - FOCUS"
+          - name: "aws-drs-orchestrator-qa"
+            display_name: "QA Stack - FOCUS"
             bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
             stack_secret: "ARCHIVE_STACK_NAME"
             admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
@@ -729,8 +729,8 @@ jobs:
       matrix:
         stack:
           # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
-          - name: "aws-drs-orchestrator-archive-test-v2"
-            display_name: "Archive Test Stack v2 - FOCUS"
+          - name: "aws-drs-orchestrator-qa"
+            display_name: "QA Stack - FOCUS"
             bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
             stack_secret: "ARCHIVE_STACK_NAME"
             admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
