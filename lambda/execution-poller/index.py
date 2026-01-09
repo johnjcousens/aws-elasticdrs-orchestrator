@@ -44,8 +44,8 @@ EXECUTION_HISTORY_TABLE = os.environ.get(
     "EXECUTION_HISTORY_TABLE", "test-execution-table"
 )
 TIMEOUT_THRESHOLD_SECONDS = int(
-    os.environ.get("TIMEOUT_THRESHOLD_SECONDS", "1800")
-)  # 30 minutes
+    os.environ.get("TIMEOUT_THRESHOLD_SECONDS", "31536000")
+)  # 1 year (Step Functions supports up to 1 year pauses)
 
 # Execution completion statuses
 COMPLETED_STATUSES = {"COMPLETED", "FAILED", "TERMINATED", "TIMEOUT"}
