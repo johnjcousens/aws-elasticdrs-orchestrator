@@ -13,7 +13,7 @@ from crhelper import CfnResource
 
 # Import security utilities
 try:
-    from security_utils import (
+    from shared.security_utils import (
         log_security_event,
         safe_aws_client_call,
         sanitize_string_input,
