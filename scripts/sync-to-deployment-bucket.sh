@@ -663,7 +663,21 @@ if [ "$DEPLOY_CFN" = true ]; then
         if [ "$CURRENT_STATUS" = "STACK_NOT_EXISTS" ]; then
             echo "Stack does not exist - will create new stack"
             STACK_OPERATION="CREATE"
-        elif [[ "$CURRENT_STATUS" == *"IN_PROGRESS"* ]]; then
+        elif [ "$CURRENT_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "✅ Stack is currently being created: $CURRENT_STATUS"
+            echo "⏳ WAITING for stack creation to complete..."
+            echo ""
+            echo "📋 Monitoring stack creation progress..."
+            echo ""
+            echo "To monitor progress:"
+            echo "aws cloudformation describe-stack-events --stack-name $PARENT_STACK_NAME --region $REGION --query 'StackEvents[0:5].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' --output table"
+            echo ""
+            echo "To check status:"
+            echo "aws cloudformation describe-stacks --stack-name $PARENT_STACK_NAME --query 'Stacks[0].StackStatus' --output text --region $REGION"
+            echo ""
+            echo "Stack creation is proceeding normally. No action needed."
+            exit 0
+        elif [[ "$CURRENT_STATUS" == "UPDATE_IN_PROGRESS" ]] || [[ "$CURRENT_STATUS" == "DELETE_IN_PROGRESS" ]] || [[ "$CURRENT_STATUS" == *"CLEANUP_IN_PROGRESS"* ]] || [[ "$CURRENT_STATUS" == "ROLLBACK_IN_PROGRESS" ]]; then
             echo "❌ Stack is currently in progress: $CURRENT_STATUS"
             echo "🛑 STOPPING DEPLOYMENT - Cannot update stack during active operation"
             echo ""
