@@ -102,3 +102,15 @@
 - **10:30**: 🚀 **DEPLOYMENT**: Committed orchestration fix and deployed via GitHub Actions
 - **10:30**: 📊 **DATA FLOW**: Protection Groups have region: "us-west-2" → should flow to execution waves
 - **10:30**: ⏳ **NEXT**: Wait for deployment, then test complete execution flow with proper region inheritance
+- **11:40**: 🔍 **ROOT CAUSE ANALYSIS COMPLETE**: Found all issues causing null values and missing polling data
+- **11:40**: ✅ **RECOVERY PLAN FIX**: Added owner (from JWT), accountId (from default account), region (from PGs) population
+- **11:40**: ✅ **EXECUTION-FINDER FIX**: Added PAUSED status to polling query - now processes paused executions
+- **11:40**: 🚀 **DEPLOYED**: Both fixes committed and deployed via GitHub Actions (following steering rules)
+- **11:40**: 📊 **EXPECTED RESULTS**: New Recovery Plans will have owner/accountId/region, execution-finder will process PAUSED execution
+- **11:40**: ⏳ **NEXT**: Wait for deployment completion, then test both fixes and verify complete execution flow
+- **11:50**: 🔍 **CRITICAL CORRECTION**: User pointed out accountId should come from target account selection, not default account
+- **11:50**: ✅ **MULTI-ACCOUNT FIX**: Updated create_recovery_plan to use determine_target_account_context()
+- **11:50**: ✅ **PROPER ACCOUNT FLOW**: AccountId now comes from Protection Groups → target account (multi-account support)
+- **11:50**: 🚀 **DEPLOYED**: Multi-account fix committed and deployed via GitHub Actions
+- **11:50**: 📊 **EXPECTED RESULTS**: Recovery Plans will have correct target accountId based on Protection Group selection
+- **11:50**: ⏳ **NEXT**: Wait for deployment completion, test Recovery Plan creation with proper multi-account support
