@@ -221,13 +221,13 @@ def begin_wave_plan(event: Dict) -> Dict:
         "duration_seconds": None,
     }
 
-    # Update DynamoDB execution status to POLLING so execution-finder will pick it up
+    # Update DynamoDB execution status
     try:
         get_execution_history_table().update_item(
             Key={"ExecutionId": execution_id, "PlanId": plan_id},
             UpdateExpression="SET #status = :status",
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues={":status": "POLLING"},
+            ExpressionAttributeValues={":status": "RUNNING"},
         )
     except Exception as e:
         print(f"Error updating execution status: {e}")
