@@ -600,6 +600,7 @@ def poll_wave_status(
 
         # Get DRS job status and message
         drs_status = job_status.get("Status", "UNKNOWN")
+        wave["Status"] = drs_status  # Set wave status to DRS job status
         wave["StatusMessage"] = job_status.get("StatusMessage", "")
 
         # Update server statuses from DRS participating servers
