@@ -12,12 +12,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
+# Configuration - QA Stack with dev environment suffix
 QA_STACK_NAME="aws-drs-orchestrator-qa"
-DEPLOYMENT_BUCKET="aws-elasticdrs-orchestrator"
+DEPLOYMENT_BUCKET="aws-drs-orchestrator-archive-test-bucket"  # Actual bucket from stack
 AWS_REGION="us-east-1"
-PROJECT_NAME="aws-drs-orchestrator"
-ENVIRONMENT="qa"
+PROJECT_NAME="aws-drs-orchestrator-qa"  # Actual project name from stack
+ENVIRONMENT="dev"  # Actual environment from stack (causes -dev suffix on resources)
 ADMIN_EMAIL="***REMOVED***"
 
 # Logging function
