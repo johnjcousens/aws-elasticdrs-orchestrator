@@ -747,18 +747,18 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         if launched_count > 0 and launched_count < total_servers:
             current_wave_status = "IN_PROGRESS"
 
-        # Update wave status in DynamoDB if it has changed from STARTED
-        if current_wave_status != "STARTED":
-            print(
-                f"Updating wave {wave_number} status to {current_wave_status}"
-            )
-            update_wave_in_dynamodb(
-                execution_id,
-                plan_id,
-                wave_number,
-                current_wave_status,
-                server_statuses,
-            )
+        # ALWAYS update wave status in DynamoDB with latest server statuses
+        # This ensures frontend shows current server launch progress even when job status is still "STARTED"
+        print(
+            f"Updating wave {wave_number} status to {current_wave_status} with {len(server_statuses)} server statuses"
+        )
+        update_wave_in_dynamodb(
+            execution_id,
+            plan_id,
+            wave_number,
+            current_wave_status,
+            server_statuses,
+        )
 
         # Check if job completed but no instances created
         if job_status == "COMPLETED" and launched_count == 0:
