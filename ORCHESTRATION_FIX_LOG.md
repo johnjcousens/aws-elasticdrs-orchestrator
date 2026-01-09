@@ -35,3 +35,13 @@
 - **08:05**: 🐛 **ROOT CAUSE IDENTIFIED**: GitHub Actions workflow flattens shared folder structure
 - **08:06**: 🔧 **CRITICAL FIX**: Updated GitHub Actions and sync script to maintain shared/ folder structure
 - **08:07**: 📦 Fixed Lambda packaging: `zip -qgr ../build/lambda/${func}.zip shared/` (maintains folder structure)
+- **08:08**: ❌ **WORKFLOW VIOLATION**: Pushed without checking for running workflows (CloudFormation still updating from previous deployment)
+- **08:08**: ⚠️ **RISK**: Potential deployment conflicts due to overlapping CloudFormation updates
+- **08:09**: 🔍 Monitoring current deployment status - multiple workflows now running
+- **08:09**: ✅ **LUCKY**: Previous stack update completed just in time (UPDATE_COMPLETE_CLEANUP_IN_PROGRESS)
+- **08:10**: 🎯 No deployment conflicts occurred - timing worked out
+- **08:11**: 🧪 **TESTING**: Created new execution to test orchestration Lambda
+- **08:12**: 🎉 **SUCCESS**: Orchestration Lambda working! New execution `5df1e293-0423-4653-bf58-9da40d525375`
+- **08:12**: ✅ **WAVE DATA POPULATED**: No more empty waves array - DRS job `drsjob-5405311357febb565` started
+- **08:12**: ✅ **SERVER DETAILS**: Both servers show proper hostnames, IPs, and status "STARTED"
+- **08:13**: 🔄 **STATUS**: Execution status "polling" - execution-finder should process this
