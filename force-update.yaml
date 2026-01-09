@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Force update to unstick stack'
+
+Parameters:
+  ForceUpdate:
+    Type: String
+    Default: 'force-1'
+
+Resources:
+  DummyParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/aws-drs-orchestrator/force-update/${ForceUpdate}'
+      Type: String
+      Value: !Ref ForceUpdate
+      Description: 'Dummy parameter to force stack update'
+
+Outputs:
+  ForceUpdateValue:
+    Value: !Ref ForceUpdate
