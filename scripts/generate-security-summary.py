@@ -94,7 +94,7 @@ def count_npm_vulnerabilities(npm_audit):
 
 def generate_summary():
     """Generate security summary from all scan results"""
-    reports_dir = Path("reports/security")
+    reports_dir = Path("reports/security/raw")
     reports_dir.mkdir(parents=True, exist_ok=True)
     
     # Load all reports
@@ -115,7 +115,7 @@ def generate_summary():
     
     summary = {
         "scan_date": datetime.now().isoformat(),
-        "project": "aws-elasticdrs-orchestrator",
+        "project": "aws-drs-orchestrator-fresh",
         "results": {
             "python_security": {
                 "bandit": bandit_counts,
@@ -156,7 +156,9 @@ def generate_summary():
     }
     
     # Write summary
-    with open(reports_dir / "security-summary.json", 'w') as f:
+    summary_dir = Path("reports/security")
+    summary_dir.mkdir(parents=True, exist_ok=True)
+    with open(summary_dir / "security-summary.json", 'w') as f:
         json.dump(summary, f, indent=2)
     
     # Print summary
@@ -189,9 +191,9 @@ def generate_summary():
     total_issues = summary['summary']['total_issues']
     
     # Security thresholds (configurable)
-    CRITICAL_THRESHOLD = 0  # No critical issues allowed
-    HIGH_THRESHOLD = 10     # Max 10 high-severity issues
-    TOTAL_THRESHOLD = 50    # Max 50 total issues
+    CRITICAL_THRESHOLD = int(os.environ.get('SECURITY_THRESHOLD_CRITICAL', '0'))
+    HIGH_THRESHOLD = int(os.environ.get('SECURITY_THRESHOLD_HIGH', '10'))
+    TOTAL_THRESHOLD = int(os.environ.get('SECURITY_THRESHOLD_TOTAL', '50'))
     
     if critical_issues > CRITICAL_THRESHOLD:
         print(f"\n❌ SECURITY SCAN FAILED: {critical_issues} critical issues found (threshold: {CRITICAL_THRESHOLD})")
@@ -213,54 +215,11 @@ def generate_summary():
             print(f"   Note: {total_issues} low-severity issues found - consider addressing during maintenance")
         return 0
 
-def print_detailed_report():
-    """Print detailed security report with remediation guidance"""
-    reports_dir = Path("reports/security")
-    
-    print("\n📋 DETAILED SECURITY REPORT")
-    print("=" * 60)
-    
-    # Check for specific high-priority issues
-    bandit_report = load_json_report(reports_dir / "bandit-report.json")
-    if bandit_report and 'results' in bandit_report:
-        high_severity_issues = [r for r in bandit_report['results'] 
-                               if r.get('issue_severity', '').lower() == 'high']
-        if high_severity_issues:
-            print("\n🔴 HIGH PRIORITY PYTHON SECURITY ISSUES:")
-            for issue in high_severity_issues[:5]:  # Show top 5
-                print(f"  • {issue.get('test_name', 'Unknown')}: {issue.get('issue_text', 'No description')}")
-                print(f"    File: {issue.get('filename', 'Unknown')}:{issue.get('line_number', 'Unknown')}")
-    
-    # Check NPM critical vulnerabilities
-    npm_audit = load_json_report(reports_dir / "npm-audit.json")
-    npm_counts = count_npm_vulnerabilities(npm_audit)
-    if npm_counts['critical'] > 0 or npm_counts['high'] > 0:
-        print(f"\n🔴 FRONTEND VULNERABILITIES REQUIRING ATTENTION:")
-        print(f"  • Critical: {npm_counts['critical']} vulnerabilities")
-        print(f"  • High: {npm_counts['high']} vulnerabilities")
-        print("  • Run 'npm audit fix' to automatically fix issues")
-        print("  • Review 'npm audit' output for manual fixes")
-    
-    print("\n💡 REMEDIATION GUIDANCE:")
-    print("  1. Fix critical issues immediately (blocks deployment)")
-    print("  2. Address high-severity issues within 24-48 hours")
-    print("  3. Plan medium/low severity fixes for next maintenance window")
-    print("  4. Run security scans regularly during development")
-    print("\n📚 Security Resources:")
-    print("  • Bandit docs: https://bandit.readthedocs.io/")
-    print("  • OWASP Top 10: https://owasp.org/www-project-top-ten/")
-    print("  • AWS Security Best Practices: https://aws.amazon.com/security/")
-
 if __name__ == "__main__":
     try:
         exit_code = generate_summary()
-        
-        # Print detailed report if there are issues
-        if exit_code != 0:
-            print_detailed_report()
-        
         sys.exit(exit_code)
     except Exception as e:
         print(f"\n❌ ERROR: Security summary generation failed: {e}")
-        print("Check that security scan reports exist in reports/security/")
+        print("Check that security scan reports exist in reports/security/raw/")
         sys.exit(1)
