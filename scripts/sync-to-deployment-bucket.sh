@@ -450,13 +450,9 @@ package_lambda_function() {
         zip -qj "$output_zip" "$function_dir/index.py"
     fi
     
-    # Add shared modules
+    # Add shared modules maintaining folder structure
     if [ -d "shared" ]; then
-        for shared_file in shared/*.py; do
-            if [ -f "$shared_file" ]; then
-                zip -qj "$output_zip" "$shared_file"
-            fi
-        done
+        zip -qgr "$output_zip" shared/ 2>/dev/null || true
     fi
     
     cd "$PROJECT_ROOT"
