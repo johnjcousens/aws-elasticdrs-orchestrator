@@ -83,3 +83,8 @@
 - **09:55**: ✅ **WAVE COUNTING FIXED**: Showing correct "Wave 1 of 3" (no more "4 of 3" issue)
 - **09:55**: ✅ **EXECUTION-POLLER ACTIVE**: System polling DRS job status, servers show STARTED status
 - **09:55**: 🏆 **MISSION ACCOMPLISHED**: QA stack fully operational, all major issues resolved
+- **10:00**: 🔍 **NEW ISSUE IDENTIFIED**: Frontend showing truncated execution ID and missing server details
+- **10:00**: 🐛 **FRONTEND BUG**: Execution ID c941d513...709190 vs actual c941d513...70919 (truncated)
+- **10:00**: ✅ **API DATA CORRECT**: Server details exist in API (hostnames, IPs, source instances)
+- **10:00**: ⏰ **ADAPTIVE POLLING**: execution-finder using 15s intervals, waiting for next cycle
+- **10:00**: 📊 **SYSTEM STATUS**: DRS job STARTED, execution-poller will update when interval reached
