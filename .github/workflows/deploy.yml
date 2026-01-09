@@ -408,7 +408,7 @@ jobs:
     needs: [detect-changes, test]
     if: |
       github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
       needs.detect-changes.outputs.docs-only != 'true' && 
       (needs.detect-changes.outputs.infrastructure == 'true' || needs.detect-changes.outputs.lambda == 'true')
     strategy:
@@ -597,7 +597,7 @@ jobs:
     needs: [detect-changes, test]
     if: |
       github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
       needs.detect-changes.outputs.docs-only != 'true' && 
       needs.detect-changes.outputs.frontend == 'true'
     strategy:
@@ -723,7 +723,7 @@ jobs:
     needs: [detect-changes, deploy-infrastructure]
     if: |
       github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
       needs.deploy-infrastructure.result == 'success'
     strategy:
       matrix:
