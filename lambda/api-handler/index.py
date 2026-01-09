@@ -17,7 +17,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 # Import RBAC middleware
-from shared.rbac_middleware import (
+from rbac_middleware import (
     check_authorization,
     get_user_from_event,
     get_user_permissions,
@@ -25,7 +25,7 @@ from shared.rbac_middleware import (
 )
 
 # Import security utilities
-from shared.security_utils import (
+from security_utils import (
     InputValidationError,
     create_security_headers,
     log_security_event,
@@ -1643,7 +1643,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         elif path.startswith("/recovery-plans"):
             print("Matched /recovery-plans route")
             return handle_recovery_plans(
-                http_method, path_parameters, query_parameters, body, event
+                http_method, path_parameters, query_parameters, body
             )
         elif path.startswith("/executions"):
             print("Matched /executions route")
@@ -2777,7 +2777,7 @@ def delete_protection_group(group_id: str) -> Dict:
 
 
 def handle_recovery_plans(
-    method: str, path_params: Dict, query_params: Dict, body: Dict, event: Dict = None
+    method: str, path_params: Dict, query_params: Dict, body: Dict
 ) -> Dict:
     """Route Recovery Plans requests"""
     plan_id = path_params.get("id")
@@ -2797,7 +2797,7 @@ def handle_recovery_plans(
         return check_existing_recovery_instances(plan_id)
 
     if method == "POST":
-        return create_recovery_plan(body, event)
+        return create_recovery_plan(body)
     elif method == "GET" and not plan_id:
         return get_recovery_plans(query_params)
     elif method == "GET" and plan_id:
@@ -2810,7 +2810,7 @@ def handle_recovery_plans(
         return response(405, {"error": "Method Not Allowed"})
 
 
-def create_recovery_plan(body: Dict, event: Dict = None) -> Dict:
+def create_recovery_plan(body: Dict) -> Dict:
     """Create a new Recovery Plan"""
     try:
         # Validate required fields - accept both frontend (name) and legacy (PlanName) formats
@@ -2877,11 +2877,7 @@ def create_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         # Generate UUID for PlanId
         plan_id = str(uuid.uuid4())
 
-        # Extract user information from event for owner field (optional enhancement)
-        # NOTE: Archive solution did not store Owner/AccountId/Region in Recovery Plans
-        # These fields were determined at execution time via determine_target_account_context()
-        
-        # Create Recovery Plan item (matching archive structure)
+        # Create Recovery Plan item
         timestamp = int(time.time())
         item = {
             "PlanId": plan_id,
