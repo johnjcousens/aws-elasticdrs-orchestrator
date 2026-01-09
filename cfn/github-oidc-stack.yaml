@@ -115,6 +115,9 @@ Resources:
                   # Archive test stack frontend bucket (different naming pattern)
                   - !Sub 'arn:aws:s3:::aws-drs-orchestrator-fe-${AWS::AccountId}-dev'
                   - !Sub 'arn:aws:s3:::aws-drs-orchestrator-fe-${AWS::AccountId}-dev/*'
+                  # QA stack frontend bucket
+                  - !Sub 'arn:aws:s3:::aws-drs-orchestrator-qa-fe-${AWS::AccountId}-dev'
+                  - !Sub 'arn:aws:s3:::aws-drs-orchestrator-qa-fe-${AWS::AccountId}-dev/*'
               # CloudFormation - Full access for all DRS orchestration stacks
               - Effect: Allow
                 Action:
