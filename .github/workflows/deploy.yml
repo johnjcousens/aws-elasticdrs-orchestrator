@@ -346,10 +346,10 @@ jobs:
             zip -q ../../build/lambda/${func}.zip index.py
             cd ../..
             
-            # Add shared modules (rbac_middleware.py, security_utils.py)
-            cd lambda/shared
-            zip -qg ../../build/lambda/${func}.zip *.py 2>/dev/null || true
-            cd ../..
+            # Add shared modules maintaining folder structure
+            cd lambda
+            zip -qgr ../build/lambda/${func}.zip shared/ 2>/dev/null || true
+            cd ..
             
             # Add dependencies
             cd /tmp/lambda-deps
