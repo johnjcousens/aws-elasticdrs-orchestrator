@@ -1910,34 +1910,85 @@ def get_current_account_info() -> Dict:
 
 
 def handle_drs_tag_sync(body: Dict) -> Dict:
-    """Handle manual DRS tag sync"""
+    """Handle manual DRS tag sync by invoking dedicated Lambda"""
     try:
-        region = body.get('region', 'us-east-1')
+        import boto3
         
-        # This would trigger tag synchronization
-        # For now, return success
-        return response(200, {
-            'message': 'Tag sync initiated',
-            'region': region,
-            'timestamp': int(time.time())
-        })
+        # Get environment variables
+        project_name = os.environ.get('PROJECT_NAME', 'aws-elasticdrs-orchestrator')
+        environment = os.environ.get('ENVIRONMENT', 'dev')
+        
+        # Construct Lambda function name
+        function_name = f"{project_name}-drs-tag-sync-{environment}"
+        
+        # Create Lambda client
+        lambda_client = boto3.client('lambda')
+        
+        # Prepare payload for tag sync Lambda
+        payload = {
+            "source": "manual-api",
+            "detail-type": "Manual Tag Sync",
+            "detail": {
+                "trigger": "manual-api-request",
+                "region": body.get('region', 'us-east-1'),
+                "requestedBy": "api-user"
+            }
+        }
+        
+        print(f"Invoking DRS Tag Sync Lambda: {function_name}")
+        
+        # Invoke the dedicated tag sync Lambda
+        response = lambda_client.invoke(
+            FunctionName=function_name,
+            InvocationType='RequestResponse',  # Synchronous
+            Payload=json.dumps(payload)
+        )
+        
+        # Parse response
+        response_payload = json.loads(response['Payload'].read())
+        
+        if response['StatusCode'] == 200:
+            # Extract summary from Lambda response
+            lambda_result = response_payload.get('summary', {})
+            
+            return response(200, {
+                'message': 'Tag sync completed successfully',
+                'trigger': 'manual',
+                'timestamp': int(time.time()),
+                'results': {
+                    'total_regions_processed': lambda_result.get('total_regions_processed', 0),
+                    'regions_with_servers': lambda_result.get('regions_with_servers', 0),
+                    'total_servers': lambda_result.get('total_servers', 0),
+                    'total_synced': lambda_result.get('total_synced', 0),
+                    'total_failed': lambda_result.get('total_failed', 0),
+                    'success_rate': lambda_result.get('success_rate', 0),
+                    'duration_seconds': lambda_result.get('duration_seconds', 0)
+                }
+            })
+        else:
+            error_message = response_payload.get('errorMessage', 'Unknown error')
+            print(f"Tag sync Lambda failed: {error_message}")
+            return response(500, {
+                'error': 'Tag sync failed',
+                'details': error_message
+            })
         
     except Exception as e:
-        print(f"Error handling DRS tag sync: {e}")
-        return response(500, {'error': str(e)})
+        print(f"Error invoking DRS tag sync Lambda: {e}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {'error': f'Failed to invoke tag sync: {str(e)}'})
 
 
 def handle_eventbridge_tag_sync(event: Dict) -> Dict:
     """Handle EventBridge-triggered tag sync"""
     try:
-        # Extract region from event
-        region = event.get('region', 'us-east-1')
+        # This function is called when EventBridge triggers the API
+        # But now we have a dedicated Lambda, so this is mainly for logging
+        print("EventBridge tag sync request received - dedicated Lambda handles scheduling")
         
-        # This would perform the actual tag synchronization
-        # For now, return success
         return response(200, {
-            'message': 'EventBridge tag sync completed',
-            'region': region,
+            'message': 'EventBridge tag sync acknowledged - handled by dedicated Lambda',
             'timestamp': int(time.time())
         })
         
@@ -10225,190 +10276,66 @@ def validate_target_account(account_id: str) -> Dict:
 
 
 def handle_drs_tag_sync(body: Dict = None) -> Dict:
-    """Sync EC2 instance tags to DRS source servers across all regions.
-
-    Runs synchronously - syncs tags from EC2 instances to their DRS source servers.
-    Supports account-based operations for future multi-account support.
-    """
+    """Handle manual DRS tag sync by invoking dedicated Lambda"""
     try:
-        # Get account ID from request body (for future multi-account support)
-        target_account_id = None
-        if body and isinstance(body, dict):
-            target_account_id = body.get("accountId")
-
-        # For now, validate that we can only sync current account
-        current_account_id = get_current_account_id()
-        if target_account_id and target_account_id != current_account_id:
-            return response(
-                400,
-                {
-                    "error": "INVALID_ACCOUNT",
-                    "message": f"Cannot sync tags for account {target_account_id}. Only current account {current_account_id} is supported.",
-                },
-            )
-
-        # Use current account if no account specified
-        account_id = target_account_id or current_account_id
-        account_name = get_account_name(account_id)
-
-        total_synced = 0
-        total_servers = 0
-        total_failed = 0
-        regions_with_servers = []
-
-        print(
-            f"Starting tag sync for account {account_id} ({account_name or 'Unknown'})"
-        )
-
-        for region in DRS_REGIONS:
-            try:
-                result = sync_tags_in_region(region, account_id)
-                if result["total"] > 0:
-                    regions_with_servers.append(region)
-                    total_servers += result["total"]
-                    total_synced += result["synced"]
-                    total_failed += result["failed"]
-                    print(
-                        f"Tag sync {region}: {result['synced']}/{result['total']} synced"
-                    )
-            except Exception as e:
-                # Log but continue - don't fail entire sync for one region
-                print(f"Tag sync {region}: skipped - {e}")
-
-        summary = {
-            "message": f"Tag sync complete for account {account_id}",
-            "accountId": account_id,
-            "accountName": account_name,
-            "total_regions": len(DRS_REGIONS),
-            "regions_with_servers": len(regions_with_servers),
-            "total_servers": total_servers,
-            "total_synced": total_synced,
-            "total_failed": total_failed,
-            "regions": regions_with_servers,
+        # Get the DRS Tag Sync Lambda function name from environment
+        project_name = os.environ.get("PROJECT_NAME", "aws-elasticdrs-orchestrator")
+        environment = os.environ.get("ENVIRONMENT", "dev")
+        tag_sync_function_name = f"{project_name}-drs-tag-sync-{environment}"
+        
+        print(f"Invoking DRS Tag Sync Lambda: {tag_sync_function_name}")
+        
+        # Prepare payload for the tag sync Lambda
+        payload = {
+            "source": "api-manual",
+            "detail-type": "Manual Tag Sync",
+            "detail": {
+                "trigger": "manual-api-request",
+                "requestBody": body or {}
+            }
         }
-
-        print(
-            f"Tag sync complete: {total_synced}/{total_servers} servers synced across {len(regions_with_servers)} regions"
+        
+        # Invoke the dedicated DRS Tag Sync Lambda
+        lambda_response = lambda_client.invoke(
+            FunctionName=tag_sync_function_name,
+            InvocationType='RequestResponse',  # Synchronous
+            Payload=json.dumps(payload)
         )
-
-        return response(200, summary)
-
+        
+        # Parse the response
+        response_payload = json.loads(lambda_response['Payload'].read())
+        
+        if lambda_response['StatusCode'] == 200:
+            # Extract summary from the tag sync Lambda response
+            tag_sync_result = response_payload.get('summary', {})
+            
+            # Format response for API consistency
+            api_response = {
+                "message": "DRS tag sync completed successfully",
+                "trigger_source": tag_sync_result.get("trigger_source", "manual"),
+                "total_regions_processed": tag_sync_result.get("total_regions_processed", 0),
+                "regions_with_servers": tag_sync_result.get("regions_with_servers", 0),
+                "total_servers": tag_sync_result.get("total_servers", 0),
+                "total_synced": tag_sync_result.get("total_synced", 0),
+                "total_failed": tag_sync_result.get("total_failed", 0),
+                "success_rate": tag_sync_result.get("success_rate", 0),
+                "duration_seconds": tag_sync_result.get("duration_seconds", 0),
+                "regions": tag_sync_result.get("regions", []),
+                "timestamp": tag_sync_result.get("timestamp")
+            }
+            
+            print(f"Tag sync completed: {api_response['total_synced']}/{api_response['total_servers']} servers synced")
+            return response(200, api_response)
+        else:
+            error_msg = response_payload.get('errorMessage', 'Unknown error from tag sync Lambda')
+            print(f"Tag sync Lambda failed: {error_msg}")
+            return response(500, {"error": f"Tag sync failed: {error_msg}"})
+            
     except Exception as e:
-        print(f"Error in tag sync: {e}")
+        print(f"Error invoking DRS tag sync Lambda: {e}")
         import traceback
-
         traceback.print_exc()
-        return response(500, {"error": str(e)})
-
-
-def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
-    """Sync EC2 tags to all DRS source servers in a single region.
-
-    Args:
-        drs_region: AWS region to sync tags in
-        account_id: AWS account ID (for future multi-account support)
-    """
-    drs_client = boto3.client("drs", region_name=drs_region)
-    ec2_clients = {}
-
-    # Get all DRS source servers
-    source_servers = []
-    paginator = drs_client.get_paginator("describe_source_servers")
-    for page in paginator.paginate(filters={}, maxResults=200):
-        source_servers.extend(page.get("items", []))
-
-    synced = 0
-    failed = 0
-
-    for server in source_servers:
-        try:
-            instance_id = (
-                server.get("sourceProperties", {})
-                .get("identificationHints", {})
-                .get("awsInstanceID")
-            )
-            source_server_id = server["sourceServerID"]
-            server_arn = server["arn"]
-            source_region = server.get("sourceCloudProperties", {}).get(
-                "originRegion", drs_region
-            )
-
-            if not instance_id:
-                continue
-
-            # Skip disconnected servers
-            replication_state = server.get("dataReplicationInfo", {}).get(
-                "dataReplicationState", ""
-            )
-            if replication_state == "DISCONNECTED":
-                continue
-
-            # Get or create EC2 client for source region
-            if source_region not in ec2_clients:
-                ec2_clients[source_region] = boto3.client(
-                    "ec2", region_name=source_region
-                )
-            ec2_client = ec2_clients[source_region]
-
-            # Get EC2 instance tags
-            try:
-                ec2_response = ec2_client.describe_instances(
-                    InstanceIds=[instance_id]
-                )
-                if not ec2_response["Reservations"]:
-                    continue
-                instance = ec2_response["Reservations"][0]["Instances"][0]
-                ec2_tags = {
-                    tag["Key"]: tag["Value"]
-                    for tag in instance.get("Tags", [])
-                    if not tag["Key"].startswith("aws:")
-                }
-            except Exception:
-                continue
-
-            if not ec2_tags:
-                continue
-
-            # Sync tags to DRS source server
-            drs_client.tag_resource(resourceArn=server_arn, tags=ec2_tags)
-
-            # Enable copyTags in launch configuration
-            try:
-                drs_client.update_launch_configuration(
-                    sourceServerID=source_server_id, copyTags=True
-                )
-            except ClientError as e:
-                error_code = e.response.get("Error", {}).get("Code", "")
-                if error_code in [
-                    "ValidationException",
-                    "ResourceNotFoundException",
-                ]:
-                    print(
-                        f"Cannot update launch config for server {source_server_id}: {error_code}"
-                    )
-                else:
-                    print(
-                        f"DRS error updating launch config for {source_server_id}: {e}"
-                    )
-            except Exception as e:
-                print(
-                    f"Unexpected error updating launch config for {source_server_id}: {e}"
-                )
-
-            synced += 1
-
-        except Exception as e:
-            failed += 1
-            print(
-                f"Failed to sync server {server.get('sourceServerID', 'unknown')}: {e}"
-            )
-
-    return {
-        "total": len(source_servers),
-        "synced": synced,
-        "failed": failed,
-        "region": drs_region,
-    }
+        return response(500, {"error": f"Failed to invoke tag sync: {str(e)}"})
 
 
 # ============================================================================
