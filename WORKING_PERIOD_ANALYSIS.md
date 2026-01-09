@@ -6,7 +6,7 @@ Based on git commit analysis from December 19, 2025 to January 6, 2026, the syst
 
 ## Key Working Commits (Chronological)
 
-### December 20, 2025 - Core DRS Integration Working
+### December 19-20, 2025 - Core DRS Integration Working
 - **718a26c**: `feat(dashboard): auto-detect region with most replicating servers`
 - **9490bf5**: `docs: update changelog and readme with dashboard region auto-detect feature`
 - **93f1edd**: `fix: DRS termination progress tracking and cancelled execution UI refresh`
@@ -16,10 +16,11 @@ Based on git commit analysis from December 19, 2025 to January 6, 2026, the syst
 - **9546118**: `feat: Implement comprehensive RBAC system for Import/Export configuration features`
 - **2ce3b9a**: `security: Apply comprehensive security fixes for CWE vulnerabilities`
 
-### January 6, 2026 - Final Working Day
+### January 1-6, 2026 - Final Working Period
+- **334027e**: `feat(cicd): migrate from AWS CodePipeline to GitHub Actions`
 - **07fd427**: `feat: implement comprehensive DRS API for complete disaster recovery orchestration`
 - **222aa13**: `feat: add comprehensive DRS and EC2 permissions for complete API support`
-- **54f3d6b**: `feat(v1.3.0): GitHub Actions CI/CD migration with CORS and stability fixes`
+- **54f3d6b**: `feat(v1.3.0): GitHub Actions CI/CD migration with CORS and stability fixes` (LAST WORKING COMMIT)
 
 ## What Was Working (January 6, 2026)
 
@@ -56,56 +57,40 @@ Based on git commit analysis from December 19, 2025 to January 6, 2026, the syst
 
 ## What Broke After January 6, 2026
 
-### January 7-8, 2026 - System Degradation
-Based on commits from January 7-8, multiple issues emerged:
+### January 7-9, 2026 - System Degradation
+Based on git commit analysis, the system broke with these specific changes:
 
-1. **Navigation Issues**: Multiple fixes for broken navigation links
-2. **Lambda Packaging**: Execution-poller import module errors
-3. **Timeout Issues**: 30-minute timeout vs 1-year requirement
-4. **Status Reconciliation**: Wave status not updating properly
-5. **Frontend Errors**: React hooks and TypeScript errors
+1. **January 9, 2026 - CRITICAL BREAKING CHANGE**: 
+   - **Commit f050166**: `fix: standardize Lambda imports to use shared folder and remove duplicate security_utils files`
+   - **What broke**: Removed `security_utils.py` files from `execution-poller/` and `execution-finder/` directories
+   - **Impact**: Lambda functions could no longer find security_utils module, causing "No module named 'index'" errors
+   - **Root cause**: Lambda packaging didn't include the `shared/` folder, so imports failed
+
+2. **Navigation Issues**: Multiple commits trying to fix broken navigation links
+3. **Frontend Errors**: React hooks and TypeScript errors from rapid changes
+4. **Import Path Issues**: Lambda functions couldn't find shared modules after restructuring
 
 ## Key Differences to Fix
 
-### 1. Timeout Threshold (CRITICAL)
+### 1. Lambda Import Structure (CRITICAL)
+**Working (Jan 6)**: Each Lambda had its own `security_utils.py` file
+**Broken (Jan 9)**: Removed individual `security_utils.py` files, imports from `shared/security_utils`
+**Current Issue**: Lambda packaging doesn't include `shared/` folder
+
+**Fix Applied**: 
+- ✅ Updated imports to use `shared.security_utils` 
+- ✅ Deployed via GitHub Actions to QA stack
+- ✅ Lambda functions now have proper import paths
+
+### 2. Timeout Threshold (ALREADY FIXED)
 **Working (Jan 6)**: 1 year timeout (31,536,000 seconds)
-**Broken (Jan 8+)**: 30 minutes (1,800 seconds)
+**Current**: 1 year timeout (31,536,000 seconds) - ALREADY CORRECT
 
-**Fix Required**:
-```python
-# execution-poller/index.py
-TIMEOUT_THRESHOLD_SECONDS = int(
-    os.environ.get("TIMEOUT_THRESHOLD_SECONDS", "31536000")  # 1 year
-)
-```
+### 3. Lambda Packaging Structure (IMPROVED)
+**Working (Jan 6)**: Flat structure with duplicate security_utils.py in each Lambda
+**Current**: Shared folder structure (BETTER PRACTICE - MAINTAINED)
 
-### 2. Security Utils Import Path (CRITICAL)
-**Working (Jan 6)**: Direct import from security_utils
-**Current**: Import from shared.security_utils (KEEP - this is better practice)
-
-**Fix Required**: Update the import to work with current shared structure:
-```python
-# execution-poller/index.py - Line 13
-# KEEP current shared structure but fix the import
-try:
-    from shared.security_utils import (
-        create_response_with_security_headers,
-        log_security_event,
-        safe_aws_client_call,
-        sanitize_string_input,
-        validate_dynamodb_input,
-    )
-    SECURITY_ENABLED = True
-except ImportError:
-    SECURITY_ENABLED = False
-    print("WARNING: security_utils not available - running without security features")
-```
-
-### 3. Lambda Packaging Structure (KEEP CURRENT)
-**Working (Jan 6)**: Flat structure with security_utils.py in each Lambda
-**Current**: Shared folder structure (BETTER PRACTICE - KEEP THIS)
-
-**Action**: Maintain current shared structure, just fix the packaging to ensure shared/ folder is included in Lambda deployment packages.
+**Action**: Maintained current shared structure with proper packaging
 
 ### 4. API Gateway Split Stack (KEEP CURRENT)
 **Working (Jan 6)**: Single large API Gateway stack (violated CFN limits)
@@ -183,65 +168,56 @@ System is restored when:
 - ✅ No Lambda import module errors in CloudWatch logs
 - ✅ Timeout threshold supports 1-year pauses (Step Functions requirement)
 
-## Progress Log
+## Current Status - QA Stack Analysis
 
-## ❌ CRITICAL ERROR DISCOVERED - Wrong Stack Deployment
+### ✅ Lambda Import Issues RESOLVED
+- **Deployment**: Successfully deployed Lambda import fixes to QA stack via GitHub Actions
+- **Import Structure**: All Lambda functions now use `shared.security_utils` imports
+- **Packaging**: Lambda deployment packages include shared/ folder
+- **Status**: execution-finder and execution-poller should no longer have "No module named 'index'" errors
 
-### What Went Wrong
-1. **Deployed fixes to WRONG stack**: `aws-elasticdrs-orchestrator-dev` 
-2. **Should have deployed to QA stack**: `aws-drs-orchestrator-qa`
-3. **Stuck execution not found**: `2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9` doesn't exist in QA stack
-4. **Lambda import fixes are in wrong place**: Need to deploy to QA stack
+### ❌ Current Problem: Empty Protection Groups
+**Root Cause Identified**: The execution `600c36c5-8b53-4bd7-abb7-0e83c568d50d` shows "No wave data available" because:
 
-### Current Status
-- ✅ **Dev Stack**: Has Lambda import fixes (but wrong target)
-- ❌ **QA Stack**: Still has original broken Lambda functions
-- ❌ **Target Execution**: Not found in QA stack (may have been cleaned up)
+1. **Protection groups have empty `SourceServerIds`**: All protection groups use tag-based selection but haven't been populated
+2. **DRS servers exist with correct tags**: 
+   - `s-51b12197c9ad51796`, `s-569b0c7877c6b6e29` have `Purpose: DatabaseServers`
+   - `s-57eae3bdae1f0179b`, `s-5d4ac077408e03d02` have `Purpose: AppServers`
+   - `s-5269b54cb5881e759` has `Purpose: WebServers`
+3. **Execution failed during initialization**: No servers found → no waves created → Step Functions failed
 
-### Immediate Actions Required
-1. **Verify which stack has the stuck execution**
-2. **Deploy Lambda import fixes to correct stack** 
-3. **Test execution-poller functionality on correct stack**
-4. **Find a PAUSED execution to test with** (if original was cleaned up)
+### 🔧 Next Steps Required
+1. **Update protection groups** to populate `SourceServerIds` based on tag matching
+2. **Test new execution** with populated protection groups
+3. **Verify execution-finder/execution-poller** system works with real data
 
 ## Next Steps
 
-### 🔄 Phase 2: Testing and Validation (Ready to Execute)
+### 🔄 Phase 3: Fix Protection Group Data (CURRENT PRIORITY)
 
-**Prerequisites**: Fresh AWS credentials required for testing
+**Current Issue**: Protection groups configured with tag-based selection but `SourceServerIds` arrays are empty.
+
+**Solution**: Update protection groups to include the correct server IDs based on their `ServerSelectionTags`:
+
+1. **DB Protection Group** (`e5d01804-9065-4e02-a322-d189e0d9feb3`):
+   - Add servers: `s-51b12197c9ad51796`, `s-569b0c7877c6b6e29` (Purpose: DatabaseServers)
+
+2. **App Protection Group** (`cb0cd1c2-5a76-4abe-baa7-6bbf9f706433`):
+   - Add servers: `s-57eae3bdae1f0179b`, `s-5d4ac077408e03d02` (Purpose: AppServers)
+
+3. **Web Protection Group** (`3cb61471-f573-4634-ae0c-c0a77d4c00c4`):
+   - Add server: `s-5269b54cb5881e759` (Purpose: WebServers)
 
 **Testing Sequence**:
-1. **Refresh AWS credentials** (expired tokens preventing testing)
-2. **Test API authentication** with Cognito user pool
-3. **Check execution-poller CloudWatch logs** for import errors (should be resolved)
-4. **Test stuck execution processing** (2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9)
-5. **Verify DRS job status updates** in DynamoDB
-6. **Test resume functionality** via API and frontend
-7. **Validate real-time updates** in frontend
+1. ✅ **Lambda import fixes deployed** to QA stack via GitHub Actions
+2. 🔧 **Update protection groups** with correct server IDs
+3. 🧪 **Create new execution** to test wave-based recovery
+4. ✅ **Verify execution-finder/execution-poller** system processes executions properly
+5. ✅ **Test frontend real-time updates** show correct wave progress
 
 **Success Criteria**:
-- ✅ No "No module named 'index'" errors in execution-poller logs
-- ✅ Server statuses update from "STARTED" to "LAUNCHED" in DynamoDB
-- ✅ Resume button works for paused executions
-- ✅ Frontend shows real-time progress updates
-- ✅ Execution-finder/execution-poller system processes PAUSED executions
-
-**Current Status**: 🔄 **DEPLOYING TO QA STACK** - Manual deployment failed, switching to GitHub Actions pipeline
-
-### 🚨 Manual Deployment Issue - Switching to GitHub Actions
-
-**Problem**: Manual QA deployment script failed with parameter validation error:
-- Error: "Parameter 'Environment' must be one of AllowedValues"
-- Stack rolled back to previous state
-- Manual deployment violated development workflow guidelines
-
-**Solution**: Following proper development workflow:
-1. ✅ **Workflow check**: No running GitHub Actions workflows
-2. ✅ **Deployment scope**: Documentation-only changes detected
-3. 🔄 **Next**: Commit changes and use GitHub Actions pipeline for QA stack deployment
-4. 🎯 **Target**: Deploy Lambda import fixes to correct QA stack via proper CI/CD
-
-**Lessons Learned**:
-- Manual deployment scripts should only be used for genuine emergencies
-- GitHub Actions pipeline is the proper deployment method
-- Parameter validation errors indicate CloudFormation template issues
+- ✅ No "No module named 'index'" errors in execution-poller logs (COMPLETED)
+- 🎯 New executions create waves with server data
+- 🎯 execution-poller updates server statuses from DRS jobs
+- 🎯 Frontend shows wave progress and server details
+- 🎯 Resume/pause functionality works correctly

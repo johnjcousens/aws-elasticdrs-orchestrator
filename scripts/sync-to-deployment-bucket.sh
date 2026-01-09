@@ -23,8 +23,8 @@ if [ -f "$PROJECT_ROOT/.env.deployment.local" ]; then
     source "$PROJECT_ROOT/.env.deployment.local"
 fi
 
-# Default configuration
-BUCKET="${DEPLOYMENT_BUCKET:-aws-elasticdrs-orchestrator}"
+# Default configuration - QA Stack
+BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orchestrator-archive-test-bucket}"  # QA stack bucket
 REGION="${DEPLOYMENT_REGION:-us-east-1}"
 BUILD_FRONTEND=false
 DRY_RUN=false
@@ -37,10 +37,10 @@ RUN_LOCAL_VALIDATION=false
 AWS_PROFILE="${AWS_PROFILE:-default}"
 LIST_PROFILES=false
 
-# CloudFormation stack configuration (aligned with deployed stack)
-PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestrator}"
-ENVIRONMENT="${ENVIRONMENT:-dev}"
-PARENT_STACK_NAME="${PARENT_STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
+# CloudFormation stack configuration (QA stack actual configuration)
+PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestrator-qa}"  # QA stack project name
+ENVIRONMENT="${ENVIRONMENT:-dev}"  # QA stack uses dev environment (causes -dev suffix on resources)
+PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-drs-orchestrator-qa}"  # QA stack actual name (no env suffix)
 
 # Approved directories for sync
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts")
