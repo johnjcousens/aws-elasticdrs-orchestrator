@@ -414,13 +414,13 @@ jobs:
     strategy:
       matrix:
         stack:
-          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
+          # QA STACK DEPLOYMENT - PRIMARY FOCUS
           - name: "aws-drs-orchestrator-qa"
-            display_name: "QA Stack - FOCUS"
-            bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
-            stack_secret: "ARCHIVE_STACK_NAME"
-            admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
-            role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
+            display_name: "QA Stack"
+            bucket_secret: "QA_DEPLOYMENT_BUCKET"
+            stack_secret: "QA_STACK_NAME"
+            admin_email_secret: "QA_ADMIN_EMAIL"
+            role_arn_secret: "QA_AWS_ROLE_ARN"
             project_name: "aws-drs-orchestrator-qa"
       max-parallel: 1  # Single stack deployment
     environment: 
