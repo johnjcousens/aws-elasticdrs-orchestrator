@@ -446,7 +446,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             return
 
         pg = pg_response["Item"]
-        region = pg.get("region", "us-east-1")
+        region = pg.get("Region", "us-east-1")
 
         # TAG-BASED RESOLUTION: Resolve servers at execution time using tags
         selection_tags = pg.get("ServerSelectionTags", {})
@@ -506,24 +506,21 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             "JobId": job_id,
             "StartTime": int(time.time()),
             "ServerIds": server_ids,
-            "region": region,
+            "Region": region,
         }
         state["wave_results"].append(wave_result)
 
-        # Update DynamoDB with wave and set status to POLLING for execution-finder
+        # Update DynamoDB
         try:
             get_execution_history_table().update_item(
                 Key={"ExecutionId": execution_id, "PlanId": state["plan_id"]},
-                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave), #status = :status",
-                ExpressionAttributeNames={"#status": "Status"},
+                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave)",
                 ExpressionAttributeValues={
                     ":empty": [],
                     ":wave": [wave_result],
-                    ":status": "POLLING",  # Critical: Set to POLLING so execution-finder can find it
                 },
                 ConditionExpression="attribute_exists(ExecutionId)",
             )
-            print(f"✅ Execution status set to POLLING for execution-finder to process")
         except Exception as e:
             print(f"Error updating wave start in DynamoDB: {e}")
 
@@ -750,18 +747,18 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         if launched_count > 0 and launched_count < total_servers:
             current_wave_status = "IN_PROGRESS"
 
-        # ALWAYS update wave status in DynamoDB with latest server statuses
-        # This ensures frontend shows current server launch progress even when job status is still "STARTED"
-        print(
-            f"Updating wave {wave_number} status to {current_wave_status} with {len(server_statuses)} server statuses"
-        )
-        update_wave_in_dynamodb(
-            execution_id,
-            plan_id,
-            wave_number,
-            current_wave_status,
-            server_statuses,
-        )
+        # Update wave status in DynamoDB if it has changed from STARTED
+        if current_wave_status != "STARTED":
+            print(
+                f"Updating wave {wave_number} status to {current_wave_status}"
+            )
+            update_wave_in_dynamodb(
+                execution_id,
+                plan_id,
+                wave_number,
+                current_wave_status,
+                server_statuses,
+            )
 
         # Check if job completed but no instances created
         if job_status == "COMPLETED" and launched_count == 0:
