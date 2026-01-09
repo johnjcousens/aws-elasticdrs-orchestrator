@@ -197,7 +197,7 @@ def begin_wave_plan(event: Dict) -> Dict:
         # Polling configuration
         "current_wave_update_time": 30,
         "current_wave_total_wait_time": 0,
-        "current_wave_max_wait_time": 1800,
+        "current_wave_max_wait_time": 31536000,  # 1 year (Step Functions supports up to 1 year pauses)
         # Status for parent orchestrator branching
         # Values: 'running', 'paused', 'completed', 'failed', 'cancelled'
         "status": "running",
@@ -582,7 +582,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     # Update total wait time
     update_time = state.get("current_wave_update_time", 30)
     total_wait = state.get("current_wave_total_wait_time", 0) + update_time
-    max_wait = state.get("current_wave_max_wait_time", 1800)
+    max_wait = state.get("current_wave_max_wait_time", 31536000)  # 1 year default
     state["current_wave_total_wait_time"] = total_wait
 
     print(
