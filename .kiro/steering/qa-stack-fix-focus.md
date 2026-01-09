@@ -1,25 +1,31 @@
-# QA Stack Fix Focus
+# Fresh Deployment Focus
 
-## CRITICAL: Stay On Target
-**Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestrator-qa/d38a2b80-ed11-11f0-9317-0affed40063f`
+## CRITICAL: Fresh Start with Working Code
+**Current State**: Restored to commit `59bed2d` (January 7, 2026) with working DRS endpoints and RBAC
 
 ## Current Mission
-Fix the broken execution-finder/execution-poller system in QA stack and test everything comprehensively.
+Deploy fresh stack with December 31st working code + modern CI/CD pipeline, then update for new stack configuration.
 
-## Key Resources
-- **API Endpoint**: `https://ibenlje0zj.execute-api.us-east-1.amazonaws.com/dev`
-- **Frontend URL**: `https://d3u3jnx97pt51j.cloudfront.net`
-- **Test User**: `testuser@example.com` / `TestPassword123!`
-- **User Pool**: `us-east-1_FjN6ym9ub`
-- **Client ID**: `6flp1qbehh8fdh79hlv4fo077a`
+## Next Steps
+1. **Deploy Fresh Stack**: Use GitHub Actions to deploy working code with proper naming (`ProjectName=aws-drs-orchestrator-qa`, `Environment=dev`)
+2. **Update CI/CD Configuration**: Update GitHub Actions workflow for new stack
+3. **Test End-to-End**: Verify all functionality works with fresh deployment
+4. **Update Documentation**: Update all references to new stack configuration
 
-## Problem Identified
-- **Execution ID**: `2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9`
-- **Status**: PAUSED (legitimate - has TaskToken for Step Functions waitForTaskToken)
-- **DRS Job**: `drsjob-55f05e2afe4582703` - **COMPLETED** with servers **LAUNCHED**
-- **Issue**: execution-poller never updated server statuses from "STARTED" to "LAUNCHED"
-- **Result**: Resume button broken because servers appear incomplete
-- **Lambda Issue**: execution-poller has "Runtime.ImportModuleError: No module named 'index'"
+## Key Features Restored (Commit 59bed2d)
+- ✅ **Complete DRS endpoint coverage** (all 4 core DRS endpoints + recovery instances)  
+- ✅ **Full RBAC implementation** (47+ endpoints with proper permissions)  
+- ✅ **Working application functionality** (from the January 7th timeframe)  
+- ✅ **Comprehensive DRS integration** (quotas, accounts, source servers, tag sync)
+- ✅ **Modern CI/CD Pipeline** (cherry-picked from recent commits)
+- ✅ **Workflow conflict prevention** (safe-push.sh, check-workflow.sh scripts)
+
+## DRS Endpoints Available
+1. **`GET /drs/source-servers`** - View DRS source servers
+2. **`GET /drs/quotas`** - View DRS service quotas and limits  
+3. **`GET /drs/accounts`** - View DRS account information
+4. **`POST /drs/tag-sync`** - Manual tag synchronization
+5. **`GET /executions/{executionId}/recovery-instances`** - View recovery instances
 
 ## Architecture Reference (from /archive folder)
 - **Orchestration Lambda**: starts DRS job → sets status to "POLLING"

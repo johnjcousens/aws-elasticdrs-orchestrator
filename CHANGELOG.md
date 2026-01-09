@@ -7,135 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- **Lambda Import Standardization (2026-01-09)**: Fixed critical execution-poller module import errors
-  - Removed duplicate `security_utils.py` files from execution-poller and execution-finder Lambda functions
-  - Standardized all Lambda functions to use `shared.security_utils` import pattern
-  - Maintained current best practices: shared folder structure and split API Gateway stacks
-  - Confirmed 1-year timeout threshold (31,536,000 seconds) for Step Functions pause/resume support
-  - Should resolve "No module named 'index'" errors preventing execution-poller from processing PAUSED executions
-  - Commit: `f050166` - Deployed via GitHub Actions following proper workflow
+## [1.5.0] - January 9, 2026
 
 ### Added
-- **Enterprise Integration Plan (v1.9)**: Created comprehensive codebase alignment analysis and 16-week integration roadmap
-  - `docs/enterprise-prd/10-integration-plan.md` - Complete gap analysis between current DRS solution and enterprise dr-orchestration-artifacts
-  - Architecture comparison: Single-layer vs 3-layer Step Functions
-  - Feature matrix: 47+ API endpoints, RBAC, frontend vs manifest-driven CLI
-  - Module coverage gap: 13 enterprise modules vs DRS-only current state
-  - Hybrid integration strategy (recommended): Extend current solution to adopt enterprise patterns
-  - 4-phase implementation plan:
-    - Phase 1 (Weeks 1-4): Module Factory Foundation - interface, DRS adapter, factory pattern
-    - Phase 2 (Weeks 5-8): Lifecycle Orchestration - 4-phase lifecycle, execution router
-    - Phase 3 (Weeks 9-11): Manifest Support - S3 manifests, parameter resolution, API extensions
-    - Phase 4 (Weeks 12-16): Additional Modules - Aurora, ECS, Route53, EventBridge, etc.
-  - Risk assessment with mitigation strategies
-  - Success criteria for each phase
-  - Updated Enterprise PRD index to version 1.9
+- **Fresh Deployment Foundation**: Restored codebase to working commit `59bed2d` (January 7, 2026) with complete DRS functionality
+  - ✅ **Complete DRS endpoint coverage** (all 4 core DRS endpoints + recovery instances)  
+  - ✅ **Full RBAC implementation** (47+ endpoints with proper permissions)  
+  - ✅ **Working application functionality** (from peak working period)  
+  - ✅ **Comprehensive DRS integration** (quotas, accounts, source servers, tag sync)
+- **Modern CI/CD Pipeline**: Cherry-picked latest GitHub Actions workflow and supporting scripts
+  - **GitHub Actions Workflow** (`.github/workflows/deploy.yml`) with intelligent change detection
+  - **Deployment Scripts** (`sync-to-deployment-bucket.sh`) for emergency deployments
+  - **Workflow Conflict Prevention** (`check-workflow.sh`, `safe-push.sh`) to prevent deployment conflicts
+  - **Deployment Scope Checking** (`check-deployment-scope.sh`) for deployment optimization
+  - **Security Scan Automation** for comprehensive security analysis
+- **Updated Steering Documents**: Refreshed project guidance for fresh deployment approach
+  - Updated `.kiro/steering/qa-stack-fix-focus.md` for fresh deployment strategy
+  - Enhanced `.kiro/steering/development-workflow.md` with workflow conflict prevention
+  - Added `.kiro/steering/security-scan-automation.md` for automated security scanning
 
 ### Changed
-- **Enterprise PRD Module Alignment (v1.8)**: Aligned all 13 modules across enterprise PRD documents with dr-orchestration-artifacts source of truth
-  - Fixed `02-dr-orchestration-patterns.md` Supported Modules table: EC2 now shows correct lifecycle support (Instantiate, Activate, Cleanup)
-  - Fixed module naming to match service_module.py enum: R53Record, LambdaFunction, OpenSearchService, EcsService
-  - Updated DRS module description with failover/failback details and disconnect/delete operations
-  - Added EC2 Adapter section to `04-technology-adapters.md` with Orchestrator:HostName tag-based discovery
-  - Added EC2 to Module Action Mapping table in `04-technology-adapters.md`
-  - Added EC2Adapter to ADAPTER_REGISTRY in technology adapters
+- **Deployment Strategy**: Shifted from fixing broken QA stack to fresh deployment with working code
+- **Stack Naming Convention**: Prepared for proper naming (`ProjectName=aws-drs-orchestrator-qa`, `Environment=dev`)
+- **CI/CD Integration**: Ready for GitHub Actions deployment with existing OIDC role (`aws-elasticdrs-orchestrator-github-actions-dev`)
 
-### Added
-- **DRS Tools Learnings Document**: Created comprehensive analysis of AWS DRS Tools repository (5 solutions) with patterns for enterprise orchestration
-  - `docs/enterprise-prd/09-drs-tools-learnings.md` - Patterns from DRS Plan Automation, Configuration Synchronizer, Observability, Tag Sync, Template Manager
-  - PreWave/PostWave SSM automation actions for wave-based orchestration
-  - YAML-based configuration with layered tag overrides (defaults → account → tag)
-  - Automatic subnet assignment by IP address for on-premises migrations
-  - Cross-account CloudWatch dashboards (per-account and consolidated)
-  - EventBridge notifications for DR events (failed recoveries, stalled agents)
-  - EC2 to DRS tag synchronization with instance type preservation
-  - S3-triggered batch launch template updates with tag-based matching
-  - Feature exclusion configuration per server/protection group
-  - Comparison table: DRS Plan Automation vs our solution (identified gaps)
-  - Implementation roadmap with 4 phases (11-16 weeks total)
-  - Updated Enterprise PRD index to version 1.7 with new document
-- **CMF Learnings Document**: Created comprehensive analysis of AWS Cloud Migration Factory v4.5.1 patterns applicable to enterprise orchestration
-  - `docs/enterprise-prd/08-cmf-learnings.md` - Technology-agnostic patterns from CMF for any orchestration scenario
-  - DynamoDB Stream-driven task orchestration pattern (alternative to Step Functions for complex workflows)
-  - Predecessor/successor task dependency management with automatic successor triggering
-  - Enhanced task states: RETRY, SKIP, ABANDON, PENDING_APPROVAL
-  - EventBridge-based email notification system with configurable recipients per task
-  - SSM script library with versioning for post-recovery automation
-  - Credential manager integration for secure automation secrets
-  - Service account management for API automation
-  - Dynamic entity schema management for custom attributes
-  - Migration tracker analytics with Glue/Athena integration
-  - Implementation roadmap with 4 phases (13-19 weeks total)
-  - Updated Enterprise PRD index to version 1.6 with new document
-- **Enterprise PRD Modular Restructure**: Reorganized the 4800+ line Enterprise PRD into 8 focused, navigable documents
-  - `docs/enterprise-prd/README.md` - Main index with TOC, executive summary, navigation by use case and role
-  - `docs/enterprise-prd/01-reference-implementation.md` - GitHub code links (Step Functions, tag orchestration, RBAC)
-  - `docs/enterprise-prd/02-dr-orchestration-patterns.md` - 4-phase DR lifecycle, module factory, manifests, approval workflows
-  - `docs/enterprise-prd/03-api-integration.md` - REST API, SSM, EventBridge, Lambda triggers, CI/CD integration
-  - `docs/enterprise-prd/04-technology-adapters.md` - DRS, Database, Application, Infrastructure, SQL Always On, NetApp ONTAP, S3 adapters
-  - `docs/enterprise-prd/05-iam-security.md` - IAM roles, LZA integration, RBAC with 5 DRS-specific roles
-  - `docs/enterprise-prd/06-architecture.md` - Core components, state management, data flow diagrams
-  - `docs/enterprise-prd/07-implementation.md` - 32-week implementation phases, success criteria, risk assessment
-  - Original `docs/Enterprise_DR_Orchestration_Platform_PRD.md` now redirects to modular structure
-- **Reference Implementation Code Links**: Added comprehensive section to Enterprise PRD with direct GitHub links to production code
-  - Step Functions pause/resume with `waitForTaskToken` callback pattern
-  - Wave-based tag orchestration for dynamic server discovery
-  - Tag sync (EC2 to DRS) implementation
-  - Launch settings configuration per protection group
-  - DynamoDB database schema with 4 tables
-  - Cross-account role assumption for hub-and-spoke architecture
-  - RBAC middleware with 5 DRS-specific roles
-  - Complete API handler with 47+ endpoints
-  - All CloudFormation infrastructure templates
-- **Archive Consistency Updates**: Synchronized enterprise PRD documentation with archive/dr-orchestration-artifacts reference implementation
-  - Added 6 missing module adapters: DRS, ElastiCache, MemoryDB, OpenSearch, SQLServer, EC2
-  - Updated supported modules table in `02-dr-orchestration-patterns.md` (7 → 13 modules)
-  - Added complete manifest examples for all new modules
-  - Added ElastiCache, MemoryDB, OpenSearch, SQLServer adapter implementations to `04-technology-adapters.md`
-  - Updated adapter registry with all 16 adapter types organized by category
-  - Enhanced cross-account role template with permissions for all module types
-  - Added reference to archive role template with security note about AdministratorAccess vs least-privilege
-
-### Fixed
-- **Enterprise PRD API Examples**: Fixed incorrect AWS CLI commands and HTTP methods in Enterprise_DR_Orchestration_Platform_PRD.md
-  - Replaced non-existent `aws apigateway invoke-rest-api` command with correct `curl` HTTP examples
-  - Corrected pause/resume HTTP methods from `PUT` to `POST` to match actual API implementation
-  - Clarified DynamoDB table comparison (DRS solution uses 4 tables for full CRUD, Enterprise Platform proposes 2 for automation-only)
-  - Updated GitHub Actions workflow example with proper Cognito authentication flow
-  - Added revision history to track document changes
-
-## [1.4.6] - January 7, 2026
-
-### Added
-- **Complete RBAC API Coverage**: Added missing `GET /executions/{executionId}/recovery-instances` endpoint to RBAC permission mappings
-  - Added endpoint to `ENDPOINT_PERMISSIONS` dictionary
-  - Added `recovery-instances` to `STATIC_SEGMENTS` for path normalization
-  - Added path handling in `get_endpoint_permissions()` function
-  - Added 2 unit tests for the new endpoint permission
-- **AWS Landing Zone Accelerator (LZA) Integration**: Added comprehensive documentation for integrating pre-vended IAM roles
-  - LZA integration architecture diagram
-  - Pre-vended IAM role templates for DRS Orchestration Execution Role
-  - Pre-vended IAM role templates for DRS Cross-Account Target Role
-  - CloudFormation parameter configuration for LZA mode
-  - Python code updates for cross-account role assumption
-  - LZA deployment workflow and administrator checklist
-  - Troubleshooting guide for LZA integration issues
-
-### Changed
-- **Test Count**: Expanded from 306 to 308 automated tests (56 RBAC middleware tests)
-- **Documentation Updates**:
-  - Updated README.md with v1.4.6 release information and 100% API coverage
-  - Updated API_REFERENCE_GUIDE.md to v2.2 with complete RBAC documentation
-  - Updated ORCHESTRATION_INTEGRATION_GUIDE.md to v2.2 with Cognito group names and recovery-instances endpoint
-  - Updated Enterprise_DR_Orchestration_Platform_PRD.md to v1.2 with RBAC roles, Cognito group names, and LZA integration
-  - Updated RBAC_SECURITY_TESTING_STATUS.md with API endpoint coverage matrix
-  - Updated GITHUB_ACTIONS_CICD_GUIDE.md with workflow conflict prevention section
-  - Added recovery-instances endpoint to Executions API tables
-
-### Security
-- **100% RBAC Coverage**: All 47+ API endpoints now have verified RBAC permission mappings
-- **API-UI Audit Complete**: Cross-referenced all frontend API methods with backend endpoints - no gaps
+### Technical Details
+- **Base Commit**: `59bed2d` (January 7, 2026) - "fix(rbac): add missing recovery-instances endpoint permission"
+- **Cherry-picked Files**: Modern CI/CD pipeline from commits `b498f4a`, `b34aa08`, `94d38c3`, `cc20893`, `7c06243`
+- **DRS Endpoints**: All 5 DRS endpoints functional (source-servers, quotas, accounts, tag-sync, recovery-instances)
+- **RBAC Coverage**: Complete permission matrix for 47+ API endpoints with 5 DRS-specific roles
+- **Next Steps**: Deploy fresh stack and update CI/CD configuration for new stack
 
 ## [1.4.5] - January 7, 2026
 
