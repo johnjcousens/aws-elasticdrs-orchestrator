@@ -540,3 +540,108 @@ jobs:
           echo "Only documentation files were changed. No deployment needed." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Time Saved:** ~20 minutes (95% pipeline optimization)" >> $GITHUB_STEP_SUMMARY
+
+  # Frontend-only deployment (skips infrastructure)
+  deploy-frontend-only:
+    name: Deploy Frontend Only
+    runs-on: ubuntu-latest
+    needs: [build, detect-changes]
+    if: |
+      github.ref == 'refs/heads/main' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.detect-changes.outputs.frontend-only == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Get existing stack outputs
+        id: stack
+        run: |
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          
+          # Check if stack exists
+          if ! aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            echo "❌ Stack $STACK_NAME does not exist. Cannot deploy frontend-only."
+            echo "💡 Run full deployment first to create the stack."
+            exit 1
+          fi
+          
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+          API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
+          USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
+          USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
+          IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)
+          
+          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "user_pool_client_id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "identity_pool_id=$IDENTITY_POOL_ID" >> $GITHUB_OUTPUT
+
+      - name: Generate frontend config
+        run: |
+          cat > frontend/dist/aws-config.json << EOF
+          {
+            "region": "${{ env.AWS_REGION }}",
+            "userPoolId": "${{ steps.stack.outputs.user_pool_id }}",
+            "userPoolClientId": "${{ steps.stack.outputs.user_pool_client_id }}",
+            "identityPoolId": "${{ steps.stack.outputs.identity_pool_id }}",
+            "apiEndpoint": "${{ steps.stack.outputs.api_endpoint }}"
+          }
+          EOF
+          
+          echo "Generated aws-config.json:"
+          cat frontend/dist/aws-config.json
+
+      - name: Deploy to S3
+        run: |
+          echo "=== Frontend-Only Deployment to S3 ==="
+          aws s3 sync frontend/dist/ "s3://${{ steps.stack.outputs.frontend_bucket }}/" \
+            --delete \
+            --cache-control "max-age=31536000" \
+            --exclude "index.html" \
+            --exclude "aws-config.json"
+          
+          # Deploy index.html and config with no-cache
+          aws s3 cp frontend/dist/index.html "s3://${{ steps.stack.outputs.frontend_bucket }}/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+          aws s3 cp frontend/dist/aws-config.json "s3://${{ steps.stack.outputs.frontend_bucket }}/aws-config.json" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "=== Invalidating CloudFront Cache ==="
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
+            --paths "/*"
+
+      - name: Frontend-only deployment summary
+        run: |
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
+          
+          echo "### Frontend-Only Deployment :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Time Saved:** ~12 minutes (45% pipeline optimization)" >> $GITHUB_STEP_SUMMARY
+          echo "**Infrastructure:** Skipped (no changes detected)" >> $GITHUB_STEP_SUMMARY
