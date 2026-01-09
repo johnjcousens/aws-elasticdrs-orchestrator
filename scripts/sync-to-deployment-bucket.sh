@@ -32,6 +32,8 @@ CLEAN_ORPHANS=false
 EMERGENCY_DEPLOY=false
 UPDATE_LAMBDA_CODE=false
 DEPLOY_FRONTEND=false
+DEPLOY_CFN=false
+RUN_LOCAL_VALIDATION=false
 AWS_PROFILE="${AWS_PROFILE:-default}"
 LIST_PROFILES=false
 
@@ -77,6 +79,15 @@ while [[ $# -gt 0 ]]; do
             echo "⚠️  WARNING: --deploy-frontend bypasses GitHub Actions"
             shift
             ;;
+        --deploy-cfn)
+            DEPLOY_CFN=true
+            echo "⚠️  WARNING: --deploy-cfn bypasses GitHub Actions"
+            shift
+            ;;
+        --validate)
+            RUN_LOCAL_VALIDATION=true
+            shift
+            ;;
         --list-profiles)
             LIST_PROFILES=true
             shift
@@ -100,6 +111,10 @@ while [[ $# -gt 0 ]]; do
             echo "  --emergency-deploy                 Emergency bypass for critical fixes"
             echo "  --update-lambda-code               Update Lambda code directly (legacy)"
             echo "  --deploy-frontend                  Deploy frontend directly (legacy)"
+            echo "  --deploy-cfn                       Deploy CloudFormation stack directly"
+            echo ""
+            echo "🔍 LOCAL VALIDATION OPTIONS:"
+            echo "  --validate                         Run local validation (linting, security, tests)"
             echo ""
             echo "Examples:"
             echo "  # RECOMMENDED: GitHub Actions deployment"
@@ -110,6 +125,10 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "  # Emergency fixes only"
             echo "  $0 --emergency-deploy --update-lambda-code  # Critical production fix"
+            echo "  $0 --deploy-cfn                             # Deploy CloudFormation changes"
+            echo ""
+            echo "  # Local validation (like GitHub Actions pipeline)"
+            echo "  $0 --validate                               # Run linting, security, tests locally"
             exit 0
             ;;
         *)
@@ -171,6 +190,109 @@ echo "AWS Profile: $AWS_PROFILE"
 echo "Git Commit: $GIT_SHORT ($GIT_COMMIT)"
 echo "Sync Time: $SYNC_TIME"
 echo ""
+
+# Run local validation if requested (like GitHub Actions pipeline)
+if [ "$RUN_LOCAL_VALIDATION" = true ]; then
+    echo "======================================"
+    echo "🔍 Local Validation (GitHub Actions Pipeline)"
+    echo "======================================"
+    echo ""
+    
+    VALIDATION_START=$(date +%s)
+    VALIDATION_FAILED=false
+    
+    # 1. CloudFormation Validation
+    echo "📋 CloudFormation Validation..."
+    if command -v aws >/dev/null 2>&1; then
+        for template in cfn/*.yaml; do
+            if [ -f "$template" ]; then
+                echo "  Validating $template..."
+                if ! aws cloudformation validate-template --template-body file://"$template" $PROFILE_FLAG --region $REGION >/dev/null 2>&1; then
+                    echo "  ❌ $template validation failed"
+                    VALIDATION_FAILED=true
+                else
+                    echo "  ✅ $template valid"
+                fi
+            fi
+        done
+    else
+        echo "  ⚠️  AWS CLI not available - skipping CloudFormation validation"
+    fi
+    
+    # 2. Python Linting (Flake8)
+    echo ""
+    echo "🐍 Python Linting (Flake8)..."
+    if command -v flake8 >/dev/null 2>&1; then
+        if flake8 lambda/ scripts/ --max-line-length=79 --exclude=__pycache__,*.pyc; then
+            echo "  ✅ Python linting passed"
+        else
+            echo "  ❌ Python linting failed"
+            VALIDATION_FAILED=true
+        fi
+    else
+        echo "  ⚠️  Flake8 not available - install with: pip install flake8"
+    fi
+    
+    # 3. Security Scanning (Bandit)
+    echo ""
+    echo "🔒 Security Scanning (Bandit)..."
+    if command -v bandit >/dev/null 2>&1; then
+        if bandit -r lambda/ scripts/ -ll --format screen; then
+            echo "  ✅ Security scan passed"
+        else
+            echo "  ❌ Security scan found issues"
+            VALIDATION_FAILED=true
+        fi
+    else
+        echo "  ⚠️  Bandit not available - install with: pip install bandit"
+    fi
+    
+    # 4. Dependency Vulnerability Check (Safety)
+    echo ""
+    echo "🛡️  Dependency Vulnerability Check (Safety)..."
+    if command -v safety >/dev/null 2>&1; then
+        if safety check --short-report; then
+            echo "  ✅ No known vulnerabilities"
+        else
+            echo "  ❌ Vulnerabilities found in dependencies"
+            VALIDATION_FAILED=true
+        fi
+    else
+        echo "  ⚠️  Safety not available - install with: pip install safety"
+    fi
+    
+    # 5. TypeScript Type Checking (if frontend exists)
+    if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+        echo ""
+        echo "📘 TypeScript Type Checking..."
+        cd frontend
+        if [ -f "package-lock.json" ]; then
+            if npm run type-check >/dev/null 2>&1; then
+                echo "  ✅ TypeScript types valid"
+            else
+                echo "  ❌ TypeScript type errors found"
+                VALIDATION_FAILED=true
+            fi
+        else
+            echo "  ⚠️  Dependencies not installed - run: cd frontend && npm install"
+        fi
+        cd ..
+    fi
+    
+    VALIDATION_END=$(date +%s)
+    VALIDATION_DURATION=$((VALIDATION_END - VALIDATION_START))
+    
+    echo ""
+    if [ "$VALIDATION_FAILED" = true ]; then
+        echo "❌ Local validation FAILED (${VALIDATION_DURATION}s)"
+        echo "Fix the issues above before deploying"
+        exit 1
+    else
+        echo "✅ Local validation PASSED (${VALIDATION_DURATION}s)"
+        echo "Code quality checks completed successfully"
+    fi
+    echo ""
+fi
 
 # Verify AWS credentials
 echo "🔐 Verifying AWS credentials..."
@@ -307,34 +429,37 @@ package_lambda_function() {
     local output_zip="$2"
     
     echo "📦 Packaging $function_dir..." >&2
-    cd "$PROJECT_ROOT/lambda"
+    cd "$PROJECT_ROOT/lambda/$function_dir"
     
     rm -f "$output_zip"
     
-    # Initialize zip
+    # Create zip with function code at root level
+    if [ -f "index.py" ]; then
+        zip -q "$output_zip" index.py
+    else
+        echo "  ❌ index.py not found in $function_dir"
+        return 1
+    fi
+    
+    # Add any other Python files in the function directory
+    for py_file in *.py; do
+        if [ "$py_file" != "index.py" ] && [ -f "$py_file" ]; then
+            zip -q "$output_zip" "$py_file"
+        fi
+    done
+    
+    # Add shared modules maintaining folder structure
+    if [ -d "../shared" ]; then
+        cd ..
+        zip -qgr "$output_zip" shared/
+        cd "$function_dir"
+    fi
+    
+    # Add any dependencies from package directory if it exists
     if [ -d "package" ] && [ "$(ls -A package 2>/dev/null)" ]; then
         cd package
-        zip -qr "$output_zip" .
+        zip -qgr "$output_zip" .
         cd ..
-    else
-        touch /tmp/empty_placeholder
-        zip -q "$output_zip" /tmp/empty_placeholder
-        zip -qd "$output_zip" empty_placeholder 2>/dev/null || true
-        rm -f /tmp/empty_placeholder
-    fi
-    
-    # Add the function's index.py
-    if [ -f "$function_dir/index.py" ]; then
-        zip -qj "$output_zip" "$function_dir/index.py"
-    fi
-    
-    # Add shared modules
-    if [ -d "shared" ]; then
-        for shared_file in shared/*.py; do
-            if [ -f "$shared_file" ]; then
-                zip -qj "$output_zip" "$shared_file"
-            fi
-        done
     fi
     
     cd "$PROJECT_ROOT"
@@ -354,24 +479,25 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
-        # Lambda functions to update (aligned with deployed stack)
+        # Lambda functions to update (aligned with actual deployed functions)
         LAMBDA_FUNCTIONS=(
-            "api-handler:aws-elasticdrs-orchestrator-api-handler-dev"
-            "orchestration-stepfunctions:aws-elasticdrs-orchestrator-orch-sf-dev"
-            "frontend-builder:aws-elasticdrs-orchestrator-frontend-build-dev"
-            "execution-finder:aws-elasticdrs-orchestrator-execution-finder-dev"
-            "execution-poller:aws-elasticdrs-orchestrator-execution-poller-dev"
-            "bucket-cleaner:aws-elasticdrs-orchestrator-bucket-cleaner-dev"
-            "notification-formatter:aws-elasticdrs-orchestrator-notif-fmt-dev"
+            "api-handler:aws-drs-orchestrator-qa-api-handler-dev"
+            "orchestration-stepfunctions:aws-drs-orchestrator-qa-orch-sf-dev"
+            "frontend-builder:aws-drs-orchestrator-qa-frontend-build-dev"
+            "bucket-cleaner:aws-drs-orchestrator-qa-bucket-cleaner-dev"
+            "execution-finder:aws-drs-orchestrator-qa-execution-finder-dev"
+            "execution-poller:aws-drs-orchestrator-qa-execution-poller-dev"
+            "notification-formatter:aws-drs-orchestrator-qa-notif-fmt-dev"
         )
         
-        cd "$PROJECT_ROOT/lambda"
+        LAMBDA_DIR="$PROJECT_ROOT/lambda"
         
         for func_entry in "${LAMBDA_FUNCTIONS[@]}"; do
             func_dir="${func_entry%%:*}"
             func_name="${func_entry##*:}"
             
-            if [ ! -d "$func_dir" ]; then
+            echo "🔍 Looking for directory: $LAMBDA_DIR/$func_dir"
+            if [ ! -d "$LAMBDA_DIR/$func_dir" ]; then
                 echo "⚠️  Directory $func_dir not found, skipping..."
                 continue
             fi
@@ -507,8 +633,140 @@ EOF
     fi
 fi
 
+# Deploy CloudFormation stack directly (emergency use only)
+if [ "$DEPLOY_CFN" = true ]; then
+    if [ "$DRY_RUN" = true ]; then
+        echo "ℹ️  DRY RUN: Would deploy CloudFormation stack"
+        echo ""
+    else
+        echo "======================================"
+        echo "☁️  Deploying CloudFormation Stack"
+        echo "======================================"
+        echo ""
+        
+        DEPLOY_START=$(date +%s)
+        
+        # 🔒 PIPELINE SAFETY POLICY
+        echo "🔒 PIPELINE SAFETY POLICY:"
+        echo "- Pipeline will NEVER delete stacks automatically"
+        echo "- Only deploys/updates stacks, never deletes"
+        echo "- Manual deletion available when needed for development"
+        echo "- Stack: $PARENT_STACK_NAME"
+        echo "- Environment: $ENVIRONMENT"
+        echo ""
+        
+        # Check current stack status
+        echo "Current stack status:"
+        CURRENT_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$PARENT_STACK_NAME" \
+            --query 'Stacks[0].StackStatus' \
+            --output text \
+            $PROFILE_FLAG \
+            --region $REGION 2>/dev/null || echo "STACK_NOT_EXISTS")
+        
+        if [ "$CURRENT_STATUS" = "STACK_NOT_EXISTS" ]; then
+            echo "Stack does not exist - will create new stack"
+            STACK_OPERATION="CREATE"
+        elif [ "$CURRENT_STATUS" = "CREATE_IN_PROGRESS" ]; then
+            echo "✅ Stack is currently being created: $CURRENT_STATUS"
+            echo "⏳ WAITING for stack creation to complete..."
+            echo ""
+            echo "📋 Monitoring stack creation progress..."
+            echo ""
+            echo "To monitor progress:"
+            echo "aws cloudformation describe-stack-events --stack-name $PARENT_STACK_NAME --region $REGION --query 'StackEvents[0:5].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' --output table"
+            echo ""
+            echo "To check status:"
+            echo "aws cloudformation describe-stacks --stack-name $PARENT_STACK_NAME --query 'Stacks[0].StackStatus' --output text --region $REGION"
+            echo ""
+            echo "Stack creation is proceeding normally. No action needed."
+            exit 0
+        elif [[ "$CURRENT_STATUS" == "UPDATE_IN_PROGRESS" ]] || [[ "$CURRENT_STATUS" == "DELETE_IN_PROGRESS" ]] || [[ "$CURRENT_STATUS" == *"CLEANUP_IN_PROGRESS"* ]] || [[ "$CURRENT_STATUS" == "ROLLBACK_IN_PROGRESS" ]]; then
+            echo "❌ Stack is currently in progress: $CURRENT_STATUS"
+            echo "🛑 STOPPING DEPLOYMENT - Cannot update stack during active operation"
+            echo ""
+            echo "📋 MANUAL ACTION: Wait for current operation to complete, then retry"
+            echo ""
+            echo "To monitor progress:"
+            echo "aws cloudformation describe-stack-events --stack-name $PARENT_STACK_NAME --region $REGION --query 'StackEvents[0:5].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' --output table"
+            echo ""
+            echo "To check status:"
+            echo "aws cloudformation describe-stacks --stack-name $PARENT_STACK_NAME --query 'Stacks[0].StackStatus' --output text --region $REGION"
+            echo ""
+            echo "If stuck for >30 minutes, consider canceling:"
+            echo "aws cloudformation cancel-update-stack --stack-name $PARENT_STACK_NAME --region $REGION"
+            exit 1
+        else
+            echo "Stack exists with status: $CURRENT_STATUS"
+            STACK_OPERATION="UPDATE"
+        fi
+        
+        # Deploy the stack
+        echo ""
+        echo "📦 Deploying CloudFormation stack..."
+        
+        # Use master template from S3 deployment bucket
+        TEMPLATE_URL="https://s3.amazonaws.com/$BUCKET/cfn/master-template.yaml"
+        
+        # Common parameters for both create and update
+        STACK_PARAMS=(
+            --stack-name "$PARENT_STACK_NAME"
+            --template-url "$TEMPLATE_URL"
+            --parameters 
+                "ParameterKey=ProjectName,ParameterValue=$PROJECT_NAME"
+                "ParameterKey=Environment,ParameterValue=$ENVIRONMENT"
+                "ParameterKey=DeploymentBucket,ParameterValue=$BUCKET"
+            --capabilities CAPABILITY_NAMED_IAM
+            --region $REGION
+            $PROFILE_FLAG
+        )
+        
+        if [ "$STACK_OPERATION" = "CREATE" ]; then
+            echo "Creating new stack: $PARENT_STACK_NAME"
+            aws cloudformation create-stack "${STACK_PARAMS[@]}"
+            DEPLOY_COMMAND="create-stack"
+        else
+            echo "Updating existing stack: $PARENT_STACK_NAME"
+            aws cloudformation update-stack "${STACK_PARAMS[@]}"
+            DEPLOY_COMMAND="update-stack"
+        fi
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ CloudFormation $DEPLOY_COMMAND initiated successfully"
+            echo ""
+            echo "📊 Monitoring deployment progress..."
+            echo "Stack: $PARENT_STACK_NAME"
+            echo "Region: $REGION"
+            echo ""
+            echo "Monitor in AWS Console:"
+            echo "https://console.aws.amazon.com/cloudformation/home?region=$REGION#/stacks/stackinfo?stackId=$PARENT_STACK_NAME"
+            echo ""
+            echo "Or use CLI:"
+            echo "aws cloudformation describe-stack-events --stack-name $PARENT_STACK_NAME --region $REGION --query 'StackEvents[0:10].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' --output table"
+        else
+            echo "❌ CloudFormation deployment failed"
+            exit 1
+        fi
+        
+        DEPLOY_END=$(date +%s)
+        DEPLOY_DURATION=$((DEPLOY_END - DEPLOY_START))
+        
+        echo ""
+        echo "======================================"
+        echo "✅ CloudFormation Deployment Initiated!"
+        echo "======================================"
+        echo "Deployment Duration: ${DEPLOY_DURATION}s"
+        echo "Stack Name: $PARENT_STACK_NAME"
+        echo "Template URL: $TEMPLATE_URL"
+        echo ""
+        echo "⏳ Note: Stack deployment continues in background"
+        echo "   Check AWS Console or use CLI to monitor progress"
+        echo ""
+    fi
+fi
+
 # Show warnings for emergency deployment methods
-if [ "$UPDATE_LAMBDA_CODE" = true ] || [ "$DEPLOY_FRONTEND" = true ] || [ "$EMERGENCY_DEPLOY" = true ]; then
+if [ "$UPDATE_LAMBDA_CODE" = true ] || [ "$DEPLOY_FRONTEND" = true ] || [ "$DEPLOY_CFN" = true ] || [ "$EMERGENCY_DEPLOY" = true ]; then
     echo "======================================"
     echo "⚠️  GitHub Actions Bypass Warning"
     echo "======================================"
@@ -520,6 +778,9 @@ if [ "$UPDATE_LAMBDA_CODE" = true ] || [ "$DEPLOY_FRONTEND" = true ] || [ "$EMER
     fi
     if [ "$DEPLOY_FRONTEND" = true ]; then
         echo "  • --deploy-frontend: Direct frontend deployment"
+    fi
+    if [ "$DEPLOY_CFN" = true ]; then
+        echo "  • --deploy-cfn: Direct CloudFormation deployment"
     fi
     if [ "$EMERGENCY_DEPLOY" = true ]; then
         echo "  • --emergency-deploy: Emergency bypass mode"
@@ -553,4 +814,6 @@ echo ""
 echo "🚀 Next Steps:"
 echo "  • For deployment: git push (triggers GitHub Actions)"
 echo "  • For emergency fixes: Use --emergency-deploy flags"
+echo "  • For local validation: Use --validate flag"
+echo "  • For CloudFormation deployment: Use --deploy-cfn flag"
 echo ""

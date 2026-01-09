@@ -194,6 +194,12 @@ jobs:
           echo "=== ESLint Validation ==="
           npm run lint -- --max-warnings 200 || true
 
+      - name: CloudScape Design System Compliance
+        run: |
+          echo "=== CloudScape Design System Compliance Check ==="
+          chmod +x scripts/check-cloudscape-compliance.sh
+          ./scripts/check-cloudscape-compliance.sh frontend/src
+
   # Stage 2: Security scanning
   security-scan:
     name: Security Scan
@@ -340,10 +346,10 @@ jobs:
             zip -q ../../build/lambda/${func}.zip index.py
             cd ../..
             
-            # Add shared modules (rbac_middleware.py, security_utils.py)
-            cd lambda/shared
-            zip -qg ../../build/lambda/${func}.zip *.py 2>/dev/null || true
-            cd ../..
+            # Add shared modules maintaining folder structure
+            cd lambda
+            zip -qgr ../build/lambda/${func}.zip shared/ 2>/dev/null || true
+            cd ..
             
             # Add dependencies
             cd /tmp/lambda-deps
@@ -395,42 +401,56 @@ jobs:
           cd tests/python
           pytest unit/ -v --tb=short || true
 
-  # Stage 5: Deploy infrastructure (only on main branch)
+  # Stage 5: Deploy infrastructure (only on main branch) - Multi-Stack Matrix Strategy
   deploy-infrastructure:
-    name: Deploy Infrastructure
+    name: Deploy Infrastructure (${{ matrix.stack.name }})
     runs-on: ubuntu-latest
     needs: [detect-changes, test]
     if: |
       github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
       needs.detect-changes.outputs.docs-only != 'true' && 
       (needs.detect-changes.outputs.infrastructure == 'true' || needs.detect-changes.outputs.lambda == 'true')
+    strategy:
+      matrix:
+        stack:
+          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
+          - name: "aws-drs-orchestrator-qa"
+            display_name: "QA Stack - FOCUS"
+            bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
+            stack_secret: "ARCHIVE_STACK_NAME"
+            admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
+            role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
+            project_name: "aws-drs-orchestrator-qa"
+      max-parallel: 1  # Single stack deployment
     environment: 
       name: ${{ github.event.inputs.environment || 'dev' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials for ${{ matrix.stack.display_name }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets[matrix.stack.role_arn_secret] }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS access
+      - name: Verify AWS access for ${{ matrix.stack.display_name }}
         run: |
-          echo "=== AWS Identity ==="
+          echo "=== AWS Identity for ${{ matrix.stack.display_name }} ==="
           aws sts get-caller-identity
+          echo "Stack: ${{ matrix.stack.name }}"
+          echo "Project: ${{ matrix.stack.project_name }}"
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
 
-      - name: Sync to deployment bucket
+      - name: Sync to deployment bucket (${{ matrix.stack.display_name }})
         run: |
-          echo "=== Syncing to S3 ==="
-          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          echo "=== Syncing to S3 for ${{ matrix.stack.display_name }} ==="
+          BUCKET="${{ secrets[matrix.stack.bucket_secret] }}"
           
           # Sync CloudFormation templates
           aws s3 sync cfn/ "s3://${BUCKET}/cfn/" --delete
@@ -438,15 +458,23 @@ jobs:
           # Sync Lambda packages
           aws s3 sync build/lambda/ "s3://${BUCKET}/lambda/" --delete
           
-          echo "Deployment artifacts synced to s3://${BUCKET}/"
+          echo "Deployment artifacts synced to s3://${BUCKET}/ for ${{ matrix.stack.display_name }}"
 
-      - name: Deploy CloudFormation stack
+      - name: Deploy CloudFormation stack (${{ matrix.stack.display_name }})
         run: |
-          echo "=== Deploying CloudFormation Stack ==="
-          STACK_NAME="${{ secrets.STACK_NAME }}"
-          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
-          ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}"
+          echo "=== Deploying CloudFormation Stack: ${{ matrix.stack.display_name }} ==="
+          STACK_NAME="${{ matrix.stack.name }}"
+          BUCKET="${{ secrets[matrix.stack.bucket_secret] }}"
+          ADMIN_EMAIL="${{ secrets[matrix.stack.admin_email_secret] }}"
+          PROJECT_NAME="${{ matrix.stack.project_name }}"
           ENV="${{ github.event.inputs.environment || 'dev' }}"
+          
+          echo "🚀 MULTI-STACK DEPLOYMENT"
+          echo "   Stack: $STACK_NAME"
+          echo "   Display Name: ${{ matrix.stack.display_name }}"
+          echo "   Project: $PROJECT_NAME"
+          echo "   Environment: $ENV"
+          echo "   Bucket: $BUCKET"
           
           # PRODUCTION SAFETY CHECK
           if [[ "$ENV" == "prod" ]]; then
@@ -520,7 +548,7 @@ jobs:
             --template-file cfn/master-template.yaml \
             --stack-name "$STACK_NAME" \
             --parameter-overrides \
-              ProjectName="${{ env.PROJECT_NAME }}" \
+              ProjectName="$PROJECT_NAME" \
               Environment="$ENV" \
               SourceBucket="$BUCKET" \
               AdminEmail="$ADMIN_EMAIL" \
@@ -528,57 +556,70 @@ jobs:
               EnableTerminationProtection="false" \
             --capabilities CAPABILITY_NAMED_IAM \
             --tags \
-              Project="${{ env.PROJECT_NAME }}" \
+              Project="$PROJECT_NAME" \
               Environment="$ENV" \
               DeployedBy=GitHubActions \
               CommitSha="${{ github.sha }}" \
+              StackType="${{ matrix.stack.display_name }}" \
             --no-fail-on-empty-changeset
           
-          echo "✅ Stack deployed successfully without termination protection"
+          echo "✅ ${{ matrix.stack.display_name }} deployed successfully"
           echo "🔧 Manual deletion available when needed for development"
           
-          echo "=== Stack Outputs ==="
+          echo "=== Stack Outputs for ${{ matrix.stack.display_name }} ==="
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' --output table
 
-      - name: Save deployment info
+      - name: Save deployment info for ${{ matrix.stack.display_name }}
         run: |
-          STACK_NAME="${{ secrets.STACK_NAME }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           
           API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
           CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
           
-          echo "API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
-          echo "CLOUDFRONT_URL=$CLOUDFRONT_URL" >> $GITHUB_ENV
+          echo "API_ENDPOINT_${{ matrix.stack.name }}=$API_ENDPOINT" >> $GITHUB_ENV
+          echo "CLOUDFRONT_URL_${{ matrix.stack.name }}=$CLOUDFRONT_URL" >> $GITHUB_ENV
           
-          echo "### Deployment Complete :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "### ${{ matrix.stack.display_name }} Deployment Complete :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| API Endpoint | $API_ENDPOINT |" >> $GITHUB_STEP_SUMMARY
           echo "| CloudFront URL | $CLOUDFRONT_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-  # Stage 6: Deploy frontend (frontend-only changes)
+  # Stage 6: Deploy frontend (frontend-only changes) - Multi-Stack Matrix Strategy
   deploy-frontend:
-    name: Deploy Frontend
+    name: Deploy Frontend (${{ matrix.stack.name }})
     runs-on: ubuntu-latest
     needs: [detect-changes, test]
     if: |
       github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
       needs.detect-changes.outputs.docs-only != 'true' && 
       needs.detect-changes.outputs.frontend == 'true'
+    strategy:
+      matrix:
+        stack:
+          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
+          - name: "aws-drs-orchestrator-qa"
+            display_name: "QA Stack - FOCUS"
+            bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
+            stack_secret: "ARCHIVE_STACK_NAME"
+            admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
+            role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
+      max-parallel: 1  # Single stack deployment
     # Deploy frontend when frontend files change
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials for ${{ matrix.stack.display_name }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets[matrix.stack.role_arn_secret] }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Download build artifacts
@@ -586,10 +627,10 @@ jobs:
         with:
           name: build-artifacts
 
-      - name: Get stack outputs
+      - name: Get stack outputs for ${{ matrix.stack.display_name }}
         id: stack
         run: |
-          STACK_NAME="${{ secrets.STACK_NAME }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
@@ -603,6 +644,13 @@ jobs:
             --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
           IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)
+          
+          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "api_endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "user_pool_client_id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "identity_pool_id=$IDENTITY_POOL_ID" >> $GITHUB_OUTPUT
           
           echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
@@ -648,33 +696,44 @@ jobs:
             --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
             --paths "/*"
 
-      - name: Deployment summary
+      - name: Deployment summary for ${{ matrix.stack.display_name }}
         run: |
-          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ matrix.stack.name }}" \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
           
-          echo "### Frontend Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "### ${{ matrix.stack.display_name }} Frontend Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
 
-  # Stage 6b: Deploy frontend after infrastructure changes
+  # Stage 6b: Deploy frontend after infrastructure changes - Multi-Stack Matrix Strategy
   deploy-frontend-after-infra:
-    name: Deploy Frontend (Post-Infrastructure)
+    name: Deploy Frontend Post-Infrastructure (${{ matrix.stack.name }})
     runs-on: ubuntu-latest
     needs: [detect-changes, deploy-infrastructure]
     if: |
       github.ref == 'refs/heads/main' && 
-      github.event_name == 'push' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
       needs.deploy-infrastructure.result == 'success'
+    strategy:
+      matrix:
+        stack:
+          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
+          - name: "aws-drs-orchestrator-qa"
+            display_name: "QA Stack - FOCUS"
+            bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
+            stack_secret: "ARCHIVE_STACK_NAME"
+            admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
+            role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
+      max-parallel: 1  # Single stack deployment
     # Deploy frontend after infrastructure deployment (config may have changed)
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials for ${{ matrix.stack.display_name }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ secrets[matrix.stack.role_arn_secret] }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Download build artifacts
@@ -682,9 +741,9 @@ jobs:
         with:
           name: build-artifacts
 
-      - name: Get stack outputs
+      - name: Get stack outputs for environment variables (${{ matrix.stack.display_name }})
         run: |
-          STACK_NAME="${{ secrets.STACK_NAME }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           
           CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
@@ -700,36 +759,61 @@ jobs:
           echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_ENV
           echo "USER_POOL_CLIENT_ID=$USER_POOL_CLIENT_ID" >> $GITHUB_ENV
 
-      - name: Create AWS config
+      - name: Get stack outputs for S3 deployment (${{ matrix.stack.display_name }})
+        id: stack
         run: |
-          cat > build/frontend/aws-config.json << EOF
+          STACK_NAME="${{ matrix.stack.name }}"
+          
+          FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
+          CLOUDFRONT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
+          IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)
+          
+          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
+          echo "identity_pool_id=$IDENTITY_POOL_ID" >> $GITHUB_OUTPUT
+
+      - name: Generate frontend config
+        run: |
+          cat > frontend/dist/aws-config.json << EOF
           {
             "region": "${{ env.AWS_REGION }}",
-            "apiEndpoint": "$API_ENDPOINT",
             "userPoolId": "$USER_POOL_ID",
-            "userPoolClientId": "$USER_POOL_CLIENT_ID"
+            "userPoolClientId": "$USER_POOL_CLIENT_ID",
+            "identityPoolId": "${{ steps.stack.outputs.identity_pool_id }}",
+            "apiEndpoint": "$API_ENDPOINT"
           }
           EOF
+          
+          echo "Generated aws-config.json:"
+          cat frontend/dist/aws-config.json
 
-      - name: Deploy to S3 and invalidate CloudFront
+      - name: Deploy to S3
         run: |
-          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          echo "=== Deploying Frontend to S3 ==="
+          aws s3 sync frontend/dist/ "s3://${{ steps.stack.outputs.frontend_bucket }}/" \
+            --delete \
+            --cache-control "max-age=31536000" \
+            --exclude "index.html" \
+            --exclude "aws-config.json"
           
-          # Sync frontend to S3
-          aws s3 sync build/frontend/ "s3://${BUCKET}/frontend/" --delete
-          
-          # Get CloudFront distribution ID
-          DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
-            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-          
-          # Invalidate CloudFront cache
+          # Deploy index.html and config with no-cache
+          aws s3 cp frontend/dist/index.html "s3://${{ steps.stack.outputs.frontend_bucket }}/index.html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+          aws s3 cp frontend/dist/aws-config.json "s3://${{ steps.stack.outputs.frontend_bucket }}/aws-config.json" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "=== Invalidating CloudFront Cache ==="
           aws cloudfront create-invalidation \
-            --distribution-id "$DISTRIBUTION_ID" \
+            --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
             --paths "/*"
-
-      - name: Deployment summary
+      - name: Deployment summary for ${{ matrix.stack.display_name }}
         run: |
-          echo "### Frontend Deployed (Post-Infrastructure) :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "### ${{ matrix.stack.display_name }} Frontend Deployed (Post-Infrastructure) :white_check_mark:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
 
