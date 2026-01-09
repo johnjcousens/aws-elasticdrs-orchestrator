@@ -605,7 +605,7 @@ def poll_wave_status(
 
         # Update server statuses from DRS participating servers
         if "ParticipatingServers" in job_status:
-            wave_region = wave.get("Region", "us-east-1")
+            wave_region = wave.get("region", "us-east-1")
             updated_servers = []
 
             for drs_server in job_status["ParticipatingServers"]:
