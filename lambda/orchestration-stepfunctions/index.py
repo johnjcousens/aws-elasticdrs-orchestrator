@@ -514,12 +514,14 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         try:
             get_execution_history_table().update_item(
                 Key={"ExecutionId": execution_id, "PlanId": state["plan_id"]},
-                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave), DrsJobId = :job_id, DrsRegion = :region",
+                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave), DrsJobId = :job_id, DrsRegion = :region, #status = :status",
+                ExpressionAttributeNames={"#status": "Status"},
                 ExpressionAttributeValues={
                     ":empty": [],
                     ":wave": [wave_result],
                     ":job_id": job_id,
                     ":region": region,
+                    ":status": "POLLING",
                 },
                 ConditionExpression="attribute_exists(ExecutionId)",
             )

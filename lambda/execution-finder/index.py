@@ -175,7 +175,7 @@ def query_polling_executions() -> List[Dict[str, Any]]:
     executions = []
 
     # Statuses that need polling
-    statuses_to_poll = ["POLLING", "CANCELLING", "PAUSED", "RUNNING"]
+    statuses_to_poll = ["POLLING", "CANCELLING"]
 
     for status in statuses_to_poll:
         try:
