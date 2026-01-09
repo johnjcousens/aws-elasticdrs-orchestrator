@@ -9,7 +9,7 @@ set -e
 OIDC_STACK_NAME="aws-elasticdrs-orchestrator-github-oidc"
 PROJECT_NAME="aws-elasticdrs-orchestrator"
 ENVIRONMENT="dev"
-GITHUB_ORG="jocousen"
+GITHUB_ORG="johnjcousens"
 GITHUB_REPO="aws-elasticdrs-orchestrator"
 DEPLOYMENT_BUCKET="aws-elasticdrs-orchestrator"
 APPLICATION_STACK_NAME="aws-elasticdrs-orchestrator-dev"
