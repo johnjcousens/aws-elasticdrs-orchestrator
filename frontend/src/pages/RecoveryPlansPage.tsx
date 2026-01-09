@@ -235,7 +235,15 @@ export const RecoveryPlansPage: React.FC = () => {
 
   const handleDialogSave = useCallback((savedPlan: RecoveryPlan) => {
     const action = editingPlan ? 'updated' : 'created';
-    addNotification('success', `Recovery plan "${savedPlan.name}" ${action} successfully`);
+    
+    // Debug logging to identify the issue
+    console.log('handleDialogSave - savedPlan:', savedPlan);
+    console.log('handleDialogSave - savedPlan.name:', savedPlan.name);
+    
+    // Fallback for undefined name
+    const planName = savedPlan.name || savedPlan.id || 'Unknown Plan';
+    
+    addNotification('success', `Recovery plan "${planName}" ${action} successfully`);
     fetchPlans();
   }, [editingPlan, addNotification, fetchPlans]);
 
