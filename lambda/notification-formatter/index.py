@@ -12,7 +12,7 @@ import boto3
 
 # Import security utilities
 try:
-    from security_utils import (
+    from shared.security_utils import (
         create_response_with_security_headers,
         log_security_event,
         safe_aws_client_call,
