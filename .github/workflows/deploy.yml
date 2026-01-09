@@ -463,7 +463,7 @@ jobs:
       - name: Deploy CloudFormation stack (${{ matrix.stack.display_name }})
         run: |
           echo "=== Deploying CloudFormation Stack: ${{ matrix.stack.display_name }} ==="
-          STACK_NAME="${{ secrets[matrix.stack.stack_secret] }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           BUCKET="${{ secrets[matrix.stack.bucket_secret] }}"
           ADMIN_EMAIL="${{ secrets[matrix.stack.admin_email_secret] }}"
           PROJECT_NAME="${{ matrix.stack.project_name }}"
@@ -572,7 +572,7 @@ jobs:
 
       - name: Save deployment info for ${{ matrix.stack.display_name }}
         run: |
-          STACK_NAME="${{ secrets[matrix.stack.stack_secret] }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           
           API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
@@ -630,7 +630,7 @@ jobs:
       - name: Get stack outputs for ${{ matrix.stack.display_name }}
         id: stack
         run: |
-          STACK_NAME="${{ secrets[matrix.stack.stack_secret] }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
@@ -709,7 +709,7 @@ jobs:
 
       - name: Deployment summary for ${{ matrix.stack.display_name }}
         run: |
-          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ secrets[matrix.stack.stack_secret] }}" \
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ matrix.stack.name }}" \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
           
           echo "### ${{ matrix.stack.display_name }} Frontend Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
@@ -754,7 +754,7 @@ jobs:
 
       - name: Get stack outputs for frontend deployment (${{ matrix.stack.display_name }})
         run: |
-          STACK_NAME="${{ secrets[matrix.stack.stack_secret] }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           
           CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
@@ -773,7 +773,7 @@ jobs:
       - name: Get stack outputs for frontend deployment (${{ matrix.stack.display_name }})
         id: stack
         run: |
-          STACK_NAME="${{ secrets[matrix.stack.stack_secret] }}"
+          STACK_NAME="${{ matrix.stack.name }}"
           
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
