@@ -1078,7 +1078,7 @@ Resources:
       Environment:
         Variables:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          TIMEOUT_THRESHOLD_SECONDS: "31536000"  # 1 year (365 days * 24 hours * 60 minutes * 60 seconds)
+          TIMEOUT_THRESHOLD_SECONDS: "14400"  # 4 hours (4 * 60 * 60 seconds) - reasonable for DRS operations
       Tags:
         - Key: Project
           Value: !Ref ProjectName

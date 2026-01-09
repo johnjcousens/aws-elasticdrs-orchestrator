@@ -527,7 +527,8 @@ def handle_timeout(
             job_id = wave.get("JobId")
             if job_id:
                 try:
-                    job_status = query_drs_job_status(job_id)
+                    wave_region = wave.get("Region", "us-east-1")
+                    job_status = query_drs_job_status(job_id, wave_region)
                     wave["Status"] = job_status.get("Status", "TIMEOUT")
                     wave["StatusMessage"] = job_status.get(
                         "StatusMessage", "Execution timed out"
@@ -594,7 +595,8 @@ def poll_wave_status(
             return wave
 
         # Query DRS for job status
-        job_status = query_drs_job_status(job_id)
+        wave_region = wave.get("Region", "us-east-1")
+        job_status = query_drs_job_status(job_id, wave_region)
 
         # Get DRS job status and message
         drs_status = job_status.get("Status", "UNKNOWN")
@@ -760,21 +762,24 @@ def poll_wave_status(
         return wave
 
 
-def query_drs_job_status(job_id: str) -> Dict[str, Any]:
+def query_drs_job_status(job_id: str, region: str = "us-east-1") -> Dict[str, Any]:
     """
     Query DRS API for job status.
 
     Args:
         job_id: DRS job ID
+        region: AWS region where the DRS job exists
 
     Returns:
         Job status information
     """
     try:
-        response = drs.describe_jobs(filters={"jobIDs": [job_id]})
+        # Create region-specific DRS client
+        drs_client = boto3.client("drs", region_name=region)
+        response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
 
         if not response.get("items"):
-            logger.warning(f"No job found for ID {job_id}")
+            logger.warning(f"No job found for ID {job_id} in region {region}")
             return {"Status": "UNKNOWN", "StatusMessage": "Job not found"}
 
         job = response["items"][0]
