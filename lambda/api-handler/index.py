@@ -1643,7 +1643,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         elif path.startswith("/recovery-plans"):
             print("Matched /recovery-plans route")
             return handle_recovery_plans(
-                http_method, path_parameters, query_parameters, body
+                http_method, path_parameters, query_parameters, body, event
             )
         elif path.startswith("/executions"):
             print("Matched /executions route")
@@ -2777,7 +2777,7 @@ def delete_protection_group(group_id: str) -> Dict:
 
 
 def handle_recovery_plans(
-    method: str, path_params: Dict, query_params: Dict, body: Dict
+    method: str, path_params: Dict, query_params: Dict, body: Dict, event: Dict = None
 ) -> Dict:
     """Route Recovery Plans requests"""
     plan_id = path_params.get("id")
@@ -2797,7 +2797,7 @@ def handle_recovery_plans(
         return check_existing_recovery_instances(plan_id)
 
     if method == "POST":
-        return create_recovery_plan(body)
+        return create_recovery_plan(body, event)
     elif method == "GET" and not plan_id:
         return get_recovery_plans(query_params)
     elif method == "GET" and plan_id:
@@ -2810,7 +2810,7 @@ def handle_recovery_plans(
         return response(405, {"error": "Method Not Allowed"})
 
 
-def create_recovery_plan(body: Dict) -> Dict:
+def create_recovery_plan(body: Dict, event: Dict = None) -> Dict:
     """Create a new Recovery Plan"""
     try:
         # Validate required fields - accept both frontend (name) and legacy (PlanName) formats
@@ -2877,6 +2877,40 @@ def create_recovery_plan(body: Dict) -> Dict:
         # Generate UUID for PlanId
         plan_id = str(uuid.uuid4())
 
+        # Extract user information from event for owner field
+        owner = "unknown"
+        if event:
+            user = get_user_from_event(event)
+            owner = user.get("email", "unknown")
+
+        # Get account ID from context (use default account for now)
+        account_id = ""
+        try:
+            if target_accounts_table:
+                ensure_default_account()
+                # Get default account
+                accounts_result = target_accounts_table.scan()
+                accounts = accounts_result.get("Items", [])
+                if accounts:
+                    account_id = accounts[0].get("AccountId", "")
+        except Exception as e:
+            print(f"Warning: Could not get account ID: {e}")
+
+        # Determine region from Protection Groups in waves
+        region = ""
+        if waves:
+            # Get region from first Protection Group
+            for wave in waves:
+                pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
+                if pg_id:
+                    try:
+                        pg_result = protection_groups_table.get_item(Key={"GroupId": pg_id})
+                        if "Item" in pg_result:
+                            region = pg_result["Item"].get("region", pg_result["Item"].get("Region", ""))
+                            break
+                    except Exception as e:
+                        print(f"Warning: Could not get region from Protection Group {pg_id}: {e}")
+
         # Create Recovery Plan item
         timestamp = int(time.time())
         item = {
@@ -2887,6 +2921,13 @@ def create_recovery_plan(body: Dict) -> Dict:
             "CreatedDate": timestamp,
             "LastModifiedDate": timestamp,
             "Version": 1,  # Optimistic locking - starts at version 1
+            # Add missing fields from archive requirements
+            "Owner": owner,
+            "AccountId": account_id,
+            "Region": region,
+            # RPO and RTO are not needed per user instructions
+            "RPO": None,
+            "RTO": None,
         }
 
         # Validate waves if provided
