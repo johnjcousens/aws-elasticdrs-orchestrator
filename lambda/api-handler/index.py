@@ -17,7 +17,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 # Import RBAC middleware
-from rbac_middleware import (
+from shared.rbac_middleware import (
     check_authorization,
     get_user_from_event,
     get_user_permissions,
@@ -25,7 +25,7 @@ from rbac_middleware import (
 )
 
 # Import security utilities
-from security_utils import (
+from shared.security_utils import (
     InputValidationError,
     create_security_headers,
     log_security_event,
