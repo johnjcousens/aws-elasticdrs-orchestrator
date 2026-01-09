@@ -164,6 +164,7 @@ def query_polling_executions() -> List[Dict[str, Any]]:
     Queries for:
     - Status=POLLING: Active executions being monitored
     - Status=CANCELLING: Cancelled executions with in-progress waves that need final status update
+    - Status=PAUSED: Paused executions that still need DRS job monitoring
 
     CRITICAL: Status is a reserved keyword in DynamoDB.
     MUST use ExpressionAttributeNames to avoid ValidationException.
@@ -174,7 +175,7 @@ def query_polling_executions() -> List[Dict[str, Any]]:
     executions = []
 
     # Statuses that need polling
-    statuses_to_poll = ["POLLING", "CANCELLING"]
+    statuses_to_poll = ["POLLING", "CANCELLING", "PAUSED"]
 
     for status in statuses_to_poll:
         try:
