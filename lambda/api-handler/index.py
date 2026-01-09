@@ -5083,6 +5083,86 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     return execution
 
 
+def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
+    """
+    Reconcile wave status with actual DRS job results.
+    
+    This is critical for cancelled executions where the execution-poller stopped
+    running before waves completed, leaving wave status as "unknown" even though
+    the DRS job actually completed successfully.
+    
+    Only reconciles waves that have JobId but show "unknown" or "UNKNOWN" status.
+    """
+    try:
+        waves = execution.get("Waves", [])
+        updated_waves = []
+        
+        for wave in waves:
+            wave_status = wave.get("Status", "").upper()
+            job_id = wave.get("JobId")
+            
+            # Only reconcile waves with JobId that show unknown status OR started status that might be stale
+            # Also reconcile other non-terminal statuses that might be stale
+            if job_id and wave_status in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
+                try:
+                    print(f"Reconciling wave {wave.get('WaveName')} with DRS job {job_id} (current status: {wave_status})")
+                    
+                    # Query DRS for actual job status
+                    region = wave.get("Region", "us-east-1")
+                    drs_client = boto3.client("drs", region_name=region)
+                    
+                    response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
+                    
+                    if response.get("items"):
+                        job = response["items"][0]
+                        drs_status = job.get("status", "UNKNOWN")
+                        participating_servers = job.get("participatingServers", [])
+                        
+                        print(f"DRS job {job_id} status: {drs_status}")
+                        
+                        # Update wave status based on DRS job results
+                        if drs_status == "COMPLETED":
+                            # Check if all servers launched successfully
+                            all_launched = all(
+                                server.get("launchStatus") == "LAUNCHED" 
+                                for server in participating_servers
+                            )
+                            
+                            if all_launched:
+                                wave["Status"] = "completed"
+                                wave["EndTime"] = int(time.time())  # Set end time when reconciling to completed
+                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to completed")
+                            else:
+                                wave["Status"] = "FAILED"
+                                wave["StatusMessage"] = "Some servers failed to launch"
+                                wave["EndTime"] = int(time.time())
+                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to FAILED - not all servers launched")
+                        elif drs_status == "FAILED":
+                            wave["Status"] = "FAILED"
+                            wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
+                            wave["EndTime"] = int(time.time())
+                            print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to FAILED")
+                        else:
+                            # Keep original status for other DRS statuses (PENDING, STARTED, etc.)
+                            print(f"Wave {wave.get('WaveName')} DRS status {drs_status} - keeping as {wave_status}")
+                    else:
+                        print(f"DRS job {job_id} not found - keeping wave as {wave_status}")
+                        wave["StatusMessage"] = "Job not found"
+                        
+                except Exception as e:
+                    print(f"Error reconciling wave {wave.get('WaveName')} with DRS job {job_id}: {e}")
+                    # Keep original wave status on error
+            
+            updated_waves.append(wave)
+        
+        execution["Waves"] = updated_waves
+        return execution
+        
+    except Exception as e:
+        print(f"Error in reconcile_wave_status_with_drs: {e}")
+        return execution
+
+
 def recalculate_execution_status(execution: Dict) -> Dict:
     """
     Recalculate overall execution status based on current wave statuses.
@@ -5259,6 +5339,29 @@ def get_execution_details(execution_id: str) -> Dict:
                     execution["EndTime"] = int(time.time())
             except Exception as e:
                 print(f"Error getting Step Functions status: {str(e)}")
+
+        # CRITICAL FIX: Reconcile wave status with actual DRS job results for cancelled executions
+        # This ensures wave status reflects actual DRS job completion when execution-poller stopped
+        # Updated: 2025-01-07 - Fixed DynamoDB save operation for wave status reconciliation
+        original_waves = execution.get("Waves", [])
+        execution = reconcile_wave_status_with_drs(execution)
+        
+        # Save updated wave statuses to DynamoDB if they changed
+        updated_waves = execution.get("Waves", [])
+        if original_waves != updated_waves:
+            try:
+                print(f"Saving updated wave statuses to DynamoDB for execution {execution_id}")
+                execution_history_table.update_item(
+                    Key={
+                        "ExecutionId": execution_id,
+                        "PlanId": execution.get("PlanId"),
+                    },
+                    UpdateExpression="SET Waves = :waves",
+                    ExpressionAttributeValues={":waves": updated_waves},
+                )
+                print(f"Successfully saved updated wave statuses for execution {execution_id}")
+            except Exception as e:
+                print(f"Error saving updated wave statuses to DynamoDB: {e}")
 
         # CRITICAL FIX: Recalculate execution status based on current wave statuses
         # This ensures the overall execution status reflects the actual state of waves
