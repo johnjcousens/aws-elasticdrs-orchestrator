@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'DRS Tag Sync Lambda Function with EventBridge Scheduling'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+  
+  SourceBucket:
+    Type: String
+    Description: 'S3 bucket containing Lambda deployment packages'
+
+Resources:
+  # DRS Tag Sync Lambda Function
+  DRSTagSyncFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-drs-tag-sync-${Environment}'
+      Description: 'Syncs EC2 instance tags to DRS source servers across all regions'
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: lambda/drs-tag-sync.zip
+      Timeout: 900  # 15 minutes for cross-region operations
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+      Role: !GetAtt DRSTagSyncRole.Arn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: DRSTagSync
+
+  # IAM Role for DRS Tag Sync Lambda
+  DRSTagSyncRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-drs-tag-sync-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DRSTagSyncPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # DRS Permissions - All regions
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:TagResource
+                  - drs:UntagResource
+                  - drs:ListTagsForResource
+                  - drs:UpdateLaunchConfiguration
+                Resource: '*'
+              
+              # EC2 Permissions - All regions (for tag reading)
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeTags
+                Resource: '*'
+              
+              # CloudWatch Logs
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-drs-tag-sync-${Environment}*'
+
+  # EventBridge Rule for Scheduled Tag Sync
+  DRSTagSyncScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-drs-tag-sync-schedule-${Environment}'
+      Description: 'Scheduled DRS tag synchronization'
+      ScheduleExpression: 'rate(4 hours)'  # Default: every 4 hours
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt DRSTagSyncFunction.Arn
+          Id: DRSTagSyncTarget
+          Input: !Sub |
+            {
+              "source": "aws.events",
+              "detail-type": "Scheduled Event",
+              "detail": {
+                "rule-name": "${ProjectName}-drs-tag-sync-schedule-${Environment}",
+                "trigger": "eventbridge-schedule"
+              }
+            }
+
+  # Permission for EventBridge to invoke Lambda
+  DRSTagSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DRSTagSyncFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DRSTagSyncScheduleRule.Arn
+
+  # CloudWatch Log Group
+  DRSTagSyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-drs-tag-sync-${Environment}'
+      RetentionInDays: 14
+
+Outputs:
+  DRSTagSyncFunctionArn:
+    Description: 'DRS Tag Sync Lambda Function ARN'
+    Value: !GetAtt DRSTagSyncFunction.Arn
+    Export:
+      Name: !Sub '${ProjectName}-drs-tag-sync-function-arn-${Environment}'
+
+  DRSTagSyncFunctionName:
+    Description: 'DRS Tag Sync Lambda Function Name'
+    Value: !Ref DRSTagSyncFunction
+    Export:
+      Name: !Sub '${ProjectName}-drs-tag-sync-function-name-${Environment}'
+
+  DRSTagSyncScheduleRuleName:
+    Description: 'DRS Tag Sync EventBridge Rule Name'
+    Value: !Ref DRSTagSyncScheduleRule
+    Export:
+      Name: !Sub '${ProjectName}-drs-tag-sync-schedule-rule-${Environment}'
+
+  DRSTagSyncRoleArn:
+    Description: 'DRS Tag Sync IAM Role ARN'
+    Value: !GetAtt DRSTagSyncRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-drs-tag-sync-role-arn-${Environment}'

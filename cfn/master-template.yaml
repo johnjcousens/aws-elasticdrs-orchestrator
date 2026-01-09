@@ -194,6 +194,27 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 30
 
+  # DRS Tag Sync Stack - Dedicated Lambda for EC2 to DRS tag synchronization
+  DRSTagSyncStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn:
+      - DatabaseStack
+      - LambdaStack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/compute/drs-tag-sync-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        SourceBucket: !Ref SourceBucket
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 10
+
   # Step Functions Stack - State Machine for DRS Orchestration
   StepFunctionsStack:
     Type: AWS::CloudFormation::Stack

@@ -1,0 +1,204 @@
+name: Deploy Archive Test Stack
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: 'Test stack name'
+        required: true
+        default: 'aws-drs-orchestrator-archive-test'
+      environment:
+        description: 'Environment name'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - dev
+      admin_email:
+        description: 'Admin email for Cognito'
+        required: true
+        default: 'jocousen@amazon.com'
+
+env:
+  AWS_REGION: us-east-1
+  DEPLOYMENT_BUCKET: aws-elasticdrs-orchestrator
+
+jobs:
+  deploy-archive-test:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Verify AWS credentials
+        run: |
+          aws sts get-caller-identity
+          echo "✅ AWS credentials configured successfully"
+      
+      - name: Sync archive CloudFormation templates
+        run: |
+          echo "📁 Syncing archive CloudFormation templates..."
+          aws s3 sync archive/commit-9546118-uncorrupted/cfn/ s3://${{ env.DEPLOYMENT_BUCKET }}/cfn-archive/ \
+            --region ${{ env.AWS_REGION }}
+          echo "✅ Archive CFN templates synced"
+      
+      - name: Sync archive Lambda code
+        run: |
+          echo "📦 Syncing archive Lambda code..."
+          aws s3 sync archive/commit-9546118-uncorrupted/lambda/ s3://${{ env.DEPLOYMENT_BUCKET }}/lambda-archive/ \
+            --region ${{ env.AWS_REGION }}
+          echo "✅ Archive Lambda code synced"
+      
+      - name: Create modified master template for archive test
+        run: |
+          echo "🔧 Creating modified master template for archive test..."
+          # Copy the archive master template and modify S3 paths
+          cp archive/commit-9546118-uncorrupted/cfn/master-template.yaml archive-test-master.yaml
+          
+          # Update S3 paths to use archive subdirectory
+          sed -i 's|/cfn/|/cfn-archive/|g' archive-test-master.yaml
+          sed -i 's|/lambda/|/lambda-archive/|g' archive-test-master.yaml
+          
+          echo "✅ Modified master template created"
+      
+      - name: Deploy archive test stack
+        run: |
+          echo "🚀 Deploying archive test stack..."
+          aws cloudformation deploy \
+            --template-file archive-test-master.yaml \
+            --stack-name ${{ github.event.inputs.stack_name }} \
+            --parameter-overrides \
+              ProjectName=drs-orchestrator-archive \
+              Environment=${{ github.event.inputs.environment }} \
+              SourceBucket=${{ env.DEPLOYMENT_BUCKET }} \
+              AdminEmail=${{ github.event.inputs.admin_email }} \
+              CognitoDomainPrefix="drs-orchestrator-archive-${{ github.event.inputs.environment }}" \
+              EnableWAF=false \
+              EnableCloudTrail=false \
+              EnableSecretsManager=false \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ env.AWS_REGION }} \
+            --no-fail-on-empty-changeset
+          echo "✅ Archive test stack deployed"
+      
+      - name: Get stack outputs
+        id: stack-outputs
+        run: |
+          echo "📋 Getting stack outputs..."
+          STACK_OUTPUTS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ github.event.inputs.stack_name }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs' \
+            --output json)
+          
+          API_URL=$(echo $STACK_OUTPUTS | jq -r '.[] | select(.OutputKey=="ApiGatewayUrl") | .OutputValue // "Not found"')
+          FRONTEND_URL=$(echo $STACK_OUTPUTS | jq -r '.[] | select(.OutputKey=="FrontendUrl") | .OutputValue // "Not found"')
+          USER_POOL_ID=$(echo $STACK_OUTPUTS | jq -r '.[] | select(.OutputKey=="UserPoolId") | .OutputValue // "Not found"')
+          CLIENT_ID=$(echo $STACK_OUTPUTS | jq -r '.[] | select(.OutputKey=="UserPoolClientId") | .OutputValue // "Not found"')
+          
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "frontend_url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
+      
+      - name: Display deployment results
+        run: |
+          echo "✅ Archive Test Stack Deployed Successfully!"
+          echo "============================================"
+          echo "Stack Name: ${{ github.event.inputs.stack_name }}"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "API Gateway URL: ${{ steps.stack-outputs.outputs.api_url }}"
+          echo "Frontend URL: ${{ steps.stack-outputs.outputs.frontend_url }}"
+          echo "User Pool ID: ${{ steps.stack-outputs.outputs.user_pool_id }}"
+          echo "Client ID: ${{ steps.stack-outputs.outputs.client_id }}"
+          echo ""
+          echo "🔐 Authentication Details:"
+          echo "Username: testuser@example.com"
+          echo "Password: TestPassword123!"
+          echo ""
+          echo "🧪 Test the archive implementation:"
+          echo "1. Access frontend: ${{ steps.stack-outputs.outputs.frontend_url }}"
+          echo "2. Login with test credentials"
+          echo "3. Create a recovery plan and execution"
+          echo "4. Monitor execution progress"
+          echo ""
+          echo "📊 Compare with current stack:"
+          echo "Current Stack API: https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev"
+          echo "Archive Test API: ${{ steps.stack-outputs.outputs.api_url }}"
+          echo ""
+          echo "🔍 Monitor CloudWatch Logs:"
+          echo "aws logs tail /aws/lambda/drs-orchestrator-archive-orchestration-stepfunctions-${{ github.event.inputs.environment }} --region us-east-1 --follow"
+      
+      - name: Create test execution script
+        run: |
+          cat > test-archive-execution.sh << 'EOF'
+          #!/bin/bash
+          # Test script for archive stack execution
+          
+          API_URL="${{ steps.stack-outputs.outputs.api_url }}"
+          USER_POOL_ID="${{ steps.stack-outputs.outputs.user_pool_id }}"
+          CLIENT_ID="${{ steps.stack-outputs.outputs.client_id }}"
+          
+          echo "🧪 Testing Archive Stack Execution"
+          echo "=================================="
+          echo "API URL: $API_URL"
+          echo ""
+          
+          # Get JWT token
+          echo "🔐 Getting JWT token..."
+          TOKEN=$(aws cognito-idp admin-initiate-auth \
+            --user-pool-id $USER_POOL_ID \
+            --client-id $CLIENT_ID \
+            --auth-flow ADMIN_NO_SRP_AUTH \
+            --auth-parameters USERNAME=testuser@example.com,PASSWORD=TestPassword123! \
+            --region us-east-1 \
+            --query 'AuthenticationResult.IdToken' \
+            --output text)
+          
+          if [ "$TOKEN" = "None" ] || [ -z "$TOKEN" ]; then
+            echo "❌ Failed to get JWT token"
+            exit 1
+          fi
+          
+          echo "✅ JWT token obtained"
+          
+          # Test API endpoints
+          echo ""
+          echo "🔍 Testing API endpoints..."
+          
+          # Test protection groups
+          echo "Testing protection groups..."
+          curl -s -H "Authorization: Bearer $TOKEN" "$API_URL/protection-groups" | jq '.' || echo "❌ Protection groups failed"
+          
+          # Test recovery plans  
+          echo "Testing recovery plans..."
+          curl -s -H "Authorization: Bearer $TOKEN" "$API_URL/recovery-plans" | jq '.' || echo "❌ Recovery plans failed"
+          
+          # Test executions
+          echo "Testing executions..."
+          curl -s -H "Authorization: Bearer $TOKEN" "$API_URL/executions" | jq '.' || echo "❌ Executions failed"
+          
+          echo ""
+          echo "✅ Archive stack API testing complete"
+          echo "Compare results with current stack to identify differences"
+          EOF
+          
+          chmod +x test-archive-execution.sh
+          echo "📝 Test script created: test-archive-execution.sh"
+      
+      - name: Upload test script as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-test-script
+          path: test-archive-execution.sh
