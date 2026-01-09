@@ -3,6 +3,9 @@ Execution Finder Lambda
 Queries DynamoDB StatusIndex GSI for executions in POLLING status.
 Implements adaptive polling intervals based on execution phase.
 Invokes Execution Poller Lambda asynchronously per execution.
+
+Multi-Stack Deployment: This Lambda will be deployed to both stacks
+to fix the Lambda package corruption in the archive test stack.
 """
 
 import json
