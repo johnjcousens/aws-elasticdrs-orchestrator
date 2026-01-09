@@ -185,33 +185,63 @@ System is restored when:
 
 ## Progress Log
 
-### ✅ January 9, 2026 - Phase 1 Critical Fixes Completed
+## ❌ CRITICAL ERROR DISCOVERED - Wrong Stack Deployment
 
-**Commit**: `f050166` - "fix: standardize Lambda imports to use shared folder and remove duplicate security_utils files"
+### What Went Wrong
+1. **Deployed fixes to WRONG stack**: `aws-elasticdrs-orchestrator-dev` 
+2. **Should have deployed to QA stack**: `aws-drs-orchestrator-qa`
+3. **Stuck execution not found**: `2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9` doesn't exist in QA stack
+4. **Lambda import fixes are in wrong place**: Need to deploy to QA stack
 
-**Changes Made**:
-1. ✅ **Removed duplicate security_utils.py** from execution-poller and execution-finder
-2. ✅ **Fixed imports to use shared.security_utils** consistently across all Lambda functions
-3. ✅ **Maintained current best practices**: shared folder structure and split API stacks
-4. ✅ **Confirmed 1-year timeout threshold** (31,536,000 seconds) already in place
-5. ✅ **Deployed via GitHub Actions** following proper workflow
+### Current Status
+- ✅ **Dev Stack**: Has Lambda import fixes (but wrong target)
+- ❌ **QA Stack**: Still has original broken Lambda functions
+- ❌ **Target Execution**: Not found in QA stack (may have been cleaned up)
 
-**Expected Results**:
-- Should resolve "No module named 'index'" errors in execution-poller
-- Execution-poller should now process PAUSED executions without import errors
-- Server statuses should update from "STARTED" to "LAUNCHED" in DynamoDB
-
-**Next Testing Steps**:
-1. Monitor GitHub Actions deployment completion (~22 minutes)
-2. Test execution-poller with stuck execution (2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9)
-3. Verify DRS job status updates in DynamoDB
-4. Test resume functionality via API
-5. Validate frontend real-time updates
+### Immediate Actions Required
+1. **Verify which stack has the stuck execution**
+2. **Deploy Lambda import fixes to correct stack** 
+3. **Test execution-poller functionality on correct stack**
+4. **Find a PAUSED execution to test with** (if original was cleaned up)
 
 ## Next Steps
 
-1. **Monitor deployment completion** in GitHub Actions
-2. **Test with current stuck execution** (2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9)
-3. **Validate execution-poller functionality** via CloudWatch logs
-4. **Test resume button** in frontend
-5. **Document working state** for future reference
+### 🔄 Phase 2: Testing and Validation (Ready to Execute)
+
+**Prerequisites**: Fresh AWS credentials required for testing
+
+**Testing Sequence**:
+1. **Refresh AWS credentials** (expired tokens preventing testing)
+2. **Test API authentication** with Cognito user pool
+3. **Check execution-poller CloudWatch logs** for import errors (should be resolved)
+4. **Test stuck execution processing** (2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9)
+5. **Verify DRS job status updates** in DynamoDB
+6. **Test resume functionality** via API and frontend
+7. **Validate real-time updates** in frontend
+
+**Success Criteria**:
+- ✅ No "No module named 'index'" errors in execution-poller logs
+- ✅ Server statuses update from "STARTED" to "LAUNCHED" in DynamoDB
+- ✅ Resume button works for paused executions
+- ✅ Frontend shows real-time progress updates
+- ✅ Execution-finder/execution-poller system processes PAUSED executions
+
+**Current Status**: 🔄 **DEPLOYING TO QA STACK** - Manual deployment failed, switching to GitHub Actions pipeline
+
+### 🚨 Manual Deployment Issue - Switching to GitHub Actions
+
+**Problem**: Manual QA deployment script failed with parameter validation error:
+- Error: "Parameter 'Environment' must be one of AllowedValues"
+- Stack rolled back to previous state
+- Manual deployment violated development workflow guidelines
+
+**Solution**: Following proper development workflow:
+1. ✅ **Workflow check**: No running GitHub Actions workflows
+2. ✅ **Deployment scope**: Documentation-only changes detected
+3. 🔄 **Next**: Commit changes and use GitHub Actions pipeline for QA stack deployment
+4. 🎯 **Target**: Deploy Lambda import fixes to correct QA stack via proper CI/CD
+
+**Lessons Learned**:
+- Manual deployment scripts should only be used for genuine emergencies
+- GitHub Actions pipeline is the proper deployment method
+- Parameter validation errors indicate CloudFormation template issues

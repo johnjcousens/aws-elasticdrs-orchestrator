@@ -3,6 +3,8 @@ Execution Poller Lambda
 Polls DRS job status for a single execution.
 Updates DynamoDB with wave/server status.
 Handles timeouts and detects completion.
+
+Updated: 2026-01-09 - Fixed import paths for shared security utilities
 """
 
 import json
