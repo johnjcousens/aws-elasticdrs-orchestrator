@@ -27,7 +27,8 @@ Fix the broken execution-finder/execution-poller system in QA stack and test eve
 - **Execution-poller**: updates DRS job progress and server statuses in DynamoDB
 - **Frontend**: shows real-time progress from DynamoDB (3-second polling for active executions)
 - **Step Functions**: waitForTaskToken pattern for pause/resume (supports up to 1 year pauses)
-- **Timeout Threshold**: Should be 31,536,000 seconds (1 year), not 1800 seconds (30 minutes)
+- **Timeout Threshold**: Should be 14,400 seconds (4 hours) for execution-poller, not 1800 seconds (30 minutes)
+- **Step Functions**: Supports up to 1 year pauses (waitForTaskToken pattern)
 
 ## Authentication & Access
 - **Test User**: `testuser@example.com`
@@ -64,6 +65,14 @@ curl -H "Authorization: Bearer $TOKEN" "https://ibenlje0zj.execute-api.us-east-1
 - **Use Historian**: Take regular snapshots with mcp_context_historian_mcp_create_checkpoint
 - **Reference Archive**: Use `/archive/commit-9546118-uncorrupted/` for working code reference
 - **Check Docs**: Use archive `/docs/requirements` and README for architecture understanding
+
+## Requirements Documentation Reference
+- **Software Requirements**: `archive/commit-9546118-uncorrupted/docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md`
+- **UX Page Specs**: `archive/commit-9546118-uncorrupted/docs/requirements/UX_PAGE_SPECIFICATIONS.md`
+- **Component Library**: `archive/commit-9546118-uncorrupted/docs/requirements/UX_COMPONENT_LIBRARY.md`
+- **Architecture**: execution-finder (EventBridge 1min) → finds POLLING executions → execution-poller updates DRS job status
+- **Real-time Updates**: Frontend polls every 3 seconds for active executions
+- **Timeout**: Step Functions should support up to 1 year pauses (31,536,000 seconds)
 
 ## Current Status
 - ✅ API working and authenticated
