@@ -421,7 +421,7 @@ jobs:
             stack_secret: "ARCHIVE_STACK_NAME"
             admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
             role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
-            project_name: "aws-drs-orchestrator"
+            project_name: "aws-drs-orchestrator-qa"
       max-parallel: 1  # Single stack deployment
     environment: 
       name: ${{ github.event.inputs.environment || 'dev' }}
