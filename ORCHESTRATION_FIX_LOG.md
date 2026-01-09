@@ -95,3 +95,10 @@
 - **10:21**: ⏳ **WAITING**: GitHub Actions deployment in progress - must wait for completion per steering rules
 - **10:25**: 🧪 **MANUAL TEST**: Tested execution-poller manually - runs successfully but Lambda not yet updated
 - **10:25**: 📊 **STATUS**: DRS job drsjob-5f458268bbc9e7232 COMPLETED, servers LAUNCHED, waiting for Lambda update
+- **10:30**: 🔍 **ROOT CAUSE FOUND**: execution-finder only processes Status=POLLING/CANCELLING, but execution has Status=PAUSED
+- **10:30**: 🔍 **DEEPER ANALYSIS**: Region should flow from Protection Group → Recovery Plan → Execution waves
+- **10:30**: 🐛 **ORCHESTRATION BUG**: Found case sensitivity in orchestration Lambda - pg.get("Region") vs "region"
+- **10:30**: 🔧 **ORCHESTRATION FIX**: Fixed region case sensitivity in orchestration Lambda (2 locations)
+- **10:30**: 🚀 **DEPLOYMENT**: Committed orchestration fix and deployed via GitHub Actions
+- **10:30**: 📊 **DATA FLOW**: Protection Groups have region: "us-west-2" → should flow to execution waves
+- **10:30**: ⏳ **NEXT**: Wait for deployment, then test complete execution flow with proper region inheritance
