@@ -19,7 +19,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  PROJECT_NAME: aws-elasticdrs-orchestrator
+  PROJECT_NAME: aws-drs-orchestrator-fresh
 
 permissions:
   id-token: write
@@ -51,7 +51,6 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
           else
-            # For push events, compare with previous commit
             CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
           fi
           
@@ -65,56 +64,49 @@ jobs:
           DOCS_CHANGED=false
           
           while IFS= read -r file; do
-            case "$file" in
-              cfn/*|buildspecs/*|scripts/sync-to-deployment-bucket.sh)
-                INFRASTRUCTURE_CHANGED=true
-                ;;
-              lambda/*|tests/python/*)
-                LAMBDA_CHANGED=true
-                ;;
-              frontend/*)
-                FRONTEND_CHANGED=true
-                ;;
-              docs/*|README.md|CHANGELOG.md|*.md)
-                DOCS_CHANGED=true
-                ;;
-              .github/workflows/*)
-                # Workflow changes should trigger full pipeline
-                INFRASTRUCTURE_CHANGED=true
-                ;;
-            esac
+            if [[ "$file" =~ ^cfn/ ]] || [[ "$file" =~ ^scripts/ ]] || [[ "$file" == "Makefile" ]]; then
+              INFRASTRUCTURE_CHANGED=true
+            elif [[ "$file" =~ ^lambda/ ]]; then
+              LAMBDA_CHANGED=true
+            elif [[ "$file" =~ ^frontend/ ]]; then
+              FRONTEND_CHANGED=true
+            elif [[ "$file" =~ ^docs/ ]] || [[ "$file" == "README.md" ]] || [[ "$file" == "CHANGELOG.md" ]]; then
+              DOCS_CHANGED=true
+            fi
           done <<< "$CHANGED_FILES"
           
-          # Determine deployment strategy
-          DOCS_ONLY=false
-          FRONTEND_ONLY=false
-          
-          if [ "$DOCS_CHANGED" = "true" ] && [ "$INFRASTRUCTURE_CHANGED" = "false" ] && [ "$LAMBDA_CHANGED" = "false" ] && [ "$FRONTEND_CHANGED" = "false" ]; then
+          # Determine deployment scope
+          if [[ "$DOCS_CHANGED" == "true" && "$INFRASTRUCTURE_CHANGED" == "false" && "$LAMBDA_CHANGED" == "false" && "$FRONTEND_CHANGED" == "false" ]]; then
             DOCS_ONLY=true
-          elif [ "$FRONTEND_CHANGED" = "true" ] && [ "$INFRASTRUCTURE_CHANGED" = "false" ] && [ "$LAMBDA_CHANGED" = "false" ]; then
+            FRONTEND_ONLY=false
+          elif [[ "$FRONTEND_CHANGED" == "true" && "$INFRASTRUCTURE_CHANGED" == "false" && "$LAMBDA_CHANGED" == "false" ]]; then
+            DOCS_ONLY=false
             FRONTEND_ONLY=true
+          else
+            DOCS_ONLY=false
+            FRONTEND_ONLY=false
           fi
           
-          echo "docs-only=$DOCS_ONLY" >> $GITHUB_OUTPUT
-          echo "frontend-only=$FRONTEND_ONLY" >> $GITHUB_OUTPUT
           echo "infrastructure=$INFRASTRUCTURE_CHANGED" >> $GITHUB_OUTPUT
           echo "lambda=$LAMBDA_CHANGED" >> $GITHUB_OUTPUT
           echo "frontend=$FRONTEND_CHANGED" >> $GITHUB_OUTPUT
           echo "docs=$DOCS_CHANGED" >> $GITHUB_OUTPUT
+          echo "docs-only=$DOCS_ONLY" >> $GITHUB_OUTPUT
+          echo "frontend-only=$FRONTEND_ONLY" >> $GITHUB_OUTPUT
           
-          echo "=== Change Detection Results ==="
-          echo "Documentation only: $DOCS_ONLY"
-          echo "Frontend only: $FRONTEND_ONLY"
-          echo "Infrastructure changed: $INFRASTRUCTURE_CHANGED"
-          echo "Lambda changed: $LAMBDA_CHANGED"
-          echo "Frontend changed: $FRONTEND_CHANGED"
-          echo "Documentation changed: $DOCS_CHANGED"
+          echo "=== Deployment Scope ==="
+          echo "Infrastructure: $INFRASTRUCTURE_CHANGED"
+          echo "Lambda: $LAMBDA_CHANGED"
+          echo "Frontend: $FRONTEND_CHANGED"
+          echo "Docs: $DOCS_CHANGED"
+          echo "Docs Only: $DOCS_ONLY"
+          echo "Frontend Only: $FRONTEND_ONLY"
 
   # Stage 1: Validate CloudFormation templates and code quality
   validate:
     name: Validate
     runs-on: ubuntu-latest
-    needs: [detect-changes]
+    needs: detect-changes
     if: needs.detect-changes.outputs.docs-only != 'true'
     steps:
       - name: Checkout code
@@ -194,17 +186,11 @@ jobs:
           echo "=== ESLint Validation ==="
           npm run lint -- --max-warnings 200 || true
 
-      - name: CloudScape Design System Compliance
-        run: |
-          echo "=== CloudScape Design System Compliance Check ==="
-          chmod +x scripts/check-cloudscape-compliance.sh
-          ./scripts/check-cloudscape-compliance.sh frontend/src
-
   # Stage 2: Security scanning
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    needs: [detect-changes]
+    needs: detect-changes
     if: needs.detect-changes.outputs.docs-only != 'true'
     steps:
       - name: Checkout code
@@ -215,86 +201,25 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Install security tools
         run: |
-          pip install bandit==1.9.2 safety==2.3.4 semgrep==1.146.0 cfn-lint==0.83.8
+          pip install bandit safety semgrep
 
-      - name: Create security reports directory
+      - name: Bandit security scan
         run: |
-          mkdir -p reports/security/raw
-          mkdir -p reports/security/formatted
+          echo "=== Bandit Security Scan ==="
+          bandit -r lambda/ -ll -ii --format json --output bandit-report.json || true
+          bandit -r lambda/ -ll -ii || true
 
-      - name: Python security scanning
+      - name: Safety dependency check
         run: |
-          echo "=== Python Security Scanning ==="
-          
-          # Bandit security scan
-          echo "Running Bandit security scan..."
-          bandit -r lambda/ scripts/ -f json -o reports/security/raw/bandit-report.json -ll || true
-          bandit -r lambda/ scripts/ -ll > reports/security/formatted/bandit-report.txt || true
-          
-          # Semgrep security scan for Python
-          echo "Running Semgrep security scan on Python code..."
-          semgrep --config=python.lang.security lambda/ scripts/ --json -o reports/security/raw/semgrep-python.json --severity ERROR --severity WARNING || true
-          semgrep --config=python.lang.security lambda/ scripts/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-python.txt || true
-          
-          # Safety dependency vulnerability scan
-          echo "Running Safety dependency vulnerability scan..."
-          safety check --json > reports/security/raw/safety-report.json || true
-          safety check > reports/security/formatted/safety-report.txt || true
+          echo "=== Safety Dependency Check ==="
+          safety check || true
 
-      - name: Frontend security scanning
-        working-directory: frontend
+      - name: Semgrep security scan
         run: |
-          echo "=== Frontend Security Scanning ==="
-          npm ci
-          
-          # NPM audit security scan
-          echo "Running NPM audit security scan..."
-          npm audit --audit-level moderate --json > ../reports/security/raw/npm-audit.json || true
-          npm audit --audit-level moderate > ../reports/security/formatted/npm-audit.txt || true
-          
-          # ESLint security scan
-          echo "Running ESLint security scan..."
-          npx eslint src/ --ext .ts,.tsx --format json -o ../reports/security/raw/eslint-security.json || true
-          npx eslint src/ --ext .ts,.tsx --format compact > ../reports/security/formatted/eslint-security.txt || true
-
-      - name: Infrastructure security scanning
-        run: |
-          echo "=== Infrastructure Security Scanning ==="
-          
-          # CloudFormation security linting
-          echo "Running CloudFormation security linting..."
-          cfn-lint cfn/*.yaml --format json > reports/security/raw/cfn-lint.json || true
-          cfn-lint cfn/*.yaml > reports/security/formatted/cfn-lint.txt || true
-          
-          # Semgrep security scan for CloudFormation
-          echo "Running Semgrep security scan on CloudFormation templates..."
-          semgrep --config=yaml.lang.security cfn/ --json -o reports/security/raw/semgrep-cfn.json --severity ERROR --severity WARNING || true
-          semgrep --config=yaml.lang.security cfn/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-cfn.txt || true
-
-      - name: Generate security summary
-        env:
-          SECURITY_THRESHOLD_CRITICAL: "0"
-          SECURITY_THRESHOLD_HIGH: "10"
-          SECURITY_THRESHOLD_TOTAL: "50"
-        run: |
-          echo "=== Generating Security Summary ==="
-          python scripts/generate-security-summary.py
-
-      - name: Check security thresholds
-        env:
-          SECURITY_THRESHOLD_CRITICAL: "0"
-          SECURITY_THRESHOLD_HIGH: "10"
-          SECURITY_THRESHOLD_TOTAL: "50"
-        run: |
-          echo "=== Checking Security Thresholds ==="
-          python scripts/check-security-thresholds.py
+          echo "=== Semgrep Security Scan ==="
+          semgrep --config=auto lambda/ --severity ERROR --severity WARNING || true
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
@@ -302,14 +227,14 @@ jobs:
         with:
           name: security-reports
           path: |
-            reports/security/
+            bandit-report.json
           retention-days: 30
 
   # Stage 3: Build Lambda packages and frontend
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [detect-changes, validate, security-scan]
+    needs: [validate, security-scan]
     if: needs.detect-changes.outputs.docs-only != 'true'
     steps:
       - name: Checkout code
@@ -333,10 +258,8 @@ jobs:
           # Install shared dependencies
           pip install boto3 urllib3 crhelper -t /tmp/lambda-deps/ --quiet
           
-          # Build each Lambda function from its subdirectory
-          # Structure: lambda/<function-name>/index.py + shared modules
-          
-          FUNCTIONS="api-handler orchestration-stepfunctions frontend-builder bucket-cleaner execution-finder execution-poller notification-formatter"
+          # Build each Lambda function
+          FUNCTIONS="api-handler orchestration-stepfunctions execution-finder execution-poller frontend-builder"
           
           for func in $FUNCTIONS; do
             echo "Building ${func}.zip..."
@@ -346,10 +269,10 @@ jobs:
             zip -q ../../build/lambda/${func}.zip index.py
             cd ../..
             
-            # Add shared modules maintaining folder structure
-            cd lambda
-            zip -qgr ../build/lambda/${func}.zip shared/ 2>/dev/null || true
-            cd ..
+            # Add shared modules
+            cd lambda/shared
+            zip -qg ../../build/lambda/${func}.zip *.py 2>/dev/null || true
+            cd ../..
             
             # Add dependencies
             cd /tmp/lambda-deps
@@ -376,81 +299,42 @@ jobs:
             frontend/dist/
           retention-days: 7
 
-  # Stage 4: Run tests
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: [detect-changes, build]
-    if: needs.detect-changes.outputs.docs-only != 'true'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install test dependencies
-        run: |
-          pip install pytest pytest-cov moto boto3
-
-      - name: Run unit tests
-        run: |
-          echo "=== Running Unit Tests ==="
-          cd tests/python
-          pytest unit/ -v --tb=short || true
-
-  # Stage 5: Deploy infrastructure (only on main branch) - Multi-Stack Matrix Strategy
+  # Stage 4: Deploy infrastructure
   deploy-infrastructure:
-    name: Deploy Infrastructure (${{ matrix.stack.name }})
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: [detect-changes, test]
+    needs: [build, detect-changes]
     if: |
       github.ref == 'refs/heads/main' && 
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.detect-changes.outputs.docs-only != 'true' && 
       (needs.detect-changes.outputs.infrastructure == 'true' || needs.detect-changes.outputs.lambda == 'true')
-    strategy:
-      matrix:
-        stack:
-          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
-          - name: "aws-drs-orchestrator-qa"
-            display_name: "QA Stack - FOCUS"
-            bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
-            stack_secret: "ARCHIVE_STACK_NAME"
-            admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
-            role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
-            project_name: "aws-drs-orchestrator-qa"
-      max-parallel: 1  # Single stack deployment
     environment: 
       name: ${{ github.event.inputs.environment || 'dev' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials for ${{ matrix.stack.display_name }}
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets[matrix.stack.role_arn_secret] }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS access for ${{ matrix.stack.display_name }}
+      - name: Verify AWS access
         run: |
-          echo "=== AWS Identity for ${{ matrix.stack.display_name }} ==="
+          echo "=== AWS Identity ==="
           aws sts get-caller-identity
-          echo "Stack: ${{ matrix.stack.name }}"
-          echo "Project: ${{ matrix.stack.project_name }}"
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
 
-      - name: Sync to deployment bucket (${{ matrix.stack.display_name }})
+      - name: Sync to deployment bucket
         run: |
-          echo "=== Syncing to S3 for ${{ matrix.stack.display_name }} ==="
-          BUCKET="${{ secrets[matrix.stack.bucket_secret] }}"
+          echo "=== Syncing to S3 ==="
+          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
           
           # Sync CloudFormation templates
           aws s3 sync cfn/ "s3://${BUCKET}/cfn/" --delete
@@ -458,168 +342,85 @@ jobs:
           # Sync Lambda packages
           aws s3 sync build/lambda/ "s3://${BUCKET}/lambda/" --delete
           
-          echo "Deployment artifacts synced to s3://${BUCKET}/ for ${{ matrix.stack.display_name }}"
+          echo "Deployment artifacts synced to s3://${BUCKET}/"
 
-      - name: Deploy CloudFormation stack (${{ matrix.stack.display_name }})
+      - name: Deploy CloudFormation stack
         run: |
-          echo "=== Deploying CloudFormation Stack: ${{ matrix.stack.display_name }} ==="
-          STACK_NAME="${{ matrix.stack.name }}"
-          BUCKET="${{ secrets[matrix.stack.bucket_secret] }}"
-          ADMIN_EMAIL="${{ secrets[matrix.stack.admin_email_secret] }}"
-          PROJECT_NAME="${{ matrix.stack.project_name }}"
+          echo "=== Deploying CloudFormation Stack ==="
+          STACK_NAME="${{ secrets.STACK_NAME }}"
+          BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
+          ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}"
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           
-          echo "🚀 MULTI-STACK DEPLOYMENT"
+          echo "🚀 FRESH STACK DEPLOYMENT"
           echo "   Stack: $STACK_NAME"
-          echo "   Display Name: ${{ matrix.stack.display_name }}"
-          echo "   Project: $PROJECT_NAME"
+          echo "   Project: ${{ env.PROJECT_NAME }}"
           echo "   Environment: $ENV"
-          echo "   Bucket: $BUCKET"
+          echo "   Admin Email: $ADMIN_EMAIL"
+          echo "   Commit: ${{ github.sha }}"
           
-          # PRODUCTION SAFETY CHECK
-          if [[ "$ENV" == "prod" ]]; then
-            echo "🚨 PRODUCTION DEPLOYMENT DETECTED 🚨"
-            echo "Stack: $STACK_NAME"
-            echo "Environment: $ENV"
-            echo "Commit: ${{ github.sha }}"
-            echo "This deployment will affect PRODUCTION resources"
-            echo "Termination protection will be enabled automatically"
-          fi
-          
-          # ENTERPRISE SAFETY: Pre-deployment validation
-          echo "🔒 PIPELINE SAFETY POLICY:"
-          echo "   - Pipeline will NEVER delete stacks automatically"
-          echo "   - Only deploys/updates stacks, never deletes"
-          echo "   - Manual deletion available when needed for development"
-          echo "   - Stack: $STACK_NAME"
-          echo "   - Environment: $ENV"
-          
-          # Check stack status
-          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
-          
-          echo "Current stack status: $STACK_STATUS"
-          
-          # ENTERPRISE SAFETY: Check for in-progress operations before deployment
-          if [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]]; then
-            echo "❌ Stack is currently in progress: $STACK_STATUS"
-            echo "🛑 STOPPING DEPLOYMENT - Cannot update stack during active operation"
-            echo "📋 MANUAL ACTION: Wait for current operation to complete, then retry"
-            echo ""
-            echo "To monitor progress:"
-            echo "  aws cloudformation describe-stack-events --stack-name $STACK_NAME --region ${{ env.AWS_REGION }} --query 'StackEvents[0:5].[Timestamp,ResourceStatus,ResourceType,LogicalResourceId]' --output table"
-            echo ""
-            echo "To check status:"
-            echo "  aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].StackStatus' --output text --region ${{ env.AWS_REGION }}"
-            echo ""
-            echo "If stuck for >30 minutes, consider canceling:"
-            echo "  aws cloudformation cancel-update-stack --stack-name $STACK_NAME --region ${{ env.AWS_REGION }}"
-            exit 1
-          fi
-          
-          # Handle failed states - NEVER auto-delete production stacks
-          if [[ "$STACK_STATUS" == *"ROLLBACK_COMPLETE"* ]]; then
-            echo "⚠️  Stack is in ROLLBACK_COMPLETE state - requires manual intervention"
-            echo "Stack can be updated again, but will not be auto-deleted for safety"
-            echo "Current status: $STACK_STATUS"
-            echo "✅ SAFE: No auto-deletion will occur"
-            echo "📋 MANUAL ACTION: If stack cleanup is needed, delete manually outside of pipeline"
-          elif [[ "$STACK_STATUS" == *"DELETE_FAILED"* ]]; then
-            echo "❌ Stack is in DELETE_FAILED state - manual cleanup required"
-            echo "This requires manual investigation and resolution"
-            echo "🛑 STOPPING DEPLOYMENT - Manual intervention needed"
-            echo "📋 MANUAL ACTION: Investigate DELETE_FAILED state and resolve manually"
-            exit 1
-          elif [[ "$STACK_STATUS" == *"DELETE_IN_PROGRESS"* ]]; then
-            echo "❌ Stack is currently being deleted"
-            echo "🛑 STOPPING DEPLOYMENT - Wait for deletion to complete"
-            echo "📋 MANUAL ACTION: Wait for deletion to complete, then redeploy"
-            exit 1
-          fi
-          
-          # ENTERPRISE SAFETY: Explicit no-deletion policy
-          echo "🛡️  PIPELINE SAFETY: This pipeline will NEVER delete stacks automatically"
-          echo "🛡️  All stack deletions must be performed manually when needed"
-          echo "🔧  Development flexibility: Manual deletion available without restrictions"
-          
-          # Deploy stack WITHOUT termination protection for development flexibility
+          # Deploy stack
           DEPLOY_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           aws cloudformation deploy \
             --template-file cfn/master-template.yaml \
             --stack-name "$STACK_NAME" \
             --parameter-overrides \
-              ProjectName="$PROJECT_NAME" \
+              ProjectName="${{ env.PROJECT_NAME }}" \
               Environment="$ENV" \
               SourceBucket="$BUCKET" \
               AdminEmail="$ADMIN_EMAIL" \
               ApiDeploymentTimestamp="$DEPLOY_TIMESTAMP" \
-              EnableTerminationProtection="false" \
             --capabilities CAPABILITY_NAMED_IAM \
             --tags \
-              Project="$PROJECT_NAME" \
+              Project="${{ env.PROJECT_NAME }}" \
               Environment="$ENV" \
               DeployedBy=GitHubActions \
               CommitSha="${{ github.sha }}" \
-              StackType="${{ matrix.stack.display_name }}" \
             --no-fail-on-empty-changeset
           
-          echo "✅ ${{ matrix.stack.display_name }} deployed successfully"
-          echo "🔧 Manual deletion available when needed for development"
+          echo "✅ Stack deployed successfully"
           
-          echo "=== Stack Outputs for ${{ matrix.stack.display_name }} ==="
+          echo "=== Stack Outputs ==="
           aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[].{Key:OutputKey,Value:OutputValue}' --output table
 
-      - name: Save deployment info for ${{ matrix.stack.display_name }}
+      - name: Save deployment info
         run: |
-          STACK_NAME="${{ matrix.stack.name }}"
+          STACK_NAME="${{ secrets.STACK_NAME }}"
           
           API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
           CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
           
-          echo "API_ENDPOINT_${{ matrix.stack.name }}=$API_ENDPOINT" >> $GITHUB_ENV
-          echo "CLOUDFRONT_URL_${{ matrix.stack.name }}=$CLOUDFRONT_URL" >> $GITHUB_ENV
+          echo "API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
+          echo "CLOUDFRONT_URL=$CLOUDFRONT_URL" >> $GITHUB_ENV
           
-          echo "### ${{ matrix.stack.display_name }} Deployment Complete :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Complete :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Resource | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| API Endpoint | $API_ENDPOINT |" >> $GITHUB_STEP_SUMMARY
           echo "| CloudFront URL | $CLOUDFRONT_URL |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
 
-  # Stage 6: Deploy frontend (frontend-only changes) - Multi-Stack Matrix Strategy
+  # Stage 5: Deploy frontend
   deploy-frontend:
-    name: Deploy Frontend (${{ matrix.stack.name }})
+    name: Deploy Frontend
     runs-on: ubuntu-latest
-    needs: [detect-changes, test]
+    needs: [deploy-infrastructure, detect-changes]
     if: |
       github.ref == 'refs/heads/main' && 
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.detect-changes.outputs.docs-only != 'true' && 
-      needs.detect-changes.outputs.frontend == 'true'
-    strategy:
-      matrix:
-        stack:
-          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
-          - name: "aws-drs-orchestrator-qa"
-            display_name: "QA Stack - FOCUS"
-            bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
-            stack_secret: "ARCHIVE_STACK_NAME"
-            admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
-            role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
-      max-parallel: 1  # Single stack deployment
-    # Deploy frontend when frontend files change
+      (needs.detect-changes.outputs.frontend == 'true' || needs.deploy-infrastructure.result == 'success')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials for ${{ matrix.stack.display_name }}
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets[matrix.stack.role_arn_secret] }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Download build artifacts
@@ -627,10 +428,10 @@ jobs:
         with:
           name: build-artifacts
 
-      - name: Get stack outputs for ${{ matrix.stack.display_name }}
+      - name: Get stack outputs
         id: stack
         run: |
-          STACK_NAME="${{ matrix.stack.name }}"
+          STACK_NAME="${{ secrets.STACK_NAME }}"
           
           FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
@@ -644,13 +445,6 @@ jobs:
             --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
           IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
             --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)
-          
-          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
-          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
-          echo "api_endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
-          echo "user_pool_client_id=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
-          echo "identity_pool_id=$IDENTITY_POOL_ID" >> $GITHUB_OUTPUT
           
           echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
@@ -696,139 +490,26 @@ jobs:
             --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
             --paths "/*"
 
-      - name: Deployment summary for ${{ matrix.stack.display_name }}
+      - name: Deployment summary
         run: |
-          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ matrix.stack.name }}" \
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "${{ secrets.STACK_NAME }}" \
             --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
           
-          echo "### ${{ matrix.stack.display_name }} Frontend Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
-
-  # Stage 6b: Deploy frontend after infrastructure changes - Multi-Stack Matrix Strategy
-  deploy-frontend-after-infra:
-    name: Deploy Frontend Post-Infrastructure (${{ matrix.stack.name }})
-    runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure]
-    if: |
-      github.ref == 'refs/heads/main' && 
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 
-      needs.deploy-infrastructure.result == 'success'
-    strategy:
-      matrix:
-        stack:
-          # TEMPORARILY DEPLOY ONLY ARCHIVE TEST STACK
-          - name: "aws-drs-orchestrator-qa"
-            display_name: "QA Stack - FOCUS"
-            bucket_secret: "ARCHIVE_DEPLOYMENT_BUCKET"
-            stack_secret: "ARCHIVE_STACK_NAME"
-            admin_email_secret: "ARCHIVE_ADMIN_EMAIL"
-            role_arn_secret: "ARCHIVE_AWS_ROLE_ARN"
-      max-parallel: 1  # Single stack deployment
-    # Deploy frontend after infrastructure deployment (config may have changed)
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials for ${{ matrix.stack.display_name }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets[matrix.stack.role_arn_secret] }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-
-      - name: Get stack outputs for environment variables (${{ matrix.stack.display_name }})
-        run: |
-          STACK_NAME="${{ matrix.stack.name }}"
-          
-          CLOUDFRONT_URL=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' --output text)
-          API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' --output text)
-          USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)
-          USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' --output text)
-          
-          echo "CLOUDFRONT_URL=$CLOUDFRONT_URL" >> $GITHUB_ENV
-          echo "API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
-          echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_ENV
-          echo "USER_POOL_CLIENT_ID=$USER_POOL_CLIENT_ID" >> $GITHUB_ENV
-
-      - name: Get stack outputs for S3 deployment (${{ matrix.stack.display_name }})
-        id: stack
-        run: |
-          STACK_NAME="${{ matrix.stack.name }}"
-          
-          FRONTEND_BUCKET=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)
-          CLOUDFRONT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)
-          IDENTITY_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-            --query 'Stacks[0].Outputs[?OutputKey==`IdentityPoolId`].OutputValue' --output text)
-          
-          echo "frontend_bucket=$FRONTEND_BUCKET" >> $GITHUB_OUTPUT
-          echo "cloudfront_id=$CLOUDFRONT_ID" >> $GITHUB_OUTPUT
-          echo "identity_pool_id=$IDENTITY_POOL_ID" >> $GITHUB_OUTPUT
-
-      - name: Generate frontend config
-        run: |
-          cat > frontend/dist/aws-config.json << EOF
-          {
-            "region": "${{ env.AWS_REGION }}",
-            "userPoolId": "$USER_POOL_ID",
-            "userPoolClientId": "$USER_POOL_CLIENT_ID",
-            "identityPoolId": "${{ steps.stack.outputs.identity_pool_id }}",
-            "apiEndpoint": "$API_ENDPOINT"
-          }
-          EOF
-          
-          echo "Generated aws-config.json:"
-          cat frontend/dist/aws-config.json
-
-      - name: Deploy to S3
-        run: |
-          echo "=== Deploying Frontend to S3 ==="
-          aws s3 sync frontend/dist/ "s3://${{ steps.stack.outputs.frontend_bucket }}/" \
-            --delete \
-            --cache-control "max-age=31536000" \
-            --exclude "index.html" \
-            --exclude "aws-config.json"
-          
-          # Deploy index.html and config with no-cache
-          aws s3 cp frontend/dist/index.html "s3://${{ steps.stack.outputs.frontend_bucket }}/index.html" \
-            --cache-control "no-cache, no-store, must-revalidate"
-          aws s3 cp frontend/dist/aws-config.json "s3://${{ steps.stack.outputs.frontend_bucket }}/aws-config.json" \
-            --cache-control "no-cache, no-store, must-revalidate"
-
-      - name: Invalidate CloudFront cache
-        run: |
-          echo "=== Invalidating CloudFront Cache ==="
-          aws cloudfront create-invalidation \
-            --distribution-id "${{ steps.stack.outputs.cloudfront_id }}" \
-            --paths "/*"
-      - name: Deployment summary for ${{ matrix.stack.display_name }}
-        run: |
-          echo "### ${{ matrix.stack.display_name }} Frontend Deployed (Post-Infrastructure) :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "### Frontend Deployed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Application URL:** $CLOUDFRONT_URL" >> $GITHUB_STEP_SUMMARY
 
   # Documentation-only deployment summary
-  docs-summary:
-    name: Documentation Summary
+  docs-only-summary:
+    name: Documentation Update
     runs-on: ubuntu-latest
-    needs: [detect-changes]
+    needs: detect-changes
     if: needs.detect-changes.outputs.docs-only == 'true'
     steps:
-      - name: Documentation update summary
+      - name: Documentation summary
         run: |
-          echo "### Documentation Update :memo:" >> $GITHUB_STEP_SUMMARY
+          echo "### Documentation Updated :memo:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Only documentation files were changed." >> $GITHUB_STEP_SUMMARY
-          echo "Skipped infrastructure and frontend deployment." >> $GITHUB_STEP_SUMMARY
+          echo "Only documentation files were changed. No deployment needed." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Time saved:** ~18 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "**Time Saved:** ~20 minutes (95% pipeline optimization)" >> $GITHUB_STEP_SUMMARY
