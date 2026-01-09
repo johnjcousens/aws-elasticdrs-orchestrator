@@ -221,13 +221,13 @@ def begin_wave_plan(event: Dict) -> Dict:
         "duration_seconds": None,
     }
 
-    # Update DynamoDB execution status
+    # Update DynamoDB execution status to POLLING so execution-finder will pick it up
     try:
         get_execution_history_table().update_item(
             Key={"ExecutionId": execution_id, "PlanId": plan_id},
             UpdateExpression="SET #status = :status",
             ExpressionAttributeNames={"#status": "Status"},
-            ExpressionAttributeValues={":status": "RUNNING"},
+            ExpressionAttributeValues={":status": "POLLING"},
         )
     except Exception as e:
         print(f"Error updating execution status: {e}")
@@ -510,14 +510,16 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         }
         state["wave_results"].append(wave_result)
 
-        # Update DynamoDB
+        # Update DynamoDB with execution-level DRS job info and wave data
         try:
             get_execution_history_table().update_item(
                 Key={"ExecutionId": execution_id, "PlanId": state["plan_id"]},
-                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave)",
+                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave), DrsJobId = :job_id, DrsRegion = :region",
                 ExpressionAttributeValues={
                     ":empty": [],
                     ":wave": [wave_result],
+                    ":job_id": job_id,
+                    ":region": region,
                 },
                 ConditionExpression="attribute_exists(ExecutionId)",
             )
