@@ -446,7 +446,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             return
 
         pg = pg_response["Item"]
-        region = pg.get("Region", "us-east-1")
+        region = pg.get("region", "us-east-1")
 
         # TAG-BASED RESOLUTION: Resolve servers at execution time using tags
         selection_tags = pg.get("ServerSelectionTags", {})
@@ -506,7 +506,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             "JobId": job_id,
             "StartTime": int(time.time()),
             "ServerIds": server_ids,
-            "Region": region,
+            "region": region,
         }
         state["wave_results"].append(wave_result)
 
