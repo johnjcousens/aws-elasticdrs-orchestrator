@@ -59,7 +59,7 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # S3 Access for deployment bucket
+              # S3 Access for deployment buckets (both current and archive test)
               - Effect: Allow
                 Action:
                   - s3:GetObject
@@ -71,7 +71,10 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:s3:::${DeploymentBucket}'
                   - !Sub 'arn:aws:s3:::${DeploymentBucket}/*'
-              # S3 Access for frontend bucket (created by CloudFormation)
+                  # Archive test stack bucket
+                  - 'arn:aws:s3:::aws-drs-orchestrator-archive-test-bucket'
+                  - 'arn:aws:s3:::aws-drs-orchestrator-archive-test-bucket/*'
+              # S3 Access for frontend buckets (created by CloudFormation for both stacks)
               - Effect: Allow
                 Action:
                   - s3:CreateBucket
@@ -106,9 +109,13 @@ Resources:
                   - s3:DeleteObjectVersion
                   - s3:ListBucketVersions
                 Resource:
+                  # Current stack frontend bucket
                   - !Sub 'arn:aws:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}'
                   - !Sub 'arn:aws:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}/*'
-              # CloudFormation - Full access for application stack
+                  # Archive test stack frontend bucket (different naming pattern)
+                  - !Sub 'arn:aws:s3:::aws-drs-orchestrator-fe-${AWS::AccountId}-dev'
+                  - !Sub 'arn:aws:s3:::aws-drs-orchestrator-fe-${AWS::AccountId}-dev/*'
+              # CloudFormation - Full access for all DRS orchestration stacks
               - Effect: Allow
                 Action:
                   - cloudformation:CreateStack
@@ -128,8 +135,9 @@ Resources:
                   - cloudformation:ListStackResources
                   - cloudformation:ContinueUpdateRollback
                 Resource:
-                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}/*'
-                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ApplicationStackName}-*/*'
+                  # Allow access to all DRS orchestration stacks (current and archive test)
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-*drs-orchestrat*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-*elasticdrs-orchestrat*/*'
               - Effect: Allow
                 Action:
                   - cloudformation:ValidateTemplate
