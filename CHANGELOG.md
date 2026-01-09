@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Lambda Import Standardization (2026-01-09)**: Fixed critical execution-poller module import errors
+  - Removed duplicate `security_utils.py` files from execution-poller and execution-finder Lambda functions
+  - Standardized all Lambda functions to use `shared.security_utils` import pattern
+  - Maintained current best practices: shared folder structure and split API Gateway stacks
+  - Confirmed 1-year timeout threshold (31,536,000 seconds) for Step Functions pause/resume support
+  - Should resolve "No module named 'index'" errors preventing execution-poller from processing PAUSED executions
+  - Commit: `f050166` - Deployed via GitHub Actions following proper workflow
+
 ### Added
 - **Enterprise Integration Plan (v1.9)**: Created comprehensive codebase alignment analysis and 16-week integration roadmap
   - `docs/enterprise-prd/10-integration-plan.md` - Complete gap analysis between current DRS solution and enterprise dr-orchestration-artifacts
