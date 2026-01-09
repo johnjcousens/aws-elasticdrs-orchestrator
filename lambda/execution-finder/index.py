@@ -3,10 +3,6 @@ Execution Finder Lambda
 Queries DynamoDB StatusIndex GSI for executions in POLLING status.
 Implements adaptive polling intervals based on execution phase.
 Invokes Execution Poller Lambda asynchronously per execution.
-
-Multi-Stack Deployment: Archive test stack deployment with fixed IAM permissions.
-IAM Policy Updated: Added archive test stack CloudFormation permissions.
-Ready for deployment: aws-drs-orchestrator-archive-test
 """
 
 import json
