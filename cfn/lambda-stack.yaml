@@ -1078,7 +1078,7 @@ Resources:
       Environment:
         Variables:
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
-          TIMEOUT_THRESHOLD_SECONDS: "1800"
+          TIMEOUT_THRESHOLD_SECONDS: "31536000"  # 1 year (365 days * 24 hours * 60 minutes * 60 seconds)
       Tags:
         - Key: Project
           Value: !Ref ProjectName
