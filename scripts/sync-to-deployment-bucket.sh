@@ -13,7 +13,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Load configuration from environment files
-if [ -f "$PROJECT_ROOT/.env.deployment" ]; then
+if [ -f "$PROJECT_ROOT/.env.deployment.fresh" ]; then
+    echo "📋 Loading fresh stack configuration from .env.deployment.fresh"
+    source "$PROJECT_ROOT/.env.deployment.fresh"
+elif [ -f "$PROJECT_ROOT/.env.deployment" ]; then
     echo "📋 Loading configuration from .env.deployment"
     source "$PROJECT_ROOT/.env.deployment"
 fi
@@ -23,8 +26,8 @@ if [ -f "$PROJECT_ROOT/.env.deployment.local" ]; then
     source "$PROJECT_ROOT/.env.deployment.local"
 fi
 
-# Default configuration - QA Stack
-BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orchestrator-archive-test-bucket}"  # QA stack bucket
+# Default configuration - Fresh Stack
+BUCKET="${DEPLOYMENT_BUCKET:-aws-elasticdrs-orchestrator}"  # Fresh stack deployment bucket
 REGION="${DEPLOYMENT_REGION:-us-east-1}"
 BUILD_FRONTEND=false
 DRY_RUN=false
@@ -37,10 +40,10 @@ RUN_LOCAL_VALIDATION=false
 AWS_PROFILE="${AWS_PROFILE:-default}"
 LIST_PROFILES=false
 
-# CloudFormation stack configuration (QA stack actual configuration)
-PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestrator-qa}"  # QA stack project name
-ENVIRONMENT="${ENVIRONMENT:-dev}"  # QA stack uses dev environment (causes -dev suffix on resources)
-PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-drs-orchestrator-qa}"  # QA stack actual name (no env suffix)
+# CloudFormation stack configuration (Fresh stack configuration)
+PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestrator-fresh}"  # Fresh stack project name
+ENVIRONMENT="${ENVIRONMENT:-dev}"  # Fresh stack uses dev environment
+PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-drs-orchestrator-fresh}"  # Fresh stack actual name
 
 # Approved directories for sync
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts")
@@ -606,7 +609,7 @@ echo ""
 
 # Helper functions for Lambda operations
 get_lambda_function_name() {
-    local function_name="aws-elasticdrs-orchestrator-api-handler-dev"
+    local function_name="aws-drs-orchestrator-fresh-api-handler-dev"
     echo "$function_name"
 }
 
@@ -665,15 +668,15 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
-        # Lambda functions to update (aligned with actual deployed functions)
+        # Lambda functions to update (aligned with fresh stack deployed functions)
         LAMBDA_FUNCTIONS=(
-            "api-handler:aws-drs-orchestrator-qa-api-handler-dev"
-            "orchestration-stepfunctions:aws-drs-orchestrator-qa-orch-sf-dev"
-            "frontend-builder:aws-drs-orchestrator-qa-frontend-build-dev"
-            "bucket-cleaner:aws-drs-orchestrator-qa-bucket-cleaner-dev"
-            "execution-finder:aws-drs-orchestrator-qa-execution-finder-dev"
-            "execution-poller:aws-drs-orchestrator-qa-execution-poller-dev"
-            "notification-formatter:aws-drs-orchestrator-qa-notif-fmt-dev"
+            "api-handler:aws-drs-orchestrator-fresh-api-handler-dev"
+            "orchestration-stepfunctions:aws-drs-orchestrator-fresh-orch-sf-dev"
+            "frontend-builder:aws-drs-orchestrator-fresh-frontend-build-dev"
+            "bucket-cleaner:aws-drs-orchestrator-fresh-bucket-cleaner-dev"
+            "execution-finder:aws-drs-orchestrator-fresh-execution-finder-dev"
+            "execution-poller:aws-drs-orchestrator-fresh-execution-poller-dev"
+            "notification-formatter:aws-drs-orchestrator-fresh-notif-fmt-dev"
         )
         
         LAMBDA_DIR="$PROJECT_ROOT/lambda"
