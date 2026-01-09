@@ -1,6 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'AWS DRS Orchestration Solution - Master Template (Nested Stack Architecture)'
 
+# Updated: 2026-01-09 - Fixed OIDC permissions for multi-stack deployment
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
