@@ -2925,7 +2925,10 @@ def create_recovery_plan(body: Dict) -> Dict:
         recovery_plans_table.put_item(Item=item)
 
         print(f"Created Recovery Plan: {plan_id}")
-        return response(201, item)
+        
+        # Transform to camelCase for frontend response
+        transformed_plan = transform_rp_to_camelcase(item)
+        return response(201, transformed_plan)
 
     except Exception as e:
         print(f"Error creating Recovery Plan: {str(e)}")
