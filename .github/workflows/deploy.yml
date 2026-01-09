@@ -259,7 +259,7 @@ jobs:
           pip install boto3 urllib3 crhelper -t /tmp/lambda-deps/ --quiet
           
           # Build each Lambda function
-          FUNCTIONS="api-handler orchestration-stepfunctions execution-finder execution-poller frontend-builder"
+          FUNCTIONS="api-handler orchestration-stepfunctions execution-finder execution-poller frontend-builder bucket-cleaner notification-formatter"
           
           for func in $FUNCTIONS; do
             echo "Building ${func}.zip..."
