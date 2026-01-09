@@ -510,17 +510,20 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         }
         state["wave_results"].append(wave_result)
 
-        # Update DynamoDB
+        # Update DynamoDB with wave and set status to POLLING for execution-finder
         try:
             get_execution_history_table().update_item(
                 Key={"ExecutionId": execution_id, "PlanId": state["plan_id"]},
-                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave)",
+                UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave), #status = :status",
+                ExpressionAttributeNames={"#status": "Status"},
                 ExpressionAttributeValues={
                     ":empty": [],
                     ":wave": [wave_result],
+                    ":status": "POLLING",  # Critical: Set to POLLING so execution-finder can find it
                 },
                 ConditionExpression="attribute_exists(ExecutionId)",
             )
+            print(f"✅ Execution status set to POLLING for execution-finder to process")
         except Exception as e:
             print(f"Error updating wave start in DynamoDB: {e}")
 
