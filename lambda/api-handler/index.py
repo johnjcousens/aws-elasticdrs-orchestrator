@@ -2877,39 +2877,11 @@ def create_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         # Generate UUID for PlanId
         plan_id = str(uuid.uuid4())
 
-        # Extract user information from event for owner field
-        owner = "unknown"
-        if event:
-            user = get_user_from_event(event)
-            owner = user.get("email", "unknown")
-
-        # Determine region and accountId from Protection Groups in waves
-        region = ""
-        account_id = ""
-        if waves:
-            # Create a temporary plan structure to use determine_target_account_context
-            temp_plan = {"Waves": backend_waves if 'backend_waves' in locals() else waves}
-            
-            # Get region from first Protection Group
-            for wave in waves:
-                pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
-                if pg_id:
-                    try:
-                        pg_result = protection_groups_table.get_item(Key={"GroupId": pg_id})
-                        if "Item" in pg_result:
-                            region = pg_result["Item"].get("region", pg_result["Item"].get("Region", ""))
-                            break
-                    except Exception as e:
-                        print(f"Warning: Could not get region from Protection Group {pg_id}: {e}")
-            
-            # Get accountId using determine_target_account_context after waves are processed
-            try:
-                # We'll set this after backend_waves are created
-                pass
-            except Exception as e:
-                print(f"Warning: Could not determine target account context: {e}")
-
-        # Create Recovery Plan item
+        # Extract user information from event for owner field (optional enhancement)
+        # NOTE: Archive solution did not store Owner/AccountId/Region in Recovery Plans
+        # These fields were determined at execution time via determine_target_account_context()
+        
+        # Create Recovery Plan item (matching archive structure)
         timestamp = int(time.time())
         item = {
             "PlanId": plan_id,
@@ -2919,13 +2891,6 @@ def create_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             "CreatedDate": timestamp,
             "LastModifiedDate": timestamp,
             "Version": 1,  # Optimistic locking - starts at version 1
-            # Add missing fields from archive requirements
-            "Owner": owner,
-            "AccountId": account_id,
-            "Region": region,
-            # RPO and RTO are not needed per user instructions
-            "RPO": None,
-            "RTO": None,
         }
 
         # Validate waves if provided
@@ -2955,25 +2920,6 @@ def create_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             
             # Store in backend format
             item["Waves"] = backend_waves
-            
-            # Now determine accountId using the backend_waves structure
-            try:
-                temp_plan = {"Waves": backend_waves}
-                account_context = determine_target_account_context(temp_plan)
-                account_id = account_context.get("AccountId", "")
-                print(f"Determined target account ID from Protection Groups: {account_id}")
-            except Exception as e:
-                print(f"Warning: Could not determine target account context: {e}")
-                # Fallback to current account
-                try:
-                    account_id = get_current_account_id()
-                    print(f"Using current account as fallback: {account_id}")
-                except Exception as fallback_error:
-                    print(f"Warning: Could not get current account ID: {fallback_error}")
-                    account_id = ""
-            
-            # Update the item with the determined accountId
-            item["AccountId"] = account_id
             
             validation_error = validate_waves(backend_waves)
             if validation_error:
