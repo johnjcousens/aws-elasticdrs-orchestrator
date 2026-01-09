@@ -224,9 +224,6 @@ ENDPOINT_PERMISSIONS = {
     ("GET", "/executions/{executionId}/termination-status"): [
         DRSPermission.VIEW_EXECUTIONS
     ],
-    ("GET", "/executions/{executionId}/recovery-instances"): [
-        DRSPermission.VIEW_EXECUTIONS
-    ],
     # Account Management (CRITICAL - these were missing!)
     ("GET", "/accounts/targets"): [DRSPermission.VIEW_ACCOUNTS],
     ("POST", "/accounts/targets"): [DRSPermission.REGISTER_ACCOUNTS],
@@ -241,8 +238,6 @@ ENDPOINT_PERMISSIONS = {
     # Configuration Management
     ("GET", "/config/export"): [DRSPermission.EXPORT_CONFIGURATION],
     ("POST", "/config/import"): [DRSPermission.IMPORT_CONFIGURATION],
-    ("GET", "/config/tag-sync"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    ("PUT", "/config/tag-sync"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
     # User Management (no specific permission required - all authenticated users can see their own permissions)
     ("GET", "/user/permissions"): [],
     # EC2 Operations (read-only)
@@ -250,8 +245,6 @@ ENDPOINT_PERMISSIONS = {
     ("GET", "/ec2/security-groups"): [DRSPermission.VIEW_ACCOUNTS],
     ("GET", "/ec2/instance-profiles"): [DRSPermission.VIEW_ACCOUNTS],
     ("GET", "/ec2/instance-types"): [DRSPermission.VIEW_ACCOUNTS],
-    # Current Account Info (read-only)
-    ("GET", "/accounts/current"): [DRSPermission.VIEW_ACCOUNTS],
 }
 
 
@@ -368,177 +361,38 @@ def has_any_permission(
 
 def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
     """Get required permissions for an API endpoint"""
+    # Normalize path by replacing path parameters with {id}
+    normalized_path = path
+
+    # Replace common path parameters
     import re
 
-    # Static path segments that should NOT be normalized to {id}
-    # These are the actual API resource names
-    STATIC_SEGMENTS = {
-        "protection-groups",
-        "recovery-plans",
-        "executions",
-        "accounts",
-        "targets",
-        "current",
-        "drs",
-        "source-servers",
-        "quotas",
-        "ec2",
-        "subnets",
-        "security-groups",
-        "instance-profiles",
-        "instance-types",
-        "config",
-        "export",
-        "import",
-        "user",
-        "permissions",
-        "health",
-        "resolve",
-        "execute",
-        "cancel",
-        "pause",
-        "resume",
-        "terminate-instances",
-        "job-logs",
-        "termination-status",
-        "recovery-instances",
-        "check-existing-instances",
-        "validate",
-        "tag-sync",
-        "delete",
-    }
+    normalized_path = re.sub(
+        r"/[a-f0-9-]{36}", "/{id}", normalized_path
+    )  # UUIDs
+    normalized_path = re.sub(
+        r"/[a-zA-Z0-9-]+(?=/|$)", "/{id}", normalized_path
+    )  # Generic IDs
 
-    # First, try exact match (for paths without dynamic segments)
-    endpoint_key = (method, path)
-    if endpoint_key in ENDPOINT_PERMISSIONS:
-        return ENDPOINT_PERMISSIONS[endpoint_key]
-
-    # Normalize path by replacing dynamic path parameters with placeholders
-    # Split path into segments and process each
-    segments = path.strip("/").split("/")
-    normalized_segments = []
-
-    for i, segment in enumerate(segments):
-        # Keep static segments as-is
-        if segment.lower() in STATIC_SEGMENTS:
-            normalized_segments.append(segment)
-        # UUID pattern (36 chars with hyphens)
-        elif re.match(r"^[a-f0-9-]{36}$", segment, re.IGNORECASE):
-            # Determine placeholder based on context
-            if i > 0 and normalized_segments:
-                prev = normalized_segments[-1]
-                if prev == "executions":
-                    normalized_segments.append("{executionId}")
-                else:
-                    normalized_segments.append("{id}")
-            else:
-                normalized_segments.append("{id}")
-        # Execution ID pattern (exec-xxx or similar)
-        elif re.match(r"^exec-[a-zA-Z0-9-]+$", segment, re.IGNORECASE):
-            normalized_segments.append("{executionId}")
-        # Account ID pattern (acc-xxx or 12-digit AWS account)
-        elif re.match(r"^(acc-[a-zA-Z0-9-]+|\d{12})$", segment):
-            normalized_segments.append("{id}")
-        # Protection group ID pattern (pg-xxx)
-        elif re.match(r"^pg-[a-zA-Z0-9-]+$", segment, re.IGNORECASE):
-            normalized_segments.append("{id}")
-        # Recovery plan ID pattern (plan-xxx)
-        elif re.match(r"^plan-[a-zA-Z0-9-]+$", segment, re.IGNORECASE):
-            normalized_segments.append("{id}")
-        # Generic alphanumeric ID (but NOT static segments)
-        elif re.match(r"^[a-zA-Z0-9_-]+$", segment) and len(segment) > 20:
-            # Long alphanumeric strings are likely IDs
-            if i > 0 and normalized_segments:
-                prev = normalized_segments[-1]
-                if prev == "executions":
-                    normalized_segments.append("{executionId}")
-                else:
-                    normalized_segments.append("{id}")
-            else:
-                normalized_segments.append("{id}")
-        else:
-            # Keep as-is (could be a static segment we don't know about)
-            normalized_segments.append(segment)
-
-    normalized_path = "/" + "/".join(normalized_segments) if normalized_segments else "/"
-
-    # Try normalized path
-    endpoint_key = (method, normalized_path)
-    if endpoint_key in ENDPOINT_PERMISSIONS:
-        return ENDPOINT_PERMISSIONS[endpoint_key]
-
-    # Handle specific execution action patterns
-    if "/executions/" in path:
+    # Handle specific patterns
+    if "/executions/" in path and path.count("/") >= 3:
         if path.endswith("/cancel"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/cancel"), []
-            )
+            normalized_path = "/executions/{executionId}/cancel"
         elif path.endswith("/pause"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/pause"), []
-            )
+            normalized_path = "/executions/{executionId}/pause"
         elif path.endswith("/resume"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/resume"), []
-            )
+            normalized_path = "/executions/{executionId}/resume"
         elif path.endswith("/terminate-instances"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/terminate-instances"), []
-            )
+            normalized_path = "/executions/{executionId}/terminate-instances"
         elif path.endswith("/job-logs"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/job-logs"), []
-            )
+            normalized_path = "/executions/{executionId}/job-logs"
         elif path.endswith("/termination-status"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/termination-status"), []
-            )
-        elif path.endswith("/recovery-instances"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/recovery-instances"), []
-            )
-        # Single execution by ID
-        elif path.count("/") == 2:
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}"), []
-            )
+            normalized_path = "/executions/{executionId}/termination-status"
+        else:
+            normalized_path = "/executions/{executionId}"
 
-    # Handle protection groups with ID
-    if "/protection-groups/" in path:
-        if path.endswith("/resolve"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/protection-groups/resolve"), []
-            )
-        return ENDPOINT_PERMISSIONS.get(
-            (method, "/protection-groups/{id}"), []
-        )
-
-    # Handle recovery plans with ID
-    if "/recovery-plans/" in path:
-        if path.endswith("/execute"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/recovery-plans/{id}/execute"), []
-            )
-        if path.endswith("/check-existing-instances"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/recovery-plans/{id}/check-existing-instances"), []
-            )
-        return ENDPOINT_PERMISSIONS.get(
-            (method, "/recovery-plans/{id}"), []
-        )
-
-    # Handle accounts/targets with ID
-    if "/accounts/targets/" in path:
-        if path.endswith("/validate"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/accounts/targets/{id}/validate"), []
-            )
-        return ENDPOINT_PERMISSIONS.get(
-            (method, "/accounts/targets/{id}"), []
-        )
-
-    # No permissions found - return empty list
-    return []
+    endpoint_key = (method, normalized_path)
+    return ENDPOINT_PERMISSIONS.get(endpoint_key, [])
 
 
 def check_authorization(event: Dict) -> Dict:
