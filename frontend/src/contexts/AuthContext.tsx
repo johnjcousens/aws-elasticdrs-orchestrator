@@ -36,8 +36,8 @@ const configureAmplify = () => {
       Auth: {
         Cognito: {
           region: 'us-east-1',
-          userPoolId: 'us-east-1_7ClH0e1NS',
-          userPoolClientId: '6fepnj59rp7qup2k3n6uda5p19',
+          userPoolId: 'us-east-1_o3tXVi5h3',
+          userPoolClientId: '5k6a5vbsmvgbvnb5a1iqs598oq',
           loginWith: {
             email: true
           }
@@ -46,7 +46,7 @@ const configureAmplify = () => {
       API: {
         REST: {
           DRSOrchestration: {
-            endpoint: 'https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev',
+            endpoint: 'https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev',
             region: 'us-east-1'
           }
         }

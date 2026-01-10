@@ -81,8 +81,8 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
           try {
             // Get API endpoint from aws-config.json (loaded by App.tsx)
             const apiEndpoint = window.location.origin.includes('localhost') 
-              ? 'https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev'
-              : 'https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev';
+              ? 'https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev'
+              : 'https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev';
             
             if (!jwtToken) {
               throw new Error('No JWT token available');
