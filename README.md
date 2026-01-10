@@ -9,21 +9,21 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 [![Release](https://img.shields.io/badge/Release-v1.7.0%20EventBridge%20Tag%20Sync-blue)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.7.0-eventbridge-enhanced)
 
-## 🎯 **Latest Release: v1.7.0 - EventBridge Tag Sync Restoration & Enhancement**
+## 🎯 **Latest Release: v1.3.0 - Enhanced Wave Progress UI with Consistent Server Status Display**
 
-**Latest Version**: v1.7.0 (January 10, 2026) - **EVENTBRIDGE TAG SYNC FULLY RESTORED** - Complete restoration and enhancement of EventBridge scheduled tag sync with immediate sync triggers and asynchronous processing.
+**Latest Version**: v1.3.0 (January 10, 2026) - **ENHANCED WAVE PROGRESS UI** - Complete resolution of server status icon inconsistency with wave-aware status display ensuring professional enterprise-grade user experience.
 
-**Previous Version**: v1.6.0 (January 10, 2026) - Comprehensive platform restoration with enterprise-grade CI/CD pipeline.
+**Previous Version**: v1.7.0 (January 10, 2026) - EventBridge Tag Sync restoration and enhancement.
 
-**[View Complete Release Notes →](CHANGELOG.md#170---january-10-2026---eventbridge-tag-sync-restoration--enhancement-)**
+**[View Complete Release Notes →](CHANGELOG.md#130---january-10-2026---enhanced-wave-progress-ui-with-consistent-server-status-display-)**
 
 ### 🌟 **Major Enhancement Highlights**
-- ✅ **EventBridge Scheduled Tag Sync**: Fully restored and working (configurable 1-24 hours)
-- ✅ **Immediate Sync Trigger**: Automatic manual sync when settings are updated or re-enabled
-- ✅ **Asynchronous Processing**: Non-blocking sync execution prevents API timeouts
-- ✅ **Real-time Feedback**: Settings updates complete instantly with background sync
-- ✅ **Cross-Region Support**: Syncs tags across all 28 DRS-supported regions
-- ✅ **Production Ready**: All functionality tested and verified working
+- ✅ **Consistent Server Status Icons**: All servers show completed checkmark (✓) when wave is done
+- ✅ **Eliminates Mixed Icons**: No more confusing mix of in-progress (⟳) and completed (✓) icons
+- ✅ **Wave-Aware Status Display**: Server status considers wave context for perfect consistency
+- ✅ **Professional UI**: Enterprise-grade AWS console-style interface with CloudScape Design System
+- ✅ **Enhanced User Experience**: Crystal clear execution progress visualization
+- ✅ **Previous Fixes Included**: Debug cleanup, status truncation fix, separate expandable sections
 
 ## Overview
 
