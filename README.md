@@ -7,23 +7,23 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.6.0%20Comprehensive%20Restoration-blue)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.6.0-comprehensive-restoration-milestone)
+[![Release](https://img.shields.io/badge/Release-v1.7.0%20EventBridge%20Tag%20Sync-blue)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.7.0-eventbridge-enhanced)
 
-## 🎯 **Latest Release: v1.6.0 - Comprehensive Restoration Milestone**
+## 🎯 **Latest Release: v1.7.0 - EventBridge Tag Sync Restoration & Enhancement**
 
-**Latest Version**: v1.6.0 (January 10, 2026) - **COMPREHENSIVE RESTORATION MILESTONE** - Complete platform restoration with enterprise-grade CI/CD pipeline, comprehensive documentation, and production-ready repository structure.
+**Latest Version**: v1.7.0 (January 10, 2026) - **EVENTBRIDGE TAG SYNC FULLY RESTORED** - Complete restoration and enhancement of EventBridge scheduled tag sync with immediate sync triggers and asynchronous processing.
 
-**Previous Version**: v1.4.6 (January 7, 2026) - Complete RBAC coverage for all 47+ API endpoints with 308 automated tests.
+**Previous Version**: v1.6.0 (January 10, 2026) - Comprehensive platform restoration with enterprise-grade CI/CD pipeline.
 
-**[View Complete Release Notes →](CHANGELOG.md#160---january-10-2026---comprehensive-restoration-milestone-)**
+**[View Complete Release Notes →](CHANGELOG.md#170---january-10-2026---eventbridge-tag-sync-restoration--enhancement-)**
 
-### 🌟 **Milestone Significance**
-This release establishes a **complete "golden image"** of the working AWS DRS Orchestration platform. Everything needed to rebuild the entire system from scratch is included:
-- ✅ Complete application code and infrastructure templates
-- ✅ Enterprise-grade CI/CD pipeline with conflict prevention  
-- ✅ Comprehensive documentation and deployment guides
-- ✅ Production-ready repository structure and configuration
-- ✅ Full restoration capability from tag: `v1.6.0-comprehensive-restoration-milestone`
+### 🌟 **Major Enhancement Highlights**
+- ✅ **EventBridge Scheduled Tag Sync**: Fully restored and working (configurable 1-24 hours)
+- ✅ **Immediate Sync Trigger**: Automatic manual sync when settings are updated or re-enabled
+- ✅ **Asynchronous Processing**: Non-blocking sync execution prevents API timeouts
+- ✅ **Real-time Feedback**: Settings updates complete instantly with background sync
+- ✅ **Cross-Region Support**: Syncs tags across all 28 DRS-supported regions
+- ✅ **Production Ready**: All functionality tested and verified working
 
 ## Overview
 
@@ -70,14 +70,14 @@ The solution addresses three fundamental challenges in enterprise disaster recov
 - **Real-Time Control**: Resume, cancel, or terminate operations at any point
 - **Audit Trail**: Complete execution history with wave-by-wave progress tracking
 
-### 🏷️ **Dynamic Tag Synchronization**
+### 🏷️ **Enhanced Dynamic Tag Synchronization**
 
 **The Challenge**: DRS source servers lose EC2 tags during replication, breaking tag-based protection group filtering and recovery automation.
 
-**Our Solution**: EventBridge-scheduled tag synchronization with multi-layer security validation:
+**Our Solution**: EventBridge-scheduled tag synchronization with immediate sync triggers and multi-layer security validation:
 
 ```python
-# Automated tag sync with security validation
+# Enhanced automated tag sync with immediate triggers
 def sync_tags_across_regions(account_id: str) -> dict:
     """Sync EC2 tags to DRS source servers across all regions."""
     results = {}
@@ -94,10 +94,27 @@ def sync_tags_across_regions(account_id: str) -> dict:
                 sync_server_tags(server, ec2_tags[server['sourceServerID']])
     
     return results
+
+# Immediate sync trigger on settings update
+def update_tag_sync_settings(settings: dict) -> dict:
+    """Update settings and trigger immediate sync."""
+    # Update EventBridge rule
+    update_eventbridge_rule(settings)
+    
+    # Trigger async manual sync for immediate effect
+    if settings['enabled']:
+        trigger_async_manual_sync()
+    
+    return {"syncTriggered": True, "message": "Settings updated with immediate sync"}
 ```
 
 **Why Critical**:
 - **Dynamic Server Selection**: Protection groups automatically include/exclude servers based on current tags
+- **Immediate Sync**: Settings changes trigger instant tag synchronization
+- **Asynchronous Processing**: Non-blocking sync prevents API timeouts
+- **Real-time Feedback**: Users get instant confirmation of sync status
+- **Cross-Region Coverage**: Syncs across all 28 DRS-supported regions
+- **Configurable Scheduling**: 1-24 hour intervals with EventBridge automation
 - **Operational Flexibility**: Change server assignments without modifying recovery plans
 - **Multi-Region Support**: Synchronizes across all 30 AWS DRS regions automatically
 - **Security Validation**: EventBridge rules include IP validation and request structure validation
@@ -190,8 +207,11 @@ class RecoveryPlanExecutor:
 - **Parallel Execution**: Servers within waves launch in parallel with DRS-safe 15-second delays
 
 ### Dynamic Tag Synchronization
-- **EventBridge Scheduling**: Automated EC2 → DRS tag sync with configurable intervals (15min-24hr)
-- **Multi-Region Support**: Synchronizes across all 30 AWS DRS regions automatically
+- **EventBridge Scheduling**: Automated EC2 → DRS tag sync with configurable intervals (1-24 hours)
+- **Immediate Sync Triggers**: Automatic manual sync when settings are updated or tag sync is re-enabled
+- **Asynchronous Processing**: Non-blocking sync execution prevents API Gateway timeouts
+- **Real-time Feedback**: Settings updates complete instantly with sync status notifications
+- **Multi-Region Support**: Synchronizes across all 28 AWS DRS regions automatically
 - **Security Validation**: Multi-layer EventBridge security with IP and request validation
 - **Manual Override**: Immediate sync capability regardless of schedule settings
 - **Conflict Resolution**: Handles tag conflicts and server state changes gracefully
