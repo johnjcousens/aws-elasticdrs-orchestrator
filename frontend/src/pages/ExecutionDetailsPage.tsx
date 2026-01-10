@@ -467,10 +467,6 @@ export const ExecutionDetailsPage: React.FC = () => {
     };
     const result = (executionWithTermination.instancesTerminated === true ||
       executionWithTermination.InstancesTerminated === true);
-    console.log('instancesAlreadyTerminated check:', result, {
-      instancesTerminated: executionWithTermination.instancesTerminated,
-      InstancesTerminated: executionWithTermination.InstancesTerminated
-    });
     return result;
   })();
 
@@ -482,16 +478,13 @@ export const ExecutionDetailsPage: React.FC = () => {
       'COMPLETED', 'CANCELLED', 'FAILED', 'PARTIAL'
     ];
     const isTerminal = terminalStatuses.includes(execution.status as string);
-    console.log('isTerminal check:', isTerminal, 'status:', execution.status);
     
     // Check if any wave has a jobId (meaning recovery instances were launched)
     const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
     const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || (wave as any).JobId);
-    console.log('hasJobId check:', hasJobId, 'waves:', waves.map(w => ({ jobId: w.jobId || (w as any).JobId, status: w.status || (w as any).Status })));
     
     // Don't show button if already terminated
     if (instancesAlreadyTerminated) {
-      console.log('Button hidden: instances already terminated');
       return false;
     }
     
@@ -505,11 +498,9 @@ export const ExecutionDetailsPage: React.FC = () => {
       const waveStatus = wave.status || (wave as any).Status;
       return waveStatus && activeWaveStatuses.includes(waveStatus);
     });
-    console.log('hasActiveWaves check:', hasActiveWaves, 'wave statuses:', waves.map(w => w.status || (w as any).Status));
     
     // Only show terminate button if execution is terminal, has job IDs, and no waves are actively running
     const result = isTerminal && hasJobId && !hasActiveWaves;
-    console.log('canTerminate final result:', result, { isTerminal, hasJobId, hasActiveWaves: !hasActiveWaves });
     return result;
   })();
   
