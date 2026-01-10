@@ -8114,25 +8114,29 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
             legacy_servers = wave.get("Servers", [])
 
             if legacy_servers:
-                # Use legacy Servers array format
+                # Use legacy Servers array format - enhance with recovery instance details
+                recovery_instances = get_recovery_instances_for_wave(wave, [s.get("SourceServerId") for s in legacy_servers])
+                
                 for server in legacy_servers:
                     server_id = server.get("SourceServerId")
                     enriched = enriched_map.get(server_id, {})
+                    recovery_info = recovery_instances.get(server_id, {})
+                    
                     servers.append(
                         {
                             "sourceServerId": server_id,
                             "recoveryJobId": server.get("RecoveryJobId"),
                             "instanceId": server.get("InstanceId"),
-                            "recoveredInstanceId": server.get("InstanceId"),  # Frontend expects this field name
+                            "recoveredInstanceId": server.get("InstanceId") or recovery_info.get("ec2InstanceID"),  # Frontend expects this field name
                             "status": server.get("Status", "UNKNOWN"),
                             "launchTime": safe_timestamp_to_int(
                                 server.get("LaunchTime")
                             ),
                             "error": server.get("Error"),
-                            # EC2 instance details
-                            "instanceType": server.get("InstanceType"),
-                            "privateIp": server.get("PrivateIp"),
-                            "ec2State": server.get("Ec2State"),
+                            # EC2 instance details from recovery instances or DynamoDB
+                            "instanceType": server.get("InstanceType") or recovery_info.get("instanceType"),
+                            "privateIp": server.get("PrivateIp") or recovery_info.get("privateIp"),
+                            "ec2State": server.get("Ec2State") or recovery_info.get("ec2State"),
                             # Enriched fields from DRS source server
                             "hostname": enriched.get("Hostname", ""),
                             "serverName": enriched.get("NameTag", ""),
