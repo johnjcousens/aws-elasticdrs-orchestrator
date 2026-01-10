@@ -176,82 +176,50 @@ ROLE_PERMISSIONS = {
     ],
 }
 
-# API Endpoint to Permission Mapping (matching actual API endpoints)
+# API Endpoint to Permission Mapping - LOOSENED FOR PERFORMANCE
+# Only CRITICAL operations require permissions, read operations are open to authenticated users
 ENDPOINT_PERMISSIONS = {
-    # Protection Groups
-    ("GET", "/protection-groups"): [DRSPermission.VIEW_PROTECTION_GROUPS],
+    # CRITICAL OPERATIONS - Require specific permissions
+    
+    # Protection Groups - Critical operations only
     ("POST", "/protection-groups"): [DRSPermission.CREATE_PROTECTION_GROUPS],
-    ("POST", "/protection-groups/resolve"): [DRSPermission.VIEW_PROTECTION_GROUPS],  # Tag preview endpoint
-    ("GET", "/protection-groups/{id}"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    ("PUT", "/protection-groups/{id}"): [
-        DRSPermission.MODIFY_PROTECTION_GROUPS
-    ],
-    ("DELETE", "/protection-groups/{id}"): [
-        DRSPermission.DELETE_PROTECTION_GROUPS
-    ],
-    ("POST", "/protection-groups/{id}"): [
-        DRSPermission.MODIFY_PROTECTION_GROUPS
-    ],
-    # Recovery Plans
-    ("GET", "/recovery-plans"): [DRSPermission.VIEW_RECOVERY_PLANS],
+    ("PUT", "/protection-groups/{id}"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
+    ("DELETE", "/protection-groups/{id}"): [DRSPermission.DELETE_PROTECTION_GROUPS],
+    ("POST", "/protection-groups/{id}"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
+    
+    # Recovery Plans - Critical operations only
     ("POST", "/recovery-plans"): [DRSPermission.CREATE_RECOVERY_PLANS],
-    ("GET", "/recovery-plans/{id}"): [DRSPermission.VIEW_RECOVERY_PLANS],
     ("PUT", "/recovery-plans/{id}"): [DRSPermission.MODIFY_RECOVERY_PLANS],
     ("DELETE", "/recovery-plans/{id}"): [DRSPermission.DELETE_RECOVERY_PLANS],
     ("POST", "/recovery-plans/{id}/execute"): [DRSPermission.START_RECOVERY],
-    ("GET", "/recovery-plans/{id}/check-existing-instances"): [
-        DRSPermission.VIEW_RECOVERY_PLANS
-    ],
-    # Executions
-    ("GET", "/executions"): [DRSPermission.VIEW_EXECUTIONS],
+    
+    # Executions - Critical operations only
     ("POST", "/executions"): [DRSPermission.START_RECOVERY],
     ("DELETE", "/executions"): [DRSPermission.STOP_RECOVERY],
     ("POST", "/executions/delete"): [DRSPermission.STOP_RECOVERY],
-    ("GET", "/executions/{executionId}"): [DRSPermission.VIEW_EXECUTIONS],
-    ("POST", "/executions/{executionId}/cancel"): [
-        DRSPermission.STOP_RECOVERY
-    ],
+    ("POST", "/executions/{executionId}/cancel"): [DRSPermission.STOP_RECOVERY],
     ("POST", "/executions/{executionId}/pause"): [DRSPermission.STOP_RECOVERY],
-    ("POST", "/executions/{executionId}/resume"): [
-        DRSPermission.START_RECOVERY
-    ],
-    ("POST", "/executions/{executionId}/terminate-instances"): [
-        DRSPermission.TERMINATE_INSTANCES
-    ],
-    ("GET", "/executions/{executionId}/job-logs"): [
-        DRSPermission.VIEW_EXECUTIONS
-    ],
-    ("GET", "/executions/{executionId}/termination-status"): [
-        DRSPermission.VIEW_EXECUTIONS
-    ],
-    ("GET", "/executions/{executionId}/recovery-instances"): [
-        DRSPermission.VIEW_EXECUTIONS
-    ],
-    # Account Management (CRITICAL - these were missing!)
-    ("GET", "/accounts/targets"): [DRSPermission.VIEW_ACCOUNTS],
+    ("POST", "/executions/{executionId}/resume"): [DRSPermission.START_RECOVERY],
+    ("POST", "/executions/{executionId}/terminate-instances"): [DRSPermission.TERMINATE_INSTANCES],
+    
+    # Account Management - Critical operations only
     ("POST", "/accounts/targets"): [DRSPermission.REGISTER_ACCOUNTS],
     ("PUT", "/accounts/targets/{id}"): [DRSPermission.MODIFY_ACCOUNTS],
     ("DELETE", "/accounts/targets/{id}"): [DRSPermission.DELETE_ACCOUNTS],
-    ("POST", "/accounts/targets/{id}/validate"): [DRSPermission.VIEW_ACCOUNTS],
-    # DRS Operations (read-only for most roles)
-    ("GET", "/drs/source-servers"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    ("GET", "/drs/quotas"): [DRSPermission.VIEW_ACCOUNTS],
-    ("POST", "/drs/tag-sync"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
-    ("GET", "/drs/accounts"): [DRSPermission.VIEW_ACCOUNTS],
-    # Configuration Management
-    ("GET", "/config/export"): [DRSPermission.EXPORT_CONFIGURATION],
+    
+    # Configuration Management - Critical operations only
     ("POST", "/config/import"): [DRSPermission.IMPORT_CONFIGURATION],
-    ("GET", "/config/tag-sync"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("PUT", "/config/tag-sync"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
-    # User Management (no specific permission required - all authenticated users can see their own permissions)
-    ("GET", "/user/permissions"): [],
-    # EC2 Operations (read-only)
-    ("GET", "/ec2/subnets"): [DRSPermission.VIEW_ACCOUNTS],
-    ("GET", "/ec2/security-groups"): [DRSPermission.VIEW_ACCOUNTS],
-    ("GET", "/ec2/instance-profiles"): [DRSPermission.VIEW_ACCOUNTS],
-    ("GET", "/ec2/instance-types"): [DRSPermission.VIEW_ACCOUNTS],
-    # Current Account Info (read-only)
-    ("GET", "/accounts/current"): [DRSPermission.VIEW_ACCOUNTS],
+    ("POST", "/drs/tag-sync"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
+    
+    # ALL OTHER ENDPOINTS ARE OPEN TO AUTHENTICATED USERS
+    # This includes:
+    # - All GET operations (viewing data)
+    # - Status checks and monitoring
+    # - User permissions endpoint
+    # - Health checks
+    # - Read-only DRS operations
+    # - EC2 metadata lookups
 }
 
 
@@ -545,6 +513,9 @@ def check_authorization(event: Dict) -> Dict:
     """
     Check if the user is authorized to access the requested endpoint
     Returns authorization result with user info and permissions
+    
+    LOOSENED SECURITY: Only critical operations require specific permissions.
+    All authenticated users can perform read operations and status checks.
     """
     try:
         # Extract request info
@@ -569,18 +540,16 @@ def check_authorization(event: Dict) -> Dict:
         # Get required permissions for this endpoint
         required_permissions = get_endpoint_permissions(method, path)
 
-        # If no specific permissions required, allow access (fallback)
+        # LOOSENED SECURITY: If no specific permissions required, allow all authenticated users
         if not required_permissions:
-            print(
-                f"⚠️ No permissions defined for {method} {path}, allowing access"
-            )
+            print(f"✅ No specific permissions required for {method} {path} - allowing authenticated user")
             return {
                 "authorized": True,
                 "user": user,
-                "reason": "No specific permissions required",
+                "reason": "No specific permissions required - authenticated access",
             }
 
-        # Check if user has required permissions
+        # For critical operations, check if user has required permissions
         if has_any_permission(user, required_permissions):
             return {
                 "authorized": True,
@@ -592,7 +561,7 @@ def check_authorization(event: Dict) -> Dict:
             return {
                 "authorized": False,
                 "user": user,
-                "reason": f"Missing required permissions: {[p.value for p in required_permissions]}",
+                "reason": f"Missing required permissions for critical operation: {[p.value for p in required_permissions]}",
                 "user_permissions": [
                     p.value for p in get_user_permissions(user)
                 ],
