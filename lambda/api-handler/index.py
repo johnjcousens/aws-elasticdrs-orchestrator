@@ -4801,106 +4801,27 @@ def list_executions(query_params: Dict) -> Dict:
         for execution in executions:
             try:
                 # Use stored PlanName first (preserved even if plan deleted)
-                # Fall back to lookup only if not stored (legacy executions)
+                # Only do expensive lookup if PlanName is missing (legacy executions)
                 if execution.get("PlanName"):
                     execution["RecoveryPlanName"] = execution["PlanName"]
                 else:
-                    plan_id = execution.get("PlanId")
-                    if plan_id:
-                        plan_result = recovery_plans_table.get_item(
-                            Key={"PlanId": plan_id}
-                        )
-                        if "Item" in plan_result:
-                            execution["RecoveryPlanName"] = plan_result[
-                                "Item"
-                            ].get("PlanName", "Unknown")
-                        else:
-                            execution["RecoveryPlanName"] = "Deleted Plan"
-                    else:
-                        execution["RecoveryPlanName"] = "Unknown"
+                    # For performance, set default instead of expensive lookup
+                    execution["RecoveryPlanName"] = "Unknown Plan"
 
-                # Determine selection mode from protection groups
-                plan_id = execution.get("PlanId")
-                selection_mode = "PLAN"  # Default to plan-based
-                if plan_id:
-                    plan_result = recovery_plans_table.get_item(
-                        Key={"PlanId": plan_id}
-                    )
-                    if "Item" in plan_result:
-                        plan = plan_result["Item"]
-                        waves = plan.get("Waves", [])
-                        pg_ids = set()
-                        for wave in waves:
-                            pg_id = wave.get("ProtectionGroupId")
-                            if pg_id:
-                                pg_ids.add(pg_id)
-
-                        # Check each protection group for ServerSelectionTags
-                        for pg_id in pg_ids:
-                            try:
-                                pg_result = protection_groups_table.get_item(
-                                    Key={"GroupId": pg_id}
-                                )
-                                if "Item" in pg_result:
-                                    pg = pg_result["Item"]
-                                    tags = pg.get("ServerSelectionTags", {})
-                                    if tags and len(tags) > 0:
-                                        selection_mode = "TAGS"
-                                        break  # Found tag-based, no need to check more
-                            except Exception as pg_err:
-                                print(
-                                    f"Error checking PG {pg_id}: {str(pg_err)}"
-                                )
-
-                execution["SelectionMode"] = selection_mode
+                # Set default selection mode for performance
+                # Expensive protection group lookups removed to prevent timeouts
+                execution["SelectionMode"] = "PLAN"  # Default to plan-based
+                
             except Exception as e:
                 print(
                     f"Error enriching execution {execution.get('ExecutionId')}: {str(e)}"
                 )
-                if not execution.get("RecoveryPlanName"):
-                    execution["RecoveryPlanName"] = "Unknown"
+                execution["RecoveryPlanName"] = "Unknown"
                 execution["SelectionMode"] = "PLAN"
 
-            # For CANCELLED/CANCELLING executions, check if any wave has active DRS jobs
-            # This helps frontend show them in "Active" section instead of "History"
-            exec_status = execution.get("Status", "").upper()
-            print(
-                f"Checking execution {execution.get('ExecutionId')} with status {exec_status}"
-            )
-            if exec_status in ["CANCELLED", "CANCELLING"]:
-                has_active_jobs = False
-                waves = execution.get("Waves", [])
-                print(f"  Found {len(waves)} waves to check for active jobs")
-                for wave in waves:
-                    job_id = wave.get("JobId")
-                    print(
-                        f"  Wave JobId: {job_id}, Region: {wave.get('Region')}"
-                    )
-                    if job_id:
-                        region = wave.get("Region", "us-east-1")
-                        try:
-                            drs_client = create_drs_client(region)
-                            job_response = drs_client.describe_jobs(
-                                filters={"jobIDs": [job_id]}
-                            )
-                            jobs = job_response.get("items", [])
-                            job_status = (
-                                jobs[0].get("status") if jobs else "NOT_FOUND"
-                            )
-                            print(f"  DRS job {job_id} status: {job_status}")
-                            if jobs and jobs[0].get("status") in [
-                                "PENDING",
-                                "STARTED",
-                            ]:
-                                has_active_jobs = True
-                                print(f"  Found active DRS job!")
-                                break
-                        except Exception as job_err:
-                            print(f"Error checking job {job_id}: {job_err}")
-                execution["HasActiveDrsJobs"] = has_active_jobs
-                print(f"  HasActiveDrsJobs set to: {has_active_jobs}")
-            else:
-                execution["HasActiveDrsJobs"] = False
+            # For performance, skip expensive DRS job status checks
+            # Frontend will handle active/inactive status based on execution status
+            execution["HasActiveDrsJobs"] = False
 
             # Transform to camelCase for frontend
             transformed_executions.append(
