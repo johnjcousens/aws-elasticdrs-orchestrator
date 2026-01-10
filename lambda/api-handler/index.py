@@ -1497,14 +1497,26 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         try:
             if event.get("body"):
                 body = json.loads(event.get("body"))
-                # Only sanitize user input data, not all data
-                if isinstance(body, dict):
+                # Only sanitize user input data if it's a dictionary, not all data
+                if isinstance(body, dict) and body:  # Only sanitize non-empty dictionaries
                     body = sanitize_dynamodb_input(body)
             else:
                 body = {}
         except (json.JSONDecodeError, InputValidationError) as e:
             log_security_event("invalid_json", {"error": str(e)}, "WARN")
             return response(400, {"error": "Invalid JSON in request body"})
+        except Exception as e:
+            # Catch any other sanitization errors and log them
+            print(f"Error in request body sanitization: {e}")
+            log_security_event("sanitization_error", {"error": str(e)}, "ERROR")
+            # Continue with unsanitized body for GET requests or if sanitization fails
+            if event.get("body"):
+                try:
+                    body = json.loads(event.get("body"))
+                except:
+                    body = {}
+            else:
+                body = {}
 
         print(f"Extracted values - Method: {http_method}, Path: {path}")
 
