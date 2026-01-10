@@ -470,7 +470,11 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
   totalWaves,
   jobLogs 
 }) => {
-  const [expandedWaves, setExpandedWaves] = useState<Set<number>>(
+  // Separate expansion states for servers and job events
+  const [expandedServers, setExpandedServers] = useState<Set<number>>(
+    new Set(currentWave !== undefined ? [currentWave] : [0])
+  );
+  const [expandedJobEvents, setExpandedJobEvents] = useState<Set<number>>(
     new Set(currentWave !== undefined ? [currentWave] : [0])
   );
 
@@ -495,7 +499,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const waveNum = wave.waveNumber ?? index;
         const displayNum = waveNum + 1;
         const isCurrent = currentWave === waveNum;
-        const isExpanded = expandedWaves.has(waveNum);
+        const isServersExpanded = expandedServers.has(waveNum);
+        const isJobEventsExpanded = expandedJobEvents.has(waveNum);
         const hasServers = wave.serverExecutions && wave.serverExecutions.length > 0;
         
         // Use effective status that considers server statuses
@@ -519,7 +524,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 }}
                 onClick={() => {
                   if (hasServers) {
-                    setExpandedWaves(prev => {
+                    setExpandedServers(prev => {
                       const next = new Set(prev);
                       if (next.has(waveNum)) {
                         next.delete(waveNum);
@@ -589,12 +594,12 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 <ExpandableSection
                   headerText={`Servers (${wave.serverExecutions.length})`}
                   variant="footer"
-                  expanded={isExpanded || isCurrent}
+                  expanded={isServersExpanded || isCurrent}
                   onChange={({ detail }) => {
                     if (detail.expanded) {
-                      setExpandedWaves(prev => new Set([...prev, waveNum]));
+                      setExpandedServers(prev => new Set([...prev, waveNum]));
                     } else {
-                      setExpandedWaves(prev => {
+                      setExpandedServers(prev => {
                         const next = new Set(prev);
                         next.delete(waveNum);
                         return next;
@@ -648,12 +653,12 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 <ExpandableSection
                   headerText="DRS Job Events"
                   variant="footer"
-                  expanded={isExpanded || isCurrent}
+                  expanded={isJobEventsExpanded || isCurrent}
                   onChange={({ detail }) => {
                     if (detail.expanded) {
-                      setExpandedWaves(prev => new Set([...prev, waveNum]));
+                      setExpandedJobEvents(prev => new Set([...prev, waveNum]));
                     } else {
-                      setExpandedWaves(prev => {
+                      setExpandedJobEvents(prev => {
                         const next = new Set(prev);
                         next.delete(waveNum);
                         return next;
