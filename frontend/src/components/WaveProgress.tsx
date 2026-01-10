@@ -54,11 +54,28 @@ const getEffectiveWaveStatus = (wave: WaveExecution): string => {
       return status === 'FAILED';
     });
     
+    const anyInProgress = servers.some(s => {
+      const status = (s.launchStatus || s.status || '').toUpperCase();
+      return ['IN_PROGRESS', 'LAUNCHING', 'PENDING_LAUNCH'].includes(status);
+    });
+    
     if (allLaunched) return 'completed';
     if (anyFailed) return 'failed';
+    if (anyInProgress) return 'in_progress';
   }
   
-  return waveStatus;
+  // Map DRS job statuses to appropriate display statuses
+  switch (waveStatus) {
+    case 'started':
+      return 'in_progress'; // DRS job is active, show as in progress
+    case 'launching':
+    case 'initiated':
+      return 'in_progress';
+    case 'polling':
+      return 'in_progress';
+    default:
+      return waveStatus;
+  }
 };
 
 /**
