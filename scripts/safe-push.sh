@@ -1,9 +1,13 @@
 #!/bin/bash
-
-# Safe Push Script
-# Checks if GitHub Actions workflow is running before pushing to prevent conflicts
+# Safe push script that checks for running GitHub Actions workflows
+# Usage: ./scripts/safe-push.sh [branch] [--force]
 
 set -e
+
+# Configuration
+DEFAULT_BRANCH="main"
+FORCE_PUSH=false
+TARGET_BRANCH=""
 
 # Colors for output
 RED='\033[0;31m'
@@ -12,162 +16,142 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
-REPO_OWNER="johnjcousens"
-REPO_NAME="aws-elasticdrs-orchestrator"
-WORKFLOW_NAME="deploy.yml"
-MAX_WAIT_TIME=1800  # 30 minutes max wait
-CHECK_INTERVAL=30   # Check every 30 seconds
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE_PUSH=true
+            echo -e "${YELLOW}🚨 FORCE MODE: Skipping workflow checks${NC}"
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [branch] [--force]"
+            echo ""
+            echo "Safe push script that prevents GitHub Actions conflicts"
+            echo ""
+            echo "Arguments:"
+            echo "  branch    Target branch (default: current branch or main)"
+            echo "  --force   Skip workflow checks (emergency use only)"
+            echo ""
+            echo "Examples:"
+            echo "  $0                    # Push to current branch"
+            echo "  $0 main               # Push to main branch"
+            echo "  $0 --force            # Emergency push (skip checks)"
+            echo "  $0 main --force       # Emergency push to main"
+            echo ""
+            echo "🚀 RECOMMENDED WORKFLOW:"
+            echo "  git add ."
+            echo "  git commit -m 'description'"
+            echo "  $0                    # Safe push with workflow checks"
+            exit 0
+            ;;
+        *)
+            if [ -z "$TARGET_BRANCH" ]; then
+                TARGET_BRANCH="$1"
+            else
+                echo "Unknown option: $1"
+                echo "Run '$0 --help' for usage information"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
 
-echo -e "${BLUE}🔍 Safe Push - Checking GitHub Actions status...${NC}"
-
-# Function to check if GitHub CLI is available
-check_gh_cli() {
-    if ! command -v gh &> /dev/null; then
-        echo -e "${RED}❌ GitHub CLI (gh) is not installed or not in PATH${NC}"
-        echo -e "${YELLOW}💡 Install with: brew install gh${NC}"
-        echo -e "${YELLOW}💡 Then authenticate with: gh auth login${NC}"
-        exit 1
-    fi
-    
-    # Check if authenticated
-    if ! gh auth status &> /dev/null; then
-        echo -e "${RED}❌ GitHub CLI is not authenticated${NC}"
-        echo -e "${YELLOW}💡 Authenticate with: gh auth login${NC}"
-        exit 1
-    fi
-}
-
-# Function to get running workflows
-get_running_workflows() {
-    gh run list \
-        --repo "${REPO_OWNER}/${REPO_NAME}" \
-        --status "in_progress" \
-        --limit 10 \
-        --json status,conclusion,workflowName,createdAt,url \
-        --jq '.[] | select(.workflowName == "Deploy to AWS")'
-}
-
-# Function to wait for workflows to complete
-wait_for_workflows() {
-    local wait_time=0
-    
-    while [ $wait_time -lt $MAX_WAIT_TIME ]; do
-        local running_workflows=$(get_running_workflows)
-        
-        if [ -z "$running_workflows" ]; then
-            echo -e "${GREEN}✅ No workflows currently running${NC}"
-            return 0
-        fi
-        
-        echo -e "${YELLOW}⏳ Workflow still running... (waited ${wait_time}s/${MAX_WAIT_TIME}s)${NC}"
-        echo "$running_workflows" | jq -r '"   • " + .workflowName + " (started: " + .createdAt + ")"'
-        
-        sleep $CHECK_INTERVAL
-        wait_time=$((wait_time + CHECK_INTERVAL))
-    done
-    
-    echo -e "${RED}❌ Timeout: Workflow still running after ${MAX_WAIT_TIME} seconds${NC}"
-    return 1
-}
-
-# Function to push changes
-safe_push() {
-    local branch=${1:-$(git branch --show-current)}
-    
-    echo -e "${BLUE}🚀 Pushing to branch: ${branch}${NC}"
-    
-    # Check if there are changes to push
-    if git diff --quiet HEAD origin/"$branch" 2>/dev/null; then
-        echo -e "${YELLOW}⚠️  No changes to push${NC}"
-        return 0
-    fi
-    
-    # Push the changes
-    if git push origin "$branch"; then
-        echo -e "${GREEN}✅ Successfully pushed to ${branch}${NC}"
-        echo -e "${BLUE}🔗 Monitor deployment: https://github.com/${REPO_OWNER}/${REPO_NAME}/actions${NC}"
-        return 0
+# Determine target branch
+if [ -z "$TARGET_BRANCH" ]; then
+    if git rev-parse --git-dir > /dev/null 2>&1; then
+        TARGET_BRANCH=$(git branch --show-current 2>/dev/null || echo "$DEFAULT_BRANCH")
     else
-        echo -e "${RED}❌ Failed to push changes${NC}"
-        return 1
+        TARGET_BRANCH="$DEFAULT_BRANCH"
     fi
-}
+fi
 
-# Main execution
-main() {
-    local branch=${1:-$(git branch --show-current)}
-    local force_push=${2:-false}
+echo "======================================"
+echo "🚀 Safe Push to GitHub"
+echo "======================================"
+echo "Target Branch: $TARGET_BRANCH"
+echo "Force Mode: $FORCE_PUSH"
+echo ""
+
+# Check if we're in a git repository
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    echo -e "${RED}❌ Not in a git repository${NC}"
+    exit 1
+fi
+
+# Check for uncommitted changes
+if ! git diff-index --quiet HEAD --; then
+    echo -e "${YELLOW}⚠️  You have uncommitted changes${NC}"
+    echo ""
+    echo "Uncommitted files:"
+    git status --porcelain
+    echo ""
+    echo "Please commit your changes first:"
+    echo "  git add ."
+    echo "  git commit -m 'your commit message'"
+    echo "  $0"
+    exit 1
+fi
+
+# Check workflow status (unless force mode)
+if [ "$FORCE_PUSH" = false ]; then
+    echo "🔍 Checking GitHub Actions workflow status..."
     
-    echo -e "${BLUE}📋 Repository: ${REPO_OWNER}/${REPO_NAME}${NC}"
-    echo -e "${BLUE}🌿 Branch: ${branch}${NC}"
-    
-    # Check prerequisites
-    check_gh_cli
-    
-    # Skip workflow check if force flag is provided
-    if [ "$force_push" = "--force" ] || [ "$force_push" = "-f" ]; then
-        echo -e "${YELLOW}⚠️  Force push requested - skipping workflow check${NC}"
-        safe_push "$branch"
-        return $?
-    fi
-    
-    # Check for running workflows
-    echo -e "${BLUE}🔍 Checking for running workflows...${NC}"
-    local running_workflows=$(get_running_workflows)
-    
-    if [ -n "$running_workflows" ]; then
-        echo -e "${YELLOW}⏳ Found running workflow:${NC}"
-        echo "$running_workflows" | jq -r '"   • " + .workflowName + " (started: " + .createdAt + ")"'
+    if ./scripts/check-workflow.sh; then
+        echo -e "${GREEN}✅ Workflow check passed${NC}"
+    else
         echo ""
-        
-        read -p "$(echo -e ${YELLOW}❓ Wait for workflow to complete? [Y/n]: ${NC})" -n 1 -r
+        echo -e "${RED}❌ Workflow check failed${NC}"
         echo ""
-        
-        if [[ $REPLY =~ ^[Nn]$ ]]; then
-            echo -e "${YELLOW}⚠️  Push cancelled by user${NC}"
-            return 1
-        fi
-        
-        echo -e "${BLUE}⏳ Waiting for workflow to complete...${NC}"
-        if ! wait_for_workflows; then
-            echo -e "${RED}❌ Workflow did not complete in time${NC}"
-            echo -e "${YELLOW}💡 You can force push with: $0 --force${NC}"
-            return 1
+        echo "Options:"
+        echo "  1. Wait for workflows to complete (recommended)"
+        echo "  2. Force push (emergency only): $0 $TARGET_BRANCH --force"
+        echo "  3. Check workflow status: gh run list"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}⚠️  SKIPPING workflow checks (force mode)${NC}"
+fi
+
+echo ""
+echo "🚀 Pushing to $TARGET_BRANCH..."
+
+# Perform the git push
+if git push origin "$TARGET_BRANCH"; then
+    echo ""
+    echo -e "${GREEN}✅ Successfully pushed to $TARGET_BRANCH${NC}"
+    echo ""
+    
+    # Get repository info for monitoring links
+    if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+        REPO_URL=$(gh repo view --json url -q .url 2>/dev/null || echo "")
+        if [ -n "$REPO_URL" ]; then
+            echo "📊 Monitor deployment:"
+            echo "  GitHub Actions: $REPO_URL/actions"
+            echo "  Latest workflow: $REPO_URL/actions/runs"
         fi
     fi
     
-    # All clear - push the changes
-    safe_push "$branch"
-}
+    echo ""
+    echo "💡 Next steps:"
+    echo "  1. Monitor GitHub Actions for deployment progress"
+    echo "  2. Verify deployment completes successfully"
+    echo "  3. Test application functionality"
+    echo "  4. Wait for deployment completion before making more changes"
+    
+else
+    echo ""
+    echo -e "${RED}❌ Push failed${NC}"
+    echo ""
+    echo "Common solutions:"
+    echo "  1. Pull latest changes: git pull origin $TARGET_BRANCH"
+    echo "  2. Resolve any merge conflicts"
+    echo "  3. Try pushing again: $0 $TARGET_BRANCH"
+    exit 1
+fi
 
-# Help function
-show_help() {
-    echo "Safe Push Script - Prevents GitHub Actions conflicts"
-    echo ""
-    echo "Usage:"
-    echo "  $0 [branch] [--force|-f]"
-    echo ""
-    echo "Options:"
-    echo "  branch     Target branch (default: current branch)"
-    echo "  --force    Skip workflow check and push immediately"
-    echo "  --help     Show this help message"
-    echo ""
-    echo "Examples:"
-    echo "  $0                    # Push current branch after checking workflows"
-    echo "  $0 main               # Push to main branch after checking workflows"
-    echo "  $0 --force            # Force push without checking workflows"
-    echo "  $0 main --force       # Force push to main without checking workflows"
-}
-
-# Handle command line arguments
-case "${1:-}" in
-    --help|-h)
-        show_help
-        exit 0
-        ;;
-    *)
-        main "$@"
-        exit $?
-        ;;
-esac
+echo ""
+echo "======================================"
+echo -e "${GREEN}🎉 Safe Push Complete${NC}"
+echo "======================================"

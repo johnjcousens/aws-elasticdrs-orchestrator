@@ -19,7 +19,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  PROJECT_NAME: aws-drs-orchestrator-fresh
+  PROJECT_NAME: aws-elasticdrs-orchestrator
 
 permissions:
   id-token: write

@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'AWS DRS Orchestration Solution - Master Template (Nested Stack Architecture)'
 
-# Updated: 2026-01-09 - Fresh deployment with working DRS endpoints and RBAC from commit 59bed2d
+# Updated: 2026-01-10 - Emergency deployment after stack restoration (commit 9e94b77)
 
 Metadata:
   AWS::CloudFormation::Interface:

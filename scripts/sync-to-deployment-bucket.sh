@@ -26,8 +26,8 @@ if [ -f "$PROJECT_ROOT/.env.deployment.local" ]; then
     source "$PROJECT_ROOT/.env.deployment.local"
 fi
 
-# Default configuration - Fresh Stack
-BUCKET="${DEPLOYMENT_BUCKET:-aws-elasticdrs-orchestrator}"  # Fresh stack deployment bucket
+# Default configuration - Current Working Stack
+BUCKET="${DEPLOYMENT_BUCKET:-aws-elasticdrs-orchestrator}"  # Current working stack deployment bucket
 REGION="${DEPLOYMENT_REGION:-us-east-1}"
 BUILD_FRONTEND=false
 DRY_RUN=false
@@ -40,10 +40,10 @@ RUN_LOCAL_VALIDATION=false
 AWS_PROFILE="${AWS_PROFILE:-default}"
 LIST_PROFILES=false
 
-# CloudFormation stack configuration (Fresh stack configuration)
-PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestrator-fresh}"  # Fresh stack project name
-ENVIRONMENT="${ENVIRONMENT:-dev}"  # Fresh stack uses dev environment
-PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-drs-orchestrator-fresh}"  # Fresh stack actual name
+# CloudFormation stack configuration (Current working stack configuration)
+PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"  # Current working stack project name
+ENVIRONMENT="${ENVIRONMENT:-dev}"  # Current working stack uses dev environment
+PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-dev}"  # Current working stack actual name
 
 # Approved directories for sync
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts")
@@ -668,15 +668,15 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
-        # Lambda functions to update (aligned with fresh stack deployed functions)
+        # Lambda functions to update (aligned with current working stack)
         LAMBDA_FUNCTIONS=(
-            "api-handler:aws-drs-orchestrator-fresh-api-handler-dev"
-            "orchestration-stepfunctions:aws-drs-orchestrator-fresh-orch-sf-dev"
-            "frontend-builder:aws-drs-orchestrator-fresh-frontend-build-dev"
-            "bucket-cleaner:aws-drs-orchestrator-fresh-bucket-cleaner-dev"
-            "execution-finder:aws-drs-orchestrator-fresh-execution-finder-dev"
-            "execution-poller:aws-drs-orchestrator-fresh-execution-poller-dev"
-            "notification-formatter:aws-drs-orchestrator-fresh-notif-fmt-dev"
+            "api-handler:${PROJECT_NAME}-api-handler-${ENVIRONMENT}"
+            "orchestration-stepfunctions:${PROJECT_NAME}-orch-sf-${ENVIRONMENT}"
+            "frontend-builder:${PROJECT_NAME}-frontend-builder-${ENVIRONMENT}"
+            "bucket-cleaner:${PROJECT_NAME}-bucket-cleaner-${ENVIRONMENT}"
+            "execution-finder:${PROJECT_NAME}-execution-finder-${ENVIRONMENT}"
+            "execution-poller:${PROJECT_NAME}-execution-poller-${ENVIRONMENT}"
+            "notification-formatter:${PROJECT_NAME}-notification-formatter-${ENVIRONMENT}"
         )
         
         LAMBDA_DIR="$PROJECT_ROOT/lambda"
