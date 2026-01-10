@@ -249,6 +249,7 @@ const getLaunchStatusColor = (status: string | undefined): 'blue' | 'green' | 'r
   switch (status?.toUpperCase()) {
     case 'LAUNCHED':
     case 'COMPLETED':
+    case 'DONE':
       return 'green';
     case 'IN_PROGRESS':
     case 'LAUNCHING':
@@ -331,16 +332,39 @@ const serverColumnDefinitions = [
     header: 'Status',
     cell: (server: ServerExecution) => {
       const status = server.launchStatus || server.status || 'pending';
+      // Use very short status text to prevent wrapping
+      let displayStatus = '';
+      switch (status.toUpperCase()) {
+        case 'COMPLETED':
+        case 'LAUNCHED':
+          displayStatus = '✓';
+          break;
+        case 'FAILED':
+        case 'ERROR':
+          displayStatus = '✗';
+          break;
+        case 'IN_PROGRESS':
+        case 'LAUNCHING':
+        case 'POLLING':
+          displayStatus = '⟳';
+          break;
+        case 'PENDING':
+          displayStatus = '⏳';
+          break;
+        default:
+          displayStatus = status.substring(0, 4).toUpperCase();
+      }
+      
       return (
         <Badge 
           color={getLaunchStatusColor(status)}
         >
-          {status.toUpperCase()}
+          {displayStatus}
         </Badge>
       );
     },
-    width: 120,
-    minWidth: 120,
+    width: 60,
+    minWidth: 60,
   },
   {
     id: 'instanceId',
