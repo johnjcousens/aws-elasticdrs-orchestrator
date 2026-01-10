@@ -1469,7 +1469,15 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             execute_recovery_plan_worker(event)
             return {"statusCode": 200, "body": "Worker completed"}
 
-        # Validate API Gateway event structure (only for non-worker events)
+        # Check if this is a direct EventBridge invocation (like DRS tools archive pattern)
+        if event.get("synch_tags") is not None or event.get("synch_instance_type") is not None:
+            print("Direct EventBridge tag sync invocation detected")
+            print(f"EventBridge payload: synch_tags={event.get('synch_tags')}, synch_instance_type={event.get('synch_instance_type')}")
+            
+            # Call tag sync directly (no authentication needed for EventBridge)
+            return handle_drs_tag_sync({})
+
+        # Validate API Gateway event structure (only for non-worker, non-EventBridge events)
         try:
             validated_event = validate_api_gateway_event(event)
         except InputValidationError as e:

@@ -180,24 +180,7 @@ Resources:
         - Id: TagSyncTarget
           Arn: !Ref ApiHandlerFunctionArn
           RoleArn: !GetAtt EventBridgeInvokeRole.Arn
-          Input: !Sub |
-            {
-              "httpMethod": "POST",
-              "path": "/drs/tag-sync",
-              "headers": {
-                "Content-Type": "application/json"
-              },
-              "body": "{}",
-              "requestContext": {
-                "identity": {
-                  "sourceIp": "eventbridge"
-                }
-              },
-              "invocationSource": "EVENTBRIDGE",
-              "invocationDetails": {
-                "scheduleRuleName": "${ProjectName}-tag-sync-schedule-${Environment}",
-                "scheduleExpression": "rate(${TagSyncIntervalHours} hours)",
-                "intervalHours": ${TagSyncIntervalHours}
+          Input: '{"synch_tags": true, "synch_instance_type": true}'
               }
             }
 
