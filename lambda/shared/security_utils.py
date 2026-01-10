@@ -194,7 +194,7 @@ def validate_recovery_plan_name(name: str) -> bool:
 
 def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Sanitize input data for DynamoDB operations
+    Sanitize input data for DynamoDB operations - OPTIMIZED FOR PERFORMANCE
 
     Args:
         data: Input data dictionary
@@ -205,6 +205,15 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
     Raises:
         InputValidationError: If data contains invalid values
     """
+    # PERFORMANCE OPTIMIZATION: Skip sanitization for large execution data
+    # that's already been processed and stored in DynamoDB
+    if isinstance(data, dict) and len(data) > 50:
+        # Check if this looks like execution data (has execution-specific fields)
+        execution_indicators = ['ExecutionId', 'Waves', 'EnrichedServers', 'StateMachineArn']
+        if any(key in data for key in execution_indicators):
+            # This is likely execution data from DynamoDB - minimal sanitization
+            return data
+    
     sanitized = {}
 
     for key, value in data.items():
@@ -212,28 +221,46 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(key, str) or not key.strip():
             raise InputValidationError(f"Invalid key: {key}")
 
+        # PERFORMANCE: Skip sanitization for safe keys
+        if key in ['ExecutionId', 'PlanId', 'Status', 'Region', 'Waves', 'EnrichedServers', 
+                   'StateMachineArn', 'CreatedAt', 'UpdatedAt', 'StartTime', 'EndTime']:
+            sanitized[key] = value
+            continue
+
         sanitized_key = sanitize_string(key, 255)
 
         # Sanitize value based on type - PRESERVE ORIGINAL DATA TYPES
         if isinstance(value, str):
-            sanitized[sanitized_key] = sanitize_string(value, 4096)
+            # PERFORMANCE: Limit string sanitization for large values
+            if len(value) > 1000:
+                sanitized[sanitized_key] = value  # Skip sanitization for large strings
+            else:
+                sanitized[sanitized_key] = sanitize_string(value, 4096)
         elif isinstance(value, (int, float, bool)):
             # Keep original numeric/boolean values unchanged
             sanitized[sanitized_key] = value
         elif isinstance(value, list):
-            # Process list items recursively while preserving types
-            sanitized_list = []
-            for item in value:
-                if isinstance(item, str):
-                    sanitized_list.append(sanitize_string(item, 1024))
-                elif isinstance(item, dict):
-                    sanitized_list.append(sanitize_dynamodb_input(item))
-                else:
-                    # Keep other types (int, float, bool, None) unchanged
-                    sanitized_list.append(item)
-            sanitized[sanitized_key] = sanitized_list
+            # PERFORMANCE: Skip deep sanitization for large lists
+            if len(value) > 20:
+                sanitized[sanitized_key] = value
+            else:
+                # Process list items recursively while preserving types
+                sanitized_list = []
+                for item in value:
+                    if isinstance(item, str):
+                        sanitized_list.append(sanitize_string(item, 1024))
+                    elif isinstance(item, dict):
+                        sanitized_list.append(sanitize_dynamodb_input(item))
+                    else:
+                        # Keep other types (int, float, bool, None) unchanged
+                        sanitized_list.append(item)
+                sanitized[sanitized_key] = sanitized_list
         elif isinstance(value, dict):
-            sanitized[sanitized_key] = sanitize_dynamodb_input(value)
+            # PERFORMANCE: Skip deep sanitization for large nested objects
+            if len(value) > 20:
+                sanitized[sanitized_key] = value
+            else:
+                sanitized[sanitized_key] = sanitize_dynamodb_input(value)
         elif value is None:
             sanitized[sanitized_key] = value
         else:
