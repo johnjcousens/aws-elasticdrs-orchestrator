@@ -5079,10 +5079,12 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                         source_server_id = instance_to_source_map.get(instance_id)
                         
                         if source_server_id and source_server_id in recovery_map:
+                            launch_time = instance.get('LaunchTime')
                             recovery_map[source_server_id].update({
                                 'instanceType': instance.get('InstanceType'),
                                 'privateIp': instance.get('PrivateIpAddress'),
-                                'ec2State': instance.get('State', {}).get('Name')
+                                'ec2State': instance.get('State', {}).get('Name'),
+                                'launchTime': launch_time.isoformat() if launch_time else None
                             })
                             
             except Exception as e:
@@ -5153,6 +5155,7 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
                     "InstanceType": recovery_info.get("instanceType", ""),
                     "PrivateIp": recovery_info.get("privateIp", ""),
                     "Ec2State": recovery_info.get("ec2State", ""),
+                    "LaunchTime": recovery_info.get("launchTime", ""),
                 }
             )
 
@@ -8141,7 +8144,9 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                     enriched = enriched_map.get(server_id, {})
                     recovery_info = recovery_instances.get(server_id, {})
                     
-                    print(f"DEBUG: Server {server_id} - recovery_info: {recovery_info}")
+                    print(f"DEBUG: Legacy server {server_id}")
+                    print(f"DEBUG: DynamoDB server data: InstanceType={server.get('InstanceType')}, PrivateIp={server.get('PrivateIp')}")
+                    print(f"DEBUG: Recovery info: {recovery_info}")
                     
                     servers.append(
                         {
