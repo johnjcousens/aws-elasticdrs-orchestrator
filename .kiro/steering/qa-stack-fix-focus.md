@@ -1,53 +1,108 @@
-# Fresh Deployment Focus
+# Execution Polling System Fix Focus
 
-## CRITICAL: Fresh Start with Working Code
-**Current State**: Restored to commit `59bed2d` (January 7, 2026) with working DRS endpoints and RBAC
+## CRITICAL: Fix Enhanced DRS Status Display and Timeout Configuration
+**Current State**: Core execution polling system restored through systematic git commits, but frontend integration missing and timeout configuration incorrect
 
 ## Current Mission
-Deploy fresh stack with December 31st working code + modern CI/CD pipeline, then update for new stack configuration.
+Fix the remaining critical issues in the execution polling system to restore full functionality that was working before but is now missing.
 
-## Next Steps
-1. **Deploy Fresh Stack**: Use GitHub Actions to deploy working code with proper naming (`ProjectName=aws-drs-orchestrator-qa`, `Environment=dev`)
-2. **Update CI/CD Configuration**: Update GitHub Actions workflow for new stack
-3. **Test End-to-End**: Verify all functionality works with fresh deployment
-4. **Update Documentation**: Update all references to new stack configuration
+## CRITICAL FINDINGS FROM GIT COMMIT ANALYSIS
+- ✅ **Core System Restored**: All major execution polling components fixed through recent commits (707ad56, de14873, 3638837, b4d7059, 88c5f6c, 398068f, c4bbe34)
+- ✅ **Reconcile Function**: Exists at `lambda/api-handler/index.py:5086-5165` and properly integrated
+- ✅ **Status Transitions**: RUNNING → POLLING working correctly (orchestration Lambda line 524)
+- ✅ **Execution-Finder**: Queries ["POLLING", "CANCELLING"] executions with 1-minute EventBridge triggers
+- ✅ **Execution-Poller**: Comprehensive implementation with security integration and DRS polling
+- ✅ **Backend Job Logs API**: `/executions/{id}/job-logs` endpoint exists with `describe_job_log_items` integration
+- ❌ **Frontend Integration MISSING**: Enhanced DRS status expandable menus not implemented despite backend API availability
+- ❌ **Timeout Configuration**: Current threshold is 30 minutes instead of 1 year (31,536,000 seconds)
 
-## Key Features Restored (Commit 59bed2d)
-- ✅ **Complete DRS endpoint coverage** (all 4 core DRS endpoints + recovery instances)  
-- ✅ **Full RBAC implementation** (47+ endpoints with proper permissions)  
-- ✅ **Working application functionality** (from the January 7th timeframe)  
-- ✅ **Comprehensive DRS integration** (quotas, accounts, source servers, tag sync)
-- ✅ **Modern CI/CD Pipeline** (cherry-picked from recent commits)
-- ✅ **Workflow conflict prevention** (safe-push.sh, check-workflow.sh scripts)
+## IMMEDIATE PRIORITIES
+1. **CRITICAL: Implement Missing Enhanced DRS Status Display (Frontend Integration)**
+   - **Issue**: Enhanced DRS job events timeline and comprehensive server details are **missing from frontend** despite backend API being available
+   - **Root Cause**: `WaveProgress` component never calls the job logs API (`/executions/{id}/job-logs`)
+   - **Required**: Add expandable DRS job events section showing conversion, launching, post-launch phases
+   - **Files to Modify**: `frontend/src/components/WaveProgress.tsx`, `frontend/src/components/ExecutionDetails.tsx`
 
-## DRS Endpoints Available
-1. **`GET /drs/source-servers`** - View DRS source servers
-2. **`GET /drs/quotas`** - View DRS service quotas and limits  
-3. **`GET /drs/accounts`** - View DRS account information
-4. **`POST /drs/tag-sync`** - Manual tag synchronization
-5. **`GET /executions/{executionId}/recovery-instances`** - View recovery instances
+2. **CRITICAL: Fix Timeout Configuration (1 Year vs 30 Minutes)**
+   - **Issue**: Current timeout threshold set to 1800 seconds (30 minutes) instead of 31,536,000 seconds (1 year)
+   - **Impact**: Executions timeout prematurely even when DRS jobs complete successfully
+   - **Evidence**: Execution 7b3e357a-dc1a-4f04-9ab8-d3a6b1a584ad shows "TIMEOUT" despite successful completion
+   - **Required**: Update CloudFormation template and Lambda environment variables
 
-## Architecture Reference (from /archive folder)
-- **Orchestration Lambda**: starts DRS job → sets status to "POLLING"
-- **Execution-finder**: EventBridge scheduled (1 minute) → finds executions with "POLLING" status
-- **Execution-poller**: updates DRS job progress and server statuses in DynamoDB
-- **Frontend**: shows real-time progress from DynamoDB (3-second polling for active executions)
-- **Step Functions**: waitForTaskToken pattern for pause/resume (supports up to 1 year pauses)
-- **Timeout Threshold**: Should be 14,400 seconds (4 hours) for execution-poller, not 1800 seconds (30 minutes)
-- **Step Functions**: Supports up to 1 year pauses (waitForTaskToken pattern)
+3. **Fix Current Stuck Execution**
+   - **Issue**: Execution 7b3e357a-dc1a-4f04-9ab8-d3a6b1a584ad shows "TIMEOUT" but DRS job completed successfully
+   - **Required**: Manually trigger reconcile function to update server statuses from "UNKNOWN" to "LAUNCHED"
+
+## MISSING FRONTEND FEATURES (Per UX Specifications)
+**These features were working before but are now always missing/empty in waves:**
+
+### Enhanced DRS Job Events Timeline
+- **Specification**: "Job Events Timeline with auto-refresh" per UX wireframe requirements
+- **Missing**: Expandable section showing DRS job progress phases:
+  - Conversion phase (SNAPSHOT_START, CONVERSION_START, CONVERSION_END)
+  - Launching phase (LAUNCH_START, instances launching)
+  - Post-launch phase (LAUNCH_END, final status)
+- **Backend Ready**: `/executions/{id}/job-logs` API returns structured DRS events with timestamps
+- **Frontend Gap**: `WaveProgress` component never calls the job logs API
+
+### Comprehensive Server Details
+- **Specification**: Expandable server list menus with full recovery instance information
+- **Missing**: Server details expandable menus are always empty
+- **Required Data**: Recovery instances, metadata, launch status, instance IDs, private IPs
+- **Backend Ready**: `describe_recovery_instances` API available
+- **Frontend Gap**: Server details not integrated into expandable sections
+
+### Real-time Job Progress
+- **Specification**: Auto-refresh of DRS job events during active executions
+- **Missing**: Job events timeline not updating with execution polling
+- **Required**: Integrate job logs polling with existing 3-second execution polling
+- **Backend Ready**: Job logs API supports real-time event streaming
+
+## TECHNICAL IMPLEMENTATION REQUIRED
+
+### Frontend Integration Tasks
+1. **Modify `frontend/src/components/ExecutionDetails.tsx`**:
+   - Add job logs fetching using existing `apiClient.getJobLogs()` method
+   - Pass job logs data to `WaveProgress` component
+   - Integrate job logs polling with existing 3-second execution polling
+
+2. **Enhance `frontend/src/components/WaveProgress.tsx`**:
+   - Add expandable DRS job events section with timeline display
+   - Add comprehensive server details expandable section
+   - Display job events with timestamps and phase indicators
+   - Show server recovery instance details in expandable menus
+
+3. **Update `frontend/src/types/index.ts`** (if needed):
+   - Add job events data structure types for TypeScript support
+
+### Backend Configuration Tasks
+1. **Fix Timeout Configuration**:
+   - Update CloudFormation template: `TIMEOUT_THRESHOLD_SECONDS=31536000` (1 year)
+   - Deploy updated Lambda environment variables
+   - Verify Step Functions waitForTaskToken supports 1-year pauses
+
+2. **Fix Stuck Execution**:
+   - Manually trigger execution-poller for execution 7b3e357a-dc1a-4f04-9ab8-d3a6b1a584ad
+   - Verify server statuses update from "UNKNOWN" to "LAUNCHED"
+   - Test resume functionality after status correction
+
+## CURRENT STACK CONFIGURATION
+- **Stack Name**: `aws-elasticdrs-orchestrator-dev`
+- **API Gateway URL**: `https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev`
+- **Frontend URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
+- **User Pool ID**: `us-east-1_7ClH0e1NS`
+- **Client ID**: `6fepnj59rp7qup2k3n6uda5p19`
 
 ## Authentication & Access
 - **Test User**: `testuser@example.com`
 - **Password**: `TestPassword123!`
-- **User Pool ID**: `us-east-1_FjN6ym9ub`
-- **Client ID**: `6flp1qbehh8fdh79hlv4fo077a`
 
 ### API Authentication
 ```bash
 # Get JWT token for API access
 TOKEN=$(aws cognito-idp admin-initiate-auth \
-  --user-pool-id us-east-1_FjN6ym9ub \
-  --client-id 6flp1qbehh8fdh79hlv4fo077a \
+  --user-pool-id us-east-1_7ClH0e1NS \
+  --client-id 6fepnj59rp7qup2k3n6uda5p19 \
   --auth-flow ADMIN_NO_SRP_AUTH \
   --auth-parameters USERNAME=testuser@example.com,PASSWORD=TestPassword123! \
   --region us-east-1 \
@@ -55,52 +110,70 @@ TOKEN=$(aws cognito-idp admin-initiate-auth \
   --output text)
 
 # Test API endpoints
-curl -H "Authorization: Bearer $TOKEN" "https://ibenlje0zj.execute-api.us-east-1.amazonaws.com/dev/executions"
-curl -H "Authorization: Bearer $TOKEN" "https://ibenlje0zj.execute-api.us-east-1.amazonaws.com/dev/executions/2a0db92f-2cf2-4e6a-a84b-7452fcb0a3f9"
+curl -H "Authorization: Bearer $TOKEN" "https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev/executions"
+curl -H "Authorization: Bearer $TOKEN" "https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev/executions/7b3e357a-dc1a-4f04-9ab8-d3a6b1a584ad"
 ```
 
 ### Frontend Access
-- **URL**: `https://d3u3jnx97pt51j.cloudfront.net`
+- **URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
 - **Login**: Use same credentials (`testuser@example.com` / `TestPassword123!`)
-- **Playwright Testing**: Available if needed for UI automation
 
-## User Instructions
-- **Test APIs**: Use curl with JWT token authentication (see commands above)
-- **Test Frontend**: Use Playwright if needed for UI testing
-- **Create Users**: Can create new Cognito users if needed for testing
+## EXECUTION POLLING SYSTEM ARCHITECTURE (VERIFIED WORKING)
+- **Orchestration Lambda**: ✅ Creates DRS job → sets status to "POLLING" (line 524)
+- **Execution-finder**: ✅ EventBridge scheduled (1 minute) → finds executions with "POLLING" status
+- **Execution-poller**: ✅ Updates DRS job progress and server statuses in DynamoDB
+- **Reconcile Function**: ✅ Exists at `lambda/api-handler/index.py:5086-5165` - provides backup reconciliation
+- **Frontend**: ✅ Shows real-time progress from DynamoDB (3-second polling for active executions)
+- **Step Functions**: ✅ waitForTaskToken pattern for pause/resume (supports up to 1 year pauses)
+- **Job Logs API**: ✅ `/executions/{id}/job-logs` endpoint with `describe_job_log_items` integration
+
+## CURRENT STATUS ANALYSIS
+- ✅ **Core System**: All execution polling components restored and working
+- ✅ **API Working**: Authentication and core endpoints functional
+- ✅ **DRS Integration**: Cross-region support (us-west-2) working correctly
+- ✅ **Backend Job Logs**: API exists and returns structured DRS events
+- ❌ **Frontend Integration**: Enhanced DRS status expandable menus not implemented
+- ❌ **Timeout Configuration**: Set to 30 minutes instead of 1 year
+- ❌ **Stuck Execution**: Shows "TIMEOUT" despite successful DRS job completion
+
+## VALIDATION TASKS
+1. **Test Enhanced DRS Status Display**: Verify expandable job events timeline shows DRS progress phases
+2. **Test Comprehensive Server Details**: Verify expandable server menus show recovery instance information
+3. **Test Real-time Updates**: Verify job events update during active executions
+4. **Test Timeout Configuration**: Verify executions can run for extended periods without premature timeout
+5. **Test Stuck Execution Recovery**: Verify manual reconciliation updates server statuses correctly
+6. **Test Resume Functionality**: Verify resume works after status correction
+
+## FOCUS RULES
+
+### DO FOCUS ON
+- **Frontend Integration**: Implement missing enhanced DRS status display in `WaveProgress` component
+- **Job Logs Integration**: Add job logs API calls to show DRS job events timeline
+- **Server Details Enhancement**: Add comprehensive server details to expandable menus
+- **Timeout Configuration**: Fix 30-minute timeout to 1-year timeout (31,536,000 seconds)
+- **Stuck Execution Fix**: Manually trigger reconciliation for execution 7b3e357a-dc1a-4f04-9ab8-d3a6b1a584ad
+- **End-to-End Testing**: Verify complete execution flow with enhanced UI features
 - **Use Historian**: Take regular snapshots with mcp_context_historian_mcp_create_checkpoint
-- **Reference Archive**: Use `/archive/commit-9546118-uncorrupted/` for working code reference
-- **Check Docs**: Use archive `/docs/requirements` and README for architecture understanding
 
-## Requirements Documentation Reference
-- **Software Requirements**: `archive/commit-9546118-uncorrupted/docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md`
-- **UX Page Specs**: `archive/commit-9546118-uncorrupted/docs/requirements/UX_PAGE_SPECIFICATIONS.md`
-- **Component Library**: `archive/commit-9546118-uncorrupted/docs/requirements/UX_COMPONENT_LIBRARY.md`
-- **Architecture**: execution-finder (EventBridge 1min) → finds POLLING executions → execution-poller updates DRS job status
-- **Real-time Updates**: Frontend polls every 3 seconds for active executions
-- **Timeout**: Step Functions should support up to 1 year pauses (31,536,000 seconds)
+### DO NOT
+- Work on other stacks or deployments
+- Get distracted by pipeline issues unrelated to execution polling
+- Focus on anything except execution polling system fix
+- Make assumptions - always analyze git commits for actual system state
+- Lose context - use historian MCP regularly for progress tracking
 
-## Current Status
-- ✅ API working and authenticated
-- ✅ DRS job completed successfully (both servers LAUNCHED)
-- ✅ execution-poller Lambda packaging fixed
-- ❌ Execution incorrectly marked as TIMEOUT (51 minutes > 30 minute threshold)
-- ❌ Server statuses show "UNKNOWN" instead of "LAUNCHED" in DynamoDB
-- ❌ Timeout threshold too aggressive (30 minutes vs 1 year requirement)
-- ❌ Resume button broken due to incorrect status
+## SUCCESS CRITERIA
+- ✅ Enhanced DRS job events timeline displays in expandable sections
+- ✅ Comprehensive server details show in expandable server menus
+- ✅ Real-time job events update during active executions
+- ✅ Timeout configuration set to 1 year (31,536,000 seconds)
+- ✅ Stuck execution shows correct "COMPLETED" status with "LAUNCHED" servers
+- ✅ Resume functionality works correctly
+- ✅ All expandable menus populated with data (no longer empty)
 
-## Fix Strategy
-1. ✅ Fix execution-poller Lambda packaging issue (COMPLETED)
-2. Fix timeout threshold - increase from 30 minutes to 1 year (31,536,000 seconds)
-3. Manually trigger execution-poller to update server statuses for stuck execution
-4. Test resume functionality via API
-5. Verify execution-finder/execution-poller system works automatically
-6. Test frontend with Playwright if needed
-7. Document progress with historian snapshots
-
-## DO NOT
-- Work on main stack
-- Work on other stacks  
-- Get distracted by pipeline issues
-- Focus on anything except QA stack execution fix
-- Lose context - use historian MCP regularly
+## REFERENCE DOCUMENTATION
+- **UX Specifications**: `docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md` (wireframe requirements)
+- **Spec Files**: `.kiro/specs/execution-polling-system-fix/` (tasks, requirements, design)
+- **API Implementation**: `lambda/api-handler/index.py` (job logs endpoint at lines 5890-6010)
+- **Frontend Components**: `frontend/src/components/WaveProgress.tsx`, `frontend/src/components/ExecutionDetails.tsx`
+- **API Service**: `frontend/src/services/api.ts` (getJobLogs method at line 672)
