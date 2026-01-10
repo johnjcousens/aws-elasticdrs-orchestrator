@@ -18,7 +18,6 @@ import {
   ProgressBar,
   Table,
   Link,
-  Timeline,
 } from '@cloudscape-design/components';
 import { StatusBadge } from './StatusBadge';
 import type { WaveExecution, ServerExecution, JobLogsResponse, JobLogEvent } from '../types';
@@ -579,7 +578,13 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                         <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '8px' }}>
                           Job ID: <code>{wave.jobId}</code> • {waveJobLogs.length} events
                         </div>
-                        <Timeline items={timelineItems} />
+                        <SpaceBetween size="s">
+                          {timelineItems.map((item, idx) => (
+                            <Box key={idx} padding="s" variant="div">
+                              {item.content}
+                            </Box>
+                          ))}
+                        </SpaceBetween>
                       </SpaceBetween>
                     );
                   })()}
