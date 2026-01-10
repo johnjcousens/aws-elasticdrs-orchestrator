@@ -397,6 +397,10 @@ export interface ExecutionListItem {
   executionType?: 'DRILL' | 'RECOVERY';  // Execution type (DRILL or RECOVERY)
   selectionMode?: 'TAGS' | 'PLAN';  // Server selection mode (tag-based or plan-based)
   hasActiveDrsJobs?: boolean;  // True if cancelled execution still has active DRS jobs
+  // Unified orchestration fields
+  invocationSource?: InvocationSource;
+  invocationDetails?: InvocationDetails;
+  initiatedBy?: string;
 }
 
 // ============================================================================
@@ -427,11 +431,6 @@ export interface JobLogEvent {
   sourceServerId?: string;
   error?: string;
   conversionServerId?: string;
-}
-  // Unified orchestration fields
-  invocationSource?: InvocationSource;
-  invocationDetails?: InvocationDetails;
-  initiatedBy?: string;
 }
 
 // ============================================================================
