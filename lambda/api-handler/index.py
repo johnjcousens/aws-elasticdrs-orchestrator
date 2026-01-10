@@ -10787,6 +10787,21 @@ def update_tag_sync_settings(body: Dict) -> Dict:
         # Get updated rule info
         updated_rule = events_client.describe_rule(Name=rule_name)
 
+        # Trigger immediate manual sync when settings are changed or enabled
+        sync_triggered = False
+        sync_result = None
+        
+        if enabled:
+            try:
+                print("Settings updated - triggering immediate manual tag sync")
+                sync_result = handle_drs_tag_sync()
+                sync_triggered = True
+                print(f"Manual sync triggered successfully: {sync_result.get('message', 'Unknown result')}")
+            except Exception as sync_error:
+                print(f"Warning: Failed to trigger manual sync after settings update: {sync_error}")
+                # Don't fail the settings update if sync fails
+                sync_triggered = False
+
         result = {
             "message": f"Tag sync settings updated successfully",
             "enabled": updated_rule.get("State") == "ENABLED",
@@ -10798,6 +10813,8 @@ def update_tag_sync_settings(body: Dict) -> Dict:
                 if updated_rule.get("ModifiedDate")
                 else None
             ),
+            "syncTriggered": sync_triggered,
+            "syncResult": sync_result if sync_triggered else None,
         }
 
         return response(200, result)
