@@ -5026,6 +5026,74 @@ def get_server_details_map(
     return server_map
 
 
+def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[str, Dict]:
+    """
+    Get recovery instance details for servers in a wave.
+    Returns a map of sourceServerId -> {ec2InstanceID, instanceType, privateIp, ec2State}
+    """
+    recovery_map = {}
+    job_id = wave.get("JobId")
+    region = wave.get("Region", "us-east-1")
+    
+    if not job_id or not server_ids:
+        return recovery_map
+    
+    try:
+        drs_client = boto3.client("drs", region_name=region)
+        
+        # Get recovery instances for these source servers
+        ri_response = drs_client.describe_recovery_instances(
+            filters={'sourceServerIDs': server_ids}
+        )
+        
+        recovery_instances = ri_response.get('items', [])
+        
+        # Get EC2 instance details for recovery instances
+        instance_ids = []
+        instance_to_source_map = {}
+        
+        for ri in recovery_instances:
+            source_server_id = ri.get('sourceServerID')
+            ec2_instance_id = ri.get('ec2InstanceID')
+            
+            if ec2_instance_id:
+                instance_ids.append(ec2_instance_id)
+                instance_to_source_map[ec2_instance_id] = source_server_id
+                
+                # Store basic recovery instance info
+                recovery_map[source_server_id] = {
+                    'ec2InstanceID': ec2_instance_id,
+                    'recoveryInstanceID': ri.get('recoveryInstanceID'),
+                    'ec2State': ri.get('ec2InstanceState')
+                }
+        
+        # Get EC2 instance details if we have instance IDs
+        if instance_ids:
+            try:
+                ec2_client = boto3.client("ec2", region_name=region)
+                ec2_response = ec2_client.describe_instances(InstanceIds=instance_ids)
+                
+                for reservation in ec2_response.get('Reservations', []):
+                    for instance in reservation.get('Instances', []):
+                        instance_id = instance.get('InstanceId')
+                        source_server_id = instance_to_source_map.get(instance_id)
+                        
+                        if source_server_id and source_server_id in recovery_map:
+                            recovery_map[source_server_id].update({
+                                'instanceType': instance.get('InstanceType'),
+                                'privateIp': instance.get('PrivateIpAddress'),
+                                'ec2State': instance.get('State', {}).get('Name')
+                            })
+                            
+            except Exception as e:
+                print(f"Error getting EC2 instance details: {e}")
+                
+    except Exception as e:
+        print(f"Error getting recovery instances for wave: {e}")
+    
+    return recovery_map
+
+
 def enrich_execution_with_server_details(execution: Dict) -> Dict:
     """
     Enrich execution waves with server details (hostname, name tag, region).
@@ -8055,11 +8123,16 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                             "sourceServerId": server_id,
                             "recoveryJobId": server.get("RecoveryJobId"),
                             "instanceId": server.get("InstanceId"),
+                            "recoveredInstanceId": server.get("InstanceId"),  # Frontend expects this field name
                             "status": server.get("Status", "UNKNOWN"),
                             "launchTime": safe_timestamp_to_int(
                                 server.get("LaunchTime")
                             ),
                             "error": server.get("Error"),
+                            # EC2 instance details
+                            "instanceType": server.get("InstanceType"),
+                            "privateIp": server.get("PrivateIp"),
+                            "ec2State": server.get("Ec2State"),
                             # Enriched fields from DRS source server
                             "hostname": enriched.get("Hostname", ""),
                             "serverName": enriched.get("NameTag", ""),
@@ -8080,21 +8153,28 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                         }
                     )
             elif server_ids:
-                # Build servers from ServerIds list (minimal info)
+                # Build servers from ServerIds list - enhance with recovery instance details
+                recovery_instances = get_recovery_instances_for_wave(wave, server_ids)
+                
                 for server_id in server_ids:
                     enriched = enriched_map.get(server_id, {})
+                    recovery_info = recovery_instances.get(server_id, {})
+                    
                     servers.append(
                         {
                             "sourceServerId": server_id,
                             "recoveryJobId": wave.get("JobId"),
-                            "instanceId": None,
-                            "status": wave.get(
-                                "Status", "UNKNOWN"
-                            ),  # Use wave status
+                            "instanceId": recovery_info.get("ec2InstanceID"),
+                            "recoveredInstanceId": recovery_info.get("ec2InstanceID"),  # Frontend expects this field name
+                            "status": wave.get("Status", "UNKNOWN"),  # Use wave status
                             "launchTime": safe_timestamp_to_int(
                                 wave.get("StartTime")
                             ),
                             "error": None,
+                            # EC2 recovery instance details
+                            "instanceType": recovery_info.get("instanceType"),
+                            "privateIp": recovery_info.get("privateIp"),
+                            "ec2State": recovery_info.get("ec2State"),
                             # Enriched fields from DRS source server
                             "hostname": enriched.get("Hostname", ""),
                             "serverName": enriched.get("NameTag", ""),
