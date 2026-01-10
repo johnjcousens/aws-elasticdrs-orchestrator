@@ -79,10 +79,12 @@ export const PermissionsProvider: React.FC<PermissionsProviderProps> = ({ childr
         // If no groups found in JWT token, try to fetch from backend API
         if (groups.length === 0) {
           try {
-            // Get API endpoint from aws-config.json (loaded by App.tsx)
-            const apiEndpoint = window.location.origin.includes('localhost') 
-              ? 'https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev'
-              : 'https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev';
+            // Get API endpoint from window.AWS_CONFIG (should be loaded by index.html)
+            const config = window.AWS_CONFIG;
+            if (!config?.API?.REST?.DRSOrchestration?.endpoint) {
+              throw new Error('API endpoint not available in AWS configuration');
+            }
+            const apiEndpoint = config.API.REST.DRSOrchestration.endpoint;
             
             if (!jwtToken) {
               throw new Error('No JWT token available');
