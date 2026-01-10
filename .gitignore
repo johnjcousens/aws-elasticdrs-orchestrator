@@ -129,6 +129,9 @@ reports/security/
 .env.*
 !.env.test.template
 history/
+# Context Historian checkpoints and session data
+**/history/
+history/**/*
 
 # -------------------------
 # DISABLED/LEGACY
