@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - January 10, 2026 - **EVENTBRIDGE TAG SYNC RESTORATION & ENHANCEMENT** 🏷️
+
+### 🎯 **EventBridge Scheduled Tag Sync Fully Restored**
+Complete restoration and enhancement of EventBridge scheduled tag sync functionality that was previously working but broken due to validation logic issues.
+
+### ✨ **New Features**
+- **Immediate Sync Trigger**: Automatic manual tag sync when settings are updated or tag sync is re-enabled
+- **Asynchronous Processing**: Non-blocking sync execution prevents API Gateway timeouts
+- **Real-time Feedback**: API responses include sync status and results for frontend notifications
+- **Enhanced User Experience**: Settings updates complete instantly while sync runs in background
+
+### 🔧 **Technical Fixes**
+- **EventBridge Validation Logic**: Fixed incorrect API Gateway context requirements for direct Lambda invocation
+- **Dual Payload Support**: Lambda now handles both API Gateway events and direct EventBridge invocations
+- **Simple JSON Payload**: Updated EventBridge configuration to use DRS tools archive pattern
+- **YAML Syntax Fixes**: Resolved CloudFormation template formatting issues
+- **Direct Lambda Invocation**: Implemented proper EventBridge → Lambda pattern without API Gateway
+
+### 🚀 **API Enhancements**
+- **Settings Management**: Complete CRUD operations for tag sync configuration
+  - `GET /config/tag-sync` - Retrieve current settings
+  - `PUT /config/tag-sync` - Update settings with immediate sync trigger
+- **Manual Tag Sync**: Enhanced with cross-region support (28 DRS regions)
+  - `POST /drs/tag-sync` - Manual sync with JWT authentication
+- **Real-time EventBridge Updates**: Settings changes immediately update EventBridge rules
+
+### 📊 **Verified Functionality**
+- **Cross-Region Sync**: Successfully synced 6 DRS servers in us-west-2
+- **Schedule Configuration**: Tested 1-24 hour intervals with real-time EventBridge updates
+- **Enable/Disable Control**: Verified EventBridge rule state management
+- **Authentication**: JWT token validation working correctly
+- **Async Sync Trigger**: Settings update completes in ~1 second, sync runs in background
+
+### 🏗️ **Infrastructure Status**
+- **EventBridge Rule**: `aws-elasticdrs-orchestrator-tag-sync-schedule-dev`
+- **Current Schedule**: Configurable 1-24 hours (currently rate(12 hours))
+- **Payload**: `{"synch_tags": true, "synch_instance_type": true}`
+- **Status**: ENABLED and fully functional
+
+### 🎯 **Restore Point**
+- **Tag**: `v1.6.1-eventbridge-restored` - Reliable restore point for EventBridge functionality
+- **Production Ready**: All features tested and verified working
+- **Reference Implementation**: Based on working patterns from `/archive/drs-tools`
+
 ## [1.6.0] - January 10, 2026 - **COMPREHENSIVE RESTORATION MILESTONE** 🎯
 
 ### 🚀 **Complete Platform Restoration & Enhancement**
