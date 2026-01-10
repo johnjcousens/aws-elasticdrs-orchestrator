@@ -314,9 +314,9 @@ const calculateProgress = (
 };
 
 /**
- * Server table column definitions with improved spacing and AWS design standards
+ * Create server table column definitions with wave context for consistent status display
  */
-const serverColumnDefinitions = [
+const createServerColumnDefinitions = (wave: WaveExecution) => [
   {
     id: 'serverId',
     header: 'Server ID',
@@ -348,38 +348,54 @@ const serverColumnDefinitions = [
     id: 'status',
     header: 'Status',
     cell: (server: ServerExecution) => {
-      const status = server.launchStatus || server.status || 'pending';
-      // Use appropriate status display text
+      const waveEffectiveStatus = getEffectiveWaveStatus(wave);
+      const serverStatus = server.launchStatus || server.status || 'pending';
+      
+      // CRITICAL FIX: If wave is completed, ALL servers should show completed status
+      // This ensures consistent UI when wave is done, regardless of individual server status data inconsistencies
       let displayStatus = '';
-      switch (status.toUpperCase()) {
-        case 'COMPLETED':
-        case 'LAUNCHED':
-          displayStatus = '✓';
-          break;
-        case 'FAILED':
-        case 'ERROR':
-          displayStatus = '✗';
-          break;
-        case 'IN_PROGRESS':
-        case 'LAUNCHING':
-        case 'POLLING':
-          displayStatus = '⟳';
-          break;
-        case 'PENDING':
-          displayStatus = '⏳';
-          break;
-        case 'STARTED':
-          displayStatus = 'Started';
-          break;
-        default:
-          // Show full status for unknown cases instead of truncating
-          displayStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+      let badgeColor: 'blue' | 'green' | 'red' | 'grey' = 'grey';
+      
+      if (waveEffectiveStatus === 'completed') {
+        // Wave is completed - force all servers to show completed status for consistency
+        displayStatus = '✓';
+        badgeColor = 'green';
+      } else {
+        // Wave not completed - use individual server status
+        switch (serverStatus.toUpperCase()) {
+          case 'COMPLETED':
+          case 'LAUNCHED':
+            displayStatus = '✓';
+            badgeColor = 'green';
+            break;
+          case 'FAILED':
+          case 'ERROR':
+            displayStatus = '✗';
+            badgeColor = 'red';
+            break;
+          case 'IN_PROGRESS':
+          case 'LAUNCHING':
+          case 'POLLING':
+            displayStatus = '⟳';
+            badgeColor = 'blue';
+            break;
+          case 'PENDING':
+            displayStatus = '⏳';
+            badgeColor = 'grey';
+            break;
+          case 'STARTED':
+            displayStatus = 'Started';
+            badgeColor = 'blue';
+            break;
+          default:
+            // Show full status for unknown cases instead of truncating
+            displayStatus = serverStatus.charAt(0).toUpperCase() + serverStatus.slice(1).toLowerCase();
+            badgeColor = 'grey';
+        }
       }
       
       return (
-        <Badge 
-          color={getLaunchStatusColor(status)}
-        >
+        <Badge color={badgeColor}>
           {displayStatus}
         </Badge>
       );
@@ -625,7 +641,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                   }}
                 >
                   <Table
-                    columnDefinitions={serverColumnDefinitions}
+                    columnDefinitions={createServerColumnDefinitions(wave)}
                     items={wave.serverExecutions}
                     variant="embedded"
                     stripedRows
