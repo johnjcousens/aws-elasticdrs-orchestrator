@@ -332,7 +332,7 @@ const serverColumnDefinitions = [
     header: 'Status',
     cell: (server: ServerExecution) => {
       const status = server.launchStatus || server.status || 'pending';
-      // Use very short status text to prevent wrapping
+      // Use appropriate status display text
       let displayStatus = '';
       switch (status.toUpperCase()) {
         case 'COMPLETED':
@@ -351,8 +351,12 @@ const serverColumnDefinitions = [
         case 'PENDING':
           displayStatus = '⏳';
           break;
+        case 'STARTED':
+          displayStatus = 'Started';
+          break;
         default:
-          displayStatus = status.substring(0, 4).toUpperCase();
+          // Show full status for unknown cases instead of truncating
+          displayStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
       }
       
       return (
@@ -363,8 +367,8 @@ const serverColumnDefinitions = [
         </Badge>
       );
     },
-    width: 60,
-    minWidth: 60,
+    width: 80,
+    minWidth: 80,
   },
   {
     id: 'instanceId',
