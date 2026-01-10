@@ -10686,6 +10686,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
     """Update tag sync configuration settings"""
     try:
         import boto3
+        import json
 
         # Validate input
         if not isinstance(body, dict):
@@ -10793,12 +10794,38 @@ def update_tag_sync_settings(body: Dict) -> Dict:
         
         if enabled:
             try:
-                print("Settings updated - triggering immediate manual tag sync")
-                sync_result = handle_drs_tag_sync()
-                sync_triggered = True
-                print(f"Manual sync triggered successfully: {sync_result.get('message', 'Unknown result')}")
+                print("Settings updated - triggering immediate manual tag sync asynchronously")
+                
+                # Trigger async manual sync by invoking this same Lambda function
+                lambda_client = boto3.client("lambda")
+                function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "")
+                
+                if function_name:
+                    # Create async payload for manual sync
+                    async_payload = {
+                        "httpMethod": "POST",
+                        "path": "/drs/tag-sync",
+                        "headers": {"Content-Type": "application/json"},
+                        "body": "{}",
+                        "requestContext": {"identity": {"sourceIp": "settings-update"}},
+                        "asyncTrigger": True
+                    }
+                    
+                    # Invoke async (don't wait for response)
+                    lambda_client.invoke(
+                        FunctionName=function_name,
+                        InvocationType='Event',  # Async invocation
+                        Payload=json.dumps(async_payload)
+                    )
+                    
+                    sync_triggered = True
+                    sync_result = {"message": "Manual sync triggered asynchronously"}
+                    print("Async manual sync triggered successfully")
+                else:
+                    print("Warning: Could not determine Lambda function name for async sync")
+                    
             except Exception as sync_error:
-                print(f"Warning: Failed to trigger manual sync after settings update: {sync_error}")
+                print(f"Warning: Failed to trigger async manual sync after settings update: {sync_error}")
                 # Don't fail the settings update if sync fails
                 sync_triggered = False
 
