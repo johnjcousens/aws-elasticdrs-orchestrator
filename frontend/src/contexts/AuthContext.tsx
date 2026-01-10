@@ -30,30 +30,36 @@ const configureAmplify = () => {
   const config = window.AWS_CONFIG;
   
   if (!config) {
-    console.warn('⚠️ AWS_CONFIG not available, using fallback configuration');
-    // Fallback configuration for development
-    const fallbackConfig = {
-      Auth: {
-        Cognito: {
-          region: 'us-east-1',
-          userPoolId: 'us-east-1_o3tXVi5h3',
-          userPoolClientId: '5k6a5vbsmvgbvnb5a1iqs598oq',
-          loginWith: {
-            email: true
-          }
-        }
-      },
-      API: {
-        REST: {
-          DRSOrchestration: {
-            endpoint: 'https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev',
-            region: 'us-east-1'
-          }
-        }
-      }
-    };
-    Amplify.configure(fallbackConfig);
+    console.error('❌ AWS_CONFIG not available - configuration loading failed');
+    console.error('This indicates a deployment issue. Check that aws-config.json is properly generated and served.');
+    
+    // Instead of hardcoded fallbacks, throw an error to make the problem visible
+    throw new Error('AWS configuration not available. Please check deployment.');
   } else {
+    // Validate configuration before using it
+    const requiredFields = [
+      'Auth.Cognito.region',
+      'Auth.Cognito.userPoolId', 
+      'Auth.Cognito.userPoolClientId',
+      'API.REST.DRSOrchestration.endpoint'
+    ];
+    
+    for (const field of requiredFields) {
+      const value = field.split('.').reduce((obj: any, key: string) => obj?.[key], config);
+      if (!value) {
+        console.error(`❌ Missing required configuration field: ${field}`);
+        throw new Error(`Invalid AWS configuration: missing ${field}`);
+      }
+    }
+    
+    // Log configuration for debugging (without sensitive values)
+    console.log('✅ AWS Configuration loaded:', {
+      region: config.Auth.Cognito.region,
+      userPoolId: config.Auth.Cognito.userPoolId,
+      apiEndpoint: config.API.REST.DRSOrchestration.endpoint,
+      timestamp: new Date().toISOString()
+    });
+    
     // Create a clean config without optional identityPoolId
     const cleanConfig = {
       Auth: {
