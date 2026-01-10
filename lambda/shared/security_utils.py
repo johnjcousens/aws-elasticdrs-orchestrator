@@ -214,27 +214,36 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
 
         sanitized_key = sanitize_string(key, 255)
 
-        # Sanitize value based on type
+        # Sanitize value based on type - PRESERVE ORIGINAL DATA TYPES
         if isinstance(value, str):
             sanitized[sanitized_key] = sanitize_string(value, 4096)
         elif isinstance(value, (int, float, bool)):
+            # Keep original numeric/boolean values unchanged
             sanitized[sanitized_key] = value
         elif isinstance(value, list):
-            sanitized[sanitized_key] = [
-                (
-                    sanitize_string(str(item), 1024)
-                    if isinstance(item, str)
-                    else item
-                )
-                for item in value
-            ]
+            # Process list items recursively while preserving types
+            sanitized_list = []
+            for item in value:
+                if isinstance(item, str):
+                    sanitized_list.append(sanitize_string(item, 1024))
+                elif isinstance(item, dict):
+                    sanitized_list.append(sanitize_dynamodb_input(item))
+                else:
+                    # Keep other types (int, float, bool, None) unchanged
+                    sanitized_list.append(item)
+            sanitized[sanitized_key] = sanitized_list
         elif isinstance(value, dict):
             sanitized[sanitized_key] = sanitize_dynamodb_input(value)
         elif value is None:
             sanitized[sanitized_key] = value
         else:
-            # Convert other types to string and sanitize
-            sanitized[sanitized_key] = sanitize_string(str(value), 1024)
+            # For unknown types, only convert to string if it's not a basic type
+            # This preserves DynamoDB-compatible types while sanitizing strings
+            if isinstance(value, (bytes, bytearray)):
+                sanitized[sanitized_key] = sanitize_string(str(value), 1024)
+            else:
+                # Keep the original value to preserve data structure
+                sanitized[sanitized_key] = value
 
     return sanitized
 
