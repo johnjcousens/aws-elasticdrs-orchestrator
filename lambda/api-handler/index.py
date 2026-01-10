@@ -10876,7 +10876,7 @@ def handle_eventbridge_tag_sync(event: Dict) -> Dict:
         # Validate EventBridge rule name matches expected pattern
         invocation_details = event.get("invocationDetails", {})
         rule_name = invocation_details.get("scheduleRuleName", "")
-        expected_rule_pattern = f"aws-drs-orchestrator-tag-sync-schedule-"
+        expected_rule_pattern = f"aws-elasticdrs-orchestrator-tag-sync-schedule-"
 
         if not rule_name or not rule_name.startswith(expected_rule_pattern):
             print(
