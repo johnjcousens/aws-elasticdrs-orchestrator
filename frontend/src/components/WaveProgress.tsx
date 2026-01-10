@@ -174,19 +174,6 @@ const getJobLogEventColor = (event: JobLogEvent): string => {
       return '#5f6b7a'; // AWS Text Secondary for other events
   }
 };
-    case 'CONVERSION_START':
-    case 'LAUNCH_START':
-    case 'JOB_START':
-      return '#0972d3'; // Blue for start events
-    case 'SNAPSHOT_END':
-    case 'CONVERSION_END':
-    case 'LAUNCH_END':
-    case 'JOB_END':
-      return '#037f0c'; // Green for completion events
-    default:
-      return '#5f6b7a'; // Gray for other events
-  }
-};
 
 /**
  * Parse timestamp - handles both Unix timestamps and ISO strings
