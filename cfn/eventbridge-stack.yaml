@@ -181,8 +181,6 @@ Resources:
           Arn: !Ref ApiHandlerFunctionArn
           RoleArn: !GetAtt EventBridgeInvokeRole.Arn
           Input: '{"synch_tags": true, "synch_instance_type": true}'
-              }
-            }
 
   # Permission for EventBridge to invoke API Handler for tag sync
   TagSyncSchedulePermission:
