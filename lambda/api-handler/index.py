@@ -5125,10 +5125,16 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
         server_ids = wave.get("ServerIds", [])
         region = wave.get("Region", "us-east-1")
 
+        # Get recovery instance details for this wave
+        recovery_instances = get_recovery_instances_for_wave(wave, server_ids)
+        print(f"DEBUG: Wave {wave.get('WaveName', 'Unknown')} - recovery instances: {recovery_instances}")
+
         # Build enriched server list
         enriched_servers = []
         for server_id in server_ids:
             details = server_details_map.get(server_id, {})
+            recovery_info = recovery_instances.get(server_id, {})
+            
             enriched_servers.append(
                 {
                     "SourceServerId": server_id,
@@ -5142,6 +5148,11 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
                     "ReplicationState": details.get(
                         "replicationState", "UNKNOWN"
                     ),
+                    # Recovery instance details
+                    "RecoveryInstanceId": recovery_info.get("ec2InstanceID", ""),
+                    "InstanceType": recovery_info.get("instanceType", ""),
+                    "PrivateIp": recovery_info.get("privateIp", ""),
+                    "Ec2State": recovery_info.get("ec2State", ""),
                 }
             )
 
@@ -8086,11 +8097,16 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                             "JobId"
                         ),  # JobId is at wave level
                         "instanceId": server.get("RecoveryInstanceID"),
+                        "recoveredInstanceId": server.get("RecoveryInstanceID") or enriched.get("RecoveryInstanceId"),  # Frontend expects this field name
                         "status": server.get("LaunchStatus", "UNKNOWN"),
                         "launchTime": safe_timestamp_to_int(
                             wave.get("StartTime")
                         ),
                         "error": server.get("Error"),
+                        # Recovery instance details from EnrichedServers
+                        "instanceType": enriched.get("InstanceType", ""),
+                        "privateIp": enriched.get("PrivateIp", ""),
+                        "ec2State": enriched.get("Ec2State", ""),
                         # Enriched fields from DRS source server
                         "hostname": enriched.get("Hostname", ""),
                         "serverName": enriched.get("NameTag", ""),
@@ -8115,12 +8131,17 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
 
             if legacy_servers:
                 # Use legacy Servers array format - enhance with recovery instance details
-                recovery_instances = get_recovery_instances_for_wave(wave, [s.get("SourceServerId") for s in legacy_servers])
+                server_ids_for_recovery = [s.get("SourceServerId") for s in legacy_servers]
+                print(f"DEBUG: Getting recovery instances for wave with server IDs: {server_ids_for_recovery}")
+                recovery_instances = get_recovery_instances_for_wave(wave, server_ids_for_recovery)
+                print(f"DEBUG: Recovery instances result: {recovery_instances}")
                 
                 for server in legacy_servers:
                     server_id = server.get("SourceServerId")
                     enriched = enriched_map.get(server_id, {})
                     recovery_info = recovery_instances.get(server_id, {})
+                    
+                    print(f"DEBUG: Server {server_id} - recovery_info: {recovery_info}")
                     
                     servers.append(
                         {
