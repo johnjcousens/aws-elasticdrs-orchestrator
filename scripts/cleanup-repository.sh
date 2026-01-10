@@ -227,6 +227,26 @@ for file in "${MISC_FILES[@]}"; do
 done
 print_status "Removed $removed_count miscellaneous files"
 
+# Phase 7: Remove build artifacts and test reports
+print_status "Phase 7: Removing build artifacts and test reports..."
+
+BUILD_ARTIFACTS=(
+    "reference-build"
+    "frontend/playwright-report"
+    "frontend/test-results"
+    "reports/security"
+)
+
+removed_count=0
+for dir in "${BUILD_ARTIFACTS[@]}"; do
+    if [[ -d "$dir" ]]; then
+        rm -rf "$dir"
+        print_success "Removed directory $dir"
+        ((removed_count++))
+    fi
+done
+print_status "Removed $removed_count build artifact directories"
+
 # Clean up empty directories
 print_status "Cleaning up empty directories..."
 find . -type d -empty -not -path "./.git/*" -delete 2>/dev/null || true
