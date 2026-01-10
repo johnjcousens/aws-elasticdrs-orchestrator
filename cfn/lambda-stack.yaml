@@ -955,7 +955,7 @@ Resources:
       Code:
         S3Bucket: !Ref SourceBucket
         S3Key: "lambda/api-handler.zip"
-      Timeout: 120
+      Timeout: 300  # Increased from 120 to 300 seconds to handle security processing overhead
       MemorySize: 512
       Environment:
         Variables:
