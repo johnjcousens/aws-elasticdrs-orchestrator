@@ -400,8 +400,8 @@ const createServerColumnDefinitions = (wave: WaveExecution) => [
         </Badge>
       );
     },
-    width: 80,
-    minWidth: 80,
+    width: 100,
+    minWidth: 100,
   },
   {
     id: 'instanceId',
