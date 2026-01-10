@@ -1,8 +1,8 @@
 {
   "region": "us-east-1",
-  "userPoolId": "us-east-1_1uL3EBcXZ",
-  "userPoolClientId": "7hccekiu9cpcm8amthfdrhodoq",
-  "apiEndpoint": "https://1qr1mtiuog.execute-api.us-east-1.amazonaws.com/dev"
+  "userPoolId": "us-east-1_o3tXVi5h3",
+  "userPoolClientId": "5k6a5vbsmvgbvnb5a1iqs598oq",
+  "apiEndpoint": "https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev"
 }
 
 // ============================================================================
