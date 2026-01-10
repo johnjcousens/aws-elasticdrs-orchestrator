@@ -29,7 +29,7 @@ from shared.security_utils import (
     InputValidationError,
     create_security_headers,
     log_security_event,
-    sanitize_dynamodb_input,
+    sanitize_string,
     validate_api_gateway_event,
 )
 
@@ -371,6 +371,49 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
 
         print(f"Cross-account role assumption failed: {error_msg}")
         raise RuntimeError(error_msg)
+
+
+def sanitize_user_input_selectively(data: Dict, operation: str) -> Dict:
+    """
+    Apply security sanitization only to user-provided input fields that need it.
+    Preserves system data and API response structures.
+    
+    Args:
+        data: Input data dictionary
+        operation: Type of operation (create_pg, update_pg, create_plan, etc.)
+    
+    Returns:
+        Data with only user input fields sanitized
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    # Define which fields need sanitization for each operation
+    sanitizable_fields = {
+        'create_pg': ['GroupName', 'Description'],
+        'update_pg': ['GroupName', 'Description'], 
+        'create_plan': ['PlanName', 'Description'],
+        'update_plan': ['PlanName', 'Description'],
+        'execute_plan': ['InitiatedBy'],  # Only sanitize user-provided fields
+    }
+    
+    fields_to_sanitize = sanitizable_fields.get(operation, [])
+    
+    if not fields_to_sanitize:
+        return data  # No sanitization needed for this operation
+    
+    sanitized = data.copy()
+    
+    for field in fields_to_sanitize:
+        if field in sanitized and isinstance(sanitized[field], str):
+            try:
+                sanitized[field] = sanitize_string(sanitized[field], 255)
+            except Exception as e:
+                print(f"Warning: Could not sanitize field {field}: {e}")
+                # Keep original value if sanitization fails
+                pass
+    
+    return sanitized
 
 
 def response(
@@ -1477,7 +1520,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             # Call tag sync directly (no authentication needed for EventBridge)
             return handle_drs_tag_sync({})
 
-        # Basic validation for API Gateway events (less strict than before)
+        # Basic validation for API Gateway events
         if not isinstance(event, dict):
             return response(400, {"error": "Invalid request format"})
             
@@ -1493,30 +1536,17 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         path_parameters = event.get("pathParameters") or {}
         query_parameters = event.get("queryStringParameters") or {}
 
-        # Sanitize and validate request body (only if present)
+        # Parse request body (restore original functionality)
         try:
             if event.get("body"):
                 body = json.loads(event.get("body"))
-                # Only sanitize user input data if it's a dictionary, not all data
-                if isinstance(body, dict) and body:  # Only sanitize non-empty dictionaries
-                    body = sanitize_dynamodb_input(body)
             else:
                 body = {}
-        except (json.JSONDecodeError, InputValidationError) as e:
-            log_security_event("invalid_json", {"error": str(e)}, "WARN")
+        except json.JSONDecodeError as e:
             return response(400, {"error": "Invalid JSON in request body"})
         except Exception as e:
-            # Catch any other sanitization errors and log them
-            print(f"Error in request body sanitization: {e}")
-            log_security_event("sanitization_error", {"error": str(e)}, "ERROR")
-            # Continue with unsanitized body for GET requests or if sanitization fails
-            if event.get("body"):
-                try:
-                    body = json.loads(event.get("body"))
-                except:
-                    body = {}
-            else:
-                body = {}
+            print(f"Error parsing request body: {e}")
+            body = {}
 
         print(f"Extracted values - Method: {http_method}, Path: {path}")
 
