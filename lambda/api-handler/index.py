@@ -1513,25 +1513,21 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             invocation_source = event.get("invocationSource", "")
             user_agent = event.get("headers", {}).get("User-Agent", "")
 
-            # Multiple validation criteria for EventBridge requests
+            # EventBridge validation - EventBridge directly invokes Lambda (no API Gateway)
             is_eventbridge_request = (
-                # Primary indicators
+                # Primary indicators from EventBridge configuration
                 (
                     source_ip == "eventbridge"
                     or invocation_source == "EVENTBRIDGE"
                 )
                 and
-                # Additional security checks
-                (
-                    # EventBridge requests typically have no Authorization header
-                    not event.get("headers", {}).get("Authorization")
-                    and
-                    # EventBridge requests come through API Gateway with specific patterns
-                    event.get("requestContext", {}).get("stage")
-                    and
-                    # Validate request structure matches EventBridge pattern
-                    event.get("requestContext", {}).get("requestId")
-                )
+                # Security check - EventBridge requests have no user Authorization header
+                not event.get("headers", {}).get("Authorization")
+                and
+                # EventBridge requests should have the configured payload structure
+                event.get("httpMethod") == "POST"
+                and
+                event.get("path") == "/drs/tag-sync"
             )
 
             if is_eventbridge_request:
