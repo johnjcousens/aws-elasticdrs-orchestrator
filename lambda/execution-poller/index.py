@@ -529,7 +529,10 @@ def handle_timeout(
             job_id = wave.get("JobId")
             if job_id:
                 try:
-                    wave_region = wave.get("Region", "us-east-1")
+                    wave_region = wave.get("Region")
+                    if not wave_region:
+                        logger.error(f"Wave {wave.get('WaveName')} missing Region field")
+                        continue
                     job_status = query_drs_job_status(job_id, wave_region)
                     wave["Status"] = job_status.get("Status", "TIMEOUT")
                     wave["StatusMessage"] = job_status.get(
@@ -597,7 +600,10 @@ def poll_wave_status(
             return wave
 
         # Query DRS for job status
-        wave_region = wave.get("Region", "us-east-1")
+        wave_region = wave.get("Region")
+        if not wave_region:
+            logger.error(f"Wave {wave.get('WaveName')} missing Region field")
+            return wave
         job_status = query_drs_job_status(job_id, wave_region)
 
         # Get DRS job status and message
@@ -607,7 +613,10 @@ def poll_wave_status(
 
         # Update server statuses from DRS participating servers
         if "ParticipatingServers" in job_status:
-            wave_region = wave.get("Region", "us-east-1")
+            wave_region = wave.get("Region")
+            if not wave_region:
+                logger.error(f"Wave {wave.get('WaveName')} missing Region field for server status update")
+                return wave
             updated_servers = []
 
             for drs_server in job_status["ParticipatingServers"]:
@@ -765,7 +774,7 @@ def poll_wave_status(
         return wave
 
 
-def query_drs_job_status(job_id: str, region: str = "us-east-1") -> Dict[str, Any]:
+def query_drs_job_status(job_id: str, region: str) -> Dict[str, Any]:
     """
     Query DRS API for job status.
 

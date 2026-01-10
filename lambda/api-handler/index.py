@@ -5098,11 +5098,12 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
         updated_waves = []
         
         for wave in waves:
-            wave_status = wave.get("Status", "").upper()
+            wave_status = wave.get("Status", "")
             job_id = wave.get("JobId")
             
-            # Only reconcile waves with JobId that show unknown status (match original implementation)
-            if job_id and wave_status in ["UNKNOWN", ""]:
+            # Only reconcile waves with JobId that show stale statuses (handle case insensitive)
+            # Based on systematic analysis: reconcile UNKNOWN, STARTED, INITIATED, POLLING, LAUNCHING, IN_PROGRESS
+            if job_id and wave_status.upper() in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
                 try:
                     print(f"Reconciling wave {wave.get('WaveName')} with DRS job {job_id} (current status: {wave_status})")
                     

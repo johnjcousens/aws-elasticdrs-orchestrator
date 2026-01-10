@@ -24,7 +24,7 @@ import { DateTimeDisplay } from './DateTimeDisplay';
 import { WaveProgress } from './WaveProgress';
 import { ConfirmDialog } from './ConfirmDialog';
 import apiClient from '../services/api';
-import type { Execution } from '../types';
+import type { Execution, JobLogsResponse } from '../types';
 
 interface ExecutionDetailsProps {
   open: boolean;
@@ -45,6 +45,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
   onRefresh,
 }) => {
   const [execution, setExecution] = useState<Execution | null>(null);
+  const [jobLogs, setJobLogs] = useState<JobLogsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -59,8 +60,21 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
         setLoading(true);
         setError(null);
       }
+      
+      // Fetch execution details
       const data = await apiClient.getExecution(executionId);
       setExecution(data);
+      
+      // Fetch job logs for enhanced DRS status display
+      try {
+        const jobLogsData = await apiClient.getJobLogs(executionId);
+        setJobLogs(jobLogsData);
+      } catch (jobLogsError) {
+        // Job logs are optional - don't fail the entire request if they're not available
+        console.warn('Failed to fetch job logs:', jobLogsError);
+        setJobLogs(null);
+      }
+      
     } catch (err: unknown) {
       const error = err as Error & { message?: string };
       setError(error.message || 'Failed to load execution details');
@@ -354,6 +368,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
                 waves={execution.waveExecutions || []} 
                 totalWaves={execution.totalWaves}
                 currentWave={execution.currentWave}
+                jobLogs={jobLogs}
               />
             </Container>
           </SpaceBetween>
