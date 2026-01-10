@@ -325,6 +325,7 @@ export interface ServerExecution {
   recoveredInstanceId?: string;
   instanceType?: string;
   privateIp?: string;
+  launchTime?: string | number; // FIXED: Add missing launchTime field (Unix timestamp or ISO string)
   error?: ExecutionError;
   healthCheckResults?: HealthCheckResult[];
 }
