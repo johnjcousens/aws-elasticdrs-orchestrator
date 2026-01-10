@@ -35,6 +35,8 @@
 | **OIDC Stack** | `cfn/github-oidc-stack.yaml` | IAM role for GitHub Actions |
 | **Account** | 777788889999 | AWS account for all resources |
 | **Deployment Bucket** | `aws-elasticdrs-orchestrator` | Artifact storage |
+| **Current Stack** | `aws-elasticdrs-orchestrator-dev` | Active CloudFormation stack |
+| **Project Name** | `aws-elasticdrs-orchestrator` | Standardized project naming |
 
 ---
 
@@ -122,18 +124,33 @@ git push origin main
 
 ## Pipeline Architecture
 
-### 6-Stage Pipeline
+### 7-Stage Pipeline
 
 | Stage | Purpose | Duration | Key Actions |
 |-------|---------|----------|-------------|
+| **Detect Changes** | Analyze changed files | ~10s | Determine deployment scope (docs-only, frontend-only, full) |
 | **Validate** | Template and code validation | ~2 min | CloudFormation validation, Python linting, TypeScript checking |
 | **Security Scan** | **Enhanced comprehensive security analysis** | ~3 min | **Bandit, Safety, Semgrep, CFN-Lint, ESLint, NPM Audit with thresholds** |
-| **Build** | Package creation | ~3 min | Lambda packaging, frontend build |
+| **Build** | Package creation | ~3 min | Lambda packaging (7 functions), frontend build |
 | **Test** | Automated testing | ~2 min | Unit tests, integration tests |
 | **Deploy Infrastructure** | AWS resource deployment | ~10 min | CloudFormation stack updates |
 | **Deploy Frontend** | Frontend deployment | ~2 min | S3 sync, CloudFront invalidation |
 
 **Total Duration**: ~22 minutes for complete deployment
+
+**Intelligent Pipeline Optimization**:
+- **Documentation-only**: ~30 seconds (95% time savings)
+- **Frontend-only**: ~12 minutes (45% time savings)  
+- **Full deployment**: ~22 minutes (complete pipeline)
+
+**Lambda Functions Covered (7 total)**:
+- `aws-elasticdrs-orchestrator-api-handler-dev`
+- `aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev`
+- `aws-elasticdrs-orchestrator-execution-finder-dev`
+- `aws-elasticdrs-orchestrator-execution-poller-dev`
+- `aws-elasticdrs-orchestrator-frontend-builder-dev`
+- `aws-elasticdrs-orchestrator-bucket-cleaner-dev`
+- `aws-elasticdrs-orchestrator-notification-formatter-dev`
 
 ### Enhanced Security Scanning
 

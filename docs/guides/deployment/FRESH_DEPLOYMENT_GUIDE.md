@@ -1,12 +1,12 @@
 # AWS DRS Orchestration - Fresh Deployment Guide
 
-This guide provides step-by-step instructions for deploying the AWS DRS Orchestration platform to a fresh AWS environment using the new `aws-elasticdrs-orchestrator` naming convention.
+This guide provides step-by-step instructions for deploying the AWS DRS Orchestration platform to a fresh AWS environment using GitHub Actions CI/CD (MANDATORY) with emergency manual deployment procedures.
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Detailed Deployment Process](#detailed-deployment-process)
+- [Quick Start (GitHub Actions - MANDATORY)](#quick-start-github-actions---mandatory)
+- [Emergency Manual Deployment (RESTRICTED)](#emergency-manual-deployment-restricted)
 - [Configuration Options](#configuration-options)
 - [Post-Deployment Setup](#post-deployment-setup)
 - [Validation and Testing](#validation-and-testing)
@@ -83,35 +83,64 @@ aws sts get-caller-identity
 export AWS_DEFAULT_REGION=us-east-1
 ```
 
-## Quick Start
+## Quick Start (GitHub Actions - MANDATORY)
 
-⚠️ **CRITICAL**: Use GitHub Actions CI/CD for all deployments. Manual scripts are for emergencies only.
+⚠️ **CRITICAL**: GitHub Actions CI/CD is the **MANDATORY** deployment method. Manual scripts are for emergencies only.
 
-### GitHub Actions Deployment (REQUIRED)
+### Standard GitHub Actions Deployment
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
 cd aws-elasticdrs-orchestrator
 
-# 2. Set up GitHub Actions CI/CD (one-time)
-# Follow: docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md
+# 2. Verify GitHub Actions is configured (one-time setup)
+# Check: .github/workflows/deploy.yml exists
+# Check: GitHub repository secrets are configured
 
-# 3. Deploy via GitHub Actions
+# 3. MANDATORY: Check for running workflows before pushing
+./scripts/check-workflow.sh
+
+# 4. Deploy via GitHub Actions (REQUIRED)
 git add .
 git commit -m "feat: initial deployment"
-git push origin main
+./scripts/safe-push.sh  # RECOMMENDED - auto-checks workflows
 
-# 4. Monitor deployment at:
+# 5. Monitor deployment at:
 # https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
-### Emergency Manual Deployment (RESTRICTED)
+### Required GitHub Secrets
 
-**ONLY use manual deployment for:**
-- GitHub Actions service outage
+Configure these secrets in GitHub repository → Settings → Secrets and variables → Actions:
+
+| Secret Name | Value | Description |
+|-------------|-------|-------------|
+| `AWS_ROLE_ARN` | `arn:aws:iam::777788889999:role/aws-elasticdrs-orchestrator-github-actions-dev` | IAM role for GitHub Actions |
+| `DEPLOYMENT_BUCKET` | `aws-elasticdrs-orchestrator` | S3 deployment bucket |
+| `STACK_NAME` | `aws-elasticdrs-orchestrator-dev` | CloudFormation stack name |
+| `ADMIN_EMAIL` | `admin@yourcompany.com` | Admin email for Cognito |
+
+### Pipeline Stages (7 total)
+
+1. **Detect Changes** (~10s) - Analyzes changed files for deployment scope
+2. **Validate** (~2 min) - CloudFormation validation, code quality
+3. **Security Scan** (~3 min) - Comprehensive security analysis
+4. **Build** (~3 min) - Lambda packaging (7 functions), frontend build
+5. **Test** (~2 min) - Unit and integration tests
+6. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+7. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
+
+**Total Duration**: ~22 minutes for complete deployment
+
+## Emergency Manual Deployment (RESTRICTED)
+
+⚠️ **WARNING**: Manual deployment bypasses all quality gates and should ONLY be used for:
+- GitHub Actions service outage (confirmed AWS/GitHub issue)
 - Critical production hotfix when pipeline is broken
 - Pipeline debugging (with immediate Git follow-up)
+
+### Emergency Procedure
 
 ```bash
 # EMERGENCY ONLY: Manual fresh deployment
@@ -120,8 +149,14 @@ git push origin main
 # IMMEDIATELY follow up with proper Git commit
 git add .
 git commit -m "emergency: fresh deployment setup"
-git push  # Restores proper CI/CD tracking
+./scripts/safe-push.sh  # Restores proper CI/CD tracking
 ```
+
+**Prohibited Practices**:
+- ❌ Use manual deployment for regular development
+- ❌ Deploy "quick fixes" without Git tracking
+- ❌ Bypass pipeline for convenience
+- ❌ Skip the pipeline "just this once"
 
 ## Detailed Deployment Process
 
