@@ -3,14 +3,10 @@
 ## CRITICAL: Automatic Security Scanning Trigger
 
 **ALWAYS perform comprehensive security scanning when the user requests:**
-- "security scan"
-- "code review" 
-- "security review"
-- "check security"
-- "analyze security"
-- "scan for vulnerabilities"
-- "security analysis"
-- "review this file" (for security-sensitive files)
+- "security scan", "code review", "security review"
+- "check security", "analyze security", "scan for vulnerabilities"
+- "security analysis", "is this secure", "security check"
+- "review [filename]" (for security-sensitive files)
 
 ## Comprehensive Security Scan Protocol
 
