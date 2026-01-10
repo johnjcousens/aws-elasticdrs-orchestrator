@@ -8,11 +8,21 @@ All functions return the COMPLETE state object
 
 import json
 import os
+import re
 import time
 from decimal import Decimal
 from typing import Dict, List
 
 import boto3
+
+# Import security utilities (mandatory - no fallback)
+from shared.security_utils import (
+    log_security_event,
+    safe_aws_client_call,
+    sanitize_dynamodb_input,
+    sanitize_string_input,
+    validate_dynamodb_input,
+)
 
 # Environment variables
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
@@ -70,34 +80,51 @@ def create_drs_client(region: str, account_context: Dict = None):
     Returns:
         boto3 DRS client
     """
+    # Security validation for inputs
+    region = sanitize_string_input(region)
+    
+    # Validate region format
+    if not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$', region):
+        raise ValueError(f"Invalid AWS region format: {region}")
+    
+    log_security_event("drs_client_creation", {
+        "region": region,
+        "cross_account": bool(account_context)
+    })
+    
     if account_context and account_context.get("accountId"):
-        account_id = account_context["accountId"]
-        role_name = account_context.get(
+        account_id = sanitize_string_input(account_context["accountId"])
+        role_name = sanitize_string_input(account_context.get(
             "assumeRoleName", "drs-orchestration-cross-account-role"
-        )
+        ))
+
+        # Validate account ID format
+        if not re.match(r'^\d{12}$', account_id):
+            raise ValueError(f"Invalid AWS account ID format: {account_id}")
 
         print(
             f"Creating cross-account DRS client for account {account_id} in region {region}"
         )
 
-        # Assume role in target account
-        sts_client = boto3.client("sts", region_name=region)
-        session_name = f"drs-orchestration-{int(time.time())}"
-
-        try:
-            assumed_role = sts_client.assume_role(
-                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",  # noqa: E231
+        # Assume role in target account with safe AWS call
+        def assume_role_call():
+            sts_client = boto3.client("sts", region_name=region)
+            session_name = f"drs-orchestration-{int(time.time())}"
+            return sts_client.assume_role(
+                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",
                 RoleSessionName=session_name,
             )
 
-            credentials = assumed_role["Credentials"]
-            print(
-                f"Successfully assumed role {role_name} in account {account_id}"
-            )
+        assumed_role = safe_aws_client_call(assume_role_call)
 
-            return boto3.client(
-                "drs",
-                region_name=region,
+        credentials = assumed_role["Credentials"]
+        print(
+            f"Successfully assumed role {role_name} in account {account_id}"
+        )
+
+        return boto3.client(
+            "drs",
+            region_name=region,
                 aws_access_key_id=credentials["AccessKeyId"],
                 aws_secret_access_key=credentials["SecretAccessKey"],
                 aws_session_token=credentials["SessionToken"],
@@ -133,44 +160,95 @@ class DecimalEncoder(json.JSONEncoder):
 
 def lambda_handler(event, context):
     """
-    Step Functions orchestration handler - Archive pattern
+    Step Functions orchestration handler with security - Archive pattern
 
     All actions return COMPLETE state object (Lambda owns state)
     """
-    print(f"Event: {json.dumps(event, cls=DecimalEncoder)}")
+    try:
+        # Enhanced security logging
+        log_security_event(
+            "stepfunctions_orchestration_invoked",
+            {
+                "function_name": context.function_name,
+                "request_id": context.aws_request_id,
+                "action": event.get("action", "unknown"),
+                "execution_id": event.get("execution", "unknown"),
+            },
+        )
 
-    action = event.get("action")
+        print(f"Event: {json.dumps(event, cls=DecimalEncoder)}")
 
-    # Extract account context for multi-account support
-    account_context = event.get("AccountContext", {})
-    account_id = account_context.get("accountId")
-    if account_id:
-        print(f"Operating in account context: {account_id}")
+        # Input validation
+        action = event.get("action")
+        if not action or not isinstance(action, str):
+            log_security_event("invalid_stepfunctions_action", {"action": action})
+            raise ValueError("Invalid or missing action parameter")
 
-    if action == "begin":
-        return begin_wave_plan(event)
-    elif action == "update_wave_status":
-        return update_wave_status(event)
-    elif action == "store_task_token":
-        return store_task_token(event)
-    elif action == "resume_wave":
-        return resume_wave(event)
-    else:
-        raise ValueError(f"Unknown action: {action}")
+        # Sanitize the entire event
+        sanitized_event = sanitize_dynamodb_input(event)
+        
+        # Extract account context for multi-account support
+        account_context = sanitized_event.get("AccountContext", {})
+        account_id = account_context.get("accountId")
+        if account_id:
+            print(f"Operating in account context: {account_id}")
+
+        if action == "begin":
+            return begin_wave_plan(sanitized_event)
+        elif action == "update_wave_status":
+            return update_wave_status(sanitized_event)
+        elif action == "store_task_token":
+            return store_task_token(sanitized_event)
+        elif action == "resume_wave":
+            return resume_wave(sanitized_event)
+        else:
+            log_security_event("unknown_stepfunctions_action", {"action": action})
+            raise ValueError(f"Unknown action: {action}")
+
+    except Exception as e:
+        log_security_event(
+            "stepfunctions_orchestration_error",
+            {
+                "error": str(e),
+                "action": event.get("action", "unknown"),
+                "execution_id": event.get("execution", "unknown"),
+            },
+            "ERROR"
+        )
+        raise
 
 
 def begin_wave_plan(event: Dict) -> Dict:
     """
-    Initialize wave plan execution
+    Initialize wave plan execution with security validation
     Returns COMPLETE state object (archive pattern)
     """
-    plan = event.get("plan", {})
-    execution_id = event.get("execution")
+    # Security validation and sanitization
+    plan = sanitize_dynamodb_input(event.get("plan", {}))
+    execution_id = sanitize_string_input(event.get("execution", ""))
     is_drill = event.get("isDrill", True)
-    account_context = event.get("AccountContext", {})
+    account_context = sanitize_dynamodb_input(event.get("AccountContext", {}))
 
-    plan_id = plan.get("PlanId")
+    # Validate required parameters
+    if not execution_id:
+        raise ValueError("Missing required execution parameter")
+    
+    validate_dynamodb_input("ExecutionId", execution_id)
+
+    plan_id = sanitize_string_input(plan.get("PlanId", ""))
+    if not plan_id:
+        raise ValueError("Missing required PlanId in plan")
+    
+    validate_dynamodb_input("PlanId", plan_id)
+    
     waves = plan.get("Waves", [])
+
+    log_security_event("wave_plan_begin", {
+        "execution_id": execution_id,
+        "plan_id": plan_id,
+        "wave_count": len(waves),
+        "is_drill": is_drill
+    })
 
     print(f"Beginning wave plan for execution {execution_id}, plan {plan_id}")
     print(f"Total waves: {len(waves)}, isDrill: {is_drill}")
@@ -181,7 +259,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     state = {
         # Core identifiers
         "plan_id": plan_id,
-        "plan_name": plan.get("PlanName", ""),
+        "plan_name": sanitize_string_input(plan.get("PlanName", "")),
         "execution_id": execution_id,
         "is_drill": is_drill,
         "AccountContext": account_context,  # Step Functions expects uppercase

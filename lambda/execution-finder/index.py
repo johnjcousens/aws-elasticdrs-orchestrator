@@ -13,7 +13,12 @@ from typing import Any, Dict, List
 
 import boto3
 
-from shared.security_utils import log_security_event
+from shared.security_utils import (
+    log_security_event,
+    safe_aws_client_call,
+    sanitize_string_input,
+    validate_dynamodb_input,
+)
 
 # Configure logging
 logger = logging.getLogger()
@@ -57,17 +62,22 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         Dict containing invocation results
     """
     try:
-        # Log security event for function invocation
+        # Enhanced security logging
         log_security_event(
-            "lambda_invocation",
+            "execution_finder_invoked",
             {
-                "function_name": "execution_finder",
-                "event_source": event.get("source", "unknown"),
-                "context_request_id": getattr(
-                    context, "aws_request_id", "unknown"
-                ),
+                "function_name": context.function_name,
+                "event_source": event.get("source", "eventbridge"),
+                "context_request_id": context.aws_request_id,
+                "event_detail_type": event.get("detail-type", "Scheduled Event"),
             },
         )
+
+        # Validate EventBridge event structure
+        source = sanitize_string_input(event.get("source", ""))
+        if not source:
+            log_security_event("invalid_eventbridge_event", {"event_keys": list(event.keys())})
+            return {"statusCode": 400, "body": "Invalid EventBridge event"}
 
         logger.info("Execution Finder Lambda invoked")
         logger.info(
@@ -75,8 +85,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             f"index: {STATUS_INDEX_NAME}"
         )
 
-        # Query StatusIndex GSI for POLLING executions
-        polling_executions = query_polling_executions()
+        # Query StatusIndex GSI for POLLING executions with safe AWS call
+        def query_polling_executions_safe():
+            return query_polling_executions()
+
+        polling_executions = safe_aws_client_call(query_polling_executions_safe)
 
         logger.info(
             f"Found {len(polling_executions)} executions in POLLING status"
@@ -180,15 +193,18 @@ def query_polling_executions() -> List[Dict[str, Any]]:
     for status in statuses_to_poll:
         try:
             # CRITICAL: Use expression attribute names for reserved keyword "Status"
-            response = dynamodb.query(
-                TableName=EXECUTION_HISTORY_TABLE,
-                IndexName=STATUS_INDEX_NAME,
-                KeyConditionExpression="#status = :status",
-                ExpressionAttributeNames={
-                    "#status": "Status"  # Required: Status is reserved keyword
-                },
-                ExpressionAttributeValues={":status": {"S": status}},
-            )
+            def dynamodb_query():
+                return dynamodb.query(
+                    TableName=EXECUTION_HISTORY_TABLE,
+                    IndexName=STATUS_INDEX_NAME,
+                    KeyConditionExpression="#status = :status",
+                    ExpressionAttributeNames={
+                        "#status": "Status"  # Required: Status is reserved keyword
+                    },
+                    ExpressionAttributeValues={":status": {"S": status}},
+                )
+
+            response = safe_aws_client_call(dynamodb_query)
 
             logger.info(
                 f"DynamoDB query for {status} returned {response['Count']} "
@@ -413,20 +429,31 @@ def invoke_pollers_for_executions(
         execution_id = execution["ExecutionId"]
 
         try:
+            # Validate and sanitize execution data
+            execution_id = sanitize_string_input(execution["ExecutionId"])
+            plan_id = sanitize_string_input(execution.get("PlanId", ""))
+            execution_type = sanitize_string_input(execution.get("ExecutionType", "DRILL"))
+            
+            # Validate execution ID format
+            validate_dynamodb_input("ExecutionId", execution_id)
+
             # Prepare payload for Execution Poller
             payload = {
                 "ExecutionId": execution_id,
-                "PlanId": execution.get("PlanId"),
-                "ExecutionType": execution.get("ExecutionType", "DRILL"),
+                "PlanId": plan_id,
+                "ExecutionType": execution_type,
                 "StartTime": execution.get("StartTime"),
             }
 
-            # Invoke Execution Poller Lambda (async)
-            response = lambda_client.invoke(
-                FunctionName=EXECUTION_POLLER_FUNCTION,
-                InvocationType="Event",  # Async invocation
-                Payload=json.dumps(payload),
-            )
+            # Invoke Execution Poller Lambda (async) with safe AWS call
+            def lambda_invoke():
+                return lambda_client.invoke(
+                    FunctionName=EXECUTION_POLLER_FUNCTION,
+                    InvocationType="Event",  # Async invocation
+                    Payload=json.dumps(payload),
+                )
+
+            response = safe_aws_client_call(lambda_invoke)
 
             logger.info(
                 f"Invoked Execution Poller for "
