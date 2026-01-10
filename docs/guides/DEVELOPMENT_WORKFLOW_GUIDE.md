@@ -72,7 +72,9 @@ EOF
 
 ## CI/CD Pipeline Integration
 
-### GitHub Actions Infrastructure
+### GitHub Actions Infrastructure (MANDATORY)
+
+**ALL deployments MUST use GitHub Actions CI/CD pipeline. Manual deployment scripts are for emergencies only.**
 
 The project uses **GitHub Actions** for automated deployment with OIDC-based AWS authentication (no long-lived credentials).
 
@@ -84,37 +86,82 @@ The project uses **GitHub Actions** for automated deployment with OIDC-based AWS
 | **OIDC Stack** | `cfn/github-oidc-stack.yaml` |
 | **Account** | ***REMOVED*** |
 | **Deployment Bucket** | `aws-elasticdrs-orchestrator` |
+| **Current Stack** | `aws-elasticdrs-orchestrator-dev` |
+| **Project Name** | `aws-elasticdrs-orchestrator` |
 
 ### Pipeline Stages
 
-1. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
-2. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
-3. **Build** (~3 min) - Lambda packaging, frontend build
-4. **Test** (~2 min) - Unit tests
-5. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
-6. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
+1. **Detect Changes** (~10s) - Analyzes changed files to determine deployment scope
+2. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
+3. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
+4. **Build** (~3 min) - Lambda packaging, frontend build
+5. **Test** (~2 min) - Unit tests
+6. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
+7. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
 
-**Total Duration**: ~20 minutes for complete deployment
+**Total Duration**: ~22 minutes for complete deployment
+
+**Intelligent Pipeline Optimization**:
+- **Documentation-only**: ~30 seconds (95% time savings)
+- **Frontend-only**: ~12 minutes (45% time savings)  
+- **Full deployment**: ~22 minutes (complete pipeline)
+
+**Lambda Functions Covered (7 total)**:
+- `api-handler` - Main API handler
+- `orchestration-stepfunctions` - Step Functions orchestration
+- `execution-finder` - EventBridge execution finder
+- `execution-poller` - DRS job status polling
+- `frontend-builder` - Frontend build automation
+- `bucket-cleaner` - S3 bucket cleanup
+- `notification-formatter` - Notification formatting
 
 ### Development Workflow Options
 
-#### Option 1: GitHub Actions CI/CD (Recommended for Production)
+#### Option 1: GitHub Actions CI/CD (MANDATORY for Production)
+
+⚠️ **CRITICAL**: Always check for running workflows before pushing to prevent deployment conflicts.
+
 ```bash
-# Simply push to main branch to trigger deployment
-git add .
-git commit -m "Your changes"
-git push origin main  # Triggers GitHub Actions workflow
+# MANDATORY: Check for running workflows before pushing
+./scripts/check-workflow.sh && git push origin main
+
+# OR use the safe push script (RECOMMENDED)
+./scripts/safe-push.sh
 
 # Monitor deployment at:
 # https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
 
-#### Option 2: Manual Deployment (Recommended for Development)
+**Prerequisites (One-time Setup)**:
 ```bash
-# Fast development workflow using S3 deployment bucket
-./scripts/sync-to-deployment-bucket.sh                    # Sync all to S3
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # Update Lambda functions (5s)
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn       # Deploy CloudFormation (5-10min)
+# Install GitHub CLI
+brew install gh
+
+# Authenticate with GitHub
+gh auth login
+```
+
+**Workflow Conflict Prevention Rules**:
+1. **ALWAYS check for running workflows** before pushing
+2. **NEVER push while a deployment is in progress** - causes conflicts and failures
+3. **WAIT for completion** if a workflow is running (max 30 minutes)
+4. **Use safe-push.sh script** instead of manual `git push`
+
+#### Option 2: Emergency Manual Deployment (RESTRICTED)
+
+**ONLY use manual deployment for:**
+- GitHub Actions service outage (confirmed AWS/GitHub issue)
+- Critical production hotfix when pipeline is broken
+- Pipeline debugging (with immediate Git follow-up)
+
+```bash
+# EMERGENCY ONLY: Fast Lambda code update
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code  # ~5 seconds
+
+# IMMEDIATELY follow up with proper Git commit
+git add .
+git commit -m "emergency: describe the critical fix"
+git push  # Restores proper CI/CD tracking
 ```
 
 ### When to Use Each Approach
@@ -140,7 +187,9 @@ s3://aws-elasticdrs-orchestrator/
 └── docs/                         # Documentation (synced for reference)
 ```
 
-### Manual Deployment Script Options
+### Manual Deployment Script Options (EMERGENCY ONLY)
+
+⚠️ **WARNING**: These bypass GitHub Actions and should only be used in emergencies.
 
 ```bash
 # Basic operations
@@ -151,29 +200,60 @@ s3://aws-elasticdrs-orchestrator/
 # Advanced operations
 ./scripts/sync-to-deployment-bucket.sh --dry-run          # Preview changes
 ./scripts/sync-to-deployment-bucket.sh --profile prod     # Use specific AWS profile
-./scripts/sync-to-deployment-bucket.sh --cleanup-orphans  # Remove unused S3 objects
-
-# Individual Lambda updates (faster for development)
-./scripts/sync-to-deployment-bucket.sh --update-lambda-api-handler
-./scripts/sync-to-deployment-bucket.sh --update-lambda-orchestration
-./scripts/sync-to-deployment-bucket.sh --update-lambda-execution-finder
-./scripts/sync-to-deployment-bucket.sh --update-lambda-execution-poller
-./scripts/sync-to-deployment-bucket.sh --update-lambda-frontend-builder
+./scripts/sync-to-deployment-bucket.sh --validate         # Run local validation pipeline
 
 # Frontend operations
 ./scripts/sync-to-deployment-bucket.sh --build-frontend   # Build frontend first
 ./scripts/sync-to-deployment-bucket.sh --deploy-frontend  # Deploy to CloudFront
-./scripts/sync-to-deployment-bucket.sh --update-frontend-config  # Update config only
+
+# Emergency deployment with all safety checks
+./scripts/sync-to-deployment-bucket.sh --emergency-deploy --update-lambda-code
 ```
+
+**Prohibited Practices**:
+- ❌ Use sync script for regular development
+- ❌ Deploy "quick fixes" without Git tracking
+- ❌ Bypass pipeline for convenience
+- ❌ Skip the pipeline "just this once"
+- ❌ Push while GitHub Actions workflow is running
 
 ## Stack Configuration
 
-The deployment script uses the correct stack configuration:
+### Current Working Stack (PRIMARY)
 
-- **Stack Name**: `drs-orch-v4` (not `drs-orchestration-dev`)
-- **Lambda Functions**: `drsorchv4-*-test` naming pattern
-- **Frontend Bucket**: `drsorchv4-fe-***REMOVED***-test`
-- **CloudFront Distribution**: `***REMOVED***`
+- **Stack Name**: `aws-elasticdrs-orchestrator-dev`
+- **Project Name**: `aws-elasticdrs-orchestrator`
+- **Environment**: `dev`
+- **Lambda Functions**: `aws-elasticdrs-orchestrator-*-dev` naming pattern
+- **API Gateway URL**: `https://***REMOVED***.execute-api.us-east-1.amazonaws.com/dev`
+- **Frontend URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
+- **Cognito User Pool ID**: `***REMOVED***`
+- **Cognito Client ID**: `***REMOVED***`
+
+### Authentication (Test User)
+- **Username**: `***REMOVED***`
+- **Password**: `***REMOVED***`
+- **Role**: Admin (full access)
+
+### S3 Deployment Bucket Structure
+
+The S3 bucket serves as the source of truth for all deployable artifacts:
+
+```
+s3://aws-elasticdrs-orchestrator/
+├── cfn/                          # CloudFormation templates (15+ total)
+├── lambda/                       # Lambda deployment packages (7 functions)
+│   ├── api-handler.zip
+│   ├── orchestration-stepfunctions.zip
+│   ├── execution-finder.zip
+│   ├── execution-poller.zip
+│   ├── frontend-builder.zip
+│   ├── bucket-cleaner.zip
+│   └── notification-formatter.zip
+├── frontend/                     # Frontend build artifacts
+├── scripts/                      # Deployment and automation scripts
+└── docs/                         # Documentation (synced for reference)
+```
 
 ## Development Commands
 
@@ -252,18 +332,24 @@ After deployment, verify the correct resources are updated:
 ```bash
 # Check CloudFront URL matches your environment
 aws cloudformation describe-stacks \
-  --stack-name drs-orch-v4 \
+  --stack-name aws-elasticdrs-orchestrator-dev \
   --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
   --output text
 
 # Verify Lambda function was updated
 aws lambda get-function \
-  --function-name drsorchv4-api-handler-test \
+  --function-name aws-elasticdrs-orchestrator-api-handler-dev \
   --query 'Configuration.LastModified' \
   --output text
 
-# Check frontend bucket sync
-aws s3 ls s3://drsorchv4-fe-***REMOVED***-test/assets/ | head -5
+# Check API Gateway endpoint
+curl https://***REMOVED***.execute-api.us-east-1.amazonaws.com/dev/health
+
+# Verify all Lambda functions are deployed
+for func in api-handler orchestration-stepfunctions execution-finder execution-poller frontend-builder bucket-cleaner notification-formatter; do
+  echo "Checking aws-elasticdrs-orchestrator-${func}-dev..."
+  aws lambda get-function --function-name aws-elasticdrs-orchestrator-${func}-dev --query 'Configuration.LastModified' --output text
+done
 ```
 
 ## Makefile Targets

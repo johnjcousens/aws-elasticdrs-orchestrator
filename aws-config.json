@@ -1,33 +1,7 @@
 {
   "region": "us-east-1",
-  "userPoolId": "us-east-1_o3tXVi5h3",
-  "userPoolClientId": "5k6a5vbsmvgbvnb5a1iqs598oq",
-  "apiEndpoint": "https://28e48oiajf.execute-api.us-east-1.amazonaws.com/dev"
+  "userPoolId": "***REMOVED***",
+  "userPoolClientId": "***REMOVED***",
+  "identityPoolId": "***REMOVED***",
+  "apiEndpoint": "https://***REMOVED***.execute-api.us-east-1.amazonaws.com/dev"
 }
-
-// ============================================================================
-// STATIC CONFIGURATION FILE - DEPRECATED APPROACH
-// ============================================================================
-// 
-// ⚠️  WARNING: This static configuration is deprecated
-// 
-// Current Approach (GitHub Actions):
-// This file is dynamically generated during frontend deployment using 
-// CloudFormation stack outputs. The GitHub Actions workflow creates
-// aws-config.js with current stack values.
-// 
-// Dynamic Generation Process:
-// 1. CloudFormation deployment completes
-// 2. Stack outputs provide: API endpoint, Cognito User Pool ID, App Client ID
-// 3. GitHub Actions workflow generates aws-config.js with live values
-// 4. Frontend loads configuration from aws-config.js (not this JSON file)
-// 
-// This static file is maintained for:
-// - Local development reference
-// - Manual deployment fallback
-// - Documentation of expected configuration structure
-// 
-// For current deployment process, see:
-// - .github/workflows/deploy.yml (GitHub Actions workflow)
-// - docs/guides/deployment/CICD_SETUP_GUIDE.md (deployment documentation)
-// ============================================================================
