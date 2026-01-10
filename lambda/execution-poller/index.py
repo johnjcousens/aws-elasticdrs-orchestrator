@@ -529,7 +529,7 @@ def handle_timeout(
             job_id = wave.get("JobId")
             if job_id:
                 try:
-                    wave_region = wave.get("region", "us-east-1")
+                    wave_region = wave.get("Region", "us-east-1")
                     job_status = query_drs_job_status(job_id, wave_region)
                     wave["Status"] = job_status.get("Status", "TIMEOUT")
                     wave["StatusMessage"] = job_status.get(
@@ -597,7 +597,7 @@ def poll_wave_status(
             return wave
 
         # Query DRS for job status
-        wave_region = wave.get("region", "us-east-1")
+        wave_region = wave.get("Region", "us-east-1")
         job_status = query_drs_job_status(job_id, wave_region)
 
         # Get DRS job status and message
@@ -607,7 +607,7 @@ def poll_wave_status(
 
         # Update server statuses from DRS participating servers
         if "ParticipatingServers" in job_status:
-            wave_region = wave.get("region", "us-east-1")
+            wave_region = wave.get("Region", "us-east-1")
             updated_servers = []
 
             for drs_server in job_status["ParticipatingServers"]:
