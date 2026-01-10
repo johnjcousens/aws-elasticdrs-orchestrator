@@ -86,6 +86,11 @@ lambda/package/
 frontend/node_modules/
 frontend/build/
 frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+
+# Reference build artifacts (old builds)
+reference-build/
 
 # Python artifacts
 __pycache__/
@@ -96,6 +101,9 @@ venv/
 env/
 .coverage
 .pytest_cache/
+
+# Security scan reports (temporary)
+reports/security/
 
 # -------------------------
 # IDE AND SYSTEM FILES
