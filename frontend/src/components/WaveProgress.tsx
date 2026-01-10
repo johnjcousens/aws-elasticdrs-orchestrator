@@ -62,45 +62,52 @@ const getEffectiveWaveStatus = (wave: WaveExecution): string => {
 };
 
 /**
- * Get status indicator icon for wave
+ * Get status indicator icon for wave (AWS Design System compatible)
  */
 const getWaveStatusIndicator = (status: string): string => {
   switch (status?.toLowerCase()) {
     case 'completed':
     case 'launched':
-      return '✓';
+      return '✅'; // Green checkmark for completed
     case 'failed':
-      return '✗';
+      return '❌'; // Red X for failed
     case 'in_progress':
     case 'started':
     case 'polling':
     case 'launching':
-      return '▶';
+      return '🔄'; // Blue spinning for in progress
     case 'pending':
+      return '⏳'; // Hourglass for pending
     case 'skipped':
-      return '○';
+      return '⏭️'; // Skip icon
+    case 'cancelled':
+      return '🚫'; // Cancelled icon
     default:
-      return '○';
+      return '⚪'; // Default circle
   }
 };
 
 /**
- * Get status color for wave indicator
+ * Get status color for wave indicator (AWS Design System colors)
  */
 const getStatusColor = (status: string): string => {
   switch (status?.toLowerCase()) {
     case 'completed':
     case 'launched':
-      return '#037f0c';
+      return '#037f0c'; // AWS Success Green
     case 'failed':
-      return '#d91515';
+      return '#d91515'; // AWS Error Red
     case 'in_progress':
     case 'started':
     case 'polling':
     case 'launching':
-      return '#0972d3';
+      return '#0972d3'; // AWS Info Blue
+    case 'pending':
+      return '#ff9900'; // AWS Warning Orange
+    case 'cancelled':
+      return '#879596'; // AWS Disabled Gray
     default:
-      return '#5f6b7a';
+      return '#5f6b7a'; // AWS Text Secondary
   }
 };
 
@@ -115,39 +122,58 @@ const getWaveJobLogs = (jobLogs: JobLogsResponse | null, waveNumber: number): Jo
 };
 
 /**
- * Format job log event for display
+ * Format job log event for display with AWS-style icons
  */
 const formatJobLogEvent = (event: JobLogEvent): string => {
   switch (event.event) {
     case 'SNAPSHOT_START':
-      return 'Starting snapshot creation';
+      return '📸 Starting snapshot creation';
     case 'SNAPSHOT_END':
-      return 'Snapshot creation completed';
+      return '✅ Snapshot creation completed';
     case 'CONVERSION_START':
-      return 'Starting server conversion';
+      return '🔄 Starting server conversion';
     case 'CONVERSION_END':
-      return 'Server conversion completed';
+      return '✅ Server conversion completed';
     case 'LAUNCH_START':
-      return 'Starting instance launch';
+      return '🚀 Starting instance launch';
     case 'LAUNCH_END':
-      return 'Instance launch completed';
+      return '✅ Instance launch completed';
     case 'JOB_START':
-      return 'DRS job started';
+      return '▶️ DRS job started';
     case 'JOB_END':
-      return 'DRS job completed';
+      return '🎉 DRS job completed';
+    case 'CLEANUP_START':
+      return '🧹 Starting cleanup';
+    case 'CLEANUP_END':
+      return '✅ Cleanup completed';
     default:
-      return event.event.replace(/_/g, ' ').toLowerCase();
+      return `📋 ${event.event.replace(/_/g, ' ').toLowerCase()}`;
   }
 };
 
 /**
- * Get status color for job log event
+ * Get status color for job log event (AWS Design System)
  */
 const getJobLogEventColor = (event: JobLogEvent): string => {
-  if (event.error) return '#d91515'; // Red for errors
+  if (event.error) return '#d91515'; // AWS Error Red
   
   switch (event.event) {
     case 'SNAPSHOT_START':
+    case 'CONVERSION_START':
+    case 'LAUNCH_START':
+    case 'JOB_START':
+    case 'CLEANUP_START':
+      return '#0972d3'; // AWS Info Blue for start events
+    case 'SNAPSHOT_END':
+    case 'CONVERSION_END':
+    case 'LAUNCH_END':
+    case 'JOB_END':
+    case 'CLEANUP_END':
+      return '#037f0c'; // AWS Success Green for completion events
+    default:
+      return '#5f6b7a'; // AWS Text Secondary for other events
+  }
+};
     case 'CONVERSION_START':
     case 'LAUNCH_START':
     case 'JOB_START':
