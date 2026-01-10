@@ -543,6 +543,7 @@ export const ExecutionDetailsPage: React.FC = () => {
             recoveredInstanceId: server.instanceId || server.recoveredInstanceId || server.ec2InstanceId,
             instanceType: server.instanceType,
             privateIp: server.privateIp,
+            launchTime: server.launchTime, // FIXED: Add missing launchTime field
             region: server.region || waveRegion,
             sourceInstanceId: server.sourceInstanceId,
             sourceAccountId: server.sourceAccountId,
