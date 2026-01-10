@@ -397,7 +397,37 @@ export interface ExecutionListItem {
   executionType?: 'DRILL' | 'RECOVERY';  // Execution type (DRILL or RECOVERY)
   selectionMode?: 'TAGS' | 'PLAN';  // Server selection mode (tag-based or plan-based)
   hasActiveDrsJobs?: boolean;  // True if cancelled execution still has active DRS jobs
-  
+}
+
+// ============================================================================
+// Job Logs Types (Enhanced DRS Status Display)
+// ============================================================================
+
+export interface JobLogsResponse {
+  executionId: string;
+  jobLogs: Array<{
+    waveNumber: number;
+    jobId: string;
+    events: Array<{
+      event: string;
+      eventData: Record<string, unknown>;
+      logDateTime: string;
+      sourceServerId?: string;
+      error?: string;
+      conversionServerId?: string;
+    }>;
+    error?: string;
+  }>;
+}
+
+export interface JobLogEvent {
+  event: string;
+  eventData: Record<string, unknown>;
+  logDateTime: string;
+  sourceServerId?: string;
+  error?: string;
+  conversionServerId?: string;
+}
   // Unified orchestration fields
   invocationSource?: InvocationSource;
   invocationDetails?: InvocationDetails;
