@@ -24,11 +24,14 @@ git add .
 # Commit with descriptive message
 git commit -m "feat: add new feature description"
 
-# MANDATORY: Check for running workflows before pushing
-./scripts/check-workflow.sh && git push
+# RECOMMENDED: Check deployment scope first
+./scripts/check-deployment-scope.sh
 
-# OR use the safe push script (recommended)
+# MANDATORY: Use safe push script (includes workflow checks)
 ./scripts/safe-push.sh
+
+# Alternative: Manual workflow check before push
+./scripts/check-workflow.sh && git push
 ```
 
 ### 3. Monitor Pipeline
@@ -80,7 +83,18 @@ git push
 
 ### Safe Push Scripts
 
-Two scripts are available to prevent GitHub Actions conflicts:
+Three scripts are available to prevent GitHub Actions conflicts and optimize deployments:
+
+#### Deployment Scope Check: `./scripts/check-deployment-scope.sh`
+```bash
+# Preview deployment scope and time estimates before pushing
+./scripts/check-deployment-scope.sh
+
+# Shows:
+# - Documentation-only: ~30 seconds (95% time savings)
+# - Frontend-only: ~12 minutes (45% time savings)
+# - Full deployment: ~22 minutes (complete pipeline)
+```
 
 #### Quick Check: `./scripts/check-workflow.sh`
 ```bash

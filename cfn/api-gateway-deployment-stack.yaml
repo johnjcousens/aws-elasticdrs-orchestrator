@@ -204,6 +204,8 @@ Resources:
       StackName: !Ref AWS::StackName
       # Force update on every deployment
       ForceUpdate: !Sub '${DeploymentTimestamp}-${AWS::StackId}'
+      # Force replacement due to PROJECT_NAME change
+      Version: "2026-01-10-project-name-fix"
 
   # ============================================================================
   # API STAGE WITH ENTERPRISE CONFIGURATION

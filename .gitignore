@@ -41,6 +41,10 @@ lambda/*/.coverage
 # Cline memory (internal)
 .cline_memory/
 
+# AI Assistant configurations (internal)
+.kiro/
+.amazonq/
+
 # Internal scripts (not for customers)
 # Keep only: sync-to-deployment-bucket.sh, validate-templates.sh, create-test-user.sh, package-frontend-builder.sh
 scripts/check-jsx-corruption.sh

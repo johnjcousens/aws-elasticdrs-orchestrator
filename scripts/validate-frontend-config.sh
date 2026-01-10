@@ -5,7 +5,7 @@
 
 set -e
 
-STACK_NAME="${1:-aws-drs-orchestrator-fresh}"
+STACK_NAME="${1:-aws-elasticdrs-orchestrator-dev}"
 REGION="${2:-us-east-1}"
 
 echo "🔍 Validating frontend configuration against stack: $STACK_NAME"

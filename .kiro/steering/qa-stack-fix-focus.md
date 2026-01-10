@@ -86,36 +86,40 @@ Fix the remaining critical issues in the execution polling system to restore ful
    - Verify server statuses update from "UNKNOWN" to "LAUNCHED"
    - Test resume functionality after status correction
 
-## CURRENT STACK CONFIGURATION
+## CURRENT STACK CONFIGURATION (UPDATED JANUARY 10, 2026)
 - **Stack Name**: `aws-elasticdrs-orchestrator-dev`
-- **API Gateway URL**: `https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev`
-- **Frontend URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
-- **User Pool ID**: `us-east-1_7ClH0e1NS`
-- **Client ID**: `6fepnj59rp7qup2k3n6uda5p19`
+- **Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-elasticdrs-orchestrator-dev/00c30fb0-eb2b-11f0-9ca6-12010aae964f`
+- **API Gateway URL**: `https://akp69tt2m1.execute-api.us-east-1.amazonaws.com/dev`
+- **Frontend URL**: `https://dly5x2oq5f01g.cloudfront.net`
+- **User Pool ID**: `us-east-1_ZpRNNnGTK`
+- **Client ID**: `3b9l2jv7engtoeba2t1h2mo5ds`
+- **Identity Pool ID**: `us-east-1:052133fc-f2f7-4e0f-be2c-02fd84287feb`
+- **Status**: `CREATE_COMPLETE` (Restored January 10, 2026)
 
-## Authentication & Access
+## Authentication & Access (UPDATED)
 - **Test User**: `testuser@example.com`
 - **Password**: `TestPassword123!`
+- **Group**: `DRSOrchestrationAdmin` (Full access permissions)
 
-### API Authentication
+### API Authentication (UPDATED)
 ```bash
-# Get JWT token for API access
+# Get JWT token for API access (UPDATED CREDENTIALS)
 TOKEN=$(aws cognito-idp admin-initiate-auth \
-  --user-pool-id us-east-1_7ClH0e1NS \
-  --client-id 6fepnj59rp7qup2k3n6uda5p19 \
+  --user-pool-id us-east-1_ZpRNNnGTK \
+  --client-id 3b9l2jv7engtoeba2t1h2mo5ds \
   --auth-flow ADMIN_NO_SRP_AUTH \
   --auth-parameters USERNAME=testuser@example.com,PASSWORD=TestPassword123! \
   --region us-east-1 \
   --query 'AuthenticationResult.IdToken' \
   --output text)
 
-# Test API endpoints
-curl -H "Authorization: Bearer $TOKEN" "https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev/executions"
-curl -H "Authorization: Bearer $TOKEN" "https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev/executions/7b3e357a-dc1a-4f04-9ab8-d3a6b1a584ad"
+# Test API endpoints (UPDATED URL)
+curl -H "Authorization: Bearer $TOKEN" "https://akp69tt2m1.execute-api.us-east-1.amazonaws.com/dev/executions"
+curl -H "Authorization: Bearer $TOKEN" "https://akp69tt2m1.execute-api.us-east-1.amazonaws.com/dev/executions/7b3e357a-dc1a-4f04-9ab8-d3a6b1a584ad"
 ```
 
-### Frontend Access
-- **URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
+### Frontend Access (UPDATED)
+- **URL**: `https://dly5x2oq5f01g.cloudfront.net`
 - **Login**: Use same credentials (`testuser@example.com` / `TestPassword123!`)
 
 ## EXECUTION POLLING SYSTEM ARCHITECTURE (VERIFIED WORKING)

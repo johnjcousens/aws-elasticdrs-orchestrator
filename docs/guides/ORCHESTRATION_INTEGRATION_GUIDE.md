@@ -71,7 +71,7 @@ Instead of calling API Gateway (which requires Cognito tokens), invoke the Lambd
 ```bash
 # Direct Lambda invocation (no Cognito token needed)
 AWS_PAGER="" aws lambda invoke \
-  --function-name aws-drs-orchestrator-api-handler-dev \
+  --function-name aws-elasticdrs-orchestrator-api-handler-dev \
   --payload '{"httpMethod":"GET","path":"/recovery-plans"}' \
   --cli-binary-format raw-in-base64-out \
   /tmp/response.json \
@@ -92,8 +92,8 @@ Create an IAM policy that allows invoking the Lambda function:
       "Effect": "Allow",
       "Action": "lambda:InvokeFunction",
       "Resource": [
-        "arn:aws:lambda:us-east-1:*:function:aws-drs-orchestrator-api-handler-*",
-        "arn:aws:lambda:us-east-1:*:function:aws-drs-orchestrator-orchestration-stepfunctions-*"
+        "arn:aws:lambda:us-east-1:*:function:aws-elasticdrs-orchestrator-api-handler-*",
+        "arn:aws:lambda:us-east-1:*:function:aws-elasticdrs-orchestrator-orchestration-stepfunctions-*"
       ]
     }
   ]
@@ -133,7 +133,7 @@ def invoke_drs_api(method: str, path: str, body: dict = None, query_params: dict
     }
   
     response = lambda_client.invoke(
-        FunctionName='aws-drs-orchestrator-api-handler-dev',
+        FunctionName='aws-elasticdrs-orchestrator-api-handler-dev',
         InvocationType='RequestResponse',
         Payload=json.dumps(event)
     )
@@ -176,7 +176,7 @@ print(f"Status: {status.get('status')}")
 #!/bin/bash
 # Direct Lambda invocation without Cognito authentication
 
-FUNCTION_NAME="aws-drs-orchestrator-api-handler-dev"
+FUNCTION_NAME="aws-elasticdrs-orchestrator-api-handler-dev"
 REGION="us-east-1"
 
 # Function to invoke Lambda directly
@@ -226,7 +226,7 @@ invoke_lambda "POST" "/executions" "{\"recoveryPlanId\":\"${PLAN_ID}\",\"executi
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestrator-api-handler-dev",
+        "FunctionName": "aws-elasticdrs-orchestrator-api-handler-dev",
         "Payload": {
           "httpMethod": "GET",
           "path": "/recovery-plans",
@@ -256,7 +256,7 @@ invoke_lambda "POST" "/executions" "{\"recoveryPlanId\":\"${PLAN_ID}\",\"executi
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestrator-api-handler-dev",
+        "FunctionName": "aws-elasticdrs-orchestrator-api-handler-dev",
         "Payload": {
           "httpMethod": "POST",
           "path": "/executions",
@@ -278,7 +278,7 @@ invoke_lambda "POST" "/executions" "{\"recoveryPlanId\":\"${PLAN_ID}\",\"executi
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
       "Parameters": {
-        "FunctionName": "aws-drs-orchestrator-api-handler-dev",
+        "FunctionName": "aws-elasticdrs-orchestrator-api-handler-dev",
         "Payload": {
           "httpMethod": "GET",
           "path.$": "States.Format('/executions/{}', $.execution.executionId)"
@@ -334,7 +334,7 @@ parameters:
     description: IAM role with lambda:InvokeFunction permission
   LambdaFunctionName:
     type: String
-    default: aws-drs-orchestrator-api-handler-dev
+    default: aws-elasticdrs-orchestrator-api-handler-dev
   RecoveryPlanName:
     type: String
     description: Name of recovery plan to execute
@@ -454,7 +454,7 @@ To allow another AWS account to invoke the Lambda directly:
 ```bash
 # Add resource-based policy to Lambda (run in the account that owns the Lambda)
 aws lambda add-permission \
-  --function-name aws-drs-orchestrator-api-handler-dev \
+  --function-name aws-elasticdrs-orchestrator-api-handler-dev \
   --statement-id AllowCrossAccountInvoke \
   --action lambda:InvokeFunction \
   --principal 111122223333 \
@@ -533,7 +533,7 @@ All direct Lambda invocations are logged in CloudTrail:
     "arn": "arn:aws:sts::123456789012:assumed-role/MyRole/session"
   },
   "requestParameters": {
-    "functionName": "aws-drs-orchestrator-api-handler-dev"
+    "functionName": "aws-elasticdrs-orchestrator-api-handler-dev"
   }
 }
 ```
@@ -1432,7 +1432,7 @@ curl -s -H "Authorization: Bearer ${TOKEN}" \
 
 # Direct Lambda invocation (no Cognito token needed)
 AWS_PAGER="" aws lambda invoke \
-  --function-name aws-drs-orchestrator-api-handler-dev \
+  --function-name aws-elasticdrs-orchestrator-api-handler-dev \
   --payload '{"httpMethod":"GET","path":"/config/export"}' \
   --cli-binary-format raw-in-base64-out \
   /tmp/response.json \
@@ -1587,7 +1587,7 @@ curl -X POST -H "Authorization: Bearer ${TOKEN}" \
 # Direct Lambda invocation (no Cognito token needed)
 CONFIG_JSON=$(cat drs-config-backup.json | jq -c .)
 AWS_PAGER="" aws lambda invoke \
-  --function-name aws-drs-orchestrator-api-handler-dev \
+  --function-name aws-elasticdrs-orchestrator-api-handler-dev \
   --payload "{\"httpMethod\":\"POST\",\"path\":\"/config/import\",\"queryStringParameters\":{\"dryRun\":\"true\"},\"body\":$(echo $CONFIG_JSON | jq -Rs .)}" \
   --cli-binary-format raw-in-base64-out \
   /tmp/response.json \
@@ -2173,7 +2173,7 @@ This walkthrough demonstrates a complete export/delete/reimport cycle using dire
 
 ```bash
 # Set Lambda function name and region
-export LAMBDA_FUNCTION="aws-drs-orchestrator-api-handler-dev"
+export LAMBDA_FUNCTION="aws-elasticdrs-orchestrator-api-handler-dev"
 export AWS_REGION="us-east-1"
 
 # Helper function for Lambda invocation
@@ -2326,7 +2326,7 @@ Save this as `scripts/config-backup-restore.sh`:
 
 set -e
 
-LAMBDA_FUNCTION="${LAMBDA_FUNCTION:-aws-drs-orchestrator-api-handler-dev}"
+LAMBDA_FUNCTION="${LAMBDA_FUNCTION:-aws-elasticdrs-orchestrator-api-handler-dev}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 BACKUP_FILE="${BACKUP_FILE:-drs-config-backup.json}"
 

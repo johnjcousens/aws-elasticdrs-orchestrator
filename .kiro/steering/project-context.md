@@ -212,45 +212,46 @@ s3://aws-elasticdrs-orchestrator/
 └── frontend/                # Frontend build artifacts
 ```
 
-## Stack Configuration (CRITICAL - READ CAREFULLY)
+## Stack Configuration (CRITICAL - UPDATED JANUARY 10, 2026)
 
-### Current Development Stack (PRIMARY)
+### Current Development Stack (PRIMARY - RESTORED)
 - **Stack Name**: `aws-elasticdrs-orchestrator-dev`
 - **Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-elasticdrs-orchestrator-dev/00c30fb0-eb2b-11f0-9ca6-12010aae964f`
-- **API Gateway URL**: `https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev`
-- **Frontend URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
-- **Cognito User Pool ID**: `us-east-1_7ClH0e1NS`
-- **Cognito Client ID**: `6fepnj59rp7qup2k3n6uda5p19`
+- **API Gateway URL**: `https://akp69tt2m1.execute-api.us-east-1.amazonaws.com/dev`
+- **Frontend URL**: `https://dly5x2oq5f01g.cloudfront.net`
+- **Cognito User Pool ID**: `us-east-1_ZpRNNnGTK`
+- **Cognito Client ID**: `3b9l2jv7engtoeba2t1h2mo5ds`
+- **Identity Pool ID**: `us-east-1:052133fc-f2f7-4e0f-be2c-02fd84287feb`
+- **Status**: `CREATE_COMPLETE` (Restored January 10, 2026)
 
-### Reference Stack (FOR COMPARISON ONLY)
+### Reference Stack (FOR COMPARISON ONLY - LEGACY)
 - **Stack Name**: `aws-drs-orchestrator-dev`
 - **Stack ARN**: `arn:aws:cloudformation:us-east-1:438465159935:stack/aws-drs-orchestrator-dev/11b25cb0-e5f7-11f0-bde4-12ca9f6188ad`
 - **API Gateway URL**: `https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev`
 - **Frontend URL**: `https://deyrv5c5lyjou.cloudfront.net`
-- **Cognito User Pool ID**: `us-east-1_7ClH0e1NS` (SAME AS CURRENT)
-- **Cognito Client ID**: `6fepnj59rp7qup2k3n6uda5p19` (SAME AS CURRENT)
+- **Status**: Legacy reference stack (may be deprecated)
 
-### Authentication (SAME FOR BOTH STACKS)
+### Authentication (CURRENT STACK)
 - **Username**: `testuser@example.com`
 - **Password**: `TestPassword123!`
-- **User Pool**: `us-east-1_7ClH0e1NS` (SHARED BETWEEN STACKS)
-- **Client ID**: `6fepnj59rp7qup2k3n6uda5p19` (SHARED BETWEEN STACKS)
+- **User Pool**: `us-east-1_ZpRNNnGTK`
+- **Client ID**: `3b9l2jv7engtoeba2t1h2mo5ds`
+- **Group**: `DRSOrchestrationAdmin` (Full access permissions)
 
 ### CRITICAL RULES FOR DEVELOPMENT
 
 1. **ALWAYS work on the CURRENT stack** (`aws-elasticdrs-orchestrator-dev`)
-2. **ONLY use reference stack for comparison** when debugging issues
-3. **SAME credentials work for both stacks** (shared Cognito configuration)
-4. **Different API endpoints** - use correct URL for each stack
-5. **Reference stack has existing executions with recovery instances**
-6. **Current stack may have fewer/different executions**
+2. **Use new authentication details** (User Pool ID changed)
+3. **Use new API endpoint** (`https://akp69tt2m1.execute-api.us-east-1.amazonaws.com/dev`)
+4. **Use new frontend URL** (`https://dly5x2oq5f01g.cloudfront.net`)
+5. **Reference stack is legacy** - avoid using for new development
 
-### Authentication Example (Works for Both Stacks)
+### Authentication Example (CURRENT STACK)
 ```bash
-# Get JWT token (same command for both stacks)
+# Get JWT token for current stack
 TOKEN=$(aws cognito-idp admin-initiate-auth \
-  --user-pool-id us-east-1_7ClH0e1NS \
-  --client-id 6fepnj59rp7qup2k3n6uda5p19 \
+  --user-pool-id us-east-1_ZpRNNnGTK \
+  --client-id 3b9l2jv7engtoeba2t1h2mo5ds \
   --auth-flow ADMIN_NO_SRP_AUTH \
   --auth-parameters USERNAME=testuser@example.com,PASSWORD=TestPassword123! \
   --region us-east-1 \
@@ -258,17 +259,30 @@ TOKEN=$(aws cognito-idp admin-initiate-auth \
   --output text)
 
 # Use with current stack
-curl -H "Authorization: Bearer $TOKEN" "https://4btsule96b.execute-api.us-east-1.amazonaws.com/dev/executions"
-
-# Use with reference stack (for comparison)
-curl -H "Authorization: Bearer $TOKEN" "https://bu05wxn2ci.execute-api.us-east-1.amazonaws.com/dev/executions"
+curl -H "Authorization: Bearer $TOKEN" "https://akp69tt2m1.execute-api.us-east-1.amazonaws.com/dev/executions"
 ```
+
+### Lambda Function Names (CURRENT STACK)
+- `aws-elasticdrs-orchestrator-api-handler-dev`
+- `aws-elasticdrs-orchestrator-orch-sf-dev`
+- `aws-elasticdrs-orchestrator-execution-finder-dev`
+- `aws-elasticdrs-orchestrator-execution-poller-dev`
+- `aws-elasticdrs-orchestrator-frontend-builder-dev`
+- `aws-elasticdrs-orchestrator-bucket-cleaner-dev`
+- `aws-elasticdrs-orchestrator-notification-formatter-dev`
+
+### DynamoDB Tables (CURRENT STACK)
+- `aws-elasticdrs-orchestrator-protection-groups-dev`
+- `aws-elasticdrs-orchestrator-recovery-plans-dev`
+- `aws-elasticdrs-orchestrator-execution-history-dev`
+- `aws-elasticdrs-orchestrator-target-accounts-dev`
 
 ### Usage Guidelines
 - **Primary development**: Always use current stack
-- **Debugging**: Compare behavior with reference stack when needed
-- **Testing**: Test new features on current stack
-- **Reference data**: Use reference stack executions for understanding expected data structures
+- **Testing**: Test all features on current stack
+- **Authentication**: Use updated Cognito configuration
+- **API calls**: Use new API Gateway endpoint
+- **Frontend access**: Use new CloudFront URL
 
 ## Key Implementation Patterns
 

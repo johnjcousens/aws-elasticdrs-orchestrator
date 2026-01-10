@@ -9,53 +9,6 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 [![Release](https://img.shields.io/badge/Release-v1.4.6%20RBAC%20Complete-green)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.4.6)
 
-## 🤖 **For AI Agents - Start Here**
-
-This repository is **optimized for AI-assisted development** with comprehensive steering documents and feature specifications.
-
-### **AI Agent Documentation**
-
-| AI Agent | Configuration | Purpose |
-|----------|---------------|---------|
-| **Kiro** | [`.kiro/steering/`](.kiro/steering/) | Primary AI assistant steering documents |
-| **Amazon Q Developer** | [`.amazonq/rules/`](.amazonq/rules/) | Amazon Q specific rules and workflows |
-
-**Current Steering Documents:**
-- [Project Context](.kiro/steering/project-context.md) - Complete product overview, architecture, and technology stack
-
-**Amazon Q Rules:**
-- [Project Context](.amazonq/rules/amazonq-project-context.md) - Product overview aligned with Kiro
-
-**Note**: The steering documents have been consolidated into a single comprehensive project context file that contains all essential information for AI-assisted development, including development workflow, technical standards, and coding guidelines.
-
-### **Project Requirements (Source of Truth)**
-
-The [`docs/requirements/`](docs/requirements/) directory contains the **authoritative project requirements**:
-
-- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD v3.0 with EventBridge security features
-- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v3.0 with comprehensive API catalog
-- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design and interaction patterns v3.0
-- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v3.0
-
-**These documents are the single source of truth for all project requirements, features, and specifications.**
-
-### **Available Specifications**
-
-| Specification | Status | Description | Effort |
-|---------------|--------|-------------|--------|
-| **[Fresh Deployment](.kiro/specs/fresh-deployment/)** | 🟢 Ready | Complete deployment automation for fresh environments | 2-3 weeks |
-
-### **GitHub Repository**
-
-**Repository**: [github.com/johnjcousens/aws-elasticdrs-orchestrator](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-
-| Resource | Link |
-|----------|------|
-| Issues | [Issues](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/issues) |
-| Projects | [Projects](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/projects) |
-| Releases | [Releases](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases) |
-| Actions | [Actions](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions) |
-
 ## 🚀 **Latest Release: v1.4.6 - RBAC Complete Coverage**
 
 **Latest Version**: v1.4.6 (January 7, 2026) - Complete RBAC coverage for all 47+ API endpoints with 308 automated tests.
@@ -790,7 +743,7 @@ This comprehensive code quality implementation ensures the AWS DRS Orchestration
 
 ## CI/CD Pipeline
 
-The project uses **GitHub Actions** for automated deployment with comprehensive security scanning and OIDC-based AWS authentication.
+The project uses **GitHub Actions** for automated deployment with comprehensive security scanning, workflow conflict prevention, and OIDC-based AWS authentication.
 
 📋 **[GitHub Actions CI/CD Guide](docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md)** - Complete setup, usage, and troubleshooting guide for GitHub Actions CI/CD.
 
@@ -799,6 +752,8 @@ The project uses **GitHub Actions** for automated deployment with comprehensive 
 - **Primary Repository**: GitHub (`johnjcousens/aws-elasticdrs-orchestrator`)
 - **Authentication**: OIDC (no long-lived credentials)
 - **OIDC Stack**: `cfn/github-oidc-stack.yaml`
+- **Current Stack**: `aws-elasticdrs-orchestrator-dev`
+- **Project Name**: `aws-elasticdrs-orchestrator`
 
 ### Pipeline Stages
 
@@ -817,6 +772,35 @@ The project uses **GitHub Actions** for automated deployment with comprehensive 
 - **Frontend-only**: ~12 minutes (45% time savings)  
 - **Full deployment**: ~22 minutes (complete pipeline)
 
+### Workflow Conflict Prevention (MANDATORY)
+
+**CRITICAL**: Always check for running workflows before pushing to prevent deployment conflicts and failures.
+
+#### Safe Push Scripts
+```bash
+# RECOMMENDED: Safe push with automatic workflow checking
+./scripts/safe-push.sh
+
+# Alternative: Quick check before manual push
+./scripts/check-workflow.sh && git push
+
+# Emergency force push (skip workflow check)
+./scripts/safe-push.sh --force
+```
+
+#### MANDATORY Rules
+1. **ALWAYS check for running workflows** before pushing
+2. **NEVER push while deployment is in progress** - causes conflicts and failures
+3. **WAIT for completion** if workflow running (max 30 minutes)
+4. **Use safe-push.sh** instead of manual `git push`
+5. **Monitor deployment** until completion before making additional changes
+
+#### Workflow Status Indicators
+- ✅ **Safe to push**: No workflows running
+- ⏳ **Wait required**: Deployment in progress (wait for completion)
+- ❌ **Conflict risk**: Multiple workflows would overlap
+- 🚨 **Emergency only**: Use `--force` flag only for critical hotfixes
+
 ### Intelligent Deployment Optimization
 
 The pipeline automatically detects changes and skips unnecessary stages:
@@ -825,19 +809,19 @@ The pipeline automatically detects changes and skips unnecessary stages:
 ```bash
 # Only *.md files, docs/* changed
 ./scripts/check-deployment-scope.sh  # Preview what will deploy
-git push origin main                  # ~30 seconds deployment
+./scripts/safe-push.sh               # ~30 seconds deployment
 ```
 
 **🌐 Frontend-Only Changes**
 ```bash
 # Only frontend/* files changed
-git push origin main  # Skips infrastructure deployment (~12 minutes)
+./scripts/safe-push.sh  # Skips infrastructure deployment (~12 minutes)
 ```
 
 **🏗️ Infrastructure Changes**
 ```bash
 # cfn/*, lambda/*, or mixed changes
-git push origin main  # Full pipeline (~22 minutes)
+./scripts/safe-push.sh  # Full pipeline (~22 minutes)
 ```
 
 **💡 Check Before Push**
@@ -895,12 +879,13 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_NAMED_IAM
 
 # 2. Add GitHub secrets: AWS_ROLE_ARN, DEPLOYMENT_BUCKET, STACK_NAME, ADMIN_EMAIL
-# 3. Push to main branch to trigger deployment
+# 3. Push to main branch to trigger deployment (use safe-push.sh)
+./scripts/safe-push.sh
 ```
 
 ### Manual Deployment (EMERGENCY ONLY)
 
-⚠️ **CRITICAL**: Manual deployment scripts are for emergencies only. ALL regular deployments MUST use GitHub Actions CI/CD pipeline.
+⚠️ **CRITICAL**: Manual deployment scripts are for emergencies only. ALL regular deployments MUST use GitHub Actions CI/CD pipeline with workflow conflict prevention.
 
 **Emergency Use Cases Only:**
 - GitHub Actions service outage (confirmed AWS/GitHub issue)
@@ -917,7 +902,7 @@ aws cloudformation deploy \
 # IMMEDIATELY follow up with proper Git commit and push
 git add .
 git commit -m "emergency: describe the critical fix"
-git push  # Restores proper CI/CD tracking
+./scripts/safe-push.sh  # Restores proper CI/CD tracking
 ```
 
 **Why GitHub Actions is Required:**
@@ -926,18 +911,19 @@ git push  # Restores proper CI/CD tracking
 - ✅ **Team Visibility**: All deployments visible to team members
 - ✅ **Rollback Capability**: Git-based rollback and deployment history
 - ✅ **Enterprise Compliance**: Meets deployment standards and governance
+- ✅ **Conflict Prevention**: Workflow overlap detection and prevention
 
 ## Contributing
 
 ### Standard Development Workflow (REQUIRED)
 
-**ALL deployments MUST use GitHub Actions CI/CD pipeline:**
+**ALL deployments MUST use GitHub Actions CI/CD pipeline with workflow conflict prevention:**
 
 1. **Fork the GitHub repository**
 2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
 3. **Make changes and test locally**
 4. **Commit changes** (`git commit -m 'Add amazing feature'`)
-5. **Push to GitHub** (`git push origin feature/amazing-feature`)
+5. **Push to GitHub** (`./scripts/safe-push.sh origin feature/amazing-feature`)
 6. **Open a Pull Request**
 7. **After merge to main**, changes automatically deploy via GitHub Actions
 
@@ -968,7 +954,7 @@ make validate  # CloudFormation validation
 # Standard workflow - ALWAYS use this
 git add .
 git commit -m "feat: describe your changes"
-git push origin main  # Triggers GitHub Actions deployment
+./scripts/safe-push.sh  # Automatically checks for workflow conflicts
 
 # Monitor pipeline at: https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
@@ -978,7 +964,9 @@ git push origin main  # Triggers GitHub Actions deployment
 ❌ **NEVER bypass GitHub Actions for regular development**  
 ❌ **NEVER use manual sync scripts for convenience**  
 ❌ **NEVER deploy "quick fixes" without Git tracking**  
-❌ **NEVER skip the pipeline "just this once"**
+❌ **NEVER skip the pipeline "just this once"**  
+❌ **NEVER push while GitHub Actions workflow is running** (causes conflicts)  
+❌ **NEVER use `git push` directly without checking workflow status**
 
 **Why these are prohibited:**
 - No audit trail for changes
@@ -986,6 +974,7 @@ git push origin main  # Triggers GitHub Actions deployment
 - Team unaware of deployments
 - No rollback capability
 - Compliance violations
+- Deployment conflicts and failures
 
 ## Repository Snapshots & Rollback
 
