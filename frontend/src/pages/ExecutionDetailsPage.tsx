@@ -27,7 +27,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TerminateInstancesDialog } from '../components/TerminateInstancesDialog';
 import { useApiErrorHandler } from '../hooks/useApiErrorHandler';
 import apiClient from '../services/api';
-import type { Execution, WaveExecution } from '../types';
+import type { Execution, WaveExecution, JobLogsResponse } from '../types';
 
 export const ExecutionDetailsPage: React.FC = () => {
   const { executionId } = useParams<{ executionId: string }>();
@@ -35,6 +35,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   const { handleError } = useApiErrorHandler();
   
   const [execution, setExecution] = useState<Execution | null>(null);
+  const [jobLogs, setJobLogs] = useState<JobLogsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -55,7 +56,7 @@ export const ExecutionDetailsPage: React.FC = () => {
   } | null>(null);
   const [terminationProgress, setTerminationProgress] = useState<number>(0);
 
-  // Fetch execution details
+  // Fetch execution details and job logs
   const fetchExecution = useCallback(async (silent = false) => {
     if (!executionId) return;
 
@@ -64,8 +65,20 @@ export const ExecutionDetailsPage: React.FC = () => {
         setLoading(true);
         setError(null);
       }
+      
+      // Fetch execution details
       const data = await apiClient.getExecution(executionId);
       setExecution(data);
+      
+      // Fetch job logs for enhanced DRS status display
+      try {
+        const jobLogsData = await apiClient.getJobLogs(executionId);
+        setJobLogs(jobLogsData);
+      } catch (jobLogsError) {
+        // Job logs are optional - don't fail if they're not available
+        console.warn('Failed to fetch job logs:', jobLogsError);
+        setJobLogs(null);
+      }
       
       // Reset resumeInProgress when execution is no longer paused
       if (data.status !== 'paused' && resumeInProgress) {
@@ -844,6 +857,7 @@ export const ExecutionDetailsPage: React.FC = () => {
               waves={mapWavesToWaveExecutions(execution)} 
               currentWave={execution.currentWave}
               totalWaves={execution.totalWaves}
+              jobLogs={jobLogs}
             />
           </Container>
         </SpaceBetween>
