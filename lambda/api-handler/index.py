@@ -5101,9 +5101,8 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
             wave_status = wave.get("Status", "").upper()
             job_id = wave.get("JobId")
             
-            # Only reconcile waves with JobId that show unknown status OR started status that might be stale
-            # Also reconcile other non-terminal statuses that might be stale
-            if job_id and wave_status.upper() in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
+            # Only reconcile waves with JobId that show unknown status (match original implementation)
+            if job_id and wave_status in ["UNKNOWN", ""]:
                 try:
                     print(f"Reconciling wave {wave.get('WaveName')} with DRS job {job_id} (current status: {wave_status})")
                     
@@ -5129,9 +5128,9 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             )
                             
                             if all_launched:
-                                wave["Status"] = "completed"
+                                wave["Status"] = "COMPLETED"
                                 wave["EndTime"] = int(time.time())  # Set end time when reconciling to completed
-                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to completed")
+                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to COMPLETED")
                             else:
                                 wave["Status"] = "FAILED"
                                 wave["StatusMessage"] = "Some servers failed to launch"
@@ -5343,7 +5342,12 @@ def get_execution_details(execution_id: str) -> Dict:
         # CRITICAL FIX: Reconcile wave status with actual DRS job results for cancelled executions
         # This ensures wave status reflects actual DRS job completion when execution-poller stopped
         # Updated: 2025-01-07 - Fixed DynamoDB save operation for wave status reconciliation
+        # IMPORTANT: Call reconcile BEFORE camelCase transformation since it works on DynamoDB structure
+        print(f"DEBUG: About to call reconcile_wave_status_with_drs for execution {execution_id}")
         original_waves = execution.get("Waves", [])
+        print(f"DEBUG: Original waves count: {len(original_waves)}")
+        for i, wave in enumerate(original_waves):
+            print(f"DEBUG: Wave {i}: Status={wave.get('Status')}, JobId={wave.get('JobId')}")
         execution = reconcile_wave_status_with_drs(execution)
         
         # Save updated wave statuses to DynamoDB if they changed
