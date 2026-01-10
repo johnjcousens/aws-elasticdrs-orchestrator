@@ -18,14 +18,16 @@ import {
   ProgressBar,
   Table,
   Link,
+  Timeline,
 } from '@cloudscape-design/components';
 import { StatusBadge } from './StatusBadge';
-import type { WaveExecution, ServerExecution } from '../types';
+import type { WaveExecution, ServerExecution, JobLogsResponse, JobLogEvent } from '../types';
 
 interface WaveProgressProps {
   waves: WaveExecution[];
   currentWave?: number;
   totalWaves?: number;
+  jobLogs?: JobLogsResponse | null;
 }
 
 /**
@@ -100,6 +102,64 @@ const getStatusColor = (status: string): string => {
       return '#0972d3';
     default:
       return '#5f6b7a';
+  }
+};
+
+/**
+ * Get job logs for a specific wave
+ */
+const getWaveJobLogs = (jobLogs: JobLogsResponse | null, waveNumber: number): JobLogEvent[] => {
+  if (!jobLogs) return [];
+  
+  const waveLog = jobLogs.jobLogs.find(log => log.waveNumber === waveNumber);
+  return waveLog?.events || [];
+};
+
+/**
+ * Format job log event for display
+ */
+const formatJobLogEvent = (event: JobLogEvent): string => {
+  switch (event.event) {
+    case 'SNAPSHOT_START':
+      return 'Starting snapshot creation';
+    case 'SNAPSHOT_END':
+      return 'Snapshot creation completed';
+    case 'CONVERSION_START':
+      return 'Starting server conversion';
+    case 'CONVERSION_END':
+      return 'Server conversion completed';
+    case 'LAUNCH_START':
+      return 'Starting instance launch';
+    case 'LAUNCH_END':
+      return 'Instance launch completed';
+    case 'JOB_START':
+      return 'DRS job started';
+    case 'JOB_END':
+      return 'DRS job completed';
+    default:
+      return event.event.replace(/_/g, ' ').toLowerCase();
+  }
+};
+
+/**
+ * Get status color for job log event
+ */
+const getJobLogEventColor = (event: JobLogEvent): string => {
+  if (event.error) return '#d91515'; // Red for errors
+  
+  switch (event.event) {
+    case 'SNAPSHOT_START':
+    case 'CONVERSION_START':
+    case 'LAUNCH_START':
+    case 'JOB_START':
+      return '#0972d3'; // Blue for start events
+    case 'SNAPSHOT_END':
+    case 'CONVERSION_END':
+    case 'LAUNCH_END':
+    case 'JOB_END':
+      return '#037f0c'; // Green for completion events
+    default:
+      return '#5f6b7a'; // Gray for other events
   }
 };
 
@@ -295,7 +355,8 @@ const serverColumnDefinitions = [
 export const WaveProgress: React.FC<WaveProgressProps> = ({ 
   waves, 
   currentWave, 
-  totalWaves 
+  totalWaves,
+  jobLogs 
 }) => {
   const [expandedWaves, setExpandedWaves] = useState<Set<number>>(
     new Set(currentWave !== undefined ? [currentWave] : [0])
@@ -432,6 +493,96 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                         ))}
                     </SpaceBetween>
                   )}
+                </ExpandableSection>
+              )}
+
+              {/* Enhanced DRS Job Events Timeline - CRITICAL MISSING FEATURE */}
+              {wave.jobId && jobLogs && (
+                <ExpandableSection
+                  headerText="DRS Job Events"
+                  variant="footer"
+                  expanded={isExpanded || isCurrent}
+                  onChange={({ detail }) => {
+                    if (detail.expanded) {
+                      setExpandedWaves(prev => new Set([...prev, waveNum]));
+                    } else {
+                      setExpandedWaves(prev => {
+                        const next = new Set(prev);
+                        next.delete(waveNum);
+                        return next;
+                      });
+                    }
+                  }}
+                >
+                  {(() => {
+                    const waveJobLogs = getWaveJobLogs(jobLogs, waveNum);
+                    
+                    if (waveJobLogs.length === 0) {
+                      return (
+                        <Box textAlign="center" color="inherit" padding="m">
+                          <div style={{ color: '#5f6b7a' }}>
+                            No DRS job events available yet
+                          </div>
+                          {wave.jobId && (
+                            <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '4px' }}>
+                              Job ID: <code>{wave.jobId}</code>
+                            </div>
+                          )}
+                        </Box>
+                      );
+                    }
+
+                    // Create timeline items from job log events
+                    const timelineItems = waveJobLogs.map((event, idx) => ({
+                      type: event.error ? 'error' : 'success',
+                      content: (
+                        <Box>
+                          <div style={{ fontWeight: 500 }}>
+                            {formatJobLogEvent(event)}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
+                            {formatTimestamp(event.logDateTime)}
+                            {event.sourceServerId && (
+                              <span> • Server: <code style={{ fontSize: '11px' }}>{event.sourceServerId}</code></span>
+                            )}
+                            {event.conversionServerId && (
+                              <span> • Conversion: <code style={{ fontSize: '11px' }}>{event.conversionServerId}</code></span>
+                            )}
+                          </div>
+                          {event.error && (
+                            <Alert type="error" header="Event Error" dismissible={false}>
+                              {event.error}
+                            </Alert>
+                          )}
+                          {event.eventData && Object.keys(event.eventData).length > 0 && (
+                            <details style={{ marginTop: '8px' }}>
+                              <summary style={{ fontSize: '12px', color: '#5f6b7a', cursor: 'pointer' }}>
+                                Event Details
+                              </summary>
+                              <pre style={{ 
+                                fontSize: '11px', 
+                                color: '#5f6b7a', 
+                                marginTop: '4px',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word'
+                              }}>
+                                {JSON.stringify(event.eventData, null, 2)}
+                              </pre>
+                            </details>
+                          )}
+                        </Box>
+                      )
+                    }));
+
+                    return (
+                      <SpaceBetween size="s">
+                        <div style={{ fontSize: '12px', color: '#5f6b7a', marginBottom: '8px' }}>
+                          Job ID: <code>{wave.jobId}</code> • {waveJobLogs.length} events
+                        </div>
+                        <Timeline items={timelineItems} />
+                      </SpaceBetween>
+                    );
+                  })()}
                 </ExpandableSection>
               )}
             </SpaceBetween>
