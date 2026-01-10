@@ -243,17 +243,24 @@ const formatRelativeTime = (timestamp: string | number | undefined): string => {
 };
 
 /**
- * Get launch status badge color
+ * Get launch status badge color (AWS CloudScape Design System)
  */
 const getLaunchStatusColor = (status: string | undefined): 'blue' | 'green' | 'red' | 'grey' => {
   switch (status?.toUpperCase()) {
     case 'LAUNCHED':
+    case 'COMPLETED':
       return 'green';
     case 'IN_PROGRESS':
     case 'LAUNCHING':
+    case 'POLLING':
+    case 'STARTED':
       return 'blue';
     case 'FAILED':
+    case 'ERROR':
       return 'red';
+    case 'PENDING':
+    case 'UNKNOWN':
+    case 'CANCELLED':
     default:
       return 'grey';
   }
@@ -289,27 +296,51 @@ const calculateProgress = (
 };
 
 /**
- * Server table column definitions
+ * Server table column definitions with improved spacing and AWS design standards
  */
 const serverColumnDefinitions = [
   {
     id: 'serverId',
     header: 'Server ID',
     cell: (server: ServerExecution) => (
-      <span style={{ fontFamily: 'monospace', fontSize: '13px' }}>
-        {server.serverName || server.hostname || server.serverId}
-      </span>
+      <Box>
+        <div style={{ 
+          fontFamily: 'monospace', 
+          fontSize: '14px',
+          fontWeight: 500,
+          color: '#232f3e'
+        }}>
+          {server.serverName || server.hostname || server.serverId}
+        </div>
+        {server.hostname && server.serverName && server.hostname !== server.serverName && (
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#5f6b7a',
+            fontFamily: 'monospace'
+          }}>
+            {server.hostname}
+          </div>
+        )}
+      </Box>
     ),
-    width: 200,
+    width: 180,
+    minWidth: 180,
   },
   {
     id: 'status',
     header: 'Status',
     cell: (server: ServerExecution) => {
       const status = server.launchStatus || server.status || 'pending';
-      return <Badge color={getLaunchStatusColor(status)}>{status}</Badge>;
+      return (
+        <Badge 
+          color={getLaunchStatusColor(status)}
+        >
+          {status.toUpperCase()}
+        </Badge>
+      );
     },
     width: 120,
+    minWidth: 120,
   },
   {
     id: 'instanceId',
@@ -325,27 +356,58 @@ const serverColumnDefinitions = [
             external
             fontSize="body-s"
           >
-            <span style={{ fontFamily: 'monospace' }}>{instanceId}</span>
+            <span style={{ 
+              fontFamily: 'monospace',
+              fontSize: '13px',
+              color: '#0972d3'
+            }}>
+              {instanceId}
+            </span>
           </Link>
         );
       }
       
       const status = (server.launchStatus || server.status || '').toUpperCase();
-      return status === 'LAUNCHING' ? 'Launching...' : '-';
+      return (
+        <span style={{ color: '#5f6b7a', fontSize: '13px' }}>
+          {status === 'LAUNCHING' ? 'Launching...' : '—'}
+        </span>
+      );
     },
-    width: 180,
+    width: 200,
+    minWidth: 200,
   },
   {
     id: 'instanceType',
     header: 'Type',
-    cell: (server: ServerExecution) => server.instanceType || '-',
-    width: 100,
+    cell: (server: ServerExecution) => (
+      <span style={{ 
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: server.instanceType ? '#232f3e' : '#5f6b7a',
+        fontWeight: server.instanceType ? 500 : 400
+      }}>
+        {server.instanceType || '—'}
+      </span>
+    ),
+    width: 110,
+    minWidth: 110,
   },
   {
     id: 'privateIp',
     header: 'Private IP',
-    cell: (server: ServerExecution) => server.privateIp || '-',
-    width: 120,
+    cell: (server: ServerExecution) => (
+      <span style={{ 
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: server.privateIp ? '#232f3e' : '#5f6b7a',
+        fontWeight: server.privateIp ? 500 : 400
+      }}>
+        {server.privateIp || '—'}
+      </span>
+    ),
+    width: 130,
+    minWidth: 130,
   },
   {
     id: 'launchTime',
@@ -353,9 +415,19 @@ const serverColumnDefinitions = [
     cell: (server: ServerExecution) => {
       // Check for various timestamp field names
       const timestamp = (server as any).launchTime || (server as any).startTime;
-      return formatTimestamp(timestamp);
+      const formattedTime = formatTimestamp(timestamp);
+      
+      return (
+        <span style={{ 
+          fontSize: '13px',
+          color: formattedTime !== '-' ? '#232f3e' : '#5f6b7a'
+        }}>
+          {formattedTime === '-' ? '—' : formattedTime}
+        </span>
+      );
     },
-    width: 160,
+    width: 180,
+    minWidth: 180,
   },
 ];
 
@@ -412,8 +484,10 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                 style={{ 
                   display: 'flex', 
                   alignItems: 'center', 
-                  gap: '12px',
-                  cursor: hasServers ? 'pointer' : 'default'
+                  gap: '16px',
+                  cursor: hasServers ? 'pointer' : 'default',
+                  padding: '12px 0',
+                  borderBottom: '1px solid #e9ebed'
                 }}
                 onClick={() => {
                   if (hasServers) {
@@ -429,20 +503,40 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                   }
                 }}
               >
-                <span style={{ fontSize: '24px', color: statusColor }}>
+                <span style={{ fontSize: '28px', color: statusColor, lineHeight: 1 }}>
                   {statusIndicator}
                 </span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500, fontSize: '16px' }}>
+                  <div style={{ 
+                    fontWeight: 600, 
+                    fontSize: '18px',
+                    color: '#232f3e',
+                    lineHeight: 1.3
+                  }}>
                     Wave {displayNum}: {wave.waveName || `Wave ${displayNum}`}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#5f6b7a', marginTop: '2px' }}>
+                  <div style={{ 
+                    fontSize: '13px', 
+                    color: '#5f6b7a', 
+                    marginTop: '4px',
+                    lineHeight: 1.4
+                  }}>
                     {wave.startTime ? (
                       <>
                         Started {formatRelativeTime(wave.startTime)}
-                        {' • '}Duration: {duration}
+                        <span style={{ margin: '0 8px', color: '#d5dbdb' }}>•</span>
+                        Duration: {duration}
                         {wave.jobId && (
-                          <span> • Job: <code style={{ fontSize: '11px' }}>{wave.jobId}</code></span>
+                          <>
+                            <span style={{ margin: '0 8px', color: '#d5dbdb' }}>•</span>
+                            Job: <code style={{ 
+                              fontSize: '12px',
+                              backgroundColor: '#f2f3f3',
+                              padding: '2px 4px',
+                              borderRadius: '3px',
+                              color: '#232f3e'
+                            }}>{wave.jobId}</code>
+                          </>
                         )}
                       </>
                     ) : (
@@ -450,7 +544,9 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     )}
                   </div>
                 </div>
-                <StatusBadge status={effectiveStatus} />
+                <div style={{ marginLeft: '12px' }}>
+                  <StatusBadge status={effectiveStatus} />
+                </div>
               </div>
 
               {/* Wave Error */}
@@ -482,11 +578,22 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     columnDefinitions={serverColumnDefinitions}
                     items={wave.serverExecutions}
                     variant="embedded"
-                    wrapLines
+                    stripedRows
+                    contentDensity="comfortable"
                     empty={
-                      <Box textAlign="center" color="inherit">
-                        No servers in this wave
+                      <Box textAlign="center" color="inherit" padding="l">
+                        <div style={{ color: '#5f6b7a' }}>No servers in this wave</div>
                       </Box>
+                    }
+                    header={
+                      <div style={{ 
+                        fontSize: '14px', 
+                        fontWeight: 500, 
+                        color: '#232f3e',
+                        padding: '8px 0'
+                      }}>
+                        {wave.serverExecutions.length} server{wave.serverExecutions.length !== 1 ? 's' : ''}
+                      </div>
                     }
                   />
                   
