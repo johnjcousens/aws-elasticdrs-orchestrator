@@ -10848,48 +10848,31 @@ def handle_eventbridge_tag_sync(event: Dict) -> Dict:
 
         # Enhanced security validation for EventBridge requests
         request_context = event.get("requestContext", {})
+        source_ip = request_context.get("identity", {}).get("sourceIp", "")
+        invocation_source = event.get("invocationSource", "")
 
         # Validate request came through API Gateway (not direct Lambda invoke)
-        if not request_context.get("requestId") or not request_context.get(
-            "stage"
-        ):
-            print(
-                "Security warning: EventBridge request missing API Gateway context"
-            )
-            return response(
-                403, {"error": "Invalid EventBridge request context"}
-            )
+        if not request_context.get("requestId") or not request_context.get("stage"):
+            print("Security warning: EventBridge request missing API Gateway context")
+            return response(403, {"error": "Invalid EventBridge request context"})
 
         # Validate no user authentication headers present (EventBridge shouldn't have them)
         headers = event.get("headers", {})
         if headers.get("Authorization") or headers.get("authorization"):
-            print(
-                "Security warning: EventBridge request contains authentication headers"
-            )
-            return response(
-                403,
-                {
-                    "error": "Invalid EventBridge request - unexpected auth headers"
-                },
-            )
+            print("Security warning: EventBridge request contains authentication headers")
+            return response(403, {"error": "Invalid EventBridge request - unexpected auth headers"})
 
-        # Validate EventBridge rule name matches expected pattern
-        invocation_details = event.get("invocationDetails", {})
-        rule_name = invocation_details.get("scheduleRuleName", "")
-        expected_rule_pattern = f"aws-elasticdrs-orchestrator-tag-sync-schedule-"
-
-        if not rule_name or not rule_name.startswith(expected_rule_pattern):
-            print(
-                f"Security warning: Invalid EventBridge rule name: {rule_name}"
-            )
-            return response(403, {"error": "Invalid EventBridge rule source"})
+        # Validate EventBridge source indicators
+        if source_ip != "eventbridge" and invocation_source != "EVENTBRIDGE":
+            print(f"Security warning: Request not from EventBridge - sourceIp: {source_ip}, invocationSource: {invocation_source}")
+            return response(403, {"error": "Invalid request source - must be from EventBridge"})
 
         # Log security audit information
         print(
             f"EventBridge security audit - requestId: {request_context.get('requestId')}, "
             f"stage: {request_context.get('stage')}, "
             f"accountId: {request_context.get('accountId')}, "
-            f"ruleName: {rule_name}"
+            f"sourceIp: {source_ip}, invocationSource: {invocation_source}"
         )
 
         # Extract invocation details from EventBridge event
