@@ -4801,56 +4801,81 @@ def list_executions(query_params: Dict) -> Dict:
         for execution in executions:
             try:
                 # Use stored PlanName first (preserved even if plan deleted)
-                # Only do expensive lookup if PlanName is missing (legacy executions)
+                # Fall back to lookup only if not stored (legacy executions)
                 if execution.get("PlanName"):
                     execution["RecoveryPlanName"] = execution["PlanName"]
                 else:
-                    # For legacy executions without stored PlanName, do single lookup
                     plan_id = execution.get("PlanId")
                     if plan_id:
-                        try:
-                            plan_result = recovery_plans_table.get_item(
-                                Key={"PlanId": plan_id}
-                            )
-                            if "Item" in plan_result:
-                                execution["RecoveryPlanName"] = plan_result[
-                                    "Item"
-                                ].get("PlanName", "Unknown")
-                            else:
-                                execution["RecoveryPlanName"] = "Deleted Plan"
-                        except Exception as plan_err:
-                            print(f"Error fetching plan {plan_id}: {plan_err}")
-                            execution["RecoveryPlanName"] = "Unknown"
+                        plan_result = recovery_plans_table.get_item(
+                            Key={"PlanId": plan_id}
+                        )
+                        if "Item" in plan_result:
+                            execution["RecoveryPlanName"] = plan_result[
+                                "Item"
+                            ].get("PlanName", "Unknown")
+                        else:
+                            execution["RecoveryPlanName"] = "Deleted Plan"
                     else:
                         execution["RecoveryPlanName"] = "Unknown"
 
-                # Determine selection mode efficiently - check if execution has stored SelectionMode
-                if execution.get("SelectionMode"):
-                    # Use stored selection mode if available (newer executions)
-                    pass  # Already set
-                else:
-                    # For legacy executions, set default to avoid expensive lookups
-                    # Most executions are plan-based, so this is a safe default
-                    execution["SelectionMode"] = "PLAN"
-                
+                # Determine selection mode from protection groups
+                plan_id = execution.get("PlanId")
+                selection_mode = "PLAN"  # Default to plan-based
+                if plan_id:
+                    plan_result = recovery_plans_table.get_item(
+                        Key={"PlanId": plan_id}
+                    )
+                    if "Item" in plan_result:
+                        plan = plan_result["Item"]
+                        waves = plan.get("Waves", [])
+                        pg_ids = set()
+                        for wave in waves:
+                            pg_id = wave.get("ProtectionGroupId")
+                            if pg_id:
+                                pg_ids.add(pg_id)
+
+                        # Check each protection group for ServerSelectionTags
+                        for pg_id in pg_ids:
+                            try:
+                                pg_result = protection_groups_table.get_item(
+                                    Key={"GroupId": pg_id}
+                                )
+                                if "Item" in pg_result:
+                                    pg = pg_result["Item"]
+                                    tags = pg.get("ServerSelectionTags", {})
+                                    if tags and len(tags) > 0:
+                                        selection_mode = "TAGS"
+                                        break  # Found tag-based, no need to check more
+                            except Exception as pg_err:
+                                print(
+                                    f"Error checking PG {pg_id}: {str(pg_err)}"
+                                )
+
+                execution["SelectionMode"] = selection_mode
             except Exception as e:
                 print(
                     f"Error enriching execution {execution.get('ExecutionId')}: {str(e)}"
                 )
-                execution["RecoveryPlanName"] = "Unknown"
+                if not execution.get("RecoveryPlanName"):
+                    execution["RecoveryPlanName"] = "Unknown"
                 execution["SelectionMode"] = "PLAN"
 
             # For CANCELLED/CANCELLING executions, check if any wave has active DRS jobs
-            # This is CRITICAL for frontend logic - determines Active vs History placement
+            # This helps frontend show them in "Active" section instead of "History"
             exec_status = execution.get("Status", "").upper()
+            print(
+                f"Checking execution {execution.get('ExecutionId')} with status {exec_status}"
+            )
             if exec_status in ["CANCELLED", "CANCELLING"]:
-                # Only check DRS jobs for CANCELLED executions to minimize API calls
                 has_active_jobs = False
                 waves = execution.get("Waves", [])
-                
-                # Limit to first 2 waves to reduce API calls while maintaining accuracy
-                for wave in waves[:2]:  # Check max 2 waves for performance
+                print(f"  Found {len(waves)} waves to check for active jobs")
+                for wave in waves:
                     job_id = wave.get("JobId")
+                    print(
+                        f"  Wave JobId: {job_id}, Region: {wave.get('Region')}"
+                    )
                     if job_id:
                         region = wave.get("Region", "us-east-1")
                         try:
@@ -4859,19 +4884,22 @@ def list_executions(query_params: Dict) -> Dict:
                                 filters={"jobIDs": [job_id]}
                             )
                             jobs = job_response.get("items", [])
+                            job_status = (
+                                jobs[0].get("status") if jobs else "NOT_FOUND"
+                            )
+                            print(f"  DRS job {job_id} status: {job_status}")
                             if jobs and jobs[0].get("status") in [
                                 "PENDING",
                                 "STARTED",
                             ]:
                                 has_active_jobs = True
-                                break  # Found one active job, that's enough
+                                print(f"  Found active DRS job!")
+                                break
                         except Exception as job_err:
                             print(f"Error checking job {job_id}: {job_err}")
-                            # On error, assume no active jobs to avoid blocking UI
-                            
                 execution["HasActiveDrsJobs"] = has_active_jobs
+                print(f"  HasActiveDrsJobs set to: {has_active_jobs}")
             else:
-                # Non-cancelled executions don't need DRS job checks
                 execution["HasActiveDrsJobs"] = False
 
             # Transform to camelCase for frontend
