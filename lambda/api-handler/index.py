@@ -1477,12 +1477,13 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             # Call tag sync directly (no authentication needed for EventBridge)
             return handle_drs_tag_sync({})
 
-        # Validate API Gateway event structure (only for non-worker, non-EventBridge events)
-        try:
-            validated_event = validate_api_gateway_event(event)
-        except InputValidationError as e:
-            log_security_event("invalid_request", {"error": str(e)}, "WARN")
+        # Basic validation for API Gateway events (less strict than before)
+        if not isinstance(event, dict):
             return response(400, {"error": "Invalid request format"})
+            
+        # Check for required API Gateway fields
+        if "httpMethod" not in event or "path" not in event:
+            return response(400, {"error": "Missing required API Gateway fields"})
 
         print("Not worker mode, processing API Gateway request")
 
@@ -1492,11 +1493,13 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
         path_parameters = event.get("pathParameters") or {}
         query_parameters = event.get("queryStringParameters") or {}
 
-        # Sanitize and validate request body
+        # Sanitize and validate request body (only if present)
         try:
             if event.get("body"):
                 body = json.loads(event.get("body"))
-                body = sanitize_dynamodb_input(body)
+                # Only sanitize user input data, not all data
+                if isinstance(body, dict):
+                    body = sanitize_dynamodb_input(body)
             else:
                 body = {}
         except (json.JSONDecodeError, InputValidationError) as e:
