@@ -4805,12 +4805,33 @@ def list_executions(query_params: Dict) -> Dict:
                 if execution.get("PlanName"):
                     execution["RecoveryPlanName"] = execution["PlanName"]
                 else:
-                    # For performance, set default instead of expensive lookup
-                    execution["RecoveryPlanName"] = "Unknown Plan"
+                    # For legacy executions without stored PlanName, do single lookup
+                    plan_id = execution.get("PlanId")
+                    if plan_id:
+                        try:
+                            plan_result = recovery_plans_table.get_item(
+                                Key={"PlanId": plan_id}
+                            )
+                            if "Item" in plan_result:
+                                execution["RecoveryPlanName"] = plan_result[
+                                    "Item"
+                                ].get("PlanName", "Unknown")
+                            else:
+                                execution["RecoveryPlanName"] = "Deleted Plan"
+                        except Exception as plan_err:
+                            print(f"Error fetching plan {plan_id}: {plan_err}")
+                            execution["RecoveryPlanName"] = "Unknown"
+                    else:
+                        execution["RecoveryPlanName"] = "Unknown"
 
-                # Set default selection mode for performance
-                # Expensive protection group lookups removed to prevent timeouts
-                execution["SelectionMode"] = "PLAN"  # Default to plan-based
+                # Determine selection mode efficiently - check if execution has stored SelectionMode
+                if execution.get("SelectionMode"):
+                    # Use stored selection mode if available (newer executions)
+                    pass  # Already set
+                else:
+                    # For legacy executions, set default to avoid expensive lookups
+                    # Most executions are plan-based, so this is a safe default
+                    execution["SelectionMode"] = "PLAN"
                 
             except Exception as e:
                 print(
@@ -4819,9 +4840,39 @@ def list_executions(query_params: Dict) -> Dict:
                 execution["RecoveryPlanName"] = "Unknown"
                 execution["SelectionMode"] = "PLAN"
 
-            # For performance, skip expensive DRS job status checks
-            # Frontend will handle active/inactive status based on execution status
-            execution["HasActiveDrsJobs"] = False
+            # For CANCELLED/CANCELLING executions, check if any wave has active DRS jobs
+            # This is CRITICAL for frontend logic - determines Active vs History placement
+            exec_status = execution.get("Status", "").upper()
+            if exec_status in ["CANCELLED", "CANCELLING"]:
+                # Only check DRS jobs for CANCELLED executions to minimize API calls
+                has_active_jobs = False
+                waves = execution.get("Waves", [])
+                
+                # Limit to first 2 waves to reduce API calls while maintaining accuracy
+                for wave in waves[:2]:  # Check max 2 waves for performance
+                    job_id = wave.get("JobId")
+                    if job_id:
+                        region = wave.get("Region", "us-east-1")
+                        try:
+                            drs_client = create_drs_client(region)
+                            job_response = drs_client.describe_jobs(
+                                filters={"jobIDs": [job_id]}
+                            )
+                            jobs = job_response.get("items", [])
+                            if jobs and jobs[0].get("status") in [
+                                "PENDING",
+                                "STARTED",
+                            ]:
+                                has_active_jobs = True
+                                break  # Found one active job, that's enough
+                        except Exception as job_err:
+                            print(f"Error checking job {job_id}: {job_err}")
+                            # On error, assume no active jobs to avoid blocking UI
+                            
+                execution["HasActiveDrsJobs"] = has_active_jobs
+            else:
+                # Non-cancelled executions don't need DRS job checks
+                execution["HasActiveDrsJobs"] = False
 
             # Transform to camelCase for frontend
             transformed_executions.append(
