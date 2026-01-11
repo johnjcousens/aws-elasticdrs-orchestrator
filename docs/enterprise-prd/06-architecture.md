@@ -582,10 +582,10 @@ sequenceDiagram
 
 | Table | Purpose | Key Schema |
 |-------|---------|------------|
-| `protection-groups` | Server groupings | `GroupId` (PK) |
-| `recovery-plans` | Wave configurations | `PlanId` (PK) |
-| `execution-history` | Execution records | `ExecutionId` (PK), `Status-StartedAt` (GSI) |
-| `target-accounts` | Cross-account config | `AccountId` (PK) |
+| `protection-groups` | Server groupings | `groupId` (PK) |
+| `recovery-plans` | Wave configurations | `planId` (PK) |
+| `execution-history` | Execution records | `executionId` (PK), `status-startedAt` (GSI) |
+| `target-accounts` | Cross-account config | `accountId` (PK) |
 
 ### API Endpoints
 
