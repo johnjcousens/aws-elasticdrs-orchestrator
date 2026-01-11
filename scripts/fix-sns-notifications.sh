@@ -3,18 +3,19 @@
 # This script gets current parameters and redeploys with notifications enabled
 
 set -e
-export AWS_PAGER=""
 
-STACK_NAME="aws-elasticdrs-orchestrator-dev"
-REGION="us-east-1"
-BUCKET="aws-elasticdrs-orchestrator"
+# Load deployment configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-deployment-config.sh"
+
+export AWS_PAGER=""
 
 echo "🔔 Fixing SNS notifications for stack: $STACK_NAME"
 echo ""
 
 # First, sync the latest templates to S3
 echo "📦 Syncing latest CloudFormation templates to S3..."
-aws s3 sync cfn/ s3://$BUCKET/cfn/ --delete --no-cli-pager 2>/dev/null
+aws s3 sync cfn/ s3://$DEPLOYMENT_BUCKET/cfn/ --delete --no-cli-pager 2>/dev/null
 echo "✅ Templates synced to S3"
 echo ""
 
@@ -26,12 +27,12 @@ aws cloudformation deploy \
   --region "$REGION" \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    ProjectName=aws-elasticdrs-orchestrator \
-    Environment=dev \
-    SourceBucket=aws-elasticdrs-orchestrator \
-    AdminEmail=jocousen@amazon.com \
-    CognitoDomainPrefix=aws-elasticdrs-orchestrator-dev \
-    NotificationEmail=jocousen@amazon.com \
+    ProjectName="$PROJECT_NAME" \
+    Environment="$ENVIRONMENT" \
+    SourceBucket="$DEPLOYMENT_BUCKET" \
+    AdminEmail="$ADMIN_EMAIL" \
+    CognitoDomainPrefix="$STACK_NAME" \
+    NotificationEmail="$ADMIN_EMAIL" \
     EnablePipelineNotifications=true \
   --no-fail-on-empty-changeset \
   --no-cli-pager 2>/dev/null
@@ -50,10 +51,10 @@ if [ -n "$TOPIC_ARN" ]; then
   
   # Check subscription
   echo "📧 Checking email subscription..."
-  SUBSCRIPTION=$(aws sns list-subscriptions-by-topic --topic-arn "$TOPIC_ARN" --region "$REGION" 2>/dev/null | grep -o "jocousen@amazon.com" || echo "")
+  SUBSCRIPTION=$(aws sns list-subscriptions-by-topic --topic-arn "$TOPIC_ARN" --region "$REGION" 2>/dev/null | grep -o "$ADMIN_EMAIL" || echo "")
   
   if [ -n "$SUBSCRIPTION" ]; then
-    echo "✅ Email subscription found for: jocousen@amazon.com"
+    echo "✅ Email subscription found for: $ADMIN_EMAIL"
   else
     echo "⚠️  Email subscription may be pending confirmation"
   fi
@@ -66,7 +67,7 @@ if [ -n "$TOPIC_ARN" ]; then
   echo "  ✉️  Security scan failures" 
   echo "  ✉️  Build failures"
   echo ""
-  echo "📬 Check your email (jocousen@amazon.com) for:"
+  echo "📬 Check your email ($ADMIN_EMAIL) for:"
   echo "  1. SNS subscription confirmation (if not already confirmed)"
   echo "  2. Test notifications from pipeline events"
   

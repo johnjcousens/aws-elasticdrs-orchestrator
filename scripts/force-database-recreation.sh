@@ -21,7 +21,7 @@ fi
 REGION="${AWS_REGION:-us-east-1}"
 PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
-PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-dev}"
+PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-test}"
 AWS_PROFILE="${AWS_PROFILE:-default}"
 DRY_RUN=false
 
