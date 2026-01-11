@@ -1605,7 +1605,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
         # Skip authentication check for health endpoint
         if path != "/health":
-            # LIGHTWEIGHT AUTH + RBAC: Fast security with access control
+            # ULTRA-LIGHTWEIGHT AUTH: Minimal security processing for performance
             auth_context = event.get("requestContext", {}).get("authorizer", {})
             claims = auth_context.get("claims", {})
             
@@ -1614,13 +1614,13 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
                 print("Authentication validation failed - missing Cognito claims")
                 return response(401, {"error": "Unauthorized", "message": "Authentication required"})
             
-            # LIGHTWEIGHT RBAC: Fast role-based access control
-            user = get_user_from_event(event)
-            user_roles = get_user_roles(user)
-            
-            # Quick role check for critical operations only
+            # PERFORMANCE OPTIMIZATION: Skip RBAC for read operations to avoid expensive role lookups
             if http_method in ["POST", "PUT", "DELETE"]:
-                # Write operations require admin or manager roles
+                # Only do RBAC for write operations that actually need it
+                user = get_user_from_event(event)
+                user_roles = get_user_roles(user)
+                
+                # Quick role check for critical operations only
                 admin_roles = ["DRSOrchestrationAdmin", "DRSRecoveryManager", "DRSPlanManager"]
                 if not any(role.value in admin_roles for role in user_roles):
                     print(f"Access denied for {http_method} {path} - user roles: {[r.value for r in user_roles]}")
@@ -1629,8 +1629,11 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
                         "message": "Insufficient permissions for this operation",
                         "userRoles": [r.value for r in user_roles]
                     })
+                print(f"✅ Write operation authorized for user: {claims.get('email')} with roles: {[r.value for r in user_roles]}")
+            else:
+                # GET operations: Just verify authentication, skip expensive RBAC
+                print(f"✅ Read operation authorized for authenticated user: {claims.get('email')}")
             
-            print(f"✅ Auth + RBAC passed for user: {claims.get('email')} with roles: {[r.value for r in user_roles]}")
             # All read operations (GET) are allowed for authenticated users
 
         print("Authentication and authorization passed, proceeding to routing")
@@ -4800,9 +4803,10 @@ def list_executions(query_params: Dict) -> Dict:
             # Stack ready for deployment after cleanup completion
             execution["HasActiveDrsJobs"] = False
 
-            # Transform to camelCase for frontend
+            # PERFORMANCE FIX: Use lightweight transform for list function
+            # Skip expensive server enrichment for fast loading
             transformed_executions.append(
-                transform_execution_to_camelcase(execution)
+                transform_execution_to_camelcase_lightweight(execution)
             )
 
         # Build response with pagination
@@ -8186,6 +8190,118 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         ),  # NEW: Server conflict with other executions
         "conflictInfo": transformed_conflict,  # NEW: Details about the conflict
         "version": version,  # Optimistic locking version
+    }
+
+
+def transform_execution_to_camelcase_lightweight(execution: Dict) -> Dict:
+    """
+    Lightweight transform for list executions - minimal processing for fast loading.
+    Skips expensive server enrichment and uses cached data only.
+    """
+    # Helper function to safely convert timestamp (string or int) to int
+    def safe_timestamp_to_int(value):
+        if value is None:
+            return None
+        try:
+            return int(value) if value else None
+        except (ValueError, TypeError):
+            return None
+
+    # Helper function to map execution status
+    def map_execution_status(status):
+        if not status:
+            return "unknown"
+        status_upper = status.upper()
+        status_mapping = {
+            "PENDING": "pending",
+            "POLLING": "polling", 
+            "INITIATED": "initiated",
+            "LAUNCHING": "launching",
+            "STARTED": "started",
+            "IN_PROGRESS": "in_progress",
+            "RUNNING": "running",
+            "COMPLETED": "completed",
+            "PARTIAL": "partial",
+            "FAILED": "failed",
+            "CANCELLED": "cancelled",
+            "PAUSED": "paused",
+        }
+        return status_mapping.get(status_upper, status.lower())
+
+    # Lightweight wave transformation - minimal server data
+    waves = []
+    for i, wave in enumerate(execution.get("Waves", [])):
+        # Basic server list without expensive enrichment
+        servers = []
+        server_ids = wave.get("ServerIds", [])
+        
+        for server_id in server_ids:
+            servers.append({
+                "sourceServerId": server_id,
+                "recoveryJobId": wave.get("JobId"),
+                "instanceId": None,  # Available via realtime endpoint
+                "recoveredInstanceId": None,
+                "status": wave.get("Status", "UNKNOWN"),
+                "launchTime": safe_timestamp_to_int(wave.get("StartTime")),
+                "error": None,
+                # Minimal server details for list view
+                "instanceType": "",
+                "privateIp": "",
+                "ec2State": "",
+                "hostname": f"server-{server_id[-8:] if server_id else 'unknown'}",
+                "serverName": "",
+                "region": wave.get("Region", ""),
+                "sourceInstanceId": "",
+                "sourceAccountId": "",
+                "sourceIp": "",
+                "sourceRegion": "",
+                "replicationState": "",
+            })
+
+        waves.append({
+            "waveNumber": wave.get("WaveNumber", i),
+            "waveName": wave.get("WaveName"),
+            "protectionGroupId": wave.get("ProtectionGroupId"),
+            "region": wave.get("Region"),
+            "status": map_execution_status(wave.get("Status")),
+            "servers": servers,
+            "startTime": safe_timestamp_to_int(wave.get("StartTime")),
+            "endTime": safe_timestamp_to_int(wave.get("EndTime")),
+            "jobId": wave.get("JobId"),
+        })
+
+    # Calculate current wave progress
+    total_waves = execution.get("TotalWaves") or len(waves) or 1
+    current_wave = 0
+
+    # Find the first wave that's not completed
+    for i, wave in enumerate(waves, 1):
+        wave_status = wave.get("status", "").lower()
+        if wave_status in ["polling", "initiated", "launching", "in_progress", "started", "pending"]:
+            current_wave = i
+            break
+        elif wave_status == "completed":
+            current_wave = i
+
+    if current_wave == 0:
+        current_wave = max(1, len(waves))
+
+    return {
+        "executionId": execution.get("ExecutionId"),
+        "recoveryPlanId": execution.get("PlanId"),
+        "recoveryPlanName": execution.get("RecoveryPlanName") or execution.get("PlanName", "Unknown"),
+        "executionType": execution.get("ExecutionType"),
+        "status": map_execution_status(execution.get("Status")),
+        "startTime": safe_timestamp_to_int(execution.get("StartTime")),
+        "endTime": safe_timestamp_to_int(execution.get("EndTime")),
+        "initiatedBy": execution.get("InitiatedBy"),
+        "waves": waves,
+        "currentWave": current_wave,
+        "totalWaves": total_waves,
+        "errorMessage": execution.get("ErrorMessage"),
+        "pausedBeforeWave": execution.get("PausedBeforeWave"),
+        "selectionMode": execution.get("SelectionMode", "PLAN"),
+        "hasActiveDrsJobs": execution.get("HasActiveDrsJobs", False),
     }
 
 
