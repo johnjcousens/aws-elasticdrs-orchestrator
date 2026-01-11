@@ -226,6 +226,36 @@ else
     report_warning "Types file not found: $TYPES_FILE"
 fi
 
+# 6.1. Check for field name consistency between frontend and backend
+echo "6.1. Checking API field validation consistency..."
+
+API_HANDLER="lambda/api-handler/index.py"
+if [ -f "$API_HANDLER" ]; then
+    # Check createProtectionGroup field validation
+    if grep -n "\"GroupName\"" "$API_HANDLER" > /dev/null 2>&1; then
+        report_error "Backend validates 'GroupName' (PascalCase) but frontend sends 'groupName' (camelCase)"
+    fi
+    
+    if grep -n "\"Region\"" "$API_HANDLER" > /dev/null 2>&1; then
+        report_error "Backend validates 'Region' (PascalCase) but frontend sends 'region' (camelCase)"
+    fi
+    
+    if grep -n "\"PlanName\"" "$API_HANDLER" > /dev/null 2>&1; then
+        report_error "Backend validates 'PlanName' (PascalCase) but frontend sends 'name' (camelCase)"
+    fi
+    
+    # Check that backend uses camelCase validation
+    if ! grep -n "\"groupName\"" "$API_HANDLER" > /dev/null 2>&1; then
+        report_warning "Backend should validate 'groupName' (camelCase) for createProtectionGroup"
+    fi
+    
+    if ! grep -n "\"region\"" "$API_HANDLER" > /dev/null 2>&1; then
+        report_warning "Backend should validate 'region' (camelCase) for createProtectionGroup"
+    fi
+else
+    report_warning "API handler file not found: $API_HANDLER"
+fi
+
 # 7. Check for deprecated field patterns
 echo "7. Checking for deprecated field patterns..."
 
