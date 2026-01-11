@@ -134,9 +134,9 @@ class TestProtectionGroupsEndpoint:
         mock_table.scan.return_value = {
             "Items": [
                 {
-                    "GroupId": "pg-123",
-                    "GroupName": "Test Group",
-                    "Region": "us-east-1",
+                    "groupId": "pg-123",
+                    "groupName": "Test Group",
+                    "region": "us-east-1",
                 }
             ]
         }
@@ -202,9 +202,9 @@ class TestProtectionGroupsEndpoint:
         """GET /protection-groups/{id} should return single group."""
         mock_table.get_item.return_value = {
             "Item": {
-                "GroupId": "pg-123",
-                "GroupName": "Test Group",
-                "Region": "us-east-1",
+                "groupId": "pg-123",
+                "groupName": "Test Group",
+                "region": "us-east-1",
             }
         }
 
@@ -238,9 +238,9 @@ class TestRecoveryPlansEndpoint:
         mock_table.scan.return_value = {
             "Items": [
                 {
-                    "PlanId": "rp-123",
-                    "PlanName": "Test Plan",
-                    "Region": "us-east-1",
+                    "planId": "rp-123",
+                    "planName": "Test Plan",
+                    "region": "us-east-1",
                 }
             ]
         }
@@ -278,9 +278,9 @@ class TestExecutionsEndpoint:
         mock_table.scan.return_value = {
             "Items": [
                 {
-                    "ExecutionId": "exec-123",
-                    "Status": "COMPLETED",
-                    "PlanId": "rp-123",
+                    "executionId": "exec-123",
+                    "status": "COMPLETED",
+                    "planId": "rp-123",
                 }
             ]
         }
@@ -312,9 +312,9 @@ class TestExecutionsEndpoint:
         """GET /executions/{id} should return single execution."""
         mock_table.get_item.return_value = {
             "Item": {
-                "ExecutionId": "exec-123",
-                "Status": "COMPLETED",
-                "PlanId": "rp-123",
+                "executionId": "exec-123",
+                "status": "COMPLETED",
+                "planId": "rp-123",
             }
         }
 
