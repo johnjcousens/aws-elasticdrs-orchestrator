@@ -1,0 +1,244 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - SNS Notification Infrastructure'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+  
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+  
+  AdminEmail:
+    Type: String
+    Description: 'Admin email for critical notifications'
+  
+  NotificationEmail:
+    Type: String
+    Default: ''
+    Description: 'Optional: Additional email for execution notifications'
+
+Conditions:
+  HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
+
+Resources:
+  # ===== EXECUTION NOTIFICATIONS =====
+  
+  ExecutionNotificationsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-execution-notifications-${Environment}'
+      DisplayName: 'DRS Orchestration Execution Notifications'
+      
+  ExecutionNotificationsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref ExecutionNotificationsTopic
+      Endpoint: !Ref AdminEmail
+      
+  ExecutionNotificationsSubscriptionOptional:
+    Type: AWS::SNS::Subscription
+    Condition: HasNotificationEmail
+    Properties:
+      Protocol: email
+      TopicArn: !Ref ExecutionNotificationsTopic
+      Endpoint: !Ref NotificationEmail
+
+  # ===== DRS OPERATIONAL ALERTS =====
+  
+  DRSOperationalAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-drs-alerts-${Environment}'
+      DisplayName: 'DRS Operational Alerts'
+      
+  DRSOperationalAlertsSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref DRSOperationalAlertsTopic
+      Endpoint: !Ref AdminEmail
+
+  # ===== APPROVAL WORKFLOW TOPIC =====
+  
+  ApprovalWorkflowTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-approval-workflow-${Environment}'
+      DisplayName: 'DRS Orchestration Approval Workflow'
+      
+  ApprovalWorkflowSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref ApprovalWorkflowTopic
+      Endpoint: !Ref AdminEmail
+
+  # ===== EVENTBRIDGE RULES FOR DRS EVENTS =====
+  
+  DRSRecoveryFailureRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'EventBridge rule for DRS recovery launch failures'
+      State: ENABLED
+      EventPattern:
+        source: ["aws.drs"]
+        detail-type: ["DRS Source Server Launch Result"]
+        detail:
+          state: ["RECOVERY_LAUNCH_FAILED"]
+      Targets:
+        - Arn: !Ref DRSOperationalAlertsTopic
+          Id: DRSRecoveryFailureAlert
+          InputTransformer:
+            InputPathsMap:
+              sourceServerId: "$.detail.sourceServerId"
+              state: "$.detail.state"
+              region: "$.region"
+            InputTemplate: |
+              {
+                "alertType": "DRS Recovery Failure",
+                "sourceServerId": "<sourceServerId>",
+                "state": "<state>",
+                "region": "<region>",
+                "timestamp": "$.time",
+                "message": "DRS recovery launch failed for source server <sourceServerId> in region <region>"
+              }
+
+  DRSReplicationStalledRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: 'EventBridge rule for DRS replication stalled events'
+      State: ENABLED
+      EventPattern:
+        source: ["aws.drs"]
+        detail-type: ["DRS Source Server Data Replication Stalled Change"]
+        detail:
+          state: ["STALLED"]
+      Targets:
+        - Arn: !Ref DRSOperationalAlertsTopic
+          Id: DRSReplicationStalledAlert
+          InputTransformer:
+            InputPathsMap:
+              sourceServerId: "$.detail.sourceServerId"
+              state: "$.detail.state"
+              region: "$.region"
+            InputTemplate: |
+              {
+                "alertType": "DRS Replication Stalled",
+                "sourceServerId": "<sourceServerId>",
+                "state": "<state>",
+                "region": "<region>",
+                "timestamp": "$.time",
+                "message": "DRS replication stalled for source server <sourceServerId> in region <region>"
+              }
+
+  # ===== SNS TOPIC POLICIES =====
+  
+  ExecutionNotificationsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref ExecutionNotificationsTopic
+      PolicyDocument:
+        Id: ExecutionNotificationsTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowLambdaPublish
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref ExecutionNotificationsTopic
+          - Sid: AllowStepFunctionsPublish
+            Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref ExecutionNotificationsTopic
+
+  DRSOperationalAlertsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref DRSOperationalAlertsTopic
+      PolicyDocument:
+        Id: DRSOperationalAlertsTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowEventBridgePublish
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref DRSOperationalAlertsTopic
+
+  ApprovalWorkflowTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref ApprovalWorkflowTopic
+      PolicyDocument:
+        Id: ApprovalWorkflowTopicPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowStepFunctionsPublish
+            Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref ApprovalWorkflowTopic
+
+  # ===== NOTIFICATION FORMATTER LAMBDA =====
+  
+  NotificationFormatterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-notification-formatter-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SNSPublishPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref ExecutionNotificationsTopic
+                  - !Ref DRSOperationalAlertsTopic
+                  - !Ref ApprovalWorkflowTopic
+
+Outputs:
+  ExecutionNotificationsTopicArn:
+    Description: 'ARN of the Execution Notifications SNS Topic'
+    Value: !Ref ExecutionNotificationsTopic
+    Export:
+      Name: !Sub '${ProjectName}-execution-notifications-topic-${Environment}'
+
+  DRSOperationalAlertsTopicArn:
+    Description: 'ARN of the DRS Operational Alerts SNS Topic'
+    Value: !Ref DRSOperationalAlertsTopic
+    Export:
+      Name: !Sub '${ProjectName}-drs-alerts-topic-${Environment}'
+
+  ApprovalWorkflowTopicArn:
+    Description: 'ARN of the Approval Workflow SNS Topic'
+    Value: !Ref ApprovalWorkflowTopic
+    Export:
+      Name: !Sub '${ProjectName}-approval-workflow-topic-${Environment}'
+
+  NotificationFormatterRoleArn:
+    Description: 'ARN of the Notification Formatter Lambda Role'
+    Value: !GetAtt NotificationFormatterRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-notification-formatter-role-${Environment}'

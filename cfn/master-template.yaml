@@ -186,7 +186,9 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
-    DependsOn: DatabaseStack
+    DependsOn: 
+      - DatabaseStack
+      - NotificationStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/lambda-stack.yaml'
       Parameters:
@@ -201,6 +203,10 @@ Resources:
         CrossAccountRoleName: !Ref CrossAccountRoleName
         AdminEmail: !Ref AdminEmail
         EnablePipelineNotifications: !Ref EnablePipelineNotifications
+        # SNS Topic ARNs from Notification Stack
+        ExecutionNotificationsTopicArn: !GetAtt NotificationStack.Outputs.ExecutionNotificationsTopicArn
+        DRSAlertsTopicArn: !GetAtt NotificationStack.Outputs.DRSOperationalAlertsTopicArn
+        ApprovalWorkflowTopicArn: !GetAtt NotificationStack.Outputs.ApprovalWorkflowTopicArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -246,6 +252,24 @@ Resources:
         CognitoDomainPrefix: !Ref CognitoDomainPrefix
         NotificationEmail: !If [HasNotificationEmail, !Ref NotificationEmail, !Ref AdminEmail]
         ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Notification Stack - SNS Topics and EventBridge Rules
+  NotificationStack:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/notification-stack.yaml'
+      Parameters:
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        AdminEmail: !Ref AdminEmail
+        NotificationEmail: !If [HasNotificationEmail, !Ref NotificationEmail, '']
       Tags:
         - Key: Project
           Value: !Ref ProjectName
