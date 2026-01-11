@@ -198,6 +198,12 @@ jobs:
           chmod +x scripts/validate-camelcase-consistency.sh
           ./scripts/validate-camelcase-consistency.sh
 
+      - name: API Gateway Architecture Validation
+        run: |
+          echo "=== API Gateway Architecture Validation ==="
+          chmod +x scripts/validate-api-gateway-compliance.sh
+          ./scripts/validate-api-gateway-compliance.sh
+
   # Stage 2: Security scanning
   security-scan:
     name: Security Scan
