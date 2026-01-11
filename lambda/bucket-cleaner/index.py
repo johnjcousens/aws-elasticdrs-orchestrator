@@ -38,8 +38,13 @@ def send_response(
     """
     response_url = event["ResponseURL"]
 
+    # Ensure response_status is valid
+    if response_status not in ["SUCCESS", "FAILED"]:
+        logger.error(f"Invalid response_status: {response_status}")
+        response_status = "FAILED"
+
     response_body = {
-        "status": response_status,
+        "Status": response_status,  # CloudFormation expects "Status" not "status"
         "Reason": (
             f"See the details in CloudWatch Log Stream: "
             f"{context.log_stream_name}"
@@ -63,12 +68,20 @@ def send_response(
 
     try:
         http = urllib3.PoolManager()
+        logger.info(f"Sending response to CloudFormation: {response_status}")
+        logger.info(f"Response body: {json_response_body}")
+        
         response = http.request(
             "PUT", response_url, body=json_response_body, headers=headers
         )
-        logger.info(f"Status code: {response.status}")
+        logger.info(f"CloudFormation response status code: {response.status}")
+        
+        if response.status != 200:
+            logger.error(f"CloudFormation response error: {response.data}")
+            
     except Exception as e:
         logger.error(f"Failed to send response to CloudFormation: {e}")
+        raise
 
 
 def lambda_handler(event, context):
@@ -114,12 +127,20 @@ def lambda_handler(event, context):
 
     except Exception as e:
         logger.error(f"Error processing bucket cleanup: {str(e)}")
-        send_response(
-            event,
-            context,
-            "FAILED",
-            {"Message": f"Failed to process bucket cleanup: {str(e)}"},
-        )
+        logger.error(f"Exception type: {type(e).__name__}")
+        
+        # Always send a response, even on error
+        try:
+            send_response(
+                event,
+                context,
+                "FAILED",
+                {"Message": f"Failed to process bucket cleanup: {str(e)}"},
+            )
+        except Exception as send_error:
+            logger.error(f"Failed to send error response: {send_error}")
+            # Re-raise original exception if we can't even send the response
+            raise e
 
 
 def empty_bucket(bucket_name):
