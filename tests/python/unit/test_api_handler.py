@@ -43,18 +43,44 @@ os.environ["AWS_REGION"] = "us-east-1"
 os.environ["PROJECT_NAME"] = "test-drs-orchestration"
 os.environ["ENVIRONMENT"] = "test"
 
-# Mock boto3 before importing index to prevent actual AWS calls
-# Use persistent mocks to prevent hanging in CI environment
-boto3_resource_patcher = patch("boto3.resource")
-boto3_client_patcher = patch("boto3.client")
-boto3_resource_patcher.start()
-boto3_client_patcher.start()
 
-try:
-    import index
-finally:
-    # Keep mocks active for the entire test session
-    pass
+# Global mocks to prevent AWS calls
+@pytest.fixture(scope="session", autouse=True)
+def mock_aws_services():
+    """Mock AWS services for the entire test session to prevent hanging."""
+    with patch("boto3.resource") as mock_resource, \
+         patch("boto3.client") as mock_client:
+        
+        # Configure mock DynamoDB resource
+        mock_dynamodb = MagicMock()
+        mock_table = MagicMock()
+        mock_table.scan.return_value = {"Items": []}
+        mock_table.get_item.return_value = {"Item": {}}
+        mock_table.put_item.return_value = {}
+        mock_dynamodb.Table.return_value = mock_table
+        mock_resource.return_value = mock_dynamodb
+        
+        # Configure mock clients
+        mock_client.return_value = MagicMock()
+        
+        yield {
+            "resource": mock_resource,
+            "client": mock_client,
+            "table": mock_table
+        }
+
+
+# Import index after mocking is set up
+index = None
+
+
+def get_index_module():
+    """Lazy import of index module to prevent hanging."""
+    global index
+    if index is None:
+        import index as idx
+        index = idx
+    return index
 
 
 class TestResponseFunction:
@@ -62,6 +88,7 @@ class TestResponseFunction:
 
     def test_success_response(self):
         """Should format success response correctly."""
+        index = get_index_module()
         response = index.response(200, {"message": "success"})
         assert response["statusCode"] == 200
         assert "application/json" in response["headers"]["Content-Type"]
@@ -70,6 +97,7 @@ class TestResponseFunction:
 
     def test_error_response(self):
         """Should format error response correctly."""
+        index = get_index_module()
         response = index.response(400, {"error": "Bad Request"})
         assert response["statusCode"] == 400
         body = json.loads(response["body"])
@@ -77,12 +105,14 @@ class TestResponseFunction:
 
     def test_includes_cors_headers(self):
         """Should include CORS headers."""
+        index = get_index_module()
         response = index.response(200, {})
         assert "Access-Control-Allow-Origin" in response["headers"]
         assert response["headers"]["Access-Control-Allow-Origin"] == "*"
 
     def test_includes_security_headers(self):
         """Should include security headers."""
+        index = get_index_module()
         response = index.response(200, {})
         headers = response["headers"]
         assert "X-Content-Type-Options" in headers
@@ -94,6 +124,7 @@ class TestOptionsHandler:
 
     def test_options_returns_200(self):
         """OPTIONS request should return 200."""
+        index = get_index_module()
         event = {
             "httpMethod": "OPTIONS",
             "path": "/protection-groups",
@@ -104,6 +135,7 @@ class TestOptionsHandler:
 
     def test_options_includes_cors_headers(self):
         """OPTIONS should include CORS headers."""
+        index = get_index_module()
         event = {
             "httpMethod": "OPTIONS",
             "path": "/protection-groups",
@@ -120,6 +152,7 @@ class TestHealthEndpoint:
 
     def test_health_returns_200(self):
         """Health endpoint should return 200."""
+        index = get_index_module()
         event = {
             "httpMethod": "GET",
             "path": "/health",
@@ -130,6 +163,7 @@ class TestHealthEndpoint:
 
     def test_health_returns_status(self):
         """Health endpoint should return status."""
+        index = get_index_module()
         event = {
             "httpMethod": "GET",
             "path": "/health",
@@ -146,6 +180,7 @@ class TestProtectionGroupsEndpoint:
     @patch("index.protection_groups_table")
     def test_get_protection_groups(self, mock_table):
         """GET /protection-groups should return list."""
+        index = get_index_module()
         mock_table.scan.return_value = {
             "Items": [
                 {
@@ -181,6 +216,7 @@ class TestProtectionGroupsEndpoint:
     @patch("index.protection_groups_table")
     def test_create_protection_group(self, mock_table):
         """POST /protection-groups should create group."""
+        index = get_index_module()
         mock_table.put_item.return_value = {}
         mock_table.scan.return_value = {"Items": []}
 
@@ -215,6 +251,7 @@ class TestProtectionGroupsEndpoint:
     @patch("index.protection_groups_table")
     def test_get_protection_group_by_id(self, mock_table):
         """GET /protection-groups/{id} should return single group."""
+        index = get_index_module()
         mock_table.get_item.return_value = {
             "Item": {
                 "groupId": "pg-123",
@@ -250,6 +287,7 @@ class TestRecoveryPlansEndpoint:
     @patch("index.recovery_plans_table")
     def test_get_recovery_plans(self, mock_table):
         """GET /recovery-plans should return list."""
+        index = get_index_module()
         mock_table.scan.return_value = {
             "Items": [
                 {
@@ -290,6 +328,7 @@ class TestExecutionsEndpoint:
     @patch("index.execution_history_table")
     def test_get_executions(self, mock_table):
         """GET /executions should return list or object with items."""
+        index = get_index_module()
         mock_table.scan.return_value = {
             "Items": [
                 {
@@ -325,6 +364,7 @@ class TestExecutionsEndpoint:
     @patch("index.execution_history_table")
     def test_get_execution_by_id(self, mock_table):
         """GET /executions/{id} should return single execution."""
+        index = get_index_module()
         mock_table.get_item.return_value = {
             "Item": {
                 "executionId": "exec-123",
@@ -359,6 +399,7 @@ class TestErrorHandling:
 
     def test_invalid_json_body(self):
         """Should handle invalid JSON body."""
+        index = get_index_module()
         event = {
             "httpMethod": "POST",
             "path": "/protection-groups",
@@ -381,6 +422,7 @@ class TestErrorHandling:
 
     def test_unknown_endpoint(self):
         """Should return 404 for unknown endpoint."""
+        index = get_index_module()
         event = {
             "httpMethod": "GET",
             "path": "/unknown-endpoint",
@@ -407,6 +449,7 @@ class TestAuthorizationEnforcement:
 
     def test_read_only_cannot_create(self):
         """Read-only user should not be able to create resources."""
+        index = get_index_module()
         event = {
             "httpMethod": "POST",
             "path": "/protection-groups",
@@ -437,6 +480,7 @@ class TestAuthorizationEnforcement:
 
     def test_read_only_can_view(self):
         """Read-only user should be able to view resources."""
+        index = get_index_module()
         with patch("index.protection_groups_table") as mock_table:
             mock_table.scan.return_value = {"Items": []}
 
@@ -465,6 +509,7 @@ class TestUserPermissionsEndpoint:
 
     def test_get_user_permissions(self):
         """GET /user/permissions should return user permissions."""
+        index = get_index_module()
         event = {
             "httpMethod": "GET",
             "path": "/user/permissions",
@@ -485,20 +530,6 @@ class TestUserPermissionsEndpoint:
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert "permissions" in body or "roles" in body or "user" in body
-
-
-# Cleanup boto3 mocks
-def cleanup_mocks():
-    """Clean up boto3 mocks to prevent hanging."""
-    try:
-        boto3_resource_patcher.stop()
-        boto3_client_patcher.stop()
-    except:
-        pass
-
-# Register cleanup
-import atexit
-atexit.register(cleanup_mocks)
 
 
 if __name__ == "__main__":
