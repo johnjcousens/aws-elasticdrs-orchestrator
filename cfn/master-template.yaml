@@ -146,6 +146,15 @@ Parameters:
     Default: 'initial'
     Description: 'Timestamp to force API Gateway redeployment (pass unique value on each deploy)'
 
+  # Database Recreation (CamelCase Migration)
+  ForceRecreation:
+    Type: String
+    Default: 'false'
+    Description: 'Force DynamoDB table recreation for camelCase migration (true/false)'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
 Conditions:
   HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
@@ -162,6 +171,7 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
+        ForceRecreation: !Ref ForceRecreation
       Tags:
         - Key: Project
           Value: !Ref ProjectName
