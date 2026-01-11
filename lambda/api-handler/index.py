@@ -3684,6 +3684,9 @@ def handle_executions(
         return pause_execution(execution_id)
     elif execution_id and "/resume" in full_path:
         return resume_execution(execution_id)
+    elif execution_id and "/realtime" in full_path:
+        # NEW: Real-time data endpoint for expensive operations
+        return get_execution_details_realtime(execution_id)
     elif execution_id and "/terminate-instances" in full_path:
         return terminate_recovery_instances(execution_id)
     elif execution_id and "/termination-status" in full_path:
@@ -5459,14 +5462,11 @@ def recalculate_execution_status(execution: Dict) -> Dict:
     return execution
 
 
-def get_execution_details(execution_id: str) -> Dict:
-    """Get detailed information about a specific execution with REAL-TIME data"""
+def get_execution_details_fast(execution_id: str) -> Dict:
+    """Get execution details using cached data only - FAST response (<1 second)"""
     try:
         # Handle both UUID and ARN formats for backwards compatibility
-        # ARN format: arn:aws:states:region:account:execution:state-machine-name:execution-uuid
-        # Extract UUID from ARN if provided
         if execution_id.startswith("arn:"):
-            # Extract the last segment which is the UUID
             execution_id = execution_id.split(":")[-1]
             print(f"Extracted UUID from ARN: {execution_id}")
 
@@ -5487,8 +5487,7 @@ def get_execution_details(execution_id: str) -> Dict:
 
         execution = result["Items"][0]
 
-        # Enrich with recovery plan details
-        # Use stored PlanName first (preserved even if plan deleted)
+        # Basic enrichment with stored data only (FAST operations)
         try:
             if execution.get("PlanName"):
                 execution["RecoveryPlanName"] = execution["PlanName"]
@@ -5500,24 +5499,74 @@ def get_execution_details(execution_id: str) -> Dict:
                 )
                 if "Item" in plan_result:
                     plan = plan_result["Item"]
-                    # Only set from lookup if not already stored
                     if not execution.get("RecoveryPlanName"):
-                        execution["RecoveryPlanName"] = plan.get(
-                            "PlanName", "Unknown"
-                        )
-                    execution["RecoveryPlanDescription"] = plan.get(
-                        "Description", ""
-                    )
+                        execution["RecoveryPlanName"] = plan.get("PlanName", "Unknown")
+                    execution["RecoveryPlanDescription"] = plan.get("Description", "")
                     execution["TotalWaves"] = len(plan.get("Waves", []))
                 elif not execution.get("RecoveryPlanName"):
                     execution["RecoveryPlanName"] = "Deleted Plan"
         except Exception as e:
             print(f"Error enriching execution with plan details: {str(e)}")
 
+        # Mark as cached data for frontend
+        execution["dataSource"] = "cached"
+        execution["lastUpdated"] = execution.get("UpdatedAt", int(time.time()))
+        
+        # Add flag to indicate if real-time data is available
+        execution["hasRealtimeData"] = execution.get("Status") in ["RUNNING", "PAUSED"]
+
+        return response(200, execution)
+
+    except Exception as e:
+        print(f"Error getting execution details (fast): {str(e)}")
+        return response(
+            500,
+            {
+                "error": "INTERNAL_ERROR",
+                "message": f"Error retrieving execution details: {str(e)}",
+                "executionId": execution_id,
+            },
+        )
+
+
+def get_execution_details_realtime(execution_id: str) -> Dict:
+    """Get real-time execution data - SLOW but current (5-15 seconds)"""
+    try:
+        # Handle both UUID and ARN formats for backwards compatibility
+        if execution_id.startswith("arn:"):
+            execution_id = execution_id.split(":")[-1]
+            print(f"Extracted UUID from ARN: {execution_id}")
+
+        # Get cached execution first
+        result = execution_history_table.query(
+            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+        )
+
+        if "Items" not in result or len(result["Items"]) == 0:
+            return response(
+                404,
+                {
+                    "error": "EXECUTION_NOT_FOUND",
+                    "message": f"Execution with ID {execution_id} not found",
+                    "executionId": execution_id,
+                },
+            )
+
+        execution = result["Items"][0]
+
+        # Only fetch real-time data for active executions
+        if execution.get("Status") not in ["RUNNING", "PAUSED"]:
+            print(f"Execution {execution_id} is not active, skipping real-time data")
+            execution["dataSource"] = "cached"
+            execution["lastUpdated"] = execution.get("UpdatedAt", int(time.time()))
+            return response(200, execution)
+
+        print(f"Fetching real-time data for active execution {execution_id}")
+
         # REAL-TIME DATA: Get current status from Step Functions if still running
         if execution.get("Status") == "RUNNING" and execution.get("StateMachineArn"):
             try:
-                print(f"DEBUG: Getting real-time Step Functions status for execution")
+                print(f"Getting real-time Step Functions status for execution")
                 sf_response = stepfunctions.describe_execution(
                     executionArn=execution.get("StateMachineArn")
                 )
@@ -5525,8 +5574,7 @@ def get_execution_details(execution_id: str) -> Dict:
 
                 # Update DynamoDB if Step Functions shows completion
                 if sf_response["status"] in ["SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"]:
-                    print(f"DEBUG: Step Functions shows completion, updating DynamoDB")
-                    # Update the execution status in DynamoDB
+                    print(f"Step Functions shows completion, updating DynamoDB")
                     execution_history_table.update_item(
                         Key={"ExecutionId": execution_id, "PlanId": execution.get("PlanId")},
                         UpdateExpression="SET #status = :status, UpdatedAt = :updated",
@@ -5543,14 +5591,14 @@ def get_execution_details(execution_id: str) -> Dict:
 
         # REAL-TIME WAVE STATUS: Reconcile wave status with actual DRS job results
         try:
-            print(f"DEBUG: Reconciling wave status with real-time DRS data")
+            print(f"Reconciling wave status with real-time DRS data")
             execution = reconcile_wave_status_with_drs(execution)
         except Exception as reconcile_error:
             print(f"Error reconciling wave status: {reconcile_error}")
 
         # REAL-TIME SERVER DETAILS: Enrich with current server and recovery instance details
         try:
-            print(f"DEBUG: Enriching with real-time server details")
+            print(f"Enriching with real-time server details")
             execution = enrich_execution_with_server_details(execution)
         except Exception as e:
             print(f"Error enriching execution with server details: {str(e)}")
@@ -5561,18 +5609,37 @@ def get_execution_details(execution_id: str) -> Dict:
         except Exception as recalc_error:
             print(f"Error recalculating execution status: {recalc_error}")
 
+        # Mark as real-time data
+        execution["dataSource"] = "realtime"
+        execution["lastUpdated"] = int(time.time())
+
+        # Update cache with fresh data
+        try:
+            execution_history_table.update_item(
+                Key={"ExecutionId": execution_id, "PlanId": execution.get("PlanId")},
+                UpdateExpression="SET UpdatedAt = :updated",
+                ExpressionAttributeValues={":updated": int(time.time())}
+            )
+        except Exception as cache_error:
+            print(f"Error updating cache: {cache_error}")
+
         return response(200, execution)
 
     except Exception as e:
-        print(f"Error getting execution details: {str(e)}")
+        print(f"Error getting execution real-time details: {str(e)}")
         return response(
             500,
             {
                 "error": "INTERNAL_ERROR",
-                "message": f"Error retrieving execution details: {str(e)}",
+                "message": f"Error retrieving real-time execution details: {str(e)}",
                 "executionId": execution_id,
             },
         )
+
+
+def get_execution_details(execution_id: str) -> Dict:
+    """Get execution details - now uses FAST cached data by default"""
+    return get_execution_details_fast(execution_id)
                 ]:
                     new_status = (
                         "COMPLETED"
