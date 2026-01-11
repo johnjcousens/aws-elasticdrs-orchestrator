@@ -192,6 +192,12 @@ jobs:
           chmod +x scripts/check-cloudscape-compliance.sh
           ./scripts/check-cloudscape-compliance.sh frontend/src
 
+      - name: CamelCase Consistency Validation
+        run: |
+          echo "=== CamelCase Consistency Validation ==="
+          chmod +x scripts/validate-camelcase-consistency.sh
+          ./scripts/validate-camelcase-consistency.sh
+
   # Stage 2: Security scanning
   security-scan:
     name: Security Scan

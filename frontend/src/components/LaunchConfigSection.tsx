@@ -116,15 +116,15 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
   }));
 
   // Check if any launch config is set
-  const hasConfig = launchConfig.SubnetId || 
-    (launchConfig.SecurityGroupIds && launchConfig.SecurityGroupIds.length > 0) ||
-    launchConfig.InstanceType ||
-    launchConfig.InstanceProfileName ||
-    launchConfig.CopyPrivateIp ||
-    launchConfig.CopyTags ||
-    launchConfig.TargetInstanceTypeRightSizingMethod ||
-    launchConfig.LaunchDisposition ||
-    launchConfig.Licensing?.osByol !== undefined;
+  const hasConfig = launchConfig.subnetId || 
+    (launchConfig.securityGroupIds && launchConfig.securityGroupIds.length > 0) ||
+    launchConfig.instanceType ||
+    launchConfig.instanceProfileName ||
+    launchConfig.copyPrivateIp ||
+    launchConfig.copyTags ||
+    launchConfig.targetInstanceTypeRightSizingMethod ||
+    launchConfig.launchDisposition ||
+    launchConfig.licensing?.osByol !== undefined;
 
   // Build header text
   const headerText = hasConfig ? 'Launch Settings (configured)' : 'Launch Settings';
@@ -154,8 +154,8 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
                 description="VPC subnet for recovery instances"
               >
                 <Select
-                  selectedOption={subnetOptions.find(o => o.value === launchConfig.SubnetId) || null}
-                  onChange={({ detail }) => updateConfig('SubnetId', detail.selectedOption?.value)}
+                  selectedOption={subnetOptions.find(o => o.value === launchConfig.subnetId) || null}
+                  onChange={({ detail }) => updateConfig('subnetId', detail.selectedOption?.value)}
                   options={subnetOptions}
                   placeholder="Select subnet"
                   filteringType="auto"
@@ -168,8 +168,8 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
                 description="EC2 instance type for recovery"
               >
                 <Select
-                  selectedOption={typeOptions.find(o => o.value === launchConfig.InstanceType) || null}
-                  onChange={({ detail }) => updateConfig('InstanceType', detail.selectedOption?.value)}
+                  selectedOption={typeOptions.find(o => o.value === launchConfig.instanceType) || null}
+                  onChange={({ detail }) => updateConfig('instanceType', detail.selectedOption?.value)}
                   options={typeOptions}
                   placeholder="Select instance type"
                   filteringType="auto"
@@ -184,10 +184,10 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
             >
               <Multiselect
                 selectedOptions={sgOptions.filter(o =>
-                  launchConfig.SecurityGroupIds?.includes(o.value || '')
+                  launchConfig.securityGroupIds?.includes(o.value || '')
                 )}
                 onChange={({ detail }) =>
-                  updateConfig('SecurityGroupIds', detail.selectedOptions.map(o => o.value))
+                  updateConfig('securityGroupIds', detail.selectedOptions.map(o => o.value))
                 }
                 options={sgOptions}
                 placeholder="Select security groups"
@@ -201,8 +201,8 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
               description="IAM role for recovery instances"
             >
               <Select
-                selectedOption={profileOptions.find(o => o.value === launchConfig.InstanceProfileName) || null}
-                onChange={({ detail }) => updateConfig('InstanceProfileName', detail.selectedOption?.value)}
+                selectedOption={profileOptions.find(o => o.value === launchConfig.instanceProfileName) || null}
+                onChange={({ detail }) => updateConfig('instanceProfileName', detail.selectedOption?.value)}
                 options={profileOptions}
                 placeholder="Select instance profile"
                 filteringType="auto"
@@ -218,19 +218,19 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
               >
                 <Select
                   selectedOption={
-                    launchConfig.TargetInstanceTypeRightSizingMethod
+                    launchConfig.targetInstanceTypeRightSizingMethod
                       ? {
-                          value: launchConfig.TargetInstanceTypeRightSizingMethod,
-                          label: launchConfig.TargetInstanceTypeRightSizingMethod === 'BASIC'
+                          value: launchConfig.targetInstanceTypeRightSizingMethod,
+                          label: launchConfig.targetInstanceTypeRightSizingMethod === 'BASIC'
                             ? 'Active (basic) - DRS selects instance type'
-                            : launchConfig.TargetInstanceTypeRightSizingMethod === 'IN_AWS'
+                            : launchConfig.targetInstanceTypeRightSizingMethod === 'IN_AWS'
                             ? 'Active (in-aws) - Periodic updates from EC2'
                             : 'Inactive - Use EC2 launch template',
                         }
                       : null
                   }
                   onChange={({ detail }) =>
-                    updateConfig('TargetInstanceTypeRightSizingMethod', detail.selectedOption?.value)
+                    updateConfig('targetInstanceTypeRightSizingMethod', detail.selectedOption?.value)
                   }
                   options={[
                     { value: 'BASIC', label: 'Active (basic) - DRS selects instance type' },
@@ -248,15 +248,15 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
               >
                 <Select
                   selectedOption={
-                    launchConfig.LaunchDisposition
+                    launchConfig.launchDisposition
                       ? {
-                          value: launchConfig.LaunchDisposition,
-                          label: launchConfig.LaunchDisposition === 'STARTED' ? 'Started' : 'Stopped',
+                          value: launchConfig.launchDisposition,
+                          label: launchConfig.launchDisposition === 'STARTED' ? 'Started' : 'Stopped',
                         }
                       : { value: 'STARTED', label: 'Started' }
                   }
                   onChange={({ detail }) =>
-                    updateConfig('LaunchDisposition', detail.selectedOption?.value)
+                    updateConfig('launchDisposition', detail.selectedOption?.value)
                   }
                   options={[
                     { value: 'STARTED', label: 'Started - Instance starts automatically' },
@@ -273,17 +273,17 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
             >
               <Select
                 selectedOption={
-                  launchConfig.Licensing?.osByol !== undefined
+                  launchConfig.licensing?.osByol !== undefined
                     ? {
-                        value: launchConfig.Licensing.osByol ? 'BYOL' : 'AWS',
-                        label: launchConfig.Licensing.osByol
+                        value: launchConfig.licensing.osByol ? 'BYOL' : 'AWS',
+                        label: launchConfig.licensing.osByol
                           ? 'Bring your own license (BYOL)'
                           : 'Use AWS provided license',
                       }
                     : null
                 }
                 onChange={({ detail }) =>
-                  updateConfig('Licensing', { osByol: detail.selectedOption?.value === 'BYOL' })
+                  updateConfig('licensing', { osByol: detail.selectedOption?.value === 'BYOL' })
                 }
                 options={[
                   { value: 'BYOL', label: 'Bring your own license (BYOL)' },
@@ -296,15 +296,15 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
 
             <ColumnLayout columns={2}>
               <Checkbox
-                checked={launchConfig.CopyPrivateIp || false}
-                onChange={({ detail }) => updateConfig('CopyPrivateIp', detail.checked)}
+                checked={launchConfig.copyPrivateIp || false}
+                onChange={({ detail }) => updateConfig('copyPrivateIp', detail.checked)}
                 disabled={disabled}
               >
                 Copy Private IP
               </Checkbox>
               <Checkbox
-                checked={launchConfig.CopyTags || false}
-                onChange={({ detail }) => updateConfig('CopyTags', detail.checked)}
+                checked={launchConfig.copyTags || false}
+                onChange={({ detail }) => updateConfig('copyTags', detail.checked)}
                 disabled={disabled}
               >
                 Transfer Server Tags
