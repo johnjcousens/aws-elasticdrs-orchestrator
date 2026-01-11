@@ -435,7 +435,7 @@ def invoke_pollers_for_executions(
             execution_type = sanitize_string_input(execution.get("executionType", "DRILL"))
             
             # Validate execution ID format
-            validate_dynamodb_input("ExecutionId", execution_id)
+            validate_dynamodb_input("executionId", execution_id)
 
             # Prepare payload for Execution Poller
             payload = {

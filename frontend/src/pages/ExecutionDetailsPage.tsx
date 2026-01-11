@@ -518,15 +518,15 @@ export const ExecutionDetailsPage: React.FC = () => {
       const servers = wave.servers || wave.serverExecutions || [];
       
       return {
-        waveNumber: wave.waveNumber ?? wave.WaveNumber ?? index,
-        waveName: wave.waveName || wave.WaveName || `Wave ${index + 1}`,
-        status: wave.status || wave.Status || 'pending',
-        startTime: wave.startTime || wave.StartTime,
-        jobId: wave.jobId || wave.JobId,
-        endTime: wave.endTime || wave.EndTime,
+        waveNumber: wave.waveNumber ?? index,
+        waveName: wave.waveName || `Wave ${index + 1}`,
+        status: wave.status || 'pending',
+        startTime: wave.startTime,
+        jobId: wave.jobId,
+        endTime: wave.endTime,
         serverExecutions: servers.map((server: any) => {
           return {
-            serverId: server.sourceServerId || server.serverId || server.SourceServerId,
+            serverId: server.sourceServerId || server.serverId,
             serverName: server.serverName || server.hostname,
             hostname: server.hostname,
             status: server.status || server.launchStatus || 'pending',

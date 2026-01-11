@@ -219,7 +219,7 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
     # that's already been processed and stored in DynamoDB
     if isinstance(data, dict) and len(data) > 50:
         # Check if this looks like execution data (has execution-specific fields)
-        execution_indicators = ['ExecutionId', 'Waves', 'EnrichedServers', 'StateMachineArn']
+        execution_indicators = ['executionId', 'waves', 'enrichedServers', 'stateMachineArn']
         if any(key in data for key in execution_indicators):
             # This is likely execution data from DynamoDB - minimal sanitization
             return data
@@ -232,8 +232,8 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
             raise InputValidationError(f"Invalid key: {key}")
 
         # PERFORMANCE: Skip sanitization for safe keys
-        if key in ['ExecutionId', 'PlanId', 'Status', 'Region', 'Waves', 'EnrichedServers', 
-                   'StateMachineArn', 'CreatedAt', 'UpdatedAt', 'StartTime', 'EndTime']:
+        if key in ['executionId', 'planId', 'status', 'region', 'waves', 'enrichedServers', 
+                   'stateMachineArn', 'createdAt', 'updatedAt', 'startTime', 'endTime']:
             sanitized[key] = value
             continue
 
@@ -699,9 +699,9 @@ def validate_dynamodb_input(field_name: str, value: str) -> bool:
 
     # Check length limits
     max_lengths = {
-        "ExecutionId": 128,
-        "PlanId": 128,
-        "GroupId": 128,
+        "executionId": 128,
+        "planId": 128,
+        "groupId": 128,
         "WaveId": 128,
         "ServerId": 64,
         "JobId": 128,
@@ -716,7 +716,7 @@ def validate_dynamodb_input(field_name: str, value: str) -> bool:
         )
 
     # Validate specific field formats
-    if field_name == "ExecutionId":
+    if field_name == "executionId":
         # Execution IDs should be UUIDs or similar format
         if not validate_uuid(value) and not re.match(
             r"^[a-zA-Z0-9\-_]+$", value

@@ -2168,28 +2168,28 @@ def create_protection_group(body: Dict) -> Dict:
             item["sourceServerIds"] = source_server_ids
             item["serverSelectionTags"] = {}  # Ensure empty
 
-        # Handle LaunchConfig if provided
+        # Handle launchConfig if provided
         launch_config_apply_results = None
-        if "LaunchConfig" in body:
-            launch_config = body["LaunchConfig"]
+        if "launchConfig" in body:
+            launch_config = body["launchConfig"]
 
-            # Validate LaunchConfig structure
+            # Validate launchConfig structure
             if not isinstance(launch_config, dict):
                 return response(
                     400,
                     {
-                        "error": "LaunchConfig must be an object",
+                        "error": "launchConfig must be an object",
                         "code": "INVALID_LAUNCH_CONFIG",
                     },
                 )
 
-            # Validate SecurityGroupIds is array if present
-            if "SecurityGroupIds" in launch_config:
-                if not isinstance(launch_config["SecurityGroupIds"], list):
+            # Validate securityGroupIds is array if present
+            if "securityGroupIds" in launch_config:
+                if not isinstance(launch_config["securityGroupIds"], list):
                     return response(
                         400,
                         {
-                            "error": "SecurityGroupIds must be an array",
+                            "error": "securityGroupIds must be an array",
                             "code": "INVALID_SECURITY_GROUPS",
                         },
                     )
@@ -2215,7 +2215,7 @@ def create_protection_group(body: Dict) -> Dict:
                     if s.get("sourceServerID")
                 ]
 
-            # Apply LaunchConfig to DRS/EC2 immediately
+            # Apply launchConfig to DRS/EC2 immediately
             if server_ids_to_apply and launch_config:
                 launch_config_apply_results = apply_launch_config_to_servers(
                     server_ids_to_apply,
@@ -2242,8 +2242,8 @@ def create_protection_group(body: Dict) -> Dict:
                         },
                     )
 
-            # Store LaunchConfig in item
-            item["LaunchConfig"] = launch_config
+            # Store launchConfig in item
+            item["launchConfig"] = launch_config
 
         print(f"Creating Protection Group: {group_id}")
 
@@ -2251,9 +2251,9 @@ def create_protection_group(body: Dict) -> Dict:
         protection_groups_table.put_item(Item=item)
 
         # Transform to camelCase for frontend
-        response_item = transform_pg_to_camelcase(item)
+        response_item = item
 
-        # Include LaunchConfig apply results if applicable
+        # Include launchConfig apply results if applicable
         if launch_config_apply_results:
             response_item["launchConfigApplyResults"] = (
                 launch_config_apply_results
@@ -2304,7 +2304,7 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
 
         # Transform to camelCase (no server enrichment - tags are resolved at execution time)
         camelcase_groups = [
-            transform_pg_to_camelcase(group) for group in groups
+            group for group in groups
         ]
 
         return response(
@@ -2327,7 +2327,7 @@ def get_protection_group(group_id: str) -> Dict:
         group = result["Item"]
 
         # Transform to camelCase (no server enrichment - use /resolve endpoint for that)
-        camelcase_group = transform_pg_to_camelcase(group)
+        camelcase_group = group
 
         return response(200, camelcase_group)
 
@@ -2399,7 +2399,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             )
 
         # Validate name if provided
-        if "GroupName" in body:
+        if "groupName" in body:
             name = body["groupName"]
 
             # Validate name is not empty or whitespace-only
@@ -2442,7 +2442,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     )
 
         # Validate tags if provided
-        if "ServerSelectionTags" in body:
+        if "serverSelectionTags" in body:
             selection_tags = body["serverSelectionTags"]
             if (
                 not isinstance(selection_tags, dict)
@@ -2472,7 +2472,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
 
         # Validate server IDs if provided
-        if "SourceServerIds" in body:
+        if "sourceServerIds" in body:
             source_server_ids = body["sourceServerIds"]
             if (
                 not isinstance(source_server_ids, list)
@@ -2512,7 +2512,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         }
         expression_names = {}
 
-        if "GroupName" in body:
+        if "groupName" in body:
             update_expression += ", GroupName = :name"
             expression_values[":name"] = body["groupName"]
 
@@ -2523,42 +2523,42 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
         # When one is set, clear the other
-        if "ServerSelectionTags" in body:
+        if "serverSelectionTags" in body:
             update_expression += ", ServerSelectionTags = :tags"
             expression_values[":tags"] = body["serverSelectionTags"]
             # Clear SourceServerIds when using tags
             update_expression += ", SourceServerIds = :empty_servers"
             expression_values[":empty_servers"] = []
 
-        if "SourceServerIds" in body:
+        if "sourceServerIds" in body:
             update_expression += ", SourceServerIds = :servers"
             expression_values[":servers"] = body["sourceServerIds"]
             # Clear ServerSelectionTags when using explicit servers
             update_expression += ", ServerSelectionTags = :empty_tags"
             expression_values[":empty_tags"] = {}
 
-        # Handle LaunchConfig - EC2 launch settings for recovery instances
+        # Handle launchConfig - EC2 launch settings for recovery instances
         launch_config_apply_results = None
-        if "LaunchConfig" in body:
-            launch_config = body["LaunchConfig"]
+        if "launchConfig" in body:
+            launch_config = body["launchConfig"]
 
-            # Validate LaunchConfig structure
+            # Validate launchConfig structure
             if not isinstance(launch_config, dict):
                 return response(
                     400,
                     {
-                        "error": "LaunchConfig must be an object",
+                        "error": "launchConfig must be an object",
                         "code": "INVALID_LAUNCH_CONFIG",
                     },
                 )
 
-            # Validate SecurityGroupIds is array if present
-            if "SecurityGroupIds" in launch_config:
-                if not isinstance(launch_config["SecurityGroupIds"], list):
+            # Validate securityGroupIds is array if present
+            if "securityGroupIds" in launch_config:
+                if not isinstance(launch_config["securityGroupIds"], list):
                     return response(
                         400,
                         {
-                            "error": "SecurityGroupIds must be an array",
+                            "error": "securityGroupIds must be an array",
                             "code": "INVALID_SECURITY_GROUPS",
                         },
                     )
@@ -2588,7 +2588,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     if s.get("sourceServerID")
                 ]
 
-            # Apply LaunchConfig to DRS/EC2 immediately
+            # Apply launchConfig to DRS/EC2 immediately
             if server_ids and launch_config:
                 # Get group name (use updated name if provided, else existing)
                 pg_name = body.get("groupName", existing_group.get("groupName", "")
@@ -2618,8 +2618,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                         },
                     )
 
-            # Store LaunchConfig in DynamoDB
-            update_expression += ", LaunchConfig = :launchConfig"
+            # Store launchConfig in DynamoDB
+            update_expression += ", launchConfig = :launchConfig"
             expression_values[":launchConfig"] = launch_config
 
         # Update item with conditional write (optimistic locking)
@@ -2649,9 +2649,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             )
 
         # Transform to camelCase for frontend
-        response_item = transform_pg_to_camelcase(result["Attributes"])
+        response_item = result["Attributes"]
 
-        # Include LaunchConfig apply results if applicable
+        # Include launchConfig apply results if applicable
         if launch_config_apply_results:
             response_item["launchConfigApplyResults"] = (
                 launch_config_apply_results
@@ -3657,23 +3657,23 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         )
 
         # Validate required fields with helpful messages
-        if "PlanId" not in body:
+        if "planId" not in body:
             return response(
                 400,
                 {
                     "error": "MISSING_FIELD",
-                    "message": "PlanId is required - specify which Recovery Plan to execute",
-                    "field": "PlanId",
+                    "message": "planId is required - specify which Recovery Plan to execute",
+                    "field": "planId",
                 },
             )
 
-        if "ExecutionType" not in body:
+        if "executionType" not in body:
             return response(
                 400,
                 {
                     "error": "MISSING_FIELD",
-                    "message": "ExecutionType is required - must be DRILL or RECOVERY",
-                    "field": "ExecutionType",
+                    "message": "executionType is required - must be DRILL or RECOVERY",
+                    "field": "executionType",
                     "allowedValues": ["DRILL", "RECOVERY"],
                 },
             )
@@ -3699,8 +3699,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 400,
                 {
                     "error": "INVALID_EXECUTION_TYPE",
-                    "message": f'ExecutionType must be DRILL or RECOVERY, got: {body["executionType"]}',
-                    "field": "ExecutionType",
+                    "message": f'executionType must be DRILL or RECOVERY, got: {body["executionType"]}',
+                    "field": "executionType",
                     "providedValue": body["executionType"],
                     "allowedValues": ["DRILL", "RECOVERY"],
                 },
@@ -4605,7 +4605,7 @@ def get_execution_status(execution_id: str) -> Dict:
     try:
         # Get from DynamoDB using Query (table has composite key: ExecutionId + PlanId)
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
 
         if not result.get("Items"):
@@ -5304,7 +5304,7 @@ def get_execution_details_fast(execution_id: str) -> Dict:
 
         # Get from DynamoDB using query (table has composite key: ExecutionId + PlanId)
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
 
         if "Items" not in result or len(result["Items"]) == 0:
@@ -5371,7 +5371,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
 
         # Get cached execution first
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
 
         if "Items" not in result or len(result["Items"]) == 0:
@@ -5548,7 +5548,7 @@ def cancel_execution(execution_id: str) -> Dict:
     try:
         # FIX: Query by ExecutionId to get PlanId (composite key required)
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
 
         if not result.get("Items"):
@@ -5730,7 +5730,7 @@ def pause_execution(execution_id: str) -> Dict:
     """
     try:
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
 
         if not result.get("Items"):
@@ -5880,7 +5880,7 @@ def resume_execution(execution_id: str) -> Dict:
     try:
         print(f"Querying DynamoDB for execution {execution_id}...")
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
         # Extract safe information for logging
         item_count = len(result.get("Items", []))
@@ -6054,7 +6054,7 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
     try:
         # Get execution to find job IDs (use query since table has composite key)
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
         if not result.get("Items"):
             return response(
@@ -6172,7 +6172,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
     try:
         # Get execution details
         result = execution_history_table.query(
-            KeyConditionExpression=Key("ExecutionId").eq(execution_id), Limit=1
+            KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
 
         if not result.get("Items"):
@@ -7062,7 +7062,7 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
                 print(f"Searching for execution: {execution_id}")
 
                 scan_result = execution_history_table.scan(
-                    FilterExpression=Attr("ExecutionId").eq(execution_id)
+                    FilterExpression=Attr("executionId").eq(execution_id)
                 )
 
                 executions = scan_result.get("Items", [])
@@ -7958,7 +7958,7 @@ def check_tag_conflicts_for_update(
     return conflicts
 
 
-def transform_pg_to_camelcase(pg: Dict) -> Dict:
+def pg: Dict -> Dict:
     """Transform Protection Group from DynamoDB PascalCase to frontend camelCase"""
     # Convert timestamps from seconds to milliseconds for JavaScript Date()
     created_at = pg.get("CreatedDate")
@@ -7985,7 +7985,7 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
         "resolvedServers": pg.get("ResolvedServers", []),
         "resolvedServerCount": pg.get("ResolvedServerCount", 0),
         "version": version,  # Optimistic locking version
-        "launchConfig": pg.get("LaunchConfig"),  # EC2 launch settings
+        "launchConfig": pg.get("launchConfig"),  # EC2 launch settings
     }
 
 
@@ -8209,15 +8209,15 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
             if "WaveId" not in wave and "waveNumber" not in wave:
                 return "Wave missing required field: WaveId or waveNumber"
 
-            if "WaveName" not in wave and "name" not in wave:
-                return "Wave missing required field: WaveName or name"
+            if "waveName" not in wave and "name" not in wave:
+                return "Wave missing required field: waveName or name"
 
             # NEW: Accept either protectionGroupId (single) OR protectionGroupIds (multi)
             has_single_pg = (
-                "ProtectionGroupId" in wave or "protectionGroupId" in wave
+                "protectionGroupId" in wave
             )
             has_multi_pg = (
-                "ProtectionGroupIds" in wave or "protectionGroupIds" in wave
+                "protectionGroupIds" in wave
             )
 
             if not has_single_pg and not has_multi_pg:
@@ -9228,7 +9228,7 @@ def apply_launch_config_to_servers(
     protection_group_id: str = None,
     protection_group_name: str = None,
 ) -> Dict:
-    """Apply LaunchConfig to all servers' EC2 launch templates and DRS settings.
+    """Apply launchConfig to all servers' EC2 launch templates and DRS settings.
 
     Called immediately when Protection Group is saved.
     Returns summary of results for each server.
@@ -9277,40 +9277,40 @@ def apply_launch_config_to_servers(
                 template_data["instanceType"] = launch_config["instanceType"]
 
             # Network interface settings (subnet and security groups)
-            if launch_config.get("SubnetId") or launch_config.get(
-                "SecurityGroupIds"
+            if launch_config.get("subnetId") or launch_config.get(
+                "securityGroupIds"
             ):
                 network_interface = {"DeviceIndex": 0}
-                if launch_config.get("SubnetId"):
-                    network_interface["SubnetId"] = launch_config["SubnetId"]
-                if launch_config.get("SecurityGroupIds"):
+                if launch_config.get("subnetId"):
+                    network_interface["SubnetId"] = launch_config["subnetId"]
+                if launch_config.get("securityGroupIds"):
                     network_interface["Groups"] = launch_config[
-                        "SecurityGroupIds"
+                        "securityGroupIds"
                     ]
                 template_data["NetworkInterfaces"] = [network_interface]
 
-            if launch_config.get("InstanceProfileName"):
+            if launch_config.get("instanceProfileName"):
                 template_data["IamInstanceProfile"] = {
-                    "Name": launch_config["InstanceProfileName"]
+                    "Name": launch_config["instanceProfileName"]
                 }
 
             # IMPORTANT: Update DRS launch configuration FIRST
             # DRS update_launch_configuration creates a new EC2 launch template version,
             # so we must call it before our EC2 template updates to avoid being overwritten
             drs_update = {"sourceServerID": server_id}
-            if "CopyPrivateIp" in launch_config:
-                drs_update["copyPrivateIp"] = launch_config["CopyPrivateIp"]
-            if "CopyTags" in launch_config:
-                drs_update["copyTags"] = launch_config["CopyTags"]
-            if "Licensing" in launch_config:
-                drs_update["licensing"] = launch_config["Licensing"]
-            if "TargetInstanceTypeRightSizingMethod" in launch_config:
+            if "copyPrivateIp" in launch_config:
+                drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
+            if "copyTags" in launch_config:
+                drs_update["copyTags"] = launch_config["copyTags"]
+            if "licensing" in launch_config:
+                drs_update["licensing"] = launch_config["licensing"]
+            if "targetInstanceTypeRightSizingMethod" in launch_config:
                 drs_update["targetInstanceTypeRightSizingMethod"] = (
-                    launch_config["TargetInstanceTypeRightSizingMethod"]
+                    launch_config["targetInstanceTypeRightSizingMethod"]
                 )
-            if "LaunchDisposition" in launch_config:
+            if "launchDisposition" in launch_config:
                 drs_update["launchDisposition"] = launch_config[
-                    "LaunchDisposition"
+                    "launchDisposition"
                 ]
 
             if len(drs_update) > 1:  # More than just sourceServerID
@@ -9333,30 +9333,30 @@ def apply_launch_config_to_servers(
                     config_details.append(
                         f"Type:{launch_config["instanceType"]}"
                     )
-                if launch_config.get("SubnetId"):
+                if launch_config.get("subnetId"):
                     config_details.append(
-                        f"Subnet:{launch_config['SubnetId'][-8:]}"
+                        f"Subnet:{launch_config['subnetId'][-8:]}"
                     )
-                if launch_config.get("SecurityGroupIds"):
-                    sg_count = len(launch_config["SecurityGroupIds"])
+                if launch_config.get("securityGroupIds"):
+                    sg_count = len(launch_config["securityGroupIds"])
                     config_details.append(f"SGs:{sg_count}")
-                if launch_config.get("InstanceProfileName"):
-                    profile = launch_config["InstanceProfileName"]
+                if launch_config.get("instanceProfileName"):
+                    profile = launch_config["instanceProfileName"]
                     # Truncate long profile names
                     if len(profile) > 20:
                         profile = profile[:17] + "..."
                     config_details.append(f"Profile:{profile}")
-                if launch_config.get("CopyPrivateIp"):
+                if launch_config.get("copyPrivateIp"):
                     config_details.append("CopyIP")
-                if launch_config.get("CopyTags"):
-                    config_details.append("CopyTags")
-                if launch_config.get("TargetInstanceTypeRightSizingMethod"):
+                if launch_config.get("copyTags"):
+                    config_details.append("Copy Tags")
+                if launch_config.get("targetInstanceTypeRightSizingMethod"):
                     config_details.append(
-                        f"RightSize:{launch_config['TargetInstanceTypeRightSizingMethod']}"
+                        f"RightSize:{launch_config['targetInstanceTypeRightSizingMethod']}"
                     )
-                if launch_config.get("LaunchDisposition"):
+                if launch_config.get("launchDisposition"):
                     config_details.append(
-                        f"Launch:{launch_config['LaunchDisposition']}"
+                        f"Launch:{launch_config['launchDisposition']}"
                     )
                 if config_details:
                     desc_parts.append(" | ".join(config_details))
@@ -9382,7 +9382,7 @@ def apply_launch_config_to_servers(
             )
 
         except Exception as e:
-            print(f"Error applying LaunchConfig to {server_id}: {e}")
+            print(f"Error applying launchConfig to {server_id}: {e}")
             results["failed"] += 1
             results["details"].append(
                 {"serverId": server_id, "status": "failed", "error": str(e)}
@@ -9695,9 +9695,9 @@ def export_configuration(query_params: Dict) -> Dict:
                 exported_pg["sourceServerIds"] = pg["sourceServerIds"]
             if pg.get("serverSelectionTags"):
                 exported_pg["serverSelectionTags"] = pg["serverSelectionTags"]
-            # Include LaunchConfig if present
-            if pg.get("LaunchConfig"):
-                exported_pg["LaunchConfig"] = pg["LaunchConfig"]
+            # Include launchConfig if present
+            if pg.get("launchConfig"):
+                exported_pg["launchConfig"] = pg["launchConfig"]
             exported_pgs.append(exported_pg)
 
         # Transform Recovery Plans for export (resolve PG IDs to names)
@@ -9715,7 +9715,7 @@ def export_configuration(query_params: Dict) -> Dict:
                             pg_id
                         ]
                         # Remove ID - use name only for portability
-                        exported_wave.pop("ProtectionGroupId", None)
+                        exported_wave.pop("protectionGroupId", None)
                     else:
                         # Keep ID if name can't be resolved (orphaned reference)
                         orphaned_pg_ids.append(pg_id)
@@ -10159,9 +10159,9 @@ def _process_protection_group_import(
                 item["serverSelectionTags"] = server_selection_tags
                 item["sourceServerIds"] = []
 
-            launch_config = pg.get("LaunchConfig")
+            launch_config = pg.get("launchConfig")
             if launch_config:
-                item["LaunchConfig"] = launch_config
+                item["launchConfig"] = launch_config
 
             protection_groups_table.put_item(Item=item)
             result["details"] = {"groupId": group_id}
@@ -10169,7 +10169,7 @@ def _process_protection_group_import(
                 f"[{correlation_id}] Created PG '{pg_name}' with ID {group_id}"
             )
 
-            # Apply LaunchConfig to DRS servers (same as create/update)
+            # Apply launchConfig to DRS servers (same as create/update)
             if launch_config:
                 server_ids_to_apply = []
                 if source_server_ids:
@@ -10212,10 +10212,10 @@ def _process_protection_group_import(
                             "launchConfigApplied"
                         ] = applied_count
                         result["details"]["launchConfigFailed"] = failed_count
-                        # LaunchConfig applied successfully - no logging to prevent sensitive data exposure
+                        # launchConfig applied successfully - no logging to prevent sensitive data exposure
                     except Exception as lc_err:
                         print(
-                            f"Warning: Failed to apply LaunchConfig: {type(lc_err).__name__}"
+                            f"Warning: Failed to apply launchConfig: {type(lc_err).__name__}"
                         )
         except Exception as e:
             result["reason"] = "CREATE_ERROR"

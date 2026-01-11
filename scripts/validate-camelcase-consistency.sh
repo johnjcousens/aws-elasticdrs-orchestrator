@@ -82,7 +82,8 @@ FRONTEND_FILES=$(find frontend/src -name "*.ts" -o -name "*.tsx" 2>/dev/null || 
 if [ -n "$FRONTEND_FILES" ]; then
     for pattern in "${PASCALCASE_PATTERNS[@]}"; do
         # Look for the pattern as object property access (e.g., obj.GroupId)
-        matches=$(echo "$FRONTEND_FILES" | xargs grep -n "\\.${pattern}\\b" 2>/dev/null || true)
+        # Exclude interface names, type names, import statements, and comments
+        matches=$(echo "$FRONTEND_FILES" | xargs grep -n "\\b${pattern}\\b" 2>/dev/null | grep -v "interface ${pattern}" | grep -v "export interface ${pattern}" | grep -v "import.*${pattern}" | grep -v "type.*${pattern}" | grep -v "LaunchConfig" | grep -v "label=" | grep -v "\\*.*${pattern}" || true)
         if [ -n "$matches" ]; then
             report_error "Found PascalCase field '${pattern}' in frontend files:"
             echo "$matches" | while read -r line; do
@@ -115,8 +116,8 @@ if [ -n "$LAMBDA_FILES" ]; then
         # Look for PascalCase in dictionary keys or DynamoDB operations
         matches=$(echo "$LAMBDA_FILES" | xargs grep -n "\"${pattern}\"\\|'${pattern}'" 2>/dev/null || true)
         if [ -n "$matches" ]; then
-            # Filter out comments and transform function definitions (which are expected)
-            filtered_matches=$(echo "$matches" | grep -v "# Transform" | grep -v "def transform" || true)
+            # Filter out comments, transform function definitions, AWS API responses, CloudWatch metrics, and EC2 template fields
+            filtered_matches=$(echo "$matches" | grep -v "# Transform" | grep -v "def transform" | grep -v "subnet\[" | grep -v "profile\[" | grep -v "CloudWatch" | grep -v "Dimensions" | grep -v "network_interface\[" | grep -v "Name.*ExecutionId" || true)
             if [ -n "$filtered_matches" ]; then
                 report_error "Found PascalCase field '${pattern}' in Lambda files:"
                 echo "$filtered_matches" | while read -r line; do
@@ -160,7 +161,12 @@ API_FILE="frontend/src/services/api.ts"
 if [ -f "$API_FILE" ]; then
     # Check for PascalCase in API request bodies
     for pattern in "${PASCALCASE_PATTERNS[@]}"; do
-        matches=$(grep -n "${pattern}:" "$API_FILE" 2>/dev/null || true)
+        # Skip GroupId as it's often part of protectionGroupId (legitimate camelCase)
+        if [ "$pattern" = "GroupId" ]; then
+            matches=$(grep -n "\\b${pattern}:" "$API_FILE" 2>/dev/null | grep -v "protectionGroupId" || true)
+        else
+            matches=$(grep -n "${pattern}:" "$API_FILE" 2>/dev/null || true)
+        fi
         if [ -n "$matches" ]; then
             report_error "Found PascalCase field '${pattern}' in API requests:"
             echo "$matches" | while read -r line; do
