@@ -2513,7 +2513,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         expression_names = {}
 
         if "groupName" in body:
-            update_expression += ", GroupName = :name"
+            update_expression += ", groupName = :name"
             expression_values[":name"] = body["groupName"]
 
         if "Description" in body:
