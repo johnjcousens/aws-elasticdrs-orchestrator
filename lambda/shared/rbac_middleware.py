@@ -532,8 +532,8 @@ def check_authorization(event: Dict) -> Dict:
     Check if the user is authorized to access the requested endpoint
     Returns authorization result with user info and permissions
     
-    LOOSENED SECURITY: Only critical operations require specific permissions.
-    All authenticated users can perform read operations and status checks.
+    TIGHT SECURITY: All endpoints require explicit permissions for proper access control.
+    Zero-trust model - deny access if no permissions are defined for the endpoint.
     """
     try:
         # Extract request info
