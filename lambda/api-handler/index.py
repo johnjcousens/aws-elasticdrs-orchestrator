@@ -2010,7 +2010,7 @@ def query_drs_servers_by_tags(
 def create_protection_group(body: Dict) -> Dict:
     """Create a new Protection Group - supports both tag-based and explicit server selection"""
     try:
-        # Validate required fields
+        # Validate required fields - FIXED: camelCase field validation
         if "groupName" not in body:
             return response(
                 400,
