@@ -63,6 +63,21 @@ Parameters:
     Default: "drs-orchestration-cross-account-role"
     Description: "Name of the cross-account IAM role for DRS operations"
 
+  ExecutionNotificationsTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for execution notifications"
+
+  DRSAlertsTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for DRS operational alerts"
+
+  ApprovalWorkflowTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for approval workflow notifications"
+
 Conditions:
   HasNotificationTopic: !Not [!Equals [!Ref NotificationTopicArn, ""]]
   HasFrontendBucket: !Not [!Equals [!Ref FrontendBucketName, ""]]
@@ -1137,10 +1152,9 @@ Resources:
   # Notification Formatter Lambda Function
   NotificationFormatterFunction:
     Type: AWS::Lambda::Function
-    Condition: EnableNotifications
     Properties:
-      FunctionName: !Sub "${ProjectName}-notif-fmt-${Environment}"
-      Description: "Formats CodePipeline and CodeBuild events into user-friendly email notifications"
+      FunctionName: !Sub "${ProjectName}-notification-formatter-${Environment}"
+      Description: "Formats DRS orchestration events into user-friendly notifications"
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !GetAtt NotificationFormatterRole.Arn
@@ -1151,7 +1165,11 @@ Resources:
       MemorySize: 256
       Environment:
         Variables:
-          SNS_TOPIC_ARN: !Ref PipelineNotificationsTopic
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
+          APPROVAL_WORKFLOW_TOPIC_ARN: !Ref ApprovalWorkflowTopicArn
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -1223,14 +1241,12 @@ Outputs:
 
   NotificationFormatterFunctionArn:
     Description: "Notification Formatter Lambda Function ARN"
-    Condition: EnableNotifications
     Value: !GetAtt NotificationFormatterFunction.Arn
     Export:
       Name: !Sub "${AWS::StackName}-NotificationFormatterArn"
 
   NotificationFormatterFunctionName:
     Description: "Notification Formatter Lambda Function Name"
-    Condition: EnableNotifications
     Value: !Ref NotificationFormatterFunction
     Export:
       Name: !Sub "${AWS::StackName}-NotificationFormatterName"
