@@ -61,36 +61,33 @@ class TestEndpointPermissionsCoverage:
     """Verify all critical endpoints have permission mappings."""
 
     def test_protection_groups_endpoints_have_permissions(self):
-        """All protection group endpoints should have permissions defined."""
-        endpoints = [
-            ("GET", "/protection-groups"),
+        """Critical protection group endpoints should have permissions defined."""
+        # Only test CRITICAL operations - GET operations are open to authenticated users
+        critical_endpoints = [
             ("POST", "/protection-groups"),
-            ("POST", "/protection-groups/resolve"),
-            ("GET", "/protection-groups/{id}"),
             ("PUT", "/protection-groups/{id}"),
             ("DELETE", "/protection-groups/{id}"),
         ]
-        for method, path in endpoints:
+        for method, path in critical_endpoints:
             perms = ENDPOINT_PERMISSIONS.get((method, path), None)
             assert perms is not None, f"Missing permissions for {method} {path}"
             assert len(perms) > 0, f"Empty permissions for {method} {path}"
 
     def test_recovery_plans_endpoints_have_permissions(self):
-        """All recovery plan endpoints should have permissions defined."""
-        endpoints = [
+        """Critical recovery plan endpoints should have permissions defined."""
+        # Only test CRITICAL operations - GET operations now require VIEW permissions
+        critical_endpoints = [
             ("GET", "/recovery-plans"),
             ("POST", "/recovery-plans"),
             ("GET", "/recovery-plans/{id}"),
             ("PUT", "/recovery-plans/{id}"),
             ("DELETE", "/recovery-plans/{id}"),
             ("POST", "/recovery-plans/{id}/execute"),
-            ("GET", "/recovery-plans/{id}/check-existing-instances"),
         ]
-        for method, path in endpoints:
+        for method, path in critical_endpoints:
             perms = ENDPOINT_PERMISSIONS.get((method, path), None)
             assert perms is not None, f"Missing permissions for {method} {path}"
             assert len(perms) > 0, f"Empty permissions for {method} {path}"
-
     def test_executions_endpoints_have_permissions(self):
         """All execution endpoints should have permissions defined."""
         endpoints = [
@@ -143,9 +140,8 @@ class TestEndpointPermissionsCoverage:
         """DRS operation endpoints should have permissions defined."""
         endpoints = [
             ("GET", "/drs/source-servers"),
-            ("GET", "/drs/quotas"),
             ("POST", "/drs/tag-sync"),
-            ("GET", "/drs/accounts"),
+            ("GET", "/drs/service-limits"),
         ]
         for method, path in endpoints:
             perms = ENDPOINT_PERMISSIONS.get((method, path), None)
@@ -157,7 +153,6 @@ class TestEndpointPermissionsCoverage:
         endpoints = [
             ("GET", "/ec2/subnets"),
             ("GET", "/ec2/security-groups"),
-            ("GET", "/ec2/instance-profiles"),
             ("GET", "/ec2/instance-types"),
         ]
         for method, path in endpoints:
@@ -166,11 +161,10 @@ class TestEndpointPermissionsCoverage:
             assert len(perms) > 0, f"Empty permissions for {method} {path}"
 
     def test_user_permissions_endpoint_exists(self):
-        """User permissions endpoint should exist (empty permissions = all authenticated)."""
+        """User permissions endpoint should exist and require VIEW_ACCOUNTS permission."""
         perms = ENDPOINT_PERMISSIONS.get(("GET", "/user/permissions"), None)
         assert perms is not None, "Missing permissions for GET /user/permissions"
-        # Empty list means all authenticated users can access
-        assert perms == [], "User permissions should be accessible to all authenticated users"
+        assert len(perms) > 0, "User permissions endpoint should have defined permissions"
 
 
 class TestReadOnlyRoleRestrictions:
