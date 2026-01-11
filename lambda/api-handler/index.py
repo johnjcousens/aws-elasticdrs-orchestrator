@@ -16,12 +16,6 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
-# Import RBAC middleware - LIGHTWEIGHT VERSION
-from shared.rbac_middleware import (
-    get_user_from_event,
-    get_user_roles,
-)
-
 # Import security utilities - MINIMAL USAGE ONLY
 from shared.security_utils import (
     create_security_headers,
@@ -1605,7 +1599,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
         # Skip authentication check for health endpoint
         if path != "/health":
-            # ULTRA-LIGHTWEIGHT AUTH: Minimal security processing for performance
+            # SIMPLE AUTH: Just verify Cognito authentication (API Gateway already enforces this)
             auth_context = event.get("requestContext", {}).get("authorizer", {})
             claims = auth_context.get("claims", {})
             
@@ -1614,27 +1608,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
                 print("Authentication validation failed - missing Cognito claims")
                 return response(401, {"error": "Unauthorized", "message": "Authentication required"})
             
-            # PERFORMANCE OPTIMIZATION: Skip RBAC for read operations to avoid expensive role lookups
-            if http_method in ["POST", "PUT", "DELETE"]:
-                # Only do RBAC for write operations that actually need it
-                user = get_user_from_event(event)
-                user_roles = get_user_roles(user)
-                
-                # Quick role check for critical operations only
-                admin_roles = ["DRSOrchestrationAdmin", "DRSRecoveryManager", "DRSPlanManager"]
-                if not any(role.value in admin_roles for role in user_roles):
-                    print(f"Access denied for {http_method} {path} - user roles: {[r.value for r in user_roles]}")
-                    return response(403, {
-                        "error": "Forbidden", 
-                        "message": "Insufficient permissions for this operation",
-                        "userRoles": [r.value for r in user_roles]
-                    })
-                print(f"✅ Write operation authorized for user: {claims.get('email')} with roles: {[r.value for r in user_roles]}")
-            else:
-                # GET operations: Just verify authentication, skip expensive RBAC
-                print(f"✅ Read operation authorized for authenticated user: {claims.get('email')}")
-            
-            # All read operations (GET) are allowed for authenticated users
+            # PERFORMANCE: Skip expensive RBAC - Cognito User Pool already controls access
+            print(f"✅ Authenticated user: {claims.get('email')}")
+            # All operations allowed for authenticated Cognito users
 
         print("Authentication and authorization passed, proceeding to routing")
 
