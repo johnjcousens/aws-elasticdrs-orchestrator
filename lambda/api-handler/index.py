@@ -1686,6 +1686,8 @@ def handle_protection_groups(
     method: str, path_params: Dict, body: Dict, query_params: Dict = None, full_path: str = ""
 ) -> Dict:
     """Route Protection Groups requests"""
+    print(f"DEBUG: handle_protection_groups called - method: {method}, body keys: {list(body.keys())}")
+    
     group_id = path_params.get("id")
     query_params = query_params or {}
 
@@ -1694,6 +1696,7 @@ def handle_protection_groups(
         return resolve_protection_group_tags(body)
 
     if method == "POST":
+        print("DEBUG: Calling create_protection_group")
         return create_protection_group(body)
     elif method == "GET" and not group_id:
         return get_protection_groups(query_params)
@@ -2010,8 +2013,13 @@ def query_drs_servers_by_tags(
 def create_protection_group(body: Dict) -> Dict:
     """Create a new Protection Group - supports both tag-based and explicit server selection"""
     try:
+        # DEBUG: Log the incoming request body
+        print(f"DEBUG: create_protection_group called with body keys: {list(body.keys())}")
+        print(f"DEBUG: body content: {json.dumps(body, indent=2)}")
+        
         # Validate required fields - FIXED: camelCase field validation
         if "groupName" not in body:
+            print("DEBUG: groupName not found in body, returning camelCase error")
             return response(
                 400,
                 {
