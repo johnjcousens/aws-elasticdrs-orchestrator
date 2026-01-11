@@ -1,10 +1,18 @@
 # AWS DRS Orchestration - Security-Enhanced Makefile
+# Test Stack: aws-elasticdrs-orchestrator-test
+# API Endpoint: https://***REMOVED***.execute-api.us-east-1.amazonaws.com/test
+# Frontend URL: https://***REMOVED***.cloudfront.net
 
-.PHONY: help security-scan security-fix validate lint test clean install-security-tools
+.PHONY: help security-scan security-fix validate lint test clean install-security-tools stack-info
 
 # Default target
 help:
 	@echo "AWS DRS Orchestration - Security Commands"
+	@echo "Test Stack: aws-elasticdrs-orchestrator-test"
+	@echo ""
+	@echo "Stack Commands:"
+	@echo "  stack-info          Show current test stack information"
+	@echo "  stack-status        Check test stack deployment status"
 	@echo ""
 	@echo "Security Commands:"
 	@echo "  security-scan       Run all security scans"
@@ -16,6 +24,27 @@ help:
 	@echo "  lint               Run code linting"
 	@echo "  test               Run all tests"
 	@echo "  clean              Clean build artifacts"
+
+# Show current stack information
+stack-info:
+	@echo "📊 Current Test Stack Information:"
+	@echo "Stack Name: aws-elasticdrs-orchestrator-test"
+	@echo "API Endpoint: https://***REMOVED***.execute-api.us-east-1.amazonaws.com/test"
+	@echo "Frontend URL: https://***REMOVED***.cloudfront.net"
+	@echo "User Pool ID: ***REMOVED***"
+	@echo "Client ID: ***REMOVED***"
+	@echo "Region: us-east-1"
+	@echo ""
+	@echo "Test User: ***REMOVED*** / ***REMOVED***"
+
+# Check stack deployment status
+stack-status:
+	@echo "🔍 Checking test stack status..."
+	AWS_PAGER="" aws cloudformation describe-stacks \
+		--stack-name aws-elasticdrs-orchestrator-test \
+		--region us-east-1 \
+		--query 'Stacks[0].{StackName:StackName,StackStatus:StackStatus,CreationTime:CreationTime}' \
+		--output table
 
 # Install security tools
 install-security:
