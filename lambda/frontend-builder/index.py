@@ -68,7 +68,7 @@ def inject_aws_config_into_dist(dist_dir, properties):
     validate_file_path(dist_dir)
     dist_dir = sanitize_string_input(dist_dir)
     region = sanitize_string_input(
-        properties.get("Region", os.environ.get("AWS_REGION", "us-west-2"))
+        properties.get("region", os.environ.get("AWS_REGION", "us-west-2"))
     )
     log_security_event(
         "injecting_aws_config", {"dist_dir": dist_dir, "region": region}

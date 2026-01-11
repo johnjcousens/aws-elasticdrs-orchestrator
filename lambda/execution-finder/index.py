@@ -116,7 +116,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if should_poll_now(execution):
                 executions_to_poll.append(execution)
             else:
-                skipped_executions.append(execution["ExecutionId"])
+                skipped_executions.append(execution["executionId"])
 
         logger.info(f"Executions to poll now: {len(executions_to_poll)}")
         if skipped_executions:
@@ -312,7 +312,7 @@ def should_poll_now(execution: Dict[str, Any]) -> bool:
         time_since_poll = current_time - last_polled
 
         # Detect execution phase from waves data
-        waves = execution.get("Waves", [])
+        waves = execution.get("waves", [])
         phase = detect_execution_phase(waves)
 
         # Determine polling interval based on phase
@@ -327,13 +327,13 @@ def should_poll_now(execution: Dict[str, Any]) -> bool:
 
         if should_poll:
             logger.info(
-                f"ExecutionId {execution['ExecutionId']}: "
+                f"ExecutionId {execution["executionId"]}: "
                 f"Phase={phase}, TimeSincePoll={time_since_poll:.1f}s, "
                 f"Interval={interval}s - POLLING NOW"
             )
         else:
             logger.debug(
-                f"ExecutionId {execution['ExecutionId']}: "
+                f"ExecutionId {execution["executionId"]}: "
                 f"Phase={phase}, TimeSincePoll={time_since_poll:.1f}s, "
                 f"Interval={interval}s - Skipping (not time yet)"
             )
@@ -343,7 +343,7 @@ def should_poll_now(execution: Dict[str, Any]) -> bool:
     except Exception as e:
         logger.error(
             f"Error determining poll timing for "
-            f"{execution.get('ExecutionId')}: {str(e)}"
+            f"{execution.get("executionId")}: {str(e)}"
         )
         # Default to polling on error (fail-safe)
         return True
@@ -371,9 +371,9 @@ def detect_execution_phase(waves: List[Dict[str, Any]]) -> str:
         # Collect all server statuses across waves
         all_server_statuses = []
         for wave in waves:
-            servers = wave.get("Servers", [])
+            servers = wave.get("servers", [])
             for server in servers:
-                status = server.get("Status", "NOT_STARTED")
+                status = server.get("status", "NOT_STARTED")
                 all_server_statuses.append(status)
 
         if not all_server_statuses:
@@ -426,23 +426,23 @@ def invoke_pollers_for_executions(
     failed_invocations = []
 
     for execution in executions:
-        execution_id = execution["ExecutionId"]
+        execution_id = execution["executionId"]
 
         try:
             # Validate and sanitize execution data
-            execution_id = sanitize_string_input(execution["ExecutionId"])
-            plan_id = sanitize_string_input(execution.get("PlanId", ""))
-            execution_type = sanitize_string_input(execution.get("ExecutionType", "DRILL"))
+            execution_id = sanitize_string_input(execution["executionId"])
+            plan_id = sanitize_string_input(execution.get("planId", ""))
+            execution_type = sanitize_string_input(execution.get("executionType", "DRILL"))
             
             # Validate execution ID format
             validate_dynamodb_input("ExecutionId", execution_id)
 
             # Prepare payload for Execution Poller
             payload = {
-                "ExecutionId": execution_id,
-                "PlanId": plan_id,
-                "ExecutionType": execution_type,
-                "StartTime": execution.get("StartTime"),
+                "executionId": execution_id,
+                "planId": plan_id,
+                "executionType": execution_type,
+                "startTime": execution.get("startTime"),
             }
 
             # Invoke Execution Poller Lambda (async) with safe AWS call
@@ -463,7 +463,7 @@ def invoke_pollers_for_executions(
 
             successful_invocations.append(
                 {
-                    "ExecutionId": execution_id,
+                    "executionId": execution_id,
                     "StatusCode": response["StatusCode"],
                 }
             )
@@ -475,7 +475,7 @@ def invoke_pollers_for_executions(
                 exc_info=True,
             )
             failed_invocations.append(
-                {"ExecutionId": execution_id, "Error": str(e)}
+                {"executionId": execution_id, "error": str(e)}
             )
 
     return {
