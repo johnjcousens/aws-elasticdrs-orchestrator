@@ -4,16 +4,12 @@
 
 set -e
 
+# Load deployment configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-deployment-config.sh"
+
 # Disable AWS CLI pager
 export AWS_PAGER=""
-
-# Configuration
-STACK_NAME="aws-elasticdrs-orchestrator-dev"
-REGION="us-east-1"
-BUCKET="aws-elasticdrs-orchestrator"
-PROJECT_NAME="aws-elasticdrs-orchestrator"
-ENVIRONMENT="dev"
-ADMIN_EMAIL="***REMOVED***"
 
 echo "======================================="
 echo "🚀 Production Stack Deployment"
@@ -21,6 +17,7 @@ echo "======================================="
 echo "Stack Name: $STACK_NAME"
 echo "Region: $REGION"
 echo "Environment: $ENVIRONMENT"
+echo "Project: $PROJECT_NAME"
 echo "Admin Email: $ADMIN_EMAIL"
 echo ""
 
@@ -44,11 +41,11 @@ else
     echo "🆕 Creating new stack..."
     aws cloudformation create-stack \
         --stack-name "$STACK_NAME" \
-        --template-url "https://$BUCKET.s3.$REGION.amazonaws.com/cfn/master-template.yaml" \
+        --template-url "https://$DEPLOYMENT_BUCKET.s3.$REGION.amazonaws.com/cfn/master-template.yaml" \
         --parameters \
             ParameterKey=ProjectName,ParameterValue="$PROJECT_NAME" \
             ParameterKey=Environment,ParameterValue="$ENVIRONMENT" \
-            ParameterKey=SourceBucket,ParameterValue="$BUCKET" \
+            ParameterKey=SourceBucket,ParameterValue="$DEPLOYMENT_BUCKET" \
             ParameterKey=AdminEmail,ParameterValue="$ADMIN_EMAIL" \
         --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
         --region "$REGION"

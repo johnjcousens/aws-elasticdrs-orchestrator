@@ -12,10 +12,23 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
-API_BASE_URL="https://***REMOVED***.execute-api.us-east-1.amazonaws.com/dev"
-STACK_NAME="aws-elasticdrs-orchestrator-dev"
-REGION="us-east-1"
+# Load deployment configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-deployment-config.sh"
+
+# Use configuration values (with fallback to command line args)
+API_BASE_URL="${API_ENDPOINT:-${1}}"
+STACK_NAME="${PARENT_STACK_NAME:-${2}}"
+REGION="$DEPLOYMENT_REGION"
+
+# If API_ENDPOINT not in config, try to get it from stack
+if [ -z "$API_BASE_URL" ]; then
+    API_BASE_URL=$(aws cloudformation describe-stacks \
+        --stack-name "$STACK_NAME" \
+        --region "$REGION" \
+        --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+        --output text 2>/dev/null || echo "")
+fi
 
 # Test results
 TESTS_PASSED=0
@@ -52,11 +65,11 @@ get_jwt_token() {
     echo -e "${BLUE}Getting JWT token...${NC}"
     
     TOKEN=$(aws cognito-idp admin-initiate-auth \
-        --user-pool-id ***REMOVED*** \
-        --client-id ***REMOVED*** \
+        --user-pool-id "$USER_POOL_ID" \
+        --client-id "$USER_POOL_CLIENT_ID" \
         --auth-flow ADMIN_NO_SRP_AUTH \
         --auth-parameters USERNAME=***REMOVED***,PASSWORD=***REMOVED*** \
-        --region us-east-1 \
+        --region "$REGION" \
         --query 'AuthenticationResult.IdToken' \
         --output text 2>/dev/null)
     
