@@ -5155,14 +5155,10 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
 
         print(f"DEBUG: Processing wave {wave_name} with {len(server_ids)} servers")
 
-        # OPTIMIZED: Get recovery instance details for this wave with error handling
+        # PERFORMANCE FIX: Skip expensive AWS API calls for list function
+        # Real-time data available via /executions/{id}/realtime endpoint
         recovery_instances = {}
-        try:
-            recovery_instances = get_recovery_instances_for_wave(wave, server_ids)
-            print(f"DEBUG: Wave {wave_name} - retrieved {len(recovery_instances)} recovery instances")
-        except Exception as e:
-            print(f"Warning: Could not get recovery instances for wave {wave_name}: {e}")
-            # Continue without recovery instance data - still provide server details
+        print(f"DEBUG: Wave {wave_name} - using cached data only for performance")
 
         # Build enriched server list with full functionality
         enriched_servers = []
@@ -8299,12 +8295,10 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                 for server in legacy_servers:
                     server_id = server.get("SourceServerId")
                     enriched = enriched_map.get(server_id, {})
-                    # PERFORMANCE FIX: Use cached data only, no expensive recovery instance calls
-                    recovery_info = {}
+                    # PERFORMANCE FIX: Use cached data from DynamoDB only, no AWS API calls
                     
                     print(f"DEBUG: Legacy server {server_id}")
                     print(f"DEBUG: DynamoDB server data: InstanceType={server.get('InstanceType')}, PrivateIp={server.get('PrivateIp')}")
-                    print(f"DEBUG: Recovery info: {recovery_info}")
                     
                     servers.append(
                         {
@@ -8345,25 +8339,24 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                 # Don't call get_recovery_instances_for_wave as it makes expensive AWS API calls
                 for server_id in server_ids:
                     enriched = enriched_map.get(server_id, {})
-                    # PERFORMANCE FIX: Use cached data only, no expensive recovery instance calls
-                    recovery_info = {}
+                    # PERFORMANCE FIX: Use cached data from DynamoDB only, no AWS API calls
                     
                     servers.append(
                         {
                             "sourceServerId": server_id,
                             "recoveryJobId": wave.get("JobId"),
-                            "instanceId": recovery_info.get("ec2InstanceID"),
-                            "recoveredInstanceId": recovery_info.get("ec2InstanceID"),  # Frontend expects this field name
+                            "instanceId": None,  # Use cached data only
+                            "recoveredInstanceId": None,  # Use cached data only
                             "status": wave.get("Status", "UNKNOWN"),  # Use wave status
                             "launchTime": safe_timestamp_to_int(
                                 wave.get("StartTime")
                             ),
                             "error": None,
-                            # EC2 recovery instance details
-                            "instanceType": recovery_info.get("instanceType"),
-                            "privateIp": recovery_info.get("privateIp"),
-                            "ec2State": recovery_info.get("ec2State"),
-                            # Enriched fields from DRS source server
+                            # EC2 recovery instance details - use cached data only
+                            "instanceType": "",  # Available via realtime endpoint
+                            "privateIp": "",  # Available via realtime endpoint
+                            "ec2State": "",  # Available via realtime endpoint
+                            # Enriched fields from DRS source server (cached in DynamoDB)
                             "hostname": enriched.get("Hostname", ""),
                             "serverName": enriched.get("NameTag", ""),
                             "region": enriched.get(
