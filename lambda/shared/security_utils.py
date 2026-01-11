@@ -49,11 +49,14 @@ def sanitize_string(input_str: str, max_length: int = 255) -> str:
         )
 
     # PERFORMANCE: Skip sanitization for safe strings (alphanumeric + common safe chars)
+    # But always check for control characters first
     if len(input_str) < 1000 and input_str.replace('-', '').replace('_', '').replace('.', '').replace(':', '').isalnum():
-        return input_str.strip()
+        # Even for "safe" strings, remove control characters
+        sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", input_str.strip())
+        return sanitized
 
     # PERFORMANCE: Quick check for dangerous characters before regex
-    dangerous_chars = '<>"\';\\' + '\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
+    dangerous_chars = '<>"\';\\' + ''.join(chr(i) for i in range(0x00, 0x20)) + ''.join(chr(i) for i in range(0x7f, 0xa0))
     if not any(char in input_str for char in dangerous_chars):
         return input_str.strip()
 
