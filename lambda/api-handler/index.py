@@ -2011,23 +2011,23 @@ def create_protection_group(body: Dict) -> Dict:
     """Create a new Protection Group - supports both tag-based and explicit server selection"""
     try:
         # Validate required fields
-        if "GroupName" not in body:
+        if "groupName" not in body:
             return response(
                 400,
                 {
                     "error": "MISSING_FIELD",
-                    "message": "GroupName is required",
-                    "field": "GroupName",
+                    "message": "groupName is required",
+                    "field": "groupName",
                 },
             )
 
-        if "Region" not in body:
+        if "region" not in body:
             return response(
                 400,
                 {
                     "error": "MISSING_FIELD",
-                    "message": "Region is required",
-                    "field": "Region",
+                    "message": "region is required",
+                    "field": "region",
                 },
             )
 
@@ -2040,8 +2040,8 @@ def create_protection_group(body: Dict) -> Dict:
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "GroupName cannot be empty or whitespace-only",
-                    "field": "GroupName",
+                    "message": "groupName cannot be empty or whitespace-only",
+                    "field": "groupName",
                 },
             )
 
@@ -2051,8 +2051,8 @@ def create_protection_group(body: Dict) -> Dict:
                 400,
                 {
                     "error": "INVALID_NAME",
-                    "message": "GroupName must be 64 characters or fewer",
-                    "field": "GroupName",
+                    "message": "groupName must be 64 characters or fewer",
+                    "field": "groupName",
                     "maxLength": 64,
                     "actualLength": len(name.strip()),
                 },
@@ -2408,8 +2408,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     400,
                     {
                         "error": "INVALID_NAME",
-                        "message": "GroupName cannot be empty or whitespace-only",
-                        "field": "GroupName",
+                        "message": "groupName cannot be empty or whitespace-only",
+                        "field": "groupName",
                     },
                 )
 
@@ -2419,8 +2419,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     400,
                     {
                         "error": "INVALID_NAME",
-                        "message": "GroupName must be 64 characters or fewer",
-                        "field": "GroupName",
+                        "message": "groupName must be 64 characters or fewer",
+                        "field": "groupName",
                         "maxLength": 64,
                         "actualLength": len(name.strip()),
                     },
