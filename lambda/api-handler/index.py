@@ -8376,12 +8376,8 @@ def create_target_account(body: Dict) -> Dict:
             "isFirstAccount": is_first_account,  # Flag for frontend to know this should be default
         }
 
-        account_item = transform_target_account_from_camelcase(
-            body_with_timestamps
-        )
-
-        # Store in DynamoDB
-        target_accounts_table.put_item(Item=account_item)
+        # Store in DynamoDB (data is already in camelCase)
+        target_accounts_table.put_item(Item=body_with_timestamps)
 
         # Data is already in camelCase - return directly
         success_message = f"Target account {account_id} added successfully"

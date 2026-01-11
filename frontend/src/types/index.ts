@@ -9,7 +9,7 @@
 // ============================================================================
 
 export interface ProtectionGroup {
-  id: string;  // Lambda returns 'id' from transform_pg_to_camelcase
+  id: string;  // Lambda returns 'id' directly (camelCase throughout)
   protectionGroupId: string;  // Alias for backward compatibility
   name: string;
   description?: string;
