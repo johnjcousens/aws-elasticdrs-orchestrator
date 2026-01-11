@@ -84,15 +84,15 @@ class TestValidateWaveSizes:
 
     def test_valid_wave_single_server(self):
         """Wave with 1 server should be valid."""
-        plan = {"Waves": [{"WaveName": "Wave 1", "ServerIds": ["s-123"]}]}
+        plan = {"waves": [{"waveName": "Wave 1", "serverIds": ["s-123"]}]}
         errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
     def test_valid_wave_at_limit(self):
         """Wave with exactly 100 servers should be valid."""
         plan = {
-            "Waves": [
-                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(100)]}
+            "waves": [
+                {"waveName": "Wave 1", "serverIds": [f"s-{i}" for i in range(100)]}
             ]
         }
         errors = index.validate_wave_sizes(plan)
@@ -101,8 +101,8 @@ class TestValidateWaveSizes:
     def test_invalid_wave_over_limit(self):
         """Wave with 101 servers should return error."""
         plan = {
-            "Waves": [
-                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(101)]}
+            "waves": [
+                {"waveName": "Wave 1", "serverIds": [f"s-{i}" for i in range(101)]}
             ]
         }
         errors = index.validate_wave_sizes(plan)
@@ -114,8 +114,8 @@ class TestValidateWaveSizes:
     def test_invalid_wave_way_over_limit(self):
         """Wave with 200 servers should return error with correct count."""
         plan = {
-            "Waves": [
-                {"WaveName": "Big Wave", "ServerIds": [f"s-{i}" for i in range(200)]}
+            "waves": [
+                {"waveName": "Big Wave", "serverIds": [f"s-{i}" for i in range(200)]}
             ]
         }
         errors = index.validate_wave_sizes(plan)
@@ -126,10 +126,10 @@ class TestValidateWaveSizes:
     def test_multiple_waves_one_invalid(self):
         """Multiple waves with one exceeding limit should return one error."""
         plan = {
-            "Waves": [
-                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(50)]},
-                {"WaveName": "Wave 2", "ServerIds": [f"s-{i}" for i in range(150)]},
-                {"WaveName": "Wave 3", "ServerIds": [f"s-{i}" for i in range(30)]},
+            "waves": [
+                {"waveName": "Wave 1", "serverIds": [f"s-{i}" for i in range(50)]},
+                {"waveName": "Wave 2", "serverIds": [f"s-{i}" for i in range(150)]},
+                {"waveName": "Wave 3", "serverIds": [f"s-{i}" for i in range(30)]},
             ]
         }
         errors = index.validate_wave_sizes(plan)
@@ -140,9 +140,9 @@ class TestValidateWaveSizes:
     def test_multiple_waves_all_invalid(self):
         """Multiple waves all exceeding limit should return multiple errors."""
         plan = {
-            "Waves": [
-                {"WaveName": "Wave 1", "ServerIds": [f"s-{i}" for i in range(101)]},
-                {"WaveName": "Wave 2", "ServerIds": [f"s-{i}" for i in range(150)]},
+            "waves": [
+                {"waveName": "Wave 1", "serverIds": [f"s-{i}" for i in range(101)]},
+                {"waveName": "Wave 2", "serverIds": [f"s-{i}" for i in range(150)]},
             ]
         }
         errors = index.validate_wave_sizes(plan)
@@ -150,18 +150,18 @@ class TestValidateWaveSizes:
 
     def test_empty_wave(self):
         """Wave with no servers should be valid."""
-        plan = {"Waves": [{"WaveName": "Empty Wave", "ServerIds": []}]}
+        plan = {"waves": [{"waveName": "Empty Wave", "serverIds": []}]}
         errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
     def test_no_waves(self):
         """Plan with no waves should be valid."""
-        plan = {"Waves": []}
+        plan = {"waves": []}
         errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
 
     def test_missing_waves_key(self):
-        """Plan without Waves key should be valid (empty)."""
+        """Plan without waves key should be valid (empty)."""
         plan = {}
         errors = index.validate_wave_sizes(plan)
         assert len(errors) == 0
