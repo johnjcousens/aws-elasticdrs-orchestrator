@@ -13,7 +13,7 @@ Parameters:
     Description: 'Environment name (dev, test, prod)'
 
 Resources:
-  # Protection Groups Table
+  # Protection Groups Table - CamelCase Schema Migration
   ProtectionGroupsTable:
     Type: AWS::DynamoDB::Table
     Properties:
