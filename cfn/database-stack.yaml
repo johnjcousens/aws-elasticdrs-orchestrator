@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - Database Stack (DynamoDB Tables) - CamelCase Schema Migration'
+Description: 'AWS DRS Orchestration - Database Stack (DynamoDB Tables) - CamelCase Schema Deployment'
 
 Parameters:
   ProjectName:
