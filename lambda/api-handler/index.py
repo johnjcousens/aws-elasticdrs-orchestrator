@@ -2886,9 +2886,8 @@ def create_recovery_plan(body: Dict) -> Dict:
 
         print(f"Created Recovery Plan: {plan_id}")
         
-        # Transform to camelCase for frontend response
-        transformed_plan = transform_rp_to_camelcase(item)
-        return response(201, transformed_plan)
+        # Data is already in camelCase - return directly
+        return response(201, item)
 
     except Exception as e:
         print(f"Error creating Recovery Plan: {str(e)}")
@@ -3049,7 +3048,8 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         # Transform to camelCase for frontend
         camelcase_plans = []
         for plan in filtered_plans:
-            camelcase_plans.append(transform_rp_to_camelcase(plan))
+            # Data is already in camelCase - add directly
+            camelcase_plans.append(plan)
 
         return response(
             200, {"plans": camelcase_plans, "count": len(camelcase_plans)}
@@ -3071,10 +3071,8 @@ def get_recovery_plan(plan_id: str) -> Dict:
         plan = result["Item"]
         plan["WaveCount"] = len(plan.get("waves", []))
 
-        # Transform to camelCase for frontend
-        camelcase_plan = transform_rp_to_camelcase(plan)
-
-        return response(200, camelcase_plan)
+        # Data is already in camelCase - return directly
+        return response(200, plan)
 
     except Exception as e:
         print(f"Error getting Recovery Plan: {str(e)}")
@@ -3277,9 +3275,9 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
         print(f"Updated Recovery Plan: {plan_id}")
         # Transform to camelCase for frontend consistency
-        updated_plan = result["Attributes"]
-        updated_plan["WaveCount"] = len(updated_plan.get("waves", []))
-        return response(200, transform_rp_to_camelcase(updated_plan))
+        updated_plan["waveCount"] = len(updated_plan.get("waves", []))
+        # Data is already in camelCase - return directly
+        return response(200, updated_plan)
 
     except Exception as e:
         print(f"Error updating Recovery Plan: {str(e)}")
@@ -4998,41 +4996,6 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
     
     print(f"DEBUG: Returning recovery details for {len(recovery_map)} instances")
     return recovery_map
-                
-                # Store basic recovery instance info
-                recovery_map[source_server_id] = {
-                    'ec2InstanceID': ec2_instance_id,
-                    'recoveryInstanceID': ri.get('recoveryInstanceID'),
-                    'ec2State': ri.get('ec2InstanceState')
-                }
-        
-        # Get EC2 instance details if we have instance IDs
-        if instance_ids:
-            try:
-                ec2_client = boto3.client("ec2", region_name=region)
-                ec2_response = ec2_client.describe_instances(InstanceIds=instance_ids)
-                
-                for reservation in ec2_response.get('Reservations', []):
-                    for instance in reservation.get('Instances', []):
-                        instance_id = instance.get("instanceId")
-                        source_server_id = instance_to_source_map.get(instance_id)
-                        
-                        if source_server_id and source_server_id in recovery_map:
-                            launch_time = instance.get("launchTime")
-                            recovery_map[source_server_id].update({
-                                'instanceType': instance.get("instanceType"),
-                                'privateIp': instance.get('PrivateIpAddress'),
-                                'ec2State': instance.get('State', {}).get('Name'),
-                                'launchTime': launch_time.isoformat() if launch_time else None
-                            })
-                            
-            except Exception as e:
-                print(f"Error getting EC2 instance details: {e}")
-                
-    except Exception as e:
-        print(f"Error getting recovery instances for wave: {e}")
-    
-    return recovery_map
 
 
 def enrich_execution_with_server_details(execution: Dict) -> Dict:
@@ -5484,67 +5447,6 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
 def get_execution_details(execution_id: str) -> Dict:
     """Get execution details - now uses FAST cached data by default"""
     return get_execution_details_fast(execution_id)
-                ]:
-                    new_status = (
-                        "COMPLETED"
-                        if sf_response["status"] == "SUCCEEDED"
-                        else "FAILED"
-                    )
-                    execution_history_table.update_item(
-                        Key={"executionId": execution_id,
-                            "planId": execution.get("planId"),
-                        },
-                        UpdateExpression="SET #status = :status, EndTime = :endtime",
-                        ExpressionAttributeNames={"#status": "Status"},
-                        ExpressionAttributeValues={
-                            ":status": new_status,
-                            ":endtime": int(time.time()),
-                        },
-                    )
-                    execution["status"] = new_status
-                    execution["endTime"] = int(time.time())
-            except Exception as e:
-                print(f"Error getting Step Functions status: {str(e)}")
-
-        # CRITICAL FIX: Reconcile wave status with actual DRS job results for cancelled executions
-        # This ensures wave status reflects actual DRS job completion when execution-poller stopped
-        # Updated: 2025-01-07 - Fixed DynamoDB save operation for wave status reconciliation
-        # IMPORTANT: Call reconcile BEFORE camelCase transformation since it works on DynamoDB structure
-        print(f"DEBUG: About to call reconcile_wave_status_with_drs for execution {execution_id}")
-        original_waves = execution.get("waves", [])
-        print(f"DEBUG: Original waves count: {len(original_waves)}")
-        for i, wave in enumerate(original_waves):
-            print(f"DEBUG: Wave {i}: Status={wave.get("status")}, JobId={wave.get("jobId")}")
-        execution = reconcile_wave_status_with_drs(execution)
-        
-        # Save updated wave statuses to DynamoDB if they changed
-        updated_waves = execution.get("waves", [])
-        if original_waves != updated_waves:
-            try:
-                print(f"Saving updated wave statuses to DynamoDB for execution {execution_id}")
-                execution_history_table.update_item(
-                    Key={"executionId": execution_id,
-                        "planId": execution.get("planId"),
-                    },
-                    UpdateExpression="SET Waves = :waves",
-                    ExpressionAttributeValues={":waves": updated_waves},
-                )
-                print(f"Successfully saved updated wave statuses for execution {execution_id}")
-            except Exception as e:
-                print(f"Error saving updated wave statuses to DynamoDB: {e}")
-
-        # CRITICAL FIX: Recalculate execution status based on current wave statuses
-        # This ensures the overall execution status reflects the actual state of waves
-        execution = recalculate_execution_status(execution)
-
-        # CONSISTENCY FIX: Transform to camelCase for frontend (same as list_executions)
-        # This ensures ALL API endpoints return consistent camelCase format
-        # Data is already in camelCase - no transformation needed
-        return response(200, execution)
-
-    except Exception as e:
-        print(f"Error getting execution details: {str(e)}")
-        return response(500, {"error": str(e)})
 
 
 def cancel_execution(execution_id: str) -> Dict:
@@ -7970,7 +7872,7 @@ def check_tag_conflicts_for_update(
     return conflicts
 
 
-def pg: Dict -> Dict:
+def transform_pg_to_camelcase(pg: Dict) -> Dict:
     """Transform Protection Group from DynamoDB PascalCase to frontend camelCase"""
     # Convert timestamps from seconds to milliseconds for JavaScript Date()
     created_at = pg.get("CreatedDate")
@@ -8606,8 +8508,8 @@ def get_target_accounts() -> Dict:
         # Transform all accounts to camelCase for frontend
         camel_accounts = []
         for account in accounts:
-            camel_account = transform_target_account_to_camelcase(account)
-            camel_accounts.append(camel_account)
+            # Data is already in camelCase - add directly
+            camel_accounts.append(account)
 
         return response(200, camel_accounts)
 
@@ -8751,9 +8653,7 @@ def create_target_account(body: Dict) -> Dict:
         # Store in DynamoDB
         target_accounts_table.put_item(Item=account_item)
 
-        # Transform back to camelCase for response
-        camel_account = transform_target_account_to_camelcase(account_item)
-
+        # Data is already in camelCase - return directly
         success_message = f"Target account {account_id} added successfully"
         if is_current_account:
             success_message += " (same account - no cross-account role needed)"
@@ -8767,7 +8667,7 @@ def create_target_account(body: Dict) -> Dict:
         return response(
             201,
             {
-                **camel_account,
+                **account_item,
                 "message": success_message,
                 "isFirstAccount": is_first_account,
             },
@@ -8890,11 +8790,9 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
         result = target_accounts_table.update_item(**update_args)
         updated_account = result["Attributes"]
 
-        # Transform to camelCase for response
-        camel_account = transform_target_account_to_camelcase(updated_account)
-
+        # Data is already in camelCase - return directly
         print(f"Updated target account: {account_id}")
-        return response(200, camel_account)
+        return response(200, updated_account)
 
     except Exception as e:
         print(f"Error updating target account: {e}")
