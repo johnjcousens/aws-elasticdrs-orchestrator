@@ -20,10 +20,10 @@ Resources:
       TableName: !Sub '${ProjectName}-protection-groups-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: GroupId
+        - AttributeName: groupId
           AttributeType: S
       KeySchema:
-        - AttributeName: GroupId
+        - AttributeName: groupId
           KeyType: HASH
       TimeToLiveSpecification:
         AttributeName: TTL
@@ -45,10 +45,10 @@ Resources:
       TableName: !Sub '${ProjectName}-recovery-plans-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: PlanId
+        - AttributeName: planId
           AttributeType: S
       KeySchema:
-        - AttributeName: PlanId
+        - AttributeName: planId
           KeyType: HASH
       TimeToLiveSpecification:
         AttributeName: TTL
@@ -70,33 +70,33 @@ Resources:
       TableName: !Sub '${ProjectName}-execution-history-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: ExecutionId
+        - AttributeName: executionId
           AttributeType: S
-        - AttributeName: PlanId
+        - AttributeName: planId
           AttributeType: S
-        - AttributeName: StartTime
+        - AttributeName: startTime
           AttributeType: N
-        - AttributeName: Status
+        - AttributeName: status
           AttributeType: S
       KeySchema:
-        - AttributeName: ExecutionId
+        - AttributeName: executionId
           KeyType: HASH
-        - AttributeName: PlanId
+        - AttributeName: planId
           KeyType: RANGE
       GlobalSecondaryIndexes:
-        - IndexName: PlanIdIndex
+        - IndexName: planIdIndex
           KeySchema:
-            - AttributeName: PlanId
+            - AttributeName: planId
               KeyType: HASH
-            - AttributeName: StartTime
+            - AttributeName: startTime
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-        - IndexName: StatusIndex
+        - IndexName: statusIndex
           KeySchema:
-            - AttributeName: Status
+            - AttributeName: status
               KeyType: HASH
-            - AttributeName: StartTime
+            - AttributeName: startTime
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -120,21 +120,21 @@ Resources:
       TableName: !Sub '${ProjectName}-target-accounts-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: AccountId
+        - AttributeName: accountId
           AttributeType: S
-        - AttributeName: Status
+        - AttributeName: status
           AttributeType: S
-        - AttributeName: LastValidated
+        - AttributeName: lastValidated
           AttributeType: S
       KeySchema:
-        - AttributeName: AccountId
+        - AttributeName: accountId
           KeyType: HASH
       GlobalSecondaryIndexes:
-        - IndexName: StatusIndex
+        - IndexName: statusIndex
           KeySchema:
-            - AttributeName: Status
+            - AttributeName: status
               KeyType: HASH
-            - AttributeName: LastValidated
+            - AttributeName: lastValidated
               KeyType: RANGE
           Projection:
             ProjectionType: ALL

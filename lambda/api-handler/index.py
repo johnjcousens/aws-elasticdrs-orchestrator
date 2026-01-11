@@ -1,7 +1,7 @@
 """
 AWS DRS Orchestration - API Handler Lambda
 Handles REST API requests for Protection Groups, Recovery Plans, and Executions
-Version: v1.3.1-syntax-fix-deployed
+Version: v1.3.1-hotfix-lambda-deployment-fix
 """
 
 import json
@@ -2129,7 +2129,7 @@ def create_protection_group(body: Dict) -> Dict:
                 raise Exception("Failed to generate valid timestamp")
 
         item = {
-            "groupId": group_id,
+            "GroupId": group_id,  # DynamoDB key (PascalCase)
             "groupName": name,
             "description": body.get("description", ""),
             "region": region,
@@ -2232,8 +2232,25 @@ def create_protection_group(body: Dict) -> Dict:
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
 
-        # Transform to camelCase for frontend
-        response_item = item
+        # Transform to camelCase for frontend response
+        response_item = {
+            "groupId": item["GroupId"],  # Transform GroupId -> groupId
+            "groupName": item["groupName"],
+            "description": item["description"],
+            "region": item["region"],
+            "accountId": item["accountId"],
+            "assumeRoleName": item["assumeRoleName"],
+            "Owner": item["Owner"],
+            "CreatedDate": item["CreatedDate"],
+            "LastModifiedDate": item["LastModifiedDate"],
+            "Version": item["Version"],
+            "sourceServerIds": item.get("sourceServerIds", []),
+            "serverSelectionTags": item.get("serverSelectionTags", {}),
+        }
+
+        # Include launchConfig if present
+        if "launchConfig" in item:
+            response_item["launchConfig"] = item["launchConfig"]
 
         # Include launchConfig apply results if applicable
         if launch_config_apply_results:
