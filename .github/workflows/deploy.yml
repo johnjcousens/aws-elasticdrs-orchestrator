@@ -650,7 +650,7 @@ jobs:
           echo "=== Validating Frontend Configuration ==="
           # Wait a moment for S3/CloudFront to propagate
           sleep 30
-          ./scripts/validate-frontend-config.sh "${{ env.STACK_NAME }}" "${{ env.AWS_REGION }}"
+          ./scripts/validate-frontend-config.sh "${{ secrets.STACK_NAME }}" "${{ env.AWS_REGION }}"
 
       - name: Deployment summary
         run: |
