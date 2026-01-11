@@ -7,23 +7,23 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
-[![Release](https://img.shields.io/badge/Release-v1.7.0%20EventBridge%20Tag%20Sync-blue)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.7.0-eventbridge-enhanced)
+[![Release](https://img.shields.io/badge/Release-v1.3.1%20CamelCase%20Migration-blue)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.3.1-camelcase-migration)
 
-## 🎯 **Latest Release: v1.3.0 - Enhanced Wave Progress UI with Consistent Server Status Display**
+## 🎯 **Current Release: v1.3.1 - CamelCase Migration (IN PROGRESS)**
 
-**Latest Version**: v1.3.0 (January 10, 2026) - **ENHANCED WAVE PROGRESS UI** - Complete resolution of server status icon inconsistency with wave-aware status display ensuring professional enterprise-grade user experience.
+**Current Version**: v1.3.1 (January 11, 2026) - **CAMELCASE MIGRATION** - Complete database schema migration to native camelCase with elimination of all transform functions for improved performance and consistency.
 
-**Previous Version**: v1.7.0 (January 10, 2026) - EventBridge Tag Sync restoration and enhancement.
+**Previous Version**: v1.3.0 (January 10, 2026) - Enhanced Wave Progress UI with Consistent Server Status Display.
 
-**[View Complete Release Notes →](CHANGELOG.md#130---january-10-2026---enhanced-wave-progress-ui-with-consistent-server-status-display-)**
+**[View Complete Release Notes →](CHANGELOG.md#131---january-11-2026---camelcase-migration-deployment)**
 
-### 🌟 **Major Enhancement Highlights**
-- ✅ **Consistent Server Status Icons**: All servers show completed checkmark (✓) when wave is done
-- ✅ **Eliminates Mixed Icons**: No more confusing mix of in-progress (⟳) and completed (✓) icons
-- ✅ **Wave-Aware Status Display**: Server status considers wave context for perfect consistency
-- ✅ **Professional UI**: Enterprise-grade AWS console-style interface with CloudScape Design System
-- ✅ **Enhanced User Experience**: Crystal clear execution progress visualization
-- ✅ **Previous Fixes Included**: Debug cleanup, status truncation fix, separate expandable sections
+### 🚀 **Migration Highlights**
+- ✅ **Native CamelCase Schema**: Database uses camelCase (groupId, planId, executionId, accountId)
+- ✅ **Transform Functions Eliminated**: All 5 transform functions removed for better performance
+- ✅ **API Consistency**: All 32+ endpoints use native camelCase throughout
+- ✅ **Test Environment**: Deploying to aws-elasticdrs-orchestrator-test stack
+- 🔄 **Deployment Status**: GitHub Actions deployment in progress
+- 🔄 **Validation Pending**: Comprehensive testing of all functionality with camelCase
 
 ## Overview
 
