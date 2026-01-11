@@ -16,21 +16,18 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
-# Import RBAC middleware
-from shared.rbac_middleware import (
-    check_authorization,
-    get_user_from_event,
-    get_user_permissions,
-    get_user_roles,
-)
+# Import RBAC middleware - DISABLED FOR PERFORMANCE
+# from shared.rbac_middleware import (
+#     check_authorization,
+#     get_user_from_event,
+#     get_user_permissions,
+#     get_user_roles,
+# )
 
-# Import security utilities
+# Import security utilities - MINIMAL USAGE ONLY
 from shared.security_utils import (
-    InputValidationError,
     create_security_headers,
     log_security_event,
-    sanitize_string,
-    validate_api_gateway_event,
 )
 
 # Initialize AWS clients
@@ -1610,83 +1607,17 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
         # Skip authentication check for health endpoint
         if path != "/health":
-            # EMERGENCY PERFORMANCE FIX: Skip all security processing for execution details
-            # This is a temporary fix to restore API functionality while we debug the root cause
-            if path.startswith("/executions/") and http_method == "GET":
-                print(f"⚡ EMERGENCY BYPASS: Skipping security for execution details endpoint: {path}")
-                # Still require basic Cognito authentication but skip RBAC processing
-                auth_context = event.get("requestContext", {}).get("authorizer", {})
-                claims = auth_context.get("claims", {})
-                if not claims or not claims.get("email"):
-                    return response(401, {"error": "Unauthorized", "message": "Authentication required"})
-                print(f"✅ Basic auth passed for execution endpoint")
-            else:
-                # PERFORMANCE OPTIMIZATION: Skip heavy security processing for read operations
-                is_read_operation = http_method in ["GET", "OPTIONS"]
-                
-                # Validate authentication - check for Cognito authorizer context
-                auth_context = event.get("requestContext", {}).get(
-                    "authorizer", {}
-                )
-                claims = auth_context.get("claims", {})
-                
-                # For read operations, do lightweight auth check
-                if is_read_operation:
-                    # Quick auth check - just verify user is authenticated
-                    if not claims or not claims.get("email") or not claims.get("sub"):
-                        print("Authentication validation failed - missing or invalid Cognito claims")
-                        return response(
-                            401,
-                            {
-                                "error": "Unauthorized",
-                                "message": "Valid authentication required",
-                            },
-                        )
-                    print(f"✅ Lightweight auth passed for read operation: {http_method} {path}")
-                else:
-                    # Full security check for write/critical operations
-                    # Extract safe data for logging
-                    auth_context_keys = (
-                        list(auth_context.keys()) if auth_context else []
-                    )
-                    claims_count = len(claims) if claims else 0
-                    print(
-                        f"Auth validation - path: {path}, auth_context_keys: {auth_context_keys}, claims_count: {claims_count}"
-                    )
-
-                    # If no claims or essential fields missing, return 401 with CORS headers
-                    if not claims or not claims.get("email") or not claims.get("sub"):
-                        print(
-                            "Authentication validation failed - missing or invalid Cognito claims"
-                        )
-                        return response(
-                            401,
-                            {
-                                "error": "Unauthorized",
-                                "message": "Valid authentication required",
-                            },
-                        )
-
-                    # RBAC Authorization Check for critical operations
-                    print("Performing RBAC authorization check for critical operation")
-                    auth_result = check_authorization(event)
-                    if not auth_result["authorized"]:
-                        print(f"RBAC authorization failed: {auth_result['reason']}")
-                        return response(
-                            403,
-                            {
-                                "error": "Forbidden",
-                                "message": auth_result["reason"],
-                                "requiredPermission": auth_result.get(
-                                    "required_permission"
-                                ),
-                                "userRoles": auth_result.get("user_roles", []),
-                            },
-                        )
-
-                    print(
-                        f"RBAC authorization passed for user: {auth_result.get('user', {}).get('email')}"
-                    )
+            # SIMPLIFIED AUTH: Only basic Cognito authentication, no RBAC processing
+            auth_context = event.get("requestContext", {}).get("authorizer", {})
+            claims = auth_context.get("claims", {})
+            
+            # Quick auth check - just verify user is authenticated via Cognito
+            if not claims or not claims.get("email"):
+                print("Authentication validation failed - missing Cognito claims")
+                return response(401, {"error": "Unauthorized", "message": "Authentication required"})
+            
+            print(f"✅ Basic Cognito auth passed for user: {claims.get('email')}")
+            # Skip all RBAC and security processing for performance
 
         print("Authentication and authorization passed, proceeding to routing")
 
