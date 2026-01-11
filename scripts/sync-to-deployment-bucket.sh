@@ -42,8 +42,8 @@ LIST_PROFILES=false
 
 # CloudFormation stack configuration (Current working stack configuration)
 PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"  # Current working stack project name
-ENVIRONMENT="${ENVIRONMENT:-dev}"  # Current working stack uses dev environment
-PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-dev}"  # Current working stack actual name
+ENVIRONMENT="${ENVIRONMENT:-test}"  # Current working stack uses test environment
+PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-test}"  # Current working stack actual name
 
 # Approved directories for sync
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts")

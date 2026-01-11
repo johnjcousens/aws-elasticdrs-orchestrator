@@ -10,11 +10,11 @@ on:
       environment:
         description: 'Deployment environment'
         required: true
-        default: 'dev'
+        default: 'test'
         type: choice
         options:
-          - dev
           - test
+          - dev
           - prod
 
 env:
@@ -465,7 +465,7 @@ jobs:
       needs.detect-changes.outputs.docs-only != 'true' && 
       (needs.detect-changes.outputs.infrastructure == 'true' || needs.detect-changes.outputs.lambda == 'true')
     environment: 
-      name: ${{ github.event.inputs.environment || 'dev' }}
+      name: ${{ github.event.inputs.environment || 'test' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -505,7 +505,7 @@ jobs:
           STACK_NAME="${{ secrets.STACK_NAME }}"
           BUCKET="${{ secrets.DEPLOYMENT_BUCKET }}"
           ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}"
-          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          ENV="${{ github.event.inputs.environment || 'test' }}"
           
           echo "🚀 FRESH STACK DEPLOYMENT"
           echo "   Stack: $STACK_NAME"

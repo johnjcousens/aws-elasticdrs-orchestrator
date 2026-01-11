@@ -161,8 +161,8 @@ Conditions:
   EnableSecurityStackCondition: !Equals [!Ref EnableSecurityStack, 'true']
 
 Resources:
-  # Database Stack - DynamoDB Tables
-  DatabaseStack:
+  # Database Stack - DynamoDB Tables (CamelCase Migration)
+  DatabaseStackV2:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -177,6 +177,8 @@ Resources:
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
+        - Key: Migration
+          Value: CamelCaseV2
       TimeoutInMinutes: 15
 
   # Lambda Stack - Lambda Functions and IAM Roles
@@ -184,17 +186,17 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
-    DependsOn: DatabaseStack
+    DependsOn: DatabaseStackV2
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/lambda-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         SourceBucket: !Ref SourceBucket
-        ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
-        RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
-        ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
-        TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
+        ProtectionGroupsTableName: !GetAtt DatabaseStackV2.Outputs.ProtectionGroupsTableName
+        RecoveryPlansTableName: !GetAtt DatabaseStackV2.Outputs.RecoveryPlansTableName
+        ExecutionHistoryTableName: !GetAtt DatabaseStackV2.Outputs.ExecutionHistoryTableName
+        TargetAccountsTableName: !GetAtt DatabaseStackV2.Outputs.TargetAccountsTableName
         NotificationTopicArn: ""
         CrossAccountRoleName: !Ref CrossAccountRoleName
         AdminEmail: !Ref AdminEmail
@@ -212,7 +214,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
-      - DatabaseStack
+      - DatabaseStackV2
       - LambdaStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/step-functions-stack.yaml'
