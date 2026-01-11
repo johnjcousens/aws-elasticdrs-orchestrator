@@ -39,7 +39,7 @@ def send_response(
     response_url = event["ResponseURL"]
 
     response_body = {
-        "Status": response_status,
+        "status": response_status,
         "Reason": (
             f"See the details in CloudWatch Log Stream: "
             f"{context.log_stream_name}"
@@ -136,7 +136,7 @@ def empty_bucket(bucket_name):
         try:
             s3_client.head_bucket(Bucket=bucket_name)
         except ClientError as e:
-            if e.response["Error"]["Code"] == "404":
+            if e.response["error"]["Code"] == "404":
                 logger.info(
                     f"Bucket {bucket_name} does not exist - nothing to clean"
                 )
@@ -207,7 +207,7 @@ def empty_bucket(bucket_name):
             logger.info(f"Bucket {bucket_name} is now empty")
 
     except ClientError as e:
-        error_code = e.response["Error"]["Code"]
+        error_code = e.response["error"]["Code"]
         if error_code == "NoSuchBucket":
             logger.info(
                 f"Bucket {bucket_name} does not exist - nothing to clean"
@@ -215,7 +215,7 @@ def empty_bucket(bucket_name):
         else:
             logger.error(
                 f"AWS error emptying bucket {bucket_name}: {error_code} - "
-                f"{e.response['Error']['Message']}"
+                f"{e.response["error"]['Message']}"
             )
             raise
     except Exception as e:

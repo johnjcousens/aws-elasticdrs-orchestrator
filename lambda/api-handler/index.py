@@ -170,24 +170,24 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                 f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}"
             )
 
-        waves = plan.get("Waves", [])
+        waves = plan.get("waves", [])
 
         # Collect unique account IDs from all Protection Groups in the plan
         all_target_account_ids = set()
 
         for wave in waves:
-            pg_id = wave.get("ProtectionGroupId")
+            pg_id = wave.get("protectionGroupId")
             if not pg_id:
                 continue
 
             try:
                 # Get Protection Group to check its AccountId
                 pg_result = protection_groups_table.get_item(
-                    Key={"GroupId": pg_id}
+                    Key={"groupId": pg_id}
                 )
                 if "Item" in pg_result:
                     pg = pg_result["Item"]
-                    account_id = pg.get("AccountId")
+                    account_id = pg.get("accountId")
                     if account_id and account_id.strip():
                         all_target_account_ids.add(account_id.strip())
                         print(
@@ -215,8 +215,8 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                 f"All Protection Groups are in current account {current_account_id}"
             )
             return {
-                "AccountId": current_account_id,
-                "AssumeRoleName": None,  # No role assumption needed for current account
+                "accountId": current_account_id,
+                "assumeRoleName": None,  # No role assumption needed for current account
                 "isCurrentAccount": True,
             }
 
@@ -227,13 +227,13 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
         if target_accounts_table:
             try:
                 account_result = target_accounts_table.get_item(
-                    Key={"AccountId": target_account_id}
+                    Key={"accountId": target_account_id}
                 )
                 if "Item" in account_result:
                     account_config = account_result["Item"]
                     assume_role_name = (
-                        account_config.get("AssumeRoleName")
-                        or account_config.get("CrossAccountRoleArn", "").split(
+                        account_config.get("assumeRoleName")
+                        or account_config.get("crossAccountRoleArn", "").split(
                             "/"
                         )[-1]
                     )
@@ -242,8 +242,8 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                         f"Using target account {target_account_id} with role {assume_role_name}"
                     )
                     return {
-                        "AccountId": target_account_id,
-                        "AssumeRoleName": assume_role_name,
+                        "accountId": target_account_id,
+                        "assumeRoleName": assume_role_name,
                         "isCurrentAccount": False,
                     }
                 else:
@@ -260,8 +260,8 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
             f"Using target account {target_account_id} with default role name"
         )
         return {
-            "AccountId": target_account_id,
-            "AssumeRoleName": "DRSOrchestrationCrossAccountRole",  # Default role name
+            "accountId": target_account_id,
+            "assumeRoleName": "DRSOrchestrationCrossAccountRole",  # Default role name
             "isCurrentAccount": False,
         }
 
@@ -288,8 +288,8 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
         return boto3.client("drs", region_name=region)
 
     # FIX #3: Improved cross-account role validation and error handling
-    account_id = account_context.get("AccountId")
-    assume_role_name = account_context.get("AssumeRoleName")
+    account_id = account_context.get("accountId")
+    assume_role_name = account_context.get("assumeRoleName")
 
     if not account_id:
         raise ValueError(
@@ -470,14 +470,14 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
         # Try GSI first
         try:
             result = execution_history_table.query(
-                IndexName="PlanIdIndex",
-                KeyConditionExpression=Key("PlanId").eq(plan_id),
+                IndexName="planIdIndex",
+                KeyConditionExpression=Key("planId").eq(plan_id),
             )
             executions = result.get("Items", [])
         except Exception:
             # Fallback to scan
             result = execution_history_table.scan(
-                FilterExpression=Attr("PlanId").eq(plan_id)
+                FilterExpression=Attr("planId").eq(plan_id)
             )
             executions = result.get("Items", [])
 
@@ -485,7 +485,7 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
         return [
             e
             for e in executions
-            if e.get("Status", "").upper() in ACTIVE_EXECUTION_STATUSES
+            if e.get("status", "").upper() in ACTIVE_EXECUTION_STATUSES
         ]
     except Exception as e:
         print(f"Error checking active executions for plan {plan_id}: {e}")
@@ -512,10 +512,10 @@ def get_active_execution_for_protection_group(group_id: str) -> Optional[Dict]:
         # Find plan IDs that reference this protection group
         plan_ids_with_pg = []
         for plan in all_plans:
-            for wave in plan.get("Waves", []):
-                pg_id_in_wave = wave.get("ProtectionGroupId")
+            for wave in plan.get("waves", []):
+                pg_id_in_wave = wave.get("protectionGroupId")
                 if pg_id_in_wave == group_id:
-                    plan_ids_with_pg.append(plan.get("PlanId"))
+                    plan_ids_with_pg.append(plan.get("planId"))
                     break
 
         if not plan_ids_with_pg:
@@ -528,13 +528,13 @@ def get_active_execution_for_protection_group(group_id: str) -> Optional[Dict]:
                 exec_info = active_executions[0]
                 # Get plan name
                 plan = next(
-                    (p for p in all_plans if p.get("PlanId") == plan_id), {}
+                    (p for p in all_plans if p.get("planId") == plan_id), {}
                 )
                 return {
-                    "executionId": exec_info.get("ExecutionId"),
+                    "executionId": exec_info.get("executionId"),
                     "planId": plan_id,
-                    "planName": plan.get("PlanName", "Unknown"),
-                    "status": exec_info.get("Status"),
+                    "planName": plan.get("planName", "Unknown"),
+                    "status": exec_info.get("status"),
                 }
 
         return None
@@ -556,7 +556,7 @@ def get_all_active_executions() -> List[Dict]:
                 )
                 active_executions.extend(result.get("Items", []))
             except ClientError as e:
-                error_code = e.response.get("Error", {}).get("Code", "")
+                error_code = e.response.get("error", {}).get("Code", "")
                 if error_code in [
                     "ValidationException",
                     "ResourceNotFoundException",
@@ -580,7 +580,7 @@ def get_all_active_executions() -> List[Dict]:
             active_executions = [
                 e
                 for e in all_executions
-                if e.get("Status", "").upper() in ACTIVE_EXECUTION_STATUSES
+                if e.get("status", "").upper() in ACTIVE_EXECUTION_STATUSES
             ]
 
         return active_executions
@@ -606,17 +606,17 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
     pg_cache = {}
 
     for execution in active_executions:
-        execution_id = execution.get("ExecutionId")
-        plan_id = execution.get("PlanId")
-        exec_status = execution.get("Status", "").upper()
+        execution_id = execution.get("executionId")
+        plan_id = execution.get("planId")
+        exec_status = execution.get("status", "").upper()
 
         # First, check ServerStatuses in execution waves (already resolved servers)
-        for wave in execution.get("Waves", []):
-            wave_name = wave.get("WaveName", "Unknown")
+        for wave in execution.get("waves", []):
+            wave_name = wave.get("waveName", "Unknown")
 
-            for server in wave.get("ServerStatuses", []):
-                server_id = server.get("SourceServerId")
-                launch_status = server.get("LaunchStatus", "")
+            for server in wave.get("serverStatuses", []):
+                server_id = server.get("sourceServerId")
+                launch_status = server.get("launchStatus", "")
                 # Track servers not yet launched
                 if server_id and launch_status.upper() not in [
                     "LAUNCHED",
@@ -636,7 +636,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
         if plan_id not in plan_cache:
             try:
                 plan_result = recovery_plans_table.get_item(
-                    Key={"PlanId": plan_id}
+                    Key={"planId": plan_id}
                 )
                 plan_cache[plan_id] = plan_result.get("Item", {})
             except Exception as e:
@@ -644,20 +644,20 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
                 plan_cache[plan_id] = {}
 
         plan = plan_cache.get(plan_id, {})
-        current_wave = execution.get("CurrentWave", 1)
+        current_wave = execution.get("currentWave", 1)
 
         # Convert Decimal to int if needed
         if hasattr(current_wave, "__int__"):
             current_wave = int(current_wave)
 
         # Get servers from all waves (for active executions, all servers are "in use")
-        for idx, wave in enumerate(plan.get("Waves", []), start=1):
-            wave_name = wave.get("WaveName", f"Wave {idx}")
+        for idx, wave in enumerate(plan.get("waves", []), start=1):
+            wave_name = wave.get("waveName", f"Wave {idx}")
 
             # Get Protection Group ID for this wave
             pg_id = (
-                wave.get("ProtectionGroupId")
-                or (wave.get("ProtectionGroupIds", []) or [None])[0]
+                wave.get("protectionGroupId")
+                or (wave.get("protectionGroupIds", []) or [None])[0]
             )
 
             if pg_id:
@@ -694,22 +694,22 @@ def resolve_pg_servers_for_conflict_check(
         return pg_cache[pg_id]
 
     try:
-        pg_result = protection_groups_table.get_item(Key={"GroupId": pg_id})
+        pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
         pg = pg_result.get("Item", {})
 
         if not pg:
             pg_cache[pg_id] = []
             return []
 
-        region = pg.get("Region", "us-east-1")
-        selection_tags = pg.get("ServerSelectionTags", {})
-        source_server_ids = pg.get("SourceServerIds", [])
+        region = pg.get("region", "us-east-1")
+        selection_tags = pg.get("serverSelectionTags", {})
+        source_server_ids = pg.get("sourceServerIds", [])
 
         # Extract account context from Protection Group if not provided
-        if not account_context and pg.get("AccountId"):
+        if not account_context and pg.get("accountId"):
             account_context = {
-                "AccountId": pg.get("AccountId"),
-                "AssumeRoleName": pg.get("AssumeRoleName"),
+                "accountId": pg.get("accountId"),
+                "assumeRoleName": pg.get("assumeRoleName"),
             }
 
         if selection_tags:
@@ -748,7 +748,7 @@ def check_server_conflicts(
     Also checks DRS directly for active LAUNCH jobs (catches stale DynamoDB records).
     """
     print(
-        f"[Conflict Check] Starting conflict check for plan {plan.get('PlanId')}"
+        f"[Conflict Check] Starting conflict check for plan {plan.get('planId')}"
     )
     print(f"[Conflict Check] Account context: {account_context}")
 
@@ -762,13 +762,13 @@ def check_server_conflicts(
     checked_regions = set()
     drs_servers_by_region = {}
 
-    for wave in plan.get("Waves", []):
-        wave_name = wave.get("WaveName", "Unknown")
+    for wave in plan.get("waves", []):
+        wave_name = wave.get("waveName", "Unknown")
 
         # Get Protection Group ID for this wave
         pg_id = (
-            wave.get("ProtectionGroupId")
-            or (wave.get("ProtectionGroupIds", []) or [None])[0]
+            wave.get("protectionGroupId")
+            or (wave.get("protectionGroupIds", []) or [None])[0]
         )
         print(f"[Conflict Check] Wave '{wave_name}' has PG: {pg_id}")
 
@@ -777,7 +777,7 @@ def check_server_conflicts(
             if pg_id not in pg_cache:
                 try:
                     pg_result = protection_groups_table.get_item(
-                        Key={"GroupId": pg_id}
+                        Key={"groupId": pg_id}
                     )
                     pg_cache[pg_id] = pg_result.get("Item", {})
                 except Exception as e:
@@ -785,7 +785,7 @@ def check_server_conflicts(
                     pg_cache[pg_id] = {}
 
             pg = pg_cache.get(pg_id, {})
-            region = pg.get("Region", "us-east-1")
+            region = pg.get("region", "us-east-1")
             print(f"[Conflict Check] PG {pg_id} is in region {region}")
 
             # Check DRS jobs for this region (once per region)
@@ -889,7 +889,7 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
     pg_cache = {}
 
     for plan in all_plans:
-        plan_id = plan.get("PlanId")
+        plan_id = plan.get("planId")
 
         # Check if this plan has any servers in active executions
         conflicting_servers = []
@@ -897,11 +897,11 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
         conflicting_plan_id = None
         conflicting_status = None
 
-        for wave in plan.get("Waves", []):
+        for wave in plan.get("waves", []):
             # Get Protection Group ID for this wave
             pg_id = (
-                wave.get("ProtectionGroupId")
-                or (wave.get("ProtectionGroupIds", []) or [None])[0]
+                wave.get("protectionGroupId")
+                or (wave.get("protectionGroupIds", []) or [None])[0]
             )
 
             if pg_id:
@@ -929,24 +929,24 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
         drs_conflicting_job_id = None
         pg_metadata_cache = {}  # Separate cache for PG metadata (region, etc.)
 
-        for wave in plan.get("Waves", []):
+        for wave in plan.get("waves", []):
             pg_id = (
-                wave.get("ProtectionGroupId")
-                or (wave.get("ProtectionGroupIds", []) or [None])[0]
+                wave.get("protectionGroupId")
+                or (wave.get("protectionGroupIds", []) or [None])[0]
             )
             if pg_id:
                 # Get PG metadata (region) - use separate cache since pg_cache stores server IDs
                 if pg_id not in pg_metadata_cache:
                     try:
                         pg_result = protection_groups_table.get_item(
-                            Key={"GroupId": pg_id}
+                            Key={"groupId": pg_id}
                         )
                         pg_metadata_cache[pg_id] = pg_result.get("Item", {})
                     except Exception:
                         pg_metadata_cache[pg_id] = {}
 
                 pg_metadata = pg_metadata_cache.get(pg_id, {})
-                region = pg_metadata.get("Region", "us-east-1")
+                region = pg_metadata.get("region", "us-east-1")
 
                 # Lazy load DRS jobs per region
                 if region not in drs_servers_by_region:
@@ -1008,20 +1008,20 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
     errors = []
     pg_cache = {}
 
-    for idx, wave in enumerate(plan.get("Waves", []), start=1):
+    for idx, wave in enumerate(plan.get("waves", []), start=1):
         # Get Protection Group ID for this wave
         pg_id = (
-            wave.get("ProtectionGroupId")
-            or (wave.get("ProtectionGroupIds", []) or [None])[0]
+            wave.get("protectionGroupId")
+            or (wave.get("protectionGroupIds", []) or [None])[0]
         )
 
         if pg_id:
             # Resolve servers from Protection Group tags
             server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
             server_count = len(server_ids)
-        elif wave.get("ServerIds"):
+        elif wave.get("serverIds"):
             # Direct server IDs (for backward compatibility and testing)
-            server_count = len(wave.get("ServerIds", []))
+            server_count = len(wave.get("serverIds", []))
         else:
             server_count = 0
 
@@ -1029,11 +1029,11 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
             errors.append(
                 {
                     "type": "WAVE_SIZE_EXCEEDED",
-                    "wave": wave.get("WaveName", f"Wave {idx}"),
+                    "wave": wave.get("waveName", f"Wave {idx}"),
                     "waveIndex": idx,
                     "serverCount": server_count,
                     "limit": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
-                    "message": f"Wave '{wave.get('WaveName', f'Wave {idx}')}' has {server_count} servers, exceeds limit of {DRS_LIMITS['MAX_SERVERS_PER_JOB']}",
+                    "message": f"Wave '{wave.get("waveName", f'Wave {idx}')}' has {server_count} servers, exceeds limit of {DRS_LIMITS['MAX_SERVERS_PER_JOB']}",
                 }
             )
 
@@ -1582,9 +1582,9 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             print("Matched /recovery-plans execute route")
             # Handle /recovery-plans/{planId}/execute endpoint
             plan_id = path_parameters.get("id")
-            body["PlanId"] = plan_id
+            body["planId"] = plan_id
             if "InitiatedBy" not in body:
-                body["InitiatedBy"] = "system"
+                body["initiatedBy"] = "system"
             return execute_recovery_plan(body)
         elif "/check-existing-instances" in path and path.startswith(
             "/recovery-plans"
@@ -1715,14 +1715,14 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
     Request body:
     {
         "region": "us-east-1",
-        "ServerSelectionTags": {"DR-Application": "HRP", "DR-Tier": "Database"}
+        "serverSelectionTags": {"DR-Application": "HRP", "DR-Tier": "Database"}
     }
 
     Returns list of servers matching ALL specified tags.
     """
     try:
         region = body.get("region")
-        tags = body.get("ServerSelectionTags") or body.get("tags", {})
+        tags = body.get("serverSelectionTags") or body.get("tags", {})
 
         if not region:
             return response(400, {"error": "region is required"})
@@ -1735,10 +1735,10 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
 
         # Extract account context from request body
         account_context = None
-        if body.get("AccountId"):
+        if body.get("accountId"):
             account_context = {
-                "AccountId": body.get("AccountId"),
-                "AssumeRoleName": body.get("AssumeRoleName"),
+                "accountId": body.get("accountId"),
+                "assumeRoleName": body.get("assumeRoleName"),
             }
 
         # Query DRS for servers matching tags
@@ -1750,7 +1750,7 @@ def resolve_protection_group_tags(body: Dict) -> Dict:
             200,
             {
                 "region": region,
-                "ServerSelectionTags": tags,
+                "serverSelectionTags": tags,
                 "resolvedServers": resolved_servers,
                 "serverCount": len(resolved_servers),
                 "resolvedAt": int(time.time()),
@@ -2031,8 +2031,8 @@ def create_protection_group(body: Dict) -> Dict:
                 },
             )
 
-        name = body["GroupName"]
-        region = body["Region"]
+        name = body["groupName"]
+        region = body["region"]
 
         # Validate name is not empty or whitespace-only
         if not name or not name.strip():
@@ -2062,8 +2062,8 @@ def create_protection_group(body: Dict) -> Dict:
         name = name.strip()
 
         # Support both selection modes
-        selection_tags = body.get("ServerSelectionTags", {})
-        source_server_ids = body.get("SourceServerIds", [])
+        selection_tags = body.get("serverSelectionTags", {})
+        source_server_ids = body.get("sourceServerIds", [])
 
         # Must have at least one selection method
         has_tags = isinstance(selection_tags, dict) and len(selection_tags) > 0
@@ -2147,12 +2147,12 @@ def create_protection_group(body: Dict) -> Dict:
                 raise Exception("Failed to generate valid timestamp")
 
         item = {
-            "GroupId": group_id,
-            "GroupName": name,
-            "Description": body.get("Description", ""),
-            "Region": region,
-            "AccountId": body.get("AccountId", ""),
-            "AssumeRoleName": body.get("AssumeRoleName", ""),
+            "groupId": group_id,
+            "groupName": name,
+            "description": body.get("description", ""),
+            "region": region,
+            "accountId": body.get("accountId", ""),
+            "assumeRoleName": body.get("assumeRoleName", ""),
             "Owner": body.get("Owner", ""),
             "CreatedDate": timestamp,
             "LastModifiedDate": timestamp,
@@ -2162,11 +2162,11 @@ def create_protection_group(body: Dict) -> Dict:
         # Store the appropriate selection method (MUTUALLY EXCLUSIVE)
         # Tags take precedence if both are somehow provided
         if has_tags:
-            item["ServerSelectionTags"] = selection_tags
-            item["SourceServerIds"] = []  # Ensure empty
+            item["serverSelectionTags"] = selection_tags
+            item["sourceServerIds"] = []  # Ensure empty
         elif has_servers:
-            item["SourceServerIds"] = source_server_ids
-            item["ServerSelectionTags"] = {}  # Ensure empty
+            item["sourceServerIds"] = source_server_ids
+            item["serverSelectionTags"] = {}  # Ensure empty
 
         # Handle LaunchConfig if provided
         launch_config_apply_results = None
@@ -2201,10 +2201,10 @@ def create_protection_group(body: Dict) -> Dict:
             if has_tags and not server_ids_to_apply:
                 # Create account context for cross-account access
                 account_context = None
-                if body.get("AccountId"):
+                if body.get("accountId"):
                     account_context = {
-                        "AccountId": body.get("AccountId"),
-                        "AssumeRoleName": body.get("AssumeRoleName"),
+                        "accountId": body.get("accountId"),
+                        "assumeRoleName": body.get("assumeRoleName"),
                     }
                 resolved = query_drs_servers_by_tags(
                     region, selection_tags, account_context
@@ -2296,7 +2296,7 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
             filtered_groups = []
             for group in groups:
                 # Check if group has account info or matches current account
-                group_account = group.get("AccountId")
+                group_account = group.get("accountId")
                 if group_account == account_id or not group_account:
                     # Include groups that match account or have no account specified (legacy)
                     filtered_groups.append(group)
@@ -2319,7 +2319,7 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
 def get_protection_group(group_id: str) -> Dict:
     """Get a single Protection Group by ID"""
     try:
-        result = protection_groups_table.get_item(Key={"GroupId": group_id})
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
 
         if "Item" not in result:
             return response(404, {"error": "Protection Group not found"})
@@ -2340,7 +2340,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
     """Update an existing Protection Group with validation and optimistic locking"""
     try:
         # Check if group exists
-        result = protection_groups_table.get_item(Key={"GroupId": group_id})
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
         if "Item" not in result:
             return response(404, {"error": "Protection Group not found"})
 
@@ -2393,14 +2393,14 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
 
         # Prevent region changes
-        if "Region" in body and body["Region"] != existing_group.get("Region"):
+        if "Region" in body and body["region"] != existing_group.get("region"):
             return response(
                 400, {"error": "Cannot change region after creation"}
             )
 
         # Validate name if provided
         if "GroupName" in body:
-            name = body["GroupName"]
+            name = body["groupName"]
 
             # Validate name is not empty or whitespace-only
             if not name or not name.strip():
@@ -2427,23 +2427,23 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
 
             # Trim the name
-            body["GroupName"] = name.strip()
+            body["groupName"] = name.strip()
 
             # Validate unique name if changing
-            if body["GroupName"] != existing_group.get("GroupName"):
-                if not validate_unique_pg_name(body["GroupName"], group_id):
+            if body["groupName"] != existing_group.get("groupName"):
+                if not validate_unique_pg_name(body["groupName"], group_id):
                     return response(
                         409,
                         {
                             "error": "PG_NAME_EXISTS",
-                            "message": f'A Protection Group named "{body["GroupName"]}" already exists',
-                            "existingName": body["GroupName"],
+                            "message": f'A Protection Group named "{body["groupName"]}" already exists',
+                            "existingName": body["groupName"],
                         },
                     )
 
         # Validate tags if provided
         if "ServerSelectionTags" in body:
-            selection_tags = body["ServerSelectionTags"]
+            selection_tags = body["serverSelectionTags"]
             if (
                 not isinstance(selection_tags, dict)
                 or len(selection_tags) == 0
@@ -2457,7 +2457,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
 
             # Check for tag conflicts with other PGs (excluding this one)
-            region = existing_group.get("Region", "")
+            region = existing_group.get("region", "")
             tag_conflicts = check_tag_conflicts_for_update(
                 selection_tags, region, group_id
             )
@@ -2473,7 +2473,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         # Validate server IDs if provided
         if "SourceServerIds" in body:
-            source_server_ids = body["SourceServerIds"]
+            source_server_ids = body["sourceServerIds"]
             if (
                 not isinstance(source_server_ids, list)
                 or len(source_server_ids) == 0
@@ -2514,25 +2514,25 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         if "GroupName" in body:
             update_expression += ", GroupName = :name"
-            expression_values[":name"] = body["GroupName"]
+            expression_values[":name"] = body["groupName"]
 
         if "Description" in body:
             update_expression += ", #desc = :desc"
-            expression_values[":desc"] = body["Description"]
+            expression_values[":desc"] = body["description"]
             expression_names["#desc"] = "Description"
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
         # When one is set, clear the other
         if "ServerSelectionTags" in body:
             update_expression += ", ServerSelectionTags = :tags"
-            expression_values[":tags"] = body["ServerSelectionTags"]
+            expression_values[":tags"] = body["serverSelectionTags"]
             # Clear SourceServerIds when using tags
             update_expression += ", SourceServerIds = :empty_servers"
             expression_values[":empty_servers"] = []
 
         if "SourceServerIds" in body:
             update_expression += ", SourceServerIds = :servers"
-            expression_values[":servers"] = body["SourceServerIds"]
+            expression_values[":servers"] = body["sourceServerIds"]
             # Clear ServerSelectionTags when using explicit servers
             update_expression += ", ServerSelectionTags = :empty_tags"
             expression_values[":empty_tags"] = {}
@@ -2564,23 +2564,22 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     )
 
             # Get server IDs to apply settings to
-            region = existing_group.get("Region")
-            server_ids = body.get(
-                "SourceServerIds", existing_group.get("SourceServerIds", [])
+            region = existing_group.get("region")
+            server_ids = body.get("sourceServerIds", existing_group.get("sourceServerIds", [])
             )
 
             # If using tags, resolve servers first
-            if not server_ids and existing_group.get("ServerSelectionTags"):
+            if not server_ids and existing_group.get("serverSelectionTags"):
                 # Extract account context from existing group
                 account_context = None
-                if existing_group.get("AccountId"):
+                if existing_group.get("accountId"):
                     account_context = {
-                        "AccountId": existing_group.get("AccountId"),
-                        "AssumeRoleName": existing_group.get("AssumeRoleName"),
+                        "accountId": existing_group.get("accountId"),
+                        "assumeRoleName": existing_group.get("assumeRoleName"),
                     }
                 resolved = query_drs_servers_by_tags(
                     region,
-                    existing_group["ServerSelectionTags"],
+                    existing_group["serverSelectionTags"],
                     account_context,
                 )
                 server_ids = [
@@ -2592,8 +2591,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             # Apply LaunchConfig to DRS/EC2 immediately
             if server_ids and launch_config:
                 # Get group name (use updated name if provided, else existing)
-                pg_name = body.get(
-                    "GroupName", existing_group.get("GroupName", "")
+                pg_name = body.get("groupName", existing_group.get("groupName", "")
                 )
                 launch_config_apply_results = apply_launch_config_to_servers(
                     server_ids,
@@ -2627,7 +2625,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         # Update item with conditional write (optimistic locking)
         # Only succeeds if version hasn't changed since we read it
         update_args = {
-            "Key": {"GroupId": group_id},
+            "Key": {"groupId": group_id},
             "UpdateExpression": update_expression,
             "ConditionExpression": "Version = :current_version OR attribute_not_exists(Version)",
             "ExpressionAttributeValues": expression_values,
@@ -2688,13 +2686,13 @@ def delete_protection_group(group_id: str) -> Dict:
         # Find plans that reference this protection group
         referencing_plans = []
         for plan in all_plans:
-            for wave in plan.get("Waves", []):
-                if wave.get("ProtectionGroupId") == group_id:
+            for wave in plan.get("waves", []):
+                if wave.get("protectionGroupId") == group_id:
                     referencing_plans.append(
                         {
-                            "planId": plan.get("PlanId"),
-                            "planName": plan.get("PlanName"),
-                            "waveName": wave.get("WaveName"),
+                            "planId": plan.get("planId"),
+                            "planName": plan.get("planName"),
+                            "waveName": wave.get("waveName"),
                         }
                     )
                     break  # Only need to find one wave per plan
@@ -2712,7 +2710,7 @@ def delete_protection_group(group_id: str) -> Dict:
             )
 
         # Delete the group
-        protection_groups_table.delete_item(Key={"GroupId": group_id})
+        protection_groups_table.delete_item(Key={"groupId": group_id})
 
         print(f"Deleted Protection Group: {group_id}")
         return response(
@@ -2739,10 +2737,10 @@ def handle_recovery_plans(
     # Handle /recovery-plans/{planId}/execute endpoint
     if method == "POST" and plan_id and "execute" in path:
         # Transform body for execute_recovery_plan
-        body["PlanId"] = plan_id
+        body["planId"] = plan_id
         # Get InitiatedBy from Cognito if not provided
         if "InitiatedBy" not in body:
-            body["InitiatedBy"] = "system"  # Will be replaced by Cognito user
+            body["initiatedBy"] = "system"  # Will be replaced by Cognito user
         return execute_recovery_plan(body)
 
     # Handle /recovery-plans/{planId}/check-existing-instances endpoint
@@ -2767,7 +2765,7 @@ def create_recovery_plan(body: Dict) -> Dict:
     """Create a new Recovery Plan"""
     try:
         # Validate required fields - accept both frontend (name) and legacy (PlanName) formats
-        plan_name = body.get("name") or body.get("PlanName")
+        plan_name = body.get("name") or body.get("planName")
         if not plan_name:
             return response(
                 400,
@@ -2778,7 +2776,7 @@ def create_recovery_plan(body: Dict) -> Dict:
                 },
             )
 
-        waves = body.get("waves") or body.get("Waves")
+        waves = body.get("waves") or body.get("waves")
         if not waves:
             return response(
                 400,
@@ -2833,10 +2831,10 @@ def create_recovery_plan(body: Dict) -> Dict:
         # Create Recovery Plan item
         timestamp = int(time.time())
         item = {
-            "PlanId": plan_id,
-            "PlanName": plan_name,  # Use the validated plan_name variable
-            "Description": body.get("description", body.get("Description", "")),  # Accept both formats
-            "Waves": waves,  # Use the validated waves variable
+            "planId": plan_id,
+            "planName": plan_name,  # Use the validated plan_name variable
+            "description": body.get("description", body.get("description", "")),  # Accept both formats
+            "waves": waves,  # Use the validated waves variable
             "CreatedDate": timestamp,
             "LastModifiedDate": timestamp,
             "Version": 1,  # Optimistic locking - starts at version 1
@@ -2857,18 +2855,18 @@ def create_recovery_plan(body: Dict) -> Dict:
                 backend_wave = {
                     "ExecutionOrder": idx,  # Match reference stack (not WaveNumber)
                     "WaveId": f"wave-{idx + 1}",  # Match reference stack format
-                    "WaveName": wave.get("name", f"Wave {idx + 1}"),
+                    "waveName": wave.get("name", f"Wave {idx + 1}"),
                     "WaveDescription": wave.get("description", ""),
-                    "ProtectionGroupId": wave.get("protectionGroupId", ""),
-                    "ProtectionGroupIds": wave.get("protectionGroupIds", []),
-                    "ServerIds": wave.get("serverIds", []),
+                    "protectionGroupId": wave.get("protectionGroupId", ""),
+                    "protectionGroupIds": wave.get("protectionGroupIds", []),
+                    "serverIds": wave.get("serverIds", []),
                     "PauseBeforeWave": wave.get("pauseBeforeWave", False),
                     "Dependencies": dependencies,  # Match reference stack format
                 }
                 backend_waves.append(backend_wave)
             
             # Store in backend format
-            item["Waves"] = backend_waves
+            item["waves"] = backend_waves
             
             validation_error = validate_waves(backend_waves)
             if validation_error:
@@ -2928,8 +2926,8 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
             try:
                 pg_result = protection_groups_table.scan()
                 for pg in pg_result.get("Items", []):
-                    pg_id = pg.get("GroupId")
-                    pg_tags = pg.get("ServerSelectionTags", {})
+                    pg_id = pg.get("groupId")
+                    pg_tags = pg.get("serverSelectionTags", {})
                     pg_tags_map[pg_id] = pg_tags
             except Exception as e:
                 print(f"Error loading PG tags for filter: {e}")
@@ -2939,7 +2937,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
         # Enrich each plan with latest execution data and conflict info
         for plan in plans:
-            plan_id = plan.get("PlanId")
+            plan_id = plan.get("planId")
 
             # Add conflict info if this plan has conflicts with other active executions
             if plan_id in plans_with_conflicts:
@@ -2953,19 +2951,17 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
             # Query ExecutionHistoryTable for latest execution
             try:
                 execution_result = execution_history_table.query(
-                    IndexName="PlanIdIndex",
-                    KeyConditionExpression=Key("PlanId").eq(plan_id),
+                    IndexName="planIdIndex",
+                    KeyConditionExpression=Key("planId").eq(plan_id),
                     ScanIndexForward=False,  # Sort by StartTime DESC
                     Limit=1,  # Get only the latest execution
                 )
 
                 if execution_result.get("Items"):
                     latest_execution = execution_result["Items"][0]
-                    plan["LastExecutionStatus"] = latest_execution.get(
-                        "Status"
-                    )
-                    plan["LastStartTime"] = latest_execution.get("StartTime")
-                    plan["LastEndTime"] = latest_execution.get("EndTime")
+                    plan["LastExecutionStatus"] = latest_execution.get("status")
+                    plan["LastStartTime"] = latest_execution.get("startTime")
+                    plan["LastEndTime"] = latest_execution.get("endTime")
                 else:
                     # No executions found for this plan
                     plan["LastExecutionStatus"] = None
@@ -2982,7 +2978,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
                 plan["LastEndTime"] = None
 
             # Add wave count before transformation
-            plan["WaveCount"] = len(plan.get("Waves", []))
+            plan["WaveCount"] = len(plan.get("waves", []))
 
         # Apply filters to plans
         filtered_plans = []
@@ -2991,20 +2987,20 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
             if account_id:
                 # For now, implement client-side filtering based on stored account info
                 # In future, could add AccountId field to DynamoDB schema
-                plan_account = plan.get("AccountId")
+                plan_account = plan.get("accountId")
                 if plan_account and plan_account != account_id:
                     continue
                 # If no account specified in plan, include it (legacy plans)
 
             # Name filter (partial match, case-insensitive)
             if name_filter:
-                plan_name = plan.get("PlanName", "").lower()
+                plan_name = plan.get("planName", "").lower()
                 if name_filter not in plan_name:
                     continue
 
             # Exact name filter (case-insensitive)
             if name_exact_filter:
-                plan_name = plan.get("PlanName", "").lower()
+                plan_name = plan.get("planName", "").lower()
                 if name_exact_filter != plan_name:
                     continue
 
@@ -3024,10 +3020,10 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
             # Tag filter - check if any protection group in plan has matching tag
             if tag_key:
-                plan_waves = plan.get("Waves", [])
+                plan_waves = plan.get("waves", [])
                 has_matching_tag = False
                 for wave in plan_waves:
-                    pg_id = wave.get("ProtectionGroupId")
+                    pg_id = wave.get("protectionGroupId")
                     if pg_id and pg_id in pg_tags_map:
                         pg_tags = pg_tags_map[pg_id]
                         if (
@@ -3058,13 +3054,13 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 def get_recovery_plan(plan_id: str) -> Dict:
     """Get a single Recovery Plan by ID"""
     try:
-        result = recovery_plans_table.get_item(Key={"PlanId": plan_id})
+        result = recovery_plans_table.get_item(Key={"planId": plan_id})
 
         if "Item" not in result:
             return response(404, {"error": "Recovery Plan not found"})
 
         plan = result["Item"]
-        plan["WaveCount"] = len(plan.get("Waves", []))
+        plan["WaveCount"] = len(plan.get("waves", []))
 
         # Transform to camelCase for frontend
         camelcase_plan = transform_rp_to_camelcase(plan)
@@ -3080,7 +3076,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
     """Update an existing Recovery Plan - blocked if execution in progress, with optimistic locking"""
     try:
         # Check if plan exists
-        result = recovery_plans_table.get_item(Key={"PlanId": plan_id})
+        result = recovery_plans_table.get_item(Key={"planId": plan_id})
         if "Item" not in result:
             return response(404, {"error": "Recovery Plan not found"})
 
@@ -3109,7 +3105,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         # BLOCK: Cannot update plan with active execution
         active_executions = get_active_executions_for_plan(plan_id)
         if active_executions:
-            exec_ids = [e.get("ExecutionId") for e in active_executions]
+            exec_ids = [e.get("executionId") for e in active_executions]
             return response(
                 409,
                 {
@@ -3121,7 +3117,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
             )
 
         # Validate name if provided - accept both frontend (name) and legacy (PlanName) formats
-        plan_name = body.get("name") or body.get("PlanName")
+        plan_name = body.get("name") or body.get("planName")
         if plan_name is not None:
             # Validate name is not empty or whitespace-only
             if not plan_name or not plan_name.strip():
@@ -3149,12 +3145,12 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
             # Trim the name and store in both formats for compatibility
             trimmed_name = plan_name.strip()
-            body["PlanName"] = trimmed_name  # For DynamoDB storage
+            body["planName"] = trimmed_name  # For DynamoDB storage
             if "name" in body:
                 body["name"] = trimmed_name  # Update frontend field too
 
             # Validate unique name if changing
-            if trimmed_name != existing_plan.get("PlanName"):
+            if trimmed_name != existing_plan.get("planName"):
                 if not validate_unique_rp_name(trimmed_name, plan_id):
                     return response(
                         409,
@@ -3166,7 +3162,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                     )
 
         # NEW: Pre-write validation for Waves - accept both frontend (waves) and legacy (Waves) formats
-        waves = body.get("waves") or body.get("Waves")
+        waves = body.get("waves") or body.get("waves")
         if waves is not None:
             print(f"Updating plan {plan_id} with {len(waves)} waves")
             
@@ -3183,22 +3179,22 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 backend_wave = {
                     "ExecutionOrder": idx,  # Match reference stack (not WaveNumber)
                     "WaveId": f"wave-{idx + 1}",  # Match reference stack format
-                    "WaveName": wave.get("name", f"Wave {idx + 1}"),
+                    "waveName": wave.get("name", f"Wave {idx + 1}"),
                     "WaveDescription": wave.get("description", ""),
-                    "ProtectionGroupId": wave.get("protectionGroupId", ""),
-                    "ProtectionGroupIds": wave.get("protectionGroupIds", []),
-                    "ServerIds": wave.get("serverIds", []),
+                    "protectionGroupId": wave.get("protectionGroupId", ""),
+                    "protectionGroupIds": wave.get("protectionGroupIds", []),
+                    "serverIds": wave.get("serverIds", []),
                     "PauseBeforeWave": wave.get("pauseBeforeWave", False),
                     "Dependencies": dependencies,  # Match reference stack format
                 }
                 backend_waves.append(backend_wave)
             
             # Store in backend format
-            body["Waves"] = backend_waves
+            body["waves"] = backend_waves
 
             # DEFENSIVE: Validate ServerIds in each wave
             for idx, wave in enumerate(backend_waves):
-                server_ids = wave.get("ServerIds", [])
+                server_ids = wave.get("serverIds", [])
                 if not isinstance(server_ids, list):
                     print(
                         f"ERROR: Wave {idx} ServerIds is not a list: {type(server_ids)}"
@@ -3212,10 +3208,10 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                         },
                     )
                 print(
-                    f"Wave {idx}: {wave.get('WaveName')} - {len(server_ids)} servers"
+                    f"Wave {idx}: {wave.get("waveName")} - {len(server_ids)} servers"
                 )
 
-            validation_error = validate_waves(body["Waves"])
+            validation_error = validate_waves(body["waves"])
             if validation_error:
                 return response(400, {"error": validation_error})
 
@@ -3234,9 +3230,9 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         updatable_fields = ["PlanName", "Description", "RPO", "RTO", "Waves"]
         for field in updatable_fields:
             if field in body:
-                if field == "Description":
+                if field == "description":
                     update_expression += ", #desc = :desc"
-                    expression_values[":desc"] = body["Description"]
+                    expression_values[":desc"] = body["description"]
                     expression_names["#desc"] = "Description"
                 else:
                     update_expression += f", {field} = :{field.lower()}"
@@ -3244,7 +3240,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
         # Update item with conditional write (optimistic locking)
         update_args = {
-            "Key": {"PlanId": plan_id},
+            "Key": {"planId": plan_id},
             "UpdateExpression": update_expression,
             "ConditionExpression": "Version = :current_version OR attribute_not_exists(Version)",
             "ExpressionAttributeValues": expression_values,
@@ -3270,7 +3266,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         print(f"Updated Recovery Plan: {plan_id}")
         # Transform to camelCase for frontend consistency
         updated_plan = result["Attributes"]
-        updated_plan["WaveCount"] = len(updated_plan.get("Waves", []))
+        updated_plan["WaveCount"] = len(updated_plan.get("waves", []))
         return response(200, transform_rp_to_camelcase(updated_plan))
 
     except Exception as e:
@@ -3285,8 +3281,8 @@ def delete_recovery_plan(plan_id: str) -> Dict:
         active_executions = get_active_executions_for_plan(plan_id)
 
         if active_executions:
-            exec_ids = [e.get("ExecutionId") for e in active_executions]
-            statuses = [e.get("Status") for e in active_executions]
+            exec_ids = [e.get("executionId") for e in active_executions]
+            statuses = [e.get("status") for e in active_executions]
             print(
                 f"Cannot delete plan {plan_id}: {len(active_executions)} active execution(s)"
             )
@@ -3303,7 +3299,7 @@ def delete_recovery_plan(plan_id: str) -> Dict:
 
         # No active executions, safe to delete
         print(f"Deleting Recovery Plan: {plan_id}")
-        recovery_plans_table.delete_item(Key={"PlanId": plan_id})
+        recovery_plans_table.delete_item(Key={"planId": plan_id})
 
         print(f"Successfully deleted Recovery Plan: {plan_id}")
         return response(
@@ -3337,7 +3333,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
     """
     try:
         # Get the recovery plan
-        plan_result = recovery_plans_table.get_item(Key={"PlanId": plan_id})
+        plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
         if "Item" not in plan_result:
             return response(
                 404,
@@ -3354,41 +3350,41 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         all_server_ids = set()
         region = "us-east-1"
 
-        for wave in plan.get("Waves", []):
-            pg_id = wave.get("ProtectionGroupId")
+        for wave in plan.get("waves", []):
+            pg_id = wave.get("protectionGroupId")
             if not pg_id:
                 continue
 
             pg_result = protection_groups_table.get_item(
-                Key={"GroupId": pg_id}
+                Key={"groupId": pg_id}
             )
             pg = pg_result.get("Item", {})
             if not pg:
                 continue
 
             # Get region from protection group
-            pg_region = pg.get("Region", "us-east-1")
+            pg_region = pg.get("region", "us-east-1")
             if pg_region:
                 region = pg_region
 
             # Check for explicit server IDs first
-            explicit_servers = pg.get("SourceServerIds", [])
+            explicit_servers = pg.get("sourceServerIds", [])
             if explicit_servers:
                 print(f"PG {pg_id} has explicit servers: {explicit_servers}")
                 for server_id in explicit_servers:
                     all_server_ids.add(server_id)
             else:
                 # Resolve servers from tags using EC2 instance tags (not DRS tags)
-                selection_tags = pg.get("ServerSelectionTags", {})
+                selection_tags = pg.get("serverSelectionTags", {})
                 print(f"PG {pg_id} has selection tags: {selection_tags}")
                 if selection_tags:
                     try:
                         # Extract account context from Protection Group
                         account_context = None
-                        if pg.get("AccountId"):
+                        if pg.get("accountId"):
                             account_context = {
-                                "AccountId": pg.get("AccountId"),
-                                "AssumeRoleName": pg.get("AssumeRoleName"),
+                                "accountId": pg.get("accountId"),
+                                "assumeRoleName": pg.get("assumeRoleName"),
                             }
                         resolved = query_drs_servers_by_tags(
                             pg_region, selection_tags, account_context
@@ -3454,41 +3450,34 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                             # Sort by StartTime descending to find most recent match
                             exec_items = sorted(
                                 exec_scan.get("Items", []),
-                                key=lambda x: x.get("StartTime", 0),
+                                key=lambda x: x.get("startTime", 0),
                                 reverse=True,
                             )
 
                             for exec_item in exec_items:
-                                exec_waves = exec_item.get("Waves", [])
+                                exec_waves = exec_item.get("waves", [])
                                 found = False
                                 for wave in exec_waves:
                                     # Check ServerStatuses array (correct structure)
-                                    for server in wave.get(
-                                        "ServerStatuses", []
+                                    for server in wave.get("serverStatuses", []
                                     ):
                                         # Match by source server ID (most reliable)
                                         if (
-                                            server.get("SourceServerId")
+                                            server.get("sourceServerId")
                                             == source_server_id
                                         ):
-                                            source_execution = exec_item.get(
-                                                "ExecutionId"
-                                            )
+                                            source_execution = exec_item.get("executionId")
                                             # Get plan name
-                                            exec_plan_id = exec_item.get(
-                                                "PlanId"
-                                            )
+                                            exec_plan_id = exec_item.get("planId")
                                             if exec_plan_id:
                                                 plan_lookup = recovery_plans_table.get_item(
-                                                    Key={
-                                                        "PlanId": exec_plan_id
+                                                    Key={"planId": exec_plan_id
                                                     }
                                                 )
                                                 source_plan_name = (
                                                     plan_lookup.get(
                                                         "Item", {}
-                                                    ).get(
-                                                        "PlanName",
+                                                    ).get("planName",
                                                         exec_plan_id,
                                                     )
                                                 )
@@ -3534,7 +3523,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                     ec2_details = {}
                     for reservation in ec2_response.get("Reservations", []):
                         for instance in reservation.get("Instances", []):
-                            inst_id = instance.get("InstanceId")
+                            inst_id = instance.get("instanceId")
                             name_tag = next(
                                 (
                                     t["Value"]
@@ -3547,10 +3536,10 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                                 "name": name_tag,
                                 "privateIp": instance.get("PrivateIpAddress"),
                                 "publicIp": instance.get("PublicIpAddress"),
-                                "instanceType": instance.get("InstanceType"),
+                                "instanceType": instance.get("instanceType"),
                                 "launchTime": (
-                                    instance.get("LaunchTime").isoformat()
-                                    if instance.get("LaunchTime")
+                                    instance.get("launchTime").isoformat()
+                                    if instance.get("launchTime")
                                     else None
                                 ),
                             }
@@ -3699,9 +3688,9 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 },
             )
 
-        plan_id = body["PlanId"]
+        plan_id = body["planId"]
         execution_type = (
-            body["ExecutionType"].upper() if body["ExecutionType"] else ""
+            body["executionType"].upper() if body["executionType"] else ""
         )
 
         # Validate execution type
@@ -3710,15 +3699,15 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 400,
                 {
                     "error": "INVALID_EXECUTION_TYPE",
-                    "message": f'ExecutionType must be DRILL or RECOVERY, got: {body["ExecutionType"]}',
+                    "message": f'ExecutionType must be DRILL or RECOVERY, got: {body["executionType"]}',
                     "field": "ExecutionType",
-                    "providedValue": body["ExecutionType"],
+                    "providedValue": body["executionType"],
                     "allowedValues": ["DRILL", "RECOVERY"],
                 },
             )
 
         # Get Recovery Plan
-        plan_result = recovery_plans_table.get_item(Key={"PlanId": plan_id})
+        plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
         if "Item" not in plan_result:
             return response(
                 404,
@@ -3732,21 +3721,21 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         plan = plan_result["Item"]
 
         # Validate plan has waves
-        if not plan.get("Waves"):
+        if not plan.get("waves"):
             return response(
                 400,
                 {
                     "error": "PLAN_HAS_NO_WAVES",
-                    "message": f'Recovery Plan "{plan.get("PlanName", plan_id)}" has no waves configured - add at least one wave before executing',
+                    "message": f'Recovery Plan "{plan.get("planName", plan_id)}" has no waves configured - add at least one wave before executing',
                     "planId": plan_id,
-                    "planName": plan.get("PlanName"),
+                    "planName": plan.get("planName"),
                 },
             )
 
         # BLOCK: Cannot execute plan that already has an active execution
         active_executions = get_active_executions_for_plan(plan_id)
         if active_executions:
-            exec_ids = [e.get("ExecutionId") for e in active_executions]
+            exec_ids = [e.get("executionId") for e in active_executions]
             return response(
                 409,
                 {
@@ -3832,20 +3821,20 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         # ============================================================
 
         # Get region from first wave's protection group
-        first_wave = plan.get("Waves", [{}])[0]
-        pg_id = first_wave.get("ProtectionGroupId")
+        first_wave = plan.get("waves", [{}])[0]
+        pg_id = first_wave.get("protectionGroupId")
         if pg_id:
             pg_result = protection_groups_table.get_item(
-                Key={"GroupId": pg_id}
+                Key={"groupId": pg_id}
             )
-            region = pg_result.get("Item", {}).get("Region", "us-east-1")
+            region = pg_result.get("Item", {}).get("region", "us-east-1")
         else:
             region = "us-east-1"  # Default fallback
 
         # Collect all server IDs from all waves
         all_server_ids = []
-        for wave in plan.get("Waves", []):
-            all_server_ids.extend(wave.get("ServerIds", []))
+        for wave in plan.get("waves", []):
+            all_server_ids.extend(wave.get("serverIds", []))
         total_servers_in_plan = len(all_server_ids)
 
         # 1. Validate wave sizes (max 100 servers per wave)
@@ -3935,18 +3924,17 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             account_context = determine_target_account_context(plan)
 
         history_item = {
-            "ExecutionId": execution_id,
-            "PlanId": plan_id,
-            "PlanName": plan.get(
-                "PlanName", "Unknown"
+            "executionId": execution_id,
+            "planId": plan_id,
+            "planName": plan.get("planName", "Unknown"
             ),  # Preserve plan name in execution record
-            "ExecutionType": execution_type,
-            "Status": "PENDING",
-            "StartTime": timestamp,
-            "InitiatedBy": body["InitiatedBy"],
-            "Waves": [],
-            "TotalWaves": len(
-                plan.get("Waves", [])
+            "executionType": execution_type,
+            "status": "PENDING",
+            "startTime": timestamp,
+            "initiatedBy": body["initiatedBy"],
+            "waves": [],
+            "totalWaves": len(
+                plan.get("waves", [])
             ),  # Store total wave count for UI display
             "AccountContext": account_context,  # Store for resume operations
         }
@@ -3989,7 +3977,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             # If async invocation fails, mark execution as FAILED immediately
             print(f"ERROR: Failed to invoke async worker: {str(invoke_error)}")
             execution_history_table.update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status, EndTime = :end_time, ErrorMessage = :error",
                 ExpressionAttributeNames={"#status": "Status"},
                 ExpressionAttributeValues={
@@ -4058,9 +4046,9 @@ def execute_with_step_functions(
         sfn_input = {
             "Execution": {"Id": execution_id},
             "Plan": {
-                "PlanId": plan_id,
-                "PlanName": plan.get("PlanName", "Unknown"),
-                "Waves": plan.get("Waves", []),
+                "planId": plan_id,
+                "planName": plan.get("planName", "Unknown"),
+                "waves": plan.get("waves", []),
             },
             "IsDrill": is_drill,
             "ResumeFromWave": resume_from_wave,  # None for new executions, wave index for resume
@@ -4087,7 +4075,7 @@ def execute_with_step_functions(
 
         # Update DynamoDB with Step Functions execution ARN
         execution_history_table.update_item(
-            Key={"ExecutionId": execution_id, "PlanId": plan_id},
+            Key={"executionId": execution_id, "planId": plan_id},
             UpdateExpression="SET StateMachineArn = :arn, #status = :status",
             ExpressionAttributeNames={"#status": "Status"},
             ExpressionAttributeValues={
@@ -4107,7 +4095,7 @@ def execute_with_step_functions(
         # Update execution as failed
         try:
             execution_history_table.update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status, ErrorMessage = :error",
                 ExpressionAttributeNames={"#status": "Status"},
                 ExpressionAttributeValues={
@@ -4171,7 +4159,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         # Mark execution as failed
         try:
             execution_history_table.update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status, EndTime = :endtime, ErrorMessage = :error",
                 ExpressionAttributeNames={"#status": "Status"},
                 ExpressionAttributeValues={
@@ -4199,24 +4187,24 @@ def initiate_wave(
     try:
         # Get Protection Group
         pg_result = protection_groups_table.get_item(
-            Key={"GroupId": protection_group_id}
+            Key={"groupId": protection_group_id}
         )
         if "Item" not in pg_result:
             return {
-                "WaveName": wave.get("name", "Unknown"),
-                "ProtectionGroupId": protection_group_id,
-                "Status": "FAILED",
-                "Error": "Protection Group not found",
-                "Servers": [],
-                "StartTime": int(time.time()),
+                "waveName": wave.get("name", "Unknown"),
+                "protectionGroupId": protection_group_id,
+                "status": "FAILED",
+                "error": "Protection Group not found",
+                "servers": [],
+                "startTime": int(time.time()),
             }
 
         pg = pg_result["Item"]
-        region = pg["Region"]
+        region = pg["region"]
 
         # Get servers from both wave and protection group
-        pg_servers = pg.get("SourceServerIds", [])
-        wave_servers = wave.get("ServerIds", [])
+        pg_servers = pg.get("sourceServerIds", [])
+        wave_servers = wave.get("serverIds", [])
 
         # Filter to only launch servers specified in this wave
         # This ensures each wave launches its designated subset of servers
@@ -4235,11 +4223,11 @@ def initiate_wave(
 
         if not server_ids:
             return {
-                "WaveName": wave.get("name", "Unknown"),
-                "ProtectionGroupId": protection_group_id,
-                "Status": "INITIATED",
-                "Servers": [],
-                "StartTime": int(time.time()),
+                "waveName": wave.get("name", "Unknown"),
+                "protectionGroupId": protection_group_id,
+                "status": "INITIATED",
+                "servers": [],
+                "startTime": int(time.time()),
             }
 
         print(
@@ -4262,24 +4250,24 @@ def initiate_wave(
         )
 
         # Extract job ID and server results
-        wave_job_id = wave_job_result.get("JobId")
-        server_results = wave_job_result.get("Servers", [])
+        wave_job_id = wave_job_result.get("jobId")
+        server_results = wave_job_result.get("servers", [])
 
         # Wave status is INITIATED (not IN_PROGRESS)
         # External poller will update to IN_PROGRESS/COMPLETED
-        has_failures = any(s["Status"] == "FAILED" for s in server_results)
+        has_failures = any(s["status"] == "FAILED" for s in server_results)
         wave_status = "PARTIAL" if has_failures else "INITIATED"
 
         return {
-            "WaveName": wave.get("name", "Unknown"),
+            "waveName": wave.get("name", "Unknown"),
             "WaveId": wave.get("WaveId")
             or wave.get("waveNumber"),  # Support both formats
-            "JobId": wave_job_id,  # CRITICAL: Wave-level Job ID for poller
-            "ProtectionGroupId": protection_group_id,
-            "Region": region,
-            "Status": wave_status,
-            "Servers": server_results,
-            "StartTime": int(time.time()),
+            "jobId": wave_job_id,  # CRITICAL: Wave-level Job ID for poller
+            "protectionGroupId": protection_group_id,
+            "region": region,
+            "status": wave_status,
+            "servers": server_results,
+            "startTime": int(time.time()),
         }
 
     except Exception as e:
@@ -4288,12 +4276,12 @@ def initiate_wave(
 
         traceback.print_exc()
         return {
-            "WaveName": wave.get("name", "Unknown"),
-            "ProtectionGroupId": protection_group_id,
-            "Status": "FAILED",
-            "Error": str(e),
-            "Servers": [],
-            "StartTime": int(time.time()),
+            "waveName": wave.get("name", "Unknown"),
+            "protectionGroupId": protection_group_id,
+            "status": "FAILED",
+            "error": str(e),
+            "servers": [],
+            "startTime": int(time.time()),
         }
 
 
@@ -4480,12 +4468,12 @@ def start_drs_recovery_for_wave(
         for server_id in server_ids:
             server_results.append(
                 {
-                    "SourceServerId": server_id,
+                    "sourceServerId": server_id,
                     "RecoveryJobId": job_id,  # Same job ID for all servers
-                    "Status": "LAUNCHING",
-                    "InstanceId": None,
-                    "LaunchTime": int(time.time()),
-                    "Error": None,
+                    "status": "LAUNCHING",
+                    "instanceId": None,
+                    "launchTime": int(time.time()),
+                    "error": None,
                 }
             )
 
@@ -4494,8 +4482,8 @@ def start_drs_recovery_for_wave(
         )
 
         return {
-            "JobId": job_id,  # Wave-level Job ID for poller
-            "Servers": server_results,
+            "jobId": job_id,  # Wave-level Job ID for poller
+            "servers": server_results,
         }
 
     except Exception as e:
@@ -4518,14 +4506,14 @@ def start_drs_recovery_for_wave(
         for server_id in server_ids:
             server_results.append(
                 {
-                    "SourceServerId": server_id,
-                    "Status": "FAILED",
-                    "Error": f"{error_type}: {error_msg}",
-                    "LaunchTime": int(time.time()),
+                    "sourceServerId": server_id,
+                    "status": "FAILED",
+                    "error": f"{error_type}: {error_msg}",
+                    "launchTime": int(time.time()),
                 }
             )
 
-        return {"JobId": None, "Servers": server_results}
+        return {"jobId": None, "servers": server_results}
 
 
 def start_drs_recovery(
@@ -4555,22 +4543,22 @@ def start_drs_recovery(
         print(f"Started recovery job {job_id} for server {server_id}")
 
         return {
-            "SourceServerId": server_id,
+            "sourceServerId": server_id,
             "RecoveryJobId": job_id,
-            "Status": "LAUNCHING",
-            "InstanceId": None,  # Will be populated later when instance launches
-            "LaunchTime": int(time.time()),
-            "Error": None,
+            "status": "LAUNCHING",
+            "instanceId": None,  # Will be populated later when instance launches
+            "launchTime": int(time.time()),
+            "error": None,
         }
 
     except Exception as e:
         error_msg = str(e)
         print(f"Failed to start recovery for server {server_id}: {error_msg}")
         return {
-            "SourceServerId": server_id,
-            "Status": "FAILED",
-            "Error": error_msg,
-            "LaunchTime": int(time.time()),
+            "sourceServerId": server_id,
+            "status": "FAILED",
+            "error": error_msg,
+            "launchTime": int(time.time()),
         }
 
 
@@ -4589,7 +4577,7 @@ def start_drs_recovery_with_retry(
                 server_id, region, is_drill, execution_id
             )
         except ClientError as e:
-            error_code = e.response["Error"]["Code"]
+            error_code = e.response["error"]["Code"]
 
             # Only retry on ConflictException
             if error_code == "ConflictException" and attempt < max_retries - 1:
@@ -4633,7 +4621,7 @@ def get_execution_status(execution_id: str) -> Dict:
         execution = result["Items"][0]
 
         # Get current status from Step Functions if still running
-        if execution["Status"] == "RUNNING":
+        if execution["status"] == "RUNNING":
             try:
                 # Build proper Step Functions execution ARN from execution ID
                 state_machine_arn = execution.get("StateMachineArn")
@@ -4656,8 +4644,8 @@ def get_execution_history(plan_id: str) -> Dict:
     """Get execution history for a Recovery Plan"""
     try:
         result = execution_history_table.query(
-            IndexName="PlanIdIndex",
-            KeyConditionExpression=Key("PlanId").eq(plan_id),
+            IndexName="planIdIndex",
+            KeyConditionExpression=Key("planId").eq(plan_id),
             ScanIndexForward=False,  # Sort by StartTime descending
         )
 
@@ -4694,51 +4682,49 @@ def list_executions(query_params: Dict) -> Dict:
             filtered_executions = []
             for execution in executions:
                 # Check if execution has account info or matches current account
-                exec_account = execution.get("AccountId")
+                exec_account = execution.get("accountId")
                 if exec_account == account_id or not exec_account:
                     # Include executions that match account or have no account specified (legacy)
                     filtered_executions.append(execution)
             executions = filtered_executions
 
         # Sort by StartTime descending (most recent first)
-        executions.sort(key=lambda x: x.get("StartTime", 0), reverse=True)
+        executions.sort(key=lambda x: x.get("startTime", 0), reverse=True)
 
         # Enrich with recovery plan names and transform to camelCase
         transformed_executions = []
         for execution in executions:
             try:
                 # PERFORMANCE OPTIMIZATION: Use stored PlanName and reduce lookups
-                if execution.get("PlanName"):
-                    execution["RecoveryPlanName"] = execution["PlanName"]
+                if execution.get("planName"):
+                    execution["recoveryPlanName"] = execution["planName"]
                 else:
-                    execution["RecoveryPlanName"] = "Unknown"
+                    execution["recoveryPlanName"] = "Unknown"
 
                 # PERFORMANCE OPTIMIZATION: Default selection mode to avoid expensive lookups
                 # Frontend can determine this on-demand if needed
-                execution["SelectionMode"] = "PLAN"
+                execution["selectionMode"] = "PLAN"
             except Exception as e:
                 print(
-                    f"Error enriching execution {execution.get('ExecutionId')}: {str(e)}"
+                    f"Error enriching execution {execution.get("executionId")}: {str(e)}"
                 )
-                if not execution.get("RecoveryPlanName"):
-                    execution["RecoveryPlanName"] = "Unknown"
-                execution["SelectionMode"] = "PLAN"
+                if not execution.get("recoveryPlanName"):
+                    execution["recoveryPlanName"] = "Unknown"
+                execution["selectionMode"] = "PLAN"
 
             # PERFORMANCE FIX: Remove expensive DRS API calls from list function
             # Frontend can check active jobs on-demand if needed
             # Stack ready for deployment after cleanup completion
-            execution["HasActiveDrsJobs"] = False
+            execution["hasActiveDrsJobs"] = False
 
             # PERFORMANCE FIX: Use lightweight transform for list function
-            # Skip expensive server enrichment for fast loading
-            transformed_executions.append(
-                transform_execution_to_camelcase_lightweight(execution)
-            )
+            # Data is already in camelCase - no transformation needed
+            executions.append(execution)
 
         # Build response with pagination
         response_data = {
-            "items": transformed_executions,
-            "count": len(transformed_executions),
+            "items": executions,
+            "count": len(executions),
         }
 
         if "LastEvaluatedKey" in result:
@@ -4863,7 +4849,7 @@ def get_server_details_map(
                         
                         for reservation in ec2_response.get("Reservations", []):
                             for instance in reservation.get("Instances", []):
-                                instance_id = instance.get("InstanceId", "")
+                                instance_id = instance.get("instanceId", "")
                                 for tag in instance.get("Tags", []):
                                     if tag.get("Key") == "Name":
                                         ec2_name_tags[instance_id] = tag.get("Value", "")
@@ -4911,13 +4897,13 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
     Returns a map of sourceServerId -> {ec2InstanceID, instanceType, privateIp, ec2State}
     """
     recovery_map = {}
-    job_id = wave.get("JobId")
-    region = wave.get("Region", "us-east-1")
+    job_id = wave.get("jobId")
+    region = wave.get("region", "us-east-1")
     
     if not job_id or not server_ids:
         return recovery_map
     
-    print(f"DEBUG: Getting recovery instances for wave {wave.get('WaveName', 'Unknown')} with {len(server_ids)} servers")
+    print(f"DEBUG: Getting recovery instances for wave {wave.get("waveName", 'Unknown')} with {len(server_ids)} servers")
     
     try:
         drs_client = boto3.client("drs", region_name=region)
@@ -4970,7 +4956,7 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                         
                         for reservation in ec2_response.get('Reservations', []):
                             for instance in reservation.get('Instances', []):
-                                instance_id = instance.get('InstanceId', '')
+                                instance_id = instance.get("instanceId", '')
                                 source_server_id = instance_to_source_map.get(instance_id)
                                 
                                 if source_server_id and source_server_id in recovery_map:
@@ -4979,9 +4965,9 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                                         'ec2State': instance.get('State', {}).get('Name', 'unknown'),
                                         'privateIp': instance.get('PrivateIpAddress', ''),
                                         'publicIp': instance.get('PublicIpAddress', ''),
-                                        'instanceType': instance.get('InstanceType', ''),
+                                        'instanceType': instance.get("instanceType", ''),
                                         'availabilityZone': instance.get('Placement', {}).get('AvailabilityZone', ''),
-                                        'launchTime': instance.get('LaunchTime', '').isoformat() if instance.get('LaunchTime') else '',
+                                        'launchTime': instance.get("launchTime", '').isoformat() if instance.get("launchTime") else '',
                                         'platform': instance.get('Platform', 'linux'),
                                         'architecture': instance.get('Architecture', ''),
                                         'hypervisor': instance.get('Hypervisor', ''),
@@ -5016,13 +5002,13 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                 
                 for reservation in ec2_response.get('Reservations', []):
                     for instance in reservation.get('Instances', []):
-                        instance_id = instance.get('InstanceId')
+                        instance_id = instance.get("instanceId")
                         source_server_id = instance_to_source_map.get(instance_id)
                         
                         if source_server_id and source_server_id in recovery_map:
-                            launch_time = instance.get('LaunchTime')
+                            launch_time = instance.get("launchTime")
                             recovery_map[source_server_id].update({
-                                'instanceType': instance.get('InstanceType'),
+                                'instanceType': instance.get("instanceType"),
                                 'privateIp': instance.get('PrivateIpAddress'),
                                 'ec2State': instance.get('State', {}).get('Name'),
                                 'launchTime': launch_time.isoformat() if launch_time else None
@@ -5042,12 +5028,12 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     Enrich execution waves with server details (hostname, name tag, region).
     PERFORMANCE OPTIMIZED: Maintain full functionality while improving speed.
     """
-    waves = execution.get("Waves", [])
+    waves = execution.get("waves", [])
     if not waves:
         return execution
 
     # PERFORMANCE: Quick check if already enriched (avoid duplicate work)
-    if waves and waves[0].get("EnrichedServers"):
+    if waves and waves[0].get("enrichedServers"):
         print("DEBUG: Execution already enriched, skipping duplicate enrichment")
         return execution
 
@@ -5055,9 +5041,9 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     all_server_ids = set()
     regions = set()
     for wave in waves:
-        server_ids = wave.get("ServerIds", [])
+        server_ids = wave.get("serverIds", [])
         all_server_ids.update(server_ids)
-        region = wave.get("Region", "us-east-1")
+        region = wave.get("region", "us-east-1")
         regions.add(region)
 
     if not all_server_ids:
@@ -5079,9 +5065,9 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
 
     # PERFORMANCE OPTIMIZATION: Process waves in parallel-friendly way
     for wave_idx, wave in enumerate(waves):
-        server_ids = wave.get("ServerIds", [])
-        region = wave.get("Region", "us-east-1")
-        wave_name = wave.get("WaveName", f"Wave-{wave_idx}")
+        server_ids = wave.get("serverIds", [])
+        region = wave.get("region", "us-east-1")
+        wave_name = wave.get("waveName", f"Wave-{wave_idx}")
 
         print(f"DEBUG: Processing wave {wave_name} with {len(server_ids)} servers")
 
@@ -5098,10 +5084,10 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
             
             # Create enriched server entry with all available data
             enriched_server = {
-                "SourceServerId": server_id,
+                "sourceServerId": server_id,
                 "Hostname": details.get("hostname", f"server-{server_id[-8:]}"),  # Fallback hostname
                 "NameTag": details.get("nameTag", ""),
-                "Region": region,
+                "region": region,
                 "SourceInstanceId": details.get("sourceInstanceId", ""),
                 "SourceAccountId": details.get("sourceAccountId", ""),
                 "SourceIp": details.get("sourceIp", ""),
@@ -5109,16 +5095,16 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
                 "ReplicationState": details.get("replicationState", "UNKNOWN"),
                 # Recovery instance details - maintain full functionality
                 "RecoveryInstanceId": recovery_info.get("ec2InstanceID", ""),
-                "InstanceType": recovery_info.get("instanceType", ""),
-                "PrivateIp": recovery_info.get("privateIp", ""),
-                "Ec2State": recovery_info.get("ec2State", ""),
-                "LaunchTime": recovery_info.get("launchTime", ""),
+                "instanceType": recovery_info.get("instanceType", ""),
+                "privateIp": recovery_info.get("privateIp", ""),
+                "ec2State": recovery_info.get("ec2State", ""),
+                "launchTime": recovery_info.get("launchTime", ""),
             }
             
             enriched_servers.append(enriched_server)
 
         # Add enriched servers to wave
-        wave["EnrichedServers"] = enriched_servers
+        wave["enrichedServers"] = enriched_servers
         print(f"DEBUG: Wave {wave_name} enriched with {len(enriched_servers)} servers")
 
     print(f"DEBUG: Execution enrichment completed for {len(waves)} waves")
@@ -5133,15 +5119,15 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
     by querying DRS directly for current job status.
     """
     try:
-        waves = execution.get("Waves", [])
+        waves = execution.get("waves", [])
         updated_waves = []
         
         print(f"DEBUG: Reconciling {len(waves)} waves with real-time DRS data")
         
         for wave in waves:
-            wave_status = wave.get("Status", "")
-            job_id = wave.get("JobId")
-            wave_name = wave.get("WaveName", "Unknown")
+            wave_status = wave.get("status", "")
+            job_id = wave.get("jobId")
+            wave_name = wave.get("waveName", "Unknown")
             
             # REAL-TIME CHECK: Always check DRS for jobs that might have status updates
             # This ensures we match AWS Console exactly
@@ -5150,7 +5136,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                     print(f"DEBUG: Checking real-time DRS status for wave {wave_name}, job {job_id}")
                     
                     # Query DRS for actual job status - REAL-TIME
-                    region = wave.get("Region", "us-east-1")
+                    region = wave.get("region", "us-east-1")
                     drs_client = boto3.client("drs", region_name=region)
                     
                     response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
@@ -5173,8 +5159,8 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             if all_launched:
                                 if wave_status != "COMPLETED":
                                     print(f"DEBUG: Wave {wave_name} updated from {wave_status} to COMPLETED (real-time)")
-                                wave["Status"] = "COMPLETED"
-                                wave["EndTime"] = int(time.time())
+                                wave["status"] = "COMPLETED"
+                                wave["endTime"] = int(time.time())
                             else:
                                 failed_servers = [
                                     server.get("sourceServerID", "unknown") 
@@ -5183,21 +5169,21 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 ]
                                 if wave_status != "FAILED":
                                     print(f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED - servers failed: {failed_servers}")
-                                wave["Status"] = "FAILED"
+                                wave["status"] = "FAILED"
                                 wave["StatusMessage"] = f"Servers failed to launch: {', '.join(failed_servers[:3])}"
-                                wave["EndTime"] = int(time.time())
+                                wave["endTime"] = int(time.time())
                                 
                         elif drs_status == "FAILED":
                             if wave_status != "FAILED":
                                 print(f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED (DRS job failed)")
-                            wave["Status"] = "FAILED"
+                            wave["status"] = "FAILED"
                             wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
-                            wave["EndTime"] = int(time.time())
+                            wave["endTime"] = int(time.time())
                             
                         elif drs_status in ["PENDING", "STARTED"]:
                             if wave_status in ["UNKNOWN", "", "INITIATED", "POLLING"]:
                                 print(f"DEBUG: Wave {wave_name} updated from {wave_status} to IN_PROGRESS (DRS job active)")
-                                wave["Status"] = "IN_PROGRESS"
+                                wave["status"] = "IN_PROGRESS"
                                 
                         # Add real-time job details for frontend display
                         wave["DRSJobDetails"] = {
@@ -5212,9 +5198,9 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                     else:
                         print(f"DEBUG: DRS job {job_id} not found - may have been cleaned up")
                         if wave_status in ["UNKNOWN", "", "INITIATED", "POLLING", "IN_PROGRESS"]:
-                            wave["Status"] = "COMPLETED"  # Assume completed if job not found
+                            wave["status"] = "COMPLETED"  # Assume completed if job not found
                             wave["StatusMessage"] = "Job completed (not found in DRS)"
-                            wave["EndTime"] = int(time.time())
+                            wave["endTime"] = int(time.time())
                         
                 except Exception as e:
                     print(f"Error getting real-time DRS status for wave {wave_name}, job {job_id}: {e}")
@@ -5222,7 +5208,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
             
             updated_waves.append(wave)
         
-        execution["Waves"] = updated_waves
+        execution["waves"] = updated_waves
         print(f"DEBUG: Wave reconciliation completed - {len(updated_waves)} waves processed")
         return execution
         
@@ -5236,12 +5222,12 @@ def recalculate_execution_status(execution: Dict) -> Dict:
     Recalculate overall execution status based on current wave statuses.
     This ensures the execution status accurately reflects the state of individual waves.
     """
-    waves = execution.get("Waves", [])
+    waves = execution.get("waves", [])
     if not waves:
         return execution
 
     # CRITICAL FIX: Preserve PAUSED status - don't recalculate for paused executions
-    current_status = execution.get("Status", "").upper()
+    current_status = execution.get("status", "").upper()
     if current_status == "PAUSED":
         # Execution is paused - don't recalculate status based on waves
         # The pause state is managed by Step Functions orchestration
@@ -5266,7 +5252,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
     cancelled_waves = []
 
     for wave in waves:
-        wave_status = (wave.get("Status") or "").upper()
+        wave_status = (wave.get("status") or "").upper()
         if wave_status in active_statuses:
             active_waves.append(wave)
         elif wave_status == "COMPLETED":
@@ -5281,7 +5267,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
         # Keep execution as active - don't change to terminal state
         if current_status in ["COMPLETED", "FAILED", "CANCELLED", "PARTIAL"]:
             print(
-                f"WARNING: Execution {execution.get('ExecutionId')} has active waves but status is {current_status}"
+                f"WARNING: Execution {execution.get("executionId")} has active waves but status is {current_status}"
             )
             # Don't change status - let Step Functions orchestration handle it
         return execution
@@ -5290,12 +5276,12 @@ def recalculate_execution_status(execution: Dict) -> Dict:
     if failed_waves and not active_waves:
         # Some waves failed
         if completed_waves:
-            execution["Status"] = "PARTIAL"  # Some completed, some failed
+            execution["status"] = "PARTIAL"  # Some completed, some failed
         else:
-            execution["Status"] = "FAILED"  # All failed
+            execution["status"] = "FAILED"  # All failed
     elif cancelled_waves and not active_waves and not failed_waves:
         # All waves cancelled
-        execution["Status"] = "CANCELLED"
+        execution["status"] = "CANCELLED"
     elif (
         completed_waves
         and not active_waves
@@ -5303,7 +5289,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
         and not cancelled_waves
     ):
         # All waves completed successfully
-        execution["Status"] = "COMPLETED"
+        execution["status"] = "COMPLETED"
 
     return execution
 
@@ -5335,31 +5321,31 @@ def get_execution_details_fast(execution_id: str) -> Dict:
 
         # Basic enrichment with stored data only (FAST operations)
         try:
-            if execution.get("PlanName"):
-                execution["RecoveryPlanName"] = execution["PlanName"]
+            if execution.get("planName"):
+                execution["recoveryPlanName"] = execution["planName"]
 
-            plan_id = execution.get("PlanId")
+            plan_id = execution.get("planId")
             if plan_id:
                 plan_result = recovery_plans_table.get_item(
-                    Key={"PlanId": plan_id}
+                    Key={"planId": plan_id}
                 )
                 if "Item" in plan_result:
                     plan = plan_result["Item"]
-                    if not execution.get("RecoveryPlanName"):
-                        execution["RecoveryPlanName"] = plan.get("PlanName", "Unknown")
-                    execution["RecoveryPlanDescription"] = plan.get("Description", "")
-                    execution["TotalWaves"] = len(plan.get("Waves", []))
-                elif not execution.get("RecoveryPlanName"):
-                    execution["RecoveryPlanName"] = "Deleted Plan"
+                    if not execution.get("recoveryPlanName"):
+                        execution["recoveryPlanName"] = plan.get("planName", "Unknown")
+                    execution["RecoveryPlanDescription"] = plan.get("description", "")
+                    execution["totalWaves"] = len(plan.get("waves", []))
+                elif not execution.get("recoveryPlanName"):
+                    execution["recoveryPlanName"] = "Deleted Plan"
         except Exception as e:
             print(f"Error enriching execution with plan details: {str(e)}")
 
         # Mark as cached data for frontend
         execution["dataSource"] = "cached"
-        execution["lastUpdated"] = execution.get("UpdatedAt", int(time.time()))
+        execution["lastUpdated"] = execution.get("updatedAt", int(time.time()))
         
         # Add flag to indicate if real-time data is available
-        execution["hasRealtimeData"] = execution.get("Status") in ["RUNNING", "PAUSED"]
+        execution["hasRealtimeData"] = execution.get("status") in ["RUNNING", "PAUSED"]
 
         return response(200, execution)
 
@@ -5401,16 +5387,16 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         execution = result["Items"][0]
 
         # Only fetch real-time data for active executions
-        if execution.get("Status") not in ["RUNNING", "PAUSED"]:
+        if execution.get("status") not in ["RUNNING", "PAUSED"]:
             print(f"Execution {execution_id} is not active, skipping real-time data")
             execution["dataSource"] = "cached"
-            execution["lastUpdated"] = execution.get("UpdatedAt", int(time.time()))
+            execution["lastUpdated"] = execution.get("updatedAt", int(time.time()))
             return response(200, execution)
 
         print(f"Fetching real-time data for active execution {execution_id}")
 
         # REAL-TIME DATA: Get current status from Step Functions if still running
-        if execution.get("Status") == "RUNNING" and execution.get("StateMachineArn"):
+        if execution.get("status") == "RUNNING" and execution.get("StateMachineArn"):
             try:
                 print(f"Getting real-time Step Functions status for execution")
                 sf_response = stepfunctions.describe_execution(
@@ -5422,7 +5408,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
                 if sf_response["status"] in ["SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"]:
                     print(f"Step Functions shows completion, updating DynamoDB")
                     execution_history_table.update_item(
-                        Key={"ExecutionId": execution_id, "PlanId": execution.get("PlanId")},
+                        Key={"executionId": execution_id, "planId": execution.get("planId")},
                         UpdateExpression="SET #status = :status, UpdatedAt = :updated",
                         ExpressionAttributeNames={"#status": "Status"},
                         ExpressionAttributeValues={
@@ -5430,7 +5416,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
                             ":updated": int(time.time())
                         }
                     )
-                    execution["Status"] = sf_response["status"]
+                    execution["status"] = sf_response["status"]
                     
             except Exception as sf_error:
                 print(f"Error getting Step Functions status: {sf_error}")
@@ -5462,7 +5448,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         # Update cache with fresh data
         try:
             execution_history_table.update_item(
-                Key={"ExecutionId": execution_id, "PlanId": execution.get("PlanId")},
+                Key={"executionId": execution_id, "planId": execution.get("planId")},
                 UpdateExpression="SET UpdatedAt = :updated",
                 ExpressionAttributeValues={":updated": int(time.time())}
             )
@@ -5493,9 +5479,8 @@ def get_execution_details(execution_id: str) -> Dict:
                         else "FAILED"
                     )
                     execution_history_table.update_item(
-                        Key={
-                            "ExecutionId": execution_id,
-                            "PlanId": execution.get("PlanId"),
+                        Key={"executionId": execution_id,
+                            "planId": execution.get("planId"),
                         },
                         UpdateExpression="SET #status = :status, EndTime = :endtime",
                         ExpressionAttributeNames={"#status": "Status"},
@@ -5504,8 +5489,8 @@ def get_execution_details(execution_id: str) -> Dict:
                             ":endtime": int(time.time()),
                         },
                     )
-                    execution["Status"] = new_status
-                    execution["EndTime"] = int(time.time())
+                    execution["status"] = new_status
+                    execution["endTime"] = int(time.time())
             except Exception as e:
                 print(f"Error getting Step Functions status: {str(e)}")
 
@@ -5514,21 +5499,20 @@ def get_execution_details(execution_id: str) -> Dict:
         # Updated: 2025-01-07 - Fixed DynamoDB save operation for wave status reconciliation
         # IMPORTANT: Call reconcile BEFORE camelCase transformation since it works on DynamoDB structure
         print(f"DEBUG: About to call reconcile_wave_status_with_drs for execution {execution_id}")
-        original_waves = execution.get("Waves", [])
+        original_waves = execution.get("waves", [])
         print(f"DEBUG: Original waves count: {len(original_waves)}")
         for i, wave in enumerate(original_waves):
-            print(f"DEBUG: Wave {i}: Status={wave.get('Status')}, JobId={wave.get('JobId')}")
+            print(f"DEBUG: Wave {i}: Status={wave.get("status")}, JobId={wave.get("jobId")}")
         execution = reconcile_wave_status_with_drs(execution)
         
         # Save updated wave statuses to DynamoDB if they changed
-        updated_waves = execution.get("Waves", [])
+        updated_waves = execution.get("waves", [])
         if original_waves != updated_waves:
             try:
                 print(f"Saving updated wave statuses to DynamoDB for execution {execution_id}")
                 execution_history_table.update_item(
-                    Key={
-                        "ExecutionId": execution_id,
-                        "PlanId": execution.get("PlanId"),
+                    Key={"executionId": execution_id,
+                        "planId": execution.get("planId"),
                     },
                     UpdateExpression="SET Waves = :waves",
                     ExpressionAttributeValues={":waves": updated_waves},
@@ -5543,8 +5527,8 @@ def get_execution_details(execution_id: str) -> Dict:
 
         # CONSISTENCY FIX: Transform to camelCase for frontend (same as list_executions)
         # This ensures ALL API endpoints return consistent camelCase format
-        transformed_execution = transform_execution_to_camelcase(execution)
-        return response(200, transformed_execution)
+        # Data is already in camelCase - no transformation needed
+        return response(200, execution)
 
     except Exception as e:
         print(f"Error getting execution details: {str(e)}")
@@ -5578,10 +5562,10 @@ def cancel_execution(execution_id: str) -> Dict:
             )
 
         execution = result["Items"][0]
-        plan_id = execution.get("PlanId")
+        plan_id = execution.get("planId")
 
         # Check if execution is still running
-        current_status = execution.get("Status")
+        current_status = execution.get("status")
         cancellable_statuses = [
             "RUNNING",
             "PAUSED",
@@ -5605,17 +5589,17 @@ def cancel_execution(execution_id: str) -> Dict:
             )
 
         # Get waves from execution and plan
-        waves = execution.get("Waves", [])
+        waves = execution.get("waves", [])
         timestamp = int(time.time())
 
         # Get recovery plan to find waves that haven't started yet
         plan_waves = []
         try:
             plan_result = recovery_plans_table.get_item(
-                Key={"PlanId": plan_id}
+                Key={"planId": plan_id}
             )
             if "Item" in plan_result:
-                plan_waves = plan_result["Item"].get("Waves", [])
+                plan_waves = plan_result["Item"].get("waves", [])
         except Exception as e:
             print(f"Error getting recovery plan: {e}")
 
@@ -5639,8 +5623,8 @@ def cancel_execution(execution_id: str) -> Dict:
         existing_wave_numbers = set()
 
         for i, wave in enumerate(waves):
-            wave_status = (wave.get("Status") or "").upper()
-            wave_number = wave.get("WaveNumber", i)
+            wave_status = (wave.get("status") or "").upper()
+            wave_number = wave.get("waveNumber", i)
             existing_wave_numbers.add(wave_number)
 
             if wave_status in completed_statuses:
@@ -5651,30 +5635,29 @@ def cancel_execution(execution_id: str) -> Dict:
                 # Leave in-progress waves running - they will complete naturally
             else:
                 # Pending/not started waves in execution - mark as CANCELLED
-                waves[i]["Status"] = "CANCELLED"
-                waves[i]["EndTime"] = timestamp
+                waves[i]["status"] = "CANCELLED"
+                waves[i]["endTime"] = timestamp
                 cancelled_waves.append(wave_number)
 
         # Add waves from plan that haven't started yet (not in execution's Waves array)
         for i, plan_wave in enumerate(plan_waves):
-            wave_number = plan_wave.get("WaveNumber", i)
+            wave_number = plan_wave.get("waveNumber", i)
             if wave_number not in existing_wave_numbers:
                 # This wave hasn't started - add it as CANCELLED
                 cancelled_wave = {
-                    "WaveNumber": wave_number,
-                    "WaveName": plan_wave.get(
-                        "WaveName", f"Wave {wave_number + 1}"
+                    "waveNumber": wave_number,
+                    "waveName": plan_wave.get("waveName", f"Wave {wave_number + 1}"
                     ),
-                    "Status": "CANCELLED",
-                    "EndTime": timestamp,
-                    "ProtectionGroupId": plan_wave.get("ProtectionGroupId"),
-                    "ServerIds": plan_wave.get("ServerIds", []),
+                    "status": "CANCELLED",
+                    "endTime": timestamp,
+                    "protectionGroupId": plan_wave.get("protectionGroupId"),
+                    "serverIds": plan_wave.get("serverIds", []),
                 }
                 waves.append(cancelled_wave)
                 cancelled_waves.append(wave_number)
 
         # Sort waves by wave number for consistent display
-        waves.sort(key=lambda w: w.get("WaveNumber", 0))
+        waves.sort(key=lambda w: w.get("waveNumber", 0))
 
         # Stop Step Functions execution only if no waves are in progress
         # If a wave is running, let it complete naturally
@@ -5706,7 +5689,7 @@ def cancel_execution(execution_id: str) -> Dict:
             expression_values[":endtime"] = timestamp
 
         execution_history_table.update_item(
-            Key={"ExecutionId": execution_id, "PlanId": plan_id},
+            Key={"executionId": execution_id, "planId": plan_id},
             UpdateExpression=update_expression,
             ExpressionAttributeNames={"#status": "Status"},
             ExpressionAttributeValues=expression_values,
@@ -5761,8 +5744,8 @@ def pause_execution(execution_id: str) -> Dict:
             )
 
         execution = result["Items"][0]
-        plan_id = execution.get("PlanId")
-        current_status = execution.get("Status", "")
+        plan_id = execution.get("planId")
+        current_status = execution.get("status", "")
 
         # Check if execution is in a pausable state
         pausable_statuses = ["RUNNING", "IN_PROGRESS", "POLLING"]
@@ -5779,7 +5762,7 @@ def pause_execution(execution_id: str) -> Dict:
             )
 
         # Check wave states
-        waves = execution.get("Waves", [])
+        waves = execution.get("waves", [])
         if not waves:
             return response(
                 400,
@@ -5820,8 +5803,8 @@ def pause_execution(execution_id: str) -> Dict:
         last_completed_wave = 0
 
         for i, wave in enumerate(waves):
-            wave_status = (wave.get("Status") or "").upper()
-            wave_number = wave.get("WaveNumber", i + 1)
+            wave_status = (wave.get("status") or "").upper()
+            wave_number = wave.get("waveNumber", i + 1)
 
             if wave_status in completed_statuses:
                 last_completed_wave = wave_number
@@ -5856,7 +5839,7 @@ def pause_execution(execution_id: str) -> Dict:
             message = "Execution paused"
 
         execution_history_table.update_item(
-            Key={"ExecutionId": execution_id, "PlanId": plan_id},
+            Key={"executionId": execution_id, "planId": plan_id},
             UpdateExpression="SET #status = :status",
             ExpressionAttributeNames={"#status": "Status"},
             ExpressionAttributeValues={":status": new_status},
@@ -5915,8 +5898,8 @@ def resume_execution(execution_id: str) -> Dict:
             )
 
         execution = result["Items"][0]
-        plan_id = execution.get("PlanId")
-        current_status = execution.get("Status", "")
+        plan_id = execution.get("planId")
+        current_status = execution.get("status", "")
 
         # Check if execution is paused
         if current_status != "PAUSED":
@@ -5941,7 +5924,7 @@ def resume_execution(execution_id: str) -> Dict:
             )
 
         # Get paused before wave info
-        paused_before_wave = execution.get("PausedBeforeWave", 0)
+        paused_before_wave = execution.get("pausedBeforeWave", 0)
         # Convert Decimal to int if needed
         if hasattr(paused_before_wave, "__int__"):
             paused_before_wave = int(paused_before_wave)
@@ -5955,9 +5938,9 @@ def resume_execution(execution_id: str) -> Dict:
         # Get the original plan waves (execution history has different structure)
         try:
             plan_response = recovery_plans_table.get_item(
-                Key={"PlanId": plan_id}
+                Key={"planId": plan_id}
             )
-            plan_waves = plan_response.get("Item", {}).get("Waves", [])
+            plan_waves = plan_response.get("Item", {}).get("waves", [])
             # Convert DynamoDB format to plain dicts (handles Decimal types)
             waves_data = json.loads(json.dumps(plan_waves, cls=DecimalEncoder))
             print(f"Loaded {len(waves_data)} waves from recovery plan")
@@ -5976,7 +5959,7 @@ def resume_execution(execution_id: str) -> Dict:
         resume_state = {
             "plan_id": plan_id,
             "execution_id": execution_id,
-            "is_drill": execution.get("ExecutionType", "DRILL") == "DRILL",
+            "is_drill": execution.get("executionType", "DRILL") == "DRILL",
             "waves": waves_data,
             "current_wave_number": paused_before_wave,
             "all_waves_completed": False,
@@ -6084,7 +6067,7 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
             )
 
         execution = result["Items"][0]
-        waves = execution.get("Waves", [])
+        waves = execution.get("waves", [])
 
         # Get account context from execution (region is per-wave)
         account_context = execution.get("AccountContext", {})
@@ -6092,14 +6075,14 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
         all_job_logs = []
 
         for wave in waves:
-            wave_job_id = wave.get("JobId") or wave.get("jobId")
-            wave_number = wave.get("WaveNumber", wave.get("waveNumber", 0))
+            wave_job_id = wave.get("jobId") or wave.get("jobId")
+            wave_number = wave.get("waveNumber", wave.get("waveNumber", 0))
 
             # Get region from wave first, then execution, then default
             wave_region = (
-                wave.get("Region")
+                wave.get("region")
                 or wave.get("region")
-                or execution.get("Region", "us-east-1")
+                or execution.get("region", "us-east-1")
             )
 
             # Skip if no job ID or if specific job requested and doesn't match
@@ -6203,15 +6186,15 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
             )
 
         execution = result["Items"][0]
-        plan_id = execution.get("PlanId")
-        waves = execution.get("Waves", [])
+        plan_id = execution.get("planId")
+        waves = execution.get("waves", [])
 
         # Get the Recovery Plan to determine account context (for cross-account support)
         account_context = None
         if plan_id:
             try:
                 plan_result = recovery_plans_table.get_item(
-                    Key={"PlanId": plan_id}
+                    Key={"planId": plan_id}
                 )
                 if "Item" in plan_result:
                     plan = plan_result["Item"]
@@ -6251,19 +6234,19 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
 
         # First, try to get instance IDs from DRS jobs
         for wave in waves:
-            wave_number = wave.get("WaveNumber", 0)
-            job_id = wave.get("JobId")
-            region = wave.get("Region", "us-east-1")
-            wave_status = wave.get("Status", "")
+            wave_number = wave.get("waveNumber", 0)
+            job_id = wave.get("jobId")
+            region = wave.get("region", "us-east-1")
+            wave_status = wave.get("status", "")
 
             print(
                 f"Wave {wave_number}: status={wave_status}, job_id={job_id}, region={region}"
             )
 
             # Collect source server IDs from wave for alternative lookup
-            wave_servers = wave.get("Servers", [])
+            wave_servers = wave.get("servers", [])
             for srv in wave_servers:
-                srv_id = srv.get("SourceServerId") or srv.get("sourceServerId")
+                srv_id = srv.get("sourceServerId") or srv.get("sourceServerId")
                 if srv_id:
                     if region not in source_server_ids_by_region:
                         source_server_ids_by_region[region] = []
@@ -6447,14 +6430,14 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         # Fallback: check stored data in ServerStatuses or Servers
         if not instances_to_terminate:
             for wave in waves:
-                wave_number = wave.get("WaveNumber", 0)
-                region = wave.get("Region", "us-east-1")
+                wave_number = wave.get("waveNumber", 0)
+                region = wave.get("region", "us-east-1")
 
                 # Check ServerStatuses (newer format)
-                server_statuses = wave.get("ServerStatuses", [])
+                server_statuses = wave.get("serverStatuses", [])
                 for server in server_statuses:
                     instance_id = (
-                        server.get("RecoveryInstanceID")
+                        server.get("recoveryInstanceId")
                         or server.get("recoveryInstanceId")
                         or server.get("EC2InstanceId")
                         or server.get("ec2InstanceId")
@@ -6469,8 +6452,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                 "instanceId": instance_id,
                                 "region": region,
                                 "waveNumber": wave_number,
-                                "serverId": server.get(
-                                    "SourceServerId", "unknown"
+                                "serverId": server.get("sourceServerId", "unknown"
                                 ),
                             }
                         )
@@ -6479,12 +6461,12 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                         instances_by_region[region].append(instance_id)
 
                 # Check Servers (older format)
-                servers = wave.get("Servers", [])
+                servers = wave.get("servers", [])
                 for server in servers:
                     instance_id = (
                         server.get("RecoveryInstanceId")
                         or server.get("recoveryInstanceId")
-                        or server.get("InstanceId")
+                        or server.get("instanceId")
                         or server.get("instanceId")
                         or server.get("ec2InstanceId")
                         or server.get("EC2InstanceId")
@@ -6494,14 +6476,13 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                         and isinstance(instance_id, str)
                         and instance_id.startswith("i-")
                     ):
-                        server_region = server.get("Region", region)
+                        server_region = server.get("region", region)
                         instances_to_terminate.append(
                             {
                                 "instanceId": instance_id,
                                 "region": server_region,
                                 "waveNumber": wave_number,
-                                "serverId": server.get(
-                                    "SourceServerId", "unknown"
+                                "serverId": server.get("sourceServerId", "unknown"
                                 ),
                             }
                         )
@@ -6630,13 +6611,13 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
 
         # Update execution with termination info (set flag immediately when termination initiated)
         try:
-            plan_id = execution.get("PlanId")
+            plan_id = execution.get("planId")
             print(
                 f"Updating execution {execution_id} with PlanId {plan_id} - setting InstancesTerminated=True"
             )
 
             update_response = execution_history_table.update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET InstancesTerminated = :terminated, InstancesTerminatedAt = :timestamp, TerminateJobs = :jobs",
                 ExpressionAttributeValues={
                     ":terminated": True,
@@ -6896,7 +6877,7 @@ def delete_completed_executions() -> Dict:
         completed_executions = [
             ex
             for ex in all_executions
-            if ex.get("Status", "").upper() in terminal_states
+            if ex.get("status", "").upper() in terminal_states
         ]
 
         # For CANCELLED executions, check if they have active DRS jobs
@@ -6905,15 +6886,15 @@ def delete_completed_executions() -> Dict:
         skipped_with_active_jobs = []
 
         for ex in completed_executions:
-            status = ex.get("Status", "").upper()
+            status = ex.get("status", "").upper()
             if status == "CANCELLED":
                 # Check if any wave has an active DRS job
                 has_active_job = False
-                for wave in ex.get("Waves", []):
-                    job_id = wave.get("JobId")
+                for wave in ex.get("waves", []):
+                    job_id = wave.get("jobId")
                     if job_id:
                         # Get region from wave or default
-                        region = wave.get("Region", "us-east-1")
+                        region = wave.get("region", "us-east-1")
                         try:
                             drs_client = create_drs_client(region)
                             job_response = drs_client.describe_jobs(
@@ -6925,7 +6906,7 @@ def delete_completed_executions() -> Dict:
                                 if job_status in ["PENDING", "STARTED"]:
                                     has_active_job = True
                                     print(
-                                        f"Execution {ex.get('ExecutionId')} has active DRS job {job_id} (status: {job_status})"
+                                        f"Execution {ex.get("executionId")} has active DRS job {job_id} (status: {job_status})"
                                     )
                                     break
                         except Exception as e:
@@ -6935,7 +6916,7 @@ def delete_completed_executions() -> Dict:
                             break
 
                 if has_active_job:
-                    skipped_with_active_jobs.append(ex.get("ExecutionId"))
+                    skipped_with_active_jobs.append(ex.get("executionId"))
                 else:
                     safe_to_delete.append(ex)
             else:
@@ -6953,8 +6934,8 @@ def delete_completed_executions() -> Dict:
         failed_deletes = []
 
         for execution in safe_to_delete:
-            execution_id = execution.get("ExecutionId")
-            plan_id = execution.get("PlanId")
+            execution_id = execution.get("executionId")
+            plan_id = execution.get("planId")
 
             if not execution_id or not plan_id:
                 print(f"Skipping execution with missing keys: {execution}")
@@ -6962,7 +6943,7 @@ def delete_completed_executions() -> Dict:
 
             try:
                 execution_history_table.delete_item(
-                    Key={"ExecutionId": execution_id, "PlanId": plan_id}
+                    Key={"executionId": execution_id, "planId": plan_id}
                 )
                 deleted_count += 1
                 print(f"Deleted execution: {execution_id}")
@@ -7091,8 +7072,8 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
                     continue
 
                 execution = executions[0]
-                plan_id = execution.get("PlanId")
-                status = execution.get("Status", "").upper()
+                plan_id = execution.get("planId")
+                status = execution.get("status", "").upper()
 
                 # Check if execution is in terminal state
                 if status in active_states:
@@ -7111,10 +7092,10 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
                 # For CANCELLED executions, check if they have active DRS jobs
                 if status == "CANCELLED":
                     has_active_job = False
-                    for wave in execution.get("Waves", []):
-                        job_id = wave.get("JobId")
+                    for wave in execution.get("waves", []):
+                        job_id = wave.get("jobId")
                         if job_id:
-                            region = wave.get("Region", "us-east-1")
+                            region = wave.get("region", "us-east-1")
                             try:
                                 drs_client = create_drs_client(region)
                                 job_response = drs_client.describe_jobs(
@@ -7156,7 +7137,7 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
 
                 # Delete the execution
                 execution_history_table.delete_item(
-                    Key={"ExecutionId": execution_id, "PlanId": plan_id}
+                    Key={"executionId": execution_id, "planId": plan_id}
                 )
                 deleted_count += 1
                 print(f"Deleted execution: {execution_id}")
@@ -7458,7 +7439,7 @@ def list_source_servers(
                     )
                     for reservation in ec2_response.get("Reservations", []):
                         for instance in reservation.get("Instances", []):
-                            instance_id = instance.get("InstanceId", "")
+                            instance_id = instance.get("instanceId", "")
                             # Convert tag list to dict
                             tags_dict = {
                                 t["Key"]: t["Value"]
@@ -7485,17 +7466,17 @@ def list_source_servers(
         tag_based_pgs = []  # Track tag-based PGs for later matching
 
         for pg in pg_response.get("Items", []):
-            pg_id = pg.get("GroupId") or pg.get("protectionGroupId")
+            pg_id = pg.get("groupId") or pg.get("protectionGroupId")
 
             # Skip current PG when editing - allows deselection
             if current_pg_id and pg_id == current_pg_id:
                 continue
 
-            pg_name = pg.get("GroupName") or pg.get("name")
-            pg_servers = pg.get("SourceServerIds") or pg.get(
+            pg_name = pg.get("groupName") or pg.get("name")
+            pg_servers = pg.get("sourceServerIds") or pg.get(
                 "sourceServerIds", []
             )
-            pg_tags = pg.get("ServerSelectionTags", {})
+            pg_tags = pg.get("serverSelectionTags", {})
 
             # Track explicit server assignments
             for server_id in pg_servers:
@@ -7594,7 +7575,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
 
     try:
         # 1. Get the Protection Group
-        result = protection_groups_table.get_item(Key={"GroupId": pg_id})
+        result = protection_groups_table.get_item(Key={"groupId": pg_id})
 
         if "Item" not in result:
             return response(
@@ -7606,7 +7587,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
             )
 
         pg = result["Item"]
-        selection_tags = pg.get("ServerSelectionTags", {})
+        selection_tags = pg.get("serverSelectionTags", {})
 
         if not selection_tags:
             return response(
@@ -7614,7 +7595,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
                 {
                     "region": region,
                     "protectionGroupId": pg_id,
-                    "protectionGroupName": pg.get("GroupName"),
+                    "protectionGroupName": pg.get("groupName"),
                     "initialized": True,
                     "servers": [],
                     "totalCount": 0,
@@ -7625,10 +7606,10 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
         # 2. Resolve servers by tags
         # Extract account context from Protection Group
         account_context = None
-        if pg.get("AccountId"):
+        if pg.get("accountId"):
             account_context = {
-                "AccountId": pg.get("AccountId"),
-                "AssumeRoleName": pg.get("AssumeRoleName"),
+                "accountId": pg.get("accountId"),
+                "assumeRoleName": pg.get("assumeRoleName"),
             }
         resolved_servers = query_drs_servers_by_tags(
             region, selection_tags, account_context
@@ -7640,7 +7621,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
                 {
                     "region": region,
                     "protectionGroupId": pg_id,
-                    "protectionGroupName": pg.get("GroupName"),
+                    "protectionGroupName": pg.get("groupName"),
                     "initialized": True,
                     "servers": [],
                     "totalCount": 0,
@@ -7655,7 +7636,7 @@ def get_protection_group_servers(pg_id: str, region: str) -> Dict:
             {
                 "region": region,
                 "protectionGroupId": pg_id,
-                "protectionGroupName": pg.get("GroupName"),
+                "protectionGroupName": pg.get("groupName"),
                 "initialized": True,
                 "servers": resolved_servers,
                 "totalCount": len(resolved_servers),
@@ -7695,18 +7676,18 @@ def validate_server_assignments(
 
     conflicts = []
     for pg in pg_response.get("Items", []):
-        pg_id = pg.get("GroupId") or pg.get("protectionGroupId")
+        pg_id = pg.get("groupId") or pg.get("protectionGroupId")
 
         # Skip current PG when editing
         if current_pg_id and pg_id == current_pg_id:
             continue
 
-        assigned_servers = pg.get("SourceServerIds") or pg.get(
+        assigned_servers = pg.get("sourceServerIds") or pg.get(
             "sourceServerIds", []
         )
         for server_id in server_ids:
             if server_id in assigned_servers:
-                pg_name = pg.get("GroupName") or pg.get("name")
+                pg_name = pg.get("groupName") or pg.get("name")
                 conflicts.append(
                     {
                         "serverId": server_id,
@@ -7774,13 +7755,13 @@ def validate_unique_pg_name(
 
     name_lower = name.lower()
     for pg in pg_response.get("Items", []):
-        pg_id = pg.get("GroupId") or pg.get("protectionGroupId")
+        pg_id = pg.get("groupId") or pg.get("protectionGroupId")
 
         # Skip current PG when editing
         if current_pg_id and pg_id == current_pg_id:
             continue
 
-        existing_name = pg.get("GroupName") or pg.get("name", "")
+        existing_name = pg.get("groupName") or pg.get("name", "")
         if existing_name.lower() == name_lower:
             return False
 
@@ -7804,13 +7785,13 @@ def validate_unique_rp_name(
 
     name_lower = name.lower()
     for rp in rp_response.get("Items", []):
-        rp_id = rp.get("PlanId")
+        rp_id = rp.get("planId")
 
         # Skip current RP when editing
         if current_rp_id and rp_id == current_rp_id:
             continue
 
-        existing_name = rp.get("PlanName", "")
+        existing_name = rp.get("planName", "")
         if existing_name.lower() == name_lower:
             return False
 
@@ -7837,7 +7818,7 @@ def check_server_conflicts_for_create(server_ids: List[str]) -> List[Dict]:
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
-        existing_servers = pg.get("SourceServerIds", [])
+        existing_servers = pg.get("sourceServerIds", [])
         if not existing_servers:
             continue
 
@@ -7846,8 +7827,8 @@ def check_server_conflicts_for_create(server_ids: List[str]) -> List[Dict]:
                 conflicts.append(
                     {
                         "serverId": server_id,
-                        "protectionGroupId": pg.get("GroupId"),
-                        "protectionGroupName": pg.get("GroupName"),
+                        "protectionGroupId": pg.get("groupId"),
+                        "protectionGroupName": pg.get("groupName"),
                     }
                 )
 
@@ -7872,10 +7853,10 @@ def check_server_conflicts_for_update(
 
     for pg in all_pgs:
         # Skip current PG
-        if pg.get("GroupId") == current_pg_id:
+        if pg.get("groupId") == current_pg_id:
             continue
 
-        existing_servers = pg.get("SourceServerIds", [])
+        existing_servers = pg.get("sourceServerIds", [])
         if not existing_servers:
             continue
 
@@ -7884,8 +7865,8 @@ def check_server_conflicts_for_update(
                 conflicts.append(
                     {
                         "serverId": server_id,
-                        "protectionGroupId": pg.get("GroupId"),
-                        "protectionGroupName": pg.get("GroupName"),
+                        "protectionGroupId": pg.get("groupId"),
+                        "protectionGroupName": pg.get("groupName"),
                     }
                 )
 
@@ -7915,7 +7896,7 @@ def check_tag_conflicts_for_create(
         all_pgs.extend(pg_response.get("Items", []))
 
     for pg in all_pgs:
-        existing_tags = pg.get("ServerSelectionTags", {})
+        existing_tags = pg.get("serverSelectionTags", {})
         if not existing_tags:
             continue
 
@@ -7923,8 +7904,8 @@ def check_tag_conflicts_for_create(
         if existing_tags == tags:
             conflicts.append(
                 {
-                    "protectionGroupId": pg.get("GroupId"),
-                    "protectionGroupName": pg.get("GroupName"),
+                    "protectionGroupId": pg.get("groupId"),
+                    "protectionGroupName": pg.get("groupName"),
                     "conflictingTags": existing_tags,
                     "conflictType": "exact_match",
                 }
@@ -7956,10 +7937,10 @@ def check_tag_conflicts_for_update(
 
     for pg in all_pgs:
         # Skip current PG
-        if pg.get("GroupId") == current_pg_id:
+        if pg.get("groupId") == current_pg_id:
             continue
 
-        existing_tags = pg.get("ServerSelectionTags", {})
+        existing_tags = pg.get("serverSelectionTags", {})
         if not existing_tags:
             continue
 
@@ -7967,8 +7948,8 @@ def check_tag_conflicts_for_update(
         if existing_tags == tags:
             conflicts.append(
                 {
-                    "protectionGroupId": pg.get("GroupId"),
-                    "protectionGroupName": pg.get("GroupName"),
+                    "protectionGroupId": pg.get("groupId"),
+                    "protectionGroupName": pg.get("groupName"),
                     "conflictingTags": existing_tags,
                     "conflictType": "exact_match",
                 }
@@ -7989,16 +7970,15 @@ def transform_pg_to_camelcase(pg: Dict) -> Dict:
         version = int(version)
 
     return {
-        "id": pg.get("GroupId"),
-        "protectionGroupId": pg.get("GroupId"),
-        "name": pg.get("GroupName"),
-        "description": pg.get("Description", ""),
-        "region": pg.get("Region"),
-        "serverSelectionTags": pg.get("ServerSelectionTags", {}),
-        "sourceServerIds": pg.get(
-            "SourceServerIds", []
+        "id": pg.get("groupId"),
+        "protectionGroupId": pg.get("groupId"),
+        "name": pg.get("groupName"),
+        "description": pg.get("description", ""),
+        "region": pg.get("region"),
+        "serverSelectionTags": pg.get("serverSelectionTags", {}),
+        "sourceServerIds": pg.get("sourceServerIds", []
         ),  # Legacy explicit server selection
-        "accountId": pg.get("AccountId", ""),
+        "accountId": pg.get("accountId", ""),
         "owner": pg.get("Owner", ""),
         "createdAt": int(created_at * 1000) if created_at else None,
         "updatedAt": int(updated_at * 1000) if updated_at else None,
@@ -8019,9 +7999,9 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
 
     # Transform waves array from backend PascalCase to frontend camelCase
     waves = []
-    for idx, wave in enumerate(rp.get("Waves", [])):
+    for idx, wave in enumerate(rp.get("waves", [])):
         # CRITICAL FIX: Defensive ServerIds extraction with recovery logic
-        server_ids = wave.get("ServerIds", [])
+        server_ids = wave.get("serverIds", [])
 
         # DEFENSIVE: Ensure we have a list (boto3 deserialization issue)
         if not isinstance(server_ids, list):
@@ -8051,13 +8031,13 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         waves.append(
             {
                 "waveNumber": wave.get("ExecutionOrder", idx),  # Use ExecutionOrder from reference stack
-                "name": wave.get("WaveName", ""),
+                "name": wave.get("waveName", ""),
                 "description": wave.get("WaveDescription", ""),
                 "serverIds": server_ids,  # Now guaranteed to be a list
-                "executionType": wave.get("ExecutionType", "sequential"),
+                "executionType": wave.get("executionType", "sequential"),
                 "dependsOnWaves": depends_on_waves,
-                "protectionGroupId": wave.get("ProtectionGroupId", ""),
-                "protectionGroupIds": wave.get("ProtectionGroupIds", []),
+                "protectionGroupId": wave.get("protectionGroupId", ""),
+                "protectionGroupIds": wave.get("protectionGroupIds", []),
                 "pauseBeforeWave": wave.get("PauseBeforeWave", False),
             }
         )
@@ -8090,12 +8070,12 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         }
 
     return {
-        "id": rp.get("PlanId"),
-        "name": rp.get("PlanName"),
-        "description": rp.get("Description", ""),
+        "id": rp.get("planId"),
+        "name": rp.get("planName"),
+        "description": rp.get("description", ""),
         "status": status,  # NEW: Draft if never executed, Active if executed
-        "accountId": rp.get("AccountId"),
-        "region": rp.get("Region"),
+        "accountId": rp.get("accountId"),
+        "region": rp.get("region"),
         "owner": rp.get("Owner"),
         "rpo": rp.get("RPO"),
         "rto": rp.get("RTO"),
@@ -8116,380 +8096,6 @@ def transform_rp_to_camelcase(rp: Dict) -> Dict:
         ),  # NEW: Server conflict with other executions
         "conflictInfo": transformed_conflict,  # NEW: Details about the conflict
         "version": version,  # Optimistic locking version
-    }
-
-
-def transform_execution_to_camelcase_lightweight(execution: Dict) -> Dict:
-    """
-    Lightweight transform for list executions - minimal processing for fast loading.
-    Skips expensive server enrichment and uses cached data only.
-    """
-    # Helper function to safely convert timestamp (string or int) to int
-    def safe_timestamp_to_int(value):
-        if value is None:
-            return None
-        try:
-            return int(value) if value else None
-        except (ValueError, TypeError):
-            return None
-
-    # Helper function to map execution status
-    def map_execution_status(status):
-        if not status:
-            return "unknown"
-        status_upper = status.upper()
-        status_mapping = {
-            "PENDING": "pending",
-            "POLLING": "polling", 
-            "INITIATED": "initiated",
-            "LAUNCHING": "launching",
-            "STARTED": "started",
-            "IN_PROGRESS": "in_progress",
-            "RUNNING": "running",
-            "COMPLETED": "completed",
-            "PARTIAL": "partial",
-            "FAILED": "failed",
-            "CANCELLED": "cancelled",
-            "PAUSED": "paused",
-        }
-        return status_mapping.get(status_upper, status.lower())
-
-    # Lightweight wave transformation - minimal server data
-    waves = []
-    for i, wave in enumerate(execution.get("Waves", [])):
-        # Basic server list without expensive enrichment
-        servers = []
-        server_ids = wave.get("ServerIds", [])
-        
-        for server_id in server_ids:
-            servers.append({
-                "sourceServerId": server_id,
-                "recoveryJobId": wave.get("JobId"),
-                "instanceId": None,  # Available via realtime endpoint
-                "recoveredInstanceId": None,
-                "status": wave.get("Status", "UNKNOWN"),
-                "launchTime": safe_timestamp_to_int(wave.get("StartTime")),
-                "error": None,
-                # Minimal server details for list view
-                "instanceType": "",
-                "privateIp": "",
-                "ec2State": "",
-                "hostname": f"server-{server_id[-8:] if server_id else 'unknown'}",
-                "serverName": "",
-                "region": wave.get("Region", ""),
-                "sourceInstanceId": "",
-                "sourceAccountId": "",
-                "sourceIp": "",
-                "sourceRegion": "",
-                "replicationState": "",
-            })
-
-        waves.append({
-            "waveNumber": wave.get("WaveNumber", i),
-            "waveName": wave.get("WaveName"),
-            "protectionGroupId": wave.get("ProtectionGroupId"),
-            "region": wave.get("Region"),
-            "status": map_execution_status(wave.get("Status")),
-            "servers": servers,
-            "startTime": safe_timestamp_to_int(wave.get("StartTime")),
-            "endTime": safe_timestamp_to_int(wave.get("EndTime")),
-            "jobId": wave.get("JobId"),
-        })
-
-    # Calculate current wave progress
-    total_waves = execution.get("TotalWaves") or len(waves) or 1
-    current_wave = 0
-
-    # Find the first wave that's not completed
-    for i, wave in enumerate(waves, 1):
-        wave_status = wave.get("status", "").lower()
-        if wave_status in ["polling", "initiated", "launching", "in_progress", "started", "pending"]:
-            current_wave = i
-            break
-        elif wave_status == "completed":
-            current_wave = i
-
-    if current_wave == 0:
-        current_wave = max(1, len(waves))
-
-    return {
-        "executionId": execution.get("ExecutionId"),
-        "recoveryPlanId": execution.get("PlanId"),
-        "recoveryPlanName": execution.get("RecoveryPlanName") or execution.get("PlanName", "Unknown"),
-        "executionType": execution.get("ExecutionType"),
-        "status": map_execution_status(execution.get("Status")),
-        "startTime": safe_timestamp_to_int(execution.get("StartTime")),
-        "endTime": safe_timestamp_to_int(execution.get("EndTime")),
-        "initiatedBy": execution.get("InitiatedBy"),
-        "waves": waves,
-        "currentWave": current_wave,
-        "totalWaves": total_waves,
-        "errorMessage": execution.get("ErrorMessage"),
-        "pausedBeforeWave": execution.get("PausedBeforeWave"),
-        "selectionMode": execution.get("SelectionMode", "PLAN"),
-        "hasActiveDrsJobs": execution.get("HasActiveDrsJobs", False),
-    }
-
-
-def transform_execution_to_camelcase(execution: Dict) -> Dict:
-    """Transform Execution from DynamoDB PascalCase to frontend camelCase"""
-
-    # Helper function to safely convert timestamp (string or int) to int
-    def safe_timestamp_to_int(value):
-        if value is None:
-            return None
-        try:
-            # Handle both string and int types
-            return int(value) if value else None
-        except (ValueError, TypeError):
-            print(f"WARNING: Invalid timestamp value: {value}")
-            return None
-
-    # Helper function to map execution status
-    def map_execution_status(status):
-        """Map backend status to frontend display status"""
-        if not status:
-            return "unknown"
-
-        status_upper = status.upper()
-
-        # Map status for frontend display - PRESERVES DRS TERMINOLOGY
-        status_mapping = {
-            # Orchestration states
-            "PENDING": "pending",
-            "POLLING": "polling",
-            "INITIATED": "initiated",  # FIXED: Preserve DRS status name
-            "LAUNCHING": "launching",  # FIXED: Preserve DRS status name
-            # DRS job states
-            "STARTED": "started",  # NEW: DRS job active status
-            "IN_PROGRESS": "in_progress",
-            "RUNNING": "running",
-            # Terminal states
-            "COMPLETED": "completed",
-            "PARTIAL": "partial",  # Some servers failed
-            "FAILED": "failed",
-            "CANCELLED": "cancelled",
-            "PAUSED": "paused",
-        }
-
-        return status_mapping.get(status_upper, status.lower())
-
-    # Transform waves array to camelCase
-    waves = []
-    for i, wave in enumerate(execution.get("Waves", [])):
-        # Transform servers array to camelCase
-        # FIX: DynamoDB stores ServerStatuses (from Step Functions) or ServerIds (legacy)
-        servers = []
-
-        # Build enriched server lookup map from EnrichedServers (added by enrich_execution_with_server_details)
-        enriched_map = {}
-        for enriched in wave.get("EnrichedServers", []):
-            enriched_map[enriched.get("SourceServerId")] = enriched
-
-        # First try ServerStatuses (new format from Step Functions orchestration)
-        server_statuses = wave.get("ServerStatuses", [])
-        if server_statuses:
-            for server in server_statuses:
-                server_id = server.get("SourceServerId")
-                enriched = enriched_map.get(server_id, {})
-                servers.append(
-                    {
-                        "sourceServerId": server_id,
-                        "recoveryJobId": wave.get(
-                            "JobId"
-                        ),  # JobId is at wave level
-                        "instanceId": server.get("RecoveryInstanceID"),
-                        "recoveredInstanceId": server.get("RecoveryInstanceID") or enriched.get("RecoveryInstanceId"),  # Frontend expects this field name
-                        "status": server.get("LaunchStatus", "UNKNOWN"),
-                        "launchTime": safe_timestamp_to_int(
-                            wave.get("StartTime")
-                        ),
-                        "error": server.get("Error"),
-                        # Recovery instance details from EnrichedServers
-                        "instanceType": enriched.get("InstanceType", ""),
-                        "privateIp": enriched.get("PrivateIp", ""),
-                        "ec2State": enriched.get("Ec2State", ""),
-                        # Enriched fields from DRS source server
-                        "hostname": enriched.get("Hostname", ""),
-                        "serverName": enriched.get("NameTag", ""),
-                        "region": enriched.get(
-                            "Region", wave.get("Region", "")
-                        ),
-                        "sourceInstanceId": enriched.get(
-                            "SourceInstanceId", ""
-                        ),
-                        "sourceAccountId": enriched.get("SourceAccountId", ""),
-                        "sourceIp": enriched.get("SourceIp", ""),
-                        "sourceRegion": enriched.get("SourceRegion", ""),
-                        "replicationState": enriched.get(
-                            "ReplicationState", ""
-                        ),
-                    }
-                )
-        else:
-            # Fallback to ServerIds (legacy format) or Servers array
-            server_ids = wave.get("ServerIds", [])
-            legacy_servers = wave.get("Servers", [])
-
-            if legacy_servers:
-                # PERFORMANCE FIX: Use cached data only for list function
-                # Don't call get_recovery_instances_for_wave as it makes expensive AWS API calls
-                for server in legacy_servers:
-                    server_id = server.get("SourceServerId")
-                    enriched = enriched_map.get(server_id, {})
-                    # PERFORMANCE FIX: Use cached data from DynamoDB only, no AWS API calls
-                    
-                    print(f"DEBUG: Legacy server {server_id}")
-                    print(f"DEBUG: DynamoDB server data: InstanceType={server.get('InstanceType')}, PrivateIp={server.get('PrivateIp')}")
-                    
-                    servers.append(
-                        {
-                            "sourceServerId": server_id,
-                            "recoveryJobId": server.get("RecoveryJobId"),
-                            "instanceId": server.get("InstanceId"),
-                            "recoveredInstanceId": server.get("InstanceId"),  # Use cached data only
-                            "status": server.get("Status", "UNKNOWN"),
-                            "launchTime": safe_timestamp_to_int(
-                                server.get("LaunchTime")
-                            ),
-                            "error": server.get("Error"),
-                            # EC2 instance details from DynamoDB cache only
-                            "instanceType": server.get("InstanceType", ""),
-                            "privateIp": server.get("PrivateIp", ""),
-                            "ec2State": server.get("Ec2State", ""),
-                            # Enriched fields from DRS source server
-                            "hostname": enriched.get("Hostname", ""),
-                            "serverName": enriched.get("NameTag", ""),
-                            "region": enriched.get(
-                                "Region", wave.get("Region", "")
-                            ),
-                            "sourceInstanceId": enriched.get(
-                                "SourceInstanceId", ""
-                            ),
-                            "sourceAccountId": enriched.get(
-                                "SourceAccountId", ""
-                            ),
-                            "sourceIp": enriched.get("SourceIp", ""),
-                            "sourceRegion": enriched.get("SourceRegion", ""),
-                            "replicationState": enriched.get(
-                                "ReplicationState", ""
-                            ),
-                        }
-                    )
-            elif server_ids:
-                # PERFORMANCE FIX: Use cached data only for list function
-                # Don't call get_recovery_instances_for_wave as it makes expensive AWS API calls
-                for server_id in server_ids:
-                    enriched = enriched_map.get(server_id, {})
-                    # PERFORMANCE FIX: Use cached data from DynamoDB only, no AWS API calls
-                    
-                    servers.append(
-                        {
-                            "sourceServerId": server_id,
-                            "recoveryJobId": wave.get("JobId"),
-                            "instanceId": None,  # Use cached data only
-                            "recoveredInstanceId": None,  # Use cached data only
-                            "status": wave.get("Status", "UNKNOWN"),  # Use wave status
-                            "launchTime": safe_timestamp_to_int(
-                                wave.get("StartTime")
-                            ),
-                            "error": None,
-                            # EC2 recovery instance details - use cached data only
-                            "instanceType": "",  # Available via realtime endpoint
-                            "privateIp": "",  # Available via realtime endpoint
-                            "ec2State": "",  # Available via realtime endpoint
-                            # Enriched fields from DRS source server (cached in DynamoDB)
-                            "hostname": enriched.get("Hostname", ""),
-                            "serverName": enriched.get("NameTag", ""),
-                            "region": enriched.get(
-                                "Region", wave.get("Region", "")
-                            ),
-                            "sourceInstanceId": enriched.get(
-                                "SourceInstanceId", ""
-                            ),
-                            "sourceAccountId": enriched.get(
-                                "SourceAccountId", ""
-                            ),
-                            "sourceIp": enriched.get("SourceIp", ""),
-                            "sourceRegion": enriched.get("SourceRegion", ""),
-                            "replicationState": enriched.get(
-                                "ReplicationState", ""
-                            ),
-                        }
-                    )
-
-        waves.append(
-            {
-                "waveNumber": wave.get(
-                    "WaveNumber", i
-                ),  # Include wave number for frontend
-                "waveName": wave.get("WaveName"),
-                "protectionGroupId": wave.get("ProtectionGroupId"),
-                "region": wave.get("Region"),
-                "status": map_execution_status(
-                    wave.get("Status")
-                ),  # Use status mapping
-                "servers": servers,
-                "startTime": safe_timestamp_to_int(wave.get("StartTime")),
-                "endTime": safe_timestamp_to_int(wave.get("EndTime")),
-                "jobId": wave.get("JobId"),  # DRS job ID for display
-            }
-        )
-
-    # CRITICAL FIX: Convert string timestamps to integers for JavaScript Date()
-    start_time = safe_timestamp_to_int(execution.get("StartTime"))
-    end_time = safe_timestamp_to_int(execution.get("EndTime"))
-
-    # Calculate current wave progress
-    # Use stored TotalWaves if available (set at execution creation), otherwise calculate from waves array
-    total_waves = execution.get("TotalWaves") or len(waves) or 1
-    current_wave = 0
-
-    # Find the first wave that's not completed
-    for i, wave in enumerate(waves, 1):
-        wave_status = wave.get("status", "").lower()
-        if wave_status in [
-            "polling",
-            "initiated",
-            "launching",
-            "in_progress",
-            "started",
-            "pending",
-        ]:
-            current_wave = i
-            break
-        elif wave_status == "completed":
-            current_wave = i  # Last completed wave
-
-    # If all completed or no waves, current = total
-    if current_wave == 0:
-        current_wave = max(1, len(waves))  # At least 1 if waves exist
-
-    return {
-        "executionId": execution.get("ExecutionId"),
-        "recoveryPlanId": execution.get("PlanId"),
-        "recoveryPlanName": execution.get("RecoveryPlanName")
-        or execution.get("PlanName", "Unknown"),
-        "executionType": execution.get("ExecutionType"),
-        "status": map_execution_status(
-            execution.get("Status")
-        ),  # CRITICAL FIX: Map PARTIAL → failed
-        "startTime": start_time,  # Now properly converted to int
-        "endTime": end_time,  # Now properly converted to int
-        "initiatedBy": execution.get("InitiatedBy"),
-        "waves": waves,  # Now properly transformed with fixed timestamps and status
-        "currentWave": current_wave,  # FIXED: Proper wave progress calculation
-        "totalWaves": total_waves,  # Use stored value from execution creation
-        "errorMessage": execution.get("ErrorMessage"),
-        "pausedBeforeWave": execution.get(
-            "PausedBeforeWave"
-        ),  # Wave number paused before (0-indexed)
-        "selectionMode": execution.get(
-            "SelectionMode", "PLAN"
-        ),  # TAGS or PLAN based on protection group config
-        "hasActiveDrsJobs": execution.get(
-            "HasActiveDrsJobs", False
-        ),  # True if cancelled execution has active DRS jobs
     }
 
 
@@ -8539,7 +8145,7 @@ def get_drs_source_server_details(
             if server["sourceServerID"] in server_ids:
                 details.append(
                     {
-                        "SourceServerId": server["sourceServerID"],
+                        "sourceServerId": server["sourceServerID"],
                         "Hostname": server.get("sourceProperties", {})
                         .get("identificationHints", {})
                         .get("hostname", "Unknown"),
@@ -8618,9 +8224,7 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
                 return "Wave missing Protection Group assignment (protectionGroupId or protectionGroupIds required)"
 
             # Validate protectionGroupIds is an array if present
-            pg_ids = wave.get("protectionGroupIds") or wave.get(
-                "ProtectionGroupIds"
-            )
+            pg_ids = wave.get("protectionGroupIds") or wave.get("protectionGroupIds")
             if pg_ids is not None:
                 if not isinstance(pg_ids, list):
                     return f"protectionGroupIds must be an array, got {type(pg_ids)}"
@@ -8808,19 +8412,19 @@ def transform_target_account_to_camelcase(account: Dict) -> Dict:
     current_account_id = get_current_account_id()
 
     return {
-        "accountId": account.get("AccountId") or account.get("accountId"),
-        "accountName": account.get("AccountName")
+        "accountId": account.get("accountId") or account.get("accountId"),
+        "accountName": account.get("accountName")
         or account.get("accountName"),
-        "isCurrentAccount": account.get("AccountId", account.get("accountId"))
+        "isCurrentAccount": account.get("accountId", account.get("accountId"))
         == current_account_id,
-        "status": account.get("Status") or account.get("status", "active"),
+        "status": account.get("status") or account.get("status", "active"),
         "stagingAccountId": account.get("StagingAccountId")
         or account.get("stagingAccountId"),
         "stagingAccountName": account.get("StagingAccountName")
         or account.get("stagingAccountName"),
-        "crossAccountRoleArn": account.get("CrossAccountRoleArn")
+        "crossAccountRoleArn": account.get("crossAccountRoleArn")
         or account.get("crossAccountRoleArn"),
-        "createdAt": account.get("CreatedAt") or account.get("createdAt"),
+        "createdAt": account.get("createdAt") or account.get("createdAt"),
         "lastValidated": account.get("LastValidated")
         or account.get("lastValidated"),
     }
@@ -8831,11 +8435,11 @@ def transform_target_account_from_camelcase(camel_account: Dict) -> Dict:
     pascal_account = {}
 
     if camel_account.get("accountId"):
-        pascal_account["AccountId"] = camel_account["accountId"]
+        pascal_account["accountId"] = camel_account["accountId"]
     if camel_account.get("accountName"):
-        pascal_account["AccountName"] = camel_account["accountName"]
+        pascal_account["accountName"] = camel_account["accountName"]
     if camel_account.get("status"):
-        pascal_account["Status"] = camel_account["status"]
+        pascal_account["status"] = camel_account["status"]
     if camel_account.get("stagingAccountId"):
         pascal_account["StagingAccountId"] = camel_account["stagingAccountId"]
     if camel_account.get("stagingAccountName"):
@@ -8843,11 +8447,11 @@ def transform_target_account_from_camelcase(camel_account: Dict) -> Dict:
             "stagingAccountName"
         ]
     if camel_account.get("crossAccountRoleArn"):
-        pascal_account["CrossAccountRoleArn"] = camel_account[
+        pascal_account["crossAccountRoleArn"] = camel_account[
             "crossAccountRoleArn"
         ]
     if camel_account.get("createdAt"):
-        pascal_account["CreatedAt"] = camel_account["createdAt"]
+        pascal_account["createdAt"] = camel_account["createdAt"]
     if camel_account.get("lastValidated"):
         pascal_account["LastValidated"] = camel_account["lastValidated"]
 
@@ -8940,14 +8544,14 @@ def ensure_default_account() -> None:
 
             # Create default account entry (using PascalCase for DynamoDB)
             default_account = {
-                "AccountId": current_account_id,
-                "AccountName": current_account_name,
-                "Status": "active",
+                "accountId": current_account_id,
+                "accountName": current_account_name,
+                "status": "active",
                 "IsCurrentAccount": True,
                 "IsDefault": True,
-                "CreatedAt": now,
+                "createdAt": now,
                 "LastValidated": now,
-                "CreatedBy": "system-auto-init",
+                "createdBy": "system-auto-init",
             }
 
             # Store in DynamoDB
@@ -9032,7 +8636,7 @@ def create_target_account(body: Dict) -> Dict:
         # Check if account already exists (use PascalCase for DynamoDB key)
         try:
             existing = target_accounts_table.get_item(
-                Key={"AccountId": account_id}
+                Key={"accountId": account_id}
             )
             if "Item" in existing:
                 return response(
@@ -9175,7 +8779,7 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
             )
 
         # Check if account exists (use PascalCase for DynamoDB key)
-        result = target_accounts_table.get_item(Key={"AccountId": account_id})
+        result = target_accounts_table.get_item(Key={"accountId": account_id})
         if "Item" not in result:
             return response(
                 404,
@@ -9261,7 +8865,7 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
         # Perform update
         update_args = {
             "Key": {
-                "AccountId": account_id
+                "accountId": account_id
             },  # Use PascalCase for DynamoDB key
             "UpdateExpression": update_expression,
             "ExpressionAttributeValues": expression_values,
@@ -9289,7 +8893,7 @@ def delete_target_account(account_id: str) -> Dict:
     """Delete target account configuration"""
     try:
         # Check if account exists (use PascalCase for DynamoDB key)
-        result = target_accounts_table.get_item(Key={"AccountId": account_id})
+        result = target_accounts_table.get_item(Key={"accountId": account_id})
         if "Item" not in result:
             return response(
                 404,
@@ -9305,7 +8909,7 @@ def delete_target_account(account_id: str) -> Dict:
         # doesn't have DRS and users need to start fresh with target accounts
 
         # Delete the account (use PascalCase for DynamoDB key)
-        target_accounts_table.delete_item(Key={"AccountId": account_id})
+        target_accounts_table.delete_item(Key={"accountId": account_id})
 
         current_account_id = get_current_account_id()
         is_current = account_id == current_account_id
@@ -9328,7 +8932,7 @@ def validate_target_account(account_id: str) -> Dict:
         current_account_id = get_current_account_id()
 
         # Check if account exists in our configuration (use PascalCase for DynamoDB key)
-        result = target_accounts_table.get_item(Key={"AccountId": account_id})
+        result = target_accounts_table.get_item(Key={"accountId": account_id})
         if "Item" not in result:
             return response(
                 404,
@@ -9384,7 +8988,7 @@ def validate_target_account(account_id: str) -> Dict:
                 )
         else:
             # Cross-account validation
-            cross_account_role = account_config.get("CrossAccountRoleArn")
+            cross_account_role = account_config.get("crossAccountRoleArn")
             if not cross_account_role:
                 validation_results["overallStatus"] = "error"
                 validation_results["validationResults"].append(
@@ -9407,7 +9011,7 @@ def validate_target_account(account_id: str) -> Dict:
         # Update last validated timestamp in DynamoDB (use PascalCase for DynamoDB)
         try:
             target_accounts_table.update_item(
-                Key={"AccountId": account_id},
+                Key={"accountId": account_id},
                 UpdateExpression="SET LastValidated = :lastValidated",
                 ExpressionAttributeValues={
                     ":lastValidated": validation_results["lastValidated"]
@@ -9579,7 +9183,7 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                     sourceServerID=source_server_id, copyTags=True
                 )
             except ClientError as e:
-                error_code = e.response.get("Error", {}).get("Code", "")
+                error_code = e.response.get("error", {}).get("Code", "")
                 if error_code in [
                     "ValidationException",
                     "ResourceNotFoundException",
@@ -9669,8 +9273,8 @@ def apply_launch_config_to_servers(
             # Build EC2 template data for the new version
             template_data = {}
 
-            if launch_config.get("InstanceType"):
-                template_data["InstanceType"] = launch_config["InstanceType"]
+            if launch_config.get("instanceType"):
+                template_data["instanceType"] = launch_config["instanceType"]
 
             # Network interface settings (subnet and security groups)
             if launch_config.get("SubnetId") or launch_config.get(
@@ -9725,9 +9329,9 @@ def apply_launch_config_to_servers(
                     desc_parts.append(f"ID: {protection_group_id[:8]}")
                 # Add config details
                 config_details = []
-                if launch_config.get("InstanceType"):
+                if launch_config.get("instanceType"):
                     config_details.append(
-                        f"Type:{launch_config['InstanceType']}"
+                        f"Type:{launch_config["instanceType"]}"
                     )
                 if launch_config.get("SubnetId"):
                     config_details.append(
@@ -9872,14 +9476,14 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
 
         groups = []
         for sg in result["SecurityGroups"]:
-            label = f"{sg['GroupName']} ({sg['GroupId']})"
+            label = f"{sg["groupName"]} ({sg["groupId"]})"
             groups.append(
                 {
-                    "value": sg["GroupId"],
+                    "value": sg["groupId"],
                     "label": label,
-                    "name": sg["GroupName"],
+                    "name": sg["groupName"],
                     "vpcId": sg["VpcId"],
-                    "description": sg.get("Description", "")[:100],
+                    "description": sg.get("description", "")[:100],
                 }
             )
 
@@ -9941,7 +9545,7 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
         # DRS can use any instance type that's available in the target region
         for page in paginator.paginate():
             for it in page["InstanceTypes"]:
-                instance_type = it["InstanceType"]
+                instance_type = it["instanceType"]
                 vcpus = it["VCpuInfo"]["DefaultVCpus"]
                 mem_gb = round(it["MemoryInfo"]["SizeInMiB"] / 1024)
 
@@ -10072,7 +9676,7 @@ def export_configuration(query_params: Dict) -> Dict:
 
         # Build PG ID -> Name mapping for wave export
         pg_id_to_name = {
-            pg.get("GroupId", ""): pg.get("GroupName", "")
+            pg.get("groupId", ""): pg.get("groupName", "")
             for pg in protection_groups
         }
 
@@ -10080,17 +9684,17 @@ def export_configuration(query_params: Dict) -> Dict:
         exported_pgs = []
         for pg in protection_groups:
             exported_pg = {
-                "GroupName": pg.get("GroupName", ""),
-                "Description": pg.get("Description", ""),
-                "Region": pg.get("Region", ""),
-                "AccountId": pg.get("AccountId", ""),
+                "groupName": pg.get("groupName", ""),
+                "description": pg.get("description", ""),
+                "region": pg.get("region", ""),
+                "accountId": pg.get("accountId", ""),
                 "Owner": pg.get("Owner", ""),
             }
             # Include server selection method (mutually exclusive)
-            if pg.get("SourceServerIds"):
-                exported_pg["SourceServerIds"] = pg["SourceServerIds"]
-            if pg.get("ServerSelectionTags"):
-                exported_pg["ServerSelectionTags"] = pg["ServerSelectionTags"]
+            if pg.get("sourceServerIds"):
+                exported_pg["sourceServerIds"] = pg["sourceServerIds"]
+            if pg.get("serverSelectionTags"):
+                exported_pg["serverSelectionTags"] = pg["serverSelectionTags"]
             # Include LaunchConfig if present
             if pg.get("LaunchConfig"):
                 exported_pg["LaunchConfig"] = pg["LaunchConfig"]
@@ -10102,9 +9706,9 @@ def export_configuration(query_params: Dict) -> Dict:
         for rp in recovery_plans:
             # Transform waves to include ProtectionGroupName
             exported_waves = []
-            for wave in rp.get("Waves", []):
+            for wave in rp.get("waves", []):
                 exported_wave = dict(wave)
-                pg_id = wave.get("ProtectionGroupId", "")
+                pg_id = wave.get("protectionGroupId", "")
                 if pg_id:
                     if pg_id in pg_id_to_name:
                         exported_wave["ProtectionGroupName"] = pg_id_to_name[
@@ -10121,9 +9725,9 @@ def export_configuration(query_params: Dict) -> Dict:
                 exported_waves.append(exported_wave)
 
             exported_rp = {
-                "PlanName": rp.get("PlanName", ""),
-                "Description": rp.get("Description", ""),
-                "Waves": exported_waves,
+                "planName": rp.get("planName", ""),
+                "description": rp.get("description", ""),
+                "waves": exported_waves,
             }
             exported_rps.append(exported_rp)
 
@@ -10228,7 +9832,7 @@ def import_configuration(body: Dict) -> Dict:
 
         # Build name->ID mapping from existing PGs (case-insensitive keys)
         pg_name_to_id = {
-            name.lower(): pg.get("GroupId", "")
+            name.lower(): pg.get("groupId", "")
             for name, pg in existing_pgs.items()
         }
 
@@ -10245,7 +9849,7 @@ def import_configuration(body: Dict) -> Dict:
             if pg_result["status"] == "created":
                 results["created"].append(pg_result)
                 results["summary"]["protectionGroups"]["created"] += 1
-                pg_name = pg.get("GroupName", "")
+                pg_name = pg.get("groupName", "")
                 available_pg_names.add(pg_name)
                 # Add newly created PG to name->ID mapping
                 new_pg_id = pg_result.get("details", {}).get("groupId", "")
@@ -10257,7 +9861,7 @@ def import_configuration(body: Dict) -> Dict:
             else:  # failed
                 results["failed"].append(pg_result)
                 results["summary"]["protectionGroups"]["failed"] += 1
-                failed_pg_names.add(pg.get("GroupName", ""))
+                failed_pg_names.add(pg.get("groupName", ""))
                 results["success"] = False
 
         # Process Recovery Plans (with name->ID resolution)
@@ -10305,7 +9909,7 @@ def _get_existing_protection_groups() -> Dict[str, Dict]:
             ExclusiveStartKey=result["LastEvaluatedKey"]
         )
         pgs.extend(result.get("Items", []))
-    return {pg.get("GroupName", "").lower(): pg for pg in pgs}
+    return {pg.get("groupName", "").lower(): pg for pg in pgs}
 
 
 def _get_existing_recovery_plans() -> Dict[str, Dict]:
@@ -10317,7 +9921,7 @@ def _get_existing_recovery_plans() -> Dict[str, Dict]:
             ExclusiveStartKey=result["LastEvaluatedKey"]
         )
         rps.extend(result.get("Items", []))
-    return {rp.get("PlanName", "").lower(): rp for rp in rps}
+    return {rp.get("planName", "").lower(): rp for rp in rps}
 
 
 def _get_active_execution_servers() -> Dict[str, Dict]:
@@ -10344,12 +9948,12 @@ def _get_active_execution_servers() -> Dict[str, Dict]:
                 ExpressionAttributeValues={":status": status},
             )
             for exec_item in result.get("Items", []):
-                exec_id = exec_item.get("ExecutionId", "")
-                plan_name = exec_item.get("PlanName", "")
-                exec_status = exec_item.get("Status", "")
+                exec_id = exec_item.get("executionId", "")
+                plan_name = exec_item.get("planName", "")
+                exec_status = exec_item.get("status", "")
                 # Get servers from waves
-                for wave in exec_item.get("Waves", []):
-                    for server in wave.get("Servers", []):
+                for wave in exec_item.get("waves", []):
+                    for server in wave.get("servers", []):
                         server_id = server.get("sourceServerId", "")
                         if server_id:
                             servers[server_id] = {
@@ -10377,8 +9981,8 @@ def _get_all_assigned_servers() -> Dict[str, str]:
 
     assigned = {}
     for pg in pgs:
-        pg_name = pg.get("GroupName", "")
-        for server_id in pg.get("SourceServerIds", []):
+        pg_name = pg.get("groupName", "")
+        for server_id in pg.get("sourceServerIds", []):
             assigned[server_id] = pg_name
     return assigned
 
@@ -10391,8 +9995,8 @@ def _process_protection_group_import(
     correlation_id: str,
 ) -> Dict:
     """Process a single Protection Group import"""
-    pg_name = pg.get("GroupName", "")
-    region = pg.get("Region", "")
+    pg_name = pg.get("groupName", "")
+    region = pg.get("region", "")
 
     result = {
         "type": "ProtectionGroup",
@@ -10407,14 +10011,14 @@ def _process_protection_group_import(
         result["status"] = "skipped"
         result["reason"] = "ALREADY_EXISTS"
         result["details"] = {
-            "existingGroupId": existing_pgs[pg_name.lower()].get("GroupId", "")
+            "existingGroupId": existing_pgs[pg_name.lower()].get("groupId", "")
         }
         print(f"[{correlation_id}] Skipping PG '{pg_name}': already exists")
         return result
 
     # Get server IDs to validate
-    source_server_ids = pg.get("SourceServerIds", [])
-    server_selection_tags = pg.get("ServerSelectionTags", {})
+    source_server_ids = pg.get("sourceServerIds", [])
+    server_selection_tags = pg.get("serverSelectionTags", {})
 
     # Validate explicit servers
     if source_server_ids:
@@ -10493,10 +10097,10 @@ def _process_protection_group_import(
         try:
             # Extract account context from protection group data if available
             account_context = None
-            if pg.get("AccountId"):
+            if pg.get("accountId"):
                 account_context = {
-                    "AccountId": pg.get("AccountId"),
-                    "AssumeRoleName": pg.get("AssumeRoleName"),
+                    "accountId": pg.get("accountId"),
+                    "assumeRoleName": pg.get("assumeRoleName"),
                 }
             resolved = query_drs_servers_by_tags(
                 region, server_selection_tags, account_context
@@ -10537,11 +10141,11 @@ def _process_protection_group_import(
             timestamp = int(time.time())
 
             item = {
-                "GroupId": group_id,
-                "GroupName": pg_name,
-                "Description": pg.get("Description", ""),
-                "Region": region,
-                "AccountId": pg.get("AccountId", ""),
+                "groupId": group_id,
+                "groupName": pg_name,
+                "description": pg.get("description", ""),
+                "region": region,
+                "accountId": pg.get("accountId", ""),
                 "Owner": pg.get("Owner", ""),
                 "CreatedDate": timestamp,
                 "LastModifiedDate": timestamp,
@@ -10549,11 +10153,11 @@ def _process_protection_group_import(
             }
 
             if source_server_ids:
-                item["SourceServerIds"] = source_server_ids
-                item["ServerSelectionTags"] = {}
+                item["sourceServerIds"] = source_server_ids
+                item["serverSelectionTags"] = {}
             elif server_selection_tags:
-                item["ServerSelectionTags"] = server_selection_tags
-                item["SourceServerIds"] = []
+                item["serverSelectionTags"] = server_selection_tags
+                item["sourceServerIds"] = []
 
             launch_config = pg.get("LaunchConfig")
             if launch_config:
@@ -10573,10 +10177,10 @@ def _process_protection_group_import(
                 elif server_selection_tags:
                     # Extract account context from protection group data if available
                     account_context = None
-                    if pg.get("AccountId"):
+                    if pg.get("accountId"):
                         account_context = {
-                            "AccountId": pg.get("AccountId"),
-                            "AssumeRoleName": pg.get("AssumeRoleName"),
+                            "accountId": pg.get("accountId"),
+                            "assumeRoleName": pg.get("assumeRoleName"),
                         }
                     resolved = query_drs_servers_by_tags(
                         region, server_selection_tags, account_context
@@ -10641,8 +10245,8 @@ def _process_recovery_plan_import(
     Supports both ProtectionGroupId and ProtectionGroupName in waves.
     If ProtectionGroupName is provided, resolves it to ProtectionGroupId.
     """
-    plan_name = rp.get("PlanName", "")
-    waves = rp.get("Waves", [])
+    plan_name = rp.get("planName", "")
+    waves = rp.get("waves", [])
 
     result = {
         "type": "RecoveryPlan",
@@ -10657,7 +10261,7 @@ def _process_recovery_plan_import(
         result["status"] = "skipped"
         result["reason"] = "ALREADY_EXISTS"
         result["details"] = {
-            "existingPlanId": existing_rps[plan_name.lower()].get("PlanId", "")
+            "existingPlanId": existing_rps[plan_name.lower()].get("planId", "")
         }
         print(f"[{correlation_id}] Skipping RP '{plan_name}': already exists")
         return result
@@ -10669,7 +10273,7 @@ def _process_recovery_plan_import(
 
     for wave in waves:
         wave_copy = dict(wave)  # Don't modify original
-        pg_id = wave.get("ProtectionGroupId", "")
+        pg_id = wave.get("protectionGroupId", "")
         pg_name = wave.get("ProtectionGroupName", "")
 
         # Try to resolve ProtectionGroupId
@@ -10740,7 +10344,7 @@ def _process_recovery_plan_import(
 
         # Update wave with resolved ID
         if resolved_pg_id:
-            wave_copy["ProtectionGroupId"] = resolved_pg_id
+            wave_copy["protectionGroupId"] = resolved_pg_id
             if resolved_pg_name:
                 wave_copy["ProtectionGroupName"] = resolved_pg_name
             resolved_waves.append(wave_copy)
@@ -10774,10 +10378,10 @@ def _process_recovery_plan_import(
             timestamp = int(time.time())
 
             item = {
-                "PlanId": plan_id,
-                "PlanName": plan_name,
-                "Description": rp.get("Description", ""),
-                "Waves": resolved_waves,  # Use resolved waves with correct IDs
+                "planId": plan_id,
+                "planName": plan_name,
+                "description": rp.get("description", ""),
+                "waves": resolved_waves,  # Use resolved waves with correct IDs
                 "CreatedDate": timestamp,
                 "LastModifiedDate": timestamp,
                 "Version": 1,

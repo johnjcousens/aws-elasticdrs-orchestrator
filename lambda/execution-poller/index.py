@@ -80,10 +80,10 @@ def lambda_handler(
         )
 
         # Mandatory input validation and sanitization
-        execution_id = sanitize_string_input(event.get("ExecutionId", ""))
-        plan_id = sanitize_string_input(event.get("PlanId", ""))
+        execution_id = sanitize_string_input(event.get("executionId", ""))
+        plan_id = sanitize_string_input(event.get("planId", ""))
         execution_type = sanitize_string_input(
-            event.get("ExecutionType", "DRILL")
+            event.get("executionType", "DRILL")
         )
         
         if not execution_id or not plan_id:
@@ -99,7 +99,7 @@ def lambda_handler(
                 400, {"error": "Missing required parameters: ExecutionId and PlanId"}
             )
 
-        start_time = event.get("StartTime")
+        start_time = event.get("startTime")
 
         logger.info(
             f"Polling execution: {execution_id} (Type: {execution_type})"
@@ -118,12 +118,12 @@ def lambda_handler(
                 404,
                 {
                     "error": "Execution not found",
-                    "ExecutionId": execution_id,
+                    "executionId": execution_id,
                 },
             )
 
         # Check if execution is being cancelled
-        execution_status = execution.get("Status", "POLLING")
+        execution_status = execution.get("status", "POLLING")
         is_cancelling = execution_status == "CANCELLING"
 
         if is_cancelling:
@@ -142,14 +142,14 @@ def lambda_handler(
             return create_response_with_security_headers(
                 200,
                 {
-                    "ExecutionId": execution_id,
-                    "Status": "TIMEOUT",
+                    "executionId": execution_id,
+                    "status": "TIMEOUT",
                     "message": "Execution timed out",
                 },
             )
 
         # Poll wave status from DRS
-        waves = execution.get("Waves", [])
+        waves = execution.get("waves", [])
         updated_waves = []
         all_active_waves_complete = True
         waves_polled = 0
@@ -165,7 +165,7 @@ def lambda_handler(
         }
 
         for wave in waves:
-            wave_status = wave.get("Status", "")
+            wave_status = wave.get("status", "")
 
             # For CANCELLING executions, only poll waves that are in-progress
             if is_cancelling:
@@ -177,12 +177,8 @@ def lambda_handler(
                     waves_polled += 1
 
                     # Set EndTime on wave if it just completed
-                    if updated_wave.get(
-                        "Status"
-                    ) in COMPLETED_STATUSES and not updated_wave.get(
-                        "EndTime"
-                    ):
-                        updated_wave["EndTime"] = int(
+                    if updated_wave.get("status") in COMPLETED_STATUSES and not updated_wave.get("endTime"):
+                        updated_wave["endTime"] = int(
                             datetime.now(timezone.utc).timestamp()
                         )
                         logger.info(
@@ -192,7 +188,7 @@ def lambda_handler(
                     updated_waves.append(updated_wave)
 
                     # Check if this wave is still in progress
-                    if updated_wave.get("Status") not in COMPLETED_STATUSES:
+                    if updated_wave.get("status") not in COMPLETED_STATUSES:
                         all_active_waves_complete = False
                 else:
                     # Wave already completed or cancelled - keep as-is
@@ -202,17 +198,15 @@ def lambda_handler(
                 updated_wave = poll_wave_status(wave, execution_type)
 
                 # Set EndTime on wave if it just completed
-                if updated_wave.get(
-                    "Status"
-                ) in COMPLETED_STATUSES and not updated_wave.get("EndTime"):
-                    updated_wave["EndTime"] = int(
+                if updated_wave.get("status") in COMPLETED_STATUSES and not updated_wave.get("endTime"):
+                    updated_wave["endTime"] = int(
                         datetime.now(timezone.utc).timestamp()
                     )
 
                 updated_waves.append(updated_wave)
 
                 # Check if wave is complete
-                if updated_wave.get("Status") not in COMPLETED_STATUSES:
+                if updated_wave.get("status") not in COMPLETED_STATUSES:
                     all_active_waves_complete = False
 
         # Update execution in DynamoDB
@@ -237,8 +231,8 @@ def lambda_handler(
                 return create_response_with_security_headers(
                     200,
                     {
-                        "ExecutionId": execution_id,
-                        "Status": "CANCELLED",
+                        "executionId": execution_id,
+                        "status": "CANCELLED",
                         "message": "Cancelled execution finalized after in-progress waves completed",
                     },
                 )
@@ -249,8 +243,8 @@ def lambda_handler(
                 return create_response_with_security_headers(
                     200,
                     {
-                        "ExecutionId": execution_id,
-                        "Status": "COMPLETED",
+                        "executionId": execution_id,
+                        "status": "COMPLETED",
                         "message": "Execution completed successfully",
                     },
                 )
@@ -261,8 +255,8 @@ def lambda_handler(
         return create_response_with_security_headers(
             200,
             {
-                "ExecutionId": execution_id,
-                "Status": execution_status,
+                "executionId": execution_id,
+                "status": execution_status,
                 "WavesPolled": (
                     waves_polled if is_cancelling else len(updated_waves)
                 ),
@@ -276,8 +270,8 @@ def lambda_handler(
             "execution_poller_error",
             {
                 "error": str(e),
-                "execution_id": event.get("ExecutionId", "unknown"),
-                "plan_id": event.get("PlanId", "unknown"),
+                "execution_id": event.get("executionId", "unknown"),
+                "plan_id": event.get("planId", "unknown"),
             },
         )
         return create_response_with_security_headers(
@@ -306,9 +300,8 @@ def get_execution_from_dynamodb(
         def get_item_call():
             return dynamodb.get_item(
                 TableName=EXECUTION_HISTORY_TABLE,
-                Key={
-                    "ExecutionId": {"S": execution_id},
-                    "PlanId": {"S": plan_id},
+                Key={"executionId": {"S": execution_id},
+                    "planId": {"S": plan_id},
                 },
             )
 
@@ -397,7 +390,7 @@ def has_execution_timed_out(
         True if execution has timed out
     """
     if not start_time:
-        start_time = execution.get("StartTime", 0)
+        start_time = execution.get("startTime", 0)
 
     current_time = datetime.now(timezone.utc).timestamp()
     elapsed_time = current_time - start_time
@@ -423,20 +416,20 @@ def handle_timeout(
         logger.info(f"Handling timeout for execution {execution_id}")
 
         # Query DRS for final status
-        waves = execution.get("Waves", [])
+        waves = execution.get("waves", [])
         final_waves = []
 
         for wave in waves:
             # Get final status from DRS
-            job_id = wave.get("JobId")
+            job_id = wave.get("jobId")
             if job_id:
                 try:
-                    wave_region = wave.get("Region")
+                    wave_region = wave.get("region")
                     if not wave_region:
-                        logger.error(f"Wave {wave.get('WaveName')} missing Region field")
+                        logger.error(f"Wave {wave.get("waveName")} missing Region field")
                         continue
                     job_status = query_drs_job_status(job_id, wave_region)
-                    wave["Status"] = job_status.get("Status", "TIMEOUT")
+                    wave["status"] = job_status.get("status", "TIMEOUT")
                     wave["StatusMessage"] = job_status.get(
                         "StatusMessage", "Execution timed out"
                     )
@@ -444,12 +437,12 @@ def handle_timeout(
                     logger.error(
                         f"Error querying DRS for job {job_id}: {str(e)}"
                     )
-                    wave["Status"] = "TIMEOUT"
+                    wave["status"] = "TIMEOUT"
                     wave["StatusMessage"] = (
                         f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
                     )
             else:
-                wave["Status"] = "TIMEOUT"
+                wave["status"] = "TIMEOUT"
                 wave["StatusMessage"] = (
                     f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
                 )
@@ -459,7 +452,7 @@ def handle_timeout(
         # Update execution with timeout status
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
-            Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
+            Key={"executionId": {"S": execution_id}, "planId": {"S": plan_id}},
             UpdateExpression="SET #status = :status, Waves = :waves, EndTime = :end_time",
             ExpressionAttributeNames={"#status": "Status"},
             ExpressionAttributeValues={
@@ -495,56 +488,56 @@ def poll_wave_status(
         Updated wave record with current status
     """
     try:
-        job_id = wave.get("JobId")
+        job_id = wave.get("jobId")
 
         if not job_id:
             logger.warning(f"Wave {wave.get('WaveId')} has no JobId")
             return wave
 
         # Query DRS for job status
-        wave_region = wave.get("Region")
+        wave_region = wave.get("region")
         if not wave_region:
-            logger.error(f"Wave {wave.get('WaveName')} missing Region field")
+            logger.error(f"Wave {wave.get("waveName")} missing Region field")
             return wave
         job_status = query_drs_job_status(job_id, wave_region)
 
         # Get DRS job status and message
-        drs_status = job_status.get("Status", "UNKNOWN")
-        wave["Status"] = drs_status  # Set wave status to DRS job status
+        drs_status = job_status.get("status", "UNKNOWN")
+        wave["status"] = drs_status  # Set wave status to DRS job status
         wave["StatusMessage"] = job_status.get("StatusMessage", "")
 
         # Update server statuses from DRS participating servers
         if "ParticipatingServers" in job_status:
-            wave_region = wave.get("Region")
+            wave_region = wave.get("region")
             if not wave_region:
-                logger.error(f"Wave {wave.get('WaveName')} missing Region field for server status update")
+                logger.error(f"Wave {wave.get("waveName")} missing Region field for server status update")
                 return wave
             updated_servers = []
 
             for drs_server in job_status["ParticipatingServers"]:
                 server_data = {
-                    "SourceServerId": drs_server.get("sourceServerID", ""),
-                    "Status": drs_server.get("launchStatus", "UNKNOWN"),
+                    "sourceServerId": drs_server.get("sourceServerID", ""),
+                    "status": drs_server.get("launchStatus", "UNKNOWN"),
                     "HostName": "",
-                    "LaunchTime": 0,
-                    "InstanceId": "",
+                    "launchTime": 0,
+                    "instanceId": "",
                     "PrivateIpAddress": "",
                 }
 
                 # Set LaunchTime when server starts launching
-                if server_data["Status"] in [
+                if server_data["status"] in [
                     "PENDING",
                     "IN_PROGRESS",
                     "LAUNCHED",
                 ]:
-                    server_data["LaunchTime"] = int(
+                    server_data["launchTime"] = int(
                         datetime.now(timezone.utc).timestamp()
                     )
 
                 # Get EC2 instance details if recoveryInstanceID exists
                 recovery_instance_id = drs_server.get("recoveryInstanceID")
                 if recovery_instance_id:
-                    server_data["InstanceId"] = recovery_instance_id
+                    server_data["instanceId"] = recovery_instance_id
 
                     # Enrich with EC2 data
                     try:
@@ -565,49 +558,49 @@ def poll_wave_status(
 
                 updated_servers.append(server_data)
 
-            wave["Servers"] = updated_servers
+            wave["servers"] = updated_servers
 
         # Determine wave status based on server launch results
-        servers = wave.get("Servers", [])
+        servers = wave.get("servers", [])
 
         if execution_type == "DRILL":
             if servers:
                 # Check if ALL servers launched successfully
                 all_launched = all(
-                    s.get("Status") == "LAUNCHED" for s in servers
+                    s.get("status") == "LAUNCHED" for s in servers
                 )
                 # Check if ANY servers failed to launch
                 any_failed = any(
-                    s.get("Status")
+                    s.get("status")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     for s in servers
                 )
 
                 if all_launched:
-                    wave["Status"] = "COMPLETED"
+                    wave["status"] = "COMPLETED"
                     logger.info(
                         f"Wave {wave.get('WaveId')} completed - all servers LAUNCHED"
                     )
                 elif any_failed:
-                    wave["Status"] = "FAILED"
+                    wave["status"] = "FAILED"
                     failed_servers = [
                         s.get("SourceServerID")
                         for s in servers
-                        if s.get("Status")
+                        if s.get("status")
                         in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     ]
                     logger.warning(
                         f"Wave {wave.get('WaveId')} failed - servers {failed_servers} failed to launch"
                     )
                 elif drs_status in ["PENDING", "STARTED"]:
-                    wave["Status"] = "LAUNCHING"
+                    wave["status"] = "LAUNCHING"
                 elif drs_status == "COMPLETED" and not all_launched:
                     # CRITICAL BUG FIX: DRS job completed but servers never launched
-                    wave["Status"] = "FAILED"
+                    wave["status"] = "FAILED"
                     not_launched_servers = [
-                        s.get("SourceServerId")
+                        s.get("sourceServerId")
                         for s in servers
-                        if s.get("Status") != "LAUNCHED"
+                        if s.get("status") != "LAUNCHED"
                     ]
                     logger.error(
                         f"Wave {wave.get('WaveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
@@ -617,18 +610,18 @@ def poll_wave_status(
                     )
                 else:
                     # Fallback to DRS status if no clear success/failure
-                    wave["Status"] = drs_status
+                    wave["status"] = drs_status
             else:
                 # No servers yet, use DRS job status
-                wave["Status"] = drs_status
+                wave["status"] = drs_status
         else:  # RECOVERY
             # RECOVERY complete when all servers LAUNCHED + post-launch complete
             if servers:
                 all_launched = all(
-                    s.get("Status") == "LAUNCHED" for s in servers
+                    s.get("status") == "LAUNCHED" for s in servers
                 )
                 any_failed = any(
-                    s.get("Status")
+                    s.get("status")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     for s in servers
                 )
@@ -637,24 +630,24 @@ def poll_wave_status(
                 )
 
                 if all_launched and post_launch_complete:
-                    wave["Status"] = "COMPLETED"
+                    wave["status"] = "COMPLETED"
                     logger.info(
                         f"Wave {wave.get('WaveId')} recovery completed"
                     )
                 elif any_failed:
-                    wave["Status"] = "FAILED"
+                    wave["status"] = "FAILED"
                     logger.warning(
                         f"Wave {wave.get('WaveId')} recovery failed"
                     )
                 elif drs_status in ["PENDING", "STARTED"]:
-                    wave["Status"] = "LAUNCHING"
+                    wave["status"] = "LAUNCHING"
                 elif drs_status == "COMPLETED" and not all_launched:
                     # CRITICAL BUG FIX: DRS job completed but servers never launched
-                    wave["Status"] = "FAILED"
+                    wave["status"] = "FAILED"
                     not_launched_servers = [
-                        s.get("SourceServerId")
+                        s.get("sourceServerId")
                         for s in servers
-                        if s.get("Status") != "LAUNCHED"
+                        if s.get("status") != "LAUNCHED"
                     ]
                     logger.error(
                         f"Wave {wave.get('WaveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
@@ -663,15 +656,15 @@ def poll_wave_status(
                         f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
                     )
                 else:
-                    wave["Status"] = drs_status
+                    wave["status"] = drs_status
             else:
-                wave["Status"] = drs_status
+                wave["status"] = drs_status
 
         return wave
 
     except Exception as e:
         logger.error(f"Error polling wave status: {str(e)}", exc_info=True)
-        wave["Status"] = "ERROR"
+        wave["status"] = "ERROR"
         wave["StatusMessage"] = f"Polling error: {str(e)}"
         return wave
 
@@ -694,12 +687,12 @@ def query_drs_job_status(job_id: str, region: str) -> Dict[str, Any]:
 
         if not response.get("items"):
             logger.warning(f"No job found for ID {job_id} in region {region}")
-            return {"Status": "UNKNOWN", "StatusMessage": "Job not found"}
+            return {"status": "UNKNOWN", "StatusMessage": "Job not found"}
 
         job = response["items"][0]
 
         return {
-            "Status": job.get("status", "UNKNOWN"),
+            "status": job.get("status", "UNKNOWN"),
             "StatusMessage": job.get("statusMessage", ""),
             "ParticipatingServers": job.get("participatingServers", []),
             "PostLaunchActionsStatus": job.get(
@@ -788,9 +781,8 @@ def update_execution_waves(
         def update_call():
             return dynamodb.update_item(
                 TableName=EXECUTION_HISTORY_TABLE,
-                Key={
-                    "ExecutionId": {"S": execution_id.strip()},
-                    "PlanId": {"S": plan_id.strip()},
+                Key={"executionId": {"S": execution_id.strip()},
+                    "planId": {"S": plan_id.strip()},
                 },
                 UpdateExpression="SET Waves = :waves",
                 ExpressionAttributeValues={
@@ -833,7 +825,7 @@ def update_last_polled_time(execution_id: str, plan_id: str) -> None:
 
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
-            Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
+            Key={"executionId": {"S": execution_id}, "planId": {"S": plan_id}},
             UpdateExpression="SET LastPolledTime = :time",
             ExpressionAttributeValues={":time": {"N": str(current_time)}},
             ConditionExpression="attribute_exists(ExecutionId)",
@@ -869,9 +861,9 @@ def finalize_execution(
         if final_status:
             # Use provided final status (e.g., CANCELLED)
             status = final_status
-        elif all(w.get("Status") == "COMPLETED" for w in waves):
+        elif all(w.get("status") == "COMPLETED" for w in waves):
             status = "COMPLETED"
-        elif any(w.get("Status") == "FAILED" for w in waves):
+        elif any(w.get("status") == "FAILED" for w in waves):
             status = "FAILED"
         else:
             status = "COMPLETED_WITH_WARNINGS"
@@ -881,7 +873,7 @@ def finalize_execution(
         # Update execution with final status
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
-            Key={"ExecutionId": {"S": execution_id}, "PlanId": {"S": plan_id}},
+            Key={"executionId": {"S": execution_id}, "planId": {"S": plan_id}},
             UpdateExpression="SET #status = :status, EndTime = :end_time, Waves = :waves",
             ExpressionAttributeNames={"#status": "Status"},
             ExpressionAttributeValues={
@@ -914,8 +906,8 @@ def record_poller_metrics(
         # Count servers by status
         server_statuses = {}
         for wave in waves:
-            for server in wave.get("Servers", []):
-                status = server.get("Status", "UNKNOWN")
+            for server in wave.get("servers", []):
+                status = server.get("status", "UNKNOWN")
                 server_statuses[status] = server_statuses.get(status, 0) + 1
 
         # Put metrics
