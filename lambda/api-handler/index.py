@@ -16,11 +16,7 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
-# Import security utilities - MINIMAL USAGE ONLY
-from shared.security_utils import (
-    create_security_headers,
-    log_security_event,
-)
+# Minimal imports for maximum performance
 
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
@@ -362,62 +358,16 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
         raise RuntimeError(error_msg)
 
 
-def sanitize_user_input_selectively(data: Dict, operation: str) -> Dict:
-    """
-    Apply security sanitization only to user-provided input fields that need it.
-    Preserves system data and API response structures.
-    
-    Args:
-        data: Input data dictionary
-        operation: Type of operation (create_pg, update_pg, create_plan, etc.)
-    
-    Returns:
-        Data with only user input fields sanitized
-    """
-    if not isinstance(data, dict):
-        return data
-    
-    # Define which fields need sanitization for each operation
-    sanitizable_fields = {
-        'create_pg': ['GroupName', 'Description'],
-        'update_pg': ['GroupName', 'Description'], 
-        'create_plan': ['PlanName', 'Description'],
-        'update_plan': ['PlanName', 'Description'],
-        'execute_plan': ['InitiatedBy'],  # Only sanitize user-provided fields
-    }
-    
-    fields_to_sanitize = sanitizable_fields.get(operation, [])
-    
-    if not fields_to_sanitize:
-        return data  # No sanitization needed for this operation
-    
-    sanitized = data.copy()
-    
-    for field in fields_to_sanitize:
-        if field in sanitized and isinstance(sanitized[field], str):
-            try:
-                sanitized[field] = sanitize_string(sanitized[field], 255)
-            except Exception as e:
-                print(f"Warning: Could not sanitize field {field}: {e}")
-                # Keep original value if sanitization fails
-                pass
-    
-    return sanitized
-
-
 def response(
     status_code: int, body: Any, headers: Optional[Dict] = None
 ) -> Dict:
-    """Generate API Gateway response with CORS and security headers"""
-    default_headers = create_security_headers()
-    default_headers.update(
-        {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Content-Type,Authorization",
-            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-        }
-    )
+    """Generate API Gateway response with CORS headers"""
+    default_headers = {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+    }
     if headers:
         default_headers.update(headers)
 
