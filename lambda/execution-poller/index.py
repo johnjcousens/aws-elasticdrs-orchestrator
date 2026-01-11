@@ -294,8 +294,8 @@ def get_execution_from_dynamodb(
     """
     try:
         # Security validation for DynamoDB inputs
-        validate_dynamodb_input("ExecutionId", execution_id)
-        validate_dynamodb_input("PlanId", plan_id)
+        validate_dynamodb_input("executionId", execution_id)
+        validate_dynamodb_input("planId", plan_id)
 
         def get_item_call():
             return dynamodb.get_item(
@@ -765,8 +765,8 @@ def update_execution_waves(
     """
     try:
         # Security validation for DynamoDB inputs
-        validate_dynamodb_input("ExecutionId", execution_id)
-        validate_dynamodb_input("PlanId", plan_id)
+        validate_dynamodb_input("executionId", execution_id)
+        validate_dynamodb_input("planId", plan_id)
 
         # Sanitize execution_id and plan_id
         execution_id = sanitize_string_input(execution_id)

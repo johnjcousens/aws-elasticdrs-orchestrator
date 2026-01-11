@@ -234,13 +234,13 @@ def begin_wave_plan(event: Dict) -> Dict:
     if not execution_id:
         raise ValueError("Missing required execution parameter")
     
-    validate_dynamodb_input("ExecutionId", execution_id)
+    validate_dynamodb_input("executionId", execution_id)
 
     plan_id = sanitize_string_input(plan.get("planId", ""))
     if not plan_id:
-        raise ValueError("Missing required PlanId in plan")
+        raise ValueError("Missing required planId in plan")
     
-    validate_dynamodb_input("PlanId", plan_id)
+    validate_dynamodb_input("planId", plan_id)
     
     waves = plan.get("waves", [])
 
@@ -347,8 +347,8 @@ def store_task_token(event: Dict) -> Dict:
         }, "ERROR")
         raise ValueError("Missing required execution_id or plan_id")
     
-    validate_dynamodb_input("ExecutionId", execution_id)
-    validate_dynamodb_input("PlanId", plan_id)
+    validate_dynamodb_input("executionId", execution_id)
+    validate_dynamodb_input("planId", plan_id)
     
     paused_before_wave = state.get(
         "paused_before_wave", state.get("current_wave_number", 0) + 1
@@ -433,8 +433,8 @@ def resume_wave(event: Dict) -> Dict:
         }, "ERROR")
         raise ValueError("Missing required execution_id or plan_id")
     
-    validate_dynamodb_input("ExecutionId", execution_id)
-    validate_dynamodb_input("PlanId", plan_id)
+    validate_dynamodb_input("executionId", execution_id)
+    validate_dynamodb_input("planId", plan_id)
     
     paused_before_wave = state.get("paused_before_wave", 0)
 
@@ -666,7 +666,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         }, "ERROR")
         raise ValueError("Missing execution_id in state")
     
-    validate_dynamodb_input("ExecutionId", execution_id)
+    validate_dynamodb_input("executionId", execution_id)
 
     wave_name = sanitize_string_input(wave.get("waveName", f"Wave {wave_number + 1}"))
 
@@ -690,7 +690,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         state["error"] = "No ProtectionGroupId in wave"
         return
 
-    validate_dynamodb_input("GroupId", protection_group_id)
+    validate_dynamodb_input("groupId", protection_group_id)
 
     try:
         # Safe DynamoDB operation to get protection group
@@ -900,9 +900,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         raise ValueError(f"Invalid region format: {region}")
     
     if execution_id:
-        validate_dynamodb_input("ExecutionId", execution_id)
+        validate_dynamodb_input("executionId", execution_id)
     if plan_id:
-        validate_dynamodb_input("PlanId", plan_id)
+        validate_dynamodb_input("planId", plan_id)
 
     log_security_event("update_wave_status", {
         "execution_id": execution_id,
@@ -1363,9 +1363,9 @@ def update_wave_in_dynamodb(
         status = sanitize_string_input(status, 32)
         
         # Validate inputs
-        validate_dynamodb_input("ExecutionId", execution_id)
-        validate_dynamodb_input("PlanId", plan_id)
-        validate_dynamodb_input("Status", status)
+        validate_dynamodb_input("executionId", execution_id)
+        validate_dynamodb_input("planId", plan_id)
+        validate_dynamodb_input("status", status)
         
         if not isinstance(wave_number, int) or wave_number < 0:
             log_security_event("update_wave_in_dynamodb_invalid_wave", {
