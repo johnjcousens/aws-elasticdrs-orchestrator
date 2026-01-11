@@ -2129,7 +2129,7 @@ def create_protection_group(body: Dict) -> Dict:
                 raise Exception("Failed to generate valid timestamp")
 
         item = {
-            "GroupId": group_id,  # DynamoDB key (PascalCase)
+            "groupId": group_id,  # DynamoDB key (camelCase)
             "groupName": name,
             "description": body.get("description", ""),
             "region": region,
