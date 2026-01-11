@@ -2393,7 +2393,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
 
         # Prevent region changes
-        if "Region" in body and body["region"] != existing_group.get("region"):
+        if "region" in body and body["region"] != existing_group.get("region"):
             return response(
                 400, {"error": "Cannot change region after creation"}
             )
@@ -3227,13 +3227,16 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         }
         expression_names = {}
 
-        updatable_fields = ["PlanName", "Description", "RPO", "RTO", "Waves"]
+        updatable_fields = ["planName", "description", "rpo", "rto", "waves"]
         for field in updatable_fields:
             if field in body:
                 if field == "description":
                     update_expression += ", #desc = :desc"
                     expression_values[":desc"] = body["description"]
                     expression_names["#desc"] = "Description"
+                elif field == "planName":
+                    update_expression += ", PlanName = :planname"
+                    expression_values[":planname"] = body["planName"]
                 else:
                     update_expression += f", {field} = :{field.lower()}"
                     expression_values[f":{field.lower()}"] = body[field]
