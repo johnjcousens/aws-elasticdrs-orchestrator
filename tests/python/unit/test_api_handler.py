@@ -38,8 +38,17 @@ os.environ["STATE_MACHINE_ARN"] = (
 )
 
 # Mock boto3 before importing index to prevent actual AWS calls
-with patch("boto3.resource"), patch("boto3.client"):
+# Use persistent mocks to prevent hanging in CI environment
+boto3_resource_patcher = patch("boto3.resource")
+boto3_client_patcher = patch("boto3.client")
+boto3_resource_patcher.start()
+boto3_client_patcher.start()
+
+try:
     import index
+finally:
+    # Keep mocks active for the entire test session
+    pass
 
 
 class TestResponseFunction:
@@ -470,6 +479,20 @@ class TestUserPermissionsEndpoint:
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert "permissions" in body or "roles" in body or "user" in body
+
+
+# Cleanup boto3 mocks
+def cleanup_mocks():
+    """Clean up boto3 mocks to prevent hanging."""
+    try:
+        boto3_resource_patcher.stop()
+        boto3_client_patcher.stop()
+    except:
+        pass
+
+# Register cleanup
+import atexit
+atexit.register(cleanup_mocks)
 
 
 if __name__ == "__main__":
