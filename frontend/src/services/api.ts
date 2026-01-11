@@ -488,13 +488,13 @@ class ApiClient {
   public async executeRecoveryPlan(
     data: ExecuteRecoveryPlanRequest
   ): Promise<Execution> {
-    // Transform frontend request to backend format
+    // Backend now expects camelCase field names
     const backendRequest = {
-      PlanId: data.recoveryPlanId,
-      ExecutionType: data.executionType,  // DRILL or RECOVERY from user selection
-      InitiatedBy: data.executedBy || 'unknown',
-      DryRun: data.dryRun || false,
-      TopicArn: data.topicArn || ''
+      planId: data.recoveryPlanId,
+      executionType: data.executionType,  // DRILL or RECOVERY from user selection
+      initiatedBy: data.executedBy || 'unknown',
+      dryRun: data.dryRun || false,
+      topicArn: data.topicArn || ''
     };
     
     return this.post<Execution>('/executions', backendRequest);
