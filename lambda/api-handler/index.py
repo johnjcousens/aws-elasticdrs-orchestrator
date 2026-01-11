@@ -4797,6 +4797,7 @@ def list_executions(query_params: Dict) -> Dict:
 
             # PERFORMANCE FIX: Remove expensive DRS API calls from list function
             # Frontend can check active jobs on-demand if needed
+            # Stack ready for deployment after cleanup completion
             execution["HasActiveDrsJobs"] = False
 
             # Transform to camelCase for frontend
