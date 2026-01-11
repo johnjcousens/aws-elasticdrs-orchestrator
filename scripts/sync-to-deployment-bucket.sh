@@ -295,6 +295,21 @@ if [ "$RUN_LOCAL_VALIDATION" = true ]; then
         echo "    ⚠️  CloudScape compliance script not found"
     fi
     
+    # 1.6. API Gateway Architecture Validation
+    echo ""
+    echo "  🔗 API Gateway Architecture Validation..."
+    if [ -f "scripts/validate-api-gateway-compliance.sh" ]; then
+        chmod +x scripts/validate-api-gateway-compliance.sh
+        if ./scripts/validate-api-gateway-compliance.sh; then
+            echo "    ✅ API Gateway architecture compliance passed"
+        else
+            echo "    ❌ API Gateway architecture compliance failed"
+            VALIDATION_FAILED=true
+        fi
+    else
+        echo "    ⚠️  API Gateway architecture validation script not found"
+    fi
+    
     # Stage 2: Security Scan
     echo ""
     echo "🔒 Stage 2: Security Scan..."
