@@ -28,7 +28,7 @@ class InputValidationError(SecurityError):
 
 def sanitize_string(input_str: str, max_length: int = 255) -> str:
     """
-    Sanitize string input to prevent injection attacks
+    Sanitize string input to prevent injection attacks - PERFORMANCE OPTIMIZED
 
     Args:
         input_str: Input string to sanitize
@@ -48,6 +48,16 @@ def sanitize_string(input_str: str, max_length: int = 255) -> str:
             f"Input exceeds maximum length of {max_length}"
         )
 
+    # PERFORMANCE: Skip sanitization for safe strings (alphanumeric + common safe chars)
+    if len(input_str) < 1000 and input_str.replace('-', '').replace('_', '').replace('.', '').replace(':', '').isalnum():
+        return input_str.strip()
+
+    # PERFORMANCE: Quick check for dangerous characters before regex
+    dangerous_chars = '<>"\';\\' + '\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f'
+    if not any(char in input_str for char in dangerous_chars):
+        return input_str.strip()
+
+    # Only do expensive regex if potentially dangerous content detected
     # Remove potentially dangerous characters
     sanitized = re.sub(r'[<>"\';\\]', "", input_str.strip())
 
