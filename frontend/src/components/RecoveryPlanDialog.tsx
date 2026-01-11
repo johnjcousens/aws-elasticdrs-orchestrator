@@ -74,7 +74,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       const firstPgId = protectionGroups[0]?.protectionGroupId || '';
       const wavesWithPgId = (plan.waves || []).map(w => {
         // Extract PG ID from various possible fields (backend sends both now)
-        const pgId = w.protectionGroupId || w.ProtectionGroupId || firstPgId;
+        const pgId = w.protectionGroupId || firstPgId;
         const pgIds = w.protectionGroupIds || (pgId ? [pgId] : []);
         
         return {
