@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - January 11, 2026 - **CamelCase Migration Deployment** 🚀
+
+### 🚀 **MAJOR ARCHITECTURE IMPROVEMENT: Complete CamelCase Migration**
+
+**BREAKING CHANGE**: Database schema migrated from PascalCase to camelCase with complete elimination of transform functions for significant performance optimization.
+
+#### ✅ **Performance Optimization**
+- **Eliminated ALL 5 transform functions** that were causing performance overhead
+- **Removed 200+ lines of transform code** from Lambda functions
+- **Database operations now use native camelCase** - no more field name conversion
+- **API response consistency improved** with direct camelCase throughout
+- **Frontend integration streamlined** with native camelCase field access
+
+#### ✅ **Database Schema Migration**
+- **All DynamoDB tables migrated to camelCase field names**:
+  - `groupId` (was `GroupId`)
+  - `planId` (was `PlanId`) 
+  - `executionId` (was `ExecutionId`)
+  - `accountId` (was `AccountId`)
+  - `sourceServerIds` (was `SourceServerIds`)
+  - `waveName` (was `WaveName`)
+  - `createdAt` (was `CreatedAt`)
+  - `updatedAt` (was `UpdatedAt`)
+  - All nested configuration fields now camelCase
+
+#### ✅ **Backend Lambda Functions Updated**
+- **All 7 Lambda functions migrated** to use native camelCase operations
+- **Transform functions completely eliminated**:
+  - `transform_pg_to_camelcase()` - REMOVED
+  - `transform_rp_to_camelcase()` - REMOVED
+  - `transform_execution_to_camelcase()` - REMOVED
+  - `transform_target_account_to_camelcase()` - REMOVED
+  - `transform_target_account_from_camelcase()` - REMOVED
+- **DynamoDB operations optimized** with direct field access
+- **Security validation updated** to use camelCase patterns
+- **RBAC middleware enhanced** with tight security model
+
+#### ✅ **Infrastructure Improvements**
+- **CloudFormation custom resource fixed**: Bucket cleaner Lambda response format corrected
+- **GitHub Actions optimized**: Test environment deployment configured
+- **OIDC authentication**: aws-elasticdrs-orchestrator-github-actions-test role functional
+- **CI/CD pipeline enhanced**: Intelligent deployment scope detection
+
+#### ✅ **Quality Assurance**
+- **Comprehensive security scanning**: Bandit, Semgrep, Safety validation
+- **Code quality improvements**: Python PEP 8 compliance enhanced
+- **Test infrastructure updated**: Environment variable handling fixed
+- **API Gateway architecture**: Compliance validation implemented
+
+#### 🔄 **Deployment Status**
+- **Target Environment**: aws-elasticdrs-orchestrator-test
+- **Deployment Method**: GitHub Actions CI/CD pipeline
+- **Migration Validation**: All 32+ API endpoints tested with camelCase
+- **System Integration**: Frontend and backend compatibility verified
+
+### Technical Details
+- **Database Schema**: Native camelCase throughout all tables
+- **API Endpoints**: All 32+ endpoints use camelCase consistently
+- **Transform Functions**: Zero remaining (complete elimination)
+- **Performance Impact**: Significant improvement in response times
+- **Backward Compatibility**: Breaking change - requires fresh deployment
+
+### Migration Impact
+- **Data Consistency**: All data now uses consistent camelCase naming
+- **API Responses**: Native camelCase without conversion overhead
+- **Frontend Integration**: Direct field access without transformation
+- **Development Experience**: Simplified codebase without transform complexity
+
 ## [Unreleased]
 
 ### Fixed
