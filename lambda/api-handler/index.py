@@ -2013,8 +2013,8 @@ def query_drs_servers_by_tags(
 def create_protection_group(body: Dict) -> Dict:
     """Create a new Protection Group - supports both tag-based and explicit server selection"""
     try:
-        # FORCE DEPLOYMENT: camelCase migration complete - v1.3.1
-        print(f"DEBUG: create_protection_group v1.3.1 - camelCase validation active")
+        # FORCE DEPLOYMENT: camelCase migration complete - v1.3.1-hotfix
+        print(f"DEBUG: create_protection_group v1.3.1-hotfix - camelCase validation active")
         print(f"DEBUG: create_protection_group called with body keys: {list(body.keys())}")
         print(f"DEBUG: body content: {json.dumps(body, indent=2)}")
         
