@@ -43,24 +43,24 @@ export interface ProtectionGroup {
 
 export interface LaunchConfig {
   // EC2 Launch Template settings
-  SubnetId?: string;
-  SecurityGroupIds?: string[];
-  InstanceProfileName?: string;
-  InstanceType?: string;
+  subnetId?: string;
+  securityGroupIds?: string[];
+  instanceProfileName?: string;
+  instanceType?: string;
   
   // DRS Launch Configuration settings
-  TargetInstanceTypeRightSizingMethod?: 'NONE' | 'BASIC' | 'IN_AWS';
-  LaunchIntoInstanceProperties?: {
+  targetInstanceTypeRightSizingMethod?: 'NONE' | 'BASIC' | 'IN_AWS';
+  launchIntoInstanceProperties?: {
     launchIntoEC2InstanceID?: string;
   };
-  BootMode?: 'LEGACY_BIOS' | 'UEFI' | 'USE_SOURCE';
-  CopyPrivateIp?: boolean;
-  CopyTags?: boolean;
-  LaunchDisposition?: 'STOPPED' | 'STARTED';
-  Licensing?: {
+  bootMode?: 'LEGACY_BIOS' | 'UEFI' | 'USE_SOURCE';
+  copyPrivateIp?: boolean;
+  copyTags?: boolean;
+  launchDisposition?: 'STOPPED' | 'STARTED';
+  licensing?: {
     osByol?: boolean;
   };
-  PostLaunchEnabled?: boolean;
+  postLaunchEnabled?: boolean;
 }
 
 // EC2 Dropdown option types
@@ -139,22 +139,22 @@ export interface ResolvedServer {
 }
 
 export interface CreateProtectionGroupRequest {
-  GroupName: string;  // API expects PascalCase
-  Description?: string;
-  Region: string;
-  ServerSelectionTags?: Record<string, string>;  // Tag filters for server discovery
-  SourceServerIds?: string[];  // Explicit server IDs (legacy)
-  LaunchConfig?: LaunchConfig;  // EC2 launch settings
-  AccountId?: string;
-  Owner?: string;
+  groupName: string;  // API now expects camelCase
+  description?: string;
+  region: string;
+  serverSelectionTags?: Record<string, string>;  // Tag filters for server discovery
+  sourceServerIds?: string[];  // Explicit server IDs (legacy)
+  launchConfig?: LaunchConfig;  // EC2 launch settings
+  accountId?: string;
+  owner?: string;
 }
 
 export interface UpdateProtectionGroupRequest {
-  GroupName?: string;  // API expects PascalCase
-  Description?: string;
-  ServerSelectionTags?: Record<string, string>;  // Update tag filters
-  SourceServerIds?: string[];  // Explicit server IDs (legacy)
-  LaunchConfig?: LaunchConfig;  // EC2 launch settings
+  groupName?: string;  // API now expects camelCase
+  description?: string;
+  serverSelectionTags?: Record<string, string>;  // Update tag filters
+  sourceServerIds?: string[];  // Explicit server IDs (legacy)
+  launchConfig?: LaunchConfig;  // EC2 launch settings
   version?: number;  // Optimistic locking - must match current version
 }
 
@@ -204,8 +204,6 @@ export interface Wave {
   pauseBeforeWave?: boolean;  // If true, execution pauses before starting this wave (requires manual resume)
   protectionGroupIds: string[];  // Required - wave can have multiple Protection Groups
   protectionGroupId?: string;  // Backward compatibility - single PG (deprecated, use protectionGroupIds)
-  ProtectionGroupIds?: string[];  // Backend PascalCase version for compatibility
-  ProtectionGroupId?: string;  // Backend PascalCase version for compatibility (deprecated)
   preWaveActions?: WaveAction[];
   postWaveActions?: WaveAction[];
   healthCheckConfig?: HealthCheckConfig;

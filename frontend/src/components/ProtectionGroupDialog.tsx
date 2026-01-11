@@ -229,37 +229,37 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 
       // Build base group data
       const groupData: {
-        GroupName: string;
-        Description: string;
-        Region: string;
-        ServerSelectionTags?: Record<string, string>;
-        SourceServerIds?: string[];
-        LaunchConfig?: LaunchConfig;
+        groupName: string;
+        description: string;
+        region: string;
+        serverSelectionTags?: Record<string, string>;
+        sourceServerIds?: string[];
+        launchConfig?: LaunchConfig;
         version?: number;
       } = {
-        GroupName: name.trim(),
-        Description: description.trim(),  // Always send, even if empty, to allow clearing
-        Region: region,
+        groupName: name.trim(),
+        description: description.trim(),  // Always send, even if empty, to allow clearing
+        region: region,
       };
 
       // Add server selection based on mode
       if (selectionMode === 'tags') {
-        groupData.ServerSelectionTags = tagsArrayToObject(tags);
+        groupData.serverSelectionTags = tagsArrayToObject(tags);
       } else {
-        groupData.SourceServerIds = selectedServerIds;
+        groupData.sourceServerIds = selectedServerIds;
       }
 
       // Add launch config if any settings are configured
-      const hasLaunchConfig = launchConfig.SubnetId ||
-        (launchConfig.SecurityGroupIds && launchConfig.SecurityGroupIds.length > 0) ||
-        launchConfig.InstanceType ||
-        launchConfig.InstanceProfileName ||
-        launchConfig.CopyPrivateIp ||
-        launchConfig.CopyTags ||
-        launchConfig.Licensing?.osByol;
+      const hasLaunchConfig = launchConfig.subnetId ||
+        (launchConfig.securityGroupIds && launchConfig.securityGroupIds.length > 0) ||
+        launchConfig.instanceType ||
+        launchConfig.instanceProfileName ||
+        launchConfig.copyPrivateIp ||
+        launchConfig.copyTags ||
+        launchConfig.licensing?.osByol;
 
       if (hasLaunchConfig) {
-        groupData.LaunchConfig = launchConfig;
+        groupData.launchConfig = launchConfig;
       }
 
       if (isEditMode && group) {
