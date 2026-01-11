@@ -17,10 +17,12 @@ Parameters:
   GitHubOrg:
     Type: String
     Description: 'GitHub organization or username'
+    Default: 'johnjcousens'
 
   GitHubRepo:
     Type: String
     Description: 'GitHub repository name'
+    Default: 'aws-elasticdrs-orchestrator'
 
   DeploymentBucket:
     Type: String
