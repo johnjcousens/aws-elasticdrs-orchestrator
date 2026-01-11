@@ -236,13 +236,13 @@ def begin_wave_plan(event: Dict) -> Dict:
     
     validate_dynamodb_input("ExecutionId", execution_id)
 
-    plan_id = sanitize_string_input(plan.get("PlanId", ""))
+    plan_id = sanitize_string_input(plan.get("planId", ""))
     if not plan_id:
         raise ValueError("Missing required PlanId in plan")
     
     validate_dynamodb_input("PlanId", plan_id)
     
-    waves = plan.get("Waves", [])
+    waves = plan.get("waves", [])
 
     log_security_event("wave_plan_begin", {
         "execution_id": execution_id,
@@ -260,7 +260,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     state = {
         # Core identifiers
         "plan_id": plan_id,
-        "plan_name": sanitize_string_input(plan.get("PlanName", "")),
+        "plan_name": sanitize_string_input(plan.get("planName", "")),
         "execution_id": execution_id,
         "is_drill": is_drill,
         "AccountContext": account_context,  # Step Functions expects uppercase
@@ -303,7 +303,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     # Update DynamoDB execution status
     try:
         get_execution_history_table().update_item(
-            Key={"ExecutionId": execution_id, "PlanId": plan_id},
+            Key={"executionId": execution_id, "planId": plan_id},
             UpdateExpression="SET #status = :status",
             ExpressionAttributeNames={"#status": "Status"},
             ExpressionAttributeValues={":status": "RUNNING"},
@@ -379,7 +379,7 @@ def store_task_token(event: Dict) -> Dict:
     try:
         def update_task_token():
             return get_execution_history_table().update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status, TaskToken = :token, PausedBeforeWave = :wave",
                 ExpressionAttributeNames={"#status": "Status"},
                 ExpressionAttributeValues={
@@ -461,7 +461,7 @@ def resume_wave(event: Dict) -> Dict:
     try:
         def update_resume_status():
             return get_execution_history_table().update_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status REMOVE TaskToken, PausedBeforeWave",
                 ExpressionAttributeNames={"#status": "Status"},
                 ExpressionAttributeValues={":status": "RUNNING"},
@@ -668,7 +668,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
     
     validate_dynamodb_input("ExecutionId", execution_id)
 
-    wave_name = sanitize_string_input(wave.get("WaveName", f"Wave {wave_number + 1}"))
+    wave_name = sanitize_string_input(wave.get("waveName", f"Wave {wave_number + 1}"))
 
     log_security_event("start_wave_recovery", {
         "execution_id": execution_id,
@@ -678,7 +678,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
     })
 
     # Get Protection Group
-    protection_group_id = sanitize_string_input(wave.get("ProtectionGroupId", ""))
+    protection_group_id = sanitize_string_input(wave.get("protectionGroupId", ""))
     if not protection_group_id:
         log_security_event("start_wave_recovery_no_protection_group", {
             "wave_number": wave_number,
@@ -696,7 +696,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         # Safe DynamoDB operation to get protection group
         def get_protection_group():
             return get_protection_groups_table().get_item(
-                Key={"GroupId": protection_group_id}
+                Key={"groupId": protection_group_id}
             )
         
         pg_response = safe_aws_client_call(get_protection_group)
@@ -716,7 +716,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             return
 
         pg = pg_response["Item"]
-        region = sanitize_string_input(pg.get("Region", "us-east-1"))
+        region = sanitize_string_input(pg.get("region", "us-east-1"))
         
         # Validate region
         if not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$|^us-gov-[a-z]+-\d{1}$', region):
@@ -727,7 +727,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             raise ValueError(f"Invalid region format: {region}")
 
         # TAG-BASED RESOLUTION: Resolve servers at execution time using tags
-        selection_tags = pg.get("ServerSelectionTags", {})
+        selection_tags = pg.get("serverSelectionTags", {})
 
         if selection_tags:
             # Sanitize selection tags
@@ -748,7 +748,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             print(f"Resolved {len(server_ids)} servers from tags")
         else:
             # Fallback: Check if wave has explicit ServerIds (legacy support)
-            server_ids = wave.get("ServerIds", [])
+            server_ids = wave.get("serverIds", [])
             # Sanitize server IDs
             sanitized_server_ids = []
             for server_id in server_ids:
@@ -815,13 +815,13 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
 
         # Store wave result
         wave_result = {
-            "WaveNumber": wave_number,
-            "WaveName": wave_name,
-            "Status": "STARTED",
-            "JobId": job_id,
-            "StartTime": int(time.time()),
-            "ServerIds": server_ids,
-            "Region": region,
+            "waveNumber": wave_number,
+            "waveName": wave_name,
+            "status": "STARTED",
+            "jobId": job_id,
+            "startTime": int(time.time()),
+            "serverIds": server_ids,
+            "region": region,
         }
         state["wave_results"].append(wave_result)
 
@@ -829,7 +829,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         try:
             def update_execution_wave():
                 return get_execution_history_table().update_item(
-                    Key={"ExecutionId": execution_id, "PlanId": state["plan_id"]},
+                    Key={"executionId": execution_id, "planId": state["plan_id"]},
                     UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave), DrsJobId = :job_id, DrsRegion = :region, #status = :status",
                     ExpressionAttributeNames={"#status": "Status"},
                     ExpressionAttributeValues={
@@ -916,11 +916,11 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         try:
             def check_execution_status():
                 return get_execution_history_table().get_item(
-                    Key={"ExecutionId": execution_id, "PlanId": plan_id}
+                    Key={"executionId": execution_id, "planId": plan_id}
                 )
             
             exec_check = safe_aws_client_call(check_execution_status)
-            exec_status = exec_check.get("Item", {}).get("Status", "")
+            exec_status = exec_check.get("Item", {}).get("status", "")
             if exec_status == "CANCELLING":
                 log_security_event("update_wave_status_cancelled", {
                     "execution_id": execution_id,
@@ -933,7 +933,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 
                 def update_cancelled_status():
                     return get_execution_history_table().update_item(
-                        Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                        Key={"executionId": execution_id, "planId": plan_id},
                         UpdateExpression="SET #status = :status, EndTime = :end",
                         ExpressionAttributeNames={"#status": "Status"},
                         ExpressionAttributeValues={
@@ -1032,9 +1032,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             server_statuses.append(
                 {
-                    "SourceServerId": server_id,
-                    "LaunchStatus": launch_status,
-                    "RecoveryInstanceID": recovery_instance_id,
+                    "sourceServerId": server_id,
+                    "launchStatus": launch_status,
+                    "recoveryInstanceId": recovery_instance_id,
                 }
             )
 
@@ -1096,9 +1096,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             server_statuses.append(
                 {
-                    "SourceServerId": server_id,
-                    "LaunchStatus": launch_status,
-                    "RecoveryInstanceID": recovery_instance_id,
+                    "sourceServerId": server_id,
+                    "launchStatus": launch_status,
+                    "recoveryInstanceId": recovery_instance_id,
                 }
             )
 
@@ -1160,7 +1160,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             # Get EC2 instance IDs
             try:
                 source_server_ids = [
-                    s.get("SourceServerId") for s in server_statuses
+                    s.get("sourceServerId") for s in server_statuses
                 ]
                 ri_response = drs_client.describe_recovery_instances(
                     filters={"sourceServerIDs": source_server_ids}
@@ -1168,9 +1168,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 for ri in ri_response.get("items", []):
                     source_id = ri.get("sourceServerID")
                     for ss in server_statuses:
-                        if ss.get("SourceServerId") == source_id:
+                        if ss.get("sourceServerId") == source_id:
                             ss["EC2InstanceId"] = ri.get("ec2InstanceID")
-                            ss["RecoveryInstanceID"] = ri.get(
+                            ss["recoveryInstanceId"] = ri.get(
                                 "recoveryInstanceID"
                             )
                             break
@@ -1217,10 +1217,10 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             # Update wave result
             for wr in state.get("wave_results", []):
-                if wr.get("WaveNumber") == wave_number:
-                    wr["Status"] = "COMPLETED"
-                    wr["EndTime"] = int(time.time())
-                    wr["ServerStatuses"] = server_statuses
+                if wr.get("waveNumber") == wave_number:
+                    wr["status"] = "COMPLETED"
+                    wr["endTime"] = int(time.time())
+                    wr["serverStatuses"] = server_statuses
                     break
 
             update_wave_in_dynamodb(
@@ -1234,9 +1234,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             # Check if cancelled or paused
             try:
                 exec_check = get_execution_history_table().get_item(
-                    Key={"ExecutionId": execution_id, "PlanId": plan_id}
+                    Key={"executionId": execution_id, "planId": plan_id}
                 )
-                exec_status = exec_check.get("Item", {}).get("Status", "")
+                exec_status = exec_check.get("Item", {}).get("status", "")
 
                 if exec_status == "CANCELLING":
                     print("⚠️ Execution cancelled")
@@ -1250,7 +1250,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                             end_time - state["start_time"]
                         )
                     get_execution_history_table().update_item(
-                        Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                        Key={"executionId": execution_id, "planId": plan_id},
                         UpdateExpression="SET #status = :status, EndTime = :end",
                         ExpressionAttributeNames={"#status": "Status"},
                         ExpressionAttributeValues={
@@ -1276,7 +1276,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["status"] = "paused"
                     state["paused_before_wave"] = next_wave
                     get_execution_history_table().update_item(
-                        Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                        Key={"executionId": execution_id, "planId": plan_id},
                         UpdateExpression="SET #status = :status, PausedBeforeWave = :wave",
                         ExpressionAttributeNames={"#status": "Status"},
                         ExpressionAttributeValues={
@@ -1300,7 +1300,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 if state.get("start_time"):
                     state["duration_seconds"] = end_time - state["start_time"]
                 get_execution_history_table().update_item(
-                    Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                    Key={"executionId": execution_id, "planId": plan_id},
                     UpdateExpression="SET #status = :status, EndTime = :end",
                     ExpressionAttributeNames={"#status": "Status"},
                     ExpressionAttributeValues={
@@ -1398,24 +1398,24 @@ def update_wave_in_dynamodb(
         # Safe DynamoDB operations
         def get_execution():
             return get_execution_history_table().get_item(
-                Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                Key={"executionId": execution_id, "planId": plan_id},
                 ConditionExpression="attribute_exists(ExecutionId)",
             )
         
         exec_response = safe_aws_client_call(get_execution)
 
         if "Item" in exec_response:
-            waves = exec_response["Item"].get("Waves", [])
+            waves = exec_response["Item"].get("waves", [])
             for i, w in enumerate(waves):
-                if w.get("WaveNumber") == wave_number:
-                    waves[i]["Status"] = status
-                    waves[i]["EndTime"] = int(time.time())
-                    waves[i]["ServerStatuses"] = sanitized_server_statuses
+                if w.get("waveNumber") == wave_number:
+                    waves[i]["status"] = status
+                    waves[i]["endTime"] = int(time.time())
+                    waves[i]["serverStatuses"] = sanitized_server_statuses
                     break
 
             def update_waves():
                 return get_execution_history_table().update_item(
-                    Key={"ExecutionId": execution_id, "PlanId": plan_id},
+                    Key={"executionId": execution_id, "planId": plan_id},
                     UpdateExpression="SET Waves = :waves",
                     ExpressionAttributeValues={":waves": waves},
                     ConditionExpression="attribute_exists(ExecutionId)",
