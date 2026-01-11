@@ -162,7 +162,7 @@ Conditions:
 
 Resources:
   # Database Stack - DynamoDB Tables (CamelCase Migration)
-  DatabaseStackV2:
+  DatabaseStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -186,17 +186,17 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
-    DependsOn: DatabaseStackV2
+    DependsOn: DatabaseStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/lambda-stack.yaml'
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         SourceBucket: !Ref SourceBucket
-        ProtectionGroupsTableName: !GetAtt DatabaseStackV2.Outputs.ProtectionGroupsTableName
-        RecoveryPlansTableName: !GetAtt DatabaseStackV2.Outputs.RecoveryPlansTableName
-        ExecutionHistoryTableName: !GetAtt DatabaseStackV2.Outputs.ExecutionHistoryTableName
-        TargetAccountsTableName: !GetAtt DatabaseStackV2.Outputs.TargetAccountsTableName
+        ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
+        RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
+        ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
+        TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
         NotificationTopicArn: ""
         CrossAccountRoleName: !Ref CrossAccountRoleName
         AdminEmail: !Ref AdminEmail
@@ -214,7 +214,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
-      - DatabaseStackV2
+      - DatabaseStack
       - LambdaStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/step-functions-stack.yaml'
