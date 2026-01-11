@@ -702,11 +702,11 @@ def validate_dynamodb_input(field_name: str, value: str) -> bool:
         "executionId": 128,
         "planId": 128,
         "groupId": 128,
-        "WaveId": 128,
-        "ServerId": 64,
-        "JobId": 128,
-        "Status": 32,
-        "Region": 32,
+        "waveId": 128,
+        "serverId": 64,
+        "jobId": 128,
+        "status": 32,
+        "region": 32,
     }
 
     max_length = max_lengths.get(field_name, 255)
@@ -723,16 +723,16 @@ def validate_dynamodb_input(field_name: str, value: str) -> bool:
         ):
             raise InputValidationError(f"Invalid {field_name} format: {value}")
 
-    elif field_name == "Region":
+    elif field_name == "region":
         if not validate_aws_region(value):
             raise InputValidationError(f"Invalid AWS region: {value}")
 
-    elif field_name == "ServerId":
+    elif field_name == "serverId":
         # DRS server IDs have specific format
         if value.startswith("s-") and not validate_drs_server_id(value):
             raise InputValidationError(f"Invalid DRS server ID: {value}")
 
-    elif field_name == "Status":
+    elif field_name == "status":
         # Validate status values
         valid_statuses = {
             "PENDING",
