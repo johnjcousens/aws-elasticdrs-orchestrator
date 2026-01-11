@@ -16,13 +16,11 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
-# Import RBAC middleware - DISABLED FOR PERFORMANCE
-# from shared.rbac_middleware import (
-#     check_authorization,
-#     get_user_from_event,
-#     get_user_permissions,
-#     get_user_roles,
-# )
+# Import RBAC middleware - LIGHTWEIGHT VERSION
+from shared.rbac_middleware import (
+    get_user_from_event,
+    get_user_roles,
+)
 
 # Import security utilities - MINIMAL USAGE ONLY
 from shared.security_utils import (
@@ -1607,17 +1605,33 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
 
         # Skip authentication check for health endpoint
         if path != "/health":
-            # SIMPLIFIED AUTH: Only basic Cognito authentication, no RBAC processing
+            # LIGHTWEIGHT AUTH + RBAC: Fast security with access control
             auth_context = event.get("requestContext", {}).get("authorizer", {})
             claims = auth_context.get("claims", {})
             
-            # Quick auth check - just verify user is authenticated via Cognito
+            # Quick auth check - verify user is authenticated via Cognito
             if not claims or not claims.get("email"):
                 print("Authentication validation failed - missing Cognito claims")
                 return response(401, {"error": "Unauthorized", "message": "Authentication required"})
             
-            print(f"✅ Basic Cognito auth passed for user: {claims.get('email')}")
-            # Skip all RBAC and security processing for performance
+            # LIGHTWEIGHT RBAC: Fast role-based access control
+            user = get_user_from_event(event)
+            user_roles = get_user_roles(user)
+            
+            # Quick role check for critical operations only
+            if http_method in ["POST", "PUT", "DELETE"]:
+                # Write operations require admin or manager roles
+                admin_roles = ["DRSOrchestrationAdmin", "DRSRecoveryManager", "DRSPlanManager"]
+                if not any(role.value in admin_roles for role in user_roles):
+                    print(f"Access denied for {http_method} {path} - user roles: {[r.value for r in user_roles]}")
+                    return response(403, {
+                        "error": "Forbidden", 
+                        "message": "Insufficient permissions for this operation",
+                        "userRoles": [r.value for r in user_roles]
+                    })
+            
+            print(f"✅ Auth + RBAC passed for user: {claims.get('email')} with roles: {[r.value for r in user_roles]}")
+            # All read operations (GET) are allowed for authenticated users
 
         print("Authentication and authorization passed, proceeding to routing")
 
