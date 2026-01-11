@@ -212,13 +212,21 @@ if [ -f "$TYPES_FILE" ]; then
         pascal="${pascal_patterns[$i]}"
         camel="${camel_patterns[$i]}"
         
-        # Check if camelCase version exists in types
-        camel_exists=$(grep -c "${camel}[?:]" "$TYPES_FILE" 2>/dev/null || echo "0")
-        pascal_exists=$(grep -c "${pascal}[?:]" "$TYPES_FILE" 2>/dev/null || echo "0")
+        # Check if standalone PascalCase version exists (not as part of compound names)
+        camel_exists=$(grep -c "\\b${camel}[?:]" "$TYPES_FILE" 2>/dev/null || echo "0")
+        pascal_exists=$(grep -c "\\b${pascal}[?:]" "$TYPES_FILE" 2>/dev/null || echo "0")
         
-        if [ "$pascal_exists" -gt 0 ] && [ "$camel_exists" -eq 0 ]; then
+        # Convert to integers to handle potential "00" output
+        camel_count=$(echo "$camel_exists" | sed 's/^0*//' | grep -E '^[0-9]+$' || echo "0")
+        pascal_count=$(echo "$pascal_exists" | sed 's/^0*//' | grep -E '^[0-9]+$' || echo "0")
+        
+        # Default to 0 if empty
+        camel_count=${camel_count:-0}
+        pascal_count=${pascal_count:-0}
+        
+        if [ "$pascal_count" -gt 0 ] && [ "$camel_count" -eq 0 ]; then
             report_error "PascalCase field '${pascal}' found but camelCase '${camel}' missing in types"
-        elif [ "$pascal_exists" -gt 0 ] && [ "$camel_exists" -gt 0 ]; then
+        elif [ "$pascal_count" -gt 0 ] && [ "$camel_count" -gt 0 ]; then
             report_warning "Both PascalCase '${pascal}' and camelCase '${camel}' found - remove PascalCase"
         fi
     done
