@@ -356,12 +356,15 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
 def response(
     status_code: int, body: Any, headers: Optional[Dict] = None
 ) -> Dict:
-    """Generate API Gateway response with CORS headers"""
+    """Generate API Gateway response with CORS and security headers"""
     default_headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,Authorization",
         "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        # Security headers
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
     }
     if headers:
         default_headers.update(headers)
