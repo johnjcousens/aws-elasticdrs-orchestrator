@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Backend validation consistency**: Updated security validation to use camelCase field names
+  - Fixed PascalCase field names in `security_utils.py` validation
+  - Changed "Region" → "region", "Status" → "status", "ServerId" → "serverId"
+  - Resolves 400 Bad Request error when creating protection groups
+  - Completes camelCase migration by eliminating last PascalCase field validations
+
 ## [1.4.0] - January 10, 2026 - **CAMELCASE DATABASE MIGRATION COMPLETE** 🚀
 
 ### 🚀 **MAJOR PERFORMANCE IMPROVEMENT: CamelCase Database Migration Complete**
