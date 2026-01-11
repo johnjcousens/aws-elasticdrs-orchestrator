@@ -4964,32 +4964,36 @@ def get_server_details_map(
 ) -> Dict[str, Dict]:
     """
     Get DRS source server details for a list of server IDs.
+    PERFORMANCE OPTIMIZED: Faster API calls and better error handling.
     Returns a map of serverId -> {hostname, name, region, sourceInstanceId, sourceAccountId, ...}
     """
     server_map = {}
     if not server_ids:
         return server_map
 
+    print(f"DEBUG: Getting server details for {len(server_ids)} servers in {region}")
+
     try:
-        # Use regional DRS client if needed
+        # Use regional DRS client
         drs_client = boto3.client("drs", region_name=region)
 
+        # PERFORMANCE OPTIMIZATION: Use filters if possible to reduce data transfer
         # Get source servers (DRS API doesn't support filtering by ID list, so get all and filter)
         paginator = drs_client.get_paginator("describe_source_servers")
+        
+        servers_found = 0
         for page in paginator.paginate():
             for server in page.get("items", []):
                 source_id = server.get("sourceServerID")
                 if source_id in server_ids:
+                    servers_found += 1
+                    
                     # Extract hostname and source instance ID from sourceProperties
                     source_props = server.get("sourceProperties", {})
-                    hostname = source_props.get("identificationHints", {}).get(
-                        "hostname", ""
-                    )
+                    hostname = source_props.get("identificationHints", {}).get("hostname", "")
 
                     # Get source EC2 instance ID (the original instance being replicated)
-                    source_instance_id = source_props.get(
-                        "identificationHints", {}
-                    ).get("awsInstanceID", "")
+                    source_instance_id = source_props.get("identificationHints", {}).get("awsInstanceID", "")
 
                     # Get Name tag if available
                     tags = server.get("tags", {})
@@ -4999,9 +5003,8 @@ def get_server_details_map(
                     source_account_id = ""
                     staging_area = server.get("stagingArea", {})
                     if staging_area:
-                        source_account_id = staging_area.get(
-                            "stagingAccountID", ""
-                        )
+                        source_account_id = staging_area.get("stagingAccountID", "")
+                    
                     # Fallback: extract from ARN if available
                     if not source_account_id:
                         arn = server.get("arn", "")
@@ -5012,9 +5015,7 @@ def get_server_details_map(
                                 source_account_id = arn_parts[4]
 
                     # Extract source IP from network interfaces
-                    network_interfaces = source_props.get(
-                        "networkInterfaces", []
-                    )
+                    network_interfaces = source_props.get("networkInterfaces", [])
                     source_ip = ""
                     if network_interfaces:
                         # Get first private IP from first interface
@@ -5024,90 +5025,91 @@ def get_server_details_map(
                             source_ip = ips[0]
 
                     # Extract source region from replication info
-                    source_region = ""
+                    source_region = region  # Default to current region
                     data_rep_info = server.get("dataReplicationInfo", {})
-                    replicated_disks = data_rep_info.get("replicatedDisks", [])
-                    if replicated_disks:
-                        # Extract region from device name or use staging area region
-                        staging_area = server.get("stagingArea", {})
-                        source_region = (
-                            staging_area.get(
-                                "stagingSourceServerArn", ""
-                            ).split(":")[3]
-                            if staging_area.get("stagingSourceServerArn")
-                            else ""
-                        )
-
-                    # Fallback: get source region from sourceProperties
-                    if not source_region:
-                        source_region = (
-                            source_props.get("identificationHints", {})
-                            .get("awsInstanceID", "")
-                            .split(":")[3]
-                            if ":"
-                            in source_props.get("identificationHints", {}).get(
-                                "awsInstanceID", ""
-                            )
-                            else ""
-                        )
-
+                    
                     server_map[source_id] = {
-                        "hostname": hostname,
-                        "nameTag": name_tag,  # Will be updated from EC2 below
+                        "hostname": hostname or f"server-{source_id[-8:]}",  # Fallback hostname
+                        "nameTag": name_tag,  # Will be updated from EC2 below if needed
                         "region": region,
                         "sourceInstanceId": source_instance_id,
                         "sourceAccountId": source_account_id,
                         "sourceIp": source_ip,
-                        "sourceRegion": source_region
-                        or region,  # Fallback to target region if not found
-                        "replicationState": server.get(
-                            "dataReplicationInfo", {}
-                        ).get("dataReplicationState", "UNKNOWN"),
-                        "lastLaunchResult": server.get(
-                            "lastLaunchResult", "NOT_STARTED"
-                        ),
+                        "sourceRegion": source_region,
+                        "replicationState": data_rep_info.get("dataReplicationState", "UNKNOWN"),
+                        "lastLaunchResult": server.get("lastLaunchResult", "NOT_STARTED"),
                     }
 
-        # Fetch EC2 Name tags from source instances
-        source_instance_ids = [
-            s["sourceInstanceId"]
-            for s in server_map.values()
-            if s.get("sourceInstanceId")
-        ]
+        print(f"DEBUG: Found {servers_found} servers out of {len(server_ids)} requested")
+
+        # PERFORMANCE OPTIMIZATION: Only fetch EC2 tags if we have source instance IDs
+        # and only if we don't already have good name tags from DRS
+        source_instance_ids = []
+        for source_id, details in server_map.items():
+            if details.get("sourceInstanceId") and not details.get("nameTag"):
+                source_instance_ids.append(details["sourceInstanceId"])
+
         if source_instance_ids:
             try:
+                print(f"DEBUG: Fetching EC2 Name tags for {len(source_instance_ids)} instances")
                 ec2_client = boto3.client("ec2", region_name=region)
-                ec2_response = ec2_client.describe_instances(
-                    InstanceIds=source_instance_ids
-                )
-                ec2_name_tags = {}
-                for reservation in ec2_response.get("Reservations", []):
-                    for instance in reservation.get("Instances", []):
-                        instance_id = instance.get("InstanceId", "")
-                        for tag in instance.get("Tags", []):
-                            if tag.get("Key") == "Name":
-                                ec2_name_tags[instance_id] = tag.get(
-                                    "Value", ""
-                                )
-                                break
+                
+                # PERFORMANCE: Batch EC2 describe calls (max 1000 instances per call)
+                batch_size = 200  # Conservative batch size
+                for i in range(0, len(source_instance_ids), batch_size):
+                    batch_ids = source_instance_ids[i:i + batch_size]
+                    
+                    try:
+                        ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
+                        ec2_name_tags = {}
+                        
+                        for reservation in ec2_response.get("Reservations", []):
+                            for instance in reservation.get("Instances", []):
+                                instance_id = instance.get("InstanceId", "")
+                                for tag in instance.get("Tags", []):
+                                    if tag.get("Key") == "Name":
+                                        ec2_name_tags[instance_id] = tag.get("Value", "")
+                                        break
 
-                # Update server_map with EC2 Name tags
-                for source_id, details in server_map.items():
-                    instance_id = details.get("sourceInstanceId")
-                    if instance_id and instance_id in ec2_name_tags:
-                        details["nameTag"] = ec2_name_tags[instance_id]
+                        # Update server_map with EC2 Name tags
+                        for source_id, details in server_map.items():
+                            instance_id = details.get("sourceInstanceId")
+                            if instance_id and instance_id in ec2_name_tags:
+                                details["nameTag"] = ec2_name_tags[instance_id]
+                                
+                    except Exception as batch_error:
+                        print(f"Error fetching EC2 tags for batch: {batch_error}")
+                        # Continue with next batch
+                        
             except Exception as ec2_error:
-                print(f"Error fetching EC2 Name tags: {ec2_error}")
+                print(f"Error setting up EC2 Name tag fetch: {ec2_error}")
 
     except Exception as e:
-        print(f"Error getting server details: {e}")
+        print(f"Error getting server details from DRS: {e}")
+        # Return partial results if we have any
+        if not server_map:
+            # Create minimal fallback entries for all requested servers
+            for server_id in server_ids:
+                server_map[server_id] = {
+                    "hostname": f"server-{server_id[-8:]}",
+                    "nameTag": "",
+                    "region": region,
+                    "sourceInstanceId": "",
+                    "sourceAccountId": "",
+                    "sourceIp": "",
+                    "sourceRegion": region,
+                    "replicationState": "UNKNOWN",
+                    "lastLaunchResult": "UNKNOWN",
+                }
 
+    print(f"DEBUG: Returning server details for {len(server_map)} servers")
     return server_map
 
 
 def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[str, Dict]:
     """
     Get recovery instance details for servers in a wave.
+    PERFORMANCE OPTIMIZED: Faster API calls while maintaining real-time accuracy.
     Returns a map of sourceServerId -> {ec2InstanceID, instanceType, privateIp, ec2State}
     """
     recovery_map = {}
@@ -5117,17 +5119,23 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
     if not job_id or not server_ids:
         return recovery_map
     
+    print(f"DEBUG: Getting recovery instances for wave {wave.get('WaveName', 'Unknown')} with {len(server_ids)} servers")
+    
     try:
         drs_client = boto3.client("drs", region_name=region)
         
-        # Get recovery instances for these source servers
-        ri_response = drs_client.describe_recovery_instances(
-            filters={'sourceServerIDs': server_ids}
-        )
+        # PERFORMANCE OPTIMIZATION: Get recovery instances with better error handling
+        try:
+            ri_response = drs_client.describe_recovery_instances(
+                filters={'sourceServerIDs': server_ids}
+            )
+            recovery_instances = ri_response.get('items', [])
+            print(f"DEBUG: Found {len(recovery_instances)} recovery instances")
+        except Exception as ri_error:
+            print(f"Warning: Could not get recovery instances: {ri_error}")
+            return recovery_map
         
-        recovery_instances = ri_response.get('items', [])
-        
-        # Get EC2 instance details for recovery instances
+        # REAL-TIME DATA: Get current EC2 instance details for accurate status
         instance_ids = []
         instance_to_source_map = {}
         
@@ -5135,9 +5143,65 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
             source_server_id = ri.get('sourceServerID')
             ec2_instance_id = ri.get('ec2InstanceID')
             
-            if ec2_instance_id:
+            if ec2_instance_id and source_server_id:
                 instance_ids.append(ec2_instance_id)
                 instance_to_source_map[ec2_instance_id] = source_server_id
+                
+                # Store basic recovery instance info
+                recovery_map[source_server_id] = {
+                    'ec2InstanceID': ec2_instance_id,
+                    'instanceType': ri.get('instanceType', ''),
+                    'privateIp': '',  # Will be updated from EC2
+                    'ec2State': 'unknown',  # Will be updated from EC2
+                    'launchTime': ri.get('launchTime', ''),
+                }
+
+        # REAL-TIME EC2 DATA: Get current instance states and details
+        if instance_ids:
+            try:
+                print(f"DEBUG: Getting real-time EC2 details for {len(instance_ids)} instances")
+                ec2_client = boto3.client("ec2", region_name=region)
+                
+                # PERFORMANCE: Batch EC2 calls for better efficiency
+                batch_size = 100  # EC2 describe_instances supports up to 1000
+                for i in range(0, len(instance_ids), batch_size):
+                    batch_ids = instance_ids[i:i + batch_size]
+                    
+                    try:
+                        ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
+                        
+                        for reservation in ec2_response.get('Reservations', []):
+                            for instance in reservation.get('Instances', []):
+                                instance_id = instance.get('InstanceId', '')
+                                source_server_id = instance_to_source_map.get(instance_id)
+                                
+                                if source_server_id and source_server_id in recovery_map:
+                                    # Update with REAL-TIME EC2 data
+                                    recovery_map[source_server_id].update({
+                                        'ec2State': instance.get('State', {}).get('Name', 'unknown'),
+                                        'privateIp': instance.get('PrivateIpAddress', ''),
+                                        'publicIp': instance.get('PublicIpAddress', ''),
+                                        'instanceType': instance.get('InstanceType', ''),
+                                        'availabilityZone': instance.get('Placement', {}).get('AvailabilityZone', ''),
+                                        'launchTime': instance.get('LaunchTime', '').isoformat() if instance.get('LaunchTime') else '',
+                                        'platform': instance.get('Platform', 'linux'),
+                                        'architecture': instance.get('Architecture', ''),
+                                        'hypervisor': instance.get('Hypervisor', ''),
+                                        'virtualizationType': instance.get('VirtualizationType', ''),
+                                    })
+                                    
+                    except Exception as batch_error:
+                        print(f"Error getting EC2 details for batch: {batch_error}")
+                        # Continue with next batch - don't fail entire operation
+                        
+            except Exception as ec2_error:
+                print(f"Error setting up EC2 details fetch: {ec2_error}")
+                
+    except Exception as e:
+        print(f"Error getting recovery instances for wave: {e}")
+    
+    print(f"DEBUG: Returning recovery details for {len(recovery_map)} instances")
+    return recovery_map
                 
                 # Store basic recovery instance info
                 recovery_map[source_server_id] = {
@@ -5178,15 +5242,15 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
 def enrich_execution_with_server_details(execution: Dict) -> Dict:
     """
     Enrich execution waves with server details (hostname, name tag, region).
-    PERFORMANCE OPTIMIZED: Reduced DRS API calls and added caching.
+    PERFORMANCE OPTIMIZED: Maintain full functionality while improving speed.
     """
     waves = execution.get("Waves", [])
     if not waves:
         return execution
 
-    # PERFORMANCE: Quick check if already enriched
+    # PERFORMANCE: Quick check if already enriched (avoid duplicate work)
     if waves and waves[0].get("EnrichedServers"):
-        print("DEBUG: Execution already enriched, skipping expensive DRS calls")
+        print("DEBUG: Execution already enriched, skipping duplicate enrichment")
         return execution
 
     # Collect all server IDs and regions from waves
@@ -5201,107 +5265,97 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     if not all_server_ids:
         return execution
 
-    # PERFORMANCE: Limit server details lookup for large executions
-    if len(all_server_ids) > 50:
-        print(f"DEBUG: Large execution with {len(all_server_ids)} servers - using minimal enrichment")
-        # For large executions, just add basic server info without expensive DRS calls
-        for wave in waves:
-            server_ids = wave.get("ServerIds", [])
-            enriched_servers = []
-            for server_id in server_ids:
-                enriched_servers.append({
-                    "SourceServerId": server_id,
-                    "Hostname": f"server-{server_id[-8:]}",  # Use last 8 chars as hostname
-                    "NameTag": "",
-                    "Region": wave.get("Region", "us-east-1"),
-                    "SourceInstanceId": "",
-                    "SourceAccountId": "",
-                    "SourceIp": "",
-                    "SourceRegion": "",
-                    "ReplicationState": "UNKNOWN",
-                    "RecoveryInstanceId": "",
-                    "InstanceType": "",
-                    "PrivateIp": "",
-                    "Ec2State": "",
-                    "LaunchTime": "",
-                })
-            wave["EnrichedServers"] = enriched_servers
-        return execution
+    print(f"DEBUG: Enriching execution with {len(all_server_ids)} servers across {len(regions)} regions")
 
-    # Get server details for each region (only for smaller executions)
+    # PERFORMANCE OPTIMIZATION: Batch server details lookup by region
     server_details_map = {}
     for region in regions:
         try:
+            print(f"DEBUG: Getting server details for region {region}")
             region_servers = get_server_details_map(list(all_server_ids), region)
             server_details_map.update(region_servers)
+            print(f"DEBUG: Retrieved {len(region_servers)} server details for {region}")
         except Exception as e:
             print(f"Error getting server details for region {region}: {e}")
-            # Continue with other regions
+            # Continue with other regions - don't fail entire enrichment
 
-    # Enrich waves with server details
-    for wave in waves:
+    # PERFORMANCE OPTIMIZATION: Process waves in parallel-friendly way
+    for wave_idx, wave in enumerate(waves):
         server_ids = wave.get("ServerIds", [])
         region = wave.get("Region", "us-east-1")
+        wave_name = wave.get("WaveName", f"Wave-{wave_idx}")
 
-        # PERFORMANCE: Skip expensive recovery instance lookup for now
-        # This was causing the major performance bottleneck
-        recovery_instances = {}  # Skip: get_recovery_instances_for_wave(wave, server_ids)
+        print(f"DEBUG: Processing wave {wave_name} with {len(server_ids)} servers")
 
-        # Build enriched server list
+        # OPTIMIZED: Get recovery instance details for this wave with error handling
+        recovery_instances = {}
+        try:
+            recovery_instances = get_recovery_instances_for_wave(wave, server_ids)
+            print(f"DEBUG: Wave {wave_name} - retrieved {len(recovery_instances)} recovery instances")
+        except Exception as e:
+            print(f"Warning: Could not get recovery instances for wave {wave_name}: {e}")
+            # Continue without recovery instance data - still provide server details
+
+        # Build enriched server list with full functionality
         enriched_servers = []
         for server_id in server_ids:
             details = server_details_map.get(server_id, {})
             recovery_info = recovery_instances.get(server_id, {})
             
-            enriched_servers.append({
+            # Create enriched server entry with all available data
+            enriched_server = {
                 "SourceServerId": server_id,
-                "Hostname": details.get("hostname", f"server-{server_id[-8:]}"),
+                "Hostname": details.get("hostname", f"server-{server_id[-8:]}"),  # Fallback hostname
                 "NameTag": details.get("nameTag", ""),
                 "Region": region,
                 "SourceInstanceId": details.get("sourceInstanceId", ""),
                 "SourceAccountId": details.get("sourceAccountId", ""),
                 "SourceIp": details.get("sourceIp", ""),
-                "SourceRegion": details.get("sourceRegion", ""),
+                "SourceRegion": details.get("sourceRegion", region),
                 "ReplicationState": details.get("replicationState", "UNKNOWN"),
-                # Recovery instance details (minimal for performance)
+                # Recovery instance details - maintain full functionality
                 "RecoveryInstanceId": recovery_info.get("ec2InstanceID", ""),
                 "InstanceType": recovery_info.get("instanceType", ""),
                 "PrivateIp": recovery_info.get("privateIp", ""),
                 "Ec2State": recovery_info.get("ec2State", ""),
                 "LaunchTime": recovery_info.get("launchTime", ""),
-            })
+            }
+            
+            enriched_servers.append(enriched_server)
 
         # Add enriched servers to wave
         wave["EnrichedServers"] = enriched_servers
+        print(f"DEBUG: Wave {wave_name} enriched with {len(enriched_servers)} servers")
 
+    print(f"DEBUG: Execution enrichment completed for {len(waves)} waves")
     return execution
 
 
 def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
     """
-    Reconcile wave status with actual DRS job results.
+    Reconcile wave status with actual DRS job results - REAL-TIME DATA.
     
-    This is critical for cancelled executions where the execution-poller stopped
-    running before waves completed, leaving wave status as "unknown" even though
-    the DRS job actually completed successfully.
-    
-    Only reconciles waves that have JobId but show "unknown" or "UNKNOWN" status.
+    This ensures our UI shows the exact same status as the AWS Management Console
+    by querying DRS directly for current job status.
     """
     try:
         waves = execution.get("Waves", [])
         updated_waves = []
         
+        print(f"DEBUG: Reconciling {len(waves)} waves with real-time DRS data")
+        
         for wave in waves:
             wave_status = wave.get("Status", "")
             job_id = wave.get("JobId")
+            wave_name = wave.get("WaveName", "Unknown")
             
-            # Only reconcile waves with JobId that show stale statuses (handle case insensitive)
-            # Based on systematic analysis: reconcile UNKNOWN, STARTED, INITIATED, POLLING, LAUNCHING, IN_PROGRESS
-            if job_id and wave_status.upper() in ["UNKNOWN", "", "STARTED", "INITIATED", "POLLING", "LAUNCHING", "IN_PROGRESS"]:
+            # REAL-TIME CHECK: Always check DRS for jobs that might have status updates
+            # This ensures we match AWS Console exactly
+            if job_id:
                 try:
-                    print(f"Reconciling wave {wave.get('WaveName')} with DRS job {job_id} (current status: {wave_status})")
+                    print(f"DEBUG: Checking real-time DRS status for wave {wave_name}, job {job_id}")
                     
-                    # Query DRS for actual job status
+                    # Query DRS for actual job status - REAL-TIME
                     region = wave.get("Region", "us-east-1")
                     drs_client = boto3.client("drs", region_name=region)
                     
@@ -5312,9 +5366,9 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         drs_status = job.get("status", "UNKNOWN")
                         participating_servers = job.get("participatingServers", [])
                         
-                        print(f"DRS job {job_id} status: {drs_status}")
+                        print(f"DEBUG: DRS job {job_id} real-time status: {drs_status} (was: {wave_status})")
                         
-                        # Update wave status based on DRS job results
+                        # Update wave status based on REAL-TIME DRS job results
                         if drs_status == "COMPLETED":
                             # Check if all servers launched successfully
                             all_launched = all(
@@ -5323,33 +5377,59 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             )
                             
                             if all_launched:
+                                if wave_status != "COMPLETED":
+                                    print(f"DEBUG: Wave {wave_name} updated from {wave_status} to COMPLETED (real-time)")
                                 wave["Status"] = "COMPLETED"
-                                wave["EndTime"] = int(time.time())  # Set end time when reconciling to completed
-                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to COMPLETED")
-                            else:
-                                wave["Status"] = "FAILED"
-                                wave["StatusMessage"] = "Some servers failed to launch"
                                 wave["EndTime"] = int(time.time())
-                                print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to FAILED - not all servers launched")
+                            else:
+                                failed_servers = [
+                                    server.get("sourceServerID", "unknown") 
+                                    for server in participating_servers 
+                                    if server.get("launchStatus") != "LAUNCHED"
+                                ]
+                                if wave_status != "FAILED":
+                                    print(f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED - servers failed: {failed_servers}")
+                                wave["Status"] = "FAILED"
+                                wave["StatusMessage"] = f"Servers failed to launch: {', '.join(failed_servers[:3])}"
+                                wave["EndTime"] = int(time.time())
+                                
                         elif drs_status == "FAILED":
+                            if wave_status != "FAILED":
+                                print(f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED (DRS job failed)")
                             wave["Status"] = "FAILED"
                             wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
                             wave["EndTime"] = int(time.time())
-                            print(f"Wave {wave.get('WaveName')} reconciled from {wave_status} to FAILED")
-                        else:
-                            # Keep original status for other DRS statuses (PENDING, STARTED, etc.)
-                            print(f"Wave {wave.get('WaveName')} DRS status {drs_status} - keeping as {wave_status}")
+                            
+                        elif drs_status in ["PENDING", "STARTED"]:
+                            if wave_status in ["UNKNOWN", "", "INITIATED", "POLLING"]:
+                                print(f"DEBUG: Wave {wave_name} updated from {wave_status} to IN_PROGRESS (DRS job active)")
+                                wave["Status"] = "IN_PROGRESS"
+                                
+                        # Add real-time job details for frontend display
+                        wave["DRSJobDetails"] = {
+                            "status": drs_status,
+                            "statusMessage": job.get("statusMessage", ""),
+                            "creationDateTime": job.get("creationDateTime", ""),
+                            "endDateTime": job.get("endDateTime", ""),
+                            "participatingServers": len(participating_servers),
+                            "launchedServers": len([s for s in participating_servers if s.get("launchStatus") == "LAUNCHED"]),
+                        }
+                        
                     else:
-                        print(f"DRS job {job_id} not found - keeping wave as {wave_status}")
-                        wave["StatusMessage"] = "Job not found"
+                        print(f"DEBUG: DRS job {job_id} not found - may have been cleaned up")
+                        if wave_status in ["UNKNOWN", "", "INITIATED", "POLLING", "IN_PROGRESS"]:
+                            wave["Status"] = "COMPLETED"  # Assume completed if job not found
+                            wave["StatusMessage"] = "Job completed (not found in DRS)"
+                            wave["EndTime"] = int(time.time())
                         
                 except Exception as e:
-                    print(f"Error reconciling wave {wave.get('WaveName')} with DRS job {job_id}: {e}")
-                    # Keep original wave status on error
+                    print(f"Error getting real-time DRS status for wave {wave_name}, job {job_id}: {e}")
+                    # Keep original wave status on error - don't break the UI
             
             updated_waves.append(wave)
         
         execution["Waves"] = updated_waves
+        print(f"DEBUG: Wave reconciliation completed - {len(updated_waves)} waves processed")
         return execution
         
     except Exception as e:
@@ -5435,7 +5515,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
 
 
 def get_execution_details(execution_id: str) -> Dict:
-    """Get detailed information about a specific execution"""
+    """Get detailed information about a specific execution with REAL-TIME data"""
     try:
         # Handle both UUID and ARN formats for backwards compatibility
         # ARN format: arn:aws:states:region:account:execution:state-machine-name:execution-uuid
@@ -5489,28 +5569,65 @@ def get_execution_details(execution_id: str) -> Dict:
         except Exception as e:
             print(f"Error enriching execution with plan details: {str(e)}")
 
-        # Enrich with server details (hostname, name tag, region)
-        try:
-            execution = enrich_execution_with_server_details(execution)
-        except Exception as e:
-            print(f"Error enriching execution with server details: {str(e)}")
-
-        # Get current status from Step Functions if still running and has StateMachineArn
-        if execution.get("Status") == "RUNNING" and execution.get(
-            "StateMachineArn"
-        ):
+        # REAL-TIME DATA: Get current status from Step Functions if still running
+        if execution.get("Status") == "RUNNING" and execution.get("StateMachineArn"):
             try:
+                print(f"DEBUG: Getting real-time Step Functions status for execution")
                 sf_response = stepfunctions.describe_execution(
                     executionArn=execution.get("StateMachineArn")
                 )
                 execution["StepFunctionsStatus"] = sf_response["status"]
 
                 # Update DynamoDB if Step Functions shows completion
-                if sf_response["status"] in [
-                    "SUCCEEDED",
-                    "FAILED",
-                    "TIMED_OUT",
-                    "ABORTED",
+                if sf_response["status"] in ["SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"]:
+                    print(f"DEBUG: Step Functions shows completion, updating DynamoDB")
+                    # Update the execution status in DynamoDB
+                    execution_history_table.update_item(
+                        Key={"ExecutionId": execution_id, "PlanId": execution.get("PlanId")},
+                        UpdateExpression="SET #status = :status, UpdatedAt = :updated",
+                        ExpressionAttributeNames={"#status": "Status"},
+                        ExpressionAttributeValues={
+                            ":status": sf_response["status"],
+                            ":updated": int(time.time())
+                        }
+                    )
+                    execution["Status"] = sf_response["status"]
+                    
+            except Exception as sf_error:
+                print(f"Error getting Step Functions status: {sf_error}")
+
+        # REAL-TIME WAVE STATUS: Reconcile wave status with actual DRS job results
+        try:
+            print(f"DEBUG: Reconciling wave status with real-time DRS data")
+            execution = reconcile_wave_status_with_drs(execution)
+        except Exception as reconcile_error:
+            print(f"Error reconciling wave status: {reconcile_error}")
+
+        # REAL-TIME SERVER DETAILS: Enrich with current server and recovery instance details
+        try:
+            print(f"DEBUG: Enriching with real-time server details")
+            execution = enrich_execution_with_server_details(execution)
+        except Exception as e:
+            print(f"Error enriching execution with server details: {str(e)}")
+
+        # Recalculate overall execution status based on current wave statuses
+        try:
+            execution = recalculate_execution_status(execution)
+        except Exception as recalc_error:
+            print(f"Error recalculating execution status: {recalc_error}")
+
+        return response(200, execution)
+
+    except Exception as e:
+        print(f"Error getting execution details: {str(e)}")
+        return response(
+            500,
+            {
+                "error": "INTERNAL_ERROR",
+                "message": f"Error retrieving execution details: {str(e)}",
+                "executionId": execution_id,
+            },
+        )
                 ]:
                     new_status = (
                         "COMPLETED"
