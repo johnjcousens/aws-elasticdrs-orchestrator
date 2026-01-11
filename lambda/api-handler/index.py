@@ -8294,16 +8294,13 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
             legacy_servers = wave.get("Servers", [])
 
             if legacy_servers:
-                # Use legacy Servers array format - enhance with recovery instance details
-                server_ids_for_recovery = [s.get("SourceServerId") for s in legacy_servers]
-                print(f"DEBUG: Getting recovery instances for wave with server IDs: {server_ids_for_recovery}")
-                recovery_instances = get_recovery_instances_for_wave(wave, server_ids_for_recovery)
-                print(f"DEBUG: Recovery instances result: {recovery_instances}")
-                
+                # PERFORMANCE FIX: Use cached data only for list function
+                # Don't call get_recovery_instances_for_wave as it makes expensive AWS API calls
                 for server in legacy_servers:
                     server_id = server.get("SourceServerId")
                     enriched = enriched_map.get(server_id, {})
-                    recovery_info = recovery_instances.get(server_id, {})
+                    # PERFORMANCE FIX: Use cached data only, no expensive recovery instance calls
+                    recovery_info = {}
                     
                     print(f"DEBUG: Legacy server {server_id}")
                     print(f"DEBUG: DynamoDB server data: InstanceType={server.get('InstanceType')}, PrivateIp={server.get('PrivateIp')}")
@@ -8314,16 +8311,16 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                             "sourceServerId": server_id,
                             "recoveryJobId": server.get("RecoveryJobId"),
                             "instanceId": server.get("InstanceId"),
-                            "recoveredInstanceId": server.get("InstanceId") or recovery_info.get("ec2InstanceID"),  # Frontend expects this field name
+                            "recoveredInstanceId": server.get("InstanceId"),  # Use cached data only
                             "status": server.get("Status", "UNKNOWN"),
                             "launchTime": safe_timestamp_to_int(
                                 server.get("LaunchTime")
                             ),
                             "error": server.get("Error"),
-                            # EC2 instance details from recovery instances or DynamoDB
-                            "instanceType": server.get("InstanceType") or recovery_info.get("instanceType"),
-                            "privateIp": server.get("PrivateIp") or recovery_info.get("privateIp"),
-                            "ec2State": server.get("Ec2State") or recovery_info.get("ec2State"),
+                            # EC2 instance details from DynamoDB cache only
+                            "instanceType": server.get("InstanceType", ""),
+                            "privateIp": server.get("PrivateIp", ""),
+                            "ec2State": server.get("Ec2State", ""),
                             # Enriched fields from DRS source server
                             "hostname": enriched.get("Hostname", ""),
                             "serverName": enriched.get("NameTag", ""),
@@ -8344,12 +8341,12 @@ def transform_execution_to_camelcase(execution: Dict) -> Dict:
                         }
                     )
             elif server_ids:
-                # Build servers from ServerIds list - enhance with recovery instance details
-                recovery_instances = get_recovery_instances_for_wave(wave, server_ids)
-                
+                # PERFORMANCE FIX: Use cached data only for list function
+                # Don't call get_recovery_instances_for_wave as it makes expensive AWS API calls
                 for server_id in server_ids:
                     enriched = enriched_map.get(server_id, {})
-                    recovery_info = recovery_instances.get(server_id, {})
+                    # PERFORMANCE FIX: Use cached data only, no expensive recovery instance calls
+                    recovery_info = {}
                     
                     servers.append(
                         {
