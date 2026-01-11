@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration - Database Stack (DynamoDB Tables) - CamelCase Schema Migration'
+Description: 'AWS DRS Orchestration - Database Stack (DynamoDB Tables) - FORCED RECREATION for CamelCase Schema Migration'
 
 Parameters:
   ProjectName:
@@ -14,32 +14,33 @@ Parameters:
 
   ForceRecreation:
     Type: String
-    Default: 'false'
-    Description: 'Force table recreation for schema migration (true/false)'
-    AllowedValues:
-      - 'true'
-      - 'false'
-
-Conditions:
-  ForceRecreationCondition: !Equals [!Ref ForceRecreation, 'true']
+    Default: '20260111-camelcase-migration'
+    Description: 'Force recreation timestamp for camelCase migration'
 
 Resources:
-  # Recreation Trigger - Only created when ForceRecreation is true
+  # Recreation Trigger - Forces CloudFormation to see this as a new deployment
   RecreationTrigger:
     Type: AWS::CloudFormation::WaitConditionHandle
-    Condition: ForceRecreationCondition
     Properties: {}
     Metadata:
-      RecreationTimestamp: !Ref 'AWS::StackId'
+      RecreationTimestamp: !Ref ForceRecreation
       MigrationReason: "Force recreation for camelCase schema migration"
       PreviousSchema: "PascalCase (GroupId, PlanId, ExecutionId, AccountId)"
       NewSchema: "camelCase (groupId, planId, executionId, accountId)"
+      TablesRecreated:
+        - "protection-groups table with groupId primary key"
+        - "recovery-plans table with planId primary key"
+        - "execution-history table with executionId primary key"
+        - "target-accounts table with accountId primary key"
 
-  # Protection Groups Table - CamelCase Schema Migration
+  # Protection Groups Table - CamelCase Schema (FORCED RECREATION)
   ProtectionGroupsTable:
     Type: AWS::DynamoDB::Table
+    DependsOn: RecreationTrigger
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      TableName: !Sub '${ProjectName}-protection-groups-${Environment}'
+      TableName: !Sub '${ProjectName}-protection-groups-${Environment}-${ForceRecreation}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: groupId
@@ -61,14 +62,17 @@ Resources:
           Value: !Ref Environment
         - Key: Schema
           Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
+        - Key: Migration
+          Value: !Ref ForceRecreation
 
-  # Recovery Plans Table - CamelCase Schema
+  # Recovery Plans Table - CamelCase Schema (FORCED RECREATION)
   RecoveryPlansTable:
     Type: AWS::DynamoDB::Table
+    DependsOn: RecreationTrigger
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      TableName: !Sub '${ProjectName}-recovery-plans-${Environment}'
+      TableName: !Sub '${ProjectName}-recovery-plans-${Environment}-${ForceRecreation}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: planId
@@ -90,56 +94,49 @@ Resources:
           Value: !Ref Environment
         - Key: Schema
           Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
+        - Key: Migration
+          Value: !Ref ForceRecreation
 
-  # Execution History Table - CamelCase Schema (Initial creation without GSIs)
+  # Execution History Table - CamelCase Schema (FORCED RECREATION)
   ExecutionHistoryTable:
     Type: AWS::DynamoDB::Table
+    DependsOn: RecreationTrigger
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      TableName: !Sub '${ProjectName}-execution-history-${Environment}'
+      TableName: !Sub '${ProjectName}-execution-history-${Environment}-${ForceRecreation}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: executionId
           AttributeType: S
         - AttributeName: planId
+          AttributeType: S
+        - AttributeName: startTime
+          AttributeType: N
+        - AttributeName: status
           AttributeType: S
       KeySchema:
         - AttributeName: executionId
           KeyType: HASH
         - AttributeName: planId
           KeyType: RANGE
-      TimeToLiveSpecification:
-        AttributeName: TTL  # TTL attribute for automatic record expiration
-        Enabled: true
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-      SSESpecification:
-        SSEEnabled: true
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Schema
-          Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
-        - Key: GSIStatus
-          Value: 'InitialCreation-NoGSIs'
-
-  # Target Accounts Table - CamelCase Schema (Initial creation without GSIs)
-  TargetAccountsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub '${ProjectName}-target-accounts-${Environment}'
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: accountId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: accountId
-          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: planIdIndex
+          KeySchema:
+            - AttributeName: planId
+              KeyType: HASH
+            - AttributeName: startTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: statusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: startTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: TTL
         Enabled: true
@@ -154,68 +151,115 @@ Resources:
           Value: !Ref Environment
         - Key: Schema
           Value: camelCase
-        - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
-          Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
-        - Key: GSIStatus
-          Value: 'InitialCreation-NoGSIs'
+        - Key: Migration
+          Value: !Ref ForceRecreation
+
+  # Target Accounts Table - CamelCase Schema (FORCED RECREATION)
+  TargetAccountsTable:
+    Type: AWS::DynamoDB::Table
+    DependsOn: RecreationTrigger
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub '${ProjectName}-target-accounts-${Environment}-${ForceRecreation}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: accountId
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: lastValidated
+          AttributeType: S
+      KeySchema:
+        - AttributeName: accountId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: statusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: lastValidated
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: TTL
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Schema
+          Value: camelCase
+        - Key: Migration
+          Value: !Ref ForceRecreation
 
 Outputs:
-  ForceRecreationParameter:
-    Description: 'Force recreation parameter value'
+  RecreationTimestamp:
+    Description: 'Timestamp of forced recreation for camelCase migration'
     Value: !Ref ForceRecreation
     Export:
-      Name: !Sub '${AWS::StackName}-ForceRecreation'
-
-  SchemaVersion:
-    Description: 'Database schema version (camelCase migration)'
-    Value: 'camelCase-v1.0'
-    Export:
-      Name: !Sub '${AWS::StackName}-SchemaVersion'
+      Name: !Sub '${AWS::StackName}-RecreationTimestamp'
 
   ProtectionGroupsTableName:
-    Description: 'DynamoDB table name for Protection Groups'
+    Description: 'DynamoDB table name for Protection Groups (camelCase schema)'
     Value: !Ref ProtectionGroupsTable
     Export:
       Name: !Sub '${AWS::StackName}-ProtectionGroupsTableName'
 
   ProtectionGroupsTableArn:
-    Description: 'DynamoDB table ARN for Protection Groups'
+    Description: 'DynamoDB table ARN for Protection Groups (camelCase schema)'
     Value: !GetAtt ProtectionGroupsTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ProtectionGroupsTableArn'
 
   RecoveryPlansTableName:
-    Description: 'DynamoDB table name for Recovery Plans'
+    Description: 'DynamoDB table name for Recovery Plans (camelCase schema)'
     Value: !Ref RecoveryPlansTable
     Export:
       Name: !Sub '${AWS::StackName}-RecoveryPlansTableName'
 
   RecoveryPlansTableArn:
-    Description: 'DynamoDB table ARN for Recovery Plans'
+    Description: 'DynamoDB table ARN for Recovery Plans (camelCase schema)'
     Value: !GetAtt RecoveryPlansTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-RecoveryPlansTableArn'
 
   ExecutionHistoryTableName:
-    Description: 'DynamoDB table name for Execution History'
+    Description: 'DynamoDB table name for Execution History (camelCase schema)'
     Value: !Ref ExecutionHistoryTable
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTableName'
 
   ExecutionHistoryTableArn:
-    Description: 'DynamoDB table ARN for Execution History'
+    Description: 'DynamoDB table ARN for Execution History (camelCase schema)'
     Value: !GetAtt ExecutionHistoryTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-ExecutionHistoryTableArn'
 
   TargetAccountsTableName:
-    Description: 'DynamoDB table name for Target Accounts'
+    Description: 'DynamoDB table name for Target Accounts (camelCase schema)'
     Value: !Ref TargetAccountsTable
     Export:
       Name: !Sub '${AWS::StackName}-TargetAccountsTableName'
 
   TargetAccountsTableArn:
-    Description: 'DynamoDB table ARN for Target Accounts'
+    Description: 'DynamoDB table ARN for Target Accounts (camelCase schema)'
     Value: !GetAtt TargetAccountsTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-TargetAccountsTableArn'
+
+  MigrationSummary:
+    Description: 'Summary of camelCase migration'
+    Value: !Sub |
+      CamelCase Migration Completed: ${ForceRecreation}
+      Schema: groupId, planId, executionId, accountId
+      Tables: 4 tables recreated with camelCase primary keys
+      Status: Ready for application deployment
+    Export:
+      Name: !Sub '${AWS::StackName}-MigrationSummary'
