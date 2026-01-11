@@ -33,9 +33,15 @@ sys.path.insert(
 os.environ["PROTECTION_GROUPS_TABLE"] = "test-protection-groups"
 os.environ["RECOVERY_PLANS_TABLE"] = "test-recovery-plans"
 os.environ["EXECUTION_HISTORY_TABLE"] = "test-execution-history"
+os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts"
 os.environ["STATE_MACHINE_ARN"] = (
     "arn:aws:states:us-east-1:123456789:stateMachine:test"
 )
+os.environ["AWS_LAMBDA_FUNCTION_NAME"] = "test-api-handler"
+os.environ["AWS_ACCOUNT_ID"] = "123456789012"
+os.environ["AWS_REGION"] = "us-east-1"
+os.environ["PROJECT_NAME"] = "test-drs-orchestration"
+os.environ["ENVIRONMENT"] = "test"
 
 # Mock boto3 before importing index to prevent actual AWS calls
 # Use persistent mocks to prevent hanging in CI environment
