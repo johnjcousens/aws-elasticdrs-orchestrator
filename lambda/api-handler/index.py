@@ -2240,7 +2240,7 @@ def create_protection_group(body: Dict) -> Dict:
 
         # Transform to camelCase for frontend response
         response_item = {
-            "groupId": item["GroupId"],  # Transform GroupId -> groupId
+            "groupId": item["groupId"],  # FIXED: Use camelCase field name
             "groupName": item["groupName"],
             "description": item["description"],
             "region": item["region"],
