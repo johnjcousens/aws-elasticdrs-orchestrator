@@ -5,8 +5,13 @@
 set -e
 export AWS_PAGER=""
 
-STACK_NAME="aws-elasticdrs-orchestrator-dev"
-REGION="us-east-1"
+# Load deployment configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-deployment-config.sh"
+
+# Use configuration values
+STACK_NAME="$PARENT_STACK_NAME"
+REGION="$DEPLOYMENT_REGION"
 
 echo "🔔 Enabling SNS notifications for stack: $STACK_NAME"
 echo "📧 Admin email: jocousen@amazon.com"

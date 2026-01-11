@@ -5,8 +5,13 @@
 
 set -e
 
-STACK_NAME="${1:-aws-elasticdrs-orchestrator-dev}"
-REGION="${2:-us-east-1}"
+# Load deployment configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-deployment-config.sh"
+
+# Allow command line overrides
+STACK_NAME="${1:-$PARENT_STACK_NAME}"
+REGION="${2:-$DEPLOYMENT_REGION}"
 
 echo "🔍 Validating frontend configuration against stack: $STACK_NAME"
 

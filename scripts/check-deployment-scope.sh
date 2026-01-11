@@ -4,6 +4,10 @@
 
 set -e
 
+# Load deployment configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-deployment-config.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -182,8 +186,8 @@ if command -v gh &> /dev/null && gh auth status &> /dev/null; then
     REPO_URL=$(gh repo view --json url -q .url 2>/dev/null || echo "")
     if [ -n "$REPO_URL" ]; then
         echo "   • GitHub Actions: $REPO_URL/actions"
-        echo "   • CloudFormation: https://console.aws.amazon.com/cloudformation/home?region=us-east-1"
-        echo "   • Application: https://dly5x2oq5f01g.cloudfront.net"
+        echo "   • CloudFormation: https://console.aws.amazon.com/cloudformation/home?region=$REGION"
+        echo "   • Application: $CLOUDFRONT_URL"
     else
         echo "   • Check GitHub Actions tab after pushing"
     fi

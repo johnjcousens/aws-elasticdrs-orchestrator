@@ -5,9 +5,11 @@
 
 set -e
 
-STACK_NAME="aws-elasticdrs-orchestrator-dev"
-ADMIN_EMAIL="jocousen@amazon.com"
-TEMPLATE_URL="https://s3.amazonaws.com/aws-elasticdrs-orchestrator/cfn/master-template.yaml"
+# Load deployment configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-deployment-config.sh"
+
+TEMPLATE_URL="https://s3.amazonaws.com/$DEPLOYMENT_BUCKET/cfn/master-template.yaml"
 
 echo "🔍 Monitoring stack deletion and preparing for deployment..."
 echo "Stack: $STACK_NAME"
@@ -42,7 +44,7 @@ deploy_stack() {
     echo "AWS_PAGER=\"\" aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].StackStatus'"
     echo ""
     echo "🔗 View in AWS Console:"
-    echo "https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/stackinfo?stackId=$STACK_NAME"
+    echo "https://console.aws.amazon.com/cloudformation/home?region=$REGION#/stacks/stackinfo?stackId=$STACK_NAME"
     echo ""
     
     # Monitor deployment
