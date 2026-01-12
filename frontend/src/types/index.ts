@@ -37,29 +37,6 @@ export interface ProtectionGroup {
   // Optimistic locking version - incremented on each update
   version?: number;
 }
-  
-  // Tag-based server selection - servers matching ALL tags are included at execution time
-  serverSelectionTags?: Record<string, string>;
-  
-  // Legacy: Explicit server IDs (for backward compatibility with existing PGs)
-  sourceServerIds?: string[];
-  
-  // EC2 Launch Configuration - applied to all servers in this group
-  launchConfig?: LaunchConfig;
-  
-  createdDate: number;  // Creation timestamp
-  lastModifiedDate: number;  // Last update timestamp
-  accountId?: string;
-  assumeRoleName?: string;
-  owner?: string;
-  
-  // Resolved servers (populated by /resolve endpoint or at execution time)
-  resolvedServers?: ResolvedServer[];
-  resolvedServerCount?: number;
-  
-  // Optimistic locking version - incremented on each update
-  version?: number;
-}
 
 // ============================================================================
 // EC2 Launch Configuration Types
