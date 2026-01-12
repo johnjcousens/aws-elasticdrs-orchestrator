@@ -203,9 +203,9 @@ export const RecoveryPlansPage: React.FC = () => {
 
     setDeleting(true);
     try {
-      await apiClient.deleteRecoveryPlan(planToDelete.id);
-      setPlans(plans.filter(p => p.id !== planToDelete.id));
-      addNotification('success', `Recovery plan "${planToDelete.name}" deleted successfully`);
+      await apiClient.deleteRecoveryPlan(planToDelete.planId);
+      setPlans(plans.filter(p => p.planId !== planToDelete.planId));
+      addNotification('success', `Recovery plan "${planToDelete.planName}" deleted successfully`);
       setDeleteDialogOpen(false);
       setPlanToDelete(null);
     } catch (err: unknown) {
@@ -251,7 +251,7 @@ export const RecoveryPlansPage: React.FC = () => {
     if (executionType === 'DRILL') {
       setCheckingInstances(true);
       try {
-        const result = await apiClient.checkExistingRecoveryInstances(plan.id);
+        const result = await apiClient.checkExistingRecoveryInstances(plan.planId);
         if (result.hasExistingInstances && result.existingInstances.length > 0) {
           setExistingInstancesInfo({
             plan,
@@ -277,7 +277,7 @@ export const RecoveryPlansPage: React.FC = () => {
 
     try {
       const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: plan.id,
+        recoveryPlanId: plan.planId,
         executionType,
         dryRun: false,
         executedBy: user?.username || 'unknown'
@@ -286,7 +286,7 @@ export const RecoveryPlansPage: React.FC = () => {
       addNotification('success', `${executionType === 'DRILL' ? 'Drill' : 'Recovery'} execution started`);
       
       const updatedSet = new Set(plansWithInProgressExecution);
-      updatedSet.add(plan.id);
+      updatedSet.add(plan.planId);
       setPlansWithInProgressExecution(updatedSet);
       
       setTimeout(() => checkInProgressExecutions(), 1000);
@@ -386,7 +386,7 @@ export const RecoveryPlansPage: React.FC = () => {
       header: 'Actions',
       width: 70,
       cell: (item: RecoveryPlan) => {
-        const hasInProgressExecution = plansWithInProgressExecution.has(item.id);
+        const hasInProgressExecution = plansWithInProgressExecution.has(item.planId);
         const hasServerConflict = item.hasServerConflict === true;
         const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
         
@@ -452,10 +452,10 @@ export const RecoveryPlansPage: React.FC = () => {
       header: 'Plan Name',
       cell: (item: RecoveryPlan) => (
         <span title={item.description || ''} style={{ fontWeight: 500 }}>
-          {item.name}
+          {item.planName}
         </span>
       ),
-      sortingField: 'name',
+      sortingField: 'planName',
     },
     {
       id: 'planId',
@@ -466,7 +466,7 @@ export const RecoveryPlansPage: React.FC = () => {
           copyButtonAriaLabel="Copy Plan ID"
           copySuccessText="Plan ID copied"
           copyErrorText="Failed to copy"
-          textToCopy={item.id}
+          textToCopy={item.planId}
           variant="icon"
         />
       ),
@@ -476,7 +476,7 @@ export const RecoveryPlansPage: React.FC = () => {
       header: 'Waves',
       width: 90,
       cell: (item: RecoveryPlan) => {
-        const progress = executionProgress.get(item.id);
+        const progress = executionProgress.get(item.planId);
         if (progress) {
           const sanitizedCurrentWave = Number(progress.currentWave) || 0;
           const sanitizedTotalWaves = Number(progress.totalWaves) || 0;
@@ -523,10 +523,10 @@ export const RecoveryPlansPage: React.FC = () => {
       header: 'Created',
       minWidth: 180,
       cell: (item: RecoveryPlan) => {
-        if (!item.createdAt || (typeof item.createdAt === 'number' && item.createdAt === 0)) {
+        if (!item.createdDate || (typeof item.createdDate === 'number' && item.createdDate === 0)) {
           return <span style={{ color: '#5f6b7a' }}>Unknown</span>;
         }
-        return <DateTimeDisplay value={item.createdAt} format="full" />;
+        return <DateTimeDisplay value={item.createdDate} format="full" />;
       },
     },
   ], [plansWithInProgressExecution, executionProgress, executing, handleExecute, handleEdit, handleDelete]);
@@ -593,7 +593,7 @@ export const RecoveryPlansPage: React.FC = () => {
             title="Delete Recovery Plan"
             message={
               planToDelete
-                ? `Are you sure you want to delete "${planToDelete.name}"? This action cannot be undone.`
+                ? `Are you sure you want to delete "${planToDelete.planName}"? This action cannot be undone.`
                 : ''
             }
             confirmLabel="Delete"
