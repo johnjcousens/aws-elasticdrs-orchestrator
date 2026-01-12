@@ -2000,7 +2000,17 @@ def create_protection_group(body: Dict) -> Dict:
         # FORCE DEPLOYMENT: camelCase migration complete - v1.3.1-hotfix
         print(f"DEBUG: create_protection_group v1.3.1-hotfix - camelCase validation active")
         print(f"DEBUG: create_protection_group called with body keys: {list(body.keys())}")
-        print(f"DEBUG: body content: {json.dumps(body, indent=2)}")
+        print(f"DEBUG: body content: {json.dumps(body, indent=2, default=str)}")
+        
+        # Debug: Check specific fields
+        print(f"DEBUG: serverSelectionTags present: {'serverSelectionTags' in body}")
+        print(f"DEBUG: sourceServerIds present: {'sourceServerIds' in body}")
+        if 'serverSelectionTags' in body:
+            print(f"DEBUG: serverSelectionTags value: {body['serverSelectionTags']}")
+        if 'sourceServerIds' in body:
+            print(f"DEBUG: sourceServerIds value: {body['sourceServerIds']}")
+        if 'launchConfig' in body:
+            print(f"DEBUG: launchConfig present with keys: {list(body['launchConfig'].keys())}")
         
         # Validate required fields - FIXED: camelCase field validation
         if "groupName" not in body:
