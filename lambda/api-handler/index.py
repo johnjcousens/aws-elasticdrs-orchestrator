@@ -2244,9 +2244,7 @@ def create_protection_group(body: Dict) -> Dict:
         protection_groups_table.put_item(Item=item)
 
         # Return raw camelCase database fields directly - no transformation needed
-        # Add aliases for backward compatibility
-        item["protectionGroupId"] = item["groupId"]
-        item["name"] = item["groupName"]
+        item["protectionGroupId"] = item["groupId"]  # Only add this alias for compatibility
         return response(201, item)
 
     except Exception as e:
@@ -2309,9 +2307,7 @@ def get_protection_group(group_id: str) -> Dict:
         group = result["Item"]
 
         # Return raw camelCase database fields directly - no transformation needed
-        # Add aliases for backward compatibility
-        group["protectionGroupId"] = group["groupId"]
-        group["name"] = group["groupName"]
+        group["protectionGroupId"] = group["groupId"]  # Only add this alias for compatibility
         return response(200, group)
 
     except Exception as e:
