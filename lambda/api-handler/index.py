@@ -2245,15 +2245,16 @@ def create_protection_group(body: Dict) -> Dict:
 
         # Transform to camelCase for frontend response
         response_item = {
-            "groupId": item["groupId"],  # FIXED: Use camelCase field name
-            "groupName": item["groupName"],
+            "id": item["groupId"],  # Map groupId to id for frontend
+            "protectionGroupId": item["groupId"],  # Alias for backward compatibility
+            "name": item["groupName"],  # Map groupName to name for frontend
             "description": item["description"],
             "region": item["region"],
             "accountId": item["accountId"],
             "assumeRoleName": item["assumeRoleName"],
             "owner": item["owner"],  # FIXED: camelCase
-            "createdDate": item["createdDate"],  # FIXED: camelCase
-            "lastModifiedDate": item["lastModifiedDate"],  # FIXED: camelCase
+            "createdAt": item["createdDate"],  # Map createdDate to createdAt for frontend
+            "updatedAt": item["lastModifiedDate"],  # Map lastModifiedDate to updatedAt for frontend
             "version": item["version"],  # FIXED: camelCase
             "sourceServerIds": item.get("sourceServerIds", []),
             "serverSelectionTags": item.get("serverSelectionTags", {}),
@@ -2312,9 +2313,29 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
             groups = filtered_groups
 
         # Transform to camelCase (no server enrichment - tags are resolved at execution time)
-        camelcase_groups = [
-            group for group in groups
-        ]
+        camelcase_groups = []
+        for group in groups:
+            transformed_group = {
+                "id": group["groupId"],  # Map groupId to id for frontend
+                "protectionGroupId": group["groupId"],  # Alias for backward compatibility
+                "name": group["groupName"],  # Map groupName to name for frontend
+                "description": group.get("description", ""),
+                "region": group["region"],
+                "accountId": group.get("accountId", ""),
+                "assumeRoleName": group.get("assumeRoleName", ""),
+                "owner": group.get("owner", ""),
+                "createdAt": group.get("createdDate", 0),  # Map createdDate to createdAt
+                "updatedAt": group.get("lastModifiedDate", 0),  # Map lastModifiedDate to updatedAt
+                "version": group.get("version", 1),
+                "sourceServerIds": group.get("sourceServerIds", []),
+                "serverSelectionTags": group.get("serverSelectionTags", {}),
+            }
+            
+            # Include launchConfig if present
+            if "launchConfig" in group:
+                transformed_group["launchConfig"] = group["launchConfig"]
+                
+            camelcase_groups.append(transformed_group)
 
         return response(
             200, {"groups": camelcase_groups, "count": len(camelcase_groups)}
