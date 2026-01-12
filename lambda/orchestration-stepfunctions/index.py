@@ -1269,7 +1269,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             if next_wave < len(waves_list):
                 next_wave_config = waves_list[next_wave]
-                pause_before = next_wave_config.get("PauseBeforeWave", False)
+                pause_before = next_wave_config.get("pauseBeforeWave", False)
 
                 if pause_before:
                     print(f"⏸️ Pausing before wave {next_wave}")
