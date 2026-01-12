@@ -2244,6 +2244,9 @@ def create_protection_group(body: Dict) -> Dict:
         protection_groups_table.put_item(Item=item)
 
         # Return raw camelCase database fields directly - no transformation needed
+        # Add aliases for backward compatibility
+        item["protectionGroupId"] = item["groupId"]
+        item["name"] = item["groupName"]
         return response(201, item)
 
     except Exception as e:
@@ -2287,6 +2290,8 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
             groups = filtered_groups
 
         # Return raw camelCase database fields directly - no transformation needed
+        for group in groups:
+            group["protectionGroupId"] = group["groupId"]
         return response(200, {"groups": groups, "count": len(groups)})
 
     except Exception as e:
@@ -2304,6 +2309,9 @@ def get_protection_group(group_id: str) -> Dict:
         group = result["Item"]
 
         # Return raw camelCase database fields directly - no transformation needed
+        # Add aliases for backward compatibility
+        group["protectionGroupId"] = group["groupId"]
+        group["name"] = group["groupName"]
         return response(200, group)
 
     except Exception as e:
