@@ -235,7 +235,7 @@ export const RecoveryPlansPage: React.FC = () => {
 
   const handleDialogSave = useCallback((savedPlan: RecoveryPlan) => {
     const action = editingPlan ? 'updated' : 'created';
-    addNotification('success', `Recovery plan "${savedPlan.name}" ${action} successfully`);
+    addNotification('success', `Recovery plan "${savedPlan.planName}" ${action} successfully`);
     fetchPlans();
   }, [editingPlan, addNotification, fetchPlans]);
 

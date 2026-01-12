@@ -66,12 +66,12 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
     
     if (plan && protectionGroups.length > 0) {
       // Edit mode - populate from existing plan (only on initial load)
-      setName(plan.name);
+      setName(plan.planName || '');
       setDescription(plan.description || '');
       
       // Populate waves with BOTH protectionGroupId and protectionGroupIds array
       // Use first PG as default if wave doesn't have one
-      const firstPgId = protectionGroups[0]?.groupId || '';
+      const firstPgId = protectionGroups[0]?.protectionGroupId || '';
       const wavesWithPgId = (plan.waves || []).map(w => {
         // Extract PG ID from various possible fields (backend sends both now)
         const pgId = w.protectionGroupId || firstPgId;
@@ -135,7 +135,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         : (w.protectionGroupId ? [w.protectionGroupId] : []);
       
       // Check if ALL selected PGs are tag-based
-      const selectedPGs = protectionGroups.filter(pg => wavePgIds.includes(pg.groupId));
+      const selectedPGs = protectionGroups.filter(pg => wavePgIds.includes(pg.protectionGroupId));
       const allTagBased = selectedPGs.length > 0 && selectedPGs.every(pg => 
         pg.serverSelectionTags && Object.keys(pg.serverSelectionTags).length > 0
       );
@@ -191,7 +191,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         if (plan.version !== undefined) {
           updateData.version = plan.version;
         }
-        const updatedPlan = await apiClient.updateRecoveryPlan(plan.id, updateData);
+        const updatedPlan = await apiClient.updateRecoveryPlan(plan.planId, updateData);
         onSave(updatedPlan);
       } else {
         // Create new plan - waves specify their own Protection Groups

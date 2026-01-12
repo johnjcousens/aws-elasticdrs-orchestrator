@@ -285,12 +285,12 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                         <Multiselect
                           selectedOptions={
                             (protectionGroups || [])
-                              .filter(pg => (wave.protectionGroupIds || []).includes(pg.groupId))
+                              .filter(pg => (wave.protectionGroupIds || []).includes(pg.protectionGroupId))
                               .map(pg => {
                                 const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
                                 return {
-                                  label: `${pg.groupName} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
-                                  value: pg.groupId,
+                                  label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
+                                  value: pg.protectionGroupId,
                                   tags: tagCount > 0 ? ['configured'] : ['no-tags']
                                 };
                               })
@@ -341,7 +341,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     // Check if ALL selected PGs are tag-based
                     (() => {
                       const selectedPGs = (protectionGroups || []).filter(pg => 
-                        (wave.protectionGroupIds || []).includes(pg.groupId)
+                        (wave.protectionGroupIds || []).includes(pg.protectionGroupId)
                       );
                       const allTagBased = selectedPGs.length > 0 && selectedPGs.every(pg => 
                         pg.serverSelectionTags && Object.keys(pg.serverSelectionTags).length > 0
@@ -384,7 +384,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
       {safeWaves.length > 0 && safeWaves.some(w => {
         // Check if wave uses tag-based PGs
         const selectedPGs = (protectionGroups || []).filter(pg => 
-          (w.protectionGroupIds || []).includes(pg.groupId)
+          (w.protectionGroupIds || []).includes(pg.protectionGroupId)
         );
         const isTagBased = selectedPGs.length > 0 && selectedPGs.every(pg => 
           pg.serverSelectionTags && Object.keys(pg.serverSelectionTags).length > 0
