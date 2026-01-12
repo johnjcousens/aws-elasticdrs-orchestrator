@@ -8371,9 +8371,9 @@ def create_target_account(body: Dict) -> Dict:
         except Exception as e:
             print(f"Error checking account count: {e}")
 
-        # Transform from camelCase to PascalCase for DynamoDB
+        # Transform from camelCase to camelCase for DynamoDB (no transformation needed)
         now = datetime.utcnow().isoformat() + "Z"
-        body_with_timestamps = {
+        account_item = {
             **body,
             "createdAt": now,
             "lastValidated": now,
@@ -8383,7 +8383,7 @@ def create_target_account(body: Dict) -> Dict:
         }
 
         # Store in DynamoDB (data is already in camelCase)
-        target_accounts_table.put_item(Item=body_with_timestamps)
+        target_accounts_table.put_item(Item=account_item)
 
         # Data is already in camelCase - return directly
         success_message = f"Target account {account_id} added successfully"
@@ -8399,7 +8399,7 @@ def create_target_account(body: Dict) -> Dict:
         return response(
             201,
             {
-                **body_with_timestamps,
+                **account_item,
                 "message": success_message,
                 "isFirstAccount": is_first_account,
             },
