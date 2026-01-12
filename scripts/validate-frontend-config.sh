@@ -17,29 +17,68 @@ echo "🔍 Validating frontend configuration against stack: $STACK_NAME"
 
 # Get current stack outputs
 echo "📋 Fetching CloudFormation stack outputs..."
-USER_POOL_ID=$(aws cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --region "$REGION" \
-  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
-  --output text)
 
-CLIENT_ID=$(aws cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --region "$REGION" \
-  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' \
-  --output text)
+# Use AWS CLI without profile in CI environment
+if [ -n "$GITHUB_ACTIONS" ]; then
+    # GitHub Actions environment - use OIDC credentials
+    USER_POOL_ID=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+      --output text)
 
-API_ENDPOINT=$(aws cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --region "$REGION" \
-  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-  --output text)
+    CLIENT_ID=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' \
+      --output text)
 
-FRONTEND_URL=$(aws cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --region "$REGION" \
-  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
-  --output text)
+    API_ENDPOINT=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+      --output text)
+
+    FRONTEND_URL=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+      --output text)
+else
+    # Local environment - use profile if configured
+    PROFILE_ARG=""
+    if [ -n "$AWS_PROFILE" ]; then
+        PROFILE_ARG="--profile $AWS_PROFILE"
+    fi
+
+    USER_POOL_ID=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      $PROFILE_ARG \
+      --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+      --output text)
+
+    CLIENT_ID=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      $PROFILE_ARG \
+      --query 'Stacks[0].Outputs[?OutputKey==`UserPoolClientId`].OutputValue' \
+      --output text)
+
+    API_ENDPOINT=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      $PROFILE_ARG \
+      --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+      --output text)
+
+    FRONTEND_URL=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$REGION" \
+      $PROFILE_ARG \
+      --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+      --output text)
+fi
 
 echo "✅ Stack outputs retrieved:"
 echo "  User Pool ID: $USER_POOL_ID"

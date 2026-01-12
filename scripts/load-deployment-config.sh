@@ -26,7 +26,11 @@ export DEPLOYMENT_REGION="${DEPLOYMENT_REGION:-us-east-1}"
 export PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"
 export ENVIRONMENT="${ENVIRONMENT:-test}"
 export PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-test}"
-export AWS_PROFILE="${AWS_PROFILE:-default}"
+
+# Only set AWS_PROFILE if not in CI environment (GitHub Actions uses OIDC, not profiles)
+if [ -z "$GITHUB_ACTIONS" ]; then
+    export AWS_PROFILE="${AWS_PROFILE:-default}"
+fi
 
 # Derived values for convenience
 export STACK_NAME="$PARENT_STACK_NAME"
