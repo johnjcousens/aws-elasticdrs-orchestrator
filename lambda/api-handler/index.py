@@ -2243,26 +2243,8 @@ def create_protection_group(body: Dict) -> Dict:
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
 
-        # Transform to camelCase for frontend response
-        response_item = {
-            "id": item["groupId"],  # Map groupId to id for frontend
-            "protectionGroupId": item["groupId"],  # Alias for backward compatibility
-            "name": item["groupName"],  # Map groupName to name for frontend
-            "description": item["description"],
-            "region": item["region"],
-            "accountId": item["accountId"],
-            "assumeRoleName": item["assumeRoleName"],
-            "owner": item["owner"],  # FIXED: camelCase
-            "createdAt": item["createdDate"],  # Map createdDate to createdAt for frontend
-            "updatedAt": item["lastModifiedDate"],  # Map lastModifiedDate to updatedAt for frontend
-            "version": item["version"],  # FIXED: camelCase
-            "sourceServerIds": item.get("sourceServerIds", []),
-            "serverSelectionTags": item.get("serverSelectionTags", {}),
-        }
-
-        # Include launchConfig if present
-        if "launchConfig" in item:
-            response_item["launchConfig"] = item["launchConfig"]
+        # Return pure camelCase data (no field mapping)
+        response_item = item.copy()
 
         # Include launchConfig apply results if applicable
         if launch_config_apply_results:
@@ -2312,33 +2294,9 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
                     filtered_groups.append(group)
             groups = filtered_groups
 
-        # Transform to camelCase (no server enrichment - tags are resolved at execution time)
-        camelcase_groups = []
-        for group in groups:
-            transformed_group = {
-                "id": group["groupId"],  # Map groupId to id for frontend
-                "protectionGroupId": group["groupId"],  # Alias for backward compatibility
-                "name": group["groupName"],  # Map groupName to name for frontend
-                "description": group.get("description", ""),
-                "region": group["region"],
-                "accountId": group.get("accountId", ""),
-                "assumeRoleName": group.get("assumeRoleName", ""),
-                "owner": group.get("owner", ""),
-                "createdAt": group.get("createdDate", 0),  # Map createdDate to createdAt
-                "updatedAt": group.get("lastModifiedDate", 0),  # Map lastModifiedDate to updatedAt
-                "version": group.get("version", 1),
-                "sourceServerIds": group.get("sourceServerIds", []),
-                "serverSelectionTags": group.get("serverSelectionTags", {}),
-            }
-            
-            # Include launchConfig if present
-            if "launchConfig" in group:
-                transformed_group["launchConfig"] = group["launchConfig"]
-                
-            camelcase_groups.append(transformed_group)
-
+        # Return groups with pure camelCase fields (no transformation)
         return response(
-            200, {"groups": camelcase_groups, "count": len(camelcase_groups)}
+            200, {"groups": groups, "count": len(groups)}
         )
 
     except Exception as e:
