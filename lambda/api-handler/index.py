@@ -2505,8 +2505,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             expression_values[":name"] = body["groupName"]
 
         if "description" in body:
-            update_expression += ", description = :desc"
+            update_expression += ", #desc = :desc"
             expression_values[":desc"] = body["description"]
+            expression_names["#desc"] = "description"
             print(f"DEBUG: Adding description to update: {body['description']}")
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
