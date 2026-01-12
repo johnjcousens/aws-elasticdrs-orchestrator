@@ -89,8 +89,8 @@ export const ProtectionGroupsPage: React.FC = () => {
             groupIds.push(wave.protectionGroupId);
           }
         });
-        if (plan.id) {
-          planToGroups[plan.id] = groupIds;
+        if (plan.planId) {
+          planToGroups[plan.planId] = groupIds;
         }
       });
       setGroupsInRecoveryPlans(usedGroupIds);
@@ -304,10 +304,10 @@ export const ProtectionGroupsPage: React.FC = () => {
               },
             },
             {
-              id: 'createdAt',
+              id: 'createdDate',
               header: 'Created',
-              cell: (item) => <DateTimeDisplay value={item.createdAt} format="full" />,
-              sortingField: 'createdAt',
+              cell: (item) => <DateTimeDisplay value={item.createdDate} format="full" />,
+              sortingField: 'createdDate',
             },
           ]}
           items={items}

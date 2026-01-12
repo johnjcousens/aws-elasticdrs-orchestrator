@@ -289,7 +289,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                               .map(pg => {
                                 const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
                                 return {
-                                  label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
+                                  label: `${pg.groupName} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
                                   value: pg.protectionGroupId,
                                   tags: tagCount > 0 ? ['configured'] : ['no-tags']
                                 };
@@ -308,7 +308,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                             (protectionGroups || []).map(pg => {
                               const tagCount = Object.keys(pg.serverSelectionTags || {}).length;
                               return {
-                                label: `${pg.name} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
+                                label: `${pg.groupName} (${tagCount} tag${tagCount !== 1 ? 's' : ''})`,
                                 value: pg.protectionGroupId,
                                 tags: tagCount > 0 ? ['configured'] : ['no-tags']
                               };
