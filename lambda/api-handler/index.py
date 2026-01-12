@@ -3506,10 +3506,10 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                                 "name": name_tag,
                                 "privateIp": instance.get("PrivateIpAddress"),
                                 "publicIp": instance.get("PublicIpAddress"),
-                                "instanceType": instance.get("instanceType"),
+                                "instanceType": instance.get("InstanceType"),  # AWS API uses PascalCase
                                 "launchTime": (
-                                    instance.get("launchTime").isoformat()
-                                    if instance.get("launchTime")
+                                    instance.get("LaunchTime").isoformat()  # AWS API uses PascalCase
+                                    if instance.get("LaunchTime")
                                     else None
                                 ),
                             }
@@ -4920,9 +4920,9 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                                         'ec2State': instance.get('State', {}).get('Name', 'unknown'),
                                         'privateIp': instance.get('PrivateIpAddress', ''),
                                         'publicIp': instance.get('PublicIpAddress', ''),
-                                        'instanceType': instance.get("instanceType", ''),
+                                        'instanceType': instance.get("InstanceType", ''),  # AWS API uses PascalCase
                                         'availabilityZone': instance.get('Placement', {}).get('AvailabilityZone', ''),
-                                        'launchTime': instance.get("launchTime", '').isoformat() if instance.get("launchTime") else '',
+                                        'launchTime': instance.get("LaunchTime", '').isoformat() if instance.get("LaunchTime") else '',  # AWS API uses PascalCase
                                         'platform': instance.get('Platform', 'linux'),
                                         'architecture': instance.get('Architecture', ''),
                                         'hypervisor': instance.get('Hypervisor', ''),
