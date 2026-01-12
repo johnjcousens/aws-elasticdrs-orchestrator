@@ -2507,7 +2507,10 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             if "GroupName" in existing_group:
                 remove_clauses.append("GroupName")
 
+        print(f"DEBUG: About to check description field. Body keys: {list(body.keys())}")
+        print(f"DEBUG: 'description' in body = {'description' in body}")
         if "description" in body:
+            print(f"DEBUG: Inside description condition")
             set_clauses.append("#desc = :desc")
             expression_values[":desc"] = body["description"]
             expression_names["#desc"] = "description"
@@ -2515,6 +2518,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             # LEGACY CLEANUP: Remove old PascalCase field if it exists
             if "Description" in existing_group:
                 remove_clauses.append("Description")
+        else:
+            print(f"DEBUG: Description condition failed. Body: {body}")
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
         # When one is set, clear the other
