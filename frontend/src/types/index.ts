@@ -9,8 +9,8 @@
 // ============================================================================
 
 export interface ProtectionGroup {
-  groupId: string;  // API returns 'groupId' (camelCase database field)
-  groupName: string;  // API returns 'groupName' (camelCase database field)
+  groupId: string;  // Database primary key
+  groupName: string;  // Protection group name
   description?: string;
   region: string;
   
@@ -23,9 +23,10 @@ export interface ProtectionGroup {
   // EC2 Launch Configuration - applied to all servers in this group
   launchConfig?: LaunchConfig;
   
-  createdDate: string;  // API returns 'createdDate' (camelCase database field)
-  lastModifiedDate: string;  // API returns 'lastModifiedDate' (camelCase database field)
+  createdDate: number;  // Creation timestamp
+  lastModifiedDate: number;  // Last update timestamp
   accountId?: string;
+  assumeRoleName?: string;
   owner?: string;
   
   // Resolved servers (populated by /resolve endpoint or at execution time)
@@ -34,13 +35,6 @@ export interface ProtectionGroup {
   
   // Optimistic locking version - incremented on each update
   version?: number;
-  
-  // Backward compatibility aliases
-  id?: string;  // Alias for groupId
-  protectionGroupId?: string;  // Alias for groupId
-  name?: string;  // Alias for groupName
-  createdAt?: number | string;  // Alias for createdDate
-  updatedAt?: number | string;  // Alias for lastModifiedDate
 }
 
 // ============================================================================
@@ -169,14 +163,14 @@ export interface UpdateProtectionGroupRequest {
 // ============================================================================
 
 export interface RecoveryPlan {
-  id: string;
-  name: string;
+  planId: string;  // Database primary key
+  planName: string;  // Recovery plan name
   description?: string;
   protectionGroupId: string;
   protectionGroupName?: string;
   waves: Wave[];
-  createdAt: string | number;
-  updatedAt: string;
+  createdDate: string | number;  // Creation timestamp
+  lastModifiedDate: string;  // Last update timestamp
   createdBy?: string;
   status?: 'draft' | 'active' | 'archived';
   lastExecutionId?: string;
