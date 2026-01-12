@@ -2503,12 +2503,18 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         if "groupName" in body:
             update_expression += ", groupName = :name"
             expression_values[":name"] = body["groupName"]
+            # LEGACY CLEANUP: Remove old PascalCase field if it exists
+            if "GroupName" in existing_group:
+                update_expression += " REMOVE GroupName"
 
         if "description" in body:
             update_expression += ", #desc = :desc"
             expression_values[":desc"] = body["description"]
             expression_names["#desc"] = "description"
             print(f"DEBUG: Adding description to update: {body['description']}")
+            # LEGACY CLEANUP: Remove old PascalCase field if it exists
+            if "Description" in existing_group:
+                update_expression += " REMOVE Description"
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
         # When one is set, clear the other
@@ -2518,6 +2524,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             # Clear sourceServerIds when using tags
             update_expression += ", sourceServerIds = :empty_servers"
             expression_values[":empty_servers"] = []
+            # LEGACY CLEANUP: Remove old PascalCase field if it exists
+            if "ServerSelectionTags" in existing_group:
+                update_expression += " REMOVE ServerSelectionTags"
 
         if "sourceServerIds" in body:
             update_expression += ", sourceServerIds = :servers"
@@ -2525,6 +2534,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             # Clear serverSelectionTags when using explicit servers
             update_expression += ", serverSelectionTags = :empty_tags"
             expression_values[":empty_tags"] = {}
+            # LEGACY CLEANUP: Remove old PascalCase field if it exists
+            if "SourceServerIds" in existing_group:
+                update_expression += " REMOVE SourceServerIds"
 
         # Handle launchConfig - EC2 launch settings for recovery instances
         launch_config_apply_results = None
