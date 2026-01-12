@@ -553,7 +553,7 @@ def get_all_active_executions() -> List[Dict]:
             try:
                 result = execution_history_table.query(
                     IndexName="StatusIndex",
-                    KeyConditionExpression=Key("Status").eq(status),
+                    KeyConditionExpression=Key("status").eq(status),
                 )
                 active_executions.extend(result.get("Items", []))
             except ClientError as e:
@@ -1572,7 +1572,7 @@ def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
             # Handle /recovery-plans/{planId}/execute endpoint
             plan_id = path_parameters.get("id")
             body["planId"] = plan_id
-            if "InitiatedBy" not in body:
+            if "initiatedBy" not in body:
                 body["initiatedBy"] = "system"
             return execute_recovery_plan(body)
         elif "/check-existing-instances" in path and path.startswith(
@@ -2737,8 +2737,8 @@ def handle_recovery_plans(
     if method == "POST" and plan_id and "execute" in path:
         # Transform body for execute_recovery_plan
         body["planId"] = plan_id
-        # Get InitiatedBy from Cognito if not provided
-        if "InitiatedBy" not in body:
+        # Get initiatedBy from Cognito if not provided
+        if "initiatedBy" not in body:
             body["initiatedBy"] = "system"  # Will be replaced by Cognito user
         return execute_recovery_plan(body)
 
@@ -2840,33 +2840,33 @@ def create_recovery_plan(body: Dict) -> Dict:
 
         # Validate waves if provided
         if waves:
-            # Transform frontend camelCase to backend PascalCase for storage (match reference stack format)
-            backend_waves = []
+            # CamelCase migration - no more backend transformation, store as camelCase
+            camelcase_waves = []
             for idx, wave in enumerate(waves):
-                # Convert dependsOnWaves array to Dependencies format (match reference stack)
+                # Convert dependsOnWaves array to dependencies format (camelCase)
                 dependencies = []
                 for dep_wave_num in wave.get("dependsOnWaves", []):
                     dependencies.append({
-                        "DependsOnWaveId": f"wave-{dep_wave_num + 1}"  # Convert 0-based to 1-based wave ID
+                        "dependsOnWaveId": f"wave-{dep_wave_num + 1}"  # camelCase migration
                     })
                 
-                backend_wave = {
-                    "ExecutionOrder": idx,  # Match reference stack (not WaveNumber)
-                    "WaveId": f"wave-{idx + 1}",  # Match reference stack format
+                camelcase_wave = {
+                    "executionOrder": idx,  # camelCase migration
+                    "waveId": f"wave-{idx + 1}",  # camelCase migration
                     "waveName": wave.get("name", f"Wave {idx + 1}"),
-                    "WaveDescription": wave.get("description", ""),
+                    "waveDescription": wave.get("description", ""),
                     "protectionGroupId": wave.get("protectionGroupId", ""),
                     "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
-                    "PauseBeforeWave": wave.get("pauseBeforeWave", False),
-                    "Dependencies": dependencies,  # Match reference stack format
+                    "pauseBeforeWave": wave.get("pauseBeforeWave", False),
+                    "dependencies": dependencies,  # camelCase migration
                 }
-                backend_waves.append(backend_wave)
+                camelcase_waves.append(camelcase_wave)
             
-            # Store in backend format
-            item["waves"] = backend_waves
+            # Store in camelCase format
+            item["waves"] = camelcase_waves
             
-            validation_error = validate_waves(backend_waves)
+            validation_error = validate_waves(camelcase_waves)
             if validation_error:
                 return response(400, {"error": validation_error})
 
@@ -2938,11 +2938,11 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
             # Add conflict info if this plan has conflicts with other active executions
             if plan_id in plans_with_conflicts:
                 conflict_info = plans_with_conflicts[plan_id]
-                plan["HasServerConflict"] = True
-                plan["ConflictInfo"] = conflict_info
+                plan["hasServerConflict"] = True
+                plan["conflictInfo"] = conflict_info
             else:
-                plan["HasServerConflict"] = False
-                plan["ConflictInfo"] = None
+                plan["hasServerConflict"] = False
+                plan["conflictInfo"] = None
 
             # Query ExecutionHistoryTable for latest execution
             try:
@@ -2955,26 +2955,26 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
                 if execution_result.get("Items"):
                     latest_execution = execution_result["Items"][0]
-                    plan["LastExecutionStatus"] = latest_execution.get("status")
-                    plan["LastStartTime"] = latest_execution.get("startTime")
-                    plan["LastEndTime"] = latest_execution.get("endTime")
+                    plan["lastExecutionStatus"] = latest_execution.get("status")
+                    plan["lastStartTime"] = latest_execution.get("startTime")
+                    plan["lastEndTime"] = latest_execution.get("endTime")
                 else:
                     # No executions found for this plan
-                    plan["LastExecutionStatus"] = None
-                    plan["LastStartTime"] = None
-                    plan["LastEndTime"] = None
+                    plan["lastExecutionStatus"] = None
+                    plan["lastStartTime"] = None
+                    plan["lastEndTime"] = None
 
             except Exception as e:
                 print(
                     f"Error querying execution history for plan {plan_id}: {str(e)}"
                 )
                 # Set null values on error
-                plan["LastExecutionStatus"] = None
-                plan["LastStartTime"] = None
-                plan["LastEndTime"] = None
+                plan["lastExecutionStatus"] = None
+                plan["lastStartTime"] = None
+                plan["lastEndTime"] = None
 
             # Add wave count before transformation
-            plan["WaveCount"] = len(plan.get("waves", []))
+            plan["waveCount"] = len(plan.get("waves", []))
 
         # Apply filters to plans
         filtered_plans = []
@@ -3002,7 +3002,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
             # Conflict filter
             if has_conflict_filter is not None:
-                has_conflict = plan.get("HasServerConflict", False)
+                has_conflict = plan.get("hasServerConflict", False)
                 if has_conflict_filter.lower() == "true" and not has_conflict:
                     continue
                 if has_conflict_filter.lower() == "false" and has_conflict:
@@ -3010,7 +3010,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
             # Status filter (last execution status)
             if status_filter:
-                last_status = (plan.get("LastExecutionStatus") or "").lower()
+                last_status = (plan.get("lastExecutionStatus") or "").lower()
                 if status_filter != last_status:
                     continue
 
@@ -3056,7 +3056,7 @@ def get_recovery_plan(plan_id: str) -> Dict:
             return response(404, {"error": "Recovery Plan not found"})
 
         plan = result["Item"]
-        plan["WaveCount"] = len(plan.get("waves", []))
+        plan["waveCount"] = len(plan.get("waves", []))
 
         # Data is already in camelCase - return directly
         return response(200, plan)
@@ -3159,34 +3159,34 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         if waves is not None:
             print(f"Updating plan {plan_id} with {len(waves)} waves")
             
-            # Transform frontend camelCase to backend PascalCase for storage (match reference stack format)
-            backend_waves = []
+            # CamelCase migration - no more backend transformation, store as camelCase
+            camelcase_waves = []
             for idx, wave in enumerate(waves):
-                # Convert dependsOnWaves array to Dependencies format (match reference stack)
+                # Convert dependsOnWaves array to dependencies format (camelCase)
                 dependencies = []
                 for dep_wave_num in wave.get("dependsOnWaves", []):
                     dependencies.append({
-                        "DependsOnWaveId": f"wave-{dep_wave_num + 1}"  # Convert 0-based to 1-based wave ID
+                        "dependsOnWaveId": f"wave-{dep_wave_num + 1}"  # camelCase migration
                     })
                 
-                backend_wave = {
-                    "ExecutionOrder": idx,  # Match reference stack (not WaveNumber)
-                    "WaveId": f"wave-{idx + 1}",  # Match reference stack format
+                camelcase_wave = {
+                    "executionOrder": idx,  # camelCase migration
+                    "waveId": f"wave-{idx + 1}",  # camelCase migration
                     "waveName": wave.get("name", f"Wave {idx + 1}"),
-                    "WaveDescription": wave.get("description", ""),
+                    "waveDescription": wave.get("description", ""),
                     "protectionGroupId": wave.get("protectionGroupId", ""),
                     "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
-                    "PauseBeforeWave": wave.get("pauseBeforeWave", False),
-                    "Dependencies": dependencies,  # Match reference stack format
+                    "pauseBeforeWave": wave.get("pauseBeforeWave", False),
+                    "dependencies": dependencies,  # camelCase migration
                 }
-                backend_waves.append(backend_wave)
+                camelcase_waves.append(camelcase_wave)
             
-            # Store in backend format
-            body["waves"] = backend_waves
+            # Store in camelCase format
+            body["waves"] = camelcase_waves
 
             # DEFENSIVE: Validate ServerIds in each wave
-            for idx, wave in enumerate(backend_waves):
+            for idx, wave in enumerate(camelcase_waves):
                 server_ids = wave.get("serverIds", [])
                 if not isinstance(server_ids, list):
                     print(
@@ -3669,13 +3669,13 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 },
             )
 
-        if "InitiatedBy" not in body:
+        if "initiatedBy" not in body:
             return response(
                 400,
                 {
                     "error": "MISSING_FIELD",
-                    "message": "InitiatedBy is required - identify who/what started this execution",
-                    "field": "InitiatedBy",
+                    "message": "initiatedBy is required - identify who/what started this execution",
+                    "field": "initiatedBy",
                 },
             )
 
@@ -3739,8 +3739,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
 
         # BLOCK: Check for server conflicts with other running executions OR active DRS jobs
         # Parse account context from request
-        account_context = body.get("AccountContext") or body.get(
-            "accountContext"
+        account_context = body.get("accountContext") or body.get(
+            "AccountContext"
         )
         server_conflicts = check_server_conflicts(plan, account_context)
         if server_conflicts:
@@ -3907,8 +3907,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         # Create initial execution history record with PENDING status
         # Store PlanName directly so it's preserved even if plan is later deleted
         # Determine account context early so we can store it for resume
-        account_context = body.get("AccountContext") or body.get(
-            "accountContext"
+        account_context = body.get("accountContext") or body.get(
+            "AccountContext"
         )
         if not account_context:
             # Derive from plan if not provided in request
@@ -3927,7 +3927,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             "totalWaves": len(
                 plan.get("waves", [])
             ),  # Store total wave count for UI display
-            "AccountContext": account_context,  # Store for resume operations
+            "accountContext": account_context,  # Store for resume operations
         }
 
         # Store execution history immediately
@@ -3970,7 +3970,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status, EndTime = :end_time, ErrorMessage = :error",
-                ExpressionAttributeNames={"#status": "Status"},
+                ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "FAILED",
                     ":end_time": timestamp,
@@ -4040,9 +4040,9 @@ def execute_with_step_functions(
                 "planName": plan.get("planName", "Unknown"),
                 "waves": plan.get("waves", []),
             },
-            "IsDrill": is_drill,
-            "ResumeFromWave": resume_from_wave,  # None for new executions, wave index for resume
-            "AccountContext": account_context,
+            "isDrill": is_drill,
+            "resumeFromWave": resume_from_wave,  # None for new executions, wave index for resume
+            "accountContext": account_context,
         }
 
         # For resumed executions, use a unique name suffix to avoid conflicts
@@ -4066,8 +4066,8 @@ def execute_with_step_functions(
         # Update DynamoDB with Step Functions execution ARN
         execution_history_table.update_item(
             Key={"executionId": execution_id, "planId": plan_id},
-            UpdateExpression="SET StateMachineArn = :arn, #status = :status",
-            ExpressionAttributeNames={"#status": "Status"},
+            UpdateExpression="SET stateMachineArn = :arn, #status = :status",
+            ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
                 ":arn": sfn_response["executionArn"],
                 ":status": "RUNNING",
@@ -4087,7 +4087,7 @@ def execute_with_step_functions(
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status, ErrorMessage = :error",
-                ExpressionAttributeNames={"#status": "Status"},
+                ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "FAILED",
                     ":error": str(e),
@@ -4150,7 +4150,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET #status = :status, EndTime = :endtime, ErrorMessage = :error",
-                ExpressionAttributeNames={"#status": "Status"},
+                ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "FAILED",
                     ":endtime": int(time.time()),
@@ -4248,8 +4248,8 @@ def initiate_wave(
 
         return {
             "waveName": wave.get("name", "Unknown"),
-            "WaveId": wave.get("WaveId")
-            or wave.get("waveNumber"),  # Support both formats
+            "waveId": wave.get("waveId")
+            or wave.get("waveNumber"),  # Support both formats - camelCase migration
             "jobId": wave_job_id,  # CRITICAL: Wave-level Job ID for poller
             "protectionGroupId": protection_group_id,
             "region": region,
@@ -4607,7 +4607,7 @@ def get_execution_status(execution_id: str) -> Dict:
         if execution["status"] == "RUNNING":
             try:
                 # Build proper Step Functions execution ARN from execution ID
-                state_machine_arn = execution.get("StateMachineArn")
+                state_machine_arn = execution.get("stateMachineArn")
                 if state_machine_arn:
                     sf_response = stepfunctions.describe_execution(
                         executionArn=state_machine_arn
@@ -5335,13 +5335,13 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         print(f"Fetching real-time data for active execution {execution_id}")
 
         # REAL-TIME DATA: Get current status from Step Functions if still running
-        if execution.get("status") == "RUNNING" and execution.get("StateMachineArn"):
+        if execution.get("status") == "RUNNING" and execution.get("stateMachineArn"):
             try:
                 print(f"Getting real-time Step Functions status for execution")
                 sf_response = stepfunctions.describe_execution(
-                    executionArn=execution.get("StateMachineArn")
+                    executionArn=execution.get("stateMachineArn")
                 )
-                execution["StepFunctionsStatus"] = sf_response["status"]
+                execution["stepFunctionsStatus"] = sf_response["status"]
 
                 # Update DynamoDB if Step Functions shows completion
                 if sf_response["status"] in ["SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"]:
@@ -5349,7 +5349,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
                     execution_history_table.update_item(
                         Key={"executionId": execution_id, "planId": execution.get("planId")},
                         UpdateExpression="SET #status = :status, UpdatedAt = :updated",
-                        ExpressionAttributeNames={"#status": "Status"},
+                        ExpressionAttributeNames={"#status": "status"},
                         ExpressionAttributeValues={
                             ":status": sf_response["status"],
                             ":updated": int(time.time())
@@ -5567,7 +5567,7 @@ def cancel_execution(execution_id: str) -> Dict:
         execution_history_table.update_item(
             Key={"executionId": execution_id, "planId": plan_id},
             UpdateExpression=update_expression,
-            ExpressionAttributeNames={"#status": "Status"},
+            ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues=expression_values,
         )
 
@@ -5716,7 +5716,7 @@ def pause_execution(execution_id: str) -> Dict:
         execution_history_table.update_item(
             Key={"executionId": execution_id, "planId": plan_id},
             UpdateExpression="SET #status = :status",
-            ExpressionAttributeNames={"#status": "Status"},
+            ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":status": new_status},
         )
 
@@ -5827,7 +5827,7 @@ def resume_execution(execution_id: str) -> Dict:
 
         # Get account context from execution record (stored when execution started)
         # This is needed for cross-account DRS operations on resume
-        account_context = execution.get("AccountContext", {})
+        account_context = execution.get("accountContext", {})
         print(f"Account context for resume: {account_context}")
 
         resume_state = {
@@ -5848,7 +5848,7 @@ def resume_execution(execution_id: str) -> Dict:
             "server_ids": [],
             "error": None,
             "paused_before_wave": paused_before_wave,
-            "AccountContext": account_context,  # PascalCase to match Step Functions expectations
+            "accountContext": account_context,  # camelCase for consistency
         }
 
         print(f"Resume state: {json.dumps(resume_state, cls=DecimalEncoder)}")
@@ -5943,7 +5943,7 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
         waves = execution.get("waves", [])
 
         # Get account context from execution (region is per-wave)
-        account_context = execution.get("AccountContext", {})
+        account_context = execution.get("accountContext", {})
 
         all_job_logs = []
 
@@ -7886,40 +7886,39 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
         if not waves:
             return "Waves array cannot be empty"
 
-        # Check for duplicate wave IDs (if present)
-        wave_ids = [w.get("WaveId") for w in waves if w.get("WaveId")]
+        # Check for duplicate wave IDs (if present) - camelCase migration
+        wave_ids = [w.get("waveId") for w in waves if w.get("waveId")]
         if wave_ids and len(wave_ids) != len(set(wave_ids)):
-            return "Duplicate WaveId found in waves"
+            return "Duplicate waveId found in waves"
 
-        # Check for duplicate execution orders (if present)
+        # Check for duplicate execution orders (if present) - camelCase migration
         exec_orders = [
-            w.get("ExecutionOrder")
+            w.get("executionOrder")
             for w in waves
-            if w.get("ExecutionOrder") is not None
+            if w.get("executionOrder") is not None
         ]
         if exec_orders and len(exec_orders) != len(set(exec_orders)):
-            return "Duplicate ExecutionOrder found in waves"
+            return "Duplicate executionOrder found in waves"
 
-        # Check for circular dependencies (if present)
+        # Check for circular dependencies (if present) - camelCase migration
         dependency_graph = {}
         for wave in waves:
-            wave_id = wave.get("WaveId")
+            wave_id = wave.get("waveId")
             if wave_id:
                 dependencies = [
-                    d.get("DependsOnWaveId")
-                    for d in wave.get("Dependencies", [])
+                    d.get("dependsOnWaveId")
+                    for d in wave.get("dependencies", [])
                 ]
                 dependency_graph[wave_id] = dependencies
 
         if dependency_graph and has_circular_dependencies(dependency_graph):
             return "Circular dependency detected in wave configuration"
 
-        # Validate each wave has required fields
-        # NEW: Support both old (single PG) and new (multi-PG) formats
+        # Validate each wave has required fields - camelCase migration
         for wave in waves:
-            # Accept both backend (WaveId, WaveName) and frontend (waveNumber, name) formats
-            if "WaveId" not in wave and "waveNumber" not in wave:
-                return "Wave missing required field: WaveId or waveNumber"
+            # camelCase migration - only support camelCase fields
+            if "waveId" not in wave and "waveNumber" not in wave:
+                return "Wave missing required field: waveId or waveNumber"
 
             if "waveName" not in wave and "name" not in wave:
                 return "Wave missing required field: waveName or name"
@@ -9568,7 +9567,7 @@ def _get_active_execution_servers() -> Dict[str, Dict]:
             result = execution_history_table.query(
                 IndexName="StatusIndex",
                 KeyConditionExpression="#s = :status",
-                ExpressionAttributeNames={"#s": "Status"},
+                ExpressionAttributeNames={"#s": "status"},
                 ExpressionAttributeValues={":status": status},
             )
             for exec_item in result.get("Items", []):
