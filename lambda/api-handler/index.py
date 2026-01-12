@@ -9083,14 +9083,14 @@ def get_ec2_security_groups(query_params: Dict) -> Dict:
 
         groups = []
         for sg in result["SecurityGroups"]:
-            label = f"{sg["groupName"]} ({sg["groupId"]})"
+            label = f"{sg['GroupName']} ({sg['GroupId']})"
             groups.append(
                 {
-                    "value": sg["groupId"],
+                    "value": sg["GroupId"],
                     "label": label,
-                    "name": sg["groupName"],
+                    "name": sg["GroupName"],
                     "vpcId": sg["VpcId"],
-                    "description": sg.get("description", "")[:100],
+                    "description": sg.get("Description", "")[:100],
                 }
             )
 
@@ -9150,7 +9150,7 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
         # DRS can use any instance type that's available in the target region
         for page in paginator.paginate():
             for it in page["InstanceTypes"]:
-                instance_type = it["instanceType"]
+                instance_type = it["InstanceType"]
                 vcpus = it["VCpuInfo"]["DefaultVCpus"]
                 mem_gb = round(it["MemoryInfo"]["SizeInMiB"] / 1024)
 
