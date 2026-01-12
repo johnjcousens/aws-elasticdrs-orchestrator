@@ -2348,8 +2348,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         existing_group = result["Item"]
         current_version = existing_group.get(
-            "Version", 1
-        )  # Default to 1 for legacy items
+            "version", 1
+        )  # FIXED: camelCase - Default to 1 for legacy items
 
         # Optimistic locking: Check if client provided expected version
         client_version = body.get("version") or body.get("Version")
@@ -2629,7 +2629,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         update_args = {
             "Key": {"groupId": group_id},
             "UpdateExpression": update_expression,
-            "ConditionExpression": "Version = :current_version OR attribute_not_exists(Version)",
+            "ConditionExpression": "version = :current_version OR attribute_not_exists(version)",  # FIXED: camelCase
             "ExpressionAttributeValues": expression_values,
             "ReturnValues": "ALL_NEW",
         }
@@ -2833,9 +2833,9 @@ def create_recovery_plan(body: Dict) -> Dict:
             "planName": plan_name,  # Use the validated plan_name variable
             "description": body.get("description", body.get("description", "")),  # Accept both formats
             "waves": waves,  # Use the validated waves variable
-            "CreatedDate": timestamp,
-            "LastModifiedDate": timestamp,
-            "Version": 1,  # Optimistic locking - starts at version 1
+            "createdDate": timestamp,  # FIXED: camelCase
+            "lastModifiedDate": timestamp,  # FIXED: camelCase
+            "version": 1,  # FIXED: camelCase - Optimistic locking starts at version 1
         }
 
         # Validate waves if provided
@@ -3075,8 +3075,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
         existing_plan = result["Item"]
         current_version = existing_plan.get(
-            "Version", 1
-        )  # Default to 1 for legacy items
+            "version", 1
+        )  # FIXED: camelCase - Default to 1 for legacy items
 
         # Optimistic locking: Check if client provided expected version
         client_version = body.get("version") or body.get("Version")
@@ -3238,7 +3238,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         update_args = {
             "Key": {"planId": plan_id},
             "UpdateExpression": update_expression,
-            "ConditionExpression": "Version = :current_version OR attribute_not_exists(Version)",
+            "ConditionExpression": "version = :current_version OR attribute_not_exists(version)",  # FIXED: camelCase
             "ExpressionAttributeValues": expression_values,
             "ReturnValues": "ALL_NEW",
         }
@@ -9313,7 +9313,7 @@ def export_configuration(query_params: Dict) -> Dict:
                 "description": pg.get("description", ""),
                 "region": pg.get("region", ""),
                 "accountId": pg.get("accountId", ""),
-                "Owner": pg.get("Owner", ""),
+                "owner": pg.get("owner", ""),  # FIXED: camelCase
             }
             # Include server selection method (mutually exclusive)
             if pg.get("sourceServerIds"):
@@ -9765,10 +9765,10 @@ def _process_protection_group_import(
                 "description": pg.get("description", ""),
                 "region": region,
                 "accountId": pg.get("accountId", ""),
-                "Owner": pg.get("Owner", ""),
-                "CreatedDate": timestamp,
-                "LastModifiedDate": timestamp,
-                "Version": 1,
+                "owner": pg.get("owner", ""),  # FIXED: camelCase
+                "createdDate": timestamp,  # FIXED: camelCase
+                "lastModifiedDate": timestamp,  # FIXED: camelCase
+                "version": 1,  # FIXED: camelCase
             }
 
             if source_server_ids:
@@ -10000,9 +10000,9 @@ def _process_recovery_plan_import(
                 "planName": plan_name,
                 "description": rp.get("description", ""),
                 "waves": resolved_waves,  # Use resolved waves with correct IDs
-                "CreatedDate": timestamp,
-                "LastModifiedDate": timestamp,
-                "Version": 1,
+                "createdDate": timestamp,  # FIXED: camelCase
+                "lastModifiedDate": timestamp,  # FIXED: camelCase
+                "version": 1,  # FIXED: camelCase
             }
 
             recovery_plans_table.put_item(Item=item)
