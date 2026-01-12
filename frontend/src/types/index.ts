@@ -9,9 +9,8 @@
 // ============================================================================
 
 export interface ProtectionGroup {
-  id: string;  // Lambda returns 'id' directly (camelCase throughout)
-  protectionGroupId: string;  // Alias for backward compatibility
-  name: string;
+  groupId: string;  // API returns 'groupId' (camelCase database field)
+  groupName: string;  // API returns 'groupName' (camelCase database field)
   description?: string;
   region: string;
   
@@ -24,8 +23,8 @@ export interface ProtectionGroup {
   // EC2 Launch Configuration - applied to all servers in this group
   launchConfig?: LaunchConfig;
   
-  createdAt: number;
-  updatedAt: number;
+  createdDate: string;  // API returns 'createdDate' (camelCase database field)
+  lastModifiedDate: string;  // API returns 'lastModifiedDate' (camelCase database field)
   accountId?: string;
   owner?: string;
   
@@ -35,6 +34,13 @@ export interface ProtectionGroup {
   
   // Optimistic locking version - incremented on each update
   version?: number;
+  
+  // Backward compatibility aliases
+  id?: string;  // Alias for groupId
+  protectionGroupId?: string;  // Alias for groupId
+  name?: string;  // Alias for groupName
+  createdAt?: number | string;  // Alias for createdDate
+  updatedAt?: number | string;  // Alias for lastModifiedDate
 }
 
 // ============================================================================

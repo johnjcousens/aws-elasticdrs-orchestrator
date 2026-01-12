@@ -147,9 +147,9 @@ export const ProtectionGroupsPage: React.FC = () => {
 
     setDeleting(true);
     try {
-      await apiClient.deleteProtectionGroup(groupToDelete.protectionGroupId);
-      setGroups(groups.filter(g => g.protectionGroupId !== groupToDelete.protectionGroupId));
-      addNotification('success', `Protection group "${groupToDelete.name}" deleted successfully`);
+      await apiClient.deleteProtectionGroup(groupToDelete.groupId);
+      setGroups(groups.filter(g => g.groupId !== groupToDelete.groupId));
+      addNotification('success', `Protection group "${groupToDelete.groupName}" deleted successfully`);
       setDeleteDialogOpen(false);
       setGroupToDelete(null);
     } catch (err: any) {
@@ -179,7 +179,7 @@ export const ProtectionGroupsPage: React.FC = () => {
 
   const handleDialogSave = (savedGroup: ProtectionGroup) => {
     const action = editingGroup ? 'updated' : 'created';
-    addNotification('success', `Protection group "${savedGroup.name}" ${action} successfully`);
+    addNotification('success', `Protection group "${savedGroup.groupName}" ${action} successfully`);
     fetchGroups();
   };
 
@@ -240,8 +240,8 @@ export const ProtectionGroupsPage: React.FC = () => {
               header: 'Actions',
               width: 70,
               cell: (item) => {
-                const isInRecoveryPlan = groupsInRecoveryPlans.has(item.protectionGroupId);
-                const isInActiveExecution = groupsInActiveExecutions.has(item.protectionGroupId);
+                const isInRecoveryPlan = groupsInRecoveryPlans.has(item.groupId);
+                const isInActiveExecution = groupsInActiveExecutions.has(item.groupId);
                 return (
                   <PermissionAwareButtonDropdown
                     items={[
@@ -279,8 +279,8 @@ export const ProtectionGroupsPage: React.FC = () => {
             {
               id: 'name',
               header: 'Name',
-              cell: (item) => item.name,
-              sortingField: 'name',
+              cell: (item) => item.groupName,
+              sortingField: 'groupName',
             },
             {
               id: 'description',
@@ -306,8 +306,8 @@ export const ProtectionGroupsPage: React.FC = () => {
             {
               id: 'createdAt',
               header: 'Created',
-              cell: (item) => <DateTimeDisplay value={item.createdAt} format="full" />,
-              sortingField: 'createdAt',
+              cell: (item) => <DateTimeDisplay value={item.createdDate} format="full" />,
+              sortingField: 'createdDate',
             },
           ]}
           items={items}
@@ -339,7 +339,7 @@ export const ProtectionGroupsPage: React.FC = () => {
           title="Delete Protection Group"
           message={
             groupToDelete
-              ? `Are you sure you want to delete "${groupToDelete.name}"? This action cannot be undone.`
+              ? `Are you sure you want to delete "${groupToDelete.groupName}"? This action cannot be undone.`
               : ''
           }
           confirmLabel="Delete"
