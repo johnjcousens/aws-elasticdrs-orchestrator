@@ -224,13 +224,19 @@ If any of these occur, document thoroughly for user return:
   - 🎯 **CAMELCASE SCHEMA DEPLOYMENT UNDERWAY**
   - 📋 **STATUS**: All migration work complete, monitoring final deployment
 
-**17:20** - 🔄 DEPLOYMENT IN PROGRESS: Previous workflow completing, camelCase fix ready for deployment
-  - ✅ **Current Workflow**: 20906073447 progressing successfully (Deploy Infrastructure stage)
-  - ✅ **All Critical Stages Passed**: Detect Changes, Validate, Security Scan, Build, Test (1m13s - no hanging!)
-  - ✅ **CamelCase Fix Committed**: All remaining PascalCase field references eliminated
-  - 🔄 **Infrastructure Deployment**: CloudFormation stack update in progress
-  - ⏳ **Waiting for Completion**: Will deploy camelCase fix once current workflow finishes
-  - 🎯 **Next**: Deploy complete camelCase migration to resolve 409 conflicts
+**17:45** - 🔄 FORCE LAMBDA UPDATE DEPLOYED: Resolving camelCase deployment caching issue
+  - ✅ **Previous Deployment**: Infrastructure completed successfully but Lambda CodeSha256 unchanged
+  - ✅ **Root Cause**: Lambda function caching prevented camelCase fixes from taking effect
+  - ✅ **Solution**: Force Lambda update with version change (Build 2) to bypass caching
+  - 🔄 **Current Deployment**: GitHub Actions workflow 20906491232 in progress
+  - 🎯 **Expected Result**: Lambda function will get new CodeSha256 and camelCase fixes will work
+  - ⏳ **Next**: Test API once deployment completes to verify 'GroupId' error is resolved
+
+## 🔍 **DEPLOYMENT ANALYSIS**
+- **Issue**: Lambda function showed LastModified update but same CodeSha256 hash
+- **Cause**: CloudFormation deployment optimization skipped Lambda update when code appeared unchanged
+- **Fix**: Modified Lambda function header to force new deployment package
+- **Verification**: Will check CodeSha256 changes after deployment completes
 
 ## 🔧 **ROOT CAUSE ANALYSIS COMPLETE**
 The 409 conflict and mixed PascalCase/camelCase API responses were caused by **incomplete migration**:
