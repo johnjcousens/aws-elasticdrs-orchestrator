@@ -101,7 +101,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
     if (open) {
       if (group) {
         // Edit mode - populate form with existing data
-        setName(group.name);
+        setName(group.groupName);
         setDescription(group.description || '');
         setRegion(group.region || '');
         
@@ -267,7 +267,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         if (group.version !== undefined) {
           groupData.version = group.version;
         }
-        savedGroup = await apiClient.updateProtectionGroup(group.protectionGroupId, groupData);
+        savedGroup = await apiClient.updateProtectionGroup(group.groupId, groupData);
       } else {
         savedGroup = await apiClient.createProtectionGroup(groupData);
       }
@@ -433,7 +433,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                           region={region}
                           selectedServerIds={selectedServerIds}
                           onSelectionChange={setSelectedServerIds}
-                          currentProtectionGroupId={group?.protectionGroupId}
+                          currentProtectionGroupId={group?.groupId}
                           pauseRefresh={true}
                         />
                       )}

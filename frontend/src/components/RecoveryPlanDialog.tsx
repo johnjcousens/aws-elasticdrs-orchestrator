@@ -71,7 +71,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
       
       // Populate waves with BOTH protectionGroupId and protectionGroupIds array
       // Use first PG as default if wave doesn't have one
-      const firstPgId = protectionGroups[0]?.protectionGroupId || '';
+      const firstPgId = protectionGroups[0]?.groupId || '';
       const wavesWithPgId = (plan.waves || []).map(w => {
         // Extract PG ID from various possible fields (backend sends both now)
         const pgId = w.protectionGroupId || firstPgId;
@@ -135,7 +135,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
         : (w.protectionGroupId ? [w.protectionGroupId] : []);
       
       // Check if ALL selected PGs are tag-based
-      const selectedPGs = protectionGroups.filter(pg => wavePgIds.includes(pg.protectionGroupId));
+      const selectedPGs = protectionGroups.filter(pg => wavePgIds.includes(pg.groupId));
       const allTagBased = selectedPGs.length > 0 && selectedPGs.every(pg => 
         pg.serverSelectionTags && Object.keys(pg.serverSelectionTags).length > 0
       );
