@@ -9063,7 +9063,10 @@ def get_ec2_subnets(query_params: Dict) -> Dict:
         return response(500, {"error": str(e)})
 
 def get_ec2_security_groups(query_params: Dict) -> Dict:
-    """Get security groups for dropdown selection."""
+    """
+    Get security groups for dropdown selection.
+    AWS EC2 API returns PascalCase field names (GroupName, GroupId, VpcId).
+    """
     region = query_params.get("region")
     vpc_id = query_params.get("vpcId")  # Optional filter
 
