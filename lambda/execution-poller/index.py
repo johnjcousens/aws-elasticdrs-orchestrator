@@ -171,7 +171,7 @@ def lambda_handler(
             if is_cancelling:
                 if wave_status in IN_PROGRESS_STATUSES:
                     logger.info(
-                        f"Polling in-progress wave {wave.get('WaveId')} (status: {wave_status})"
+                        f"Polling in-progress wave {wave.get('waveId')} (status: {wave_status})"
                     )
                     updated_wave = poll_wave_status(wave, execution_type)
                     waves_polled += 1
@@ -182,7 +182,7 @@ def lambda_handler(
                             datetime.now(timezone.utc).timestamp()
                         )
                         logger.info(
-                            f"Wave {wave.get('WaveId')} completed, set EndTime"
+                            f"Wave {wave.get('waveId')} completed, set EndTime"
                         )
 
                     updated_waves.append(updated_wave)
@@ -491,7 +491,7 @@ def poll_wave_status(
         job_id = wave.get("jobId")
 
         if not job_id:
-            logger.warning(f"Wave {wave.get('WaveId')} has no JobId")
+            logger.warning(f"Wave {wave.get('waveId')} has no JobId")
             return wave
 
         # Query DRS for job status
@@ -579,7 +579,7 @@ def poll_wave_status(
                 if all_launched:
                     wave["status"] = "COMPLETED"
                     logger.info(
-                        f"Wave {wave.get('WaveId')} completed - all servers LAUNCHED"
+                        f"Wave {wave.get('waveId')} completed - all servers LAUNCHED"
                     )
                 elif any_failed:
                     wave["status"] = "FAILED"
@@ -590,7 +590,7 @@ def poll_wave_status(
                         in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     ]
                     logger.warning(
-                        f"Wave {wave.get('WaveId')} failed - servers {failed_servers} failed to launch"
+                        f"Wave {wave.get('waveId')} failed - servers {failed_servers} failed to launch"
                     )
                 elif drs_status in ["PENDING", "STARTED"]:
                     wave["status"] = "LAUNCHING"
@@ -603,7 +603,7 @@ def poll_wave_status(
                         if s.get("status") != "LAUNCHED"
                     ]
                     logger.error(
-                        f"Wave {wave.get('WaveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
+                        f"Wave {wave.get('waveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
                     )
                     wave["StatusMessage"] = (
                         f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
@@ -632,12 +632,12 @@ def poll_wave_status(
                 if all_launched and post_launch_complete:
                     wave["status"] = "COMPLETED"
                     logger.info(
-                        f"Wave {wave.get('WaveId')} recovery completed"
+                        f"Wave {wave.get('waveId')} recovery completed"
                     )
                 elif any_failed:
                     wave["status"] = "FAILED"
                     logger.warning(
-                        f"Wave {wave.get('WaveId')} recovery failed"
+                        f"Wave {wave.get('waveId')} recovery failed"
                     )
                 elif drs_status in ["PENDING", "STARTED"]:
                     wave["status"] = "LAUNCHING"
@@ -650,7 +650,7 @@ def poll_wave_status(
                         if s.get("status") != "LAUNCHED"
                     ]
                     logger.error(
-                        f"Wave {wave.get('WaveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
+                        f"Wave {wave.get('waveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
                     )
                     wave["StatusMessage"] = (
                         f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
