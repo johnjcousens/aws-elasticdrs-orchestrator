@@ -277,7 +277,7 @@ export const ProtectionGroupsPage: React.FC = () => {
               },
             },
             {
-              id: 'name',
+              id: 'groupName',
               header: 'Name',
               cell: (item) => item.groupName,
               sortingField: 'groupName',
