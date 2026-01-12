@@ -8885,7 +8885,7 @@ def apply_launch_config_to_servers(
             template_data = {}
 
             if launch_config.get("instanceType"):
-                template_data["instanceType"] = launch_config["instanceType"]
+                template_data["InstanceType"] = launch_config["instanceType"]
 
             # Network interface settings (subnet and security groups)
             if launch_config.get("subnetId") or launch_config.get(
