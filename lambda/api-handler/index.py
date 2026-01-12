@@ -2510,13 +2510,17 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             print(f"DEBUG: Adding description to update: {body['description']}")
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
-        # When one is set, clear the other
+        # When one is set, clear the other AND remove old PascalCase fields
+        remove_clauses = []
+        
         if "serverSelectionTags" in body:
             update_expression += ", serverSelectionTags = :tags"
             expression_values[":tags"] = body["serverSelectionTags"]
             # Clear sourceServerIds when using tags
             update_expression += ", sourceServerIds = :empty_servers"
             expression_values[":empty_servers"] = []
+            # Remove old PascalCase fields
+            remove_clauses.extend(["ServerSelectionTags", "SourceServerIds"])
 
         if "sourceServerIds" in body:
             update_expression += ", sourceServerIds = :servers"
@@ -2524,6 +2528,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             # Clear serverSelectionTags when using explicit servers
             update_expression += ", serverSelectionTags = :empty_tags"
             expression_values[":empty_tags"] = {}
+            # Remove old PascalCase fields
+            remove_clauses.extend(["ServerSelectionTags", "SourceServerIds"])
 
         # Handle launchConfig - EC2 launch settings for recovery instances
         launch_config_apply_results = None
@@ -2612,6 +2618,11 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         print(f"DEBUG: Final update expression: {update_expression}")
         print(f"DEBUG: Expression values: {expression_values}")
+        
+        # Add REMOVE clause for old PascalCase fields if needed
+        if remove_clauses:
+            update_expression += " REMOVE " + ", ".join(remove_clauses)
+            print(f"DEBUG: Added REMOVE clause: {remove_clauses}")
         
         # Update item with conditional write (optimistic locking)
         # Only succeeds if version hasn't changed since we read it
