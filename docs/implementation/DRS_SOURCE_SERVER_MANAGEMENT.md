@@ -256,7 +256,7 @@ POST /drs/source-servers/{server-id}/validate-launch-template
       "Iops": 3000,
       "Throughput": 125,
       "Encrypted": true,
-      "KmsKeyId": "***REMOVED***"
+      "KmsKeyId": "arn:aws:kms:us-east-1:ACCOUNT-ID:key/KMS-KEY-ID"
     }
   ],
   "ReplicationSettings": {
