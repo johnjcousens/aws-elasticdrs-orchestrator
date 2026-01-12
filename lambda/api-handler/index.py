@@ -2141,10 +2141,10 @@ def create_protection_group(body: Dict) -> Dict:
             "region": region,
             "accountId": body.get("accountId", ""),
             "assumeRoleName": body.get("assumeRoleName", ""),
-            "Owner": body.get("Owner", ""),
-            "CreatedDate": timestamp,
-            "LastModifiedDate": timestamp,
-            "Version": 1,  # Optimistic locking - starts at version 1
+            "owner": body.get("owner", ""),  # FIXED: camelCase
+            "createdDate": timestamp,  # FIXED: camelCase
+            "lastModifiedDate": timestamp,  # FIXED: camelCase
+            "version": 1,  # FIXED: camelCase - Optimistic locking starts at version 1
         }
 
         # Store the appropriate selection method (MUTUALLY EXCLUSIVE)
@@ -2246,10 +2246,10 @@ def create_protection_group(body: Dict) -> Dict:
             "region": item["region"],
             "accountId": item["accountId"],
             "assumeRoleName": item["assumeRoleName"],
-            "Owner": item["Owner"],
-            "CreatedDate": item["CreatedDate"],
-            "LastModifiedDate": item["LastModifiedDate"],
-            "Version": item["Version"],
+            "owner": item["owner"],  # FIXED: camelCase
+            "createdDate": item["createdDate"],  # FIXED: camelCase
+            "lastModifiedDate": item["lastModifiedDate"],  # FIXED: camelCase
+            "version": item["version"],  # FIXED: camelCase
             "sourceServerIds": item.get("sourceServerIds", []),
             "serverSelectionTags": item.get("serverSelectionTags", {}),
         }
@@ -2505,7 +2505,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         # Build update expression with version increment (optimistic locking)
         new_version = int(current_version) + 1
         update_expression = (
-            "SET LastModifiedDate = :timestamp, Version = :new_version"
+            "SET lastModifiedDate = :timestamp, version = :new_version"  # FIXED: camelCase
         )
         expression_values = {
             ":timestamp": int(time.time()),
