@@ -10,7 +10,9 @@
 
 export interface ProtectionGroup {
   groupId: string;  // Database primary key
+  protectionGroupId: string;  // Alias for backward compatibility (same as groupId)
   groupName: string;  // Protection group name
+  name: string;  // Alias for backward compatibility (same as groupName)
   description?: string;
   region: string;
   
