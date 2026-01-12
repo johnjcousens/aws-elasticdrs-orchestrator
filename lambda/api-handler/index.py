@@ -18,6 +18,10 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import boto3
+
+# Force Lambda update - Build 3 - CamelCase Migration Complete
+LAMBDA_BUILD_VERSION = "v1.3.1-Build3-CamelCase"
+print(f"Lambda Build Version: {LAMBDA_BUILD_VERSION}")
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
