@@ -116,8 +116,8 @@ if [ -n "$LAMBDA_FILES" ]; then
         # Look for PascalCase in dictionary keys or DynamoDB operations
         matches=$(echo "$LAMBDA_FILES" | xargs grep -n "\"${pattern}\"\\|'${pattern}'" 2>/dev/null || true)
         if [ -n "$matches" ]; then
-            # Filter out comments, transform function definitions, AWS API responses, CloudWatch metrics, and EC2 template fields
-            filtered_matches=$(echo "$matches" | grep -v "# Transform" | grep -v "def transform" | grep -v "subnet\[" | grep -v "profile\[" | grep -v "CloudWatch" | grep -v "Dimensions" | grep -v "network_interface\[" | grep -v "Name.*ExecutionId" || true)
+            # Filter out comments, transform function definitions, AWS API responses, CloudWatch metrics, EC2 template fields, and AWS service calls
+            filtered_matches=$(echo "$matches" | grep -v "# Transform" | grep -v "def transform" | grep -v "subnet\[" | grep -v "profile\[" | grep -v "CloudWatch" | grep -v "Dimensions" | grep -v "network_interface\[" | grep -v "Name.*ExecutionId" | grep -v "sg\[" | grep -v "it\[" | grep -v "instance\[" | grep -v "result\[.*SecurityGroups" | grep -v "result\[.*InstanceTypes" | grep -v "ec2\\.describe" | grep -v "iam\\.list" | grep -v "paginator\\.paginate" || true)
             if [ -n "$filtered_matches" ]; then
                 report_error "Found PascalCase field '${pattern}' in Lambda files:"
                 echo "$filtered_matches" | while read -r line; do
@@ -239,12 +239,12 @@ echo "6.1. Checking API field validation consistency..."
 
 API_HANDLER="lambda/api-handler/index.py"
 if [ -f "$API_HANDLER" ]; then
-    # Check createProtectionGroup field validation
-    if grep -n "\"GroupName\"" "$API_HANDLER" > /dev/null 2>&1; then
+    # Check createProtectionGroup field validation - but exclude AWS API field references
+    if grep -n "\"GroupName\"" "$API_HANDLER" | grep -v "sg\[" | grep -v "result\[" | grep -v "ec2\\.describe" > /dev/null 2>&1; then
         report_error "Backend validates 'GroupName' (PascalCase) but frontend sends 'groupName' (camelCase)"
     fi
     
-    if grep -n "\"Region\"" "$API_HANDLER" > /dev/null 2>&1; then
+    if grep -n "\"Region\"" "$API_HANDLER" | grep -v "subnet\[" | grep -v "profile\[" | grep -v "ec2\\.describe" > /dev/null 2>&1; then
         report_error "Backend validates 'Region' (PascalCase) but frontend sends 'region' (camelCase)"
     fi
     
