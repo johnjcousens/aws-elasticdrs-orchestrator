@@ -8910,17 +8910,17 @@ def apply_launch_config_to_servers(
             # so we must call it before our EC2 template updates to avoid being overwritten
             drs_update = {"sourceServerID": server_id}
             if "copyPrivateIp" in launch_config:
-                drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
+                drs_update["CopyPrivateIp"] = launch_config["copyPrivateIp"]
             if "copyTags" in launch_config:
-                drs_update["copyTags"] = launch_config["copyTags"]
+                drs_update["CopyTags"] = launch_config["copyTags"]
             if "licensing" in launch_config:
-                drs_update["licensing"] = launch_config["licensing"]
+                drs_update["Licensing"] = launch_config["licensing"]
             if "targetInstanceTypeRightSizingMethod" in launch_config:
-                drs_update["targetInstanceTypeRightSizingMethod"] = (
+                drs_update["TargetInstanceTypeRightSizingMethod"] = (
                     launch_config["targetInstanceTypeRightSizingMethod"]
                 )
             if "launchDisposition" in launch_config:
-                drs_update["launchDisposition"] = launch_config[
+                drs_update["LaunchDisposition"] = launch_config[
                     "launchDisposition"
                 ]
 
