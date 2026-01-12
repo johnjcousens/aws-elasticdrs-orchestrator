@@ -3261,6 +3261,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
 
         print(f"Updated Recovery Plan: {plan_id}")
         # Transform to camelCase for frontend consistency
+        updated_plan = result["Attributes"]
         updated_plan["waveCount"] = len(updated_plan.get("waves", []))
         # Data is already in camelCase - return directly
         return response(200, updated_plan)
@@ -8398,7 +8399,7 @@ def create_target_account(body: Dict) -> Dict:
         return response(
             201,
             {
-                **account_item,
+                **body_with_timestamps,
                 "message": success_message,
                 "isFirstAccount": is_first_account,
             },
