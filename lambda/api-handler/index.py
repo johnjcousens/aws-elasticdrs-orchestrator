@@ -2507,6 +2507,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         if "description" in body:
             update_expression += ", description = :desc"
             expression_values[":desc"] = body["description"]
+            print(f"DEBUG: Adding description to update: {body['description']}")
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
         # When one is set, clear the other
@@ -2609,6 +2610,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             update_expression += ", launchConfig = :launchConfig"
             expression_values[":launchConfig"] = launch_config
 
+        print(f"DEBUG: Final update expression: {update_expression}")
+        print(f"DEBUG: Expression values: {expression_values}")
+        
         # Update item with conditional write (optimistic locking)
         # Only succeeds if version hasn't changed since we read it
         update_args = {
