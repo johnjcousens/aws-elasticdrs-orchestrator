@@ -2490,9 +2490,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
         # Build update expression with version increment (optimistic locking)
         new_version = int(current_version) + 1
-        update_expression = (
-            "SET lastModifiedDate = :timestamp, version = :new_version"  # FIXED: camelCase
-        )
+        set_clauses = ["lastModifiedDate = :timestamp", "version = :new_version"]
+        remove_clauses = []
+        
         expression_values = {
             ":timestamp": int(time.time()),
             ":new_version": new_version,
@@ -2501,42 +2501,42 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         expression_names = {}
 
         if "groupName" in body:
-            update_expression += ", groupName = :name"
+            set_clauses.append("groupName = :name")
             expression_values[":name"] = body["groupName"]
             # LEGACY CLEANUP: Remove old PascalCase field if it exists
             if "GroupName" in existing_group:
-                update_expression += " REMOVE GroupName"
+                remove_clauses.append("GroupName")
 
         if "description" in body:
-            update_expression += ", #desc = :desc"
+            set_clauses.append("#desc = :desc")
             expression_values[":desc"] = body["description"]
             expression_names["#desc"] = "description"
             print(f"DEBUG: Adding description to update: {body['description']}")
             # LEGACY CLEANUP: Remove old PascalCase field if it exists
             if "Description" in existing_group:
-                update_expression += " REMOVE Description"
+                remove_clauses.append("Description")
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
         # When one is set, clear the other
         if "serverSelectionTags" in body:
-            update_expression += ", serverSelectionTags = :tags"
+            set_clauses.append("serverSelectionTags = :tags")
             expression_values[":tags"] = body["serverSelectionTags"]
             # Clear sourceServerIds when using tags
-            update_expression += ", sourceServerIds = :empty_servers"
+            set_clauses.append("sourceServerIds = :empty_servers")
             expression_values[":empty_servers"] = []
             # LEGACY CLEANUP: Remove old PascalCase field if it exists
             if "ServerSelectionTags" in existing_group:
-                update_expression += " REMOVE ServerSelectionTags"
+                remove_clauses.append("ServerSelectionTags")
 
         if "sourceServerIds" in body:
-            update_expression += ", sourceServerIds = :servers"
+            set_clauses.append("sourceServerIds = :servers")
             expression_values[":servers"] = body["sourceServerIds"]
             # Clear serverSelectionTags when using explicit servers
-            update_expression += ", serverSelectionTags = :empty_tags"
+            set_clauses.append("serverSelectionTags = :empty_tags")
             expression_values[":empty_tags"] = {}
             # LEGACY CLEANUP: Remove old PascalCase field if it exists
             if "SourceServerIds" in existing_group:
-                update_expression += " REMOVE SourceServerIds"
+                remove_clauses.append("SourceServerIds")
 
         # Handle launchConfig - EC2 launch settings for recovery instances
         launch_config_apply_results = None
@@ -2620,11 +2620,17 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     )
 
             # Store launchConfig in DynamoDB
-            update_expression += ", launchConfig = :launchConfig"
+            set_clauses.append("launchConfig = :launchConfig")
             expression_values[":launchConfig"] = launch_config
+
+        # Construct final update expression with proper SET and REMOVE separation
+        update_expression = "SET " + ", ".join(set_clauses)
+        if remove_clauses:
+            update_expression += " REMOVE " + ", ".join(remove_clauses)
 
         print(f"DEBUG: Final update expression: {update_expression}")
         print(f"DEBUG: Expression values: {expression_values}")
+        print(f"DEBUG: Remove clauses: {remove_clauses}")
         
         # Update item with conditional write (optimistic locking)
         # Only succeeds if version hasn't changed since we read it
