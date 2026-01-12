@@ -1,11 +1,32 @@
-/**
- * Vitest Setup File
- * 
- * This file runs before all tests to set up the test environment.
- */
+// Test setup file for vitest
+import { beforeAll, afterEach } from 'vitest';
 
-// Mock window.AWS_CONFIG for tests that import services depending on aws-config
-Object.defineProperty(window, 'AWS_CONFIG', {
-  value: undefined,
-  writable: true,
+// Setup global test environment
+beforeAll(() => {
+  // Mock window.matchMedia for CloudScape components
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => {},
+    }),
+  });
+
+  // Mock ResizeObserver for CloudScape components
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
+
+// Clean up after each test
+afterEach(() => {
+  // Clean up any test artifacts
 });
