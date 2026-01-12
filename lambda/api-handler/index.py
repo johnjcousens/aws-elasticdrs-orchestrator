@@ -2243,16 +2243,8 @@ def create_protection_group(body: Dict) -> Dict:
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
 
-        # Return pure camelCase data (no field mapping)
-        response_item = item.copy()
-
-        # Include launchConfig apply results if applicable
-        if launch_config_apply_results:
-            response_item["launchConfigApplyResults"] = (
-                launch_config_apply_results
-            )
-
-        return response(201, response_item)
+        # Return raw camelCase database fields directly - no transformation needed
+        return response(201, item)
 
     except Exception as e:
         print(f"Error creating Protection Group: {str(e)}")
@@ -2294,10 +2286,8 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
                     filtered_groups.append(group)
             groups = filtered_groups
 
-        # Return groups with pure camelCase fields (no transformation) - v1.3.1 camelCase migration complete
-        return response(
-            200, {"groups": groups, "count": len(groups)}
-        )
+        # Return raw camelCase database fields directly - no transformation needed
+        return response(200, {"groups": groups, "count": len(groups)})
 
     except Exception as e:
         print(f"Error listing Protection Groups: {str(e)}")
@@ -2313,10 +2303,8 @@ def get_protection_group(group_id: str) -> Dict:
 
         group = result["Item"]
 
-        # Transform to camelCase (no server enrichment - use /resolve endpoint for that)
-        camelcase_group = group
-
-        return response(200, camelcase_group)
+        # Return raw camelCase database fields directly - no transformation needed
+        return response(200, group)
 
     except Exception as e:
         print(f"Error getting Protection Group: {str(e)}")

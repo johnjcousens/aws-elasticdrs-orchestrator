@@ -147,8 +147,8 @@ export const ProtectionGroupsPage: React.FC = () => {
 
     setDeleting(true);
     try {
-      await apiClient.deleteProtectionGroup(groupToDelete.groupId);
-      setGroups(groups.filter(g => g.groupId !== groupToDelete.groupId));
+      await apiClient.deleteProtectionGroup(groupToDelete.protectionGroupId);
+      setGroups(groups.filter(g => g.protectionGroupId !== groupToDelete.protectionGroupId));
       addNotification('success', `Protection group "${groupToDelete.groupName}" deleted successfully`);
       setDeleteDialogOpen(false);
       setGroupToDelete(null);
@@ -240,8 +240,8 @@ export const ProtectionGroupsPage: React.FC = () => {
               header: 'Actions',
               width: 70,
               cell: (item) => {
-                const isInRecoveryPlan = groupsInRecoveryPlans.has(item.groupId);
-                const isInActiveExecution = groupsInActiveExecutions.has(item.groupId);
+                const isInRecoveryPlan = groupsInRecoveryPlans.has(item.protectionGroupId);
+                const isInActiveExecution = groupsInActiveExecutions.has(item.protectionGroupId);
                 return (
                   <PermissionAwareButtonDropdown
                     items={[
@@ -306,8 +306,8 @@ export const ProtectionGroupsPage: React.FC = () => {
             {
               id: 'createdAt',
               header: 'Created',
-              cell: (item) => <DateTimeDisplay value={item.createdDate} format="full" />,
-              sortingField: 'createdDate',
+              cell: (item) => <DateTimeDisplay value={item.createdAt} format="full" />,
+              sortingField: 'createdAt',
             },
           ]}
           items={items}
