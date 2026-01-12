@@ -1,11 +1,11 @@
 """
 AWS DRS Orchestration - API Handler Lambda
 Handles REST API requests for Protection Groups, Recovery Plans, and Executions
-Version: v1.3.1 - CamelCase Migration Deployment (Build 2)
+Version: v1.3.1 - CamelCase Migration Deployment (Build 3)
 - Native camelCase database operations throughout
 - All transform functions eliminated for performance
 - Deployment to aws-elasticdrs-orchestrator-test stack
-- Force Lambda update to resolve caching issues
+- Force Lambda code update to resolve deployment caching issue
 """
 
 import json
