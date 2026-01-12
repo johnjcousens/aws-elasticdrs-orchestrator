@@ -2294,7 +2294,7 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
                     filtered_groups.append(group)
             groups = filtered_groups
 
-        # Return groups with pure camelCase fields (no transformation)
+        # Return groups with pure camelCase fields (no transformation) - v1.3.1 camelCase migration complete
         return response(
             200, {"groups": groups, "count": len(groups)}
         )
