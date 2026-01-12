@@ -2607,7 +2607,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     )
 
             # Store launchConfig in DynamoDB
-            set_clauses.append("launchConfig = :launchConfig")
+            update_expression += ", launchConfig = :launchConfig"
             expression_values[":launchConfig"] = launch_config
 
         print(f"DEBUG: Final update expression: {update_expression}")
