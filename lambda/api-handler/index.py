@@ -2078,7 +2078,7 @@ def create_protection_group(body: Dict) -> Dict:
             return response(
                 400,
                 {
-                    "error": "Either ServerSelectionTags or SourceServerIds is required"
+                    "error": "Either serverSelectionTags or sourceServerIds is required"
                 },
             )
 
@@ -2440,7 +2440,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     400,
                     {
                         "error": "INVALID_TAGS",
-                        "message": "ServerSelectionTags must be a non-empty object with tag key-value pairs",
+                        "message": "serverSelectionTags must be a non-empty object with tag key-value pairs",
                     },
                 )
 
@@ -2504,25 +2504,24 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             update_expression += ", groupName = :name"
             expression_values[":name"] = body["groupName"]
 
-        if "Description" in body:
-            update_expression += ", #desc = :desc"
+        if "description" in body:
+            update_expression += ", description = :desc"
             expression_values[":desc"] = body["description"]
-            expression_names["#desc"] = "Description"
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
         # When one is set, clear the other
         if "serverSelectionTags" in body:
-            update_expression += ", ServerSelectionTags = :tags"
+            update_expression += ", serverSelectionTags = :tags"
             expression_values[":tags"] = body["serverSelectionTags"]
-            # Clear SourceServerIds when using tags
-            update_expression += ", SourceServerIds = :empty_servers"
+            # Clear sourceServerIds when using tags
+            update_expression += ", sourceServerIds = :empty_servers"
             expression_values[":empty_servers"] = []
 
         if "sourceServerIds" in body:
-            update_expression += ", SourceServerIds = :servers"
+            update_expression += ", sourceServerIds = :servers"
             expression_values[":servers"] = body["sourceServerIds"]
-            # Clear ServerSelectionTags when using explicit servers
-            update_expression += ", ServerSelectionTags = :empty_tags"
+            # Clear serverSelectionTags when using explicit servers
+            update_expression += ", serverSelectionTags = :empty_tags"
             expression_values[":empty_tags"] = {}
 
         # Handle launchConfig - EC2 launch settings for recovery instances
