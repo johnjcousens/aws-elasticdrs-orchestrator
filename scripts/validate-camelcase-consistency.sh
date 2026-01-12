@@ -117,7 +117,7 @@ if [ -n "$LAMBDA_FILES" ]; then
         matches=$(echo "$LAMBDA_FILES" | xargs grep -n "\"${pattern}\"\\|'${pattern}'" 2>/dev/null || true)
         if [ -n "$matches" ]; then
             # Filter out comments, transform function definitions, AWS API responses, CloudWatch metrics, EC2 template fields, and AWS service calls
-            filtered_matches=$(echo "$matches" | grep -v "# Transform" | grep -v "def transform" | grep -v "subnet\[" | grep -v "profile\[" | grep -v "CloudWatch" | grep -v "Dimensions" | grep -v "network_interface\[" | grep -v "Name.*ExecutionId" | grep -v "sg\[" | grep -v "it\[" | grep -v "instance\[" | grep -v "result\[.*SecurityGroups" | grep -v "result\[.*InstanceTypes" | grep -v "ec2\\.describe" | grep -v "iam\\.list" | grep -v "paginator\\.paginate" || true)
+            filtered_matches=$(echo "$matches" | grep -v "# Transform" | grep -v "def transform" | grep -v "subnet\[" | grep -v "profile\[" | grep -v "CloudWatch" | grep -v "Dimensions" | grep -v "network_interface\[" | grep -v "Name.*ExecutionId" | grep -v "sg\[" | grep -v "it\[" | grep -v "instance\[" | grep -v "result\[.*SecurityGroups" | grep -v "result\[.*InstanceTypes" | grep -v "ec2\\.describe" | grep -v "iam\\.list" | grep -v "paginator\\.paginate" | grep -v "instance\\.get(" | grep -v "# AWS API uses PascalCase" || true)
             if [ -n "$filtered_matches" ]; then
                 report_error "Found PascalCase field '${pattern}' in Lambda files:"
                 echo "$filtered_matches" | while read -r line; do
