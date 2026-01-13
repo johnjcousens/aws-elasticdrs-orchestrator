@@ -503,11 +503,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
   totalWaves,
   jobLogs 
 }) => {
-  // Separate expansion states for servers and job events
-  const [expandedServers, setExpandedServers] = useState<Set<number>>(
-    new Set(currentWave !== undefined ? [currentWave] : [0])
-  );
-  const [expandedJobEvents, setExpandedJobEvents] = useState<Set<number>>(
+  // Single expansion state for both servers and job events (like working version)
+  const [expandedWaves, setExpandedWaves] = useState<Set<number>>(
     new Set(currentWave !== undefined ? [currentWave] : [0])
   );
 
@@ -532,8 +529,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const waveNum = wave.waveNumber ?? index;
         const displayNum = waveNum + 1;
         const isCurrent = currentWave === waveNum;
-        const isServersExpanded = expandedServers.has(waveNum);
-        const isJobEventsExpanded = expandedJobEvents.has(waveNum);
+        const isExpanded = expandedWaves.has(waveNum);
         const hasServers = wave.serverExecutions && wave.serverExecutions.length > 0;
         
         // Use effective status that considers server statuses

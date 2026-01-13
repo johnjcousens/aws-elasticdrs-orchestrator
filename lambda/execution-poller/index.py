@@ -540,7 +540,8 @@ def poll_wave_status(
                     )
 
                 # Get EC2 instance details if recoveryInstanceID exists
-                recovery_instance_id = drs_server.get("recoveryInstanceID")  # DRS API returns PascalCase
+                # AWS DRS API returns PascalCase by default - transform to camelCase for internal use
+                recovery_instance_id = drs_server.get("recoveryInstanceID")
                 if recovery_instance_id:
                     server_data["instanceId"] = recovery_instance_id
 
