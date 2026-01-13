@@ -438,7 +438,7 @@ def handle_timeout(
                         f"Error querying DRS for job {job_id}: {str(e)}"
                     )
                     wave["status"] = "TIMEOUT"
-                    wave["StatusMessage"] = (
+                    wave["statusMessage"] = (
                         f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
                     )
             else:
@@ -504,7 +504,7 @@ def poll_wave_status(
         # Get DRS job status and message
         drs_status = job_status.get("status", "UNKNOWN")
         wave["status"] = drs_status  # Set wave status to DRS job status
-        wave["StatusMessage"] = job_status.get("StatusMessage", "")
+        wave["statusMessage"] = job_status.get("statusMessage", "")
 
         # Update server statuses from DRS participating servers
         if "ParticipatingServers" in job_status:
@@ -671,7 +671,7 @@ def poll_wave_status(
     except Exception as e:
         logger.error(f"Error polling wave status: {str(e)}", exc_info=True)
         wave["status"] = "ERROR"
-        wave["StatusMessage"] = f"Polling error: {str(e)}"
+        wave["statusMessage"] = f"Polling error: {str(e)}"
         return wave
 
 
@@ -693,13 +693,13 @@ def query_drs_job_status(job_id: str, region: str) -> Dict[str, Any]:
 
         if not response.get("items"):
             logger.warning(f"No job found for ID {job_id} in region {region}")
-            return {"status": "UNKNOWN", "StatusMessage": "Job not found"}
+            return {"status": "UNKNOWN", "statusMessage": "Job not found"}
 
         job = response["items"][0]
 
         return {
             "status": job.get("status", "UNKNOWN"),
-            "StatusMessage": job.get("statusMessage", ""),
+            "statusMessage": job.get("statusMessage", ""),
             "ParticipatingServers": job.get("participatingServers", []),
             "PostLaunchActionsStatus": job.get(
                 "postLaunchActionsStatus", "NOT_STARTED"
