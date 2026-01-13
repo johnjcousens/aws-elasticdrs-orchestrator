@@ -5,49 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.1] - January 12, 2026 - **CamelCase Migration (IN PROGRESS)** 🔄
+## [1.3.1] - January 12, 2026 - **CamelCase Migration with Step Functions Fix** 🔄
 
-### 🚧 **ONGOING: CamelCase Migration with AWS API Integration Fixes**
+### 🚧 **CRITICAL: Step Functions Integration Fix Deployed - Testing Required**
 
-**Current Status**: Active development resolving field compatibility between camelCase internal schema and PascalCase AWS APIs.
+**Current Status**: Step Functions definition updated to use camelCase field names. **TESTING REQUIRED** to verify execution functionality.
 
-#### ✅ **Completed Migration Components**
-- **Database Schema**: All DynamoDB tables migrated to camelCase (groupId, planId, executionId, accountId)
-- **Transform Functions**: All 5 transform functions eliminated for better performance
-- **Core API Endpoints**: Protection Groups, Recovery Plans, Executions using camelCase
-- **Frontend Integration**: React components updated for camelCase field access
+#### 🔧 **Latest Changes (January 12, 2026, 8:00 PM - 8:30 PM PST)**
 
-#### 🔄 **Active Development (January 11-12, 2026)**
-- **AWS API Field Compatibility**: Resolving PascalCase requirements for AWS service APIs
-  - `f1568aa` - Updated validation script to exclude legacy cleanup patterns
-  - `29f214e` - Fixed legacy PascalCase field handling in protection group updates
-  - `ecd9ed9` - Added expression attribute names for DynamoDB description field
-  - `bebdcbb` - Corrected camelCase field names in protection group updates
-  - `5c91d12` - Fixed DRS API field names to use required PascalCase format
-  - `8d492aa` - Corrected EC2 launch template API to use PascalCase InstanceType
-  - `8bf28d4` - Fixed EC2 API field references from camelCase to PascalCase
-- **TypeScript Integration**: Resolving field name compatibility issues
-  - `fe68d5a` - Resolved TypeScript field name errors for camelCase migration
-  - `14c2efe` - Fixed TypeScript syntax errors in types file
-  - `49cfaa7` - Updated ProtectionGroupsPage column definitions for camelCase
-  - `4864536` - Added backward compatibility aliases for protectionGroupId and name
-- **Validation & Testing**: Enhanced validation scripts and CI/CD fixes
-  - `7062037` - Updated camelCase validation to exclude AWS API field references
-  - `754bc20` - Corrected AWS API field references to PascalCase
-  - `24a6fb3` - Resolved AWS profile error in GitHub Actions
-  - `cab11ab` - Added basic test files to resolve vitest warning
-  - `c727739` - Triggered Lambda deployment for EC2 resources loading issue
+##### **Step Functions Integration Fix** (`0256e7b` - 8:25 PM)
+- **CRITICAL FIX**: Updated Step Functions definition to expect camelCase field names
+- **Issue Resolved**: "JSONPath '$.AccountContext' could not be found" error
+- **Changes Made**:
+  - Step Functions now expects `$.accountContext` instead of `$.AccountContext`
+  - API handler sends consistent camelCase field names to Step Functions
+  - Fixed syntax error in orchestration Lambda function
+- **Files Modified**: `cfn/step-functions-stack.yaml`, `lambda/api-handler/index.py`, `lambda/orchestration-stepfunctions/index.py`
+- **Status**: ✅ **DEPLOYED** - ❌ **NOT YET TESTED**
 
-#### 🎯 **Migration Architecture**
+##### **Lambda Code Fixes** (`c6edb98` - 6:17 PM)
+- Fixed 'updated_plan' undefined error in recovery plans update
+- Fixed 'account_item' undefined error in target accounts creation
+- Updated test script with correct endpoint paths
+- Added database cleanup script for target accounts PascalCase fields
+- **Endpoint Test Results**: 7→12 passed endpoints
+
+##### **Execution Poller Updates** (`3984a3e` - 5:46 PM)
+- Updated execution poller and orchestration Lambda functions for camelCase consistency
+- Converted all remaining PascalCase fields to camelCase in API responses
+
+#### 🔄 **Migration Progress (Past 12 Hours)**
+
+##### **Database & API Layer Fixes**
+- `576417a` (4:47 PM) - Remove duplicate PascalCase fields during protection group updates
+- `5fb4994` (4:06 PM) - Revert to v1.3.0 working update pattern with camelCase fields
+- `29f214e` (2:36 PM) - Handle legacy PascalCase fields in protection group updates
+- `bebdcbb` (1:46 PM) - Correct camelCase field names in protection group updates
+
+##### **AWS API Compatibility Fixes**
+- `5c91d12` (12:08 PM) - Use PascalCase for DRS API field names in launch configuration
+- `8d492aa` (10:16 AM) - Use PascalCase InstanceType for AWS EC2 launch template API
+- `8bf28d4` (9:30 AM) - Correct AWS API field references from camelCase to PascalCase
+
+##### **CI/CD & Testing Improvements**
+- `24a6fb3` (8:45 AM) - Resolve AWS profile error in GitHub Actions
+- `cab11ab` (8:37 AM) - Add basic test files to resolve vitest warning
+
+#### ⚠️ **TESTING REQUIRED**
+The Step Functions fix has been deployed but **NOT YET TESTED**. Critical testing needed:
+- [ ] Start new drill execution
+- [ ] Verify Step Functions execution succeeds (no JSONPath errors)
+- [ ] Check that wave data populates in execution details
+- [ ] Confirm frontend shows wave progress correctly
+- [ ] Validate end-to-end execution flow works
+
+#### 🎯 **Migration Architecture Status**
 ```
-Internal Schema (camelCase) ↔ AWS APIs (PascalCase)
-     groupId              ↔    GroupId (DRS API)
-     instanceType         ↔    InstanceType (EC2 API)
-     sourceServerId       ↔    SourceServerId (DRS API)
+Database (camelCase) → API (camelCase) → Step Functions (camelCase) → Frontend (camelCase)
+     ✅ COMPLETE    →   ✅ COMPLETE   →    ⏳ DEPLOYED     →   ✅ COMPLETE
+                                           (NEEDS TESTING)
 ```
 
-#### 📊 **Performance Impact**
-- **Transform Functions Eliminated**: 200+ lines of conversion code removed
+#### 📊 **Performance Improvements**
+- **Transform Functions Eliminated**: All 5 transform functions removed (200+ lines of code)
+- **Direct Database Access**: Raw camelCase fields returned without transformation overhead
 - **Direct Database Access**: Native camelCase operations without conversion overhead
 - **API Response Optimization**: Reduced transformation latency
 - **Memory Efficiency**: Eliminated field mapping objects
