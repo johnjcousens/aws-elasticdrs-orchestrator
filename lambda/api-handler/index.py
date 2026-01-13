@@ -2851,26 +2851,19 @@ def create_recovery_plan(body: Dict) -> Dict:
 
         # Validate waves if provided
         if waves:
-            # CamelCase migration - no more backend transformation, store as camelCase
+            # CamelCase migration - store waves in exact format frontend expects
+            # KEEP IT SIMPLE: Same field names in database, API, and frontend
             camelcase_waves = []
             for idx, wave in enumerate(waves):
-                # Convert dependsOnWaves array to dependencies format (camelCase)
-                dependencies = []
-                for dep_wave_num in wave.get("dependsOnWaves", []):
-                    dependencies.append({
-                        "dependsOnWaveId": f"wave-{dep_wave_num + 1}"  # camelCase migration
-                    })
-                
                 camelcase_wave = {
-                    "executionOrder": idx,  # camelCase migration
-                    "waveId": f"wave-{idx + 1}",  # camelCase migration
-                    "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),  # Support both camelCase and legacy
-                    "waveDescription": wave.get("waveDescription", wave.get("description", "")),  # Support both camelCase and legacy
+                    "waveNumber": idx,
+                    "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),
+                    "waveDescription": wave.get("waveDescription", wave.get("description", "")),
                     "protectionGroupId": wave.get("protectionGroupId", ""),
                     "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
                     "pauseBeforeWave": wave.get("pauseBeforeWave", False),
-                    "dependencies": dependencies,  # camelCase migration
+                    "dependsOnWaves": wave.get("dependsOnWaves", []),
                 }
                 camelcase_waves.append(camelcase_wave)
             
@@ -3170,26 +3163,19 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         if waves is not None:
             print(f"Updating plan {plan_id} with {len(waves)} waves")
             
-            # CamelCase migration - no more backend transformation, store as camelCase
+            # CamelCase migration - store waves in exact format frontend expects
+            # KEEP IT SIMPLE: Same field names in database, API, and frontend
             camelcase_waves = []
             for idx, wave in enumerate(waves):
-                # Convert dependsOnWaves array to dependencies format (camelCase)
-                dependencies = []
-                for dep_wave_num in wave.get("dependsOnWaves", []):
-                    dependencies.append({
-                        "dependsOnWaveId": f"wave-{dep_wave_num + 1}"  # camelCase migration
-                    })
-                
                 camelcase_wave = {
-                    "executionOrder": idx,  # camelCase migration
-                    "waveId": f"wave-{idx + 1}",  # camelCase migration
-                    "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),  # Support both camelCase and legacy
-                    "waveDescription": wave.get("waveDescription", wave.get("description", "")),  # Support both camelCase and legacy
+                    "waveNumber": idx,
+                    "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),
+                    "waveDescription": wave.get("waveDescription", wave.get("description", "")),
                     "protectionGroupId": wave.get("protectionGroupId", ""),
                     "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
                     "pauseBeforeWave": wave.get("pauseBeforeWave", False),
-                    "dependencies": dependencies,  # camelCase migration
+                    "dependsOnWaves": wave.get("dependsOnWaves", []),
                 }
                 camelcase_waves.append(camelcase_wave)
             
@@ -3212,7 +3198,7 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                         },
                     )
                 print(
-                    f"Wave {idx}: {wave.get("waveName")} - {len(server_ids)} servers"
+                    f"Wave {idx}: {wave.get('waveName')} - {len(server_ids)} servers"
                 )
 
             validation_error = validate_waves(body["waves"])
@@ -8050,39 +8036,27 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
         if not waves:
             return "Waves array cannot be empty"
 
-        # Check for duplicate wave IDs (if present) - camelCase migration
-        wave_ids = [w.get("waveId") for w in waves if w.get("waveId")]
-        if wave_ids and len(wave_ids) != len(set(wave_ids)):
-            return "Duplicate waveId found in waves"
+        # Check for duplicate wave numbers
+        wave_numbers = [w.get("waveNumber") for w in waves if w.get("waveNumber") is not None]
+        if wave_numbers and len(wave_numbers) != len(set(wave_numbers)):
+            return "Duplicate waveNumber found in waves"
 
-        # Check for duplicate execution orders (if present) - camelCase migration
-        exec_orders = [
-            w.get("executionOrder")
-            for w in waves
-            if w.get("executionOrder") is not None
-        ]
-        if exec_orders and len(exec_orders) != len(set(exec_orders)):
-            return "Duplicate executionOrder found in waves"
-
-        # Check for circular dependencies (if present) - camelCase migration
+        # Check for circular dependencies using dependsOnWaves
+        # Build dependency graph: wave_number -> list of dependent wave numbers
         dependency_graph = {}
         for wave in waves:
-            wave_id = wave.get("waveId")
-            if wave_id:
-                dependencies = [
-                    d.get("dependsOnWaveId")
-                    for d in wave.get("dependencies", [])
-                ]
-                dependency_graph[wave_id] = dependencies
+            wave_num = wave.get("waveNumber", 0)
+            depends_on = wave.get("dependsOnWaves", [])
+            dependency_graph[wave_num] = depends_on
 
-        if dependency_graph and has_circular_dependencies(dependency_graph):
+        if dependency_graph and has_circular_dependencies_by_number(dependency_graph):
             return "Circular dependency detected in wave configuration"
 
         # Validate each wave has required fields - camelCase migration
         for wave in waves:
-            # camelCase migration - only support camelCase fields
-            if "waveId" not in wave and "waveNumber" not in wave:
-                return "Wave missing required field: waveId or waveNumber"
+            # camelCase migration - support waveNumber
+            if "waveNumber" not in wave:
+                return "Wave missing required field: waveNumber"
 
             if "waveName" not in wave and "name" not in wave:
                 return "Wave missing required field: waveName or name"
@@ -8110,6 +8084,31 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
 
     except Exception as e:
         return f"Error validating waves: {str(e)}"
+
+
+def has_circular_dependencies_by_number(graph: Dict[int, List[int]]) -> bool:
+    """Check for circular dependencies using wave numbers"""
+    visited = set()
+    rec_stack = set()
+
+    def dfs(node):
+        visited.add(node)
+        rec_stack.add(node)
+        for neighbor in graph.get(node, []):
+            if neighbor not in visited:
+                if dfs(neighbor):
+                    return True
+            elif neighbor in rec_stack:
+                return True
+        rec_stack.remove(node)
+        return False
+
+    for node in graph:
+        if node not in visited:
+            if dfs(node):
+                return True
+    return False
+
 
 def has_circular_dependencies(graph: Dict[str, List[str]]) -> bool:
     """Check for circular dependencies using DFS"""
