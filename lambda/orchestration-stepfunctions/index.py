@@ -683,8 +683,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         }, "ERROR")
         raise ValueError("Invalid wave number")
     
-    # Sanitize state
-    state = sanitize_dynamodb_input(state)
+    # NOTE: Do NOT sanitize state here - it breaks in-place modification
+    # The state object must be modified in place for the archive pattern to work
     
     waves = state.get("waves", [])
     if wave_number >= len(waves):
