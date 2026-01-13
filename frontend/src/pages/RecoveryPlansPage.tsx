@@ -277,7 +277,7 @@ export const RecoveryPlansPage: React.FC = () => {
 
     try {
       const execution = await apiClient.executeRecoveryPlan({
-        recoveryPlanId: plan.planId,
+        planId: plan.planId,  // Use database field name
         executionType,
         dryRun: false,
         executedBy: user?.username || 'unknown'

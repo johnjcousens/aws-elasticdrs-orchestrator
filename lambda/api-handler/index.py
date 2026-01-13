@@ -4784,6 +4784,9 @@ def list_executions(query_params: Dict) -> Dict:
                     else:
                         execution["recoveryPlanName"] = "Unknown"
 
+                # Add recoveryPlanId for frontend compatibility (simple field alias)
+                execution["recoveryPlanId"] = execution.get("planId")
+
                 # Determine selection mode from protection groups
                 plan_id = execution.get("planId")  # camelCase
                 selection_mode = "PLAN"  # Default to plan-based

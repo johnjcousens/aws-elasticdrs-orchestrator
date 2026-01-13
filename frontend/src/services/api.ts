@@ -483,14 +483,14 @@ class ApiClient {
 
   /**
    * Note: Backend expects POST to /executions (not /recovery-plans/{id}/execute)
-   * with PlanId in the body, not as a path parameter.
+   * with planId in the body, not as a path parameter.
    */
   public async executeRecoveryPlan(
     data: ExecuteRecoveryPlanRequest
   ): Promise<Execution> {
     // Backend now expects camelCase field names
     const backendRequest = {
-      planId: data.recoveryPlanId,
+      planId: data.planId || data.recoveryPlanId,  // Support both field names
       executionType: data.executionType,  // DRILL or RECOVERY from user selection
       initiatedBy: data.executedBy || 'unknown',
       dryRun: data.dryRun || false,
