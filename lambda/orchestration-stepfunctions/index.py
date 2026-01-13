@@ -81,7 +81,12 @@ def create_drs_client(region: str, account_context: Dict = None):
     Returns:
         boto3 DRS client
     """
-    if account_context and account_context.get("accountId"):
+    # Check if cross-account access is needed - only if accountId is provided, not empty, and not current account
+    if (account_context and 
+        account_context.get("accountId") and 
+        account_context.get("accountId").strip() and  # Not empty string
+        not account_context.get("isCurrentAccount", False)):  # Not current account
+        
         account_id = account_context["accountId"]
         role_name = account_context.get(
             "assumeRoleName", "drs-orchestration-cross-account-role"
@@ -120,6 +125,7 @@ def create_drs_client(region: str, account_context: Dict = None):
             raise
 
     # Default: use current account credentials
+    print(f"Creating DRS client for current account in region {region}")
     return boto3.client("drs", region_name=region)
 
 
