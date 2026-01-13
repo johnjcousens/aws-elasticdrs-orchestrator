@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - January 12, 2026 - **CamelCase Migration (IN PROGRESS)** 🔄
+
+### 🚧 **ONGOING: CamelCase Migration with AWS API Integration Fixes**
+
+**Current Status**: Active development resolving field compatibility between camelCase internal schema and PascalCase AWS APIs.
+
+#### ✅ **Completed Migration Components**
+- **Database Schema**: All DynamoDB tables migrated to camelCase (groupId, planId, executionId, accountId)
+- **Transform Functions**: All 5 transform functions eliminated for better performance
+- **Core API Endpoints**: Protection Groups, Recovery Plans, Executions using camelCase
+- **Frontend Integration**: React components updated for camelCase field access
+
+#### 🔄 **Active Development (January 11-12, 2026)**
+- **AWS API Field Compatibility**: Resolving PascalCase requirements for AWS service APIs
+  - `f1568aa` - Updated validation script to exclude legacy cleanup patterns
+  - `29f214e` - Fixed legacy PascalCase field handling in protection group updates
+  - `ecd9ed9` - Added expression attribute names for DynamoDB description field
+  - `bebdcbb` - Corrected camelCase field names in protection group updates
+  - `5c91d12` - Fixed DRS API field names to use required PascalCase format
+  - `8d492aa` - Corrected EC2 launch template API to use PascalCase InstanceType
+  - `8bf28d4` - Fixed EC2 API field references from camelCase to PascalCase
+- **TypeScript Integration**: Resolving field name compatibility issues
+  - `fe68d5a` - Resolved TypeScript field name errors for camelCase migration
+  - `14c2efe` - Fixed TypeScript syntax errors in types file
+  - `49cfaa7` - Updated ProtectionGroupsPage column definitions for camelCase
+  - `4864536` - Added backward compatibility aliases for protectionGroupId and name
+- **Validation & Testing**: Enhanced validation scripts and CI/CD fixes
+  - `7062037` - Updated camelCase validation to exclude AWS API field references
+  - `754bc20` - Corrected AWS API field references to PascalCase
+  - `24a6fb3` - Resolved AWS profile error in GitHub Actions
+  - `cab11ab` - Added basic test files to resolve vitest warning
+  - `c727739` - Triggered Lambda deployment for EC2 resources loading issue
+
+#### 🎯 **Migration Architecture**
+```
+Internal Schema (camelCase) ↔ AWS APIs (PascalCase)
+     groupId              ↔    GroupId (DRS API)
+     instanceType         ↔    InstanceType (EC2 API)
+     sourceServerId       ↔    SourceServerId (DRS API)
+```
+
+#### 📊 **Performance Impact**
+- **Transform Functions Eliminated**: 200+ lines of conversion code removed
+- **Direct Database Access**: Native camelCase operations without conversion overhead
+- **API Response Optimization**: Reduced transformation latency
+- **Memory Efficiency**: Eliminated field mapping objects
+
+#### 🔧 **Technical Implementation**
+- **Hybrid Field Mapping**: Internal camelCase with AWS API PascalCase conversion at service boundaries
+- **Validation Script Updates**: Exclude AWS API field references from camelCase validation
+- **Backward Compatibility**: Aliases for protectionGroupId/name during transition
+- **Expression Attribute Names**: DynamoDB operations using proper field name handling
+- **TypeScript Consistency**: Updated interfaces and type definitions for camelCase
+
+#### 🚀 **Deployment Status**
+- **Target Environment**: aws-elasticdrs-orchestrator-test
+- **GitHub Actions**: Continuous deployment with validation fixes
+- **Lambda Functions**: Updated with camelCase migration code
+- **API Gateway**: All endpoints operational with field compatibility fixes
+
+#### ⚠️ **Known Issues Being Resolved**
+- AWS API field name requirements (PascalCase) vs internal schema (camelCase)
+- TypeScript field compatibility during migration transition
+- Validation script exclusions for AWS service API calls
+- Legacy field reference cleanup in protection group operations
+
+### Technical Details
+- **Migration Approach**: Gradual conversion with AWS API compatibility layer
+- **Performance Optimization**: Eliminated expensive transform functions
+- **Data Consistency**: All internal operations use consistent camelCase
+- **API Compatibility**: AWS service calls use required PascalCase field names
+- **Testing**: Comprehensive validation with GitHub Actions CI/CD
+
 ## [1.3.1] - January 11, 2026 - **CamelCase Migration Deployment** 🚀
 
 ### 🚀 **MAJOR ARCHITECTURE IMPROVEMENT: Complete CamelCase Migration**

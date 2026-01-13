@@ -150,7 +150,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
 
     // DRS Service Limits: Validate wave sizes (max 100 servers per wave) - only for non-tag-based
     const oversizedWaves = wavesNeedingServers
-      .map((w, idx) => ({ name: w.name || `Wave ${idx + 1}`, count: (w.serverIds || []).length }))
+      .map((w, idx) => ({ name: w.waveName || `Wave ${idx + 1}`, count: (w.serverIds || []).length }))
       .filter(w => w.count > DRS_LIMITS.MAX_SERVERS_PER_JOB);
     
     if (oversizedWaves.length > 0) {
@@ -178,8 +178,8 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
           description: description,
           waves: waves.map((wave, index) => ({
             waveNumber: index,
-            name: wave.name,
-            description: wave.description || '',
+            waveName: wave.waveName,
+            waveDescription: wave.waveDescription || '',
             protectionGroupId: wave.protectionGroupId,  // Use wave's PG
             protectionGroupIds: wave.protectionGroupIds || (wave.protectionGroupId ? [wave.protectionGroupId] : []),
             serverIds: wave.serverIds || [],
@@ -201,8 +201,8 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
           protectionGroupId: waves[0]?.protectionGroupId || '',  // Use first wave's PG as default
           waves: waves.map((wave, index) => ({
             waveNumber: index,
-            name: wave.name,
-            description: wave.description || '',
+            waveName: wave.waveName,
+            waveDescription: wave.waveDescription || '',
             protectionGroupId: wave.protectionGroupId,  // Use wave's PG
             protectionGroupIds: wave.protectionGroupIds || (wave.protectionGroupId ? [wave.protectionGroupId] : []),
             serverIds: wave.serverIds || [],

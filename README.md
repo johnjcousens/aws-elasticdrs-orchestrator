@@ -9,21 +9,20 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 [![Release](https://img.shields.io/badge/Release-v1.3.1%20CamelCase%20Migration-blue)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.3.1-camelcase-migration)
 
-## 🎯 **Current Release: v1.3.1 - CamelCase Migration (COMPLETED)**
+## 🔄 **Current Release: v1.3.1 - CamelCase Migration (IN PROGRESS)**
 
-**Current Version**: v1.3.1 (January 11, 2026) - **CAMELCASE MIGRATION COMPLETE** - Complete database schema migration to native camelCase with elimination of all transform functions for improved performance and consistency.
+**Current Version**: v1.3.1 (January 12, 2026) - **CAMELCASE MIGRATION IN PROGRESS** - Ongoing database schema migration to native camelCase with active fixes for field compatibility and AWS API integration.
 
 **Previous Version**: v1.3.0 (January 10, 2026) - Enhanced Wave Progress UI with Consistent Server Status Display.
 
-**[View Complete Release Notes →](CHANGELOG.md#131---january-11-2026---camelcase-migration-deployment)**
+**[View Complete Release Notes →](CHANGELOG.md#131---january-12-2026---camelcase-migration-in-progress)**
 
-### 🚀 **Migration Completed**
-- ✅ **Native CamelCase Schema**: Database uses camelCase (groupId, planId, executionId, accountId)
-- ✅ **Transform Functions Eliminated**: All 5 transform functions removed for better performance
-- ✅ **API Consistency**: All 32+ endpoints use native camelCase throughout
-- ✅ **Test Environment**: Successfully deployed to aws-elasticdrs-orchestrator-test stack
-- ✅ **Deployment Complete**: GitHub Actions deployment successful
-- ✅ **System Operational**: All functionality validated with camelCase migration
+### 🚧 **Migration Status**
+- ✅ **Database Schema**: Updated to camelCase (groupId, planId, executionId, accountId)
+- ✅ **Transform Functions**: Eliminated for better performance
+- 🔄 **API Compatibility**: Active fixes for field mapping and AWS API integration
+- 🔄 **Frontend Integration**: Resolving TypeScript field compatibility
+- 🔄 **Testing**: Ongoing validation and bug fixes
 
 ## Overview
 
@@ -571,12 +570,14 @@ Users are assigned roles via AWS Cognito Groups. The following group names are s
 - [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications v3.0
 - [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design patterns v3.0
 - [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture v3.0
+- [Naming Convention Analysis](docs/architecture/NAMING_CONVENTION_ANALYSIS.md) - Comprehensive analysis of camelCase vs snake_case vs PascalCase for full-stack applications
 - [Enterprise DR Orchestration Platform PRD](docs/enterprise-prd/README.md) - Multi-technology DR orchestration platform requirements (modular docs)
 
 ### Implementation Features
 - [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md) - Multi-account DRS operations
 - [DRS Source Server Management](docs/implementation/DRS_SOURCE_SERVER_MANAGEMENT.md) - Advanced server management
 - [Automation & Orchestration](docs/implementation/AUTOMATION_AND_ORCHESTRATION.md) - Workflow automation patterns
+- [Technology Adapter Integration](docs/integration/TECHNOLOGY_ADAPTER_INTEGRATION.md) - Integration with DR Orchestration Artifacts platform
 
 ### Reference Documentation
 - [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Complete IAM requirements
@@ -1024,38 +1025,95 @@ archive/
 
 ### Git Tags & Milestones
 
+**Latest (January 2026 - CamelCase Migration Era)**
 | Tag | Description | Date | Commit |
 |-----|-------------|------|--------|
-| `v1.6.0-comprehensive-restoration-milestone` | **🎯 COMPREHENSIVE RESTORATION MILESTONE** - Complete platform restoration with enterprise-grade CI/CD pipeline, comprehensive documentation, and production-ready repository structure. Full "golden image" for complete system restoration. | January 10, 2026 | `b10fa2e` |
-| `RBAC-Prototype-with-Password-Reset-capability-v1.0` | **RBAC Prototype v1.0** - Comprehensive role-based access control with 6 granular roles, API-first enforcement, and password reset capability for new users | December 31, 2025 | `TBD` |
-| `MVP-DRILL-PROTOTYPE` | **MVP Drill Prototype Complete** - Complete disaster recovery orchestration platform with multi-account support, tag-based selection, and comprehensive drill capabilities | December 30, 2025 | `a34c5b7` |
-| `v2.0.0-mvp-drill-prototype` | **MVP Drill Only Prototype v2.0** - Core drill functionality with comprehensive documentation | December 30, 2025 | - |
-| `mvp-demo-ready` | MVP Demo Ready - Complete working state with all core features | December 9, 2025 | - |
+| `v1.3.1-camelcase-migration` | **🔄 CamelCase Migration v1.3.1** - Complete database schema migration to native camelCase with eliminated transform functions | January 12, 2026 | `539cb8e` |
+| `v1.3.1-hotfix` | **🔧 CamelCase Validation Hotfix** - Force Lambda deployment refresh for camelCase validation | January 12, 2026 | `ae1967a` |
+| `v1.3.0` | **✨ Enhanced Wave Progress UI v1.3.0** - Consistent server status icons when wave is completed | January 10, 2026 | `f994f43` |
+| `v1.3.0-pre-security-fixes` | **🔒 Pre-Security Fixes Milestone** - Comprehensive Lambda security implementation documentation | January 2026 | `3540324` |
+
+**December 2025 - Comprehensive Restoration Era**
+| Tag | Description | Date | Commit |
+|-----|-------------|------|--------|
+| `v1.7.0-eventbridge-enhanced` | **⚡ EventBridge Enhanced v1.7.0** - EventBridge tag sync enhancement with multi-region support | December 2025 | `e76833c` |
+| `v1.6.1-eventbridge-restored` | **🔄 EventBridge Restored v1.6.1** - EventBridge scheduled tag sync fully restored and functional | December 2025 | `5db4eaf` |
+| `v1.6.0-comprehensive-restoration-milestone` | **🎯 COMPREHENSIVE RESTORATION MILESTONE** - Complete platform restoration with enterprise-grade CI/CD pipeline | December 2025 | `b10fa2e` |
+| `v1.6.0-working-prototype-restored` | **🚀 Working Prototype Restored v1.6.0** - Complete working prototype restoration milestone | December 2025 | `8b7270d` |
+
+**November 2025 - Foundation Era**
+| Tag | Description | Date | Commit |
+|-----|-------------|------|--------|
+| `working-drs-drill-integration` | **🎯 Working DRS Drill Integration** - Complete Bug 12 fix and comprehensive session documentation | November 2025 | `40fec8a` |
+| `phase-1-baseline` | **📋 Phase 1 Baseline** - Session 57 Part 2 checkpoint with stable foundation | November 2025 | `c15cae3` |
+| `v1.0.3` | **🔧 Version 1.0.3** - Frontend aws-config.js injection fix for dev mode | November 2025 | `e2c1f7a` |
+| `v1.0.2-drs-integration-working` | **✅ DRS Integration Working v1.0.2** - Full DRS integration operational with all critical fixes | November 2025 | `9f16fc9` |
+| `v1.0.0-backend-integration-prototype` | **🔗 Backend Integration Prototype** - DRS query() fix for composite key DynamoDB tables | November 2025 | `14d1263` |
+| `v1.0.0-beta-working` | **🎉 MVP Beta Working v1.0.0** - Protection Group feature complete with fully functional dropdown | November 2025 | `e6eaa80` |
+| `Best-Known-Config` | **⚙️ Best Known Config** - Production-ready infrastructure baseline | November 2025 | `bfa1e9b` |
+| `v1.0.0-multi-account-prototype` | **🏢 Multi-Account Prototype 1.0** - Comprehensive multi-account support with enhanced tag-based server selection | November 2025 | `905a682` |
+| `v1.0.0-prototype-drs-working` | **🚀 DRS Prototype Working** - First fully working DRS integration with recovery instances | November 2025 | `3d21001` |
+| `v1.0.0-step-functions-drs-discovery` | **🔄 Step Functions DRS Discovery** - First working Step Functions with dynamic DRS source server discovery | November 2025 | `db1f41a` |
 
 ### Rollback to a Tag
 
 ```bash
-# View the repository at the tagged state (recommended: latest milestone)
-git checkout v1.6.0-comprehensive-restoration-milestone
+# View the repository at the tagged state (recommended: latest camelCase migration)
+git checkout v1.3.1-camelcase-migration
 
 # Create a new branch from tag for development
-git checkout -b my-feature-branch v1.6.0-comprehensive-restoration-milestone
+git checkout -b my-feature-branch v1.3.1-camelcase-migration
 
 # Return to main branch
 git checkout main
 ```
 
-### 🎯 **Recommended Restoration Point**
-For complete system restoration, use: `v1.6.0-comprehensive-restoration-milestone`
-- Contains complete working codebase with all recent fixes
-- Includes enterprise-grade CI/CD pipeline and safety scripts  
+### 🎯 **Recommended Restoration Points**
+
+**For Latest CamelCase Migration (Current):**
+```bash
+git checkout v1.3.1-camelcase-migration
+```
+- Complete database schema migration to native camelCase
+- Eliminated transform functions for better performance
+- All API endpoints use consistent camelCase throughout
+- Enhanced performance with no transformation overhead
+
+**For Enhanced Wave Progress UI:**
+```bash
+git checkout v1.3.0
+```
+- Consistent server status icons when wave is completed
+- Professional AWS console-style interface
+- Enhanced user experience with crystal clear progress visualization
+- Complete system restoration with all execution polling components
+
+**For Comprehensive Platform Restoration:**
+```bash
+git checkout v1.6.0-comprehensive-restoration-milestone
+```
+- Complete platform restoration with enterprise-grade CI/CD pipeline
 - Comprehensive documentation and deployment guides
 - Production-ready repository structure and configuration
-git checkout -b my-feature-branch mvp-demo-ready
+- Full "golden image" for complete system restoration
 
-# Return to main branch
-git checkout main
+**For EventBridge Tag Synchronization:**
+```bash
+git checkout v1.7.0-eventbridge-enhanced
 ```
+- EventBridge scheduled tag sync with multi-region support
+- Automated EC2 → DRS tag synchronization
+- Configurable intervals with immediate sync triggers
+- Cross-region coverage across all 28 DRS-supported regions
+
+**For Working DRS Integration Foundation:**
+```bash
+git checkout working-drs-drill-integration
+```
+- Complete Bug 12 fix and comprehensive session documentation
+- Fully functional DRS integration with drill capabilities
+- All critical Lambda fixes applied and validated
+- Stable foundation for further development
 
 ## Changelog
 

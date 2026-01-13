@@ -683,15 +683,16 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
         
         DEPLOY_START=$(date +%s)
         
-        # Lambda functions to update (aligned with current working stack)
+        # Lambda functions to update (using environment variables)
         LAMBDA_FUNCTIONS=(
             "api-handler:${PROJECT_NAME}-api-handler-${ENVIRONMENT}"
             "orchestration-stepfunctions:${PROJECT_NAME}-orch-sf-${ENVIRONMENT}"
-            "frontend-builder:${PROJECT_NAME}-frontend-builder-${ENVIRONMENT}"
+            "frontend-builder:${PROJECT_NAME}-frontend-build-${ENVIRONMENT}"
             "bucket-cleaner:${PROJECT_NAME}-bucket-cleaner-${ENVIRONMENT}"
             "execution-finder:${PROJECT_NAME}-execution-finder-${ENVIRONMENT}"
             "execution-poller:${PROJECT_NAME}-execution-poller-${ENVIRONMENT}"
             "notification-formatter:${PROJECT_NAME}-notification-formatter-${ENVIRONMENT}"
+            "deployment-orchestrator:${PROJECT_NAME}-deployment-orchestrator-${ENVIRONMENT}"
         )
         
         LAMBDA_DIR="$PROJECT_ROOT/lambda"
@@ -700,13 +701,26 @@ if [ "$UPDATE_LAMBDA_CODE" = true ]; then
             func_dir="${func_entry%%:*}"
             func_name="${func_entry##*:}"
             
-            echo "🔍 Looking for directory: $LAMBDA_DIR/$func_dir"
-            if [ ! -d "$LAMBDA_DIR/$func_dir" ]; then
-                echo "⚠️  Directory $func_dir not found, skipping..."
+            # Map directory names to actual Lambda function directories
+            case "$func_dir" in
+                "frontend-builder")
+                    actual_dir="frontend-builder"
+                    ;;
+                "orchestration-stepfunctions")
+                    actual_dir="orchestration-stepfunctions"
+                    ;;
+                *)
+                    actual_dir="$func_dir"
+                    ;;
+            esac
+            
+            echo "🔍 Looking for directory: $LAMBDA_DIR/$actual_dir"
+            if [ ! -d "$LAMBDA_DIR/$actual_dir" ]; then
+                echo "⚠️  Directory $actual_dir not found, skipping..."
                 continue
             fi
             
-            package_lambda_function "$func_dir" "/tmp/lambda-${func_dir}.zip"
+            package_lambda_function "$actual_dir" "/tmp/lambda-${func_dir}.zip"
             
             echo "⚡ Updating $func_name..."
             aws lambda update-function-code \
