@@ -2309,14 +2309,8 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
             groups = filtered_groups
 
         # Return raw camelCase database fields directly - no transformation needed
-        # Clean up legacy PascalCase fields if they exist
-        legacy_fields = ["GroupName", "GroupId", "Description", "Version", "LastModifiedDate", "CreatedDate", 
-                         "ServerSelectionTags", "SourceServerIds", "LaunchConfig"]
         for group in groups:
-            for field in legacy_fields:
-                if field in group:
-                    del group[field]
-            group["protectionGroupId"] = group["groupId"]
+            group["protectionGroupId"] = group["groupId"]  # Add alias for compatibility
         return response(200, {"groups": groups, "count": len(groups)})
 
     except Exception as e:
@@ -2333,15 +2327,8 @@ def get_protection_group(group_id: str) -> Dict:
 
         group = result["Item"]
 
-        # Clean up legacy PascalCase fields if they exist
-        legacy_fields = ["GroupName", "GroupId", "Description", "Version", "LastModifiedDate", "CreatedDate",
-                         "ServerSelectionTags", "SourceServerIds", "LaunchConfig"]
-        for field in legacy_fields:
-            if field in group:
-                del group[field]
-
         # Return raw camelCase database fields directly - no transformation needed
-        group["protectionGroupId"] = group["groupId"]  # Only add this alias for compatibility
+        group["protectionGroupId"] = group["groupId"]  # Add alias for compatibility
         return response(200, group)
 
     except Exception as e:
