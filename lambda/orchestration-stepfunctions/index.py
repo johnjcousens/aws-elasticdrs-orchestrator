@@ -81,51 +81,34 @@ def create_drs_client(region: str, account_context: Dict = None):
     Returns:
         boto3 DRS client
     """
-    # Security validation for inputs
-    region = sanitize_string_input(region)
-    
-    # Validate region format
-    if not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$', region):
-        raise ValueError(f"Invalid AWS region format: {region}")
-    
-    log_security_event("drs_client_creation", {
-        "region": region,
-        "cross_account": bool(account_context)
-    })
-    
     if account_context and account_context.get("accountId"):
-        account_id = sanitize_string_input(account_context["accountId"])
-        role_name = sanitize_string_input(account_context.get(
+        account_id = account_context["accountId"]
+        role_name = account_context.get(
             "assumeRoleName", "drs-orchestration-cross-account-role"
-        ))
-
-        # Validate account ID format
-        if not re.match(r'^\d{12}$', account_id):
-            raise ValueError(f"Invalid AWS account ID format: {account_id}")
+        )
 
         print(
             f"Creating cross-account DRS client for account {account_id} in region {region}"
         )
 
-        # Assume role in target account with safe AWS call
-        def assume_role_call():
-            sts_client = boto3.client("sts", region_name=region)
-            session_name = f"drs-orchestration-{int(time.time())}"
-            return sts_client.assume_role(
-                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",
+        # Assume role in target account
+        sts_client = boto3.client("sts", region_name=region)
+        session_name = f"drs-orchestration-{int(time.time())}"
+
+        try:
+            assumed_role = sts_client.assume_role(
+                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",  # noqa: E231
                 RoleSessionName=session_name,
             )
 
-        assumed_role = safe_aws_client_call(assume_role_call)
+            credentials = assumed_role["Credentials"]
+            print(
+                f"Successfully assumed role {role_name} in account {account_id}"
+            )
 
-        credentials = assumed_role["Credentials"]
-        print(
-            f"Successfully assumed role {role_name} in account {account_id}"
-        )
-
-        return boto3.client(
-            "drs",
-            region_name=region,
+            return boto3.client(
+                "drs",
+                region_name=region,
                 aws_access_key_id=credentials["AccessKeyId"],
                 aws_secret_access_key=credentials["SecretAccessKey"],
                 aws_session_token=credentials["SessionToken"],
