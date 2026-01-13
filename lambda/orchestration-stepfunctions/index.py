@@ -1320,6 +1320,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                         }, "ERROR")
                         print(f"Error pausing execution: {e}")
                     
+                    # CRITICAL: Return immediately when paused - don't continue to next wave
                     return state
 
                 print(f"Starting next wave: {next_wave}")
