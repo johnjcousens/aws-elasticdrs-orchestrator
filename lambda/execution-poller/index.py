@@ -96,7 +96,7 @@ def lambda_handler(
                 },
             )
             return create_response_with_security_headers(
-                400, {"error": "Missing required parameters: ExecutionId and PlanId"}
+                400, {"error": "Missing required parameters: executionId and planId"}
             )
 
         start_time = event.get("startTime")
@@ -176,13 +176,13 @@ def lambda_handler(
                     updated_wave = poll_wave_status(wave, execution_type)
                     waves_polled += 1
 
-                    # Set EndTime on wave if it just completed
+                    # Set endTime on wave if it just completed
                     if updated_wave.get("status") in COMPLETED_STATUSES and not updated_wave.get("endTime"):
                         updated_wave["endTime"] = int(
                             datetime.now(timezone.utc).timestamp()
                         )
                         logger.info(
-                            f"Wave {wave.get('waveId')} completed, set EndTime"
+                            f"Wave {wave.get('waveId')} completed, set endTime"
                         )
 
                     updated_waves.append(updated_wave)
@@ -453,8 +453,8 @@ def handle_timeout(
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
             Key={"executionId": {"S": execution_id}, "planId": {"S": plan_id}},
-            UpdateExpression="SET #status = :status, Waves = :waves, EndTime = :end_time",
-            ExpressionAttributeNames={"#status": "Status"},
+            UpdateExpression="SET #status = :status, waves = :waves, endTime = :end_time",
+            ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
                 ":status": {"S": "TIMEOUT"},
                 ":waves": {
@@ -464,7 +464,7 @@ def handle_timeout(
                     "N": str(int(datetime.now(timezone.utc).timestamp()))
                 },
             },
-            ConditionExpression="attribute_exists(ExecutionId)",
+            ConditionExpression="attribute_exists(executionId)",
         )
 
         logger.info(f"Execution {execution_id} marked as TIMEOUT")
