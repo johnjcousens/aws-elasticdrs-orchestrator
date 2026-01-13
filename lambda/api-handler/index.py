@@ -5269,6 +5269,27 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             "launchedServers": len([s for s in participating_servers if s.get("launchStatus") == "LAUNCHED"]),
                         }
                         
+                        # CRITICAL FIX: Map participatingServers to servers field for frontend
+                        # Frontend expects wave.servers or wave.serverExecutions for expandable server details
+                        wave["servers"] = []
+                        for server in participating_servers:
+                            server_data = {
+                                "sourceServerId": server.get("sourceServerID", ""),
+                                "serverId": server.get("sourceServerID", ""),
+                                "hostname": server.get("hostname", ""),
+                                "serverName": server.get("hostname", ""),
+                                "status": server.get("launchStatus", "pending"),
+                                "launchStatus": server.get("launchStatus", "pending"),
+                                "recoveredInstanceId": server.get("recoveryInstanceID", ""),
+                                "instanceId": server.get("recoveryInstanceID", ""),
+                                "ec2InstanceId": server.get("recoveryInstanceID", ""),
+                                "region": region,
+                                "sourceInstanceId": server.get("sourceInstanceID", ""),
+                                "replicationState": server.get("replicationState", ""),
+                                "launchTime": server.get("launchTime", ""),
+                            }
+                            wave["servers"].append(server_data)
+                        
                     else:
                         print(f"DEBUG: DRS job {job_id} not found - may have been cleaned up")
                         if wave_status in ["UNKNOWN", "", "INITIATED", "POLLING", "IN_PROGRESS"]:
