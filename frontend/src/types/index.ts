@@ -274,8 +274,8 @@ export type ExecutionStatus =
 
 export interface Execution {
   executionId: string;
-  recoveryPlanId: string;
-  recoveryPlanName?: string;
+  planId: string;  // Changed from recoveryPlanId to match database
+  planName?: string;  // Changed from recoveryPlanName to match database
   protectionGroupId: string;
   protectionGroupName?: string;
   status: ExecutionStatus;
@@ -356,7 +356,7 @@ export interface ExecutionError {
 }
 
 export interface ExecuteRecoveryPlanRequest {
-  recoveryPlanId: string;
+  planId: string;  // Changed from recoveryPlanId to match database
   executionType: 'DRILL' | 'RECOVERY';  // Required - DRILL or RECOVERY only
   dryRun?: boolean;
   skipHealthChecks?: boolean;
@@ -385,8 +385,8 @@ export interface InvocationDetails {
 
 export interface ExecutionListItem {
   executionId: string;
-  recoveryPlanId: string;
-  recoveryPlanName: string;
+  planId: string;  // Changed from recoveryPlanId to match database
+  planName: string;  // Changed from recoveryPlanName to match database
   status: ExecutionStatus;
   startTime: string;
   endTime?: string;
