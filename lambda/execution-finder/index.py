@@ -73,9 +73,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
         )
 
-        # Validate EventBridge event structure
-        source = sanitize_string_input(event.get("source", ""))
-        if not source:
+        # Validate EventBridge event structure - allow manual testing
+        source = event.get("source", "")
+        if not source or len(source.strip()) == 0:
             log_security_event("invalid_eventbridge_event", {"event_keys": list(event.keys())})
             return {"statusCode": 400, "body": "Invalid EventBridge event"}
 
@@ -174,54 +174,71 @@ def query_polling_executions() -> List[Dict[str, Any]]:
     """
     Query DynamoDB StatusIndex GSI for executions that need polling.
 
-    Queries for:
-    - Status=POLLING: Active executions being monitored
-    - Status=CANCELLING: Cancelled executions with in-progress waves that need final status update
-    - Status=PAUSED: Paused executions that still need DRS job monitoring
-
-    CRITICAL: Status is a reserved keyword in DynamoDB.
-    MUST use ExpressionAttributeNames to avoid ValidationException.
+    Uses StatusIndex GSI to efficiently query executions by status.
+    Queries for both POLLING and CANCELLING executions.
 
     Returns:
         List of execution records that need polling
     """
     executions = []
 
-    # Statuses that need polling
-    statuses_to_poll = ["POLLING", "CANCELLING"]
-
-    for status in statuses_to_poll:
-        try:
-            # CRITICAL: Use expression attribute names for reserved keyword "Status"
-            def dynamodb_query():
-                return dynamodb.query(
-                    TableName=EXECUTION_HISTORY_TABLE,
-                    IndexName=STATUS_INDEX_NAME,
-                    KeyConditionExpression="#status = :status",
-                    ExpressionAttributeNames={
-                        "#status": "Status"  # Required: Status is reserved keyword
-                    },
-                    ExpressionAttributeValues={":status": {"S": status}},
-                )
-
-            response = safe_aws_client_call(dynamodb_query)
-
-            logger.info(
-                f"DynamoDB query for {status} returned {response['Count']} "
-                f"items"
+    try:
+        # Query StatusIndex GSI for POLLING executions
+        def query_polling():
+            return dynamodb.query(
+                TableName=EXECUTION_HISTORY_TABLE,
+                IndexName=STATUS_INDEX_NAME,
+                KeyConditionExpression="#status = :status",
+                ExpressionAttributeNames={
+                    "#status": "status"  # camelCase field name
+                },
+                ExpressionAttributeValues={
+                    ":status": {"S": "POLLING"}
+                },
             )
 
-            # Parse DynamoDB items to Python dicts
-            for item in response.get("Items", []):
-                execution = parse_dynamodb_item(item)
-                executions.append(execution)
+        response = safe_aws_client_call(query_polling)
+        
+        logger.info(
+            f"StatusIndex GSI query for POLLING returned {response['Count']} items"
+        )
 
-        except Exception as e:
-            logger.error(
-                f"Error querying StatusIndex for {status}: {str(e)}",
-                exc_info=True,
+        # Parse POLLING executions
+        for item in response.get("Items", []):
+            execution = parse_dynamodb_item(item)
+            executions.append(execution)
+
+        # Query StatusIndex GSI for CANCELLING executions
+        def query_cancelling():
+            return dynamodb.query(
+                TableName=EXECUTION_HISTORY_TABLE,
+                IndexName=STATUS_INDEX_NAME,
+                KeyConditionExpression="#status = :status",
+                ExpressionAttributeNames={
+                    "#status": "status"  # camelCase field name
+                },
+                ExpressionAttributeValues={
+                    ":status": {"S": "CANCELLING"}
+                },
             )
-            raise
+
+        response = safe_aws_client_call(query_cancelling)
+        
+        logger.info(
+            f"StatusIndex GSI query for CANCELLING returned {response['Count']} items"
+        )
+
+        # Parse CANCELLING executions
+        for item in response.get("Items", []):
+            execution = parse_dynamodb_item(item)
+            executions.append(execution)
+
+    except Exception as e:
+        logger.error(
+            f"Error querying StatusIndex GSI for POLLING/CANCELLING executions: {str(e)}",
+            exc_info=True,
+        )
+        raise
 
     return executions
 
@@ -371,10 +388,19 @@ def detect_execution_phase(waves: List[Dict[str, Any]]) -> str:
         # Collect all server statuses across waves
         all_server_statuses = []
         for wave in waves:
+            # Check both serverStatuses (new format) and servers (legacy format)
+            server_statuses = wave.get("serverStatuses", [])
             servers = wave.get("servers", [])
-            for server in servers:
-                status = server.get("status", "NOT_STARTED")
-                all_server_statuses.append(status)
+            
+            # Use serverStatuses if available, otherwise fall back to servers
+            if server_statuses:
+                for server in server_statuses:
+                    status = server.get("launchStatus", "NOT_STARTED")
+                    all_server_statuses.append(status)
+            elif servers:
+                for server in servers:
+                    status = server.get("status", "NOT_STARTED")
+                    all_server_statuses.append(status)
 
         if not all_server_statuses:
             return "PENDING"
