@@ -6625,14 +6625,25 @@ def get_termination_job_status(
         job_ids = [j.strip() for j in job_ids_str.split(",") if j.strip()]
         if not job_ids:
             return response(400, {"error": "No valid job IDs provided"})
+        
+        # Validate DRS job ID format (drsjob- prefix + 17 character UUID)
+        valid_job_ids = []
+        for job_id in job_ids:
+            if job_id.startswith("drsjob-") and len(job_id) >= 24:
+                valid_job_ids.append(job_id)
+            else:
+                print(f"Warning: Invalid job ID format: {job_id} (expected: drsjob-xxxxxxxxxxxxxxxx)")
+        
+        if not valid_job_ids:
+            return response(400, {"error": "No valid DRS job IDs provided. Expected format: drsjob-xxxxxxxxxxxxxxxx"})
 
         print(
-            f"Getting termination job status for {len(job_ids)} jobs in {region}: {job_ids}"
+            f"Getting termination job status for {len(valid_job_ids)} jobs in {region}: {valid_job_ids}"
         )
 
         drs_client = boto3.client("drs", region_name=region)
 
-        jobs_response = drs_client.describe_jobs(filters={"jobIDs": job_ids})
+        jobs_response = drs_client.describe_jobs(filters={"jobIDs": valid_job_ids})
 
         jobs = jobs_response.get("items", [])
         print(f"Found {len(jobs)} jobs")
@@ -9267,6 +9278,14 @@ def handle_user_permissions(event: Dict) -> Dict:
     """Return user roles and permissions based on Cognito groups"""
     try:
         print("🔍 Processing user permissions request")
+        
+        # Import check - ensure function is available
+        try:
+            from shared.rbac_middleware import get_user_from_event
+            print("✅ get_user_from_event imported successfully")
+        except ImportError as ie:
+            print(f"❌ Import error: {ie}")
+            return response(500, {"error": "Import Error", "message": f"Failed to import get_user_from_event: {str(ie)}"})
 
         # Extract user information from the event
         user = get_user_from_event(event)
