@@ -93,7 +93,7 @@ Resources:
         - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
           Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
 
-  # Execution History Table - CamelCase Schema (Initial creation without GSIs)
+  # Execution History Table - CamelCase Schema with StatusIndex GSI
   ExecutionHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -104,11 +104,20 @@ Resources:
           AttributeType: S
         - AttributeName: planId
           AttributeType: S
+        - AttributeName: status
+          AttributeType: S
       KeySchema:
         - AttributeName: executionId
           KeyType: HASH
         - AttributeName: planId
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: TTL  # TTL attribute for automatic record expiration
         Enabled: true
@@ -126,7 +135,7 @@ Resources:
         - Key: !If [ForceRecreationCondition, 'Migration', 'Standard']
           Value: !If [ForceRecreationCondition, 'CamelCaseRecreation', 'Standard']
         - Key: GSIStatus
-          Value: 'InitialCreation-NoGSIs'
+          Value: 'StatusIndex-Added'
 
   # Target Accounts Table - CamelCase Schema (Initial creation without GSIs)
   TargetAccountsTable:
