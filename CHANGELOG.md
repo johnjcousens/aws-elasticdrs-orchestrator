@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - January 13, 2026 - **Server Details Fix - AWS Service API Corrections** 🔧
+
+### 🎯 **Server Details Population Fix**
+
+**Current Status**: Fixed AWS Service API field name mismatches that prevented server details from populating in frontend.
+
+#### **Latest Changes (January 13, 2026, 1:15 AM PST)**
+
+##### **AWS Service API PascalCase Corrections** (`2c03cef`, `7d5d5f8`)
+- **CRITICAL FIX**: Corrected field names for AWS Service APIs that return PascalCase by default
+- **DRS API Fix**: Changed `recoveryInstanceId` → `recoveryInstanceID` (AWS DRS returns PascalCase)
+- **EC2 API Fix**: Changed `privateIpAddress` → `PrivateIpAddress` (AWS EC2 returns PascalCase)
+- **Impact**: Server details (hostname, instanceId, privateIp) should now populate correctly in frontend
+- **Follows Steering Docs**: Transform AWS Service API responses to internal camelCase without adding transform functions
+- **Files Modified**: `lambda/execution-poller/index.py`
+- **Status**: ✅ **DEPLOYED** - ⏳ **TESTING PENDING**
+
+##### **Root Cause Analysis**
+- **Issue**: Server details showing as empty strings in frontend popout menus
+- **Cause**: AWS Service APIs return PascalCase field names, code was looking for camelCase
+- **Solution**: Read correct PascalCase fields from AWS APIs, transform to camelCase for internal use
+- **Reference**: Based on working v1.3.0 code that handled AWS API responses correctly
+
+#### **Expected Results After Testing**
+- Server details should populate in frontend execution details
+- Popout menus should show: hostname, instanceId, privateIp values
+- Maintains camelCase consistency throughout internal components
+
 ## [1.3.1] - January 12, 2026 - **CamelCase Migration with Step Functions Fix** 🔄
 
 ### 🚧 **CRITICAL: Step Functions Integration Fix Deployed - Testing Required**

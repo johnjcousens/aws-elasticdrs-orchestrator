@@ -9,20 +9,20 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 [![Release](https://img.shields.io/badge/Release-v1.3.1%20CamelCase%20Migration-blue)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/releases/tag/v1.3.1-camelcase-migration)
 
-## 🔄 **Current Release: v1.3.1 - CamelCase Migration (IN PROGRESS)**
+## 🔧 **Current Release: v1.3.2 - Server Details Fix (DEPLOYED)**
 
-**Current Version**: v1.3.1 (January 12, 2026) - **CAMELCASE MIGRATION IN PROGRESS** - Ongoing database schema migration to native camelCase with active fixes for field compatibility and AWS API integration.
+**Current Version**: v1.3.2 (January 13, 2026) - **SERVER DETAILS FIX DEPLOYED** - Fixed AWS Service API field name mismatches preventing server details from populating in frontend.
 
-**Previous Version**: v1.3.0 (January 10, 2026) - Enhanced Wave Progress UI with Consistent Server Status Display.
+**Previous Version**: v1.3.1 (January 12, 2026) - CamelCase Migration with Step Functions Integration Fix.
 
-**[View Complete Release Notes →](CHANGELOG.md#131---january-12-2026---camelcase-migration-in-progress)**
+**[View Complete Release Notes →](CHANGELOG.md#132---january-13-2026---server-details-fix---aws-service-api-corrections)**
 
-### 🚧 **Migration Status**
-- ✅ **Database Schema**: Updated to camelCase (groupId, planId, executionId, accountId)
-- ✅ **Transform Functions**: Eliminated for better performance
-- 🔄 **API Compatibility**: Active fixes for field mapping and AWS API integration
-- 🔄 **Frontend Integration**: Resolving TypeScript field compatibility
-- 🔄 **Testing**: Ongoing validation and bug fixes
+### 🎯 **Latest Fix Status**
+- ✅ **AWS Service API Corrections**: Fixed DRS and EC2 API PascalCase field name handling
+- ✅ **Server Details Population**: hostname, instanceId, privateIp should now populate correctly
+- ✅ **Deployment Complete**: GitHub Actions pipeline completed successfully
+- ⏳ **Testing Pending**: Awaiting validation that server details appear in frontend
+- ✅ **Steering Compliance**: Follows camelCase migration rules without transform functions
 
 ## Overview
 
