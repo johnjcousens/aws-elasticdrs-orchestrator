@@ -2860,11 +2860,13 @@ def create_recovery_plan(body: Dict) -> Dict:
                     "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),
                     "waveDescription": wave.get("waveDescription", wave.get("description", "")),
                     "protectionGroupId": wave.get("protectionGroupId", ""),
-                    "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
                     "pauseBeforeWave": wave.get("pauseBeforeWave", False),
                     "dependsOnWaves": wave.get("dependsOnWaves", []),
                 }
+                # Only include protectionGroupIds if provided and non-empty
+                if wave.get("protectionGroupIds"):
+                    camelcase_wave["protectionGroupIds"] = wave.get("protectionGroupIds")
                 camelcase_waves.append(camelcase_wave)
             
             # Store in camelCase format
@@ -3172,11 +3174,13 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                     "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),
                     "waveDescription": wave.get("waveDescription", wave.get("description", "")),
                     "protectionGroupId": wave.get("protectionGroupId", ""),
-                    "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
                     "pauseBeforeWave": wave.get("pauseBeforeWave", False),
                     "dependsOnWaves": wave.get("dependsOnWaves", []),
                 }
+                # Only include protectionGroupIds if provided and non-empty
+                if wave.get("protectionGroupIds"):
+                    camelcase_wave["protectionGroupIds"] = wave.get("protectionGroupIds")
                 camelcase_waves.append(camelcase_wave)
             
             # Store in camelCase format
