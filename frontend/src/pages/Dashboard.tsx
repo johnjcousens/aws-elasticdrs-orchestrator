@@ -419,7 +419,7 @@ export const Dashboard: React.FC = () => {
                               navigate(`/executions/${exec.executionId}`)
                             }
                           >
-                            {exec.recoveryPlanName || exec.recoveryPlanId}
+                            {exec.planName || exec.planId}
                           </Link>
                         </SpaceBetween>
                       </Box>
@@ -494,7 +494,7 @@ export const Dashboard: React.FC = () => {
                     // Sanitize user-controlled data to prevent command injection
                     const sanitizedExecutionId = String(exec.executionId || '').replace(/[^a-zA-Z0-9-]/g, '');
                     const sanitizedStatus = String(exec.status || '').replace(/[^a-zA-Z0-9_]/g, '');
-                    const sanitizedPlanName = String(exec.recoveryPlanName || exec.recoveryPlanId || '').replace(/[<>"'&]/g, '');
+                    const sanitizedPlanName = String(exec.planName || exec.planId || '').replace(/[<>"'&]/g, '');
                     
                     return (
                     <Box key={sanitizedExecutionId} padding="xs">

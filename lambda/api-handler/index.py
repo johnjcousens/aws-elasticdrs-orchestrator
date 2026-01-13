@@ -3735,10 +3735,87 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 },
             )
 
-        # BLOCK: Cannot execute plan that already has an active execution
+        # BLOCK: Check for server conflicts with other running executions OR active DRS jobs FIRST
+        # This catches the case where servers are in active DRS jobs from cancelled executions
+        # Parse account context from request
+        account_context = body.get("accountContext") or body.get(
+            "AccountContext"
+        )
+        server_conflicts = check_server_conflicts(plan, account_context)
+        if server_conflicts:
+            # Separate execution conflicts from DRS job conflicts
+            execution_conflicts = [
+                c
+                for c in server_conflicts
+                if c.get("conflictSource") == "execution"
+            ]
+            drs_job_conflicts = [
+                c
+                for c in server_conflicts
+                if c.get("conflictSource") == "drs_job"
+            ]
+
+            # Group execution conflicts by execution
+            conflict_executions = {}
+            for conflict in execution_conflicts:
+                exec_id = conflict.get("conflictingExecutionId")
+                if exec_id and exec_id not in conflict_executions:
+                    conflict_executions[exec_id] = {
+                        "executionId": exec_id,
+                        "planId": conflict.get("conflictingPlanId"),
+                        "servers": [],
+                    }
+                if exec_id:
+                    conflict_executions[exec_id]["servers"].append(
+                        conflict["serverId"]
+                    )
+
+            # Group DRS job conflicts by job
+            conflict_drs_jobs = {}
+            for conflict in drs_job_conflicts:
+                job_id = conflict.get("conflictingJobId")
+                if job_id and job_id not in conflict_drs_jobs:
+                    conflict_drs_jobs[job_id] = {
+                        "jobId": job_id,
+                        "jobStatus": conflict.get("conflictingJobStatus"),
+                        "servers": [],
+                    }
+                if job_id:
+                    conflict_drs_jobs[job_id]["servers"].append(
+                        conflict["serverId"]
+                    )
+
+            # Build appropriate error message
+            if drs_job_conflicts and not execution_conflicts:
+                message = f"{len(drs_job_conflicts)} server(s) are being processed by active DRS jobs"
+            elif execution_conflicts and not drs_job_conflicts:
+                message = f"{len(execution_conflicts)} server(s) are already in active executions"
+            else:
+                message = f"{len(server_conflicts)} server(s) are in use (executions: {len(execution_conflicts)}, DRS jobs: {len(drs_job_conflicts)})"
+
+            return response(
+                409,
+                {
+                    "error": "SERVER_CONFLICT",
+                    "message": message,
+                    "conflicts": server_conflicts,
+                    "conflictingExecutions": list(
+                        conflict_executions.values()
+                    ),
+                    "conflictingDrsJobs": list(conflict_drs_jobs.values()),
+                },
+            )
+
+        # BLOCK: Cannot execute plan that already has an active execution (excluding CANCELLING)
+        # Only block if there are truly active executions, not just cancelling ones
         active_executions = get_active_executions_for_plan(plan_id)
-        if active_executions:
-            exec_ids = [e.get("executionId") for e in active_executions]
+        # Filter out CANCELLING executions since they're being terminated
+        truly_active_executions = [
+            e for e in active_executions 
+            if e.get("status", "").upper() != "CANCELLING"
+        ]
+        if truly_active_executions:
+            exec_ids = [e.get("executionId") for e in truly_active_executions]
             return response(
                 409,
                 {

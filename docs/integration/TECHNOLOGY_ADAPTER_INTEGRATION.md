@@ -215,6 +215,592 @@ class DRSOrchestrationAdapter:
         # Attempt seamless recovery
         recovery_result = self._attempt_seamless_recovery(error, event)
         
+        if recovery_result['recovered']:
+            return recovery_result['execution_result']
+        else:
+            # Escalate to platform with full context
+            raise PlatformIntegrationError({
+                'error_context': error_context,
+                'recovery_attempted': True,
+                'escalation_required': True
+            })
+    
+    def _attempt_seamless_recovery(self, error, event):
+        """Attempt automatic recovery across system boundaries"""
+        recovery_strategies = [
+            self._retry_with_backoff,
+            self._fallback_to_basic_drs,
+            self._graceful_degradation
+        ]
+        
+        for strategy in recovery_strategies:
+            try:
+                result = strategy(error, event)
+                if result['success']:
+                    return {'recovered': True, 'execution_result': result}
+            except Exception:
+                continue
+        
+        return {'recovered': False}
+
+## Direct Lambda Invocation Integration
+
+### **Same-Account Direct Invocation Pattern**
+
+```python
+class DirectLambdaInvocationClient:
+    """High-performance same-account Lambda invocation for platform integration"""
+    
+    def __init__(self, drs_stack_name: str):
+        self.lambda_client = boto3.client('lambda')
+        self.drs_function_name = f"{drs_stack_name}-api-handler"
+        self.connection_pool = self._initialize_connection_pool()
+    
+    def invoke_drs_operation(self, operation: str, payload: Dict) -> Dict:
+        """Direct Lambda invocation - faster than API Gateway"""
+        
+        lambda_payload = {
+            'httpMethod': 'POST',
+            'path': f'/api/v1/{operation}',
+            'body': json.dumps(payload),
+            'headers': {
+                'Content-Type': 'application/json',
+                'X-Platform-Integration': 'true'
+            },
+            'requestContext': {
+                'authorizer': {
+                    'claims': {
+                        'platform_integration': 'enabled',
+                        'integration_mode': 'same_account'
+                    }
+                }
+            }
+        }
+        
+        try:
+            response = self.lambda_client.invoke(
+                FunctionName=self.drs_function_name,
+                InvocationType='RequestResponse',
+                Payload=json.dumps(lambda_payload)
+            )
+            
+            result = json.loads(response['Payload'].read())
+            
+            if result.get('statusCode') == 200:
+                return json.loads(result['body'])
+            else:
+                raise DirectInvocationError(f"DRS operation failed: {result}")
+                
+        except Exception as e:
+            raise DirectInvocationError(f"Lambda invocation failed: {e}")
+    
+    def create_protection_group(self, manifest_params: Dict) -> Dict:
+        """Create protection group via direct invocation"""
+        
+        # Transform manifest parameters to DRS format
+        protection_group_data = {
+            'groupName': f"platform-{manifest_params['resourceName']}-{int(time.time())}",
+            'description': f"Auto-created for platform execution",
+            'region': manifest_params.get('region', 'us-east-1'),
+            'serverSelectionTags': manifest_params.get('Tags', {}),
+            'platformIntegration': {
+                'enabled': True,
+                'manifestParams': manifest_params
+            }
+        }
+        
+        return self.invoke_drs_operation('protection-groups', protection_group_data)
+    
+    def create_recovery_plan(self, protection_group_id: str, manifest_params: Dict) -> Dict:
+        """Create recovery plan via direct invocation"""
+        
+        # Convert manifest to wave configuration
+        waves = self._convert_manifest_to_waves(manifest_params)
+        
+        recovery_plan_data = {
+            'planName': f"platform-plan-{manifest_params['resourceName']}-{int(time.time())}",
+            'description': 'Auto-created recovery plan for platform integration',
+            'waves': waves,
+            'platformIntegration': {
+                'enabled': True,
+                'sourceManifest': manifest_params
+            }
+        }
+        
+        return self.invoke_drs_operation('recovery-plans', recovery_plan_data)
+    
+    def start_execution(self, plan_id: str, execution_type: str, platform_context: Dict) -> Dict:
+        """Start execution via direct invocation"""
+        
+        execution_data = {
+            'planId': plan_id,
+            'executionType': execution_type,
+            'platformIntegration': {
+                'enabled': True,
+                'callbackUrl': platform_context.get('callback_url'),
+                'executionContext': platform_context
+            }
+        }
+        
+        return self.invoke_drs_operation('executions', execution_data)
+    
+    def _convert_manifest_to_waves(self, manifest_params: Dict) -> List[Dict]:
+        """Convert platform manifest to DRS wave configuration"""
+        
+        # Default single-wave configuration
+        wave = {
+            'waveNumber': 1,
+            'name': f"Platform Wave - {manifest_params['resourceName']}",
+            'protectionGroupIds': [],  # Will be populated after PG creation
+            'pauseBeforeWave': manifest_params.get('pauseBeforeActivation', False),
+            'platformGenerated': True
+        }
+        
+        return [wave]
+```
+
+## Cross-System Monitoring Bridge
+
+### **Seamless Status Synchronization**
+
+```python
+class CrossSystemHealthMonitor:
+    """Real-time monitoring bridge between platform and DRS orchestration"""
+    
+    def __init__(self):
+        self.lambda_client = boto3.client('lambda')
+        self.eventbridge_client = boto3.client('events')
+        self.monitoring_active = {}
+    
+    def start_cross_system_monitoring(self, config: Dict):
+        """Start seamless monitoring between separate stacks"""
+        
+        execution_id = config['execution_id']
+        
+        # Store monitoring configuration
+        self.monitoring_active[execution_id] = {
+            'config': config,
+            'start_time': datetime.utcnow(),
+            'last_update': None,
+            'status': 'MONITORING',
+            'retry_count': 0
+        }
+        
+        # Start async monitoring loop
+        self._start_monitoring_loop(execution_id)
+    
+    def _start_monitoring_loop(self, execution_id: str):
+        """Async monitoring loop for seamless status updates"""
+        
+        # Create EventBridge rule for periodic monitoring
+        rule_name = f"drs-platform-monitor-{execution_id}"
+        
+        self.eventbridge_client.put_rule(
+            Name=rule_name,
+            ScheduleExpression='rate(30 seconds)',
+            Description=f'Monitor DRS execution {execution_id} for platform integration',
+            State='ENABLED'
+        )
+        
+        # Add Lambda target for monitoring
+        self.eventbridge_client.put_targets(
+            Rule=rule_name,
+            Targets=[
+                {
+                    'Id': '1',
+                    'Arn': f'arn:aws:lambda:{os.environ["AWS_REGION"]}:{os.environ["AWS_ACCOUNT_ID"]}:function:platform-drs-monitor',
+                    'Input': json.dumps({
+                        'execution_id': execution_id,
+                        'monitoring_config': self.monitoring_active[execution_id]['config']
+                    })
+                }
+            ]
+        )
+    
+    def monitor_execution_status(self, event, context):
+        """Lambda function for periodic status monitoring"""
+        
+        execution_id = event['execution_id']
+        config = event['monitoring_config']
+        
+        try:
+            # Get current status from DRS orchestration
+            status_response = self.lambda_client.invoke(
+                FunctionName=config['drs_function_name'],
+                Payload=json.dumps({
+                    'httpMethod': 'GET',
+                    'path': f'/api/v1/executions/{execution_id}',
+                    'requestContext': {'authorizer': {'claims': {}}}
+                })
+            )
+            
+            status_data = json.loads(status_response['Payload'].read())
+            
+            if status_data.get('statusCode') == 200:
+                execution_status = json.loads(status_data['body'])
+                
+                # Send status update to platform
+                self._send_platform_update(execution_id, execution_status, config)
+                
+                # Check if monitoring should continue
+                if execution_status['status'] in ['COMPLETED', 'FAILED', 'CANCELLED']:
+                    self._stop_monitoring(execution_id)
+            
+        except Exception as e:
+            # Handle monitoring errors gracefully
+            self._handle_monitoring_error(execution_id, e, config)
+    
+    def _send_platform_update(self, execution_id: str, status: Dict, config: Dict):
+        """Send status update back to platform"""
+        
+        if config.get('platform_callback'):
+            # Send HTTP callback to platform
+            callback_payload = {
+                'execution_id': execution_id,
+                'drs_status': status,
+                'timestamp': datetime.utcnow().isoformat(),
+                'integration_source': 'drs_orchestration'
+            }
+            
+            # Use requests or boto3 to send callback
+            # Implementation depends on platform callback mechanism
+    
+    def _stop_monitoring(self, execution_id: str):
+        """Stop monitoring when execution completes"""
+        
+        rule_name = f"drs-platform-monitor-{execution_id}"
+        
+        # Disable EventBridge rule
+        self.eventbridge_client.put_rule(
+            Name=rule_name,
+            State='DISABLED'
+        )
+        
+        # Clean up monitoring state
+        if execution_id in self.monitoring_active:
+            del self.monitoring_active[execution_id]
+```
+
+## Platform Integration IAM Roles
+
+### **Same-Account Integration Permissions**
+
+```yaml
+# IAM role for platform to invoke DRS orchestration
+PlatformDRSIntegrationRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: !Sub '${PlatformStackName}-drs-integration-role'
+    AssumeRolePolicyDocument:
+      Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${PlatformStackName}-execution-role'
+          Action: 'sts:AssumeRole'
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: 'sts:AssumeRole'
+    Policies:
+      - PolicyName: DRSOrchestrationIntegration
+        PolicyDocument:
+          Statement:
+            # Direct Lambda invocation permissions
+            - Effect: Allow
+              Action:
+                - 'lambda:InvokeFunction'
+              Resource: 
+                - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${DRSStackName}-*'
+            
+            # EventBridge permissions for monitoring
+            - Effect: Allow
+              Action:
+                - 'events:PutRule'
+                - 'events:PutTargets'
+                - 'events:DeleteRule'
+                - 'events:RemoveTargets'
+              Resource: 
+                - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/drs-platform-monitor-*'
+            
+            # CloudWatch Logs for monitoring
+            - Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: '*'
+
+# Enhanced DRS orchestration role for platform integration
+DRSPlatformIntegrationRole:
+  Type: AWS::IAM::Role
+  Properties:
+    RoleName: !Sub '${DRSStackName}-platform-integration-role'
+    AssumeRolePolicyDocument:
+      Statement:
+        - Effect: Allow
+          Principal:
+            AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${PlatformStackName}-drs-integration-role'
+          Action: 'sts:AssumeRole'
+    Policies:
+      - PolicyName: PlatformCallbackPermissions
+        PolicyDocument:
+          Statement:
+            # Permissions to call back to platform
+            - Effect: Allow
+              Action:
+                - 'lambda:InvokeFunction'
+              Resource:
+                - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${PlatformStackName}-*'
+            
+            # SNS permissions for notifications
+            - Effect: Allow
+              Action:
+                - 'sns:Publish'
+              Resource:
+                - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${PlatformStackName}-*'
+```
+
+## Integration Deployment Strategy
+
+### **CloudFormation Integration Stack**
+
+```yaml
+# Integration stack that connects platform and DRS orchestration
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'DR Platform - DRS Orchestration Integration Stack'
+
+Parameters:
+  PlatformStackName:
+    Type: String
+    Description: Name of the DR Orchestration Platform stack
+  
+  DRSStackName:
+    Type: String
+    Description: Name of the DRS Orchestration stack
+  
+  IntegrationMode:
+    Type: String
+    Default: same-account
+    AllowedValues: [same-account, cross-account]
+    Description: Integration deployment mode
+
+Resources:
+  # Integration Lambda function
+  PlatformDRSIntegrationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${PlatformStackName}-drs-integration'
+      Runtime: python3.12
+      Handler: integration.lambda_handler
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          from drs_orchestration_adapter import DRSOrchestrationAdapter
+          
+          def lambda_handler(event, context):
+              adapter = DRSOrchestrationAdapter()
+              
+              lifecycle_phase = event.get('LifeCyclePhase', 'activate')
+              
+              if lifecycle_phase == 'activate':
+                  return adapter.activate(event)
+              elif lifecycle_phase == 'cleanup':
+                  return adapter.cleanup(event)
+              elif lifecycle_phase == 'replicate':
+                  return adapter.replicate(event)
+              else:
+                  return adapter.instantiate(event)
+      
+      Environment:
+        Variables:
+          DRS_STACK_NAME: !Ref DRSStackName
+          PLATFORM_STACK_NAME: !Ref PlatformStackName
+          INTEGRATION_MODE: !Ref IntegrationMode
+      
+      Role: !GetAtt PlatformDRSIntegrationRole.Arn
+      Timeout: 900
+  
+  # Monitoring function
+  CrossSystemMonitorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${PlatformStackName}-drs-monitor'
+      Runtime: python3.12
+      Handler: monitor.lambda_handler
+      Code:
+        ZipFile: |
+          import json
+          from cross_system_monitor import CrossSystemHealthMonitor
+          
+          def lambda_handler(event, context):
+              monitor = CrossSystemHealthMonitor()
+              return monitor.monitor_execution_status(event, context)
+      
+      Role: !GetAtt PlatformDRSIntegrationRole.Arn
+      Timeout: 300
+
+Outputs:
+  IntegrationFunctionArn:
+    Description: ARN of the integration function
+    Value: !GetAtt PlatformDRSIntegrationFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-integration-function-arn'
+  
+  MonitorFunctionArn:
+    Description: ARN of the monitoring function
+    Value: !GetAtt CrossSystemMonitorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-monitor-function-arn'
+```
+
+## Integration Testing Strategy
+
+### **End-to-End Integration Tests**
+
+```python
+class TestPlatformDRSIntegration:
+    """Comprehensive integration testing for platform-DRS integration"""
+    
+    def setUp(self):
+        self.platform_client = PlatformClient()
+        self.drs_client = DRSOrchestrationClient()
+        self.integration_client = IntegrationClient()
+    
+    def test_seamless_drs_execution(self):
+        """Test seamless DRS execution from platform manifest"""
+        
+        # Create platform manifest
+        manifest = {
+            'manifestId': 'test-integration-manifest',
+            'layers': [
+                {
+                    'layer': 1,
+                    'resources': [
+                        {
+                            'action': 'DRS',
+                            'resourceName': 'test-servers',
+                            'parameters': {
+                                'Tags': {
+                                    'Environment': 'test',
+                                    'Application': 'integration-test'
+                                },
+                                'pauseBeforeActivation': False
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        # Execute via platform
+        platform_execution = self.platform_client.start_execution(
+            manifest_path='s3://test-bucket/test-manifest.json',
+            execution_type='DRILL'
+        )
+        
+        # Verify DRS orchestration was triggered
+        assert platform_execution['status'] == 'RUNNING'
+        assert 'drs_execution_id' in platform_execution
+        
+        # Monitor execution progress
+        final_status = self._wait_for_completion(platform_execution['execution_id'])
+        
+        # Verify seamless completion
+        assert final_status['status'] == 'COMPLETED'
+        assert final_status['drs_integration']['seamless'] == True
+    
+    def test_cross_system_error_handling(self):
+        """Test error handling across system boundaries"""
+        
+        # Simulate DRS system unavailability
+        with mock.patch('boto3.client') as mock_boto:
+            mock_boto.return_value.invoke.side_effect = Exception('DRS system unavailable')
+            
+            # Attempt platform execution
+            result = self.platform_client.start_execution(
+                manifest_path='s3://test-bucket/error-test-manifest.json',
+                execution_type='DRILL'
+            )
+            
+            # Verify graceful error handling
+            assert result['status'] == 'FAILED'
+            assert 'error_recovery_attempted' in result
+            assert result['integration_status'] == 'system_unavailable'
+    
+    def test_monitoring_bridge(self):
+        """Test real-time monitoring between systems"""
+        
+        # Start execution
+        execution = self.platform_client.start_execution(
+            manifest_path='s3://test-bucket/monitor-test-manifest.json',
+            execution_type='DRILL'
+        )
+        
+        # Verify monitoring bridge is active
+        monitor_status = self.integration_client.get_monitoring_status(
+            execution['execution_id']
+        )
+        
+        assert monitor_status['active'] == True
+        assert monitor_status['update_interval'] == 30
+        assert 'drs_execution_id' in monitor_status
+    
+    def _wait_for_completion(self, execution_id: str, timeout: int = 600) -> Dict:
+        """Wait for execution completion with timeout"""
+        
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            status = self.platform_client.get_execution_status(execution_id)
+            
+            if status['status'] in ['COMPLETED', 'FAILED', 'CANCELLED']:
+                return status
+            
+            time.sleep(10)
+        
+        raise TimeoutError(f"Execution {execution_id} did not complete within {timeout} seconds")
+```
+
+## Integration Success Criteria
+
+### **Seamless Operation Validation**
+
+1. **Transparent User Experience**
+   - Platform users cannot distinguish between native and integrated DRS capabilities
+   - No additional authentication or configuration required
+   - Consistent API responses and error handling
+
+2. **Performance Requirements**
+   - Direct Lambda invocation < 2 seconds response time
+   - Status updates every 30 seconds during execution
+   - Cross-system error recovery < 10 seconds
+
+3. **Reliability Standards**
+   - 99.9% successful integration calls
+   - Automatic retry on transient failures
+   - Graceful degradation when DRS system unavailable
+
+4. **Monitoring and Observability**
+   - Complete audit trail across both systems
+   - Real-time status synchronization
+   - Comprehensive error logging and alerting
+
+### **Integration Deployment Checklist**
+
+- [ ] Platform stack deployed with DRS module placeholder
+- [ ] DRS Orchestration stack deployed independently
+- [ ] Integration stack deployed with proper IAM roles
+- [ ] Direct Lambda invocation tested and validated
+- [ ] Cross-system monitoring bridge operational
+- [ ] End-to-end integration tests passing
+- [ ] Error handling and recovery mechanisms validated
+- [ ] Performance benchmarks met
+- [ ] Security audit completed
+- [ ] Documentation and runbooks updated
+
+This integration strategy ensures seamless operation between the DR Orchestration Platform and DRS Orchestration solution while maintaining independent deployments and lifecycle management._recovery(error, event)
+        
         return {
             "status": "FAILED",
             "errorContext": error_context,
