@@ -25,6 +25,15 @@ print(f"Lambda Build Version: {LAMBDA_BUILD_VERSION} - Deployment Trigger")
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
+# RBAC imports for user permissions
+from shared.rbac_middleware import (
+    get_user_from_event,
+    get_user_roles, 
+    get_user_permissions,
+    DRSRole,
+    DRSPermission
+)
+
 # Minimal imports for maximum performance
 
 # Initialize AWS clients
