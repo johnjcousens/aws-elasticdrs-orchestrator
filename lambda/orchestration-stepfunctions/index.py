@@ -62,12 +62,12 @@ def get_execution_history_table():
 
 def get_account_context(state: Dict) -> Dict:
     """
-    Get account context from state, handling both PascalCase and snake_case.
+    Get account context from state, handling both camelCase and snake_case.
 
-    Initial execution uses PascalCase (AccountContext) from Step Functions input.
+    Initial execution uses camelCase (accountContext) from Step Functions input.
     Resume uses snake_case (account_context) from SendTaskSuccess output.
     """
-    return state.get("AccountContext") or state.get("account_context", {})
+    return state.get("accountContext") or state.get("account_context", {})
 
 
 def create_drs_client(region: str, account_context: Dict = None):
@@ -172,7 +172,7 @@ def lambda_handler(event, context):
         sanitized_event = sanitize_dynamodb_input(event)
         
         # Extract account context for multi-account support
-        account_context = sanitized_event.get("AccountContext", {})
+        account_context = sanitized_event.get("accountContext", {})
         account_id = account_context.get("accountId")
         if account_id:
             print(f"Operating in account context: {account_id}")
@@ -211,7 +211,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     plan = sanitize_dynamodb_input(event.get("plan", {}))
     execution_id = sanitize_string_input(event.get("execution", ""))
     is_drill = event.get("isDrill", True)
-    account_context = sanitize_dynamodb_input(event.get("AccountContext", {}))
+    account_context = sanitize_dynamodb_input(event.get("accountContext", {}))
 
     # Validate required parameters
     if not execution_id:
@@ -246,7 +246,7 @@ def begin_wave_plan(event: Dict) -> Dict:
         "plan_name": sanitize_string_input(plan.get("planName", "")),
         "execution_id": execution_id,
         "is_drill": is_drill,
-        "AccountContext": account_context,  # Step Functions expects uppercase
+        "accountContext": account_context,  # Step Functions expects camelCase
         # Wave tracking
         "waves": waves,
         "total_waves": len(waves),
