@@ -118,6 +118,12 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+        - IndexName: planIdIndex
+          KeySchema:
+            - AttributeName: planId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: TTL  # TTL attribute for automatic record expiration
         Enabled: true
