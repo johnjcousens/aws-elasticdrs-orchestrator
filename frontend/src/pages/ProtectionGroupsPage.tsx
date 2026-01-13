@@ -102,11 +102,11 @@ export const ProtectionGroupsPage: React.FC = () => {
         // Defensive check: ensure items is an array
         const executions = Array.isArray(executionsResponse?.items) ? executionsResponse.items : [];
         const activeStatuses = ['PENDING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'IN_PROGRESS', 'RUNNING', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
-        executions.forEach((exec: { status?: string; recoveryPlanId?: string }) => {
+        executions.forEach((exec: { status?: string; planId?: string }) => {
           const status = String(exec.status || '').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
-          if (activeStatuses.includes(status) && exec.recoveryPlanId) {
+          if (activeStatuses.includes(status) && exec.planId) {
             // Add all protection groups from this plan to active set
-            const sanitizedPlanId = String(exec.recoveryPlanId).replace(/[^a-zA-Z0-9\-_]/g, '');
+            const sanitizedPlanId = String(exec.planId).replace(/[^a-zA-Z0-9\-_]/g, '');
             const groupIds = planToGroups[sanitizedPlanId] || [];
             groupIds.forEach(gid => activeGroupIds.add(String(gid).replace(/[^a-zA-Z0-9\-_]/g, '')));
           }
