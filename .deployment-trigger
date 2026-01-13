@@ -1,9 +1,0 @@
-EMERGENCY DEPLOYMENT TRIGGER
-============================
-
-Timestamp: 2026-01-10T06:30:00Z
-Reason: Re-trigger deployment after fixing GitHub secret STACK_NAME
-Target Stack: aws-elasticdrs-orchestrator-dev
-Admin Email: ***REMOVED*** (updated in GitHub secrets)
-
-This file triggers a new deployment after resolving the stack name conflict.

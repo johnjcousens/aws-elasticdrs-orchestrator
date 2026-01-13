@@ -76,6 +76,9 @@ scripts/wait_for_completion.sh
 # BUILD ARTIFACTS
 # -------------------------
 
+# Build output directory
+build/
+
 # Lambda build artifacts (keep deployment ZIPs for easy customer deployment)
 # Required ZIPs are tracked: api-handler.zip, orchestration-stepfunctions.zip, 
 # execution-finder.zip, execution-poller.zip, frontend-builder.zip
@@ -107,7 +110,10 @@ env/
 .pytest_cache/
 
 # Security scan reports (temporary)
-reports/security/
+reports/
+
+# Security documentation (internal)
+docs/security/
 
 # -------------------------
 # IDE AND SYSTEM FILES
