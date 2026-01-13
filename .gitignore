@@ -133,6 +133,12 @@ history/
 **/history/
 history/**/*
 
+# Confidential review folder (removed from git history)
+REVIEW/
+
+# Root level node_modules (should only be in frontend/)
+/node_modules/
+
 # -------------------------
 # DISABLED/LEGACY
 # -------------------------
