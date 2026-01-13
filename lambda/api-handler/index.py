@@ -2309,7 +2309,13 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
             groups = filtered_groups
 
         # Return raw camelCase database fields directly - no transformation needed
+        # Clean up legacy PascalCase fields if they exist
+        legacy_fields = ["GroupName", "GroupId", "Description", "Version", "LastModifiedDate", "CreatedDate", 
+                         "ServerSelectionTags", "SourceServerIds", "LaunchConfig"]
         for group in groups:
+            for field in legacy_fields:
+                if field in group:
+                    del group[field]
             group["protectionGroupId"] = group["groupId"]
         return response(200, {"groups": groups, "count": len(groups)})
 
@@ -2326,6 +2332,13 @@ def get_protection_group(group_id: str) -> Dict:
             return response(404, {"error": "Protection Group not found"})
 
         group = result["Item"]
+
+        # Clean up legacy PascalCase fields if they exist
+        legacy_fields = ["GroupName", "GroupId", "Description", "Version", "LastModifiedDate", "CreatedDate",
+                         "ServerSelectionTags", "SourceServerIds", "LaunchConfig"]
+        for field in legacy_fields:
+            if field in group:
+                del group[field]
 
         # Return raw camelCase database fields directly - no transformation needed
         group["protectionGroupId"] = group["groupId"]  # Only add this alias for compatibility
@@ -3039,14 +3052,9 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
             filtered_plans.append(plan)
 
-        # Transform to camelCase for frontend
-        camelcase_plans = []
-        for plan in filtered_plans:
-            # Data is already in camelCase - add directly
-            camelcase_plans.append(plan)
-
+        # Return raw database fields - database is already camelCase
         return response(
-            200, {"plans": camelcase_plans, "count": len(camelcase_plans)}
+            200, {"plans": filtered_plans, "count": len(filtered_plans)}
         )
 
     except Exception as e:
@@ -3064,7 +3072,7 @@ def get_recovery_plan(plan_id: str) -> Dict:
         plan = result["Item"]
         plan["waveCount"] = len(plan.get("waves", []))
 
-        # Data is already in camelCase - return directly
+        # Return raw database fields - database is already camelCase
         return response(200, plan)
 
     except Exception as e:
@@ -3210,9 +3218,10 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 return response(400, {"error": validation_error})
 
         # Build update expression with version increment (optimistic locking)
+        # FIXED: Use camelCase field names consistently
         new_version = int(current_version) + 1
         update_expression = (
-            "SET LastModifiedDate = :timestamp, Version = :new_version"
+            "SET lastModifiedDate = :timestamp, version = :new_version"
         )
         expression_values = {
             ":timestamp": int(time.time()),
@@ -3225,11 +3234,12 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         for field in updatable_fields:
             if field in body:
                 if field == "description":
-                    update_expression += ", #desc = :desc"
+                    # FIXED: Use camelCase 'description' not PascalCase 'Description'
+                    update_expression += ", description = :desc"
                     expression_values[":desc"] = body["description"]
-                    expression_names["#desc"] = "Description"
                 elif field == "planName":
-                    update_expression += ", PlanName = :planname"
+                    # FIXED: Use camelCase 'planName' not PascalCase 'PlanName'
+                    update_expression += ", planName = :planname"
                     expression_values[":planname"] = body["planName"]
                 else:
                     update_expression += f", {field} = :{field.lower()}"
