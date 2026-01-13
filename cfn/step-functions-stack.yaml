@@ -114,7 +114,7 @@ Resources:
           WaitForWaveUpdate:
             Type: Wait
             SecondsPath: '$.current_wave_update_time'
-            Next: 'TransformForUpdate'
+            Next: 'UpdateWaveStatus'
           
           # Pause state: Wait for external resume signal (callback pattern)
           # SendTaskSuccess output becomes the state (no Payload wrapper for callbacks)
@@ -157,22 +157,15 @@ Resources:
                 MaxAttempts: 6
                 BackoffRate: 2
           
-          # Step 5: Transform data for Lambda compatibility
-          TransformForUpdate:
-            Type: Pass
-            Parameters:
-              action: 'update_wave_status'
-              application.$: '$'
-              accountContext.$: '$.accountContext'
-            Next: 'UpdateWaveStatus'
-          
-          # Step 6: Poll DRS job status - Lambda returns FULL state
+          # Step 5: Poll DRS job status - Lambda returns FULL state
           UpdateWaveStatus:
             Type: Task
             Resource: 'arn:aws:states:::lambda:invoke'
             Parameters:
               FunctionName: !Ref OrchestrationLambdaArn
-              Payload.$: '$'
+              Payload:
+                action: 'update_wave_status'
+                application.$: '$'
             OutputPath: '$.Payload'
             Next: 'DetermineWaveState'
             Retry:
