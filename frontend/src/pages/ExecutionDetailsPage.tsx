@@ -514,8 +514,11 @@ export const ExecutionDetailsPage: React.FC = () => {
     return waves.map((wave: any, index: number) => {
       const waveRegion = wave.region || wave.Region || 'us-east-1';
       
-      // FIXED: API returns server data in 'servers' array with full server objects
-      const servers = wave.servers || wave.serverExecutions || [];
+      // FIXED: Check multiple server data sources in priority order:
+      // 1. serverStatuses - populated by execution-poller with enriched EC2 data (Name tag, IP)
+      // 2. servers - populated by API reconcile from DRS participatingServers
+      // 3. serverExecutions - frontend type field name
+      const servers = wave.serverStatuses || wave.servers || wave.serverExecutions || [];
       
       return {
         waveNumber: wave.waveNumber ?? index,
@@ -527,14 +530,15 @@ export const ExecutionDetailsPage: React.FC = () => {
         serverExecutions: servers.map((server: any) => {
           return {
             serverId: server.sourceServerId || server.serverId,
+            // serverName from execution-poller has EC2 Name tag
             serverName: server.serverName || server.hostname,
             hostname: server.hostname,
             status: server.status || server.launchStatus || 'pending',
-            launchStatus: server.status || server.launchStatus,
+            launchStatus: server.launchStatus || server.status,
             recoveredInstanceId: server.instanceId || server.recoveredInstanceId || server.ec2InstanceId,
             instanceType: server.instanceType,
             privateIp: server.privateIp,
-            launchTime: server.launchTime, // FIXED: Add missing launchTime field
+            launchTime: server.launchTime,
             region: server.region || waveRegion,
             sourceInstanceId: server.sourceInstanceId,
             sourceAccountId: server.sourceAccountId,

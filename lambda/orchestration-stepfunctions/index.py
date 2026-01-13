@@ -612,6 +612,55 @@ def query_drs_servers_by_tags(  # noqa: C901
         raise
 
 
+def get_drs_server_details(drs_client, server_ids: List[str]) -> Dict[str, Dict]:
+    """
+    Get DRS source server details (Name tag, hostname) for server information display.
+    
+    Uses data already available from DRS source servers - no extra EC2 API calls needed.
+    
+    Args:
+        drs_client: Boto3 DRS client
+        server_ids: List of DRS source server IDs
+        
+    Returns:
+        Dict mapping server_id to {serverName, hostname}
+    """
+    server_details = {}
+    
+    if not server_ids:
+        return server_details
+    
+    try:
+        # Query DRS for source server details
+        response = drs_client.describe_source_servers(
+            filters={"sourceServerIDs": server_ids}
+        )
+        
+        for server in response.get("items", []):
+            server_id = server.get("sourceServerID", "")
+            
+            # Get Name tag from DRS source server tags
+            name_tag = server.get("tags", {}).get("Name", "")
+            
+            # Get hostname from identification hints
+            hostname = (
+                server.get("sourceProperties", {})
+                .get("identificationHints", {})
+                .get("hostname", "")
+            )
+            
+            server_details[server_id] = {
+                "serverName": name_tag or hostname or server_id,
+                "hostname": hostname,
+            }
+            
+    except Exception as e:
+        print(f"Warning: Could not get DRS server details: {e}")
+        # Return empty details - frontend will show server IDs
+        
+    return server_details
+
+
 def start_wave_recovery(state: Dict, wave_number: int) -> None:
     """
     Start DRS recovery for a wave with comprehensive security validation
@@ -794,6 +843,24 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             "is_drill": is_drill
         })
 
+        # Get server details (Name tag, hostname) from DRS source servers
+        # This data is already available - no extra EC2 API calls needed
+        server_details = get_drs_server_details(drs_client, server_ids)
+        
+        # Build serverStatuses with server details for frontend display
+        server_statuses = []
+        for server_id in server_ids:
+            details = server_details.get(server_id, {})
+            server_statuses.append({
+                "sourceServerId": server_id,
+                "serverName": details.get("serverName", server_id),
+                "hostname": details.get("hostname", ""),
+                "launchStatus": "PENDING",
+                "instanceId": "",
+                "privateIp": "",
+                "launchTime": 0,
+            })
+
         # Update state
         state["current_wave_number"] = wave_number
         state["job_id"] = job_id
@@ -802,7 +869,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         state["wave_completed"] = False
         state["current_wave_total_wait_time"] = 0
 
-        # Store wave result
+        # Store wave result with serverStatuses for frontend display
         wave_result = {
             "waveNumber": wave_number,
             "waveName": wave_name,
@@ -810,6 +877,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             "jobId": job_id,
             "startTime": int(time.time()),
             "serverIds": server_ids,
+            "serverStatuses": server_statuses,  # Include server details from DRS
             "region": region,
         }
         state["wave_results"].append(wave_result)
