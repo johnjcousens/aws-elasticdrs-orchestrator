@@ -72,7 +72,7 @@ def add_target_account(table_name, account_id, account_name=None):
             "IsCurrentAccount": True,
             "Status": "active",
             "CreatedAt": datetime.utcnow().isoformat() + "Z",
-            "LastValidated": datetime.utcnow().isoformat() + "Z",
+            "lastValidated": datetime.utcnow().isoformat() + "Z",
         }
 
         if account_name:

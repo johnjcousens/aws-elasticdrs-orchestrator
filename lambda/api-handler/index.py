@@ -5155,14 +5155,14 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 if wave_status != "FAILED":
                                     print(f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED - servers failed: {failed_servers}")
                                 wave["status"] = "FAILED"
-                                wave["StatusMessage"] = f"Servers failed to launch: {', '.join(failed_servers[:3])}"
+                                wave["statusMessage"] = f"Servers failed to launch: {', '.join(failed_servers[:3])}"
                                 wave["endTime"] = int(time.time())
                                 
                         elif drs_status == "FAILED":
                             if wave_status != "FAILED":
                                 print(f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED (DRS job failed)")
                             wave["status"] = "FAILED"
-                            wave["StatusMessage"] = job.get("statusMessage", "DRS job failed")
+                            wave["statusMessage"] = job.get("statusMessage", "DRS job failed")
                             wave["endTime"] = int(time.time())
                             
                         elif drs_status in ["PENDING", "STARTED"]:
@@ -5184,7 +5184,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         print(f"DEBUG: DRS job {job_id} not found - may have been cleaned up")
                         if wave_status in ["UNKNOWN", "", "INITIATED", "POLLING", "IN_PROGRESS"]:
                             wave["status"] = "COMPLETED"  # Assume completed if job not found
-                            wave["StatusMessage"] = "Job completed (not found in DRS)"
+                            wave["statusMessage"] = "Job completed (not found in DRS)"
                             wave["endTime"] = int(time.time())
                         
                 except Exception as e:
@@ -5316,7 +5316,7 @@ def get_execution_details_fast(execution_id: str) -> Dict:
                     plan = plan_result["Item"]
                     if not execution.get("recoveryPlanName"):
                         execution["recoveryPlanName"] = plan.get("planName", "Unknown")
-                    execution["RecoveryPlanDescription"] = plan.get("description", "")
+                    execution["recoveryPlanDescription"] = plan.get("description", "")
                     execution["totalWaves"] = len(plan.get("waves", []))
                 elif not execution.get("recoveryPlanName"):
                     execution["recoveryPlanName"] = "Deleted Plan"
@@ -8244,7 +8244,7 @@ def ensure_default_account() -> None:
                 "IsCurrentAccount": True,
                 "IsDefault": True,
                 "createdAt": now,
-                "LastValidated": now,
+                "lastValidated": now,
                 "createdBy": "system-auto-init",
             }
 
@@ -8489,7 +8489,7 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
                 )
 
         # Build update expression (using PascalCase for DynamoDB)
-        set_clauses = ["LastValidated = :lastValidated"]
+        set_clauses = ["lastValidated = :lastValidated"]
         remove_clauses = []
         expression_values = {
             ":lastValidated": datetime.utcnow().isoformat() + "Z"
@@ -8693,7 +8693,7 @@ def validate_target_account(account_id: str) -> Dict:
         try:
             target_accounts_table.update_item(
                 Key={"accountId": account_id},
-                UpdateExpression="SET LastValidated = :lastValidated",
+                UpdateExpression="SET lastValidated = :lastValidated",
                 ExpressionAttributeValues={
                     ":lastValidated": validation_results["lastValidated"]
                 },
@@ -9381,7 +9381,7 @@ def export_configuration(query_params: Dict) -> Dict:
                 pg_id = wave.get("protectionGroupId", "")
                 if pg_id:
                     if pg_id in pg_id_to_name:
-                        exported_wave["ProtectionGroupName"] = pg_id_to_name[
+                        exported_wave["protectionGroupName"] = pg_id_to_name[
                             pg_id
                         ]
                         # Remove ID - use name only for portability
@@ -9937,7 +9937,7 @@ def _process_recovery_plan_import(
     for wave in waves:
         wave_copy = dict(wave)  # Don't modify original
         pg_id = wave.get("protectionGroupId", "")
-        pg_name = wave.get("ProtectionGroupName", "")
+        pg_name = wave.get("protectionGroupName", "")
 
         # Try to resolve ProtectionGroupId
         resolved_pg_id = None
@@ -9953,7 +9953,7 @@ def _process_recovery_plan_import(
                     break
 
             # If ID not found in mapping, it might be an old/invalid ID
-            # Try to resolve via ProtectionGroupName if provided
+            # Try to resolve via protectionGroupName if provided
             if not resolved_pg_id and pg_name:
                 pg_name_lower = pg_name.lower()
                 if pg_name_lower in pg_name_to_id:
@@ -9965,12 +9965,12 @@ def _process_recovery_plan_import(
 
             # If still not resolved, the ID is invalid
             if not resolved_pg_id:
-                # Check if we have a ProtectionGroupName to fall back to
+                # Check if we have a protectionGroupName to fall back to
                 if not pg_name:
                     missing_pgs.append(f"ID:{pg_id}")
                     continue
 
-        # Case 2: Only ProtectionGroupName provided - resolve to ID
+        # Case 2: Only protectionGroupName provided - resolve to ID
         if not resolved_pg_id and pg_name:
             pg_name_lower = pg_name.lower()
             print(
@@ -10009,7 +10009,7 @@ def _process_recovery_plan_import(
         if resolved_pg_id:
             wave_copy["protectionGroupId"] = resolved_pg_id
             if resolved_pg_name:
-                wave_copy["ProtectionGroupName"] = resolved_pg_name
+                wave_copy["protectionGroupName"] = resolved_pg_name
             resolved_waves.append(wave_copy)
 
     if cascade_failed_pgs:
