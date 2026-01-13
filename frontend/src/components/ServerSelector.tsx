@@ -105,7 +105,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
           
           allServers.push(...drsServers);
         } catch (pgError) {
-          console.error(`Failed to fetch servers for PG ${pgId}:`, pgError);
+          console.error('Failed to fetch servers for PG:', pgId, pgError);
           // Continue with other PGs even if one fails
         }
       }

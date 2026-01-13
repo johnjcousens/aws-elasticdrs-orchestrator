@@ -123,6 +123,7 @@ def get_cognito_user_from_event(event: Dict) -> Dict:
         print(f"Error extracting Cognito user: {e}")
         return {"email": "system", "userId": "system", "username": "system"}
 
+
 class DecimalEncoder(json.JSONEncoder):
     """Custom JSON encoder for DynamoDB Decimal types"""
 
@@ -134,6 +135,7 @@ class DecimalEncoder(json.JSONEncoder):
 # ============================================================================
 # Cross-Account Support Functions
 # ============================================================================
+
 
 def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
     """
