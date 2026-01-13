@@ -1,0 +1,329 @@
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/BusinessUnit": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Owner": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Environment": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/DataClassification": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/ComplianceScope": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Customer": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Application": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Project": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/CostCenter": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Backup": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Patch": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		},
+		{
+			"Effect": "Deny",
+			"Action": [
+				"ec2:RunInstances",
+				"lambda:CreateFunction"
+			],
+			"Resource": [
+				"arn:aws:ec2:*:*:instance/*",
+				"arn:aws:lambda:*:*:function:*"
+			],
+			"Condition": {
+				"Null": {
+					"aws:RequestTag/Schedule": "true"
+				},
+				"ArnNotLike": {
+					"aws:PrincipalARN": [
+						"arn:${PARTITION}:iam::*:role/${ACCELERATOR_PREFIX}*",
+						"arn:${PARTITION}:iam::*:role/${MANAGEMENT_ACCOUNT_ACCESS_ROLE}",
+						"arn:${PARTITION}:iam::*:role/cdk-accel*",
+						"arn:${PARTITION}:iam::*:role/ams-access-admin"
+					]
+				},
+				"StringNotEquals": {
+					"aws:PrincipalServiceName": "drs.amazonaws.com"
+				}
+			}
+		}
+	]
+}
