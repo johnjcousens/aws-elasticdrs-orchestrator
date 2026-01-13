@@ -288,7 +288,7 @@ def begin_wave_plan(event: Dict) -> Dict:
         get_execution_history_table().update_item(
             Key={"executionId": execution_id, "planId": plan_id},
             UpdateExpression="SET #status = :status",
-            ExpressionAttributeNames={"#status": "Status"},
+            ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":status": "RUNNING"},
         )
     except Exception as e:
@@ -363,8 +363,8 @@ def store_task_token(event: Dict) -> Dict:
         def update_task_token():
             return get_execution_history_table().update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status, TaskToken = :token, PausedBeforeWave = :wave",
-                ExpressionAttributeNames={"#status": "Status"},
+                UpdateExpression="SET #status = :status, taskToken = :token, pausedBeforeWave = :wave",
+                ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "PAUSED",
                     ":token": task_token,
@@ -445,8 +445,8 @@ def resume_wave(event: Dict) -> Dict:
         def update_resume_status():
             return get_execution_history_table().update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status REMOVE TaskToken, PausedBeforeWave",
-                ExpressionAttributeNames={"#status": "Status"},
+                UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave",
+                ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={":status": "RUNNING"},
             )
         
@@ -813,8 +813,8 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             def update_execution_wave():
                 return get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": state["plan_id"]},
-                    UpdateExpression="SET Waves = list_append(if_not_exists(Waves, :empty), :wave), DrsJobId = :job_id, DrsRegion = :region, #status = :status",
-                    ExpressionAttributeNames={"#status": "Status"},
+                    UpdateExpression="SET waves = list_append(if_not_exists(waves, :empty), :wave), drsJobId = :job_id, drsRegion = :region, #status = :status",
+                    ExpressionAttributeNames={"#status": "status"},
                     ExpressionAttributeValues={
                         ":empty": [],
                         ":wave": [wave_result],
@@ -822,7 +822,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                         ":region": region,
                         ":status": "POLLING",
                     },
-                    ConditionExpression="attribute_exists(ExecutionId)",
+                    ConditionExpression="attribute_exists(executionId)",
                 )
             
             safe_aws_client_call(update_execution_wave)
@@ -917,13 +917,13 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 def update_cancelled_status():
                     return get_execution_history_table().update_item(
                         Key={"executionId": execution_id, "planId": plan_id},
-                        UpdateExpression="SET #status = :status, EndTime = :end",
-                        ExpressionAttributeNames={"#status": "Status"},
+                        UpdateExpression="SET #status = :status, endTime = :end",
+                        ExpressionAttributeNames={"#status": "status"},
                         ExpressionAttributeValues={
                             ":status": "CANCELLED",
                             ":end": int(time.time()),
                         },
-                        ConditionExpression="attribute_exists(ExecutionId)",
+                        ConditionExpression="attribute_exists(executionId)",
                     )
                 
                 safe_aws_client_call(update_cancelled_status)
@@ -1234,13 +1234,13 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                         )
                     get_execution_history_table().update_item(
                         Key={"executionId": execution_id, "planId": plan_id},
-                        UpdateExpression="SET #status = :status, EndTime = :end",
-                        ExpressionAttributeNames={"#status": "Status"},
+                        UpdateExpression="SET #status = :status, endTime = :end",
+                        ExpressionAttributeNames={"#status": "status"},
                         ExpressionAttributeValues={
                             ":status": "CANCELLED",
                             ":end": int(time.time()),
                         },
-                        ConditionExpression="attribute_exists(ExecutionId)",
+                        ConditionExpression="attribute_exists(executionId)",
                     )
                     return state
             except Exception as e:
@@ -1260,13 +1260,13 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["paused_before_wave"] = next_wave
                     get_execution_history_table().update_item(
                         Key={"executionId": execution_id, "planId": plan_id},
-                        UpdateExpression="SET #status = :status, PausedBeforeWave = :wave",
-                        ExpressionAttributeNames={"#status": "Status"},
+                        UpdateExpression="SET #status = :status, pausedBeforeWave = :wave",
+                        ExpressionAttributeNames={"#status": "status"},
                         ExpressionAttributeValues={
                             ":status": "PAUSED",
                             ":wave": next_wave,
                         },
-                        ConditionExpression="attribute_exists(ExecutionId)",
+                        ConditionExpression="attribute_exists(executionId)",
                     )
                     return state
 
@@ -1284,13 +1284,13 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["duration_seconds"] = end_time - state["start_time"]
                 get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": plan_id},
-                    UpdateExpression="SET #status = :status, EndTime = :end",
-                    ExpressionAttributeNames={"#status": "Status"},
+                    UpdateExpression="SET #status = :status, endTime = :end",
+                    ExpressionAttributeNames={"#status": "status"},
                     ExpressionAttributeValues={
                         ":status": "COMPLETED",
                         ":end": end_time,
                     },
-                    ConditionExpression="attribute_exists(ExecutionId)",
+                    ConditionExpression="attribute_exists(executionId)",
                 )
 
         elif failed_count > 0:
@@ -1382,7 +1382,7 @@ def update_wave_in_dynamodb(
         def get_execution():
             return get_execution_history_table().get_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                ConditionExpression="attribute_exists(ExecutionId)",
+                ConditionExpression="attribute_exists(executionId)",
             )
         
         exec_response = safe_aws_client_call(get_execution)
@@ -1399,9 +1399,9 @@ def update_wave_in_dynamodb(
             def update_waves():
                 return get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": plan_id},
-                    UpdateExpression="SET Waves = :waves",
+                    UpdateExpression="SET waves = :waves",
                     ExpressionAttributeValues={":waves": waves},
-                    ConditionExpression="attribute_exists(ExecutionId)",
+                    ConditionExpression="attribute_exists(executionId)",
                 )
             
             safe_aws_client_call(update_waves)
