@@ -145,7 +145,7 @@ class ApiClient {
             const base64Pattern = /^[A-Za-z0-9+/=_-]+$/;
             for (let i = 0; i < tokenParts.length; i++) {
               if (!base64Pattern.test(tokenParts[i])) {
-                console.error(`JWT part ${i + 1} contains invalid characters:`, tokenParts[i].substring(0, 20));
+                console.error('JWT part contains invalid characters:', i + 1, tokenParts[i].substring(0, 20));
                 throw new Error(`Invalid JWT token format - part ${i + 1} contains invalid characters`);
               }
             }
