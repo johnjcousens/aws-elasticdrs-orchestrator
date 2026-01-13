@@ -60,8 +60,8 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
   const handleAddWave = useCallback(() => {
     const newWave: Wave = {
       waveNumber: safeWaves.length,
-      name: `Wave ${safeWaves.length + 1}`,
-      description: '',
+      waveName: `Wave ${safeWaves.length + 1}`,
+      waveDescription: '',
       serverIds: [],
       // executionType removed - all within-wave execution is parallel with delays
       dependsOnWaves: [],
@@ -162,7 +162,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
               headerText={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
                   <span style={{ fontWeight: 600, minWidth: '100px' }}>
-                    {wave.name}
+                    {wave.waveName}
                   </span>
                   <Badge color="blue">
                     {(wave.protectionGroupIds || []).length} PG{(wave.protectionGroupIds || []).length !== 1 ? 's' : ''}
@@ -200,15 +200,15 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                   <SpaceBetween size="m">
                     <FormField label="Wave Name" constraintText="Required">
                       <Input
-                        value={wave.name}
-                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'name', detail.value)}
+                        value={wave.waveName}
+                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'waveName', detail.value)}
                         disabled={readonly}
                       />
                     </FormField>
                     <FormField label="Description">
                       <Textarea
-                        value={wave.description || ''}
-                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'description', detail.value)}
+                        value={wave.waveDescription || ''}
+                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'waveDescription', detail.value)}
                         disabled={readonly}
                         rows={2}
                       />
@@ -230,7 +230,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                           <Multiselect
                             selectedOptions={
                               (wave.dependsOnWaves || []).map(waveNum => ({
-                                label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
+                                label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].waveName}`,
                                 value: String(waveNum)
                               }))
                             }
@@ -243,7 +243,7 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                             }
                             options={
                               getAvailableDependencies(wave.waveNumber).map(waveNum => ({
-                                label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].name}`,
+                                label: `Wave ${waveNum + 1} - ${safeWaves[waveNum].waveName}`,
                                 value: String(waveNum)
                               }))
                             }

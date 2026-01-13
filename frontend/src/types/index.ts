@@ -195,8 +195,8 @@ export interface RecoveryPlan {
 
 export interface Wave {
   waveNumber: number;
-  name: string;
-  description?: string;
+  waveName: string;
+  waveDescription?: string;
   serverIds: string[];
   serverCount?: number;
   // executionType removed - backend ignores this field, all within-wave execution
