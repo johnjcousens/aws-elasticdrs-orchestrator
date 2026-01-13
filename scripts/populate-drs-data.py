@@ -182,13 +182,13 @@ def enrich_execution_with_drs_data(execution: Dict, recovery_instances: Dict[str
                         all_launched = all(s.get('launchStatus') == 'LAUNCHED' for s in participating_servers)
                         if all_launched:
                             wave['Status'] = 'completed'
-                            wave['StatusMessage'] = 'All servers launched successfully'
+                            wave['statusMessage'] = 'All servers launched successfully'
                         else:
                             wave['Status'] = 'FAILED'
-                            wave['StatusMessage'] = 'Some servers failed to launch'
+                            wave['statusMessage'] = 'Some servers failed to launch'
                     elif drs_status == 'FAILED':
                         wave['Status'] = 'FAILED'
-                        wave['StatusMessage'] = 'DRS job failed'
+                        wave['statusMessage'] = 'DRS job failed'
                     
                     # Build ServerStatuses array
                     server_statuses = []
