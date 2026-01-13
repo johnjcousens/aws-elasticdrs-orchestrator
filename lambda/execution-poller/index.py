@@ -874,14 +874,14 @@ def finalize_execution(
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
             Key={"executionId": {"S": execution_id}, "planId": {"S": plan_id}},
-            UpdateExpression="SET #status = :status, EndTime = :end_time, Waves = :waves",
-            ExpressionAttributeNames={"#status": "Status"},
+            UpdateExpression="SET #status = :status, endTime = :end_time, waves = :waves",
+            ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
                 ":status": {"S": status},
                 ":end_time": {"N": str(end_time)},
                 ":waves": {"L": [format_wave_for_dynamodb(w) for w in waves]},
             },
-            ConditionExpression="attribute_exists(ExecutionId)",
+            ConditionExpression="attribute_exists(executionId)",
         )
 
         logger.info(f"Execution {execution_id} finalized with status {status}")
