@@ -1286,16 +1286,40 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     print(f"⏸️ Pausing before wave {next_wave}")
                     state["status"] = "paused"
                     state["paused_before_wave"] = next_wave
-                    get_execution_history_table().update_item(
-                        Key={"executionId": execution_id, "planId": plan_id},
-                        UpdateExpression="SET #status = :status, pausedBeforeWave = :wave",
-                        ExpressionAttributeNames={"#status": "status"},
-                        ExpressionAttributeValues={
-                            ":status": "PAUSED",
-                            ":wave": next_wave,
-                        },
-                        ConditionExpression="attribute_exists(executionId)",
-                    )
+                    
+                    # CRITICAL FIX: Mark execution as PAUSED and store task token for manual resume
+                    # This prevents the execution from continuing automatically
+                    try:
+                        def update_paused_status():
+                            return get_execution_history_table().update_item(
+                                Key={"executionId": execution_id, "planId": plan_id},
+                                UpdateExpression="SET #status = :status, pausedBeforeWave = :wave",
+                                ExpressionAttributeNames={"#status": "status"},
+                                ExpressionAttributeValues={
+                                    ":status": "PAUSED",
+                                    ":wave": next_wave,
+                                },
+                                ConditionExpression="attribute_exists(executionId)",
+                            )
+                        
+                        safe_aws_client_call(update_paused_status)
+                        
+                        log_security_event("wave_paused_before_execution", {
+                            "execution_id": execution_id,
+                            "paused_before_wave": next_wave,
+                            "wave_name": next_wave_config.get("waveName", f"Wave {next_wave + 1}")
+                        })
+                        
+                        print(f"✅ Execution paused before wave {next_wave}, waiting for manual resume")
+                        
+                    except Exception as e:
+                        log_security_event("wave_pause_error", {
+                            "execution_id": execution_id,
+                            "wave_number": next_wave,
+                            "error": str(e)
+                        }, "ERROR")
+                        print(f"Error pausing execution: {e}")
+                    
                     return state
 
                 print(f"Starting next wave: {next_wave}")
