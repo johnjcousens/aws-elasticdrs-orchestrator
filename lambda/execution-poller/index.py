@@ -787,8 +787,8 @@ def get_ec2_instance_details(
             hostname = instance.get("PrivateDnsName", "")
 
         return {
-            "hostname": hostname,  # Fixed: Use 'hostname' not 'hostName'
-            "privateIp": instance.get("PrivateIpAddress", ""),  # Fixed: Use 'privateIp' not 'privateIpAddress'
+            "hostname": hostname,
+            "privateIp": instance.get("PrivateIpAddress", ""),  # EC2 API returns PascalCase
         }
 
     except Exception as e:
