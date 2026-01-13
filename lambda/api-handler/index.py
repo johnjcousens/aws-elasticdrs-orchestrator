@@ -2853,8 +2853,8 @@ def create_recovery_plan(body: Dict) -> Dict:
                 camelcase_wave = {
                     "executionOrder": idx,  # camelCase migration
                     "waveId": f"wave-{idx + 1}",  # camelCase migration
-                    "waveName": wave.get("name", f"Wave {idx + 1}"),
-                    "waveDescription": wave.get("description", ""),
+                    "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),  # Support both camelCase and legacy
+                    "waveDescription": wave.get("waveDescription", wave.get("description", "")),  # Support both camelCase and legacy
                     "protectionGroupId": wave.get("protectionGroupId", ""),
                     "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
@@ -3172,8 +3172,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 camelcase_wave = {
                     "executionOrder": idx,  # camelCase migration
                     "waveId": f"wave-{idx + 1}",  # camelCase migration
-                    "waveName": wave.get("name", f"Wave {idx + 1}"),
-                    "waveDescription": wave.get("description", ""),
+                    "waveName": wave.get("waveName", wave.get("name", f"Wave {idx + 1}")),  # Support both camelCase and legacy
+                    "waveDescription": wave.get("waveDescription", wave.get("description", "")),  # Support both camelCase and legacy
                     "protectionGroupId": wave.get("protectionGroupId", ""),
                     "protectionGroupIds": wave.get("protectionGroupIds", []),
                     "serverIds": wave.get("serverIds", []),
@@ -4034,6 +4034,7 @@ def execute_with_step_functions(
         # Step Functions input format for step-functions-stack.yaml state machine
         # Uses 'Plan' (singular) not 'Plans' (array)
         # ALWAYS include ResumeFromWave (null for new executions) so Step Functions doesn't fail
+        # NOTE: Using camelCase field names consistently for migration
         sfn_input = {
             "Execution": {"Id": execution_id},
             "Plan": {
@@ -4041,9 +4042,9 @@ def execute_with_step_functions(
                 "planName": plan.get("planName", "Unknown"),
                 "waves": plan.get("waves", []),
             },
-            "isDrill": is_drill,
+            "isDrill": is_drill,  # camelCase to match Step Functions definition
             "resumeFromWave": resume_from_wave,  # None for new executions, wave index for resume
-            "accountContext": account_context,
+            "accountContext": account_context,  # camelCase to match Step Functions definition
         }
 
         # For resumed executions, use a unique name suffix to avoid conflicts
@@ -4664,46 +4665,85 @@ def list_executions(query_params: Dict) -> Dict:
             filtered_executions = []
             for execution in executions:
                 # Check if execution has account info or matches current account
-                exec_account = execution.get("accountId")
+                exec_account = execution.get("accountId")  # camelCase
                 if exec_account == account_id or not exec_account:
                     # Include executions that match account or have no account specified (legacy)
                     filtered_executions.append(execution)
             executions = filtered_executions
 
-        # Sort by StartTime descending (most recent first)
+        # Sort by startTime descending (most recent first) - camelCase
         executions.sort(key=lambda x: x.get("startTime", 0), reverse=True)
 
-        # Enrich with recovery plan names and transform to camelCase
-        transformed_executions = []
+        # Enrich with recovery plan names - data already in camelCase, no transform needed
         for execution in executions:
             try:
-                # PERFORMANCE OPTIMIZATION: Use stored PlanName and reduce lookups
-                if execution.get("planName"):
+                # Use stored planName first (preserved even if plan deleted)
+                # Fall back to lookup only if not stored (legacy executions)
+                if execution.get("planName"):  # camelCase
                     execution["recoveryPlanName"] = execution["planName"]
                 else:
-                    execution["recoveryPlanName"] = "Unknown"
+                    plan_id = execution.get("planId")  # camelCase
+                    if plan_id:
+                        plan_result = recovery_plans_table.get_item(
+                            Key={"planId": plan_id}  # camelCase
+                        )
+                        if "Item" in plan_result:
+                            execution["recoveryPlanName"] = plan_result[
+                                "Item"
+                            ].get("planName", "Unknown")  # camelCase
+                        else:
+                            execution["recoveryPlanName"] = "Deleted Plan"
+                    else:
+                        execution["recoveryPlanName"] = "Unknown"
 
-                # PERFORMANCE OPTIMIZATION: Default selection mode to avoid expensive lookups
-                # Frontend can determine this on-demand if needed
-                execution["selectionMode"] = "PLAN"
+                # Determine selection mode from protection groups
+                plan_id = execution.get("planId")  # camelCase
+                selection_mode = "PLAN"  # Default to plan-based
+                if plan_id:
+                    plan_result = recovery_plans_table.get_item(
+                        Key={"planId": plan_id}  # camelCase
+                    )
+                    if "Item" in plan_result:
+                        plan = plan_result["Item"]
+                        waves = plan.get("waves", [])  # camelCase
+                        pg_ids = set()
+                        for wave in waves:
+                            pg_id = wave.get("protectionGroupId")  # camelCase
+                            if pg_id:
+                                pg_ids.add(pg_id)
+
+                        # Check each protection group for serverSelectionTags
+                        for pg_id in pg_ids:
+                            try:
+                                pg_result = protection_groups_table.get_item(
+                                    Key={"groupId": pg_id}  # camelCase
+                                )
+                                if "Item" in pg_result:
+                                    pg = pg_result["Item"]
+                                    tags = pg.get("serverSelectionTags", {})  # camelCase
+                                    if tags and len(tags) > 0:
+                                        selection_mode = "TAGS"
+                                        break  # Found tag-based, no need to check more
+                            except Exception as pg_err:
+                                print(
+                                    f"Error checking PG {pg_id}: {str(pg_err)}"
+                                )
+
+                execution["selectionMode"] = selection_mode  # camelCase
             except Exception as e:
                 print(
-                    f"Error enriching execution {execution.get("executionId")}: {str(e)}"
+                    f"Error enriching execution {execution.get('executionId')}: {str(e)}"
                 )
                 if not execution.get("recoveryPlanName"):
                     execution["recoveryPlanName"] = "Unknown"
                 execution["selectionMode"] = "PLAN"
 
-            # PERFORMANCE FIX: Remove expensive DRS API calls from list function
-            # Frontend can check active jobs on-demand if needed
-            # Stack ready for deployment after cleanup completion
-            execution["hasActiveDrsJobs"] = False
+            # For CANCELLED/CANCELLING executions, set hasActiveDrsJobs to false
+            # to avoid expensive DRS API calls that can cause timeouts in list view
+            exec_status = execution.get("status", "").upper()  # camelCase
+            execution["hasActiveDrsJobs"] = False  # camelCase
 
-            # PERFORMANCE FIX: Use lightweight transform for list function
-            # Data is already in camelCase - no transformation needed
-            executions.append(execution)
-
-        # Build response with pagination
+        # Build response with pagination - data already in camelCase, no transform needed
         response_data = {
             "items": executions,
             "count": len(executions),
@@ -8934,17 +8974,17 @@ def apply_launch_config_to_servers(
             # so we must call it before our EC2 template updates to avoid being overwritten
             drs_update = {"sourceServerID": server_id}
             if "copyPrivateIp" in launch_config:
-                drs_update["CopyPrivateIp"] = launch_config["copyPrivateIp"]
+                drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
             if "copyTags" in launch_config:
-                drs_update["CopyTags"] = launch_config["copyTags"]
+                drs_update["copyTags"] = launch_config["copyTags"]
             if "licensing" in launch_config:
-                drs_update["Licensing"] = launch_config["licensing"]
+                drs_update["licensing"] = launch_config["licensing"]
             if "targetInstanceTypeRightSizingMethod" in launch_config:
-                drs_update["TargetInstanceTypeRightSizingMethod"] = (
+                drs_update["targetInstanceTypeRightSizingMethod"] = (
                     launch_config["targetInstanceTypeRightSizingMethod"]
                 )
             if "launchDisposition" in launch_config:
-                drs_update["LaunchDisposition"] = launch_config[
+                drs_update["launchDisposition"] = launch_config[
                     "launchDisposition"
                 ]
 
