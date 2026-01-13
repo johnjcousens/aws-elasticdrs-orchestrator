@@ -274,8 +274,10 @@ export type ExecutionStatus =
 
 export interface Execution {
   executionId: string;
-  planId: string;  // Changed from recoveryPlanId to match database
-  planName?: string;  // Changed from recoveryPlanName to match database
+  planId: string;  // Database field
+  recoveryPlanId: string;  // API alias for frontend compatibility
+  planName?: string;  // Database field
+  recoveryPlanName?: string;  // API alias for frontend compatibility
   protectionGroupId: string;
   protectionGroupName?: string;
   status: ExecutionStatus;
@@ -356,7 +358,8 @@ export interface ExecutionError {
 }
 
 export interface ExecuteRecoveryPlanRequest {
-  planId: string;  // Changed from recoveryPlanId to match database
+  planId: string;  // Database field
+  recoveryPlanId?: string;  // API alias for backward compatibility
   executionType: 'DRILL' | 'RECOVERY';  // Required - DRILL or RECOVERY only
   dryRun?: boolean;
   skipHealthChecks?: boolean;
@@ -385,8 +388,10 @@ export interface InvocationDetails {
 
 export interface ExecutionListItem {
   executionId: string;
-  planId: string;  // Changed from recoveryPlanId to match database
-  planName: string;  // Changed from recoveryPlanName to match database
+  planId: string;  // Database field
+  recoveryPlanId: string;  // API alias for frontend compatibility
+  planName?: string;  // Database field
+  recoveryPlanName: string;  // API alias for frontend compatibility
   status: ExecutionStatus;
   startTime: string;
   endTime?: string;
