@@ -867,10 +867,26 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         job_id = sanitize_string_input(job_id)
     else:
         job_id = ""
+    
     wave_number = state.get("current_wave_number", 0)
-    region = sanitize_string_input(state.get("region", "us-east-1"))
-    execution_id = sanitize_string_input(state.get("execution_id", ""))
-    plan_id = sanitize_string_input(state.get("plan_id", ""))
+    
+    region = state.get("region", "us-east-1")
+    if region is not None:
+        region = sanitize_string_input(region)
+    else:
+        region = "us-east-1"
+    
+    execution_id = state.get("execution_id", "")
+    if execution_id is not None:
+        execution_id = sanitize_string_input(execution_id)
+    else:
+        execution_id = ""
+    
+    plan_id = state.get("plan_id", "")
+    if plan_id is not None:
+        plan_id = sanitize_string_input(plan_id)
+    else:
+        plan_id = ""
     
     # Validate inputs
     if not isinstance(wave_number, int) or wave_number < 0:
