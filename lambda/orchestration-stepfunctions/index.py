@@ -862,7 +862,11 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     state = sanitized_event.get("application", sanitized_event)
     
     # Validate and sanitize required parameters
-    job_id = sanitize_string_input(state.get("job_id", ""))
+    job_id = state.get("job_id")
+    if job_id is not None:
+        job_id = sanitize_string_input(job_id)
+    else:
+        job_id = ""
     wave_number = state.get("current_wave_number", 0)
     region = sanitize_string_input(state.get("region", "us-east-1"))
     execution_id = sanitize_string_input(state.get("execution_id", ""))
