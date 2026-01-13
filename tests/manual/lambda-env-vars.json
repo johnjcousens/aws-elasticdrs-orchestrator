@@ -1,0 +1,9 @@
+{
+  "Variables": {
+    "PROTECTION_GROUPS_TABLE": "aws-elasticdrs-orchestrator-protection-groups-dev",
+    "RECOVERY_PLANS_TABLE": "aws-elasticdrs-orchestrator-recovery-plans-dev",
+    "EXECUTION_HISTORY_TABLE": "aws-elasticdrs-orchestrator-execution-history-dev",
+    "STATE_MACHINE_ARN": "arn:aws:states:us-east-1:777788889999:stateMachine:aws-elasticdrs-orchestrator-orchestration-dev",
+    "TARGET_ACCOUNTS_TABLE": ""
+  }
+}
