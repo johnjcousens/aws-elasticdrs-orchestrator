@@ -861,34 +861,34 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     # State is passed directly (archive pattern)
     state = sanitized_event.get("application", sanitized_event)
     
-    # Validate and sanitize required parameters
+    # Validate and sanitize required parameters - handle None values gracefully
     job_id = state.get("job_id")
-    if job_id is not None:
+    if job_id is not None and job_id != "":
         job_id = sanitize_string_input(job_id)
     else:
-        job_id = ""
+        job_id = None  # Keep as None instead of empty string
     
     wave_number = state.get("current_wave_number", 0)
     
     region = state.get("region", "us-east-1")
-    if region is not None:
+    if region is not None and region != "":
         region = sanitize_string_input(region)
     else:
-        region = "us-east-1"
+        region = "us-east-1"  # Default region
     
     execution_id = state.get("execution_id", "")
-    if execution_id is not None:
+    if execution_id is not None and execution_id != "":
         execution_id = sanitize_string_input(execution_id)
     else:
         execution_id = ""
     
     plan_id = state.get("plan_id", "")
-    if plan_id is not None:
+    if plan_id is not None and plan_id != "":
         plan_id = sanitize_string_input(plan_id)
     else:
         plan_id = ""
     
-    # Validate inputs
+    # Validate inputs - more lenient validation
     if not isinstance(wave_number, int) or wave_number < 0:
         log_security_event("update_wave_status_invalid_wave", {
             "wave_number": wave_number,
@@ -896,12 +896,14 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         }, "ERROR")
         raise ValueError("Invalid wave number")
     
-    if not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$|^us-gov-[a-z]+-\d{1}$', region):
+    # Only validate region format if it's not the default
+    if region != "us-east-1" and not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$|^us-gov-[a-z]+-\d{1}$', region):
         log_security_event("update_wave_status_invalid_region", {
             "region": region
-        }, "ERROR")
-        raise ValueError(f"Invalid region format: {region}")
+        }, "WARN")  # Changed to WARN instead of ERROR
+        print(f"Warning: Unusual region format: {region}")
     
+    # Only validate DynamoDB inputs if they're not empty
     if execution_id:
         validate_dynamodb_input("executionId", execution_id)
     if plan_id:
