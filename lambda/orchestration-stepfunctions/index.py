@@ -4,26 +4,20 @@ Archive pattern: Lambda owns ALL state via OutputPath
 
 State is at root level ($), not nested under $.application
 All functions return the COMPLETE state object
+
+NOTE: Security validation is handled at the API layer (Cognito + API Gateway).
+This Lambda receives trusted data from Step Functions internal flow.
+Do NOT add sanitization here - it breaks the archive pattern where state
+must be modified in place.
 """
 
 import json
 import os
-import re
 import time
 from decimal import Decimal
 from typing import Dict, List
 
 import boto3
-
-# Import security utilities (mandatory - no fallback)
-from shared.security_utils import (
-    log_security_event,
-    safe_aws_client_call,
-    sanitize_dynamodb_input,
-    sanitize_string_input,
-    validate_dynamodb_input,
-    validate_drs_server_id,
-)
 
 # Environment variables
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
@@ -150,95 +144,44 @@ class DecimalEncoder(json.JSONEncoder):
 
 def lambda_handler(event, context):
     """
-    Step Functions orchestration handler with security - Archive pattern
+    Step Functions orchestration handler - Archive pattern
 
     All actions return COMPLETE state object (Lambda owns state)
     """
-    try:
-        # Enhanced security logging
-        log_security_event(
-            "stepfunctions_orchestration_invoked",
-            {
-                "function_name": context.function_name,
-                "request_id": context.aws_request_id,
-                "action": event.get("action", "unknown"),
-                "execution_id": event.get("execution", "unknown"),
-            },
-        )
+    print(f"Event: {json.dumps(event, cls=DecimalEncoder)}")
 
-        print(f"Event: {json.dumps(event, cls=DecimalEncoder)}")
+    action = event.get("action")
 
-        # Input validation
-        action = event.get("action")
-        if not action or not isinstance(action, str):
-            log_security_event("invalid_stepfunctions_action", {"action": action})
-            raise ValueError("Invalid or missing action parameter")
+    # Extract account context for multi-account support
+    account_context = event.get("accountContext", {})
+    account_id = account_context.get("accountId")
+    if account_id:
+        print(f"Operating in account context: {account_id}")
 
-        # Sanitize the entire event
-        sanitized_event = sanitize_dynamodb_input(event)
-        
-        # Extract account context for multi-account support
-        account_context = sanitized_event.get("accountContext", {})
-        account_id = account_context.get("accountId")
-        if account_id:
-            print(f"Operating in account context: {account_id}")
-
-        if action == "begin":
-            return begin_wave_plan(sanitized_event)
-        elif action == "update_wave_status":
-            return update_wave_status(sanitized_event)
-        elif action == "store_task_token":
-            return store_task_token(sanitized_event)
-        elif action == "resume_wave":
-            return resume_wave(sanitized_event)
-        else:
-            log_security_event("unknown_stepfunctions_action", {"action": action})
-            raise ValueError(f"Unknown action: {action}")
-
-    except Exception as e:
-        log_security_event(
-            "stepfunctions_orchestration_error",
-            {
-                "error": str(e),
-                "action": event.get("action", "unknown"),
-                "execution_id": event.get("execution", "unknown"),
-            },
-            "ERROR"
-        )
-        raise
+    if action == "begin":
+        return begin_wave_plan(event)
+    elif action == "update_wave_status":
+        return update_wave_status(event)
+    elif action == "store_task_token":
+        return store_task_token(event)
+    elif action == "resume_wave":
+        return resume_wave(event)
+    else:
+        raise ValueError(f"Unknown action: {action}")
 
 
 def begin_wave_plan(event: Dict) -> Dict:
     """
-    Initialize wave plan execution with security validation
+    Initialize wave plan execution
     Returns COMPLETE state object (archive pattern)
     """
-    # Security validation and sanitization
-    plan = sanitize_dynamodb_input(event.get("plan", {}))
-    execution_id = sanitize_string_input(event.get("execution", ""))
+    plan = event.get("plan", {})
+    execution_id = event.get("execution", "")
     is_drill = event.get("isDrill", True)
-    account_context = sanitize_dynamodb_input(event.get("accountContext", {}))
+    account_context = event.get("accountContext", {})
 
-    # Validate required parameters
-    if not execution_id:
-        raise ValueError("Missing required execution parameter")
-    
-    validate_dynamodb_input("executionId", execution_id)
-
-    plan_id = sanitize_string_input(plan.get("planId", ""))
-    if not plan_id:
-        raise ValueError("Missing required planId in plan")
-    
-    validate_dynamodb_input("planId", plan_id)
-    
+    plan_id = plan.get("planId", "")
     waves = plan.get("waves", [])
-
-    log_security_event("wave_plan_begin", {
-        "execution_id": execution_id,
-        "plan_id": plan_id,
-        "wave_count": len(waves),
-        "is_drill": is_drill
-    })
 
     print(f"Beginning wave plan for execution {execution_id}, plan {plan_id}")
     print(f"Total waves: {len(waves)}, isDrill: {is_drill}")
@@ -249,7 +192,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     state = {
         # Core identifiers
         "plan_id": plan_id,
-        "plan_name": sanitize_string_input(plan.get("planName", "")),
+        "plan_name": plan.get("planName", ""),
         "execution_id": execution_id,
         "is_drill": is_drill,
         "accountContext": account_context,  # Step Functions expects camelCase
@@ -313,83 +256,42 @@ def begin_wave_plan(event: Dict) -> Dict:
 
 def store_task_token(event: Dict) -> Dict:
     """
-    Store task token for callback pattern (pause/resume) with security validation
+    Store task token for callback pattern (pause/resume)
 
     ARCHIVE PATTERN: Returns COMPLETE state object
     The state includes paused_before_wave so resume knows which wave to start
     """
-    # Security validation and sanitization
-    sanitized_event = sanitize_dynamodb_input(event)
-    
     # State is passed directly (archive pattern)
-    state = sanitized_event.get("application", sanitized_event)
-    task_token = sanitized_event.get("taskToken")
-    
-    # Validate required parameters
-    execution_id = sanitize_string_input(state.get("execution_id", ""))
-    plan_id = sanitize_string_input(state.get("plan_id", ""))
-    
-    if not execution_id or not plan_id:
-        log_security_event("store_task_token_invalid_input", {
-            "missing_execution_id": not execution_id,
-            "missing_plan_id": not plan_id
-        }, "ERROR")
-        raise ValueError("Missing required execution_id or plan_id")
-    
-    validate_dynamodb_input("executionId", execution_id)
-    validate_dynamodb_input("planId", plan_id)
-    
+    state = event.get("application", event)
+    task_token = event.get("taskToken")
+    execution_id = state.get("execution_id")
+    plan_id = state.get("plan_id")
     paused_before_wave = state.get(
         "paused_before_wave", state.get("current_wave_number", 0) + 1
     )
-
-    log_security_event("store_task_token", {
-        "execution_id": execution_id,
-        "plan_id": plan_id,
-        "paused_before_wave": paused_before_wave,
-        "has_task_token": bool(task_token)
-    })
 
     print(
         f"⏸️ Storing task token for execution {execution_id}, paused before wave {paused_before_wave}"
     )
 
     if not task_token:
-        log_security_event("store_task_token_missing_token", {
-            "execution_id": execution_id
-        }, "ERROR")
         print("ERROR: No task token provided")
         raise ValueError("No task token provided for callback")
 
-    # Sanitize task token
-    task_token = sanitize_string_input(task_token, 4096)  # Task tokens can be long
-
-    # Store task token in DynamoDB with safe operation
+    # Store task token in DynamoDB
     try:
-        def update_task_token():
-            return get_execution_history_table().update_item(
-                Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status, taskToken = :token, pausedBeforeWave = :wave",
-                ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={
-                    ":status": "PAUSED",
-                    ":token": task_token,
-                    ":wave": paused_before_wave,
-                },
-            )
-        
-        safe_aws_client_call(update_task_token)
+        get_execution_history_table().update_item(
+            Key={"executionId": execution_id, "planId": plan_id},
+            UpdateExpression="SET #status = :status, taskToken = :token, pausedBeforeWave = :wave",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={
+                ":status": "PAUSED",
+                ":token": task_token,
+                ":wave": paused_before_wave,
+            },
+        )
         print(f"✅ Task token stored for execution {execution_id}")
-        
-        log_security_event("store_task_token_success", {
-            "execution_id": execution_id,
-            "paused_before_wave": paused_before_wave
-        })
     except Exception as e:
-        log_security_event("store_task_token_error", {
-            "execution_id": execution_id,
-            "error": str(e)
-        }, "ERROR")
         print(f"ERROR storing task token: {e}")
         raise
 
@@ -401,41 +303,19 @@ def store_task_token(event: Dict) -> Dict:
 
 def resume_wave(event: Dict) -> Dict:
     """
-    Resume execution by starting the paused wave with security validation
+    Resume execution by starting the paused wave
 
     ARCHIVE PATTERN: State is passed directly, returns COMPLETE state
     """
-    # Security validation and sanitization
-    sanitized_event = sanitize_dynamodb_input(event)
-    
     # State is passed directly (archive pattern)
-    state = sanitized_event.get("application", sanitized_event)
-    
-    # Validate required parameters
-    execution_id = sanitize_string_input(state.get("execution_id", ""))
-    plan_id = sanitize_string_input(state.get("plan_id", ""))
-    
-    if not execution_id or not plan_id:
-        log_security_event("resume_wave_invalid_input", {
-            "missing_execution_id": not execution_id,
-            "missing_plan_id": not plan_id
-        }, "ERROR")
-        raise ValueError("Missing required execution_id or plan_id")
-    
-    validate_dynamodb_input("executionId", execution_id)
-    validate_dynamodb_input("planId", plan_id)
-    
+    state = event.get("application", event)
+    execution_id = state.get("execution_id")
+    plan_id = state.get("plan_id")
     paused_before_wave = state.get("paused_before_wave", 0)
 
     # Convert Decimal to int if needed (DynamoDB returns Decimal)
     if isinstance(paused_before_wave, Decimal):
         paused_before_wave = int(paused_before_wave)
-
-    log_security_event("resume_wave", {
-        "execution_id": execution_id,
-        "plan_id": plan_id,
-        "paused_before_wave": paused_before_wave
-    })
 
     print(
         f"⏯️ Resuming execution {execution_id}, starting wave {paused_before_wave}"
@@ -446,27 +326,15 @@ def resume_wave(event: Dict) -> Dict:
     state["wave_completed"] = False
     state["paused_before_wave"] = None
 
-    # Update DynamoDB with safe operation
+    # Update DynamoDB
     try:
-        def update_resume_status():
-            return get_execution_history_table().update_item(
-                Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave",
-                ExpressionAttributeNames={"#status": "status"},
-                ExpressionAttributeValues={":status": "RUNNING"},
-            )
-        
-        safe_aws_client_call(update_resume_status)
-        
-        log_security_event("resume_wave_success", {
-            "execution_id": execution_id,
-            "paused_before_wave": paused_before_wave
-        })
+        get_execution_history_table().update_item(
+            Key={"executionId": execution_id, "planId": plan_id},
+            UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":status": "RUNNING"},
+        )
     except Exception as e:
-        log_security_event("resume_wave_error", {
-            "execution_id": execution_id,
-            "error": str(e)
-        }, "ERROR")
         print(f"Error updating execution status: {e}")
 
     # Start the wave that was paused
@@ -479,64 +347,24 @@ def query_drs_servers_by_tags(  # noqa: C901
     region: str, tags: Dict[str, str], account_context: Dict = None
 ) -> List[str]:
     """
-    Query DRS source servers that have ALL specified tags with security validation.
+    Query DRS source servers that have ALL specified tags.
     Uses AND logic - DRS source server must have all tags to be included.
 
     This queries the DRS source server tags directly, not EC2 instance tags.
     Returns list of source server IDs for orchestration.
     """
     try:
-        # Security validation and sanitization
-        region = sanitize_string_input(region)
-        
-        # Validate region format
-        if not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$|^us-gov-[a-z]+-\d{1}$', region):
-            log_security_event("invalid_region_format", {
-                "region": region
-            }, "ERROR")
-            raise ValueError(f"Invalid AWS region format: {region}")
-        
-        # Sanitize tags dictionary
-        if not isinstance(tags, dict):
-            log_security_event("invalid_tags_format", {
-                "tags_type": type(tags).__name__
-            }, "ERROR")
-            raise ValueError("Tags must be a dictionary")
-        
-        sanitized_tags = {}
-        for key, value in tags.items():
-            sanitized_key = sanitize_string_input(str(key), 128)
-            sanitized_value = sanitize_string_input(str(value), 256)
-            sanitized_tags[sanitized_key] = sanitized_value
-        
-        # Sanitize account context if provided
-        if account_context:
-            account_context = sanitize_dynamodb_input(account_context)
-        
-        log_security_event("query_drs_servers_by_tags", {
-            "region": region,
-            "tag_count": len(sanitized_tags),
-            "cross_account": bool(account_context)
-        })
-
         # Create DRS client with cross-account support
         regional_drs = create_drs_client(region, account_context)
 
-        # Get all source servers in the region with safe AWS call
-        def describe_source_servers():
-            all_servers = []
-            paginator = regional_drs.get_paginator("describe_source_servers")
-            for page in paginator.paginate():
-                all_servers.extend(page.get("items", []))
-            return all_servers
+        # Get all source servers in the region
+        all_servers = []
+        paginator = regional_drs.get_paginator("describe_source_servers")
 
-        all_servers = safe_aws_client_call(describe_source_servers)
+        for page in paginator.paginate():
+            all_servers.extend(page.get("items", []))
 
         if not all_servers:
-            log_security_event("no_drs_servers_found", {
-                "region": region,
-                "tag_count": len(sanitized_tags)
-            })
             print("No DRS source servers found in region")
             return []
 
@@ -544,15 +372,7 @@ def query_drs_servers_by_tags(  # noqa: C901
         matching_server_ids = []
 
         for server in all_servers:
-            server_id = sanitize_string_input(server.get("sourceServerID", ""))
-            
-            # Validate server ID format if it looks like a DRS server ID
-            if server_id.startswith("s-") and not validate_drs_server_id(server_id):
-                log_security_event("invalid_drs_server_id", {
-                    "server_id": server_id,
-                    "region": region
-                }, "WARN")
-                continue
+            server_id = server.get("sourceServerID", "")
 
             # Get DRS source server tags directly from server object
             drs_tags = server.get("tags", {})
@@ -560,7 +380,7 @@ def query_drs_servers_by_tags(  # noqa: C901
             # Check if DRS server has ALL required tags with matching values
             # Use case-insensitive matching and strip whitespace for robustness
             matches_all = True
-            for tag_key, tag_value in sanitized_tags.items():
+            for tag_key, tag_value in tags.items():
                 # Normalize tag key and value (strip whitespace, case-insensitive)
                 normalized_required_key = tag_key.strip()
                 normalized_required_value = tag_value.strip().lower()
@@ -568,9 +388,8 @@ def query_drs_servers_by_tags(  # noqa: C901
                 # Check if any DRS tag matches (case-insensitive)
                 found_match = False
                 for drs_key, drs_value in drs_tags.items():
-                    # Sanitize DRS tag values
-                    normalized_drs_key = sanitize_string_input(str(drs_key)).strip()
-                    normalized_drs_value = sanitize_string_input(str(drs_value)).strip().lower()
+                    normalized_drs_key = drs_key.strip()
+                    normalized_drs_value = str(drs_value).strip().lower()
 
                     if (
                         normalized_drs_key == normalized_required_key
@@ -589,25 +408,13 @@ def query_drs_servers_by_tags(  # noqa: C901
             if matches_all:
                 matching_server_ids.append(server_id)
 
-        log_security_event("drs_servers_query_complete", {
-            "region": region,
-            "total_servers": len(all_servers),
-            "matching_servers": len(matching_server_ids),
-            "tag_count": len(sanitized_tags)
-        })
-
         print("Tag matching results:")
         print(f"- Total DRS servers: {len(all_servers)}")
-        print(f"- Servers matching tags {sanitized_tags}: {len(matching_server_ids)}")
+        print(f"- Servers matching tags {tags}: {len(matching_server_ids)}")
 
         return matching_server_ids
 
     except Exception as e:
-        log_security_event("query_drs_servers_error", {
-            "region": region,
-            "error": str(e),
-            "tag_count": len(tags) if isinstance(tags, dict) else 0
-        }, "ERROR")
         print(f"Error querying DRS servers by DRS tags: {str(e)}")
         raise
 
@@ -663,88 +470,33 @@ def get_drs_server_details(drs_client, server_ids: List[str]) -> Dict[str, Dict]
 
 def start_wave_recovery(state: Dict, wave_number: int) -> None:
     """
-    Start DRS recovery for a wave with comprehensive security validation
+    Start DRS recovery for a wave
     Modifies state in place (archive pattern)
 
     Tag-based server resolution: Servers are resolved at execution time
     by querying DRS for servers matching the Protection Group's tags.
     """
-    # Security validation
-    if not isinstance(state, dict):
-        log_security_event("start_wave_recovery_invalid_state", {
-            "state_type": type(state).__name__
-        }, "ERROR")
-        raise ValueError("Invalid state object")
-    
-    if not isinstance(wave_number, int) or wave_number < 0:
-        log_security_event("start_wave_recovery_invalid_wave", {
-            "wave_number": wave_number,
-            "wave_type": type(wave_number).__name__
-        }, "ERROR")
-        raise ValueError("Invalid wave number")
-    
-    # NOTE: Do NOT sanitize state here - it breaks in-place modification
-    # The state object must be modified in place for the archive pattern to work
-    
-    waves = state.get("waves", [])
-    if wave_number >= len(waves):
-        log_security_event("start_wave_recovery_wave_not_found", {
-            "wave_number": wave_number,
-            "total_waves": len(waves)
-        }, "ERROR")
-        raise ValueError(f"Wave {wave_number} not found in plan")
-    
+    waves = state["waves"]
     wave = waves[wave_number]
-    is_drill = state.get("is_drill", True)
-    execution_id = sanitize_string_input(state.get("execution_id", ""))
-    
-    if not execution_id:
-        log_security_event("start_wave_recovery_missing_execution_id", {
-            "wave_number": wave_number
-        }, "ERROR")
-        raise ValueError("Missing execution_id in state")
-    
-    validate_dynamodb_input("executionId", execution_id)
+    is_drill = state["is_drill"]
+    execution_id = state["execution_id"]
 
-    wave_name = sanitize_string_input(wave.get("waveName", f"Wave {wave_number + 1}"))
-
-    log_security_event("start_wave_recovery", {
-        "execution_id": execution_id,
-        "wave_number": wave_number,
-        "wave_name": wave_name,
-        "is_drill": is_drill
-    })
+    wave_name = wave.get("waveName", f"Wave {wave_number + 1}")
 
     # Get Protection Group
-    protection_group_id = sanitize_string_input(wave.get("protectionGroupId", ""))
+    protection_group_id = wave.get("protectionGroupId")
     if not protection_group_id:
-        log_security_event("start_wave_recovery_no_protection_group", {
-            "wave_number": wave_number,
-            "execution_id": execution_id
-        }, "ERROR")
-        print(f"Wave {wave_number} has no ProtectionGroupId")
+        print(f"Wave {wave_number} has no protectionGroupId")
         state["wave_completed"] = True
         state["status"] = "failed"
-        state["error"] = "No ProtectionGroupId in wave"
+        state["error"] = "No protectionGroupId in wave"
         return
 
-    validate_dynamodb_input("groupId", protection_group_id)
-
     try:
-        # Safe DynamoDB operation to get protection group
-        def get_protection_group():
-            return get_protection_groups_table().get_item(
-                Key={"groupId": protection_group_id}
-            )
-        
-        pg_response = safe_aws_client_call(get_protection_group)
-        
+        pg_response = get_protection_groups_table().get_item(
+            Key={"groupId": protection_group_id}
+        )
         if "Item" not in pg_response:
-            log_security_event("start_wave_recovery_protection_group_not_found", {
-                "protection_group_id": protection_group_id,
-                "wave_number": wave_number,
-                "execution_id": execution_id
-            }, "ERROR")
             print(f"Protection Group {protection_group_id} not found")
             state["wave_completed"] = True
             state["status"] = "failed"
@@ -754,61 +506,29 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             return
 
         pg = pg_response["Item"]
-        region = sanitize_string_input(pg.get("region", "us-east-1"))
-        
-        # Validate region
-        if not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$|^us-gov-[a-z]+-\d{1}$', region):
-            log_security_event("start_wave_recovery_invalid_region", {
-                "region": region,
-                "protection_group_id": protection_group_id
-            }, "ERROR")
-            raise ValueError(f"Invalid region format: {region}")
+        region = pg.get("region", "us-east-1")
 
         # TAG-BASED RESOLUTION: Resolve servers at execution time using tags
         selection_tags = pg.get("serverSelectionTags", {})
 
         if selection_tags:
-            # Sanitize selection tags
-            sanitized_selection_tags = {}
-            for key, value in selection_tags.items():
-                sanitized_key = sanitize_string_input(str(key), 128)
-                sanitized_value = sanitize_string_input(str(value), 256)
-                sanitized_selection_tags[sanitized_key] = sanitized_value
-            
             # Resolve servers by tags at execution time
             print(
-                f"Resolving servers for PG {protection_group_id} with tags: {sanitized_selection_tags}"
+                f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}"
             )
             account_context = get_account_context(state)
             server_ids = query_drs_servers_by_tags(
-                region, sanitized_selection_tags, account_context
+                region, selection_tags, account_context
             )
             print(f"Resolved {len(server_ids)} servers from tags")
         else:
-            # Fallback: Check if wave has explicit ServerIds (legacy support)
+            # Fallback: Check if wave has explicit serverIds (legacy support)
             server_ids = wave.get("serverIds", [])
-            # Sanitize server IDs
-            sanitized_server_ids = []
-            for server_id in server_ids:
-                sanitized_id = sanitize_string_input(str(server_id))
-                if sanitized_id.startswith("s-") and not validate_drs_server_id(sanitized_id):
-                    log_security_event("start_wave_recovery_invalid_server_id", {
-                        "server_id": sanitized_id,
-                        "protection_group_id": protection_group_id
-                    }, "WARN")
-                    continue
-                sanitized_server_ids.append(sanitized_id)
-            server_ids = sanitized_server_ids
             print(
-                f"Using explicit ServerIds from wave: {len(server_ids)} servers"
+                f"Using explicit serverIds from wave: {len(server_ids)} servers"
             )
 
         if not server_ids:
-            log_security_event("start_wave_recovery_no_servers", {
-                "wave_number": wave_number,
-                "protection_group_id": protection_group_id,
-                "has_selection_tags": bool(selection_tags)
-            })
             print(
                 f"Wave {wave_number} has no servers (no tags matched or no servers found), marking complete"
             )
@@ -823,28 +543,14 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         drs_client = create_drs_client(region, account_context)
         source_servers = [{"sourceServerID": sid} for sid in server_ids]
 
-        # Safe DRS operation to start recovery
-        def start_drs_recovery():
-            return drs_client.start_recovery(
-                isDrill=is_drill, sourceServers=source_servers
-            )
+        response = drs_client.start_recovery(
+            isDrill=is_drill, sourceServers=source_servers
+        )
 
-        response = safe_aws_client_call(start_drs_recovery)
-
-        job_id = sanitize_string_input(response["job"]["jobID"])
+        job_id = response["job"]["jobID"]
         print(f"✅ DRS Job created: {job_id}")
 
-        log_security_event("start_wave_recovery_success", {
-            "execution_id": execution_id,
-            "wave_number": wave_number,
-            "job_id": job_id,
-            "region": region,
-            "server_count": len(server_ids),
-            "is_drill": is_drill
-        })
-
         # Get server details (Name tag, hostname) from DRS source servers
-        # This data is already available - no extra EC2 API calls needed
         server_details = get_drs_server_details(drs_client, server_ids)
         
         # Build serverStatuses with server details for frontend display
@@ -861,7 +567,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                 "launchTime": 0,
             })
 
-        # Update state
+        # Update state IN PLACE (archive pattern - critical!)
         state["current_wave_number"] = wave_number
         state["job_id"] = job_id
         state["region"] = region
@@ -877,43 +583,30 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             "jobId": job_id,
             "startTime": int(time.time()),
             "serverIds": server_ids,
-            "serverStatuses": server_statuses,  # Include server details from DRS
+            "serverStatuses": server_statuses,
             "region": region,
         }
         state["wave_results"].append(wave_result)
 
         # Update DynamoDB with execution-level DRS job info and wave data
         try:
-            def update_execution_wave():
-                return get_execution_history_table().update_item(
-                    Key={"executionId": execution_id, "planId": state["plan_id"]},
-                    UpdateExpression="SET waves = list_append(if_not_exists(waves, :empty), :wave), drsJobId = :job_id, drsRegion = :region, #status = :status",
-                    ExpressionAttributeNames={"#status": "status"},
-                    ExpressionAttributeValues={
-                        ":empty": [],
-                        ":wave": [wave_result],
-                        ":job_id": job_id,
-                        ":region": region,
-                        ":status": "POLLING",
-                    },
-                    ConditionExpression="attribute_exists(executionId)",
-                )
-            
-            safe_aws_client_call(update_execution_wave)
+            get_execution_history_table().update_item(
+                Key={"executionId": execution_id, "planId": state["plan_id"]},
+                UpdateExpression="SET waves = list_append(if_not_exists(waves, :empty), :wave), drsJobId = :job_id, drsRegion = :region, #status = :status",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":empty": [],
+                    ":wave": [wave_result],
+                    ":job_id": job_id,
+                    ":region": region,
+                    ":status": "POLLING",
+                },
+                ConditionExpression="attribute_exists(executionId)",
+            )
         except Exception as e:
-            log_security_event("start_wave_recovery_dynamodb_error", {
-                "execution_id": execution_id,
-                "wave_number": wave_number,
-                "error": str(e)
-            }, "ERROR")
             print(f"Error updating wave start in DynamoDB: {e}")
 
     except Exception as e:
-        log_security_event("start_wave_recovery_error", {
-            "execution_id": execution_id,
-            "wave_number": wave_number,
-            "error": str(e)
-        }, "ERROR")
         print(f"Error starting DRS recovery: {e}")
         import traceback
 
@@ -925,110 +618,42 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
 
 def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     """
-    Poll DRS job status and check server launch status with security validation
+    Poll DRS job status and check server launch status
 
     ARCHIVE PATTERN: State is passed directly, returns COMPLETE state
     """
-    # Security validation and sanitization
-    sanitized_event = sanitize_dynamodb_input(event)
-    
     # State is passed directly (archive pattern)
-    state = sanitized_event.get("application", sanitized_event)
-    
-    # Validate and sanitize required parameters - handle None values gracefully
+    state = event.get("application", event)
     job_id = state.get("job_id")
-    if job_id is not None and job_id != "":
-        job_id = sanitize_string_input(job_id)
-    else:
-        job_id = None  # Keep as None instead of empty string
-    
     wave_number = state.get("current_wave_number", 0)
-    
     region = state.get("region", "us-east-1")
-    if region is not None and region != "":
-        region = sanitize_string_input(region)
-    else:
-        region = "us-east-1"  # Default region
-    
-    execution_id = state.get("execution_id", "")
-    if execution_id is not None and execution_id != "":
-        execution_id = sanitize_string_input(execution_id)
-    else:
-        execution_id = ""
-    
-    plan_id = state.get("plan_id", "")
-    if plan_id is not None and plan_id != "":
-        plan_id = sanitize_string_input(plan_id)
-    else:
-        plan_id = ""
-    
-    # Validate inputs - more lenient validation
-    if not isinstance(wave_number, int) or wave_number < 0:
-        log_security_event("update_wave_status_invalid_wave", {
-            "wave_number": wave_number,
-            "wave_type": type(wave_number).__name__
-        }, "ERROR")
-        raise ValueError("Invalid wave number")
-    
-    # Only validate region format if it's not the default
-    if region != "us-east-1" and not re.match(r'^[a-z]{2}-[a-z]+-\d{1}$|^us-gov-[a-z]+-\d{1}$', region):
-        log_security_event("update_wave_status_invalid_region", {
-            "region": region
-        }, "WARN")  # Changed to WARN instead of ERROR
-        print(f"Warning: Unusual region format: {region}")
-    
-    # Only validate DynamoDB inputs if they're not empty
-    if execution_id:
-        validate_dynamodb_input("executionId", execution_id)
-    if plan_id:
-        validate_dynamodb_input("planId", plan_id)
-
-    log_security_event("update_wave_status", {
-        "execution_id": execution_id,
-        "wave_number": wave_number,
-        "job_id": job_id,
-        "region": region
-    })
+    execution_id = state.get("execution_id")
+    plan_id = state.get("plan_id")
 
     # Early check for cancellation - check at start of every poll cycle
     if execution_id and plan_id:
         try:
-            def check_execution_status():
-                return get_execution_history_table().get_item(
-                    Key={"executionId": execution_id, "planId": plan_id}
-                )
-            
-            exec_check = safe_aws_client_call(check_execution_status)
+            exec_check = get_execution_history_table().get_item(
+                Key={"executionId": execution_id, "planId": plan_id}
+            )
             exec_status = exec_check.get("Item", {}).get("status", "")
             if exec_status == "CANCELLING":
-                log_security_event("update_wave_status_cancelled", {
-                    "execution_id": execution_id,
-                    "wave_number": wave_number
-                })
                 print("⚠️ Execution cancelled (detected at poll start)")
                 state["all_waves_completed"] = True
                 state["wave_completed"] = True
                 state["status"] = "cancelled"
-                
-                def update_cancelled_status():
-                    return get_execution_history_table().update_item(
-                        Key={"executionId": execution_id, "planId": plan_id},
-                        UpdateExpression="SET #status = :status, endTime = :end",
-                        ExpressionAttributeNames={"#status": "status"},
-                        ExpressionAttributeValues={
-                            ":status": "CANCELLED",
-                            ":end": int(time.time()),
-                        },
-                        ConditionExpression="attribute_exists(executionId)",
-                    )
-                
-                safe_aws_client_call(update_cancelled_status)
+                get_execution_history_table().update_item(
+                    Key={"executionId": execution_id, "planId": plan_id},
+                    UpdateExpression="SET #status = :status, endTime = :end",
+                    ExpressionAttributeNames={"#status": "status"},
+                    ExpressionAttributeValues={
+                        ":status": "CANCELLED",
+                        ":end": int(time.time()),
+                    },
+                    ConditionExpression="attribute_exists(executionId)",
+                )
                 return state
         except Exception as e:
-            log_security_event("update_wave_status_cancellation_check_error", {
-                "execution_id": execution_id,
-                "error": str(e)
-            }, "ERROR")
             print(f"Error checking cancellation status: {e}")
 
     if not job_id:
@@ -1355,40 +980,23 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["status"] = "paused"
                     state["paused_before_wave"] = next_wave
                     
-                    # CRITICAL FIX: Mark execution as PAUSED and store task token for manual resume
-                    # This prevents the execution from continuing automatically
+                    # Mark execution as PAUSED for manual resume
                     try:
-                        def update_paused_status():
-                            return get_execution_history_table().update_item(
-                                Key={"executionId": execution_id, "planId": plan_id},
-                                UpdateExpression="SET #status = :status, pausedBeforeWave = :wave",
-                                ExpressionAttributeNames={"#status": "status"},
-                                ExpressionAttributeValues={
-                                    ":status": "PAUSED",
-                                    ":wave": next_wave,
-                                },
-                                ConditionExpression="attribute_exists(executionId)",
-                            )
-                        
-                        safe_aws_client_call(update_paused_status)
-                        
-                        log_security_event("wave_paused_before_execution", {
-                            "execution_id": execution_id,
-                            "paused_before_wave": next_wave,
-                            "wave_name": next_wave_config.get("waveName", f"Wave {next_wave + 1}")
-                        })
-                        
+                        get_execution_history_table().update_item(
+                            Key={"executionId": execution_id, "planId": plan_id},
+                            UpdateExpression="SET #status = :status, pausedBeforeWave = :wave",
+                            ExpressionAttributeNames={"#status": "status"},
+                            ExpressionAttributeValues={
+                                ":status": "PAUSED",
+                                ":wave": next_wave,
+                            },
+                            ConditionExpression="attribute_exists(executionId)",
+                        )
                         print(f"✅ Execution paused before wave {next_wave}, waiting for manual resume")
-                        
                     except Exception as e:
-                        log_security_event("wave_pause_error", {
-                            "execution_id": execution_id,
-                            "wave_number": next_wave,
-                            "error": str(e)
-                        }, "ERROR")
                         print(f"Error pausing execution: {e}")
                     
-                    # CRITICAL: Return immediately when paused - don't continue to next wave
+                    # Return immediately when paused - don't continue to next wave
                     return state
 
                 print(f"Starting next wave: {next_wave}")
@@ -1459,54 +1067,11 @@ def update_wave_in_dynamodb(
     status: str,
     server_statuses: List[Dict],
 ) -> None:
-    """Update wave status in DynamoDB with security validation"""
+    """Update wave status in DynamoDB"""
     try:
-        # Security validation and sanitization
-        execution_id = sanitize_string_input(execution_id)
-        plan_id = sanitize_string_input(plan_id)
-        status = sanitize_string_input(status, 32)
-        
-        # Validate inputs
-        validate_dynamodb_input("executionId", execution_id)
-        validate_dynamodb_input("planId", plan_id)
-        validate_dynamodb_input("status", status)
-        
-        if not isinstance(wave_number, int) or wave_number < 0:
-            log_security_event("update_wave_in_dynamodb_invalid_wave", {
-                "wave_number": wave_number,
-                "execution_id": execution_id
-            }, "ERROR")
-            raise ValueError("Invalid wave number")
-        
-        if not isinstance(server_statuses, list):
-            log_security_event("update_wave_in_dynamodb_invalid_statuses", {
-                "statuses_type": type(server_statuses).__name__,
-                "execution_id": execution_id
-            }, "ERROR")
-            raise ValueError("Server statuses must be a list")
-        
-        # Sanitize server statuses
-        sanitized_server_statuses = []
-        for server_status in server_statuses:
-            if isinstance(server_status, dict):
-                sanitized_status = sanitize_dynamodb_input(server_status)
-                sanitized_server_statuses.append(sanitized_status)
-        
-        log_security_event("update_wave_in_dynamodb", {
-            "execution_id": execution_id,
-            "wave_number": wave_number,
-            "status": status,
-            "server_count": len(sanitized_server_statuses)
-        })
-
-        # Safe DynamoDB operations
-        def get_execution():
-            return get_execution_history_table().get_item(
-                Key={"executionId": execution_id, "planId": plan_id},
-                ConditionExpression="attribute_exists(executionId)",
-            )
-        
-        exec_response = safe_aws_client_call(get_execution)
+        exec_response = get_execution_history_table().get_item(
+            Key={"executionId": execution_id, "planId": plan_id}
+        )
 
         if "Item" in exec_response:
             waves = exec_response["Item"].get("waves", [])
@@ -1514,28 +1079,14 @@ def update_wave_in_dynamodb(
                 if w.get("waveNumber") == wave_number:
                     waves[i]["status"] = status
                     waves[i]["endTime"] = int(time.time())
-                    waves[i]["serverStatuses"] = sanitized_server_statuses
+                    waves[i]["serverStatuses"] = server_statuses
                     break
 
-            def update_waves():
-                return get_execution_history_table().update_item(
-                    Key={"executionId": execution_id, "planId": plan_id},
-                    UpdateExpression="SET waves = :waves",
-                    ExpressionAttributeValues={":waves": waves},
-                    ConditionExpression="attribute_exists(executionId)",
-                )
-            
-            safe_aws_client_call(update_waves)
-            
-            log_security_event("update_wave_in_dynamodb_success", {
-                "execution_id": execution_id,
-                "wave_number": wave_number,
-                "status": status
-            })
+            get_execution_history_table().update_item(
+                Key={"executionId": execution_id, "planId": plan_id},
+                UpdateExpression="SET waves = :waves",
+                ExpressionAttributeValues={":waves": waves},
+                ConditionExpression="attribute_exists(executionId)",
+            )
     except Exception as e:
-        log_security_event("update_wave_in_dynamodb_error", {
-            "execution_id": execution_id,
-            "wave_number": wave_number,
-            "error": str(e)
-        }, "ERROR")
         print(f"Error updating wave in DynamoDB: {e}")
