@@ -426,12 +426,12 @@ def handle_timeout(
                 try:
                     wave_region = wave.get("region")
                     if not wave_region:
-                        logger.error(f"Wave {wave.get("waveName")} missing Region field")
+                        logger.error(f"Wave {wave.get('waveName')} missing region field")
                         continue
                     job_status = query_drs_job_status(job_id, wave_region)
                     wave["status"] = job_status.get("status", "TIMEOUT")
-                    wave["StatusMessage"] = job_status.get(
-                        "StatusMessage", "Execution timed out"
+                    wave["statusMessage"] = job_status.get(
+                        "statusMessage", "Execution timed out"
                     )
                 except Exception as e:
                     logger.error(
@@ -443,7 +443,7 @@ def handle_timeout(
                     )
             else:
                 wave["status"] = "TIMEOUT"
-                wave["StatusMessage"] = (
+                wave["statusMessage"] = (
                     f"Timeout after {TIMEOUT_THRESHOLD_SECONDS}s"
                 )
 
@@ -510,22 +510,27 @@ def poll_wave_status(
         if "ParticipatingServers" in job_status:
             wave_region = wave.get("region")
             if not wave_region:
-                logger.error(f"Wave {wave.get("waveName")} missing Region field for server status update")
+                logger.error(f"Wave {wave.get('waveName')} missing region field for server status update")
                 return wave
-            updated_servers = []
+            updated_server_statuses = []
 
             for drs_server in job_status["ParticipatingServers"]:
+                # Get server name from DRS source server data
+                source_server_id = drs_server.get("sourceServerID", "")
+                server_name = get_drs_server_name(source_server_id, wave_region)
+                
                 server_data = {
-                    "sourceServerId": drs_server.get("sourceServerID", ""),
-                    "status": drs_server.get("launchStatus", "UNKNOWN"),
-                    "HostName": "",
+                    "sourceServerId": source_server_id,
+                    "launchStatus": drs_server.get("launchStatus", "UNKNOWN"),
+                    "serverName": server_name,  # Add server name from DRS tags
+                    "hostname": "",  # Fixed: Use 'hostname' not 'hostName'
                     "launchTime": 0,
                     "instanceId": "",
-                    "PrivateIpAddress": "",
+                    "privateIp": "",  # Fixed: Use 'privateIp' not 'privateIpAddress'
                 }
 
-                # Set LaunchTime when server starts launching
-                if server_data["status"] in [
+                # Set launchTime when server starts launching
+                if server_data["launchStatus"] in [
                     "PENDING",
                     "IN_PROGRESS",
                     "LAUNCHED",
@@ -535,7 +540,7 @@ def poll_wave_status(
                     )
 
                 # Get EC2 instance details if recoveryInstanceID exists
-                recovery_instance_id = drs_server.get("recoveryInstanceID")
+                recovery_instance_id = drs_server.get("recoveryInstanceID")  # DRS API returns PascalCase
                 if recovery_instance_id:
                     server_data["instanceId"] = recovery_instance_id
 
@@ -545,35 +550,35 @@ def poll_wave_status(
                             recovery_instance_id, wave_region
                         )
                         if ec2_data:
-                            server_data["HostName"] = ec2_data.get(
-                                "HostName", ""
+                            server_data["hostname"] = ec2_data.get(
+                                "hostname", ""
                             )
-                            server_data["PrivateIpAddress"] = ec2_data.get(
-                                "PrivateIpAddress", ""
+                            server_data["privateIp"] = ec2_data.get(
+                                "privateIp", ""
                             )
                     except Exception as e:
                         logger.warning(
                             f"Could not fetch EC2 details for {recovery_instance_id}: {str(e)}"
                         )
 
-                updated_servers.append(server_data)
+                updated_server_statuses.append(server_data)
 
-            wave["servers"] = updated_servers
+            wave["serverStatuses"] = updated_server_statuses
 
         # Determine wave status based on server launch results
-        servers = wave.get("servers", [])
+        server_statuses = wave.get("serverStatuses", [])
 
         if execution_type == "DRILL":
-            if servers:
+            if server_statuses:
                 # Check if ALL servers launched successfully
                 all_launched = all(
-                    s.get("status") == "LAUNCHED" for s in servers
+                    s.get("launchStatus") == "LAUNCHED" for s in server_statuses
                 )
                 # Check if ANY servers failed to launch
                 any_failed = any(
-                    s.get("status")
+                    s.get("launchStatus")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in servers
+                    for s in server_statuses
                 )
 
                 if all_launched:
@@ -584,9 +589,9 @@ def poll_wave_status(
                 elif any_failed:
                     wave["status"] = "FAILED"
                     failed_servers = [
-                        s.get("SourceServerID")
-                        for s in servers
-                        if s.get("status")
+                        s.get("sourceServerId")
+                        for s in server_statuses
+                        if s.get("launchStatus")
                         in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
                     ]
                     logger.warning(
@@ -599,13 +604,13 @@ def poll_wave_status(
                     wave["status"] = "FAILED"
                     not_launched_servers = [
                         s.get("sourceServerId")
-                        for s in servers
-                        if s.get("status") != "LAUNCHED"
+                        for s in server_statuses
+                        if s.get("launchStatus") != "LAUNCHED"
                     ]
                     logger.error(
                         f"Wave {wave.get('waveId')} FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
                     )
-                    wave["StatusMessage"] = (
+                    wave["statusMessage"] = (
                         f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
                     )
                 else:
@@ -616,14 +621,14 @@ def poll_wave_status(
                 wave["status"] = drs_status
         else:  # RECOVERY
             # RECOVERY complete when all servers LAUNCHED + post-launch complete
-            if servers:
+            if server_statuses:
                 all_launched = all(
-                    s.get("status") == "LAUNCHED" for s in servers
+                    s.get("launchStatus") == "LAUNCHED" for s in server_statuses
                 )
                 any_failed = any(
-                    s.get("status")
+                    s.get("launchStatus")
                     in ["LAUNCH_FAILED", "FAILED", "TERMINATED"]
-                    for s in servers
+                    for s in server_statuses
                 )
                 post_launch_complete = (
                     job_status.get("PostLaunchActionsStatus") == "COMPLETED"
@@ -646,13 +651,13 @@ def poll_wave_status(
                     wave["status"] = "FAILED"
                     not_launched_servers = [
                         s.get("sourceServerId")
-                        for s in servers
-                        if s.get("status") != "LAUNCHED"
+                        for s in server_statuses
+                        if s.get("launchStatus") != "LAUNCHED"
                     ]
                     logger.error(
                         f"Wave {wave.get('waveId')} RECOVERY FAILED - DRS job COMPLETED but servers {not_launched_servers} never launched"
                     )
-                    wave["StatusMessage"] = (
+                    wave["statusMessage"] = (
                         f"DRS job completed but {len(not_launched_servers)} servers failed to launch"
                     )
                 else:
@@ -707,6 +712,47 @@ def query_drs_job_status(job_id: str, region: str) -> Dict[str, Any]:
         raise
 
 
+def get_drs_server_name(source_server_id: str, region: str) -> str:
+    """
+    Get DRS server name from source server details.
+    
+    Args:
+        source_server_id: DRS source server ID
+        region: AWS region
+        
+    Returns:
+        Server name from Name tag or hostname
+    """
+    try:
+        drs_client = boto3.client("drs", region_name=region)
+        response = drs_client.describe_source_servers(
+            filters={"sourceServerIDs": [source_server_id]}
+        )
+        
+        if not response.get("items"):
+            return ""
+            
+        server = response["items"][0]
+        
+        # Try Name tag first
+        name_tag = server.get("tags", {}).get("Name", "")
+        if name_tag:
+            return name_tag
+            
+        # Fallback to hostname from identification hints
+        hostname = (
+            server.get("sourceProperties", {})
+            .get("identificationHints", {})
+            .get("hostname", "")
+        )
+        
+        return hostname or ""
+        
+    except Exception as e:
+        logger.warning(f"Could not get DRS server name for {source_server_id}: {str(e)}")
+        return ""
+
+
 def get_ec2_instance_details(
     instance_id: str, region: str
 ) -> Optional[Dict[str, Any]]:
@@ -740,8 +786,8 @@ def get_ec2_instance_details(
             hostname = instance.get("PrivateDnsName", "")
 
         return {
-            "HostName": hostname,
-            "PrivateIpAddress": instance.get("PrivateIpAddress", ""),
+            "hostname": hostname,  # Fixed: Use 'hostname' not 'hostName'
+            "privateIp": instance.get("PrivateIpAddress", ""),  # Fixed: Use 'privateIp' not 'privateIpAddress'
         }
 
     except Exception as e:
@@ -784,13 +830,13 @@ def update_execution_waves(
                 Key={"executionId": {"S": execution_id.strip()},
                     "planId": {"S": plan_id.strip()},
                 },
-                UpdateExpression="SET Waves = :waves",
+                UpdateExpression="SET waves = :waves",
                 ExpressionAttributeValues={
                     ":waves": {
                         "L": [format_wave_for_dynamodb(w) for w in waves]
                     }
                 },
-                ConditionExpression="attribute_exists(ExecutionId) AND attribute_exists(PlanId)",
+                ConditionExpression="attribute_exists(executionId) AND attribute_exists(planId)",
             )
 
         safe_aws_client_call(update_call)
@@ -826,9 +872,9 @@ def update_last_polled_time(execution_id: str, plan_id: str) -> None:
         dynamodb.update_item(
             TableName=EXECUTION_HISTORY_TABLE,
             Key={"executionId": {"S": execution_id}, "planId": {"S": plan_id}},
-            UpdateExpression="SET LastPolledTime = :time",
+            UpdateExpression="SET lastPolledTime = :time",
             ExpressionAttributeValues={":time": {"N": str(current_time)}},
-            ConditionExpression="attribute_exists(ExecutionId)",
+            ConditionExpression="attribute_exists(executionId)",
         )
 
     except Exception as e:
@@ -906,8 +952,8 @@ def record_poller_metrics(
         # Count servers by status
         server_statuses = {}
         for wave in waves:
-            for server in wave.get("servers", []):
-                status = server.get("status", "UNKNOWN")
+            for server in wave.get("serverStatuses", []):
+                status = server.get("launchStatus", "UNKNOWN")
                 server_statuses[status] = server_statuses.get(status, 0) + 1
 
         # Put metrics
