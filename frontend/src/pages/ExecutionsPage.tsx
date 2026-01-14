@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -83,21 +83,18 @@ export const ExecutionsPage: React.FC = () => {
     setEndDate('');
   };
 
-  useEffect(() => {
-    fetchExecutions();
-  }, []);
+  // Ref to track polling interval
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const hasActiveExecutions = executions.some((e) => {
+  // Check if there are active executions that need polling
+  const hasActiveExecutions = useCallback(() => {
+    return executions.some((e) => {
       const status = e.status?.toLowerCase() || '';
       return ['in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated', 'paused'].includes(status);
     });
-    if (!hasActiveExecutions) return;
-    const interval = setInterval(() => fetchExecutions(), 3000);
-    return () => clearInterval(interval);
   }, [executions]);
 
-  const fetchExecutions = async () => {
+  const fetchExecutions = useCallback(async () => {
     try {
       if (loading) setErrorMsg(null);
       const accountId = getCurrentAccountId();
@@ -119,7 +116,36 @@ export const ExecutionsPage: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [loading, getCurrentAccountId, handleError, addNotification]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchExecutions();
+  }, []);
+
+  // Auto-refresh polling - runs independently every 3 seconds when there are active executions
+  useEffect(() => {
+    // Clear any existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    // Start polling if there are active executions
+    if (hasActiveExecutions()) {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchExecutions();
+      }, 3000);
+    }
+
+    // Cleanup on unmount or when dependencies change
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [hasActiveExecutions, fetchExecutions]);
 
   const handleViewDetails = (execution: ExecutionListItem) => {
     navigate(`/executions/${execution.executionId}`);
