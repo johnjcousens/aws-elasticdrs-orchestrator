@@ -4,11 +4,13 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
-[![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](frontend/)
+[![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 
 ## Overview
+
+**Version**: v1.3.0 (January 2026)
 
 AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services.
 
@@ -19,6 +21,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Platform Agnostic**: Supports any source platform (physical servers, cloud instances, virtual machines)
 - **Sub-Second RPO**: Leverages AWS DRS continuous replication capabilities
 - **Fully Serverless**: No infrastructure to manage, scales automatically
+- **Launch Config Sync**: Automatically applies Protection Group launch configurations to DRS at execution time
 
 ## Key Features
 
@@ -28,6 +31,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Manual Validation Points**: Pause before critical waves for human approval
 - **Real-Time Control**: Resume, cancel, or terminate operations during execution
 - **Parallel Execution**: Servers within waves launch in parallel with DRS-safe 15-second delays
+- **Launch Config Sync**: Protection Group settings (subnet, security groups, instance type) applied to DRS before recovery
 
 ### Dynamic Tag Synchronization
 - **EventBridge Scheduling**: Automated EC2 → DRS tag sync with configurable intervals (1-24 hours)
@@ -38,7 +42,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Tag-Based Selection**: Servers automatically included/excluded based on current tags
 - **Multi-Protection-Group Waves**: Single wave can orchestrate multiple protection groups
 - **Conflict Detection**: Prevents servers from being assigned to multiple groups globally
-- **Launch Configuration Inheritance**: Group-level settings applied to all member servers
+- **Launch Configuration Inheritance**: Group-level settings applied to all member servers at execution time
 
 ### Comprehensive REST API
 - **47+ API Endpoints**: Complete REST API across 12 categories with RBAC security
@@ -51,14 +55,14 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ### Technology Stack
 
-| Layer      | Technology                                               |
-| ---------- | -------------------------------------------------------- |
-| Frontend   | React 19.1, TypeScript 5.9, CloudScape Design System 3.0 |
-| API        | Amazon API Gateway (REST), Amazon Cognito                |
-| Compute    | AWS Lambda (Python 3.12), AWS Step Functions             |
-| Database   | Amazon DynamoDB (4 tables with GSI)                      |
-| Hosting    | Amazon S3, Amazon CloudFront                             |
-| DR Service | AWS Elastic Disaster Recovery (DRS)                      |
+| Layer      | Technology                                                    |
+| ---------- | ------------------------------------------------------------- |
+| Frontend   | React 19.1.1, TypeScript 5.9.3, CloudScape Design System 3.0.1148 |
+| API        | Amazon API Gateway (REST), Amazon Cognito                     |
+| Compute    | AWS Lambda (Python 3.12), AWS Step Functions                  |
+| Database   | Amazon DynamoDB (4 tables with GSI, native camelCase schema)  |
+| Hosting    | Amazon S3, Amazon CloudFront                                  |
+| DR Service | AWS Elastic Disaster Recovery (DRS)                           |
 
 ## Quick Start
 
@@ -77,7 +81,7 @@ aws cloudformation deploy \
   --stack-name aws-elasticdrs-orchestrator \
   --parameter-overrides \
     ProjectName=aws-elasticdrs-orchestrator \
-    Environment=prod \
+    Environment=test \
     SourceBucket=your-bucket \
     AdminEmail=admin@yourcompany.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
@@ -88,7 +92,7 @@ aws cloudformation deploy \
 
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name aws-elasticdrs-orchestrator \
+  --stack-name aws-elasticdrs-orchestrator-test \
   --query 'Stacks[0].Outputs' \
   --output table
 ```
@@ -116,7 +120,7 @@ The solution orchestrates disaster recovery in all **30 AWS regions** where Elas
 
 ### CloudFormation Stacks
 
-The solution uses a modular nested stack architecture:
+The solution uses a modular nested stack architecture with **15+ CloudFormation templates**:
 
 | Stack                         | Purpose             | Key Resources                     |
 | ----------------------------- | ------------------- | --------------------------------- |
@@ -129,7 +133,19 @@ The solution uses a modular nested stack architecture:
 | `eventbridge-stack.yaml`    | Event scheduling    | EventBridge rules for polling     |
 | `frontend-stack.yaml`       | Frontend hosting    | S3, CloudFront                    |
 
-### DynamoDB Tables
+### Lambda Functions (7 Active)
+
+| Function | Purpose |
+| -------- | ------- |
+| `api-handler` | REST API request handling |
+| `orch-sf` | Step Functions orchestration with launch config sync |
+| `execution-finder` | Find active executions for polling |
+| `execution-poller` | Poll DRS job status |
+| `frontend-build` | Frontend deployment automation |
+| `bucket-cleaner` | S3 cleanup on stack deletion |
+| `notification-formatter` | SNS notification formatting |
+
+### DynamoDB Tables (Native camelCase Schema)
 
 | Table                       | Purpose             | Key Schema                            |
 | --------------------------- | ------------------- | ------------------------------------- |
@@ -166,7 +182,7 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 
 ### Security Features
 - **Encryption**: All data encrypted at rest and in transit
-- **Authentication**: Cognito JWT token-based authentication
+- **Authentication**: Cognito JWT token-based authentication (45-minute session timeout)
 - **Authorization**: API-level RBAC enforcement
 - **Audit Trails**: Complete user action logging
 
@@ -217,18 +233,26 @@ The project uses **GitHub Actions** for automated deployment with comprehensive 
 
 | Stage | Duration | Description |
 |-------|----------|-------------|
-| **Detect Changes** | ~10s | Analyzes changed files |
+| **Detect Changes** | ~10s | Analyzes changed files for intelligent deployment |
 | **Validate** | ~2 min | CloudFormation validation, linting |
-| **Security Scan** | ~3 min | Bandit, Safety, Semgrep, CFN-Lint |
+| **Security Scan** | ~2 min | Bandit, Safety security scanning |
 | **Build** | ~3 min | Lambda packaging, frontend build |
 | **Test** | ~2 min | Unit tests |
 | **Deploy** | ~10 min | CloudFormation stack deployment |
+
+### Pipeline Optimization
+- **Documentation-only**: ~30 seconds (95% time savings)
+- **Frontend-only**: ~12 minutes (45% time savings)
+- **Full deployment**: ~22 minutes (complete pipeline)
 
 ### Safe Push Workflow
 
 ```bash
 # RECOMMENDED: Safe push with automatic workflow checking
 ./scripts/safe-push.sh
+
+# Preview deployment scope before pushing
+./scripts/check-deployment-scope.sh
 
 # Alternative: Quick check before manual push
 ./scripts/check-workflow.sh && git push
@@ -262,6 +286,22 @@ pytest unit/ -v
 
 # Validate before committing
 make validate  # CloudFormation validation
+```
+
+## Directory Structure
+
+```text
+aws-elasticdrs-orchestrator/
+├── .github/                      # GitHub Actions CI/CD workflows
+│   └── workflows/deploy.yml      # Main deployment workflow
+├── cfn/                          # CloudFormation IaC (15+ templates)
+│   ├── master-template.yaml      # Root orchestrator for nested stacks
+│   └── github-oidc-stack.yaml    # GitHub Actions OIDC integration
+├── frontend/                     # React + CloudScape UI (32+ components)
+├── lambda/                       # Python Lambda functions (7 active)
+├── scripts/                      # Deployment and automation scripts
+├── tests/                        # Python unit/integration tests
+└── docs/                         # Comprehensive documentation (40+ files)
 ```
 
 ## Changelog
