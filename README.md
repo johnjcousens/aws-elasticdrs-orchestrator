@@ -41,6 +41,8 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Multi-Protection-Group Waves**: Single wave can orchestrate multiple protection groups
 - **Conflict Detection**: Prevents servers from being assigned to multiple groups globally
 - **Launch Configuration Inheritance**: Group-level settings applied to all member servers at execution time
+- **Bulk Launch Settings Management**: Configure subnet, security groups, instance type, and tags once at the Protection Group level - settings automatically sync to all DRS launch templates for member servers
+- **Simplified DRS Management**: Eliminates need to manually configure each server's launch template in the DRS console
 
 ### Comprehensive REST API
 - **47+ API Endpoints**: Complete REST API across 12 categories with RBAC security
