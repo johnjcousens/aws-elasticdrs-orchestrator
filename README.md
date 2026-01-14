@@ -48,6 +48,7 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **47+ API Endpoints**: Complete REST API across 12 categories with RBAC security
 - **Cross-Account Operations**: Manage DRS across multiple AWS accounts
 - **Direct Lambda Invocation**: Bypass API Gateway for AWS-native automation
+- **DRS Operations**: Supports core orchestration operations (describe servers, start recovery, get/update launch configuration, describe jobs and events, describe recovery instances) - administrative operations like disconnect/delete server remain in DRS console
 
 ## Architecture
 
