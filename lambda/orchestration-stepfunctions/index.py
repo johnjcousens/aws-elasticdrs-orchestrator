@@ -814,6 +814,14 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 state["wave_completed"] = False
                 return state
 
+        # Get existing server statuses from state to preserve serverName, hostname, etc.
+        existing_statuses = {}
+        for wr in state.get("wave_results", []):
+            if wr.get("waveNumber") == wave_number:
+                for ss in wr.get("serverStatuses", []):
+                    existing_statuses[ss.get("sourceServerId")] = ss
+                break
+
         # Check server launch status
         launched_count = 0
         failed_count = 0
@@ -828,11 +836,19 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             print(f"Server {server_id}: {launch_status}")
 
+            # Preserve existing data and update with new status
+            existing = existing_statuses.get(server_id, {})
             server_statuses.append(
                 {
                     "sourceServerId": server_id,
+                    "serverName": existing.get("serverName", server_id),
+                    "hostname": existing.get("hostname", ""),
                     "launchStatus": launch_status,
-                    "recoveryInstanceId": recovery_instance_id,
+                    "recoveryInstanceId": recovery_instance_id or existing.get("recoveryInstanceId", ""),
+                    "instanceId": existing.get("instanceId", ""),
+                    "privateIp": existing.get("privateIp", ""),
+                    "instanceType": existing.get("instanceType", ""),
+                    "launchTime": existing.get("launchTime", 0),
                 }
             )
 
@@ -877,45 +893,6 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 break
 
         print(f"Current phase determined from events: {current_phase}")
-
-        # Check server launch status
-        launched_count = 0
-        failed_count = 0
-        launching_count = 0
-        converting_count = 0
-        server_statuses = []
-
-        for server in participating_servers:
-            server_id = server.get("sourceServerID")
-            launch_status = server.get("launchStatus", "PENDING")
-            recovery_instance_id = server.get("recoveryInstanceID")
-
-            print(f"Server {server_id}: {launch_status}")
-
-            server_statuses.append(
-                {
-                    "sourceServerId": server_id,
-                    "launchStatus": launch_status,
-                    "recoveryInstanceId": recovery_instance_id,
-                }
-            )
-
-            if launch_status in DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES:
-                launched_count += 1
-            elif launch_status in DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES:
-                failed_count += 1
-            elif launch_status == "IN_PROGRESS":
-                # Check if it's launching or converting phase
-                # This is determined by looking at the job events or server state
-                launching_count += 1
-            elif launch_status == "PENDING":
-                # Could be converting or initial phase
-                converting_count += 1
-
-        total_servers = len(participating_servers)
-        print(
-            f"Progress: {launched_count}/{total_servers} launched, {failed_count} failed, {launching_count} launching, {converting_count} converting"
-        )
 
         # Determine current wave status based on phase and server statuses
         current_wave_status = current_phase
@@ -963,6 +940,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 ri_response = drs_client.describe_recovery_instances(
                     filters={"sourceServerIDs": source_server_ids}
                 )
+                current_time = int(time.time())
                 for ri in ri_response.get("items", []):
                     source_id = ri.get("sourceServerID")
                     for ss in server_statuses:
@@ -971,6 +949,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                             ss["recoveryInstanceId"] = ri.get(
                                 "recoveryInstanceID", ""
                             )
+                            # Set launchTime when server is LAUNCHED
+                            if ss.get("launchStatus") == "LAUNCHED" and not ss.get("launchTime"):
+                                ss["launchTime"] = current_time
                             break
             except Exception as e:
                 print(
