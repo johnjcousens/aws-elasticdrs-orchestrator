@@ -48,6 +48,148 @@ PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-test}"  # Cu
 # Approved directories for sync
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts")
 
+# =============================================================================
+# GITIGNORE-BASED EXCLUSIONS
+# =============================================================================
+# Generate S3 sync exclusion flags based on .gitignore patterns
+# This ensures we don't sync development/internal files to the deployment bucket
+
+generate_gitignore_exclusions() {
+    local exclusions=""
+    
+    # Core development/IDE files
+    exclusions+=" --exclude '.git/*'"
+    exclusions+=" --exclude '.git'"
+    exclusions+=" --exclude '.vscode/*'"
+    exclusions+=" --exclude '.idea/*'"
+    exclusions+=" --exclude '.DS_Store'"
+    exclusions+=" --exclude '*.swp'"
+    exclusions+=" --exclude '*~'"
+    exclusions+=" --exclude '*.log'"
+    exclusions+=" --exclude '*.tmp'"
+    
+    # Python artifacts
+    exclusions+=" --exclude '__pycache__/*'"
+    exclusions+=" --exclude '*.pyc'"
+    exclusions+=" --exclude '*.pyo'"
+    exclusions+=" --exclude '*.pyd'"
+    exclusions+=" --exclude '.pytest_cache/*'"
+    exclusions+=" --exclude '.coverage'"
+    exclusions+=" --exclude 'htmlcov/*'"
+    exclusions+=" --exclude '.venv/*'"
+    exclusions+=" --exclude 'venv/*'"
+    exclusions+=" --exclude 'env/*'"
+    
+    # Node.js artifacts
+    exclusions+=" --exclude 'node_modules/*'"
+    exclusions+=" --exclude 'npm-debug.log'"
+    exclusions+=" --exclude 'yarn-error.log'"
+    
+    # Build artifacts
+    exclusions+=" --exclude 'build/*'"
+    exclusions+=" --exclude 'dist/*'"
+    exclusions+=" --exclude '*.zip'"
+    exclusions+=" --exclude 'package/*'"
+    
+    # Environment and secrets
+    exclusions+=" --exclude '.env'"
+    exclusions+=" --exclude '.env.*'"
+    exclusions+=" --exclude '!.env.test.template'"
+    exclusions+=" --exclude '!.env.deployment.template'"
+    
+    # Test artifacts
+    exclusions+=" --exclude 'test-results/*'"
+    exclusions+=" --exclude 'playwright-report/*'"
+    exclusions+=" --exclude 'coverage/*'"
+    exclusions+=" --exclude '*.test.ts'"
+    exclusions+=" --exclude '*.spec.ts'"
+    exclusions+=" --exclude 'test_*.py'"
+    
+    # Internal/development files (from .gitignore)
+    exclusions+=" --exclude 'docs/PROJECT_STATUS.md'"
+    exclusions+=" --exclude 'docs/SESSION_*.md'"
+    exclusions+=" --exclude 'docs/archive/*'"
+    exclusions+=" --exclude 'docs/security/*'"
+    exclusions+=" --exclude '.git_commit_msg.txt'"
+    exclusions+=" --exclude '.cline_memory/*'"
+    exclusions+=" --exclude '.kiro/*'"
+    exclusions+=" --exclude '.amazonq/*'"
+    exclusions+=" --exclude 'archive/*'"
+    exclusions+=" --exclude 'history/*'"
+    exclusions+=" --exclude 'reports/*'"
+    exclusions+=" --exclude 'diagrams/*'"
+    exclusions+=" --exclude 'ssm-documents/*'"
+    exclusions+=" --exclude 'REVIEW/*'"
+    
+    # Temporary/debug files
+    exclusions+=" --exclude 'debug-*'"
+    exclusions+=" --exclude '*debug*'"
+    exclusions+=" --exclude 'mock-*'"
+    exclusions+=" --exclude 'test-*'"
+    exclusions+=" --exclude '*response*.json'"
+    exclusions+=" --exclude '*.backup'"
+    exclusions+=" --exclude '*_backup.*'"
+    exclusions+=" --exclude '*_fresh.*'"
+    exclusions+=" --exclude 'temp/*'"
+    
+    # Temporary markdown files
+    exclusions+=" --exclude 'DRILL_*.md'"
+    exclusions+=" --exclude 'MULTI_ACCOUNT_*.md'"
+    exclusions+=" --exclude 'CONFLICT_*.md'"
+    exclusions+=" --exclude 'EXECUTION_*.md'"
+    exclusions+=" --exclude 'FINAL_*.md'"
+    exclusions+=" --exclude 'UI_*.md'"
+    exclusions+=" --exclude 'CHECKPOINT_*.md'"
+    
+    # Reference/legacy builds
+    exclusions+=" --exclude 'reference-build/*'"
+    exclusions+=" --exclude '.git_disabled/*'"
+    
+    # Lambda-specific exclusions
+    exclusions+=" --exclude 'lambda/deployment-package.zip'"
+    exclusions+=" --exclude 'lambda/lambda-package.zip'"
+    exclusions+=" --exclude 'lambda/orchestration-package.zip'"
+    exclusions+=" --exclude 'lambda/*/*.zip'"
+    exclusions+=" --exclude 'lambda/__pycache__/*'"
+    exclusions+=" --exclude 'lambda/package/*'"
+    exclusions+=" --exclude 'lambda/*/test_*.py'"
+    exclusions+=" --exclude 'lambda/*/.coverage'"
+    
+    # Frontend-specific exclusions
+    exclusions+=" --exclude 'frontend/node_modules/*'"
+    exclusions+=" --exclude 'frontend/build/*'"
+    exclusions+=" --exclude 'frontend/playwright-report/*'"
+    exclusions+=" --exclude 'frontend/test-results/*'"
+    
+    # Internal scripts (not for deployment)
+    exclusions+=" --exclude 'scripts/check-jsx-corruption.sh'"
+    exclusions+=" --exclude 'scripts/check_drill_status.py'"
+    exclusions+=" --exclude 'scripts/check_job_completion.sh'"
+    exclusions+=" --exclude 'scripts/cleanup_stuck_drs_jobs.py'"
+    exclusions+=" --exclude 'scripts/commit-files-individually.sh'"
+    exclusions+=" --exclude 'scripts/deploy-and-sync-all.sh'"
+    exclusions+=" --exclude 'scripts/execute_drill.py'"
+    exclusions+=" --exclude 'scripts/incremental-commit.sh'"
+    exclusions+=" --exclude 'scripts/monitor_active_job.sh'"
+    exclusions+=" --exclude 'scripts/monitor_drill.py'"
+    exclusions+=" --exclude 'scripts/monitor_lambda_drill.py'"
+    exclusions+=" --exclude 'scripts/run-automated-tests.sh'"
+    exclusions+=" --exclude 'scripts/run-tests.sh'"
+    exclusions+=" --exclude 'scripts/safe-edit.sh'"
+    exclusions+=" --exclude 'scripts/setup-gitlab-cicd.sh'"
+    exclusions+=" --exclude 'scripts/test_drs_drill_trace.py'"
+    exclusions+=" --exclude 'scripts/test-drill.sh'"
+    exclusions+=" --exclude 'scripts/validate-deployment.sh'"
+    exclusions+=" --exclude 'scripts/verify-cleanup.sh'"
+    exclusions+=" --exclude 'scripts/verify-tsx.sh'"
+    exclusions+=" --exclude 'scripts/wait_for_completion.sh'"
+    
+    echo "$exclusions"
+}
+
+# Generate exclusions once for use in all sync commands
+GITIGNORE_EXCLUSIONS=$(generate_gitignore_exclusions)
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -546,44 +688,39 @@ echo ""
 
 # Sync CloudFormation templates
 echo "  📁 Syncing cfn/ templates..."
-aws s3 sync cfn/ s3://$BUCKET/cfn/ \
+eval aws s3 sync cfn/ s3://$BUCKET/cfn/ \
     $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
-    --exclude "*.swp" \
-    --exclude ".DS_Store"
+    $GITIGNORE_EXCLUSIONS
 
 # Sync Lambda functions
 echo "  📁 Syncing lambda/ functions..."
-aws s3 sync lambda/ s3://$BUCKET/lambda/ \
+eval aws s3 sync lambda/ s3://$BUCKET/lambda/ \
     $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
-    --exclude "*.pyc" \
-    --exclude "__pycache__/*" \
-    --exclude "package/*" \
-    --exclude ".DS_Store"
+    $GITIGNORE_EXCLUSIONS
 
 # Sync frontend
 echo "  📁 Syncing frontend..."
 if [ -d "frontend/dist" ]; then
-    aws s3 sync frontend/dist/ s3://$BUCKET/frontend/dist/ \
+    eval aws s3 sync frontend/dist/ s3://$BUCKET/frontend/dist/ \
         $PROFILE_FLAG \
         --delete \
         $SYNC_FLAGS \
-        --exclude ".DS_Store" \
-        --exclude "aws-config.json"
+        --exclude "aws-config.json" \
+        $GITIGNORE_EXCLUSIONS
     echo "    ✅ frontend/dist/ synced (excluding aws-config.json)"
 else
     echo "    ⚠️  frontend/dist/ not found (run with --build-frontend to create)"
 fi
 
-aws s3 sync frontend/src/ s3://$BUCKET/frontend/src/ \
+eval aws s3 sync frontend/src/ s3://$BUCKET/frontend/src/ \
     $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
-    --exclude "*.swp" \
-    --exclude ".DS_Store"
+    $GITIGNORE_EXCLUSIONS
 echo "    ✅ frontend/src/ synced"
 
 # Sync frontend config files
@@ -595,20 +732,19 @@ echo "    ✅ frontend config files synced"
 
 # Sync scripts
 echo "  📁 Syncing scripts/..."
-aws s3 sync scripts/ s3://$BUCKET/scripts/ \
+eval aws s3 sync scripts/ s3://$BUCKET/scripts/ \
     $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
-    --exclude ".DS_Store"
+    $GITIGNORE_EXCLUSIONS
 
 # Sync documentation
 echo "  📁 Syncing docs/..."
-aws s3 sync docs/ s3://$BUCKET/docs/ \
+eval aws s3 sync docs/ s3://$BUCKET/docs/ \
     $PROFILE_FLAG \
     --delete \
     $SYNC_FLAGS \
-    --exclude ".DS_Store" \
-    --exclude "archive/*"
+    $GITIGNORE_EXCLUSIONS
 
 # Sync root files
 echo "  📄 Syncing root files..."
