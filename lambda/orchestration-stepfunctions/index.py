@@ -246,11 +246,15 @@ def begin_wave_plan(event: Dict) -> Dict:
     # Start first wave
     if len(waves) > 0:
         start_wave_recovery(state, 0)
+        # DEBUG: Log state after start_wave_recovery to verify job_id is set
+        print(f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}")
     else:
         print("No waves to execute")
         state["all_waves_completed"] = True
         state["status"] = "completed"
 
+    # DEBUG: Log final state being returned
+    print(f"DEBUG: Returning state with job_id={state.get('job_id')}, wave_completed={state.get('wave_completed')}, status={state.get('status')}")
     return state
 
 
