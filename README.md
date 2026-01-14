@@ -120,7 +120,7 @@ The solution orchestrates disaster recovery in all **30 AWS regions** where Elas
 
 ### CloudFormation Stacks (18 Templates)
 
-The solution uses a modular nested stack architecture:
+The solution uses a modular nested stack architecture. The API Gateway is split across 6 stacks due to CloudFormation limits (500 resources/stack, 1MB template size) and best practices for maintainability:
 
 | Stack | Purpose | Key Resources |
 | ----- | ------- | ------------- |
