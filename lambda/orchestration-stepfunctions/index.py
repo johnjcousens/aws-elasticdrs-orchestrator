@@ -1243,3 +1243,5 @@ def update_wave_in_dynamodb(
             )
     except Exception as e:
         print(f"Error updating wave in DynamoDB: {e}")
+
+# Trigger rebuild with notifications module
