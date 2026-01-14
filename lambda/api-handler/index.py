@@ -4045,7 +4045,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             print(f"ERROR: Failed to invoke async worker: {str(invoke_error)}")
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status, EndTime = :end_time, ErrorMessage = :error",
+                UpdateExpression="SET #status = :status, endTime = :end_time, errorMessage = :error",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "FAILED",
@@ -4163,7 +4163,7 @@ def execute_with_step_functions(
         try:
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status, ErrorMessage = :error",
+                UpdateExpression="SET #status = :status, errorMessage = :error",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "FAILED",
@@ -4226,7 +4226,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         try:
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET #status = :status, EndTime = :endtime, ErrorMessage = :error",
+                UpdateExpression="SET #status = :status, endTime = :endtime, errorMessage = :error",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":status": "FAILED",
@@ -5488,7 +5488,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
                     print(f"Step Functions shows completion, updating DynamoDB")
                     execution_history_table.update_item(
                         Key={"executionId": execution_id, "planId": execution.get("planId")},
-                        UpdateExpression="SET #status = :status, UpdatedAt = :updated",
+                        UpdateExpression="SET #status = :status, updatedAt = :updated",
                         ExpressionAttributeNames={"#status": "status"},
                         ExpressionAttributeValues={
                             ":status": sf_response["status"],
@@ -5528,7 +5528,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         try:
             execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": execution.get("planId")},
-                UpdateExpression="SET UpdatedAt = :updated",
+                UpdateExpression="SET updatedAt = :updated",
                 ExpressionAttributeValues={":updated": int(time.time())}
             )
         except Exception as cache_error:
@@ -5696,12 +5696,12 @@ def cancel_execution(execution_id: str) -> Dict:
         final_status = "CANCELLING" if in_progress_waves else "CANCELLED"
 
         # Update DynamoDB with updated waves and status
-        update_expression = "SET #status = :status, Waves = :waves"
+        update_expression = "SET #status = :status, waves = :waves"
         expression_values = {":status": final_status, ":waves": waves}
 
-        # Only set EndTime if fully cancelled (no in-progress waves)
+        # Only set endTime if fully cancelled (no in-progress waves)
         if not in_progress_waves:
-            update_expression += ", EndTime = :endtime"
+            update_expression += ", endTime = :endtime"
             expression_values[":endtime"] = timestamp
 
         execution_history_table.update_item(
@@ -6630,7 +6630,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
 
             update_response = execution_history_table.update_item(
                 Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET InstancesTerminated = :terminated, InstancesTerminatedAt = :timestamp, TerminateJobs = :jobs",
+                UpdateExpression="SET instancesTerminated = :terminated, instancesTerminatedAt = :timestamp, terminateJobs = :jobs",
                 ExpressionAttributeValues={
                     ":terminated": True,
                     ":timestamp": int(time.time()),
@@ -6639,7 +6639,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                 ReturnValues="ALL_NEW",
             )
             print(
-                f"Successfully updated execution record. InstancesTerminated = {update_response.get('Attributes', {}).get('InstancesTerminated')}"
+                f"Successfully updated execution record. instancesTerminated = {update_response.get('Attributes', {}).get('instancesTerminated')}"
             )
 
         except Exception as e:
@@ -8609,7 +8609,7 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
                     },
                 )
 
-        # Build update expression (using PascalCase for DynamoDB)
+        # Build update expression (using camelCase for DynamoDB per migration standards)
         set_clauses = ["lastValidated = :lastValidated"]
         remove_clauses = []
         expression_values = {
@@ -8621,47 +8621,47 @@ def update_target_account(account_id: str, body: Dict) -> Dict:
         if "accountName" in body:
             account_name = body["accountName"]
             if account_name:  # Non-empty string
-                set_clauses.append("AccountName = :accountName")
+                set_clauses.append("accountName = :accountName")
                 expression_values[":accountName"] = account_name
             else:  # Empty string - remove the field
-                remove_clauses.append("AccountName")
+                remove_clauses.append("accountName")
 
         # Update status if provided
         if "status" in body and body["status"] in ["active", "inactive"]:
             set_clauses.append("#status = :status")
             expression_values[":status"] = body["status"]
-            expression_names["#status"] = "Status"
+            expression_names["#status"] = "status"
 
         # Update staging account if provided
         if "stagingAccountId" in body:
             staging_account_id = body["stagingAccountId"]
             if staging_account_id:
-                set_clauses.append("StagingAccountId = :stagingAccountId")
+                set_clauses.append("stagingAccountId = :stagingAccountId")
                 expression_values[":stagingAccountId"] = staging_account_id
             else:
                 # Remove staging account
-                remove_clauses.append("StagingAccountId")
+                remove_clauses.append("stagingAccountId")
 
         # Update staging account name if provided (including empty string to clear)
         if "stagingAccountName" in body:
             staging_account_name = body["stagingAccountName"]
             if staging_account_name:  # Non-empty string
-                set_clauses.append("StagingAccountName = :stagingAccountName")
+                set_clauses.append("stagingAccountName = :stagingAccountName")
                 expression_values[":stagingAccountName"] = staging_account_name
             else:  # Empty string - remove the field
-                remove_clauses.append("StagingAccountName")
+                remove_clauses.append("stagingAccountName")
 
         # Update cross-account role ARN if provided
         if "crossAccountRoleArn" in body:
             cross_account_role = body["crossAccountRoleArn"]
             if cross_account_role:
                 set_clauses.append(
-                    "CrossAccountRoleArn = :crossAccountRoleArn"
+                    "crossAccountRoleArn = :crossAccountRoleArn"
                 )
                 expression_values[":crossAccountRoleArn"] = cross_account_role
             else:
                 # Remove cross-account role
-                remove_clauses.append("CrossAccountRoleArn")
+                remove_clauses.append("crossAccountRoleArn")
 
         # Build the final update expression
         update_expression = "SET " + ", ".join(set_clauses)
