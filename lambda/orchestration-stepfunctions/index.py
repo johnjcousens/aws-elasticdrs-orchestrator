@@ -123,6 +123,87 @@ def create_drs_client(region: str, account_context: Dict = None):
     return boto3.client("drs", region_name=region)
 
 
+def apply_launch_config_before_recovery(
+    drs_client,
+    server_ids: List[str],
+    launch_config: Dict,
+    region: str
+) -> None:
+    """
+    Apply Protection Group launch config to DRS servers before starting recovery.
+    
+    This ensures the DRS launch templates have the correct subnet, security groups,
+    instance type, etc. from the Protection Group configuration.
+    """
+    ec2_client = boto3.client("ec2", region_name=region)
+    
+    for server_id in server_ids:
+        try:
+            # Get current DRS launch configuration to find the EC2 launch template
+            current_config = drs_client.get_launch_configuration(
+                sourceServerID=server_id
+            )
+            template_id = current_config.get("ec2LaunchTemplateID")
+            
+            if not template_id:
+                print(f"No launch template found for {server_id}, skipping")
+                continue
+            
+            # Update DRS launch configuration settings
+            drs_update = {"sourceServerID": server_id}
+            if "copyPrivateIp" in launch_config:
+                drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
+            if "copyTags" in launch_config:
+                drs_update["copyTags"] = launch_config["copyTags"]
+            if "licensing" in launch_config:
+                drs_update["licensing"] = launch_config["licensing"]
+            if "targetInstanceTypeRightSizingMethod" in launch_config:
+                drs_update["targetInstanceTypeRightSizingMethod"] = (
+                    launch_config["targetInstanceTypeRightSizingMethod"]
+                )
+            if "launchDisposition" in launch_config:
+                drs_update["launchDisposition"] = launch_config["launchDisposition"]
+            
+            if len(drs_update) > 1:
+                drs_client.update_launch_configuration(**drs_update)
+                print(f"Updated DRS launch config for {server_id}")
+            
+            # Update EC2 launch template with network/instance settings
+            template_data = {}
+            
+            if launch_config.get("instanceType"):
+                template_data["InstanceType"] = launch_config["instanceType"]
+            
+            if launch_config.get("subnetId") or launch_config.get("securityGroupIds"):
+                network_interface = {"DeviceIndex": 0}
+                if launch_config.get("subnetId"):
+                    network_interface["SubnetId"] = launch_config["subnetId"]
+                if launch_config.get("securityGroupIds"):
+                    network_interface["Groups"] = launch_config["securityGroupIds"]
+                template_data["NetworkInterfaces"] = [network_interface]
+            
+            if launch_config.get("instanceProfileName"):
+                template_data["IamInstanceProfile"] = {
+                    "Name": launch_config["instanceProfileName"]
+                }
+            
+            if template_data:
+                ec2_client.create_launch_template_version(
+                    LaunchTemplateId=template_id,
+                    LaunchTemplateData=template_data,
+                    VersionDescription="DRS Orchestration pre-recovery update",
+                )
+                ec2_client.modify_launch_template(
+                    LaunchTemplateId=template_id,
+                    DefaultVersion="$Latest"
+                )
+                print(f"Updated EC2 launch template {template_id} for {server_id}")
+                
+        except Exception as e:
+            print(f"Warning: Failed to apply launch config to {server_id}: {e}")
+            # Continue with other servers - don't fail the whole recovery
+
+
 # DRS job status constants
 DRS_JOB_STATUS_COMPLETE_STATES = ["COMPLETED"]
 DRS_JOB_STATUS_WAIT_STATES = ["PENDING", "STARTED"]
@@ -545,6 +626,15 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         # Create DRS client with cross-account support
         account_context = get_account_context(state)
         drs_client = create_drs_client(region, account_context)
+
+        # Apply Protection Group launch config to DRS before starting recovery
+        launch_config = pg.get("launchConfig")
+        if launch_config:
+            print(f"Applying launchConfig to {len(server_ids)} servers before recovery")
+            apply_launch_config_before_recovery(
+                drs_client, server_ids, launch_config, region
+            )
+
         source_servers = [{"sourceServerID": sid} for sid in server_ids]
 
         response = drs_client.start_recovery(
