@@ -87,24 +87,15 @@ export const ExecutionsPage: React.FC = () => {
     fetchExecutions();
   }, []);
 
-  // Auto-refresh when there are active executions
   useEffect(() => {
-    const checkAndPoll = () => {
-      const hasActiveExecutions = executions.some((e) => {
-        const status = e.status?.toLowerCase() || '';
-        return ['in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated', 'paused'].includes(status);
-      });
-      return hasActiveExecutions;
-    };
-
-    if (!checkAndPoll()) return;
-    
-    const interval = setInterval(() => {
-      fetchExecutions();
-    }, 3000);
-    
+    const hasActiveExecutions = executions.some((e) => {
+      const status = e.status?.toLowerCase() || '';
+      return ['in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated', 'paused'].includes(status);
+    });
+    if (!hasActiveExecutions) return;
+    const interval = setInterval(() => fetchExecutions(), 3000);
     return () => clearInterval(interval);
-  }, [executions.length, executions.map(e => e.status).join(',')]);
+  }, [executions]);
 
   const fetchExecutions = async () => {
     try {
