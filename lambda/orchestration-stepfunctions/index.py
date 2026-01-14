@@ -967,9 +967,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     source_id = ri.get("sourceServerID")
                     for ss in server_statuses:
                         if ss.get("sourceServerId") == source_id:
-                            ss["EC2InstanceId"] = ri.get("ec2InstanceID")
+                            ss["instanceId"] = ri.get("ec2InstanceID", "")
                             ss["recoveryInstanceId"] = ri.get(
-                                "recoveryInstanceID"
+                                "recoveryInstanceID", ""
                             )
                             break
             except Exception as e:
@@ -982,34 +982,51 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             # Capture recovery instance IDs and IPs for parent orchestrator
             for ss in server_statuses:
-                ec2_id = ss.get("EC2InstanceId")
+                ec2_id = ss.get("instanceId")
                 if ec2_id:
                     if ec2_id not in state.get("recovery_instance_ids", []):
                         state.setdefault("recovery_instance_ids", []).append(
                             ec2_id
                         )
 
-            # Fetch private IPs from EC2
+            # Fetch private IPs from EC2 and update server_statuses
             try:
                 ec2_ids = [
-                    ss.get("EC2InstanceId")
+                    ss.get("instanceId")
                     for ss in server_statuses
-                    if ss.get("EC2InstanceId")
+                    if ss.get("instanceId")
                 ]
                 if ec2_ids:
                     ec2_client = boto3.client("ec2", region_name=region)
                     ec2_response = ec2_client.describe_instances(
                         InstanceIds=ec2_ids
                     )
+                    # Build mapping of instance ID to details
+                    instance_details = {}
                     for reservation in ec2_response.get("Reservations", []):
                         for instance in reservation.get("Instances", []):
-                            private_ip = instance.get("PrivateIpAddress")
-                            if private_ip and private_ip not in state.get(
+                            instance_id = instance.get("InstanceId")
+                            instance_details[instance_id] = {
+                                "privateIp": instance.get("PrivateIpAddress", ""),
+                                "instanceType": instance.get("InstanceType", ""),
+                            }
+                    
+                    # Update server_statuses with EC2 details
+                    for ss in server_statuses:
+                        ec2_id = ss.get("instanceId")
+                        if ec2_id and ec2_id in instance_details:
+                            ss["privateIp"] = instance_details[ec2_id].get("privateIp", "")
+                            ss["instanceType"] = instance_details[ec2_id].get("instanceType", "")
+                            
+                    # Also add to state-level list
+                    for details in instance_details.values():
+                        private_ip = details.get("privateIp")
+                        if private_ip and private_ip not in state.get(
+                            "recovery_instance_ips", []
+                        ):
+                            state.setdefault(
                                 "recovery_instance_ips", []
-                            ):
-                                state.setdefault(
-                                    "recovery_instance_ips", []
-                                ).append(private_ip)
+                            ).append(private_ip)
             except Exception as e:
                 print(f"Warning: Could not fetch EC2 IPs: {e}")
 
