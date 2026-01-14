@@ -8,19 +8,6 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
 [![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 
-## 🔧 **Current Release: v1.4.0 - CamelCase Migration Complete**
-
-**Current Version**: v1.4.0 (January 13, 2026) - **CAMELCASE MIGRATION COMPLETE** - Native camelCase database schema with eliminated transform functions for improved performance.
-
-**[View Complete Release Notes →](CHANGELOG.md)**
-
-### 🎯 **Latest Status**
-- ✅ **CamelCase Migration**: Complete - database, API, and frontend use consistent camelCase field names
-- ✅ **Transform Functions Eliminated**: All 5 transform functions removed for better performance
-- ✅ **Wave-Based Orchestration**: Pause/resume functionality working with Step Functions
-- ✅ **Enhanced UI**: Professional wave progress display with consistent server status icons
-- ✅ **Repository Cleanup**: Clean root directory with organized archive structure
-
 ## Overview
 
 AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services.
