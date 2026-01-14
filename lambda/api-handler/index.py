@@ -5926,8 +5926,8 @@ def resume_execution(execution_id: str) -> Dict:
                 },
             )
 
-        # Get the stored task token
-        task_token = execution.get("TaskToken")
+        # Get the stored task token (camelCase per migration standards)
+        task_token = execution.get("taskToken")
         if not task_token:
             return response(
                 400,
