@@ -5552,14 +5552,14 @@ def get_execution_details(execution_id: str) -> Dict:
     return get_execution_details_fast(execution_id)
 
 def cancel_execution(execution_id: str) -> Dict:
-    """Cancel a running execution - cancels only pending waves, not completed or in-progress ones.
+    """Cancel a running execution - only allowed when no wave is actively running.
 
     Behavior:
+    - Can only cancel when execution is PAUSED or between waves
+    - Cannot cancel while a wave is IN_PROGRESS/POLLING/LAUNCHING
     - COMPLETED waves: Preserved as-is
-    - IN_PROGRESS/POLLING/LAUNCHING waves: Continue running (not interrupted)
     - PENDING/NOT_STARTED waves: Marked as CANCELLED
     - Waves not yet started (from plan): Added with CANCELLED status
-    - Overall execution status: Set to CANCELLED only if no waves are still running
     """
     try:
         # FIX: Query by ExecutionId to get PlanId (composite key required)
@@ -5580,27 +5580,21 @@ def cancel_execution(execution_id: str) -> Dict:
         execution = result["Items"][0]
         plan_id = execution.get("planId")
 
-        # Check if execution is still running
+        # Check if execution is in a cancellable state
         current_status = execution.get("status")
-        cancellable_statuses = [
-            "RUNNING",
-            "PAUSED",
-            "PAUSE_PENDING",
-            "CANCELLING",
-            "IN_PROGRESS",
-            "POLLING",
-            "INITIATED",
-            "PENDING",
-        ]
+        
+        # Only allow cancel when PAUSED (between waves) or already CANCELLING
+        cancellable_statuses = ["PAUSED", "CANCELLING"]
+        
         if current_status not in cancellable_statuses:
             return response(
                 400,
                 {
                     "error": "EXECUTION_NOT_CANCELLABLE",
-                    "message": f"Execution cannot be cancelled - status is {current_status}",
+                    "message": f"Execution cannot be cancelled while a wave is running - status is {current_status}",
                     "currentStatus": current_status,
                     "cancellableStatuses": cancellable_statuses,
-                    "reason": "Execution must be running, paused, or pending to cancel",
+                    "reason": "Execution must be PAUSED (between waves) to cancel. Wait for current wave to complete or pause the execution first.",
                 },
             )
 
@@ -5621,19 +5615,10 @@ def cancel_execution(execution_id: str) -> Dict:
 
         # Track wave states
         completed_waves = []
-        in_progress_waves = []
         cancelled_waves = []
 
         # Statuses that indicate a wave is done
         completed_statuses = ["COMPLETED", "FAILED", "TIMEOUT"]
-        # Statuses that indicate a wave is currently running
-        in_progress_statuses = [
-            "IN_PROGRESS",
-            "POLLING",
-            "LAUNCHING",
-            "INITIATED",
-            "STARTED",
-        ]
 
         # Track which wave numbers exist in execution
         existing_wave_numbers = set()
@@ -5646,9 +5631,6 @@ def cancel_execution(execution_id: str) -> Dict:
             if wave_status in completed_statuses:
                 completed_waves.append(wave_number)
                 # Leave completed waves unchanged
-            elif wave_status in in_progress_statuses:
-                in_progress_waves.append(wave_number)
-                # Leave in-progress waves running - they will complete naturally
             else:
                 # Pending/not started waves in execution - mark as CANCELLED
                 waves[i]["status"] = "CANCELLED"
@@ -5675,55 +5657,43 @@ def cancel_execution(execution_id: str) -> Dict:
         # Sort waves by wave number for consistent display
         waves.sort(key=lambda w: w.get("waveNumber", 0))
 
-        # Stop Step Functions execution only if no waves are in progress
-        # If a wave is running, let it complete naturally
-        if not in_progress_waves:
-            try:
-                # amazonq-ignore-next-line
-                stepfunctions.stop_execution(
-                    executionArn=execution_id,
-                    error="UserCancelled",
-                    cause="Execution cancelled by user",
-                )
-                print(f"Stopped Step Functions execution: {execution_id}")
-            except Exception as e:
-                print(f"Error stopping Step Functions execution: {str(e)}")
-                # Continue to update DynamoDB even if Step Functions call fails
+        # Stop Step Functions execution
+        try:
+            # amazonq-ignore-next-line
+            stepfunctions.stop_execution(
+                executionArn=execution.get("stateMachineArn"),
+                error="UserCancelled",
+                cause="Execution cancelled by user",
+            )
+            print(f"Stopped Step Functions execution: {execution_id}")
+        except Exception as e:
+            print(f"Error stopping Step Functions execution: {str(e)}")
+            # Continue to update DynamoDB even if Step Functions call fails
 
-        # Determine final execution status
-        # If waves are still in progress, mark as CANCELLING (will be finalized when wave completes)
-        # If no waves in progress, mark as CANCELLED
-        final_status = "CANCELLING" if in_progress_waves else "CANCELLED"
-
-        # Update DynamoDB with updated waves and status
-        update_expression = "SET #status = :status, waves = :waves"
-        expression_values = {":status": final_status, ":waves": waves}
-
-        # Only set endTime if fully cancelled (no in-progress waves)
-        if not in_progress_waves:
-            update_expression += ", endTime = :endtime"
-            expression_values[":endtime"] = timestamp
-
+        # Update DynamoDB with updated waves and CANCELLED status
         execution_history_table.update_item(
             Key={"executionId": execution_id, "planId": plan_id},
-            UpdateExpression=update_expression,
+            UpdateExpression="SET #status = :status, waves = :waves, endTime = :endtime",
             ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeValues={
+                ":status": "CANCELLED",
+                ":waves": waves,
+                ":endtime": timestamp
+            },
         )
 
         print(
-            f"Cancel execution {execution_id}: completed={completed_waves}, in_progress={in_progress_waves}, cancelled={cancelled_waves}"
+            f"Cancelled execution {execution_id}: completed={completed_waves}, cancelled={cancelled_waves}"
         )
 
         return response(
             200,
             {
                 "executionId": execution_id,
-                "status": final_status,
-                "message": f'Execution {"cancelling" if in_progress_waves else "cancelled"} successfully',
+                "status": "CANCELLED",
+                "message": "Execution cancelled successfully",
                 "details": {
                     "completedWaves": completed_waves,
-                    "inProgressWaves": in_progress_waves,
                     "cancelledWaves": cancelled_waves,
                 },
             },
