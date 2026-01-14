@@ -10,8 +10,6 @@ Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recove
 
 ## Overview
 
-**Version**: v1.3.0 (January 2026)
-
 AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services.
 
 ### Key Capabilities
