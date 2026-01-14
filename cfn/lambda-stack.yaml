@@ -738,6 +738,16 @@ Resources:
                     - sns:Publish
                   Resource: !Ref PipelineNotificationsTopic
           - !Ref "AWS::NoValue"
+        - PolicyName: SNSNotificationsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref ExecutionNotificationsTopicArn
+                  - !Ref DRSAlertsTopicArn
         - PolicyName: STSAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -1143,6 +1153,8 @@ Resources:
           PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
           RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
           EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName

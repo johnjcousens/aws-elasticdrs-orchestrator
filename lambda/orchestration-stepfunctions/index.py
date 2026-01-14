@@ -13,11 +13,23 @@ must be modified in place.
 
 import json
 import os
+import sys
 import time
 from decimal import Decimal
 from typing import Dict, List
 
 import boto3
+
+# Add shared modules to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
+from notifications import (
+    send_execution_started,
+    send_execution_completed,
+    send_execution_failed,
+    send_execution_paused,
+    send_wave_completed,
+    send_wave_failed
+)
 
 # Environment variables
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
@@ -323,6 +335,13 @@ def begin_wave_plan(event: Dict) -> Dict:
         )
     except Exception as e:
         print(f"Error updating execution status: {e}")
+
+    # Send execution started notification
+    try:
+        execution_type = "DRILL" if is_drill else "RECOVERY"
+        send_execution_started(execution_id, plan.get("planName", "Unknown"), len(waves), execution_type)
+    except Exception as e:
+        print(f"Warning: Failed to send execution started notification: {e}")
 
     # Start first wave
     if len(waves) > 0:
@@ -932,6 +951,14 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 f"✅ Wave {wave_number} COMPLETE - all {launched_count} servers launched"
             )
 
+            # Send wave completed notification
+            try:
+                wave_name = state.get("waves", [])[wave_number].get("waveName", f"Wave {wave_number + 1}")
+                plan_name = state.get("plan_name", "Unknown")
+                send_wave_completed(execution_id, plan_name, wave_number + 1, wave_name, launched_count)
+            except Exception as e:
+                print(f"Warning: Failed to send wave completed notification: {e}")
+
             # Get EC2 instance IDs
             try:
                 source_server_ids = [
@@ -1072,6 +1099,14 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["status"] = "paused"
                     state["paused_before_wave"] = next_wave
                     
+                    # Send execution paused notification
+                    try:
+                        plan_name = state.get("plan_name", "Unknown")
+                        wave_name = waves_list[next_wave].get("waveName", f"Wave {next_wave + 1}")
+                        send_execution_paused(execution_id, plan_name, next_wave + 1, wave_name)
+                    except Exception as e:
+                        print(f"Warning: Failed to send execution paused notification: {e}")
+                    
                     # Mark execution as PAUSED for manual resume
                     try:
                         get_execution_history_table().update_item(
@@ -1103,6 +1138,15 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 state["completed_waves"] = len(waves_list)
                 if state.get("start_time"):
                     state["duration_seconds"] = end_time - state["start_time"]
+                
+                # Send execution completed notification
+                try:
+                    plan_name = state.get("plan_name", "Unknown")
+                    duration = state.get("duration_seconds", 0)
+                    send_execution_completed(execution_id, plan_name, len(waves_list), duration)
+                except Exception as e:
+                    print(f"Warning: Failed to send execution completed notification: {e}")
+                
                 get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": plan_id},
                     UpdateExpression="SET #status = :status, endTime = :end",
@@ -1130,6 +1174,23 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             state["end_time"] = end_time
             if state.get("start_time"):
                 state["duration_seconds"] = end_time - state["start_time"]
+            
+            # Send wave failed notification
+            try:
+                wave_name = state.get("waves", [])[wave_number].get("waveName", f"Wave {wave_number + 1}")
+                plan_name = state.get("plan_name", "Unknown")
+                send_wave_failed(execution_id, plan_name, wave_number + 1, wave_name, failed_count)
+            except Exception as e:
+                print(f"Warning: Failed to send wave failed notification: {e}")
+            
+            # Send execution failed notification
+            try:
+                plan_name = state.get("plan_name", "Unknown")
+                error_msg = f"{failed_count} servers failed to launch in wave {wave_number + 1}"
+                send_execution_failed(execution_id, plan_name, error_msg, wave_number + 1)
+            except Exception as e:
+                print(f"Warning: Failed to send execution failed notification: {e}")
+            
             update_wave_in_dynamodb(
                 execution_id, plan_id, wave_number, "FAILED", server_statuses
             )
