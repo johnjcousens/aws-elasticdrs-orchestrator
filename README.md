@@ -118,32 +118,44 @@ The solution orchestrates disaster recovery in all **30 AWS regions** where Elas
 
 ## Infrastructure
 
-### CloudFormation Stacks
+### CloudFormation Stacks (18 Templates)
 
-The solution uses a modular nested stack architecture with **15+ CloudFormation templates**:
+The solution uses a modular nested stack architecture:
 
-| Stack                         | Purpose             | Key Resources                     |
-| ----------------------------- | ------------------- | --------------------------------- |
-| `master-template.yaml`      | Root orchestrator   | Parameter propagation, outputs    |
-| `database-stack.yaml`       | Data persistence    | 4 DynamoDB tables with encryption |
-| `lambda-stack.yaml`         | Compute layer       | 7 Lambda functions, IAM roles     |
-| `api-auth-stack.yaml`       | Authentication      | Cognito User Pool, Identity Pool  |
-| `api-gateway-*-stack.yaml`  | API Gateway         | REST API with 47+ endpoints       |
-| `step-functions-stack.yaml` | Orchestration       | Step Functions state machine      |
-| `eventbridge-stack.yaml`    | Event scheduling    | EventBridge rules for polling     |
-| `frontend-stack.yaml`       | Frontend hosting    | S3, CloudFront                    |
+| Stack | Purpose | Key Resources |
+| ----- | ------- | ------------- |
+| `master-template.yaml` | Root orchestrator | Parameter propagation, nested stack coordination |
+| `database-stack.yaml` | Data persistence | 4 DynamoDB tables with encryption (camelCase schema) |
+| `lambda-stack.yaml` | Compute layer | 7 Lambda functions, IAM roles |
+| `api-auth-stack.yaml` | Authentication | Cognito User Pool, Identity Pool, RBAC groups |
+| `api-gateway-core-stack.yaml` | API Gateway base | REST API, Cognito authorizer |
+| `api-gateway-resources-stack.yaml` | API paths | URL path resources for all endpoints |
+| `api-gateway-core-methods-stack.yaml` | CRUD methods | Protection Groups, Recovery Plans, Config endpoints |
+| `api-gateway-operations-methods-stack.yaml` | Execution methods | Execution, workflow, DRS operation endpoints |
+| `api-gateway-infrastructure-methods-stack.yaml` | Infrastructure methods | Discovery, cross-account, health endpoints |
+| `api-gateway-deployment-stack.yaml` | API deployment | Stage deployment, throttling settings |
+| `step-functions-stack.yaml` | Orchestration | State machine with waitForTaskToken |
+| `eventbridge-stack.yaml` | Event scheduling | Execution polling rules |
+| `frontend-stack.yaml` | Frontend hosting | S3 bucket, CloudFront distribution |
+| `notification-stack.yaml` | Notifications | SNS topics, email subscriptions |
+| `security-stack.yaml` | Security | WAF, security groups |
+| `security-monitoring-stack.yaml` | Monitoring | CloudWatch alarms, dashboards |
+| `cross-account-role-stack.yaml` | Multi-account | Cross-account IAM roles |
+| `github-oidc-stack.yaml` | CI/CD | GitHub Actions OIDC authentication |
 
 ### Lambda Functions (7 Active)
 
-| Function | Purpose |
-| -------- | ------- |
-| `api-handler` | REST API request handling |
-| `orch-sf` | Step Functions orchestration with launch config sync |
-| `execution-finder` | Find active executions for polling |
-| `execution-poller` | Poll DRS job status |
-| `frontend-build` | Frontend deployment automation |
-| `bucket-cleaner` | S3 cleanup on stack deletion |
-| `notification-formatter` | SNS notification formatting |
+| Function | Directory | Purpose |
+| -------- | --------- | ------- |
+| `api-handler` | `lambda/api-handler/` | REST API request handling (47+ endpoints) |
+| `orchestration-stepfunctions` | `lambda/orchestration-stepfunctions/` | Step Functions orchestration with launch config sync |
+| `execution-finder` | `lambda/execution-finder/` | Find active executions for EventBridge polling |
+| `execution-poller` | `lambda/execution-poller/` | Poll DRS job status and update execution state |
+| `frontend-builder` | `lambda/frontend-builder/` | Frontend deployment automation |
+| `bucket-cleaner` | `lambda/bucket-cleaner/` | S3 cleanup on stack deletion |
+| `notification-formatter` | `lambda/notification-formatter/` | SNS notification formatting |
+
+Shared utilities in `lambda/shared/` provide common functionality across all functions.
 
 ### DynamoDB Tables (Native camelCase Schema)
 
