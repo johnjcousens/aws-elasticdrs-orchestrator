@@ -80,6 +80,7 @@ jobs:
             DOCS_ONLY=true
             FRONTEND_ONLY=false
           elif [[ "$FRONTEND_CHANGED" == "true" && "$INFRASTRUCTURE_CHANGED" == "false" && "$LAMBDA_CHANGED" == "false" ]]; then
+            # Frontend-only deployment (docs changes are OK)
             DOCS_ONLY=false
             FRONTEND_ONLY=true
           else
