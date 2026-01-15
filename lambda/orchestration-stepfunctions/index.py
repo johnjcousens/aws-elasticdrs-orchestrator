@@ -23,14 +23,14 @@ from typing import Dict, List
 import boto3
 
 # Add shared modules to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
-from notifications import (
-    send_execution_started,
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "shared"))
+from notifications import (  # noqa: E402
     send_execution_completed,
     send_execution_failed,
     send_execution_paused,
+    send_execution_started,
     send_wave_completed,
-    send_wave_failed
+    send_wave_failed,
 )
 
 # Environment variables
@@ -90,11 +90,13 @@ def create_drs_client(region: str, account_context: Dict = None):
         boto3 DRS client
     """
     # Check if cross-account access is needed - only if accountId is provided, not empty, and not current account
-    if (account_context and 
-        account_context.get("accountId") and 
-        account_context.get("accountId").strip() and  # Not empty string
-        not account_context.get("isCurrentAccount", False)):  # Not current account
-        
+    if (
+        account_context
+        and account_context.get("accountId")
+        and account_context.get("accountId").strip()  # Not empty string
+        and not account_context.get("isCurrentAccount", False)
+    ):  # Not current account
+
         account_id = account_context["accountId"]
         role_name = account_context.get(
             "assumeRoleName", "drs-orchestration-cross-account-role"
@@ -138,19 +140,16 @@ def create_drs_client(region: str, account_context: Dict = None):
 
 
 def apply_launch_config_before_recovery(
-    drs_client,
-    server_ids: List[str],
-    launch_config: Dict,
-    region: str
+    drs_client, server_ids: List[str], launch_config: Dict, region: str
 ) -> None:
     """
     Apply Protection Group launch config to DRS servers before starting recovery.
-    
+
     This ensures the DRS launch templates have the correct subnet, security groups,
     instance type, etc. from the Protection Group configuration.
     """
     ec2_client = boto3.client("ec2", region_name=region)
-    
+
     for server_id in server_ids:
         try:
             # Get current DRS launch configuration to find the EC2 launch template
@@ -158,11 +157,11 @@ def apply_launch_config_before_recovery(
                 sourceServerID=server_id
             )
             template_id = current_config.get("ec2LaunchTemplateID")
-            
+
             if not template_id:
                 print(f"No launch template found for {server_id}, skipping")
                 continue
-            
+
             # Update DRS launch configuration settings
             drs_update = {"sourceServerID": server_id}
             if "copyPrivateIp" in launch_config:
@@ -176,31 +175,37 @@ def apply_launch_config_before_recovery(
                     launch_config["targetInstanceTypeRightSizingMethod"]
                 )
             if "launchDisposition" in launch_config:
-                drs_update["launchDisposition"] = launch_config["launchDisposition"]
-            
+                drs_update["launchDisposition"] = launch_config[
+                    "launchDisposition"
+                ]
+
             if len(drs_update) > 1:
                 drs_client.update_launch_configuration(**drs_update)
                 print(f"Updated DRS launch config for {server_id}")
-            
+
             # Update EC2 launch template with network/instance settings
             template_data = {}
-            
+
             if launch_config.get("instanceType"):
                 template_data["InstanceType"] = launch_config["instanceType"]
-            
-            if launch_config.get("subnetId") or launch_config.get("securityGroupIds"):
+
+            if launch_config.get("subnetId") or launch_config.get(
+                "securityGroupIds"
+            ):
                 network_interface = {"DeviceIndex": 0}
                 if launch_config.get("subnetId"):
                     network_interface["SubnetId"] = launch_config["subnetId"]
                 if launch_config.get("securityGroupIds"):
-                    network_interface["Groups"] = launch_config["securityGroupIds"]
+                    network_interface["Groups"] = launch_config[
+                        "securityGroupIds"
+                    ]
                 template_data["NetworkInterfaces"] = [network_interface]
-            
+
             if launch_config.get("instanceProfileName"):
                 template_data["IamInstanceProfile"] = {
                     "Name": launch_config["instanceProfileName"]
                 }
-            
+
             if template_data:
                 ec2_client.create_launch_template_version(
                     LaunchTemplateId=template_id,
@@ -208,13 +213,16 @@ def apply_launch_config_before_recovery(
                     VersionDescription="DRS Orchestration pre-recovery update",
                 )
                 ec2_client.modify_launch_template(
-                    LaunchTemplateId=template_id,
-                    DefaultVersion="$Latest"
+                    LaunchTemplateId=template_id, DefaultVersion="$Latest"
                 )
-                print(f"Updated EC2 launch template {template_id} for {server_id}")
-                
+                print(
+                    f"Updated EC2 launch template {template_id} for {server_id}"
+                )
+
         except Exception as e:
-            print(f"Warning: Failed to apply launch config to {server_id}: {e}")
+            print(
+                f"Warning: Failed to apply launch config to {server_id}: {e}"
+            )
             # Continue with other servers - don't fail the whole recovery
 
 
@@ -341,7 +349,12 @@ def begin_wave_plan(event: Dict) -> Dict:
     # Send execution started notification
     try:
         execution_type = "DRILL" if is_drill else "RECOVERY"
-        send_execution_started(execution_id, plan.get("planName", "Unknown"), len(waves), execution_type)
+        send_execution_started(
+            execution_id,
+            plan.get("planName", "Unknown"),
+            len(waves),
+            execution_type,
+        )
     except Exception as e:
         print(f"Warning: Failed to send execution started notification: {e}")
 
@@ -349,14 +362,18 @@ def begin_wave_plan(event: Dict) -> Dict:
     if len(waves) > 0:
         start_wave_recovery(state, 0)
         # DEBUG: Log state after start_wave_recovery to verify job_id is set
-        print(f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}")
+        print(
+            f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}"
+        )
     else:
         print("No waves to execute")
         state["all_waves_completed"] = True
         state["status"] = "completed"
 
     # DEBUG: Log final state being returned
-    print(f"DEBUG: Returning state with job_id={state.get('job_id')}, wave_completed={state.get('wave_completed')}, status={state.get('status')}")
+    print(
+        f"DEBUG: Returning state with job_id={state.get('job_id')}, wave_completed={state.get('wave_completed')}, status={state.get('status')}"
+    )
     return state
 
 
@@ -525,52 +542,54 @@ def query_drs_servers_by_tags(  # noqa: C901
         raise
 
 
-def get_drs_server_details(drs_client, server_ids: List[str]) -> Dict[str, Dict]:
+def get_drs_server_details(
+    drs_client, server_ids: List[str]
+) -> Dict[str, Dict]:
     """
     Get DRS source server details (Name tag, hostname) for server information display.
-    
+
     Uses data already available from DRS source servers - no extra EC2 API calls needed.
-    
+
     Args:
         drs_client: Boto3 DRS client
         server_ids: List of DRS source server IDs
-        
+
     Returns:
         Dict mapping server_id to {serverName, hostname}
     """
     server_details = {}
-    
+
     if not server_ids:
         return server_details
-    
+
     try:
         # Query DRS for source server details
         response = drs_client.describe_source_servers(
             filters={"sourceServerIDs": server_ids}
         )
-        
+
         for server in response.get("items", []):
             server_id = server.get("sourceServerID", "")
-            
+
             # Get Name tag from DRS source server tags
             name_tag = server.get("tags", {}).get("Name", "")
-            
+
             # Get hostname from identification hints
             hostname = (
                 server.get("sourceProperties", {})
                 .get("identificationHints", {})
                 .get("hostname", "")
             )
-            
+
             server_details[server_id] = {
                 "serverName": name_tag or hostname or server_id,
                 "hostname": hostname,
             }
-            
+
     except Exception as e:
         print(f"Warning: Could not get DRS server details: {e}")
         # Return empty details - frontend will show server IDs
-        
+
     return server_details
 
 
@@ -651,7 +670,9 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         # Apply Protection Group launch config to DRS before starting recovery
         launch_config = pg.get("launchConfig")
         if launch_config:
-            print(f"Applying launchConfig to {len(server_ids)} servers before recovery")
+            print(
+                f"Applying launchConfig to {len(server_ids)} servers before recovery"
+            )
             apply_launch_config_before_recovery(
                 drs_client, server_ids, launch_config, region
             )
@@ -667,20 +688,22 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
 
         # Get server details (Name tag, hostname) from DRS source servers
         server_details = get_drs_server_details(drs_client, server_ids)
-        
+
         # Build serverStatuses with server details for frontend display
         server_statuses = []
         for server_id in server_ids:
             details = server_details.get(server_id, {})
-            server_statuses.append({
-                "sourceServerId": server_id,
-                "serverName": details.get("serverName", server_id),
-                "hostname": details.get("hostname", ""),
-                "launchStatus": "PENDING",
-                "instanceId": "",
-                "privateIp": "",
-                "launchTime": 0,
-            })
+            server_statuses.append(
+                {
+                    "sourceServerId": server_id,
+                    "serverName": details.get("serverName", server_id),
+                    "hostname": details.get("hostname", ""),
+                    "launchStatus": "PENDING",
+                    "instanceId": "",
+                    "privateIp": "",
+                    "launchTime": 0,
+                }
+            )
 
         # Update state IN PLACE (archive pattern - critical!)
         state["current_wave_number"] = wave_number
@@ -779,7 +802,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     # Update total wait time
     update_time = state.get("current_wave_update_time", 30)
     total_wait = state.get("current_wave_total_wait_time", 0) + update_time
-    max_wait = state.get("current_wave_max_wait_time", 31536000)  # 1 year default
+    max_wait = state.get(
+        "current_wave_max_wait_time", 31536000
+    )  # 1 year default
     state["current_wave_total_wait_time"] = total_wait
 
     print(
@@ -865,8 +890,11 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     "serverName": existing.get("serverName", server_id),
                     "hostname": existing.get("hostname", ""),
                     "launchStatus": launch_status,
-                    "recoveryInstanceId": recovery_instance_id or existing.get("recoveryInstanceId", ""),
-                    "recoveredInstanceId": existing.get("recoveredInstanceId", ""),
+                    "recoveryInstanceId": recovery_instance_id
+                    or existing.get("recoveryInstanceId", ""),
+                    "recoveredInstanceId": existing.get(
+                        "recoveredInstanceId", ""
+                    ),
                     "privateIp": existing.get("privateIp", ""),
                     "instanceType": existing.get("instanceType", ""),
                     "launchTime": existing.get("launchTime", 0),
@@ -955,14 +983,27 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             # Send wave completed notification
             try:
-                wave_name = state.get("waves", [])[wave_number].get("waveName", f"Wave {wave_number + 1}")
+                wave_name = state.get("waves", [])[wave_number].get(
+                    "waveName", f"Wave {wave_number + 1}"
+                )
                 plan_name = state.get("plan_name", "Unknown")
-                print(f"📧 Attempting to send wave completed notification for wave {wave_number + 1}")
-                send_wave_completed(execution_id, plan_name, wave_number + 1, wave_name, launched_count)
+                print(
+                    f"📧 Attempting to send wave completed notification for wave {wave_number + 1}"
+                )
+                send_wave_completed(
+                    execution_id,
+                    plan_name,
+                    wave_number + 1,
+                    wave_name,
+                    launched_count,
+                )
                 print(f"✅ Wave completed notification sent successfully")
             except Exception as e:
-                print(f"❌ ERROR: Failed to send wave completed notification: {e}")
+                print(
+                    f"❌ ERROR: Failed to send wave completed notification: {e}"
+                )
                 import traceback
+
                 traceback.print_exc()
 
             # Get EC2 instance IDs
@@ -978,12 +1019,16 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     source_id = ri.get("sourceServerID")
                     for ss in server_statuses:
                         if ss.get("sourceServerId") == source_id:
-                            ss["recoveredInstanceId"] = ri.get("ec2InstanceID", "")
+                            ss["recoveredInstanceId"] = ri.get(
+                                "ec2InstanceID", ""
+                            )
                             ss["recoveryInstanceId"] = ri.get(
                                 "recoveryInstanceID", ""
                             )
                             # Set launchTime when server is LAUNCHED
-                            if ss.get("launchStatus") == "LAUNCHED" and not ss.get("launchTime"):
+                            if ss.get(
+                                "launchStatus"
+                            ) == "LAUNCHED" and not ss.get("launchTime"):
                                 ss["launchTime"] = current_time
                             break
             except Exception as e:
@@ -1021,17 +1066,25 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                         for instance in reservation.get("Instances", []):
                             instance_id = instance.get("InstanceId")
                             instance_details[instance_id] = {
-                                "privateIp": instance.get("PrivateIpAddress", ""),
-                                "instanceType": instance.get("InstanceType", ""),
+                                "privateIp": instance.get(
+                                    "PrivateIpAddress", ""
+                                ),
+                                "instanceType": instance.get(
+                                    "InstanceType", ""
+                                ),
                             }
-                    
+
                     # Update server_statuses with EC2 details
                     for ss in server_statuses:
                         ec2_id = ss.get("recoveredInstanceId")
                         if ec2_id and ec2_id in instance_details:
-                            ss["privateIp"] = instance_details[ec2_id].get("privateIp", "")
-                            ss["instanceType"] = instance_details[ec2_id].get("instanceType", "")
-                            
+                            ss["privateIp"] = instance_details[ec2_id].get(
+                                "privateIp", ""
+                            )
+                            ss["instanceType"] = instance_details[ec2_id].get(
+                                "instanceType", ""
+                            )
+
                     # Also add to state-level list
                     for details in instance_details.values():
                         private_ip = details.get("privateIp")
@@ -1104,19 +1157,28 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     print(f"⏸️ Pausing before wave {next_wave}")
                     state["status"] = "paused"
                     state["paused_before_wave"] = next_wave
-                    
+
                     # Send execution paused notification
                     try:
                         plan_name = state.get("plan_name", "Unknown")
-                        wave_name = waves_list[next_wave].get("waveName", f"Wave {next_wave + 1}")
-                        send_execution_paused(execution_id, plan_name, next_wave + 1, wave_name)
+                        wave_name = waves_list[next_wave].get(
+                            "waveName", f"Wave {next_wave + 1}"
+                        )
+                        send_execution_paused(
+                            execution_id, plan_name, next_wave + 1, wave_name
+                        )
                     except Exception as e:
-                        print(f"Warning: Failed to send execution paused notification: {e}")
-                    
+                        print(
+                            f"Warning: Failed to send execution paused notification: {e}"
+                        )
+
                     # Mark execution as PAUSED for manual resume
                     try:
                         get_execution_history_table().update_item(
-                            Key={"executionId": execution_id, "planId": plan_id},
+                            Key={
+                                "executionId": execution_id,
+                                "planId": plan_id,
+                            },
                             UpdateExpression="SET #status = :status, pausedBeforeWave = :wave",
                             ExpressionAttributeNames={"#status": "status"},
                             ExpressionAttributeValues={
@@ -1125,10 +1187,12 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                             },
                             ConditionExpression="attribute_exists(executionId)",
                         )
-                        print(f"✅ Execution paused before wave {next_wave}, waiting for manual resume")
+                        print(
+                            f"✅ Execution paused before wave {next_wave}, waiting for manual resume"
+                        )
                     except Exception as e:
                         print(f"Error pausing execution: {e}")
-                    
+
                     # Return immediately when paused - don't continue to next wave
                     return state
 
@@ -1144,19 +1208,28 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 state["completed_waves"] = len(waves_list)
                 if state.get("start_time"):
                     state["duration_seconds"] = end_time - state["start_time"]
-                
+
                 # Send execution completed notification
                 try:
                     plan_name = state.get("plan_name", "Unknown")
                     duration = state.get("duration_seconds", 0)
-                    print(f"📧 Attempting to send execution completed notification")
-                    send_execution_completed(execution_id, plan_name, len(waves_list), duration)
-                    print(f"✅ Execution completed notification sent successfully")
+                    print(
+                        f"📧 Attempting to send execution completed notification"
+                    )
+                    send_execution_completed(
+                        execution_id, plan_name, len(waves_list), duration
+                    )
+                    print(
+                        f"✅ Execution completed notification sent successfully"
+                    )
                 except Exception as e:
-                    print(f"❌ ERROR: Failed to send execution completed notification: {e}")
+                    print(
+                        f"❌ ERROR: Failed to send execution completed notification: {e}"
+                    )
                     import traceback
+
                     traceback.print_exc()
-                
+
                 get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": plan_id},
                     UpdateExpression="SET #status = :status, endTime = :end",
@@ -1184,23 +1257,35 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             state["end_time"] = end_time
             if state.get("start_time"):
                 state["duration_seconds"] = end_time - state["start_time"]
-            
+
             # Send wave failed notification
             try:
-                wave_name = state.get("waves", [])[wave_number].get("waveName", f"Wave {wave_number + 1}")
+                wave_name = state.get("waves", [])[wave_number].get(
+                    "waveName", f"Wave {wave_number + 1}"
+                )
                 plan_name = state.get("plan_name", "Unknown")
-                send_wave_failed(execution_id, plan_name, wave_number + 1, wave_name, failed_count)
+                send_wave_failed(
+                    execution_id,
+                    plan_name,
+                    wave_number + 1,
+                    wave_name,
+                    failed_count,
+                )
             except Exception as e:
                 print(f"Warning: Failed to send wave failed notification: {e}")
-            
+
             # Send execution failed notification
             try:
                 plan_name = state.get("plan_name", "Unknown")
                 error_msg = f"{failed_count} servers failed to launch in wave {wave_number + 1}"
-                send_execution_failed(execution_id, plan_name, error_msg, wave_number + 1)
+                send_execution_failed(
+                    execution_id, plan_name, error_msg, wave_number + 1
+                )
             except Exception as e:
-                print(f"Warning: Failed to send execution failed notification: {e}")
-            
+                print(
+                    f"Warning: Failed to send execution failed notification: {e}"
+                )
+
             update_wave_in_dynamodb(
                 execution_id, plan_id, wave_number, "FAILED", server_statuses
             )
@@ -1253,5 +1338,6 @@ def update_wave_in_dynamodb(
             )
     except Exception as e:
         print(f"Error updating wave in DynamoDB: {e}")
+
 
 # Trigger rebuild with notifications module

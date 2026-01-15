@@ -69,14 +69,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 "function_name": context.function_name,
                 "event_source": event.get("source", "eventbridge"),
                 "context_request_id": context.aws_request_id,
-                "event_detail_type": event.get("detail-type", "Scheduled Event"),
+                "event_detail_type": event.get(
+                    "detail-type", "Scheduled Event"
+                ),
             },
         )
 
         # Validate EventBridge event structure - allow manual testing
         source = event.get("source", "")
         if not source or len(source.strip()) == 0:
-            log_security_event("invalid_eventbridge_event", {"event_keys": list(event.keys())})
+            log_security_event(
+                "invalid_eventbridge_event", {"event_keys": list(event.keys())}
+            )
             return {"statusCode": 400, "body": "Invalid EventBridge event"}
 
         logger.info("Execution Finder Lambda invoked")
@@ -89,7 +93,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         def query_polling_executions_safe():
             return query_polling_executions()
 
-        polling_executions = safe_aws_client_call(query_polling_executions_safe)
+        polling_executions = safe_aws_client_call(
+            query_polling_executions_safe
+        )
 
         logger.info(
             f"Found {len(polling_executions)} executions in POLLING status"
@@ -192,13 +198,11 @@ def query_polling_executions() -> List[Dict[str, Any]]:
                 ExpressionAttributeNames={
                     "#status": "status"  # camelCase field name
                 },
-                ExpressionAttributeValues={
-                    ":status": {"S": "POLLING"}
-                },
+                ExpressionAttributeValues={":status": {"S": "POLLING"}},
             )
 
         response = safe_aws_client_call(query_polling)
-        
+
         logger.info(
             f"StatusIndex GSI query for POLLING returned {response['Count']} items"
         )
@@ -217,13 +221,11 @@ def query_polling_executions() -> List[Dict[str, Any]]:
                 ExpressionAttributeNames={
                     "#status": "status"  # camelCase field name
                 },
-                ExpressionAttributeValues={
-                    ":status": {"S": "CANCELLING"}
-                },
+                ExpressionAttributeValues={":status": {"S": "CANCELLING"}},
             )
 
         response = safe_aws_client_call(query_cancelling)
-        
+
         logger.info(
             f"StatusIndex GSI query for CANCELLING returned {response['Count']} items"
         )
@@ -391,7 +393,7 @@ def detect_execution_phase(waves: List[Dict[str, Any]]) -> str:
             # Check both serverStatuses (new format) and servers (legacy format)
             server_statuses = wave.get("serverStatuses", [])
             servers = wave.get("servers", [])
-            
+
             # Use serverStatuses if available, otherwise fall back to servers
             if server_statuses:
                 for server in server_statuses:
@@ -458,8 +460,10 @@ def invoke_pollers_for_executions(
             # Validate and sanitize execution data
             execution_id = sanitize_string_input(execution["executionId"])
             plan_id = sanitize_string_input(execution.get("planId", ""))
-            execution_type = sanitize_string_input(execution.get("executionType", "DRILL"))
-            
+            execution_type = sanitize_string_input(
+                execution.get("executionType", "DRILL")
+            )
+
             # Validate execution ID format
             validate_dynamodb_input("executionId", execution_id)
 

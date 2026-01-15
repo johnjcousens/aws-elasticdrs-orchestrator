@@ -182,12 +182,19 @@ ENDPOINT_PERMISSIONS = {
     # Protection Groups - All operations require permissions
     ("GET", "/protection-groups"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("POST", "/protection-groups"): [DRSPermission.CREATE_PROTECTION_GROUPS],
-    ("POST", "/protection-groups/resolve"): [DRSPermission.VIEW_PROTECTION_GROUPS],
+    ("POST", "/protection-groups/resolve"): [
+        DRSPermission.VIEW_PROTECTION_GROUPS
+    ],
     ("GET", "/protection-groups/{id}"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    ("PUT", "/protection-groups/{id}"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
-    ("DELETE", "/protection-groups/{id}"): [DRSPermission.DELETE_PROTECTION_GROUPS],
-    ("POST", "/protection-groups/{id}"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
-    
+    ("PUT", "/protection-groups/{id}"): [
+        DRSPermission.MODIFY_PROTECTION_GROUPS
+    ],
+    ("DELETE", "/protection-groups/{id}"): [
+        DRSPermission.DELETE_PROTECTION_GROUPS
+    ],
+    ("POST", "/protection-groups/{id}"): [
+        DRSPermission.MODIFY_PROTECTION_GROUPS
+    ],
     # Recovery Plans - All operations require permissions
     ("GET", "/recovery-plans"): [DRSPermission.VIEW_RECOVERY_PLANS],
     ("POST", "/recovery-plans"): [DRSPermission.CREATE_RECOVERY_PLANS],
@@ -195,22 +202,34 @@ ENDPOINT_PERMISSIONS = {
     ("PUT", "/recovery-plans/{id}"): [DRSPermission.MODIFY_RECOVERY_PLANS],
     ("DELETE", "/recovery-plans/{id}"): [DRSPermission.DELETE_RECOVERY_PLANS],
     ("POST", "/recovery-plans/{id}/execute"): [DRSPermission.START_RECOVERY],
-    ("GET", "/recovery-plans/{id}/check-existing-instances"): [DRSPermission.VIEW_RECOVERY_PLANS],
-    
+    ("GET", "/recovery-plans/{id}/check-existing-instances"): [
+        DRSPermission.VIEW_RECOVERY_PLANS
+    ],
     # Executions - All operations require permissions
     ("GET", "/executions"): [DRSPermission.VIEW_EXECUTIONS],
     ("POST", "/executions"): [DRSPermission.START_RECOVERY],
     ("DELETE", "/executions"): [DRSPermission.STOP_RECOVERY],
     ("POST", "/executions/delete"): [DRSPermission.STOP_RECOVERY],
     ("GET", "/executions/{executionId}"): [DRSPermission.VIEW_EXECUTIONS],
-    ("POST", "/executions/{executionId}/cancel"): [DRSPermission.STOP_RECOVERY],
+    ("POST", "/executions/{executionId}/cancel"): [
+        DRSPermission.STOP_RECOVERY
+    ],
     ("POST", "/executions/{executionId}/pause"): [DRSPermission.STOP_RECOVERY],
-    ("POST", "/executions/{executionId}/resume"): [DRSPermission.START_RECOVERY],
-    ("POST", "/executions/{executionId}/terminate-instances"): [DRSPermission.TERMINATE_INSTANCES],
-    ("GET", "/executions/{executionId}/job-logs"): [DRSPermission.VIEW_EXECUTIONS],
-    ("GET", "/executions/{executionId}/termination-status"): [DRSPermission.VIEW_EXECUTIONS],
-    ("GET", "/executions/{executionId}/recovery-instances"): [DRSPermission.VIEW_EXECUTIONS],
-    
+    ("POST", "/executions/{executionId}/resume"): [
+        DRSPermission.START_RECOVERY
+    ],
+    ("POST", "/executions/{executionId}/terminate-instances"): [
+        DRSPermission.TERMINATE_INSTANCES
+    ],
+    ("GET", "/executions/{executionId}/job-logs"): [
+        DRSPermission.VIEW_EXECUTIONS
+    ],
+    ("GET", "/executions/{executionId}/termination-status"): [
+        DRSPermission.VIEW_EXECUTIONS
+    ],
+    ("GET", "/executions/{executionId}/recovery-instances"): [
+        DRSPermission.VIEW_EXECUTIONS
+    ],
     # Account Management - All operations require permissions
     ("GET", "/accounts/targets"): [DRSPermission.VIEW_ACCOUNTS],
     ("POST", "/accounts/targets"): [DRSPermission.REGISTER_ACCOUNTS],
@@ -219,25 +238,23 @@ ENDPOINT_PERMISSIONS = {
     ("DELETE", "/accounts/targets/{id}"): [DRSPermission.DELETE_ACCOUNTS],
     ("POST", "/accounts/targets/{id}/validate"): [DRSPermission.VIEW_ACCOUNTS],
     ("GET", "/accounts/current"): [DRSPermission.VIEW_ACCOUNTS],
-    
     # Configuration Management - All operations require permissions
     ("GET", "/config/export"): [DRSPermission.EXPORT_CONFIGURATION],
     ("POST", "/config/import"): [DRSPermission.IMPORT_CONFIGURATION],
     ("PUT", "/config/tag-sync"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
     ("GET", "/config/tag-sync"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    
     # DRS Operations - All operations require permissions
     ("GET", "/drs/source-servers"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("POST", "/drs/tag-sync"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
     ("GET", "/drs/service-limits"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    
     # EC2 Operations - All operations require permissions
     ("GET", "/ec2/subnets"): [DRSPermission.VIEW_ACCOUNTS],
     ("GET", "/ec2/security-groups"): [DRSPermission.VIEW_ACCOUNTS],
     ("GET", "/ec2/instance-types"): [DRSPermission.VIEW_ACCOUNTS],
-    
     # User Management - All operations require permissions
-    ("GET", "/user/permissions"): [DRSPermission.VIEW_ACCOUNTS],  # Users can view their own permissions
+    ("GET", "/user/permissions"): [
+        DRSPermission.VIEW_ACCOUNTS
+    ],  # Users can view their own permissions
 }
 
 
@@ -446,7 +463,9 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
             # Keep as-is (could be a static segment we don't know about)
             normalized_segments.append(segment)
 
-    normalized_path = "/" + "/".join(normalized_segments) if normalized_segments else "/"
+    normalized_path = (
+        "/" + "/".join(normalized_segments) if normalized_segments else "/"
+    )
 
     # Try normalized path
     endpoint_key = (method, normalized_path)
@@ -509,9 +528,7 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
             return ENDPOINT_PERMISSIONS.get(
                 (method, "/recovery-plans/{id}/check-existing-instances"), []
             )
-        return ENDPOINT_PERMISSIONS.get(
-            (method, "/recovery-plans/{id}"), []
-        )
+        return ENDPOINT_PERMISSIONS.get((method, "/recovery-plans/{id}"), [])
 
     # Handle accounts/targets with ID
     if "/accounts/targets/" in path:
@@ -519,9 +536,7 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
             return ENDPOINT_PERMISSIONS.get(
                 (method, "/accounts/targets/{id}/validate"), []
             )
-        return ENDPOINT_PERMISSIONS.get(
-            (method, "/accounts/targets/{id}"), []
-        )
+        return ENDPOINT_PERMISSIONS.get((method, "/accounts/targets/{id}"), [])
 
     # No permissions found - return empty list
     return []
@@ -531,7 +546,7 @@ def check_authorization(event: Dict) -> Dict:
     """
     Check if the user is authorized to access the requested endpoint
     Returns authorization result with user info and permissions
-    
+
     TIGHT SECURITY: All endpoints require explicit permissions for proper access control.
     Zero-trust model - deny access if no permissions are defined for the endpoint.
     """
@@ -560,7 +575,9 @@ def check_authorization(event: Dict) -> Dict:
 
         # TIGHT SECURITY: All endpoints must have explicit permissions defined
         if not required_permissions:
-            print(f"❌ No permissions defined for {method} {path} - denying access")
+            print(
+                f"❌ No permissions defined for {method} {path} - denying access"
+            )
             return {
                 "authorized": False,
                 "user": user,

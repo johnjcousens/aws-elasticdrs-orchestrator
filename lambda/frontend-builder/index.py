@@ -31,9 +31,7 @@ def use_prebuilt_dist(frontend_dir):
     # Security validation for file paths
     validate_file_path(frontend_dir)
     frontend_dir = sanitize_string_input(frontend_dir)
-    log_security_event(
-        "using_prebuilt_dist", {"frontend_dir": frontend_dir}
-    )
+    log_security_event("using_prebuilt_dist", {"frontend_dir": frontend_dir})
 
     dist_dir = os.path.join(frontend_dir, "dist")
 
@@ -77,9 +75,7 @@ def inject_aws_config_into_dist(dist_dir, properties):
     # Create configuration object with sanitized values
     config_obj = {
         "region": region,
-        "userPoolId": sanitize_string_input(
-            properties.get("UserPoolId", "")
-        ),
+        "userPoolId": sanitize_string_input(properties.get("UserPoolId", "")),
         "userPoolClientId": sanitize_string_input(
             properties.get("UserPoolClientId", "")
         ),

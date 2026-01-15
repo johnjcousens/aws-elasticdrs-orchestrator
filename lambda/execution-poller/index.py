@@ -7,7 +7,6 @@ Handles timeouts and detects completion.
 Updated: 2026-01-09 - Fixed import paths for shared security utilities
 """
 
-import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -85,7 +84,7 @@ def lambda_handler(
         execution_type = sanitize_string_input(
             event.get("executionType", "DRILL")
         )
-        
+
         if not execution_id or not plan_id:
             log_security_event(
                 "invalid_input_detected",
@@ -96,7 +95,10 @@ def lambda_handler(
                 },
             )
             return create_response_with_security_headers(
-                400, {"error": "Missing required parameters: executionId and planId"}
+                400,
+                {
+                    "error": "Missing required parameters: executionId and planId"
+                },
             )
 
         start_time = event.get("startTime")
@@ -177,7 +179,11 @@ def lambda_handler(
                     waves_polled += 1
 
                     # Set endTime on wave if it just completed
-                    if updated_wave.get("status") in COMPLETED_STATUSES and not updated_wave.get("endTime"):
+                    if updated_wave.get(
+                        "status"
+                    ) in COMPLETED_STATUSES and not updated_wave.get(
+                        "endTime"
+                    ):
                         updated_wave["endTime"] = int(
                             datetime.now(timezone.utc).timestamp()
                         )
@@ -198,7 +204,9 @@ def lambda_handler(
                 updated_wave = poll_wave_status(wave, execution_type)
 
                 # Set EndTime on wave if it just completed
-                if updated_wave.get("status") in COMPLETED_STATUSES and not updated_wave.get("endTime"):
+                if updated_wave.get(
+                    "status"
+                ) in COMPLETED_STATUSES and not updated_wave.get("endTime"):
                     updated_wave["endTime"] = int(
                         datetime.now(timezone.utc).timestamp()
                     )
@@ -300,7 +308,8 @@ def get_execution_from_dynamodb(
         def get_item_call():
             return dynamodb.get_item(
                 TableName=EXECUTION_HISTORY_TABLE,
-                Key={"executionId": {"S": execution_id},
+                Key={
+                    "executionId": {"S": execution_id},
                     "planId": {"S": plan_id},
                 },
             )
@@ -426,7 +435,9 @@ def handle_timeout(
                 try:
                     wave_region = wave.get("region")
                     if not wave_region:
-                        logger.error(f"Wave {wave.get('waveName')} missing region field")
+                        logger.error(
+                            f"Wave {wave.get('waveName')} missing region field"
+                        )
                         continue
                     job_status = query_drs_job_status(job_id, wave_region)
                     wave["status"] = job_status.get("status", "TIMEOUT")
@@ -510,15 +521,19 @@ def poll_wave_status(
         if "ParticipatingServers" in job_status:
             wave_region = wave.get("region")
             if not wave_region:
-                logger.error(f"Wave {wave.get('waveName')} missing region field for server status update")
+                logger.error(
+                    f"Wave {wave.get('waveName')} missing region field for server status update"
+                )
                 return wave
             updated_server_statuses = []
 
             for drs_server in job_status["ParticipatingServers"]:
                 # Get server name from DRS source server data
                 source_server_id = drs_server.get("sourceServerID", "")
-                server_name = get_drs_server_name(source_server_id, wave_region)
-                
+                server_name = get_drs_server_name(
+                    source_server_id, wave_region
+                )
+
                 server_data = {
                     "sourceServerId": source_server_id,
                     "launchStatus": drs_server.get("launchStatus", "UNKNOWN"),
@@ -573,7 +588,8 @@ def poll_wave_status(
             if server_statuses:
                 # Check if ALL servers launched successfully
                 all_launched = all(
-                    s.get("launchStatus") == "LAUNCHED" for s in server_statuses
+                    s.get("launchStatus") == "LAUNCHED"
+                    for s in server_statuses
                 )
                 # Check if ANY servers failed to launch
                 any_failed = any(
@@ -624,7 +640,8 @@ def poll_wave_status(
             # RECOVERY complete when all servers LAUNCHED + post-launch complete
             if server_statuses:
                 all_launched = all(
-                    s.get("launchStatus") == "LAUNCHED" for s in server_statuses
+                    s.get("launchStatus") == "LAUNCHED"
+                    for s in server_statuses
                 )
                 any_failed = any(
                     s.get("launchStatus")
@@ -716,11 +733,11 @@ def query_drs_job_status(job_id: str, region: str) -> Dict[str, Any]:
 def get_drs_server_name(source_server_id: str, region: str) -> str:
     """
     Get DRS server name from source server details.
-    
+
     Args:
         source_server_id: DRS source server ID
         region: AWS region
-        
+
     Returns:
         Server name from Name tag or hostname
     """
@@ -729,28 +746,30 @@ def get_drs_server_name(source_server_id: str, region: str) -> str:
         response = drs_client.describe_source_servers(
             filters={"sourceServerIDs": [source_server_id]}
         )
-        
+
         if not response.get("items"):
             return ""
-            
+
         server = response["items"][0]
-        
+
         # Try Name tag first
         name_tag = server.get("tags", {}).get("Name", "")
         if name_tag:
             return name_tag
-            
+
         # Fallback to hostname from identification hints
         hostname = (
             server.get("sourceProperties", {})
             .get("identificationHints", {})
             .get("hostname", "")
         )
-        
+
         return hostname or ""
-        
+
     except Exception as e:
-        logger.warning(f"Could not get DRS server name for {source_server_id}: {str(e)}")
+        logger.warning(
+            f"Could not get DRS server name for {source_server_id}: {str(e)}"
+        )
         return ""
 
 
@@ -788,7 +807,9 @@ def get_ec2_instance_details(
 
         return {
             "hostname": hostname,
-            "privateIp": instance.get("PrivateIpAddress", ""),  # EC2 API returns PascalCase
+            "privateIp": instance.get(
+                "PrivateIpAddress", ""
+            ),  # EC2 API returns PascalCase
         }
 
     except Exception as e:
@@ -828,7 +849,8 @@ def update_execution_waves(
         def update_call():
             return dynamodb.update_item(
                 TableName=EXECUTION_HISTORY_TABLE,
-                Key={"executionId": {"S": execution_id.strip()},
+                Key={
+                    "executionId": {"S": execution_id.strip()},
                     "planId": {"S": plan_id.strip()},
                 },
                 UpdateExpression="SET waves = :waves",

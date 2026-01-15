@@ -50,13 +50,24 @@ def sanitize_string(input_str: str, max_length: int = 255) -> str:
 
     # PERFORMANCE: Skip sanitization for safe strings (alphanumeric + common safe chars)
     # But always check for control characters first
-    if len(input_str) < 1000 and input_str.replace('-', '').replace('_', '').replace('.', '').replace(':', '').isalnum():
+    if (
+        len(input_str) < 1000
+        and input_str.replace("-", "")
+        .replace("_", "")
+        .replace(".", "")
+        .replace(":", "")
+        .isalnum()
+    ):
         # Even for "safe" strings, remove control characters
         sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", input_str.strip())
         return sanitized
 
     # PERFORMANCE: Quick check for dangerous characters before regex
-    dangerous_chars = '<>"\';\\' + ''.join(chr(i) for i in range(0x00, 0x20)) + ''.join(chr(i) for i in range(0x7f, 0xa0))
+    dangerous_chars = (
+        "<>\"';\\"
+        + "".join(chr(i) for i in range(0x00, 0x20))
+        + "".join(chr(i) for i in range(0x7F, 0xA0))
+    )
     if not any(char in input_str for char in dangerous_chars):
         return input_str.strip()
 
@@ -222,11 +233,16 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
     # that's already been processed and stored in DynamoDB
     if isinstance(data, dict) and len(data) > 50:
         # Check if this looks like execution data (has execution-specific fields)
-        execution_indicators = ['executionId', 'waves', 'enrichedServers', 'stateMachineArn']
+        execution_indicators = [
+            "executionId",
+            "waves",
+            "enrichedServers",
+            "stateMachineArn",
+        ]
         if any(key in data for key in execution_indicators):
             # This is likely execution data from DynamoDB - minimal sanitization
             return data
-    
+
     sanitized = {}
 
     for key, value in data.items():
@@ -235,8 +251,19 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
             raise InputValidationError(f"Invalid key: {key}")
 
         # PERFORMANCE: Skip sanitization for safe keys
-        if key in ['executionId', 'planId', 'status', 'region', 'waves', 'enrichedServers', 
-                   'stateMachineArn', 'createdAt', 'updatedAt', 'startTime', 'endTime']:
+        if key in [
+            "executionId",
+            "planId",
+            "status",
+            "region",
+            "waves",
+            "enrichedServers",
+            "stateMachineArn",
+            "createdAt",
+            "updatedAt",
+            "startTime",
+            "endTime",
+        ]:
             sanitized[key] = value
             continue
 
@@ -246,7 +273,9 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(value, str):
             # PERFORMANCE: Limit string sanitization for large values
             if len(value) > 1000:
-                sanitized[sanitized_key] = value  # Skip sanitization for large strings
+                sanitized[sanitized_key] = (
+                    value  # Skip sanitization for large strings
+                )
             else:
                 sanitized[sanitized_key] = sanitize_string(value, 4096)
         elif isinstance(value, (int, float, bool)):

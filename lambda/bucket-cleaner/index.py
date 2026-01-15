@@ -70,15 +70,15 @@ def send_response(
         http = urllib3.PoolManager()
         logger.info(f"Sending response to CloudFormation: {response_status}")
         logger.info(f"Response body: {json_response_body}")
-        
+
         response = http.request(
             "PUT", response_url, body=json_response_body, headers=headers
         )
         logger.info(f"CloudFormation response status code: {response.status}")
-        
+
         if response.status != 200:
             logger.error(f"CloudFormation response error: {response.data}")
-            
+
     except Exception as e:
         logger.error(f"Failed to send response to CloudFormation: {e}")
         raise
@@ -128,7 +128,7 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Error processing bucket cleanup: {str(e)}")
         logger.error(f"Exception type: {type(e).__name__}")
-        
+
         # Always send a response, even on error
         try:
             send_response(
