@@ -957,9 +957,13 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             try:
                 wave_name = state.get("waves", [])[wave_number].get("waveName", f"Wave {wave_number + 1}")
                 plan_name = state.get("plan_name", "Unknown")
+                print(f"📧 Attempting to send wave completed notification for wave {wave_number + 1}")
                 send_wave_completed(execution_id, plan_name, wave_number + 1, wave_name, launched_count)
+                print(f"✅ Wave completed notification sent successfully")
             except Exception as e:
-                print(f"Warning: Failed to send wave completed notification: {e}")
+                print(f"❌ ERROR: Failed to send wave completed notification: {e}")
+                import traceback
+                traceback.print_exc()
 
             # Get EC2 instance IDs
             try:
@@ -1145,9 +1149,13 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 try:
                     plan_name = state.get("plan_name", "Unknown")
                     duration = state.get("duration_seconds", 0)
+                    print(f"📧 Attempting to send execution completed notification")
                     send_execution_completed(execution_id, plan_name, len(waves_list), duration)
+                    print(f"✅ Execution completed notification sent successfully")
                 except Exception as e:
-                    print(f"Warning: Failed to send execution completed notification: {e}")
+                    print(f"❌ ERROR: Failed to send execution completed notification: {e}")
+                    import traceback
+                    traceback.print_exc()
                 
                 get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": plan_id},
