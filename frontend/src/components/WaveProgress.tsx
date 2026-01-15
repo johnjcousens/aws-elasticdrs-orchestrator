@@ -292,7 +292,7 @@ const getConsoleLink = (instanceId: string, region: string): string => {
 };
 
 /**
- * Calculate overall progress
+ * Calculate overall progress including partial progress for active waves
  */
 const calculateProgress = (
   waves: WaveExecution[], 
@@ -302,13 +302,25 @@ const calculateProgress = (
     return { percentage: 0, completed: 0, total: totalWaves || 0 };
   }
   
-  const total = totalWaves || waves.length;
+  const total = totalWaves || 0;
+  if (total === 0) {
+    return { percentage: 0, completed: 0, total: 0 };
+  }
+  
+  // Count fully completed waves
   const completed = waves.filter(w => {
     const effectiveStatus = getEffectiveWaveStatus(w);
     return effectiveStatus === 'completed' || effectiveStatus === 'launched';
   }).length;
   
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+  // Count in-progress waves as 0.5 (50% of a wave)
+  const inProgress = waves.filter(w => {
+    const effectiveStatus = getEffectiveWaveStatus(w);
+    return effectiveStatus === 'in_progress' || effectiveStatus === 'started' || 
+           effectiveStatus === 'launching' || effectiveStatus === 'polling';
+  }).length;
+  
+  const percentage = Math.round(((completed + (inProgress * 0.5)) / total) * 100);
   
   return { percentage, completed, total };
 };
