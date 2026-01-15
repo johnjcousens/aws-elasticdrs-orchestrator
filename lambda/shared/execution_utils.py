@@ -69,7 +69,8 @@ def can_terminate_execution(execution: Dict) -> Dict[str, Any]:
         return result
 
     # Check for job IDs (indicates recovery instances exist)
-    waves = execution.get("waves", [])
+    # Check both Waves (PascalCase) and waves (camelCase) for compatibility
+    waves = execution.get("Waves") or execution.get("waves", [])
     has_job_id = any(
         wave.get("jobId") or wave.get("JobId") for wave in waves
     )

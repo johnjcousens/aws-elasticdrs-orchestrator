@@ -4959,7 +4959,8 @@ def list_executions(query_params: Dict) -> Dict:
             
             # Ensure currentWave is set (calculate from waves if missing)
             if "currentWave" not in execution or execution.get("currentWave") is None:
-                waves = execution.get("waves", [])
+                # Check both Waves (PascalCase from DynamoDB) and waves (camelCase)
+                waves = execution.get("Waves") or execution.get("waves", [])
                 completed_waves = sum(1 for w in waves if w.get("status") in ["completed", "COMPLETED"])
                 total_waves = execution.get("totalWaves", 1)
                 calculated_current = completed_waves + 1 if completed_waves < total_waves else total_waves
@@ -5685,6 +5686,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
 
 def get_execution_details_fast(execution_id: str) -> Dict:
     """Get execution details using cached data only - FAST response (<1 second)"""
+    print(f"DEBUG get_execution_details_fast called with execution_id: {execution_id}")
     try:
         # Handle both UUID and ARN formats for backwards compatibility
         if execution_id.startswith("arn:"):
@@ -5745,7 +5747,8 @@ def get_execution_details_fast(execution_id: str) -> Dict:
 
         # Ensure currentWave is set (calculate from waves if missing)
         if "currentWave" not in execution or execution.get("currentWave") is None:
-            waves = execution.get("waves", [])
+            # Check both Waves (PascalCase from DynamoDB) and waves (camelCase)
+            waves = execution.get("Waves") or execution.get("waves", [])
             completed_waves = sum(1 for w in waves if w.get("status") in ["completed", "COMPLETED"])
             total_waves = execution.get("totalWaves", 1)
             calculated_current = completed_waves + 1 if completed_waves < total_waves else total_waves
