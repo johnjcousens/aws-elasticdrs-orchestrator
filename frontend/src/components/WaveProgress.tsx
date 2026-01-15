@@ -292,7 +292,19 @@ const getConsoleLink = (instanceId: string, region: string): string => {
 };
 
 /**
- * Calculate overall progress including partial progress for active waves
+ * Calculate overall progress with granular server-level tracking
+ * 
+ * Progress calculation:
+ * - Completed waves: 1.0 each
+ * - In-progress waves: (launched servers / total servers in wave)
+ * - Pending waves: 0
+ * 
+ * Example with 3 waves, wave 1 has 4 servers:
+ * - 0 servers launched: 0/3 = 0%
+ * - 1 server launched: 0.25/3 = 8%
+ * - 2 servers launched: 0.5/3 = 17%
+ * - 3 servers launched: 0.75/3 = 25%
+ * - 4 servers launched (wave complete): 1/3 = 33%
  */
 const calculateProgress = (
   waves: WaveExecution[], 
@@ -307,20 +319,39 @@ const calculateProgress = (
     return { percentage: 0, completed: 0, total: 0 };
   }
   
-  // Count fully completed waves
+  let totalProgress = 0;
+  
+  waves.forEach(w => {
+    const effectiveStatus = getEffectiveWaveStatus(w);
+    
+    if (effectiveStatus === 'completed' || effectiveStatus === 'launched') {
+      // Fully completed wave = 1.0
+      totalProgress += 1.0;
+    } else if (effectiveStatus === 'in_progress' || effectiveStatus === 'started' || 
+               effectiveStatus === 'launching' || effectiveStatus === 'polling') {
+      // In-progress wave: calculate based on launched servers
+      const servers = w.serverExecutions || [];
+      if (servers.length > 0) {
+        const launchedServers = servers.filter(s => {
+          const status = (s.launchStatus || s.status || '').toUpperCase();
+          return status === 'LAUNCHED';
+        }).length;
+        totalProgress += (launchedServers / servers.length);
+      } else {
+        // No servers yet, count as 0.5 (started but no progress)
+        totalProgress += 0.5;
+      }
+    }
+    // Pending waves contribute 0
+  });
+  
+  // Count fully completed waves for display
   const completed = waves.filter(w => {
     const effectiveStatus = getEffectiveWaveStatus(w);
     return effectiveStatus === 'completed' || effectiveStatus === 'launched';
   }).length;
   
-  // Count in-progress waves as 0.5 (50% of a wave)
-  const inProgress = waves.filter(w => {
-    const effectiveStatus = getEffectiveWaveStatus(w);
-    return effectiveStatus === 'in_progress' || effectiveStatus === 'started' || 
-           effectiveStatus === 'launching' || effectiveStatus === 'polling';
-  }).length;
-  
-  const percentage = Math.round(((completed + (inProgress * 0.5)) / total) * 100);
+  const percentage = Math.round((totalProgress / total) * 100);
   
   return { percentage, completed, total };
 };
