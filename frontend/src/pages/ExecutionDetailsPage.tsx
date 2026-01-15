@@ -121,6 +121,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     if (!execution) return;
 
     const isActive = 
+      resumeInProgress || // Poll while resume is in progress
       execution.status === 'in_progress' || 
       execution.status === 'pending' ||
       execution.status === 'paused' ||
@@ -144,7 +145,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
-  }, [execution, executionId]); // Depend on execution to start polling when it loads
+  }, [execution, executionId, resumeInProgress]); // Add resumeInProgress to dependencies
 
   // Timer to update duration display every second for active executions
   const [, setDurationTick] = useState(0);
@@ -276,11 +277,10 @@ export const ExecutionDetailsPage: React.FC = () => {
     try {
       await apiClient.resumeExecution(executionId);
       await fetchExecution();
-      // Keep resumeInProgress true - status polling will update when execution resumes
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to resume execution';
       setResumeError(errorMessage);
-      setResumeInProgress(false); // Only reset on error so button can be retried
+      setResumeInProgress(false);
     } finally {
       setResuming(false);
     }
