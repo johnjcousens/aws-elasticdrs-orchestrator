@@ -483,6 +483,24 @@ export const RecoveryPlansPage: React.FC = () => {
       header: 'Status',
       minWidth: 120,
       cell: (item: RecoveryPlan) => {
+        // Show active execution status if plan has one in progress
+        const hasActiveExecution = plansWithInProgressExecution.has(item.planId);
+        if (hasActiveExecution) {
+          const progress = executionProgress.get(item.planId);
+          if (progress) {
+            return (
+              <SpaceBetween direction="horizontal" size="xs">
+                <StatusBadge status="in_progress" />
+                <span style={{ color: '#5f6b7a', fontSize: '12px' }}>
+                  Wave {progress.currentWave} of {progress.totalWaves}
+                </span>
+              </SpaceBetween>
+            );
+          }
+          return <StatusBadge status="in_progress" />;
+        }
+        
+        // Show last execution status if no active execution
         if (!item.lastExecutionStatus) {
           return <Badge>Not Run</Badge>;
         }
