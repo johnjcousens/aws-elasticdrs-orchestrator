@@ -9,6 +9,8 @@ NOTE: Security validation is handled at the API layer (Cognito + API Gateway).
 This Lambda receives trusted data from Step Functions internal flow.
 Do NOT add sanitization here - it breaks the archive pattern where state
 must be modified in place.
+
+SNS Notifications: Integrated for execution lifecycle events
 """
 
 import json
