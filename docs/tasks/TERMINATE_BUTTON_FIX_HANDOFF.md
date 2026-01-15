@@ -1,4 +1,4 @@
-# Terminate Button Fix - Morning Handoff
+when paused# Terminate Button Fix - Morning Handoff
 
 ## Status: Ready to Implement
 

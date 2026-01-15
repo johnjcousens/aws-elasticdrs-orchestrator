@@ -3538,9 +3538,9 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                         # Search execution history for this recovery instance
                         # Structure: Waves[].ServerStatuses[] with SourceServerId, RecoveryInstanceID
                         try:
-                            # Scan recent executions that have Waves data
+                            # Scan recent executions that have waves data
                             exec_scan = execution_history_table.scan(
-                                FilterExpression="attribute_exists(Waves)",
+                                FilterExpression="attribute_exists(waves)",
                                 Limit=100,  # Check last 100 executions
                             )
 

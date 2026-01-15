@@ -560,7 +560,7 @@ def poll_wave_status(
                 if recovery_instance_id:
                     server_data["instanceId"] = recovery_instance_id
 
-                    # Enrich with EC2 data
+                    # Enrich with EC2 data (including instance type)
                     try:
                         ec2_data = get_ec2_instance_details(
                             recovery_instance_id, wave_region
@@ -571,6 +571,9 @@ def poll_wave_status(
                             )
                             server_data["privateIp"] = ec2_data.get(
                                 "privateIp", ""
+                            )
+                            server_data["instanceType"] = ec2_data.get(
+                                "instanceType", ""
                             )
                     except Exception as e:
                         logger.warning(
@@ -784,7 +787,7 @@ def get_ec2_instance_details(
         region: AWS region
 
     Returns:
-        Dict with HostName and PrivateIpAddress or None
+        Dict with hostname, privateIp, and instanceType or None
     """
     try:
         ec2 = boto3.client("ec2", region_name=region)
@@ -810,6 +813,9 @@ def get_ec2_instance_details(
             "privateIp": instance.get(
                 "PrivateIpAddress", ""
             ),  # EC2 API returns PascalCase
+            "instanceType": instance.get(
+                "InstanceType", ""
+            ),  # Add instance type
         }
 
     except Exception as e:
