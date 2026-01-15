@@ -6193,11 +6193,14 @@ def get_recovery_instances(execution_id: str) -> Dict:
         - instances: List of recovery instance details
         - totalInstances: Total count of instances found
     """
+    print(f"=== get_recovery_instances called with execution_id: {execution_id} ===")
     try:
+        print(f"Querying execution history table for execution: {execution_id}")
         # Get execution details
         result = execution_history_table.query(
             KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
+        print(f"Query result: {result.get('Items', [])}")
 
         if not result.get("Items"):
             return response(
