@@ -1,25 +1,94 @@
-# S3 Deployment Repository Automation
+# Deployment Workflow Guide
 
-This document covers the S3 sync and deployment workflow for the AWS DRS Orchestration solution.
+This document covers the deployment workflow for the AWS DRS Orchestration solution.
 
 ## Overview
 
-The deployment repository is maintained at `s3://aws-drs-orchestration` with automated sync, versioning, and git commit tracking. The sync script supports both S3 synchronization and direct AWS deployments.
+**Primary Deployment Method**: GitHub Actions CI/CD pipeline with intelligent optimization.
 
-## Quick Start
+The deployment repository is maintained at `s3://aws-elasticdrs-orchestrator` with automated sync, versioning, and git commit tracking via GitHub Actions.
+
+## Quick Start (Recommended)
 
 ```bash
-# Basic sync to S3 (no deployment)
-./scripts/sync-to-deployment-bucket.sh
+# 1. Make your changes locally
+vim lambda/index.py
 
-# Fast Lambda code update (~5 seconds)
+# 2. Check deployment scope (optional but recommended)
+./scripts/check-deployment-scope.sh
+
+# 3. Commit and push (triggers GitHub Actions)
+git add .
+git commit -m "feat: add new feature"
+./scripts/safe-push.sh  # Checks for running workflows before pushing
+```
+
+## Emergency Manual Deployment (Restricted Use)
+
+Manual sync script is available for emergencies only:
+
+```bash
+# Fast Lambda code update (~5 seconds) - EMERGENCY ONLY
 ./scripts/sync-to-deployment-bucket.sh --update-lambda-code
 
-# Build and deploy frontend
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+# IMMEDIATELY follow up with proper Git commit
+git add .
+git commit -m "emergency: describe the critical fix"
+git push
+```
 
-# Full deployment via CloudFormation (5-10 minutes)
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+## GitHub Actions CI/CD Pipeline (Primary Method)
+
+### Pipeline Stages
+
+The GitHub Actions workflow provides intelligent deployment optimization:
+
+1. **Detect Changes** (~10s) - Analyzes changed files to determine deployment scope
+2. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking (skip for docs-only)
+3. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check (skip for docs-only)
+4. **Build** (~3 min) - Lambda packaging, frontend build (skip for docs-only)
+5. **Test** (~2 min) - Unit tests (skip for docs-only)
+6. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment (only if infrastructure/Lambda changed)
+7. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation (only if frontend changed or infrastructure deployed)
+
+### Pipeline Optimization
+
+- **Documentation-only changes**: ~30 seconds (95% time savings)
+- **Frontend-only changes**: ~12 minutes (45% time savings)
+- **Full deployment**: ~22 minutes (complete pipeline)
+
+### Workflow Configuration
+
+- **Repository**: `johnjcousens/aws-elasticdrs-orchestrator`
+- **Workflow File**: `.github/workflows/deploy.yml`
+- **Target Environment**: `test` (default)
+- **AWS Account**: `***REMOVED***`
+- **Deployment Bucket**: `s3://aws-elasticdrs-orchestrator`
+- **OIDC Role**: `aws-elasticdrs-orchestrator-github-actions-test`
+
+### Safe Push Workflow
+
+**MANDATORY**: Always check for running workflows before pushing to prevent conflicts.
+
+```bash
+# Option 1: Check deployment scope first (recommended)
+./scripts/check-deployment-scope.sh
+
+# Option 2: Use safe-push script (checks workflows automatically)
+./scripts/safe-push.sh
+
+# Option 3: Manual workflow check before push
+./scripts/check-workflow.sh && git push
+```
+
+### Prerequisites for Safe Push Scripts
+
+```bash
+# One-time setup: Install GitHub CLI
+brew install gh
+
+# Authenticate with GitHub
+gh auth login
 ```
 
 ## Features
@@ -30,178 +99,190 @@ The deployment repository is maintained at `s3://aws-drs-orchestration` with aut
 - Complete version history available
 
 ### Git Commit Tagging
-- All S3 objects tagged with source git commit hash
+- All S3 objects tagged with source git commit hash via GitHub Actions
 - Sync timestamp included in metadata
 - Query S3 by commit for audit trail
 
-### Multiple Deployment Options
-- **Basic Sync**: Upload files to S3 only
-- **Fast Lambda Update**: Direct Lambda code update (~5 seconds)
-- **Stack Deployment**: Individual stack updates via CloudFormation
-- **Full Deployment**: All stacks via parent CloudFormation (5-10 minutes)
+### Deployment Options via GitHub Actions
+- **Automatic Detection**: Pipeline detects what changed and deploys only what's needed
+- **Documentation Changes**: Skip build/test/deploy stages entirely
+- **Frontend Changes**: Build and deploy frontend only
+- **Infrastructure Changes**: Full CloudFormation deployment
+- **Lambda Changes**: Package and deploy Lambda functions
 
-## Command Reference
+## Standard Development Workflow
 
-### Basic Usage
-
-```bash
-./scripts/sync-to-deployment-bucket.sh [OPTIONS]
-```
-
-### Options
-
-| Option | Description |
-|--------|-------------|
-| `--profile PROFILE` | AWS credentials profile (uses script default if not specified) |
-| `--build-frontend` | Build frontend before syncing |
-| `--dry-run` | Preview changes without executing |
-| `--clean-orphans` | Remove orphaned directories from S3 |
-| `--list-profiles` | List available AWS profiles and exit |
-| `--help` | Show help message |
-
-### Deployment Options
-
-| Option | Description | Duration |
-|--------|-------------|----------|
-| `--update-lambda-code` | Update Lambda code directly (bypass CloudFormation) | ~5 seconds |
-| `--deploy-lambda` | Deploy Lambda stack via CloudFormation | ~30 seconds |
-| `--deploy-frontend` | Deploy Frontend stack via CloudFormation | ~2 minutes |
-| `--deploy-cfn` | Deploy ALL stacks via parent CloudFormation | 5-10 minutes |
-
-## Common Workflows
-
-### 1. Lambda Code Changes (Fastest)
-
-When you only change Lambda Python code:
+### 1. Lambda Code Changes
 
 ```bash
 # Edit Lambda code
-vim lambda/index.py
+vim lambda/api-handler/index.py
 
-# Sync to S3 and update Lambda directly
-./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+# Commit and push (triggers GitHub Actions)
+git add lambda/
+git commit -m "feat: add new API endpoint"
+./scripts/safe-push.sh
+
+# Monitor pipeline in GitHub Actions tab
+# Pipeline will automatically deploy Lambda changes
 ```
 
 ### 2. Frontend Changes
-
-When you change React/TypeScript code:
 
 ```bash
 # Edit frontend code
 vim frontend/src/components/MyComponent.tsx
 
-# Build and deploy frontend
-./scripts/sync-to-deployment-bucket.sh --build-frontend --deploy-frontend
+# Commit and push
+git add frontend/
+git commit -m "feat: add new component"
+./scripts/safe-push.sh
+
+# Pipeline will build and deploy frontend automatically
 ```
 
 ### 3. CloudFormation Changes
-
-When you change infrastructure templates:
 
 ```bash
 # Edit CloudFormation template
 vim cfn/lambda-stack.yaml
 
-# Deploy all stacks
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+# Commit and push
+git add cfn/
+git commit -m "feat: add new Lambda function"
+./scripts/safe-push.sh
+
+# Pipeline will deploy all infrastructure changes
 ```
 
-### 4. Preview Changes (Dry Run)
+### 4. Documentation Changes
 
 ```bash
-# See what would be synced without making changes
-./scripts/sync-to-deployment-bucket.sh --dry-run
+# Edit documentation
+vim docs/guides/DEPLOYMENT.md
 
-# Preview with cleanup
-./scripts/sync-to-deployment-bucket.sh --dry-run --clean-orphans
+# Commit and push
+git add docs/
+git commit -m "docs: update deployment guide"
+./scripts/safe-push.sh
+
+# Pipeline completes in ~30 seconds (skips build/test/deploy)
 ```
 
-### 5. Using Different AWS Profile
+## Emergency Manual Deployment (Restricted)
+
+### When Manual Sync is Allowed
+
+- **GitHub Actions service outage** (confirmed AWS/GitHub issue)
+- **Critical production hotfix** when pipeline is broken
+- **Pipeline debugging** (with immediate revert to Git-based deployment)
+
+### Emergency Procedure
 
 ```bash
-# List available profiles
-./scripts/sync-to-deployment-bucket.sh --list-profiles
+# ONLY in genuine emergencies
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
 
-# Use specific profile
-./scripts/sync-to-deployment-bucket.sh --profile MyProfile --update-lambda-code
+# IMMEDIATELY follow up with proper Git commit
+git add .
+git commit -m "emergency: describe the critical fix"
+git push
 ```
+
+### Why Manual Sync is Restricted
+
+- ❌ No audit trail (changes not tracked in Git)
+- ❌ No quality gates (skip validation, testing, security scans)
+- ❌ Inconsistent deployments (different process than production)
+- ❌ Team blindness (other developers unaware of changes)
+- ❌ Rollback impossible (no Git history to revert to)
+- ❌ Compliance violation (breaks enterprise deployment standards)
 
 ## S3 Repository Structure
 
 ```text
-s3://aws-drs-orchestration/
-├── cfn/                          # CloudFormation templates
-│   ├── master-template.yaml
+s3://aws-elasticdrs-orchestrator/
+├── cfn/                          # CloudFormation templates (18 templates)
+│   ├── master-template.yaml      # Root orchestrator
 │   ├── database-stack.yaml
 │   ├── lambda-stack.yaml
-│   ├── api-stack.yaml
+│   ├── api-gateway-resources-stack.yaml
+│   ├── api-gateway-core-methods-stack.yaml
+│   ├── api-gateway-operations-methods-stack.yaml
+│   ├── api-gateway-infrastructure-methods-stack.yaml
+│   ├── api-gateway-deployment-stack.yaml
 │   ├── security-stack.yaml
 │   ├── step-functions-stack.yaml
-│   └── frontend-stack.yaml
-├── lambda/                       # Lambda source code (synced as files)
-│   ├── index.py                  # Main API handler
-│   ├── drs_orchestrator.py       # Legacy orchestrator
-│   ├── orchestration_stepfunctions.py
-│   ├── build_and_deploy.py
-│   ├── poller/                   # Poller functions
-│   │   ├── execution_finder.py
-│   │   └── execution_poller.py
-│   └── deployment-package.zip    # Created by --deploy-cfn or --deploy-lambda
-├── frontend/                     # Frontend application
-│   ├── dist/                     # Built frontend (if --build-frontend used)
-│   ├── src/                      # Source code
-│   ├── package.json
-│   ├── package-lock.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
-├── scripts/                      # Automation scripts
-├── docs/                         # Documentation
-├── README.md
-├── .gitignore
-└── Makefile
+│   ├── frontend-stack.yaml
+│   ├── sns-stack.yaml
+│   └── github-oidc-stack.yaml
+├── lambda/                       # Lambda deployment packages
+│   ├── api-handler.zip
+│   ├── orchestration-stepfunctions.zip
+│   ├── execution-finder.zip
+│   ├── execution-poller.zip
+│   ├── frontend-build.zip
+│   ├── bucket-cleaner.zip
+│   └── notification-formatter.zip
+├── frontend/                     # Frontend build artifacts
+│   └── dist/                     # Built React application
+└── docs/                         # Documentation
 ```
 
-> **Note**: The `deployment-package.zip` is only created when using `--deploy-cfn` or `--deploy-lambda` options. Basic sync uploads Lambda source files directly without packaging.
+## Monitoring Deployments
 
-## Makefile Targets
+### GitHub Actions Dashboard
+
+1. Navigate to repository: `https://github.com/johnjcousens/aws-elasticdrs-orchestrator`
+2. Click "Actions" tab
+3. View running/completed workflows
+4. Click workflow run for detailed logs
+
+### CloudFormation Console
 
 ```bash
-# Manual sync
-make sync-s3
+# View stack status
+AWS_PAGER="" aws cloudformation describe-stacks \
+  --stack-name aws-elasticdrs-orchestrator-test \
+  --region us-east-1 \
+  --query 'Stacks[0].StackStatus'
 
-# Build frontend and sync
-make sync-s3-build
-
-# Preview changes (dry-run)
-make sync-s3-dry-run
+# View recent stack events
+AWS_PAGER="" aws cloudformation describe-stack-events \
+  --stack-name aws-elasticdrs-orchestrator-test \
+  --region us-east-1 \
+  --max-items 10
 ```
 
 ## Query S3 by Git Commit
 
 ```bash
-# View object metadata (includes git commit)
+# View object metadata (includes git commit from GitHub Actions)
 AWS_PAGER="" aws s3api head-object \
-  --bucket aws-drs-orchestration \
+  --bucket aws-elasticdrs-orchestrator \
   --key cfn/master-template.yaml \
   --query "Metadata"
 
 # List all versions of a file
 AWS_PAGER="" aws s3api list-object-versions \
-  --bucket aws-drs-orchestration \
+  --bucket aws-elasticdrs-orchestrator \
   --prefix cfn/master-template.yaml
 ```
 
 ## Recovery Procedures
 
-### Option 1: Git Checkout + Re-sync (Recommended)
+### Option 1: Git Revert + Push (Recommended)
 
 ```bash
-# Restore to previous commit
-git checkout abc1234
-./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+# Revert to previous commit
+git revert HEAD
+git push
 
-# Return to main
-git checkout main
+# Or checkout previous commit and push
+git checkout abc1234
+git push origin main --force  # Use with caution
+
+# GitHub Actions will automatically deploy the reverted code
 ```
 
 ### Option 2: S3 Version Restore
@@ -209,14 +290,16 @@ git checkout main
 ```bash
 # List all versions of a file
 AWS_PAGER="" aws s3api list-object-versions \
-  --bucket aws-drs-orchestration \
+  --bucket aws-elasticdrs-orchestrator \
   --prefix cfn/master-template.yaml
 
 # Restore specific version
 aws s3api copy-object \
-  --copy-source "aws-drs-orchestration/cfn/master-template.yaml?versionId=VERSION_ID" \
-  --bucket aws-drs-orchestration \
+  --copy-source "aws-elasticdrs-orchestrator/cfn/master-template.yaml?versionId=VERSION_ID" \
+  --bucket aws-elasticdrs-orchestrator \
   --key cfn/master-template.yaml
+
+# Then trigger CloudFormation update manually
 ```
 
 ### Option 3: Lambda Rollback
@@ -224,32 +307,46 @@ aws s3api copy-object \
 ```bash
 # List Lambda package versions in S3
 AWS_PAGER="" aws s3api list-object-versions \
-  --bucket aws-drs-orchestration \
-  --prefix lambda/deployment-package.zip
+  --bucket aws-elasticdrs-orchestrator \
+  --prefix lambda/api-handler.zip
 
 # Update Lambda with previous version from S3
 aws lambda update-function-code \
-  --function-name aws-drs-orchestrator-api-handler-dev \
-  --s3-bucket aws-drs-orchestration \
-  --s3-key lambda/deployment-package.zip \
-  --s3-object-version <previous-version-id>
+  --function-name aws-elasticdrs-orchestrator-api-handler-test \
+  --s3-bucket aws-elasticdrs-orchestrator \
+  --s3-key lambda/api-handler.zip \
+  --s3-object-version <previous-version-id> \
+  --region us-east-1
 ```
 
-> **Note**: This only works if you previously deployed using `--deploy-cfn` or `--deploy-lambda`, which creates the `deployment-package.zip` in S3.
+## Workflow Conflict Prevention
 
-## Cleanup Orphaned Files
+### MANDATORY: Check for Running Workflows
 
-The script can detect and remove files in S3 that are no longer in the approved directory list:
+**NEVER push while a GitHub Actions workflow is running** - this causes deployment conflicts and failures.
+
+### Safe Push Scripts
 
 ```bash
-# Preview orphaned files
-./scripts/sync-to-deployment-bucket.sh --dry-run --clean-orphans
+# Option 1: Check deployment scope first (recommended)
+./scripts/check-deployment-scope.sh
 
-# Remove orphaned files (with confirmation prompt)
-./scripts/sync-to-deployment-bucket.sh --clean-orphans
+# Option 2: Safe push with automatic workflow check
+./scripts/safe-push.sh
+
+# Option 3: Manual workflow check
+./scripts/check-workflow.sh && git push
+
+# Emergency force push (skip workflow check)
+./scripts/safe-push.sh --force
 ```
 
-**Approved directories**: `cfn`, `docs`, `frontend`, `lambda`, `scripts`
+### Workflow Status Indicators
+
+- ✅ **Safe to push**: No workflows running
+- ⏳ **Wait required**: Deployment in progress (wait for completion)
+- ❌ **Conflict risk**: Multiple workflows would overlap
+- 🚨 **Emergency only**: Use `--force` flag only for critical hotfixes
 
 ## Environment Requirements
 
