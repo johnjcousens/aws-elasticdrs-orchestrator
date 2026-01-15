@@ -240,7 +240,7 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 
 ## CI/CD Pipeline
 
-The project uses **GitHub Actions** for automated deployment with comprehensive security scanning and OIDC-based AWS authentication.
+The project uses **GitHub Actions** for automated deployment with comprehensive security scanning, OIDC-based AWS authentication, and automatic concurrency control.
 
 ### Pipeline Stages
 
@@ -257,6 +257,12 @@ The project uses **GitHub Actions** for automated deployment with comprehensive 
 - **Documentation-only**: ~30 seconds (95% time savings)
 - **Frontend-only**: ~12 minutes (45% time savings)
 - **Full deployment**: ~22 minutes (complete pipeline)
+
+### Concurrency Control
+The pipeline includes automatic concurrency control to prevent overlapping deployments:
+- **Queued execution**: New pushes wait for running workflows to complete
+- **Sequential deployment**: Ensures deployments happen in order
+- **No manual checking needed**: Built into the workflow automatically
 
 ### Safe Push Workflow
 

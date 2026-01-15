@@ -119,10 +119,10 @@ The project uses **GitHub Actions** for automated deployment with OIDC-based AWS
 
 #### Option 1: GitHub Actions CI/CD (MANDATORY for Production)
 
-⚠️ **CRITICAL**: Always check for running workflows before pushing to prevent deployment conflicts.
+⚠️ **AUTOMATIC CONCURRENCY CONTROL**: The workflow now includes built-in concurrency control that automatically queues new pushes if a deployment is running. However, checking workflow status before pushing is still recommended for visibility.
 
 ```bash
-# MANDATORY: Check for running workflows before pushing
+# RECOMMENDED: Check workflow status before pushing
 ./scripts/check-workflow.sh && git push origin main
 
 # OR use the safe push script (RECOMMENDED)
@@ -131,6 +131,12 @@ The project uses **GitHub Actions** for automated deployment with OIDC-based AWS
 # Monitor deployment at:
 # https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
 ```
+
+**Concurrency Control Features**:
+- **Automatic queuing**: New workflows wait for running workflows to complete
+- **Sequential execution**: Deployments happen in order, never overlapping
+- **No conflicts**: Prevents deployment race conditions automatically
+- **Built-in safety**: No manual checking required (but still recommended for visibility)
 
 **Prerequisites (One-time Setup)**:
 ```bash
@@ -141,11 +147,11 @@ brew install gh
 gh auth login
 ```
 
-**Workflow Conflict Prevention Rules**:
-1. **ALWAYS check for running workflows** before pushing
-2. **NEVER push while a deployment is in progress** - causes conflicts and failures
-3. **WAIT for completion** if a workflow is running (max 30 minutes)
-4. **Use safe-push.sh script** instead of manual `git push`
+**Workflow Behavior**:
+1. **First push** triggers workflow → starts running
+2. **Second push** triggers workflow → **automatically queued** (waits for first)
+3. **Third push** triggers workflow → **automatically queued** (waits for second)
+4. Workflows run sequentially, never overlapping
 
 #### Option 2: Emergency Manual Deployment (RESTRICTED)
 
@@ -219,21 +225,21 @@ s3://aws-elasticdrs-orchestrator/
 
 ## Stack Configuration
 
-### Current Working Stack (PRIMARY)
+### Current Working Stack (Example)
 
-- **Stack Name**: `aws-elasticdrs-orchestrator-dev`
+- **Stack Name**: `aws-elasticdrs-orchestrator-{environment}`
 - **Project Name**: `aws-elasticdrs-orchestrator`
-- **Environment**: `dev`
-- **Lambda Functions**: `aws-elasticdrs-orchestrator-*-dev` naming pattern
-- **API Gateway URL**: `https://***REMOVED***.execute-api.us-east-1.amazonaws.com/dev`
-- **Frontend URL**: `https://d2d8elt2tpmz1z.cloudfront.net`
-- **Cognito User Pool ID**: `***REMOVED***`
-- **Cognito Client ID**: `***REMOVED***`
+- **Environment**: `test`, `dev`, or `prod`
+- **Lambda Functions**: `aws-elasticdrs-orchestrator-*-{environment}` naming pattern
+- **API Gateway URL**: `https://{api-id}.execute-api.{region}.amazonaws.com/{environment}`
+- **Frontend URL**: `https://{distribution-id}.cloudfront.net`
+- **Cognito User Pool ID**: `{region}_{pool-id}`
+- **Cognito Client ID**: `{client-id}`
 
-### Authentication (Test User)
-- **Username**: `***REMOVED***`
-- **Password**: `***REMOVED***`
-- **Role**: Admin (full access)
+### Authentication Setup
+- Create test users via Cognito console or AWS CLI
+- Assign users to appropriate Cognito groups for RBAC
+- Default groups: `DRSOrchestrationAdmin`, `DRSRecoveryManager`, `DRSPlanManager`, `DRSOperator`, `DRSReadOnly`
 
 ### S3 Deployment Bucket Structure
 

@@ -24,19 +24,21 @@
 - ✅ **Enterprise Compliance**: Meets deployment standards and governance
 - ✅ **Rollback Capability**: Git-based rollback and deployment history
 - ✅ **OIDC Security**: Secure AWS access without storing credentials
+- ✅ **Automatic Concurrency Control**: Prevents overlapping deployments automatically
 
 ### Current Infrastructure
 
 | Component | Value | Purpose |
 |-----------|-------|---------|
-| **Workflow** | `.github/workflows/deploy.yml` | Main CI/CD orchestration |
-| **Repository** | `johnjcousens/aws-elasticdrs-orchestrator` | GitHub source repository |
+| **Workflow** | `.github/workflows/deploy.yml` | Main CI/CD orchestration with concurrency control |
+| **Repository** | `{github-org}/{repository-name}` | GitHub source repository |
 | **Authentication** | OIDC (OpenID Connect) | Secure AWS access |
 | **OIDC Stack** | `cfn/github-oidc-stack.yaml` | IAM role for GitHub Actions |
-| **Account** | ***REMOVED*** | AWS account for all resources |
-| **Deployment Bucket** | `aws-elasticdrs-orchestrator` | Artifact storage |
-| **Current Stack** | `aws-elasticdrs-orchestrator-dev` | Active CloudFormation stack |
-| **Project Name** | `aws-elasticdrs-orchestrator` | Standardized project naming |
+| **Account** | `{account-id}` | AWS account for all resources |
+| **Deployment Bucket** | `{deployment-bucket}` | Artifact storage |
+| **Current Stack** | `{project-name}-{environment}` | Active CloudFormation stack |
+| **Project Name** | `{project-name}` | Standardized project naming |
+| **Concurrency Group** | `deploy-{branch-ref}` | Prevents overlapping workflows |
 
 ---
 
@@ -52,7 +54,7 @@ git add .
 git commit -m "feat: your changes"
 git push origin main  # Triggers GitHub Actions deployment
 
-# Monitor at: https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
+# Monitor at: https://github.com/{github-org}/{repository-name}/actions
 ```
 
 ### For New Setup (First Time)
@@ -88,9 +90,9 @@ Go to GitHub repository → Settings → Secrets and variables → Actions → N
 
 | Secret Name | Value | Description |
 |-------------|-------|-------------|
-| `AWS_ROLE_ARN` | `arn:aws:iam::ACCOUNT_ID:role/PROJECT-github-actions-ENV` | IAM role ARN from Step 1 |
-| `DEPLOYMENT_BUCKET` | `your-deployment-bucket` | S3 bucket for artifacts |
-| `STACK_NAME` | `aws-elasticdrs-orchestrator-dev` | CloudFormation stack name |
+| `AWS_ROLE_ARN` | `arn:aws:iam::{account-id}:role/{project-name}-github-actions-{environment}` | IAM role ARN from Step 1 |
+| `DEPLOYMENT_BUCKET` | `{deployment-bucket}` | S3 bucket for artifacts |
+| `STACK_NAME` | `{project-name}-{environment}` | CloudFormation stack name |
 | `ADMIN_EMAIL` | `admin@example.com` | Admin email for Cognito |
 
 #### Step 3: Initial Application Deployment
@@ -143,14 +145,20 @@ git push origin main
 - **Frontend-only**: ~12 minutes (45% time savings)  
 - **Full deployment**: ~22 minutes (complete pipeline)
 
+**Concurrency Control** (Automatic):
+- **Queued execution**: New workflows automatically wait for running workflows
+- **Sequential deployment**: Ensures deployments happen in order
+- **No conflicts**: Prevents deployment race conditions automatically
+- **Built-in safety**: Configured at workflow level, no manual intervention needed
+
 **Lambda Functions Covered (7 total)**:
-- `aws-elasticdrs-orchestrator-api-handler-dev`
-- `aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev`
-- `aws-elasticdrs-orchestrator-execution-finder-dev`
-- `aws-elasticdrs-orchestrator-execution-poller-dev`
-- `aws-elasticdrs-orchestrator-frontend-builder-dev`
-- `aws-elasticdrs-orchestrator-bucket-cleaner-dev`
-- `aws-elasticdrs-orchestrator-notification-formatter-dev`
+- `{project-name}-api-handler-{environment}`
+- `{project-name}-orch-sf-{environment}`
+- `{project-name}-execution-finder-{environment}`
+- `{project-name}-execution-poller-{environment}`
+- `{project-name}-frontend-build-{environment}`
+- `{project-name}-bucket-cleaner-{environment}`
+- `{project-name}-notification-formatter-{environment}`
 
 ### Enhanced Security Scanning
 
@@ -221,7 +229,7 @@ git commit -m "feat: describe your changes"
 ./scripts/check-workflow.sh && git push origin main
 
 # 6. Monitor pipeline
-# Visit: https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
+# Visit: https://github.com/{github-org}/{repository-name}/actions
 ```
 
 ### Workflow Conflict Prevention (MANDATORY)
@@ -297,7 +305,7 @@ git push  # Restores proper CI/CD tracking
 
 ### Pipeline Monitoring
 
-- **GitHub Actions Console**: https://github.com/johnjcousens/aws-elasticdrs-orchestrator/actions
+- **GitHub Actions Console**: `https://github.com/{github-org}/{repository-name}/actions`
 - **Real-time Status**: Watch each stage progress in the Actions tab
 - **Deployment Outputs**: Stack outputs displayed in pipeline summary
 - **Artifact Downloads**: Security reports available for 30 days

@@ -2,43 +2,44 @@
 
 ## ✅ **CI/CD Configuration Aligned with Current Stack**
 
-**Date**: January 10, 2026  
-**Stack**: `aws-elasticdrs-orchestrator-dev`  
+**Date**: January 15, 2026  
+**Stack**: `{project-name}-{environment}`  
 **Status**: ✅ **FULLY CONFIGURED AND VALIDATED**
 
 ## Configuration Overview
 
 ### **Current Working Stack**
-- **Stack Name**: `aws-elasticdrs-orchestrator-dev`
-- **Project Name**: `aws-elasticdrs-orchestrator`
-- **Environment**: `dev`
-- **Region**: `us-east-1`
-- **Account**: `***REMOVED***`
-- **Deployment Bucket**: `aws-elasticdrs-orchestrator`
+- **Stack Name**: `{project-name}-{environment}`
+- **Project Name**: `{project-name}`
+- **Environment**: `{environment}`
+- **Region**: `{region}`
+- **Account**: `{account-id}`
+- **Deployment Bucket**: `{deployment-bucket}`
 
 ### **GitHub Actions Workflow**
 - **File**: `.github/workflows/deploy.yml`
 - **Status**: ✅ **CONFIGURED** - Updated to match current stack
-- **Project Name**: `aws-elasticdrs-orchestrator` (Fixed from `aws-drs-orchestrator-fresh`)
+- **Project Name**: `{project-name}`
 - **Pipeline Stages**: 7 stages with intelligent optimization
+- **Concurrency Control**: Automatic workflow queuing (no overlapping deployments)
 - **Required Secrets**:
-  - `AWS_ROLE_ARN`: `arn:aws:iam::***REMOVED***:role/aws-elasticdrs-orchestrator-github-actions-dev`
-  - `DEPLOYMENT_BUCKET`: `aws-elasticdrs-orchestrator`
-  - `STACK_NAME`: `aws-elasticdrs-orchestrator-dev`
-  - `ADMIN_EMAIL`: `***REMOVED***`
+  - `AWS_ROLE_ARN`: `arn:aws:iam::{account-id}:role/{project-name}-github-actions-{environment}`
+  - `DEPLOYMENT_BUCKET`: `{deployment-bucket}`
+  - `STACK_NAME`: `{project-name}-{environment}`
+  - `ADMIN_EMAIL`: `{admin-email}`
 
 ### **Lambda Functions (7 Total)**
 All Lambda functions aligned with current stack naming convention:
 
 | Function | Current Name | Status |
 |----------|-------------|--------|
-| **API Handler** | `aws-elasticdrs-orchestrator-api-handler-dev` | ✅ **CONFIGURED** |
-| **Orchestration** | `aws-elasticdrs-orchestrator-orch-sf-dev` | ✅ **CONFIGURED** |
-| **Execution Finder** | `aws-elasticdrs-orchestrator-execution-finder-dev` | ✅ **CONFIGURED** |
-| **Execution Poller** | `aws-elasticdrs-orchestrator-execution-poller-dev` | ✅ **CONFIGURED** |
-| **Frontend Builder** | `aws-elasticdrs-orchestrator-frontend-build-dev` | ✅ **CONFIGURED** |
-| **Bucket Cleaner** | `aws-elasticdrs-orchestrator-bucket-cleaner-dev` | ✅ **CONFIGURED** |
-| **Notification Formatter** | `aws-elasticdrs-orchestrator-notif-fmt-dev` | ✅ **CONFIGURED** |
+| **API Handler** | `{project-name}-api-handler-{environment}` | ✅ **CONFIGURED** |
+| **Orchestration** | `{project-name}-orch-sf-{environment}` | ✅ **CONFIGURED** |
+| **Execution Finder** | `{project-name}-execution-finder-{environment}` | ✅ **CONFIGURED** |
+| **Execution Poller** | `{project-name}-execution-poller-{environment}` | ✅ **CONFIGURED** |
+| **Frontend Builder** | `{project-name}-frontend-build-{environment}` | ✅ **CONFIGURED** |
+| **Bucket Cleaner** | `{project-name}-bucket-cleaner-{environment}` | ✅ **CONFIGURED** |
+| **Notification Formatter** | `{project-name}-notif-fmt-{environment}` | ✅ **CONFIGURED** |
 
 ### **Deployment Scripts**
 - **Sync Script**: `scripts/sync-to-deployment-bucket.sh` ✅ **CONFIGURED**
@@ -97,23 +98,36 @@ All Lambda functions aligned with current stack naming convention:
 
 ## Workflow Conflict Prevention (MANDATORY)
 
-### **Safe Push Scripts**
+### **Automatic Concurrency Control**
+- **Concurrency Group**: `deploy-{branch-ref}` (e.g., `deploy-refs/heads/main`)
+- **Behavior**: Workflows automatically queue when another is running
+- **Configuration**: Set at workflow level in `.github/workflows/deploy.yml`
+- **No Manual Intervention**: Built-in safety, no workflow checking scripts needed
+
+### **How It Works**
+```yaml
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+```
+
+- **Queued Execution**: New workflows wait for running workflows to complete
+- **Sequential Deployment**: Ensures deployments happen in order
+- **No Conflicts**: Prevents deployment race conditions automatically
+- **Safe by Default**: Configured once, works forever
+
+### **Safe Push Scripts (Optional)**
+While concurrency control is automatic, these scripts provide additional safety:
+
 - **Quick Check**: `./scripts/check-workflow.sh && git push`
-- **Safe Push**: `./scripts/safe-push.sh` (RECOMMENDED)
+- **Safe Push**: `./scripts/safe-push.sh` (RECOMMENDED for visibility)
 - **Prerequisites**: GitHub CLI (`gh auth login`)
 
-### **MANDATORY Rules**
-1. **ALWAYS check for running workflows** before pushing
-2. **NEVER push while deployment is in progress** - causes conflicts
-3. **WAIT for completion** if workflow running (max 30 minutes)
-4. **Use safe-push.sh** instead of manual `git push`
-5. **Monitor deployment** until completion
-
 ### **Workflow Status Indicators**
-- ✅ **Safe to push**: No workflows running
-- ⏳ **Wait required**: Deployment in progress
-- ❌ **Conflict risk**: Multiple workflows would overlap
-- 🚨 **Emergency only**: Use `--force` flag for critical hotfixes
+- ✅ **Safe to push**: No workflows running (or will queue automatically)
+- ⏳ **Queued**: New workflow waiting for current deployment
+- 🔄 **Running**: Deployment in progress
+- ✅ **Complete**: Safe to push again
 
 ## Emergency Deployment (RESTRICTED)
 
@@ -149,9 +163,10 @@ All Lambda functions aligned with current stack naming convention:
 - **Status**: ✅ Created with current stack values
 
 ### **GitHub Actions Environment**
-- **PROJECT_NAME**: `aws-elasticdrs-orchestrator`
-- **AWS_REGION**: `us-east-1`
+- **PROJECT_NAME**: `{project-name}`
+- **AWS_REGION**: `{region}`
 - **Stack Integration**: Fully configured for current stack
+- **Concurrency Control**: Automatic workflow queuing enabled
 
 ### **AWS Configuration**
 - **File**: `aws-config.json`
@@ -218,10 +233,10 @@ The following secrets must be configured in the GitHub repository:
 
 | Secret | Value | Description |
 |--------|-------|-------------|
-| `AWS_ROLE_ARN` | `arn:aws:iam::***REMOVED***:role/aws-elasticdrs-orchestrator-github-actions-dev` | IAM role for GitHub Actions |
-| `DEPLOYMENT_BUCKET` | `aws-elasticdrs-orchestrator` | S3 deployment bucket |
-| `STACK_NAME` | `aws-elasticdrs-orchestrator-dev` | CloudFormation stack name |
-| `ADMIN_EMAIL` | `***REMOVED***` | Admin email for Cognito |
+| `AWS_ROLE_ARN` | `arn:aws:iam::{account-id}:role/{project-name}-github-actions-{environment}` | IAM role for GitHub Actions |
+| `DEPLOYMENT_BUCKET` | `{deployment-bucket}` | S3 deployment bucket |
+| `STACK_NAME` | `{project-name}-{environment}` | CloudFormation stack name |
+| `ADMIN_EMAIL` | `{admin-email}` | Admin email for Cognito |
 
 ## Deployment Workflow
 
@@ -229,9 +244,11 @@ The following secrets must be configured in the GitHub repository:
 1. **Local Development**: Make changes locally
 2. **Validation**: Run `make validate` and security checks
 3. **Commit**: Use conventional commit messages
-4. **Safe Push**: Use `./scripts/safe-push.sh` to avoid conflicts
+4. **Push**: `git push` (concurrency control handles conflicts automatically)
 5. **Monitor**: Watch GitHub Actions pipeline progress
 6. **Verify**: Check deployment outputs and functionality
+
+**Note**: Concurrency control automatically queues workflows if one is already running. No manual workflow checking required.
 
 ### **Emergency Deployment (RESTRICTED)**
 1. **Document Emergency**: Record the critical issue
@@ -254,7 +271,7 @@ This CI/CD configuration ensures:
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **GitHub Actions Workflow** | ✅ **CONFIGURED** | Updated for current stack |
+| **GitHub Actions Workflow** | ✅ **CONFIGURED** | Updated for current stack with concurrency control |
 | **Lambda Functions (7)** | ✅ **ALIGNED** | All names match current stack |
 | **Deployment Scripts** | ✅ **CONFIGURED** | All scripts aligned |
 | **Environment Configuration** | ✅ **CREATED** | `.env.deployment` file |
@@ -262,7 +279,7 @@ This CI/CD configuration ensures:
 | **Security Scripts** | ✅ **WORKING** | Security scans operational |
 | **Frontend Configuration** | ✅ **CONFIGURED** | CloudScape compliance checked |
 | **Emergency Procedures** | ✅ **READY** | Manual deployment available |
-| **Workflow Conflict Prevention** | ✅ **IMPLEMENTED** | Safe push scripts configured |
+| **Workflow Conflict Prevention** | ✅ **IMPLEMENTED** | Automatic concurrency control configured |
 | **Integration Guides** | ✅ **UPDATED** | All Lambda references aligned |
 
 ## Next Steps
@@ -273,4 +290,4 @@ This CI/CD configuration ensures:
 4. **✅ Documentation Updated**: All integration guides aligned
 5. **Ready for Development**: CI/CD pipeline ready for production use
 
-The CI/CD configuration is now fully aligned with the current working stack (`aws-elasticdrs-orchestrator-dev`) and ready for production use with comprehensive workflow conflict prevention.
+The CI/CD configuration is now fully aligned with the current working stack (`{project-name}-{environment}`) and ready for production use with automatic workflow conflict prevention via concurrency control.
