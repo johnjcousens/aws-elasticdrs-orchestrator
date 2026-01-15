@@ -146,6 +146,31 @@ export const ExecutionDetailsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [execution, executionId]); // Depend on execution to start polling when it loads
 
+  // Timer to update duration display every second for active executions
+  const [, setDurationTick] = useState(0);
+  useEffect(() => {
+    if (!execution) return;
+
+    const isActive = 
+      execution.status === 'in_progress' || 
+      execution.status === 'pending' ||
+      execution.status === 'paused' ||
+      execution.status === 'running' ||
+      execution.status === 'started' ||
+      execution.status === 'polling' ||
+      execution.status === 'launching' ||
+      execution.status === 'initiated' ||
+      execution.status === 'cancelling';
+
+    if (!isActive) return;
+
+    const timer = setInterval(() => {
+      setDurationTick(tick => tick + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [execution]);
+
   // Polling while termination is in progress
   useEffect(() => {
     if (!terminationInProgress || !execution) return;
