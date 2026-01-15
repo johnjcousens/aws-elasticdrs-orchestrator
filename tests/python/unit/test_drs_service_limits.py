@@ -23,8 +23,8 @@ os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 # Add lambda/api-handler directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda", "api-handler"))
-# Add lambda/shared directory to path for shared modules
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda", "shared"))
+# Add lambda directory to path so 'shared' module can be found
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "lambda"))
 
 # Mock environment variables before importing
 os.environ["PROTECTION_GROUPS_TABLE"] = "test-protection-groups"
