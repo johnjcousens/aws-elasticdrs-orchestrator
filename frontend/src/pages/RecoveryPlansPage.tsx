@@ -15,7 +15,6 @@ import {
   Button,
   Header,
   Table,
-  ButtonDropdown,
   Badge,
   Pagination,
   TextFilter,
@@ -389,12 +388,6 @@ export const RecoveryPlansPage: React.FC = () => {
         const hasInProgressExecution = plansWithInProgressExecution.has(item.planId);
         const hasServerConflict = item.hasServerConflict === true;
         const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
-        
-        let drillDescription = 'Test recovery without failover';
-        const recoveryDescription = 'Coming soon - actual failover operation';
-        if (hasServerConflict && item.conflictInfo?.reason) {
-          drillDescription = `Blocked: ${item.conflictInfo.reason}`;
-        }
         
         return (
           <PermissionAwareButtonDropdown

@@ -13,7 +13,6 @@ import {
   Flashbar,
   TopNavigation,
 } from '@cloudscape-design/components';
-import type { SideNavigationProps } from '@cloudscape-design/components';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';

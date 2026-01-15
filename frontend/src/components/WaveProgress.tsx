@@ -169,30 +169,6 @@ const formatJobLogEvent = (event: JobLogEvent): string => {
 };
 
 /**
- * Get status color for job log event (AWS Design System)
- */
-const getJobLogEventColor = (event: JobLogEvent): string => {
-  if (event.error) return '#d91515'; // AWS Error Red
-  
-  switch (event.event) {
-    case 'SNAPSHOT_START':
-    case 'CONVERSION_START':
-    case 'LAUNCH_START':
-    case 'JOB_START':
-    case 'CLEANUP_START':
-      return '#0972d3'; // AWS Info Blue for start events
-    case 'SNAPSHOT_END':
-    case 'CONVERSION_END':
-    case 'LAUNCH_END':
-    case 'JOB_END':
-    case 'CLEANUP_END':
-      return '#037f0c'; // AWS Success Green for completion events
-    default:
-      return '#5f6b7a'; // AWS Text Secondary for other events
-  }
-};
-
-/**
  * Parse timestamp - handles both Unix timestamps and ISO strings
  */
 const parseTimestamp = (timestamp: string | number | undefined): Date | null => {
@@ -257,31 +233,6 @@ const formatRelativeTime = (timestamp: string | number | undefined): string => {
   if (diffHours < 24) return `${diffHours}h ago`;
   
   return date.toLocaleString();
-};
-
-/**
- * Get launch status badge color (AWS CloudScape Design System)
- */
-const getLaunchStatusColor = (status: string | undefined): 'blue' | 'green' | 'red' | 'grey' => {
-  switch (status?.toUpperCase()) {
-    case 'LAUNCHED':
-    case 'COMPLETED':
-    case 'DONE':
-      return 'green';
-    case 'IN_PROGRESS':
-    case 'LAUNCHING':
-    case 'POLLING':
-    case 'STARTED':
-      return 'blue';
-    case 'FAILED':
-    case 'ERROR':
-      return 'red';
-    case 'PENDING':
-    case 'UNKNOWN':
-    case 'CANCELLED':
-    default:
-      return 'grey';
-  }
 };
 
 /**
@@ -808,8 +759,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                           Job ID: <code>{wave.jobId}</code> • {waveJobLogs.length} events
                         </div>
                         <SpaceBetween size="s">
-                          {timelineItems.map((item, idx) => (
-                            <Box key={idx} padding="s" variant="div">
+                          {timelineItems.map((item, index) => (
+                            <Box key={index} padding="s" variant="div">
                               {item.content}
                             </Box>
                           ))}

@@ -9,7 +9,6 @@ import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import type { DRSQuotaStatus } from './drsQuotaService';
-import { awsConfig } from '../aws-config';
 import { sanitizeErrorMessage, sanitizeForLogging } from '../utils/security';
 import { recordActivity } from '../utils/activityTracker';
 import type {

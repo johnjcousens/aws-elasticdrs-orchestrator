@@ -189,7 +189,7 @@ export const ProtectionGroupsPage: React.FC = () => {
   };
 
   // CloudScape collection hooks for table state management
-  const { items, actions, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
+  const { items, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
     groups,
     {
       filtering: {
