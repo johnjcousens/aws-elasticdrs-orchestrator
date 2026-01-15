@@ -279,7 +279,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
                     <StatusBadge status={execution.status} />
                     {execution.currentWave && (
                       <Badge color="blue">
-                        Wave {execution.currentWave} of {execution.totalWaves}
+                        Wave {execution.status === 'completed' ? execution.totalWaves : execution.currentWave} of {execution.totalWaves}
                       </Badge>
                     )}
                     {execution.executedBy && (

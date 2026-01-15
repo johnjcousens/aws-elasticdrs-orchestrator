@@ -746,8 +746,8 @@ Resources:
                 Action:
                   - sns:Publish
                 Resource:
-                  - !Ref ExecutionNotificationsTopicArn
-                  - !Ref DRSAlertsTopicArn
+                  - !Sub "${ExecutionNotificationsTopicArn}"
+                  - !Sub "${DRSAlertsTopicArn}"
         - PolicyName: STSAccess
           PolicyDocument:
             Version: "2012-10-17"

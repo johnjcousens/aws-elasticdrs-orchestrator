@@ -404,7 +404,7 @@ export const ExecutionsPage: React.FC = () => {
                               <StatusBadge status={execution.status} />
                               {execution.currentWave && (
                                 <Box color="text-body-secondary">
-                                  Wave {execution.currentWave} of {execution.totalWaves}
+                                  Wave {execution.status === 'completed' ? execution.totalWaves : execution.currentWave} of {execution.totalWaves}
                                 </Box>
                               )}
                               <DateTimeDisplay value={execution.startTime} format="full" />
