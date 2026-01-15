@@ -66,8 +66,9 @@ export const ExecutionDetailsPage: React.FC = () => {
         setError(null);
       }
       
-      // Fetch execution details
-      const data = await apiClient.getExecution(executionId);
+      // Bust cache on explicit refresh (non-silent calls) to ensure fresh data
+      const bustCache = !silent;
+      const data = await apiClient.getExecution(executionId, bustCache);
       setExecution(data);
       
       // Fetch job logs for enhanced DRS status display
@@ -143,7 +144,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
-  }, [execution?.status, execution?.executionId, fetchExecution]); // Only depend on status and ID, not full execution object
+  }, [execution?.status, executionId]); // Remove fetchExecution dependency to prevent stale closures
 
   // Polling while termination is in progress
   useEffect(() => {

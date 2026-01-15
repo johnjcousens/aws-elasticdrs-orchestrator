@@ -517,8 +517,10 @@ class ApiClient {
   /**
    * Get execution details
    */
-  public async getExecution(executionId: string): Promise<Execution> {
-    return this.get<Execution>(`/executions/${executionId}`);
+  public async getExecution(executionId: string, bustCache = false): Promise<Execution> {
+    // Add timestamp parameter to bust browser cache when explicitly requested
+    const params = bustCache ? { _t: Date.now() } : undefined;
+    return this.get<Execution>(`/executions/${executionId}`, params);
   }
 
   /**
