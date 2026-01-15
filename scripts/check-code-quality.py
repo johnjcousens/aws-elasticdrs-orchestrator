@@ -158,12 +158,24 @@ def main():
     # File extensions to check
     extensions = {'.py', '.ts', '.tsx', '.js', '.jsx'}
     
+    # Files/patterns to exclude
+    exclude_patterns = [
+        '*_backup.*',
+        '*.backup',
+        'migrate-*.py',  # One-time migration scripts
+        'migrate_*.py',
+    ]
+    
     # Collect all files to check
     files_to_check = []
     for check_dir in check_dirs:
         if check_dir.exists():
             for ext in extensions:
-                files_to_check.extend(check_dir.rglob(f'*{ext}'))
+                for file_path in check_dir.rglob(f'*{ext}'):
+                    # Skip excluded files
+                    if any(file_path.match(pattern) for pattern in exclude_patterns):
+                        continue
+                    files_to_check.append(file_path)
     
     # Check all files
     all_issues = []
@@ -177,7 +189,6 @@ def main():
         print("CODE QUALITY ISSUES FOUND")
         print("=" * 80)
         print()
-        
         # Group by issue type
         by_type = {}
         for issue in all_issues:
