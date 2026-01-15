@@ -25,8 +25,55 @@
 - No stale closures because `fetchExecution` not in dependencies
 - Simple one-line change
 
-**Status**: Code committed but frontend not yet rebuilt/deployed to CloudFront
-**Next**: Trigger CI/CD to rebuild and deploy frontend
+**Status**: ✅ CI/CD pipeline triggered (commit 73bd5e3f)
+**Deployment**: In progress - ETA ~20 minutes
+**Workflows Running**:
+- Deploy AWS DRS Orchestration
+- Security and Quality Checks
+- Security Scan
+- CodeQL
+
+**What Will Be Deployed**:
+1. Lambda updates (execution-poller with instanceType field)
+2. Frontend rebuild with polling fix
+3. CloudFront invalidation for immediate effect
+
+**Testing After Deployment**:
+1. Start new execution
+2. Navigate to execution details immediately
+3. Verify page auto-refreshes every 3 seconds
+4. Click Resume after Wave 1 completes
+5. Verify page continues auto-refreshing
+6. Check server details show Instance Type
+
+---
+
+### 2. Execution Duration Not Updating ✅ CODE FIXED, AWAITING DEPLOYMENT
+
+**Issue**: Overall execution duration stuck at initial value (e.g., "5h 35m") while wave durations update correctly
+
+**Root Cause**: Duration calculation not reactive - calculates once on render but doesn't update as time passes
+
+**Fix Applied** (commit cd4a7c8d):
+```typescript
+// Added 1-second timer to force re-render for active executions
+const [, setDurationTick] = useState(0);
+useEffect(() => {
+  if (!isActive) return;
+  const timer = setInterval(() => {
+    setDurationTick(tick => tick + 1);
+  }, 1000);
+  return () => clearInterval(timer);
+}, [execution]);
+```
+
+**Why This Works**:
+- Timer forces React to re-render every second
+- Duration calculation uses `new Date()` which gets current time
+- Only runs for active executions (stops when complete)
+- Cleans up timer on unmount
+
+**Status**: Code committed, waiting for current deployment to finish before pushing
 
 ---
 
@@ -54,16 +101,21 @@
 ## Outstanding Work
 
 ### Issue 3: EC2 Details for Completed Waves
-**Status**: 🔍 Analysis complete, implementation pending
+**Status**: ✅ **FIXED** - Deployment in progress (commit 73bd5e3f)
 **Priority**: Medium (nice-to-have)
-**Estimated**: 2-3 hours
 
-**Missing Data**:
-- Instance ID
-- Instance Type
-- Private IP
+**What Was Fixed**:
+- Added `instanceType` field to `get_ec2_instance_details()`
+- Execution-poller now persists instance type alongside hostname and privateIp
+- Completes EC2 detail persistence for completed waves
 
-**Recommended Fix**: Execution-poller Lambda should persist EC2 details when wave completes
+**Files Modified**:
+- `lambda/execution-poller/index.py` - Added instanceType to EC2 enrichment
+
+**Testing After Deployment**:
+- Start new execution and let Wave 1 complete
+- Check execution details page
+- Verify servers show: Instance ID, Instance Type, Private IP
 
 ---
 
