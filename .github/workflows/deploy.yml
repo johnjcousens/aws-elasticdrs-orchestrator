@@ -198,6 +198,16 @@ jobs:
           chmod +x scripts/validate-camelcase-consistency.sh
           ./scripts/validate-camelcase-consistency.sh
 
+      - name: Development Principles Code Quality Check
+        run: |
+          echo "=== Development Principles Code Quality Check ==="
+          echo "Checking for:"
+          echo "  - Temporal references in comments"
+          echo "  - Bad naming conventions with historical context"
+          echo "  - Redundant comments (WHAT instead of WHY)"
+          chmod +x scripts/check-code-quality.py
+          python3 scripts/check-code-quality.py || true
+
       - name: API Gateway Architecture Validation
         run: |
           echo "=== API Gateway Architecture Validation ==="
