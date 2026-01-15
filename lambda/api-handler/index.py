@@ -4948,6 +4948,7 @@ def list_executions(query_params: Dict) -> Dict:
                                 )
 
                 execution["selectionMode"] = selection_mode  # camelCase
+            
             except Exception as e:
                 print(
                     f"Error enriching execution {execution.get('executionId')}: {str(e)}"
@@ -4955,6 +4956,13 @@ def list_executions(query_params: Dict) -> Dict:
                 if not execution.get("recoveryPlanName"):
                     execution["recoveryPlanName"] = "Unknown"
                 execution["selectionMode"] = "PLAN"
+            
+            # Ensure currentWave is set (calculate from waves if missing)
+            if "currentWave" not in execution or execution.get("currentWave") is None:
+                waves = execution.get("waves", [])
+                completed_waves = sum(1 for w in waves if w.get("status") in ["completed", "COMPLETED"])
+                total_waves = execution.get("totalWaves", 1)
+                execution["currentWave"] = completed_waves + 1 if completed_waves < total_waves else total_waves
 
             # For CANCELLED/CANCELLING executions, set hasActiveDrsJobs to false
             # to avoid expensive DRS API calls that can cause timeouts in list view
@@ -5732,6 +5740,12 @@ def get_execution_details_fast(execution_id: str) -> Dict:
             "RUNNING",
             "PAUSED",
         ]
+
+        # Ensure currentWave is set (calculate from waves if missing)
+        if "currentWave" not in execution or execution.get("currentWave") is None:
+            waves = execution.get("waves", [])
+            completed_waves = sum(1 for w in waves if w.get("status") in ["completed", "COMPLETED"])
+            execution["currentWave"] = completed_waves + 1 if completed_waves < execution.get("totalWaves", 1) else execution.get("totalWaves", 1)
 
         # Add termination capability metadata (safe addition - no logic changes)
         try:

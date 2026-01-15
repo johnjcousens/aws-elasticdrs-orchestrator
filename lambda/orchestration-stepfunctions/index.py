@@ -728,9 +728,12 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
 
         # Update DynamoDB with execution-level DRS job info and wave data
         try:
+            # Calculate current wave number (1-indexed for display)
+            current_wave_number = len(state["wave_results"])
+            
             get_execution_history_table().update_item(
                 Key={"executionId": execution_id, "planId": state["plan_id"]},
-                UpdateExpression="SET waves = list_append(if_not_exists(waves, :empty), :wave), drsJobId = :job_id, drsRegion = :region, #status = :status",
+                UpdateExpression="SET waves = list_append(if_not_exists(waves, :empty), :wave), drsJobId = :job_id, drsRegion = :region, #status = :status, currentWave = :current_wave",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":empty": [],
@@ -738,6 +741,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                     ":job_id": job_id,
                     ":region": region,
                     ":status": "POLLING",
+                    ":current_wave": current_wave_number,
                 },
                 ConditionExpression="attribute_exists(executionId)",
             )
