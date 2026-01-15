@@ -6193,14 +6193,11 @@ def get_recovery_instances(execution_id: str) -> Dict:
         - instances: List of recovery instance details
         - totalInstances: Total count of instances found
     """
-    print(f"=== get_recovery_instances called with execution_id: {execution_id} ===")
     try:
-        print(f"Querying execution history table for execution: {execution_id}")
-        # Get execution details
+        # Get execution details from DynamoDB
         result = execution_history_table.query(
             KeyConditionExpression=Key("executionId").eq(execution_id), Limit=1
         )
-        print(f"Query result: {result.get('Items', [])}")
 
         if not result.get("Items"):
             return response(
@@ -6214,32 +6211,8 @@ def get_recovery_instances(execution_id: str) -> Dict:
 
         execution = result["Items"][0]
         plan_id = execution.get("planId")
-        waves = execution.get("waves", [])
-
-        # Get the Recovery Plan to determine account context (for cross-account support)
-        account_context = None
-        if plan_id:
-            try:
-                plan_result = recovery_plans_table.get_item(
-                    Key={"planId": plan_id}
-                )
-                if "Item" in plan_result:
-                    plan = plan_result["Item"]
-                    account_context = determine_target_account_context(plan)
-                    print(
-                        f"Using account context for recovery instances lookup: {account_context}"
-                    )
-                else:
-                    print(
-                        f"WARNING: Recovery Plan {plan_id} not found, using current account"
-                    )
-            except Exception as e:
-                print(
-                    f"ERROR: Could not get Recovery Plan {plan_id} for account context: {e}"
-                )
-                print(
-                    "Falling back to current account for recovery instances lookup"
-                )
+        # Handle both camelCase and PascalCase (migration compatibility)
+        waves = execution.get("waves") or execution.get("Waves", [])
 
         if not waves:
             return response(
@@ -6252,202 +6225,42 @@ def get_recovery_instances(execution_id: str) -> Dict:
                 },
             )
 
-        # Collect all recovery instance details from all waves
+        # Extract recovery instances from wave serverStatuses (already in database)
         recovery_instances = []
-        source_server_ids_by_region = {}
-
-        print(f"Processing {len(waves)} waves for execution {execution_id}")
-
-        # First, try to get instance IDs from DRS jobs
+        
         for wave in waves:
             wave_number = wave.get("waveNumber", 0)
             wave_name = wave.get("waveName", f"Wave {wave_number + 1}")
-            job_id = wave.get("jobId")
             region = wave.get("region", "us-east-1")
-            wave_status = wave.get("status", "")
+            job_id = wave.get("jobId", "")
+            
+            # Get server statuses from wave
+            server_statuses = wave.get("serverStatuses", [])
+            
+            for server_status in server_statuses:
+                instance_id = server_status.get("recoveryInstanceId") or server_status.get("EC2InstanceId")
+                source_server_id = server_status.get("sourceServerId", "")
+                
+                if instance_id and instance_id.startswith("i-"):
+                    recovery_instances.append({
+                        "instanceId": instance_id,
+                        "recoveryInstanceId": instance_id,
+                        "sourceServerId": source_server_id,
+                        "region": region,
+                        "waveName": wave_name,
+                        "waveNumber": wave_number,
+                        "jobId": job_id,
+                        "status": server_status.get("launchStatus", "unknown"),
+                        "hostname": server_status.get("hostname", ""),
+                        "serverName": server_status.get("serverName", ""),
+                    })
 
-            print(
-                f"Wave {wave_number} ({wave_name}): status={wave_status}, job_id={job_id}, region={region}"
-            )
-
-            # Collect source server IDs from wave for alternative lookup
-            wave_servers = wave.get("servers", [])
-            for srv in wave_servers:
-                srv_id = srv.get("sourceServerId")
-                if srv_id:
-                    if region not in source_server_ids_by_region:
-                        source_server_ids_by_region[region] = []
-                    if srv_id not in source_server_ids_by_region[region]:
-                        source_server_ids_by_region[region].append(srv_id)
-
-            # Only process waves that have a job ID (were actually launched)
-            valid_statuses = [
-                "completed", "launched", "partial", "started", "in_progress", "running"
-            ]
-            if job_id and wave_status.lower() in valid_statuses:
-                try:
-                    drs_client = create_drs_client(region, account_context)
-
-                    # Get recovery instances from DRS job
-                    job_response = drs_client.describe_jobs(
-                        filters={"jobIDs": [job_id]}
-                    )
-
-                    print(
-                        f"DRS describe_jobs response for {job_id}: {len(job_response.get('items', []))} items"
-                    )
-
-                    if job_response.get("items"):
-                        job = job_response["items"][0]
-                        participating_servers = job.get(
-                            "participatingServers", []
-                        )
-
-                        print(
-                            f"Job {job_id} has {len(participating_servers)} participating servers"
-                        )
-
-                        for server in participating_servers:
-                            recovery_instance_id = server.get(
-                                "recoveryInstanceID"
-                            )
-                            source_server_id = server.get(
-                                "sourceServerID", "unknown"
-                            )
-
-                            print(
-                                f"Server {source_server_id}: recoveryInstanceID={recovery_instance_id}"
-                            )
-
-                            # Only try direct recovery instance lookup if we have the ID
-                            if recovery_instance_id:
-                                # Get EC2 instance ID from recovery instance
-                                try:
-                                    ri_response = (
-                                        drs_client.describe_recovery_instances(
-                                            filters={
-                                                "recoveryInstanceIDs": [
-                                                    recovery_instance_id
-                                                ]
-                                            }
-                                        )
-                                    )
-                                    if ri_response.get("items"):
-                                        ri_item = ri_response["items"][0]
-                                        ec2_instance_id = ri_item.get("ec2InstanceID")
-                                        if (
-                                            ec2_instance_id
-                                            and ec2_instance_id.startswith("i-")
-                                        ):
-                                            recovery_instances.append(
-                                                {
-                                                    "instanceId": ec2_instance_id,
-                                                    "recoveryInstanceId": recovery_instance_id,
-                                                    "sourceServerId": source_server_id,
-                                                    "region": region,
-                                                    "waveName": wave_name,
-                                                    "waveNumber": wave_number,
-                                                    "jobId": job_id,
-                                                    "status": ri_item.get("ec2InstanceState", "unknown"),
-                                                    "hostname": server.get("hostname", ""),
-                                                    "serverName": server.get("serverName", ""),
-                                                }
-                                            )
-                                except Exception as ri_err:
-                                    print(
-                                        f"Could not get EC2 instance for recovery instance {recovery_instance_id}: {ri_err}"
-                                    )
-                            else:
-                                print(
-                                    f"No recoveryInstanceID for server {source_server_id}, will use alternative lookup"
-                                )
-
-                except Exception as drs_err:
-                    print(
-                        f"Could not query DRS job {job_id} in {region}: {drs_err}"
-                    )
-
-        # Alternative approach: Query describe_recovery_instances by source server IDs
-        # This works even when job's participatingServers doesn't have recoveryInstanceID
-        if not recovery_instances and source_server_ids_by_region:
-            print(
-                f"Trying alternative approach: query recovery instances by source server IDs"
-            )
-
-            for region, source_ids in source_server_ids_by_region.items():
-                print(
-                    f"Querying recovery instances for {len(source_ids)} source servers in {region}: {source_ids}"
-                )
-
-                try:
-                    drs_client = create_drs_client(region, account_context)
-
-                    # Query recovery instances by source server IDs
-                    ri_response = drs_client.describe_recovery_instances(
-                        filters={"sourceServerIDs": source_ids}
-                    )
-
-                    ri_items = ri_response.get("items", [])
-                    print(
-                        f"Found {len(ri_items)} recovery instances for source servers"
-                    )
-
-                    for ri in ri_items:
-                        ec2_instance_id = ri.get("ec2InstanceID")
-                        recovery_instance_id = ri.get("recoveryInstanceID")
-                        source_server_id = ri.get("sourceServerID", "unknown")
-
-                        print(
-                            f"Recovery instance: ec2={ec2_instance_id}, ri={recovery_instance_id}, source={source_server_id}"
-                        )
-
-                        if ec2_instance_id and ec2_instance_id.startswith("i-"):
-                            # Find which wave this server belongs to
-                            wave_info = None
-                            for wave in waves:
-                                wave_servers = wave.get("servers", [])
-                                wave_server_ids = [s.get("sourceServerId") for s in wave_servers]
-                                if source_server_id in wave_server_ids:
-                                    wave_info = wave
-                                    break
-                            
-                            wave_name = "Unknown Wave"
-                            wave_number = 0
-                            job_id = ""
-                            if wave_info:
-                                wave_name = wave_info.get("waveName", f"Wave {wave_info.get('waveNumber', 0) + 1}")
-                                wave_number = wave_info.get("waveNumber", 0)
-                                job_id = wave_info.get("jobId", "")
-
-                            recovery_instances.append(
-                                {
-                                    "instanceId": ec2_instance_id,
-                                    "recoveryInstanceId": recovery_instance_id,
-                                    "sourceServerId": source_server_id,
-                                    "region": region,
-                                    "waveName": wave_name,
-                                    "waveNumber": wave_number,
-                                    "jobId": job_id,
-                                    "status": ri.get("ec2InstanceState", "unknown"),
-                                    "hostname": "",
-                                    "serverName": "",
-                                }
-                            )
-
-                except Exception as e:
-                    print(
-                        f"Error querying recovery instances by source server IDs in {region}: {e}"
-                    )
-
-        print(f"Found {len(recovery_instances)} total recovery instances for execution {execution_id}")
-        
         return response(
             200,
             {
                 "executionId": execution_id,
                 "instances": recovery_instances,
                 "totalInstances": len(recovery_instances),
-                "message": f"Found {len(recovery_instances)} recovery instances" if recovery_instances else "No recovery instances found"
             },
         )
 
