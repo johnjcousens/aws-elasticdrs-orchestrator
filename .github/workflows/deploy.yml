@@ -574,6 +574,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-infrastructure, detect-changes]
     if: |
+      always() &&
       github.ref == 'refs/heads/main' && 
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.detect-changes.outputs.docs-only != 'true' && 
