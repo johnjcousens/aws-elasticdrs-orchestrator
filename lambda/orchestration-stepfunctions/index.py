@@ -866,7 +866,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     "hostname": existing.get("hostname", ""),
                     "launchStatus": launch_status,
                     "recoveryInstanceId": recovery_instance_id or existing.get("recoveryInstanceId", ""),
-                    "instanceId": existing.get("instanceId", ""),
+                    "recoveredInstanceId": existing.get("recoveredInstanceId", ""),
                     "privateIp": existing.get("privateIp", ""),
                     "instanceType": existing.get("instanceType", ""),
                     "launchTime": existing.get("launchTime", 0),
@@ -978,7 +978,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     source_id = ri.get("sourceServerID")
                     for ss in server_statuses:
                         if ss.get("sourceServerId") == source_id:
-                            ss["instanceId"] = ri.get("ec2InstanceID", "")
+                            ss["recoveredInstanceId"] = ri.get("ec2InstanceID", "")
                             ss["recoveryInstanceId"] = ri.get(
                                 "recoveryInstanceID", ""
                             )
@@ -996,7 +996,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
             # Capture recovery instance IDs and IPs for parent orchestrator
             for ss in server_statuses:
-                ec2_id = ss.get("instanceId")
+                ec2_id = ss.get("recoveredInstanceId")
                 if ec2_id:
                     if ec2_id not in state.get("recovery_instance_ids", []):
                         state.setdefault("recovery_instance_ids", []).append(
@@ -1006,9 +1006,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             # Fetch private IPs from EC2 and update server_statuses
             try:
                 ec2_ids = [
-                    ss.get("instanceId")
+                    ss.get("recoveredInstanceId")
                     for ss in server_statuses
-                    if ss.get("instanceId")
+                    if ss.get("recoveredInstanceId")
                 ]
                 if ec2_ids:
                     ec2_client = boto3.client("ec2", region_name=region)
@@ -1027,7 +1027,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     
                     # Update server_statuses with EC2 details
                     for ss in server_statuses:
-                        ec2_id = ss.get("instanceId")
+                        ec2_id = ss.get("recoveredInstanceId")
                         if ec2_id and ec2_id in instance_details:
                             ss["privateIp"] = instance_details[ec2_id].get("privateIp", "")
                             ss["instanceType"] = instance_details[ec2_id].get("instanceType", "")
