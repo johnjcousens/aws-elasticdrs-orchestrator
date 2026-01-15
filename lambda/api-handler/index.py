@@ -28,6 +28,9 @@ from shared.rbac_middleware import (
     get_user_roles,
 )
 
+# Termination logic utilities
+from shared.execution_utils import can_terminate_execution
+
 # Force Lambda update - Build 3 - CamelCase Migration Complete
 LAMBDA_BUILD_VERSION = "v1.3.1-Build3-CamelCase-Final"
 print(f"Lambda Build Version: {LAMBDA_BUILD_VERSION} - Deployment Trigger")
@@ -5730,6 +5733,18 @@ def get_execution_details_fast(execution_id: str) -> Dict:
             "PAUSED",
         ]
 
+        # Add termination capability metadata (safe addition - no logic changes)
+        try:
+            execution["terminationMetadata"] = can_terminate_execution(execution)
+        except Exception as term_error:
+            print(f"Error calculating termination metadata: {term_error}")
+            # Fallback to safe default if calculation fails
+            execution["terminationMetadata"] = {
+                "canTerminate": False,
+                "reason": "Unable to determine termination capability",
+                "hasRecoveryInstances": False,
+            }
+
         return response(200, execution)
 
     except Exception as e:
@@ -5843,6 +5858,18 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         # Mark as real-time data
         execution["dataSource"] = "realtime"
         execution["lastUpdated"] = int(time.time())
+
+        # Add termination capability metadata (safe addition - no logic changes)
+        try:
+            execution["terminationMetadata"] = can_terminate_execution(execution)
+        except Exception as term_error:
+            print(f"Error calculating termination metadata: {term_error}")
+            # Fallback to safe default if calculation fails
+            execution["terminationMetadata"] = {
+                "canTerminate": False,
+                "reason": "Unable to determine termination capability",
+                "hasRecoveryInstances": False,
+            }
 
         # Update cache with fresh data
         try:

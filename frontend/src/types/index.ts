@@ -291,6 +291,11 @@ export interface Execution {
   error?: ExecutionError;
   metadata?: Record<string, unknown>;
   pausedBeforeWave?: number;  // Wave number that execution is paused before (0-indexed)
+  terminationMetadata?: {
+    canTerminate: boolean;
+    reason?: string;
+    hasRecoveryInstances: boolean;
+  };
 }
 
 export interface WaveExecution {

@@ -479,38 +479,8 @@ export const ExecutionDetailsPage: React.FC = () => {
   })();
 
   // Check if recovery instances can be terminated
-  // Only enabled when execution is in terminal state AND has at least one wave with a jobId AND not already terminated AND no waves are actively running
-  const canTerminate = execution && (() => {
-    const terminalStatuses = [
-      'completed', 'cancelled', 'failed', 'partial',
-      'COMPLETED', 'CANCELLED', 'FAILED', 'PARTIAL'
-    ];
-    const isTerminal = terminalStatuses.includes(execution.status as string);
-    
-    // Check if any wave has a jobId (recovery instances exist)
-    const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
-    const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || (wave as any).JobId);
-    
-    // Don't show button if already terminated
-    if (instancesAlreadyTerminated) {
-      return false;
-    }
-    
-    // Check if any waves are still actively running
-    // Completed waves should have status "completed", "COMPLETED", or "unknown" (legacy)
-    const activeWaveStatuses = [
-      'in_progress', 'pending', 'running', 'started', 'polling', 'launching', 'initiated',
-      'IN_PROGRESS', 'PENDING', 'RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED'
-    ];
-    const hasActiveWaves = waves.some((wave: { status?: string; Status?: string }) => {
-      const waveStatus = wave.status || (wave as any).Status;
-      return waveStatus && activeWaveStatuses.includes(waveStatus);
-    });
-    
-    // Only show terminate button if execution is terminal, has job IDs, and no waves are actively running
-    const result = isTerminal && hasJobId && !hasActiveWaves;
-    return result;
-  })();
+  // Backend provides centralized termination logic via terminationMetadata
+  const canTerminate = execution?.terminationMetadata?.canTerminate ?? false;
   
   // Show terminated status badge instead of button when already terminated
   const showTerminatedBadge = execution && instancesAlreadyTerminated;
