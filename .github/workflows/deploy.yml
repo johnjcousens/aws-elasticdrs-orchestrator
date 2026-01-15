@@ -17,6 +17,11 @@ on:
           - dev
           - prod
 
+# Prevent concurrent deployments to avoid conflicts
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-east-1
   PROJECT_NAME: aws-elasticdrs-orchestrator
