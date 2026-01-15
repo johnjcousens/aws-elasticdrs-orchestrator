@@ -41,6 +41,9 @@ REDUNDANT_COMMENT_PATTERNS = [
     r'//\s*(This function|This method|This class)\s+(gets?|sets?|returns?|creates?|deletes?|updates?)',
 ]
 
+# Pattern for empty docstrings
+EMPTY_DOCSTRING_PATTERN = r'^\s*def\s+\w+\([^)]*\)(?:\s*->\s*[^:]+)?:\s*"""[\s]*"""'
+
 
 class CodeQualityIssue:
     def __init__(self, file_path: str, line_num: int, issue_type: str, message: str, line_content: str):
@@ -127,6 +130,32 @@ def check_redundant_comments(file_path: str, content: str) -> List[CodeQualityIs
     return issues
 
 
+def check_empty_docstrings(file_path: str, content: str) -> List[CodeQualityIssue]:
+    """Check for empty docstrings in function definitions"""
+    issues = []
+    
+    # Only check Python files
+    if not file_path.endswith('.py'):
+        return issues
+    
+    # Find all function definitions with empty docstrings
+    pattern = EMPTY_DOCSTRING_PATTERN
+    for match in re.finditer(pattern, content, re.MULTILINE):
+        line_num = content[:match.start()].count('\n') + 1
+        func_match = re.search(r'def\s+(\w+)', match.group())
+        func_name = func_match.group(1) if func_match else "unknown"
+        
+        issues.append(CodeQualityIssue(
+            file_path=file_path,
+            line_num=line_num,
+            issue_type="EMPTY_DOCSTRING",
+            message=f"Function '{func_name}' has empty docstring - add purpose, parameters, returns",
+            line_content=match.group().split('\n')[0]
+        ))
+    
+    return issues
+
+
 def check_file(file_path: Path) -> List[CodeQualityIssue]:
     """Check a single file for code quality issues"""
     try:
@@ -142,6 +171,7 @@ def check_file(file_path: Path) -> List[CodeQualityIssue]:
     issues.extend(check_temporal_references(file_path_str, content))
     issues.extend(check_bad_naming(file_path_str, content))
     issues.extend(check_redundant_comments(file_path_str, content))
+    issues.extend(check_empty_docstrings(file_path_str, content))
     
     return issues
 
