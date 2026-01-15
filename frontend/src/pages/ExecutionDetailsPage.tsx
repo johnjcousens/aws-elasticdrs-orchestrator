@@ -818,7 +818,7 @@ export const ExecutionDetailsPage: React.FC = () => {
               </ColumnLayout>
 
               {/* Progress Bar for Active Executions */}
-              {execution.status === 'in_progress' && execution.currentWave && (
+              {(execution.status === 'in_progress' || execution.status === 'paused') && execution.currentWave && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <div style={{ fontSize: '12px', color: '#5f6b7a' }}>
