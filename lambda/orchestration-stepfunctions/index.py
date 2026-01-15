@@ -432,11 +432,11 @@ def resume_wave(event: Dict) -> Dict:
     state["wave_completed"] = False
     state["paused_before_wave"] = None
 
-    # Update DynamoDB
+    # Update DynamoDB - remove endTime if execution was previously cancelled
     try:
         get_execution_history_table().update_item(
             Key={"executionId": execution_id, "planId": plan_id},
-            UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave",
+            UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave, endTime",
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":status": "RUNNING"},
         )
