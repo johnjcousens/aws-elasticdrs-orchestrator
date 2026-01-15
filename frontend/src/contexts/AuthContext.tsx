@@ -460,7 +460,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const result = await signIn(signInInput);
 
-      // Check if sign-in was successful
+      // Check if authentication succeeded
       if (result.isSignedIn) {
         // Refresh auth state
         await checkAuth();

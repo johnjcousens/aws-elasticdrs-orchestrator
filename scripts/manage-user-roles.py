@@ -234,7 +234,7 @@ def main():  # noqa: C901
     create_parser = subparsers.add_parser("create-user", help="Create new user")
     create_parser.add_argument("--email", required=True, help="User email address")
     create_parser.add_argument(
-        "--temp-password", required=True, help="Temporary password"
+        "--temp-password", required=True, help="Initial password for new user"
     )
     create_parser.add_argument("--given-name", help="First name")
     create_parser.add_argument("--family-name", help="Last name")
@@ -303,7 +303,7 @@ def main():  # noqa: C901
 
         if success:
             print(f"\n✅ User '{args.email}' created successfully")
-            print("   Temporary password has been set (check with administrator)")
+            print("   Initial password has been set (check with administrator)")
             print("   User must change password on first login")
         else:
             sys.exit(1)

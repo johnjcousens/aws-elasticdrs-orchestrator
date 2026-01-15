@@ -432,7 +432,7 @@ def resume_wave(event: Dict) -> Dict:
     state["wave_completed"] = False
     state["paused_before_wave"] = None
 
-    # Update DynamoDB - remove endTime if execution was previously cancelled
+    # Update DynamoDB - remove endTime to allow execution to continue
     try:
         get_execution_history_table().update_item(
             Key={"executionId": execution_id, "planId": plan_id},
@@ -443,7 +443,7 @@ def resume_wave(event: Dict) -> Dict:
     except Exception as e:
         print(f"Error updating execution status: {e}")
 
-    # Start the wave that was paused
+    # Start recovery for the specified wave
     start_wave_recovery(state, paused_before_wave)
 
     return state

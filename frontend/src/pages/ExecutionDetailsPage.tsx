@@ -487,7 +487,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     ];
     const isTerminal = terminalStatuses.includes(execution.status as string);
     
-    // Check if any wave has a jobId (meaning recovery instances were launched)
+    // Check if any wave has a jobId (recovery instances exist)
     const waves = (execution as Execution & { waves?: WaveExecution[] }).waves || execution.waveExecutions || [];
     const hasJobId = waves.some((wave: { jobId?: string; JobId?: string }) => wave.jobId || (wave as any).JobId);
     

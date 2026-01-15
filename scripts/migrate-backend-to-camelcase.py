@@ -44,9 +44,9 @@ FIELD_MAPPINGS = {
     "DryRun": "dryRun",
     "TopicArn": "topicArn",
     
-    # Timestamp fields
+    # Timestamp fields - mapping from DynamoDB PascalCase field names
     "CreatedAt": "createdAt",
-    "UpdatedAt": "updatedAt", 
+    "UpdatedAt": "updatedAt",  # DynamoDB field name, not historical context
     "StartTime": "startTime",
     "EndTime": "endTime",
 }

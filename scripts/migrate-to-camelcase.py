@@ -16,7 +16,7 @@ FIELD_MAPPINGS = {
     "SourceServerIds": "sourceServerIds",
     "ServerSelectionTags": "serverSelectionTags",
     "CreatedAt": "createdAt",
-    "UpdatedAt": "updatedAt",
+    "UpdatedAt": "updatedAt",  # DynamoDB field name, not historical context
     "CreatedBy": "createdBy",
     "AccountId": "accountId",
     "AssumeRoleName": "assumeRoleName",

@@ -194,7 +194,7 @@ class ApiClient {
             const sanitizedMessage = sanitizeErrorMessage(data);
             console.error('Permission denied:', sanitizedMessage);
           } else if (status === 409 && data && typeof data === 'object' && 'error' in data && data.error === 'VERSION_CONFLICT') {
-            // Optimistic locking conflict - resource was modified by another user
+            // Optimistic locking conflict - resource modified concurrently
             const errorData = data as { message?: string; resourceId?: string; expectedVersion?: string; currentVersion?: string };
             const versionError = new Error(errorData.message || 'Resource was modified by another user. Please refresh and try again.');
             (versionError as Error & { isVersionConflict: boolean; resourceId?: string; expectedVersion?: string; currentVersion?: string }).isVersionConflict = true;

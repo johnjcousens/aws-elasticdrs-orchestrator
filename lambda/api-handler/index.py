@@ -4486,10 +4486,10 @@ def start_drs_recovery_for_wave(
             f"[DRS API] Built sourceServers array for {len(server_ids)} servers"
         )
 
-        # CRITICAL FIX: Do NOT pass tags to start_recovery()
+        # CRITICAL: Do NOT pass tags to start_recovery()
         # The reference implementation (drs-plan-automation) does NOT use tags
         # CLI without tags works, code with tags fails (conversion skipped)
-        # Tags were causing DRS to skip the CONVERSION phase entirely
+        # Tags parameter causes DRS to skip the CONVERSION phase entirely
 
         # STEP 4: Start recovery for ALL servers in ONE API call WITHOUT TAGS
         print(
@@ -6364,7 +6364,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                     if srv_id not in source_server_ids_by_region[region]:
                         source_server_ids_by_region[region].append(srv_id)
 
-            # Only process waves that have a job ID (were actually launched)
+            # Only process waves with a job ID (recovery instances may exist)
             # Include STARTED status since recovery instances may exist even if wave is still in progress
             if job_id and wave_status in [
                 "COMPLETED",
@@ -9723,7 +9723,7 @@ def import_configuration(body: Dict) -> Dict:
             "failed": [],
         }
 
-        # Track which PGs were successfully created/exist for RP dependency resolution
+        # Track which PGs are available for RP dependency resolution
         available_pg_names = set(existing_pgs.keys())
         failed_pg_names = set()
 
