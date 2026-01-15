@@ -4962,7 +4962,9 @@ def list_executions(query_params: Dict) -> Dict:
                 waves = execution.get("waves", [])
                 completed_waves = sum(1 for w in waves if w.get("status") in ["completed", "COMPLETED"])
                 total_waves = execution.get("totalWaves", 1)
-                execution["currentWave"] = completed_waves + 1 if completed_waves < total_waves else total_waves
+                calculated_current = completed_waves + 1 if completed_waves < total_waves else total_waves
+                print(f"DEBUG list_executions currentWave: exec={execution.get('executionId')}, waves={len(waves)}, completed={completed_waves}, total={total_waves}, calculated={calculated_current}")
+                execution["currentWave"] = calculated_current
 
             # For CANCELLED/CANCELLING executions, set hasActiveDrsJobs to false
             # to avoid expensive DRS API calls that can cause timeouts in list view
@@ -5745,7 +5747,10 @@ def get_execution_details_fast(execution_id: str) -> Dict:
         if "currentWave" not in execution or execution.get("currentWave") is None:
             waves = execution.get("waves", [])
             completed_waves = sum(1 for w in waves if w.get("status") in ["completed", "COMPLETED"])
-            execution["currentWave"] = completed_waves + 1 if completed_waves < execution.get("totalWaves", 1) else execution.get("totalWaves", 1)
+            total_waves = execution.get("totalWaves", 1)
+            calculated_current = completed_waves + 1 if completed_waves < total_waves else total_waves
+            print(f"DEBUG currentWave calculation: waves={len(waves)}, completed={completed_waves}, total={total_waves}, calculated={calculated_current}")
+            execution["currentWave"] = calculated_current
 
         # Add termination capability metadata (safe addition - no logic changes)
         try:
