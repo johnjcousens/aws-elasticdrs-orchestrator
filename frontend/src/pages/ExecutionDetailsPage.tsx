@@ -144,7 +144,7 @@ export const ExecutionDetailsPage: React.FC = () => {
     }, 3000); // Poll every 3 seconds for faster updates
 
     return () => clearInterval(interval);
-  }, [execution?.status, executionId]); // Remove fetchExecution dependency to prevent stale closures
+  }, [execution, executionId]); // Depend on execution to start polling when it loads
 
   // Polling while termination is in progress
   useEffect(() => {
