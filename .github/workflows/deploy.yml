@@ -76,14 +76,17 @@ jobs:
           done <<< "$CHANGED_FILES"
           
           # Determine deployment scope
-          if [[ "$DOCS_CHANGED" == "true" && "$INFRASTRUCTURE_CHANGED" == "false" && "$LAMBDA_CHANGED" == "false" && "$FRONTEND_CHANGED" == "false" ]]; then
-            DOCS_ONLY=true
-            FRONTEND_ONLY=false
-          elif [[ "$FRONTEND_CHANGED" == "true" && "$INFRASTRUCTURE_CHANGED" == "false" && "$LAMBDA_CHANGED" == "false" ]]; then
-            # Frontend-only deployment (docs changes are OK)
+          # Priority order: frontend-only > docs-only > full deployment
+          if [[ "$FRONTEND_CHANGED" == "true" && "$INFRASTRUCTURE_CHANGED" == "false" && "$LAMBDA_CHANGED" == "false" ]]; then
+            # Frontend changed, no infrastructure/lambda changes (docs changes are OK)
             DOCS_ONLY=false
             FRONTEND_ONLY=true
+          elif [[ "$DOCS_CHANGED" == "true" && "$INFRASTRUCTURE_CHANGED" == "false" && "$LAMBDA_CHANGED" == "false" && "$FRONTEND_CHANGED" == "false" ]]; then
+            # Only docs changed
+            DOCS_ONLY=true
+            FRONTEND_ONLY=false
           else
+            # Full deployment (infrastructure or lambda changed)
             DOCS_ONLY=false
             FRONTEND_ONLY=false
           fi
@@ -578,6 +581,7 @@ jobs:
       github.ref == 'refs/heads/main' && 
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.detect-changes.outputs.docs-only != 'true' && 
+      needs.detect-changes.outputs.frontend-only != 'true' &&
       (needs.detect-changes.outputs.frontend == 'true' || 
        needs.deploy-infrastructure.result == 'success' ||
        needs.deploy-infrastructure.result == 'skipped')
