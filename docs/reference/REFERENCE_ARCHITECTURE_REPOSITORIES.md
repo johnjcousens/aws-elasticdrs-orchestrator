@@ -275,59 +275,7 @@ AWS Solutions Implementation for migrating large numbers of servers using CloudE
 
 ---
 
-### 4. DR Automation (Internal AWS Reference)
-
-**Repository**: git@ssh.gitlab.aws.dev:jocousen/dr-automation.git  
-**Type**: Internal AWS Professional Services Reference  
-**Access**: AWS Internal GitLab
-
-#### Description
-Comprehensive disaster recovery automation solutions including firewall automation, network automation, DRS configuration synchronization, and recovery workflow orchestration.
-
-#### Key Components
-
-##### Infrastructure as Code (IaC)
-- **Approach**: All infrastructure declared in CloudFormation templates
-- **Source Control**: GitHub Enterprise with AWS CodeCommit replication
-- **Benefit**: Configuration tracking, version control, rollback capability
-
-##### Continuous Delivery
-- **Pipeline**: AWS CodePipeline for automated deployments
-- **Validation**: cfn-nag security scanning, automated compliance checks
-- **Deployment**: CloudFormation stack deployments with rollback protection
-
-##### DR Firewall Automation
-- **Purpose**: Automated firewall configuration during DR events
-- **Features**: Firewall credential management, deployment pipeline
-
-##### DR Network Automation
-- **Purpose**: Network infrastructure automation for DR
-- **Features**: Network deployment pipeline, VPC configuration
-
-##### DRS Configuration Synchronizer
-- **Purpose**: Synchronize DRS settings across environments
-- **Features**: Configuration-based synchronization, multi-account support
-
-##### Recovery Workflow Automation
-- **Purpose**: Orchestrated recovery workflows
-- **Features**: Step-by-step recovery automation, validation checks
-
-#### Architecture Patterns
-- **CodeCommit Replication**: Primary GitHub → Secondary CodeCommit for DR availability
-- **Nested CloudFormation**: Modular stack organization
-- **Pipeline Automation**: Validation → Security Scan → Deploy
-- **Multi-Account**: Cross-account role patterns
-
-#### Relevance to AWS DRS Orchestration
-- **IaC best practices**: Validated our CloudFormation-based approach
-- **CI/CD pipeline design**: Informed our GitHub Actions workflow
-- **Security scanning integration**: Guided our cfn-lint and security validation
-- **Multi-account patterns**: Influenced our cross-account role design
-- **Nested stack architecture**: Validated our 15+ stack organization
-
----
-
-### 5. DR Factory (Internal Migration Factory Customization)
+### 4. DR Factory (Internal Migration Factory Customization)
 
 **Repository**: git@ssh.gitlab.aws.dev:wwco-proserve-gcci/rehost/competencies/migrations/cmf-customisation-for-partners-testings.git  
 **Type**: Internal AWS Professional Services Customization  
