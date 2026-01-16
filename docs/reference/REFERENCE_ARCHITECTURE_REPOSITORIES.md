@@ -284,36 +284,55 @@ AWS Solutions Implementation for migrating large numbers of servers using CloudE
 - **Migration tracking in DynamoDB**: Influenced our execution history design
 - **Automation framework**: Inspired our orchestration approach
 
+**Note**: DR Factory (section 4) extends this platform with DRS-specific automation scripts.
+
 ---
 
-### 4. DR Factory (Internal Migration Factory Customization)
+### 4. DR Factory (DRS-Focused Customization of Cloud Migration Factory)
 
 **Repository**: git@ssh.gitlab.aws.dev:wwco-proserve-gcci/rehost/competencies/migrations/cmf-customisation-for-partners-testings.git  
 **Type**: Internal AWS Professional Services Customization  
-**Access**: AWS Internal GitLab
+**Access**: AWS Internal GitLab  
+**Base Platform**: Cloud Migration Factory v4.5.1  
+**Version**: 4.0.1
 
 #### Description
-Customization of Cloud Migration Factory for partner testing and DR scenarios. Provides scripted automation for DRS operations.
+DRS-focused customization of Cloud Migration Factory that extends the base platform's automation framework with disaster recovery-specific workflows. Provides scripted automation for DRS operations including agent installation, replication monitoring, drill/failover execution, and failback procedures.
+
+**Relationship to Cloud Migration Factory**: DR Factory builds on Cloud Migration Factory's automation framework, web UI, and DynamoDB tracking capabilities, adding DRS-specific scripts and workflows for disaster recovery testing and operations.
 
 #### Key Components
 
 ##### DR Factory Scripts (Version 4.0.1)
+Complete DRS lifecycle automation:
+
 1. **0-DRS-Prerequisite-Check**: Validates prerequisites before DRS operations
-2. **1-Install-DRS-Agent**: Automates DRS agent installation
-3. **2-DRS_Copy_Post_Launch_Scripts**: Manages post-launch automation
-4. **3-verify-replication-status**: Monitors replication health
+2. **1-Install-DRS-Agent**: Automates DRS agent installation on source servers
+3. **2-DRS_Copy_Post_Launch_Scripts**: Manages post-launch automation scripts
+4. **3-verify-replication-status**: Monitors replication health and readiness
 5. **4-Initiate-Drill-Failover**: Triggers drill or failover operations
+6. **5-start-reverse-replication**: Initiates reverse replication for failback
+7. **6-initiate-failback**: Executes failback to original region
+8. **7-terminate-recovery-instance**: Cleanup of recovery instances
 
 #### Supporting Materials
-- **DR Factory Guidance**: Implementation documentation
+- **DR Factory Guidance**: Implementation documentation (DR_Factory_guidance.docx)
 - **IAM Policy**: Required permissions for DRS operations
-- **Sample Intake Form**: Template for DR planning
+- **Sample Intake Form**: Template for DR planning and execution
+
+#### Architecture
+- **Base Platform**: Cloud Migration Factory automation framework
+- **Extensions**: DRS-specific Lambda functions and SSM automation documents
+- **Integration**: Leverages CMF's React UI, API Gateway, DynamoDB tracking
+- **Workflow**: Extends CMF's migration workflows with DR-specific operations
 
 #### Relevance to AWS DRS Orchestration
 - **Scripted automation pattern**: Validated our Lambda-based automation approach
 - **Prerequisite checking**: Informed our validation logic
 - **Replication monitoring**: Guided our DRS status polling design
 - **Drill/failover workflows**: Influenced our execution type handling
+- **Lifecycle automation**: Inspired our wave-based execution with pause/resume
+- **CMF extension pattern**: Demonstrated how to build on existing migration platforms
 
 ---
 
