@@ -116,7 +116,7 @@ Configure these secrets in GitHub repository → Settings → Secrets and variab
 
 | Secret Name | Value | Description |
 |-------------|-------|-------------|
-| `AWS_ROLE_ARN` | `arn:aws:iam::***REMOVED***:role/aws-elasticdrs-orchestrator-github-actions-dev` | IAM role for GitHub Actions |
+| `AWS_ROLE_ARN` | `arn:aws:iam::{account-id}:role/aws-elasticdrs-orchestrator-github-actions-dev` | IAM role for GitHub Actions |
 | `DEPLOYMENT_BUCKET` | `aws-elasticdrs-orchestrator` | S3 deployment bucket |
 | `STACK_NAME` | `aws-elasticdrs-orchestrator-dev` | CloudFormation stack name |
 | `ADMIN_EMAIL` | `admin@yourcompany.com` | Admin email for Cognito |

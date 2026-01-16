@@ -84,7 +84,7 @@ The project uses **GitHub Actions** for automated deployment with OIDC-based AWS
 | **Repository** | GitHub (`johnjcousens/aws-elasticdrs-orchestrator`) |
 | **Authentication** | OIDC (OpenID Connect) |
 | **OIDC Stack** | `cfn/github-oidc-stack.yaml` |
-| **Account** | ***REMOVED*** |
+| **Account** | {account-id} |
 | **Deployment Bucket** | `aws-elasticdrs-orchestrator` |
 | **Current Stack** | `aws-elasticdrs-orchestrator-dev` |
 | **Project Name** | `aws-elasticdrs-orchestrator` |

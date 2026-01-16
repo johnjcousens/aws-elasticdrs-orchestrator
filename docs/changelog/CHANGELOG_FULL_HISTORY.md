@@ -1758,7 +1758,7 @@ Script Updates:
 
 - Fixed `scripts/sync-to-deployment-bucket.sh` to target correct CloudFormation stack `drs-orch-v4`
 - Updated Lambda function name patterns to match actual deployment: `drsorchv4-*-test`
-- Corrected frontend bucket name: `drsorchv4-fe-***REMOVED***-test`
+- Corrected frontend bucket name: `drsorchv4-fe-{account-id}-test`
 - Fixed CloudFront distribution ID: `***REMOVED***`
 - Added proper stack configuration validation
 

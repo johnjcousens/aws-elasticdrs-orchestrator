@@ -62,7 +62,7 @@ The GitHub Actions workflow provides intelligent deployment optimization:
 - **Repository**: `johnjcousens/aws-elasticdrs-orchestrator`
 - **Workflow File**: `.github/workflows/deploy.yml`
 - **Target Environment**: `test` (default)
-- **AWS Account**: `***REMOVED***`
+- **AWS Account**: `{account-id}`
 - **Deployment Bucket**: `s3://aws-elasticdrs-orchestrator`
 - **OIDC Role**: `aws-elasticdrs-orchestrator-github-actions-test`
 

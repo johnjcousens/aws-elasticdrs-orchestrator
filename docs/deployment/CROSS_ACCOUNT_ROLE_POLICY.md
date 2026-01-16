@@ -197,7 +197,7 @@ Hub Account (DRS Orchestration)
 ```
 
 **Replace:**
-- `<HUB_ACCOUNT_ID>`: Your hub account ID (e.g., `***REMOVED***`)
+- `<HUB_ACCOUNT_ID>`: Your hub account ID (e.g., `{account-id}`)
 - `<UNIQUE_EXTERNAL_ID>`: A unique identifier for security (e.g., `drs-orch-spoke-<ACCOUNT_ID>`)
 
 ---
@@ -296,7 +296,7 @@ The Lambda functions in the hub account need permission to assume the cross-acco
 
 ```bash
 # Set variables
-HUB_ACCOUNT_ID="***REMOVED***"
+HUB_ACCOUNT_ID="{account-id}"
 SPOKE_ACCOUNT_ID="<your-spoke-account-id>"
 EXTERNAL_ID="drs-orch-spoke-${SPOKE_ACCOUNT_ID}"
 ROLE_NAME="DRSOrchestrationCrossAccountRole"
