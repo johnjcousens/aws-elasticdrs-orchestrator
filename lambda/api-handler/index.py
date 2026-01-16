@@ -873,7 +873,7 @@ def check_server_conflicts(
             # Resolve servers from Protection Group tags
             server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
             print(
-                f"[Conflict Check] Resolved {len(server_ids)} servers from PG {pg_id}: {server_ids}"
+                f"[Conflict Check] Resolved {len(server_ids)} servers from PG {pg_id}"
             )
 
             for server_id in server_ids:
@@ -3548,7 +3548,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                         print(f"Error resolving tags for PG {pg_id}: {e}")
 
         print(
-            f"Total servers to check for recovery instances: {len(all_server_ids)}: {all_server_ids}"
+            f"Total servers to check for recovery instances: {len(all_server_ids)}"
         )
 
         if not all_server_ids:
