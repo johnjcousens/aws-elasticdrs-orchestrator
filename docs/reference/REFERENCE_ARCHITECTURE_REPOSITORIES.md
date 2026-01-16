@@ -30,15 +30,98 @@ This document catalogs the reference architecture repositories that provided des
 
 ## Repository Catalog
 
-### 🎯 PRIMARY TEMPLATE FOR THIS PROJECT: AWS DRS Tools (Official AWS Sample)
+### 🎯 PRIMARY TEMPLATE FOR GREATER HRP-DR-ORCHESTRATION SYSTEM: DR Orchestration Artifacts (Internal AWS Reference)
+
+**Repository**: git@ssh.gitlab.aws.dev:bdesika/dr-orchestration-artifacts.git  
+**Type**: Internal AWS Professional Services Reference  
+**Access**: AWS Internal GitLab  
+**Status**: ⭐ **FOUNDATIONAL TEMPLATE FOR GREATER HRP-DR-ORCHESTRATION SYSTEM**
+
+#### Description
+Multi-region disaster recovery orchestrator that automates DR lifecycle phases between two AWS regions. **This repository serves as the foundational template for the greater HRP-DR-Orchestration system** documented in `archive/HealthEdge/HRP-DR-Orchestration/DESIGN-DOCS`. The HRP system encompasses tag-driven DR orchestration for 1,000+ servers across 20+ customer environments, including DRS, EKS, SQL AG, and managed services recovery.
+
+**Relationship to This Repository**: This AWS DRS Orchestration project (https://github.com/johnjcousens/aws-elasticdrs-orchestrator) serves as the **DRS recovery component** that would be invoked by the greater HRP-DR-Orchestration system.
+
+#### DR Lifecycle Phases
+
+##### 1. Instantiate
+- **Purpose**: Prewarm infrastructure in secondary region
+- **Actions**: Deploy stacks, scale ECS/EKS clusters
+- **Timing**: Before DR event
+
+##### 2. Activate
+- **Purpose**: Activate secondary region as primary
+- **Actions**: Failover databases, switch DNS
+- **Timing**: During DR event
+
+##### 3. Cleanup
+- **Purpose**: Remove resources from old primary region
+- **Actions**: Delete stacks, clean up resources
+- **Timing**: After old primary region recovers
+
+##### 4. Replicate
+- **Purpose**: Re-establish replication to old primary (now secondary)
+- **Actions**: Configure replication, restore standby state
+- **Timing**: After cleanup completes
+
+#### Architecture Components
+- **Orchestration**: AWS Step Functions with nested state machines
+- **Execution**: Lambda functions for control logic
+- **Configuration**: S3-based manifest files (JSON)
+- **Approval**: SNS-based approval workflow
+- **Monitoring**: CloudWatch dashboard for failure tracking
+- **Cross-Account**: IAM roles for multi-account support
+
+#### State Machine Hierarchy
+1. **DR Orchestrator**: Top-level orchestration
+2. **Lifecycle**: Phase-specific orchestration (Instantiate/Activate/Cleanup/Replicate)
+3. **Module Factory**: Resource-specific operations
+
+#### Manifest Structure
+- **Product Manifest**: High-level DR plan
+- **Application Manifest**: Resource-specific configuration
+- **Layer-Based Execution**: Sequential processing with dependencies
+- **Parameter Support**: CloudFormation exports, SSM parameters
+
+#### Key Features
+- **Approval Workflow**: Email-based approval before execution
+- **Dependency Management**: Layer-based resource ordering
+- **Multi-Application**: Support for multiple applications per product
+- **Failure Tracking**: CloudWatch dashboard for troubleshooting
+- **Flexible Configuration**: JSON-based manifest files
+
+#### Influence on Greater HRP-DR-Orchestration System
+This repository provided the foundational architecture for the greater DR orchestration system:
+
+**Core Concepts for HRP System**:
+- ✅ **Step Functions orchestration**: Multi-service recovery coordination
+- ✅ **Lifecycle phases**: Instantiate → Activate → Cleanup → Replicate
+- ✅ **Approval workflow**: Human-in-the-loop for critical operations
+- ✅ **Manifest-based configuration**: Tag-driven resource discovery
+- ✅ **Layer-based dependencies**: Wave-based execution across services
+- ✅ **CloudWatch monitoring**: System-wide observability
+
+**HRP System Architecture**:
+- Tag-driven discovery using AWS Resource Explorer
+- CLI-triggered automation via Step Functions
+- Multi-service recovery modules: DRS, EKS DNS, SQL AG, Managed Services
+- Pre-cached resource inventory for primary region failures
+- Cross-account access patterns
+- Performance targets: 4-hour RTO, 30-minute critical workload recovery
+
+**Integration Point**: This AWS DRS Orchestration project implements the DRS recovery module that would be invoked by the greater HRP-DR-Orchestration system's Step Functions workflow.
+
+---
+
+### 🔧 COMPONENT TEMPLATE: AWS DRS Tools (Official AWS Sample)
 
 **Repository**: https://github.com/aws-samples/drs-tools  
 **Type**: Official AWS Sample Repository  
 **License**: Apache 2.0  
-**Status**: ⭐ **FOUNDATIONAL TEMPLATE FOR AWS DRS ORCHESTRATION**
+**Status**: ⭐ **TEMPLATE FOR THIS DRS ORCHESTRATION COMPONENT**
 
 #### Description
-Collection of solutions and tools for AWS Elastic Disaster Recovery (DRS) service. **This repository served as the foundational template for the current AWS DRS Orchestration project** (https://github.com/johnjcousens/aws-elasticdrs-orchestrator).
+Collection of solutions and tools for AWS Elastic Disaster Recovery (DRS) service. **This repository served as the template for this specific DRS Orchestration component** (https://github.com/johnjcousens/aws-elasticdrs-orchestrator), which handles DRS-specific recovery operations within the greater HRP-DR-Orchestration system.
 
 #### Key Components
 
@@ -111,89 +194,6 @@ Collection of solutions and tools for AWS Elastic Disaster Recovery (DRS) servic
 - 47+ REST API endpoints
 - Protection Groups and Recovery Plans data model
 - Wave-based execution with pause/resume capability
-
----
-
-### 🏢 TEMPLATE FOR GREATER DR ORCHESTRATION: DR Orchestration Artifacts (Internal AWS Reference)
-
-**Repository**: git@ssh.gitlab.aws.dev:bdesika/dr-orchestration-artifacts.git  
-**Type**: Internal AWS Professional Services Reference  
-**Access**: AWS Internal GitLab  
-**Status**: ⭐ **TEMPLATE FOR GREATER HRP-DR-ORCHESTRATION SYSTEM**
-
-#### Description
-Multi-region disaster recovery orchestrator that automates DR lifecycle phases between two AWS regions. **This repository served as the foundational template for the greater HRP-DR-Orchestration system**. The HRP system encompasses tag-driven DR orchestration for 1,000+ servers across 20+ customer environments, including DRS, EKS, SQL AG, and managed services recovery.
-
-**Relationship to This Project**: The current AWS DRS Orchestration project would serve as the DRS recovery module within the greater HRP-DR-Orchestration system.
-
-#### DR Lifecycle Phases
-
-##### 1. Instantiate
-- **Purpose**: Prewarm infrastructure in secondary region
-- **Actions**: Deploy stacks, scale ECS/EKS clusters
-- **Timing**: Before DR event
-
-##### 2. Activate
-- **Purpose**: Activate secondary region as primary
-- **Actions**: Failover databases, switch DNS
-- **Timing**: During DR event
-
-##### 3. Cleanup
-- **Purpose**: Remove resources from old primary region
-- **Actions**: Delete stacks, clean up resources
-- **Timing**: After old primary region recovers
-
-##### 4. Replicate
-- **Purpose**: Re-establish replication to old primary (now secondary)
-- **Actions**: Configure replication, restore standby state
-- **Timing**: After cleanup completes
-
-#### Architecture Components
-- **Orchestration**: AWS Step Functions with nested state machines
-- **Execution**: Lambda functions for control logic
-- **Configuration**: S3-based manifest files (JSON)
-- **Approval**: SNS-based approval workflow
-- **Monitoring**: CloudWatch dashboard for failure tracking
-- **Cross-Account**: IAM roles for multi-account support
-
-#### State Machine Hierarchy
-1. **DR Orchestrator**: Top-level orchestration
-2. **Lifecycle**: Phase-specific orchestration (Instantiate/Activate/Cleanup/Replicate)
-3. **Module Factory**: Resource-specific operations
-
-#### Manifest Structure
-- **Product Manifest**: High-level DR plan
-- **Application Manifest**: Resource-specific configuration
-- **Layer-Based Execution**: Sequential processing with dependencies
-- **Parameter Support**: CloudFormation exports, SSM parameters
-
-#### Key Features
-- **Approval Workflow**: Email-based approval before execution
-- **Dependency Management**: Layer-based resource ordering
-- **Multi-Application**: Support for multiple applications per product
-- **Failure Tracking**: CloudWatch dashboard for troubleshooting
-- **Flexible Configuration**: JSON-based manifest files
-
-#### Influence on Greater HRP-DR-Orchestration System
-This repository provided the foundational architecture for the greater DR orchestration system:
-
-**Core Concepts for HRP System**:
-- ✅ **Step Functions orchestration**: Multi-service recovery coordination
-- ✅ **Lifecycle phases**: Instantiate → Activate → Cleanup → Replicate
-- ✅ **Approval workflow**: Human-in-the-loop for critical operations
-- ✅ **Manifest-based configuration**: Tag-driven resource discovery
-- ✅ **Layer-based dependencies**: Wave-based execution across services
-- ✅ **CloudWatch monitoring**: System-wide observability
-
-**HRP System Architecture**:
-- Tag-driven discovery using AWS Resource Explorer
-- CLI-triggered automation via Step Functions
-- Multi-service recovery modules: DRS, EKS DNS, SQL AG, Managed Services
-- Pre-cached resource inventory for primary region failures
-- Cross-account access patterns
-- Performance targets: 4-hour RTO, 30-minute critical workload recovery
-
-**Integration Point**: The current AWS DRS Orchestration project implements the DRS recovery module that would be invoked by the greater HRP-DR-Orchestration system's Step Functions workflow.
 
 ---
 
