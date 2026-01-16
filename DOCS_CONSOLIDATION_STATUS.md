@@ -58,15 +58,17 @@
    - Merged: ARCHITECTURAL_DESIGN_DOCUMENT.md (2385 lines), AWS_SERVICES_ARCHITECTURE_DEEP_DIVE.md (1922 lines)
    - Result: 1,100+ line comprehensive architecture guide covering system overview, data architecture, AWS service integration, security, execution engine, API architecture, deployment, and performance
    - Location: `docs/architecture/ARCHITECTURE.md`
-   - Commit: Current
+   - Commit: 22982ce5
+   - Status: ✅ Complete
+
+6. ✅ **DEPLOYMENT_GUIDE.md** (2 files → 1)
+   - Merged: DEPLOYMENT_AND_OPERATIONS_GUIDE.md (1106 lines), deployment/FRESH_DEPLOYMENT_GUIDE.md
+   - Result: 1,000+ line comprehensive deployment guide covering fresh deployment, CI/CD pipeline, manual deployment, stack management, monitoring, troubleshooting, and maintenance
+   - Location: `docs/guides/DEPLOYMENT_GUIDE.md`
+   - Commit: d1f2eeaf
    - Status: ✅ Complete
 
 #### Planned Consolidations
-
-6. **DEPLOYMENT_GUIDE.md** (2 files → 1)
-   - DEPLOYMENT_AND_OPERATIONS_GUIDE.md
-   - deployment/FRESH_DEPLOYMENT_GUIDE.md
-   - Status: Not started
 
 7. **CICD_GUIDE.md** (1 file → renamed)
    - deployment/GITHUB_ACTIONS_CICD_GUIDE.md
