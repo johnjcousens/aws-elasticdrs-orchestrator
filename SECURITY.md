@@ -4,9 +4,9 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.2.x   | :white_check_mark: |
-| 1.1.x   | :x:                |
-| < 1.1   | :x:                |
+| 3.0.x   | :white_check_mark: |
+| 2.x.x   | :x:                |
+| < 2.0   | :x:                |
 
 ## Security Standards
 
@@ -84,17 +84,17 @@ make security-scan
 
 ## Reporting a Vulnerability
 
-### Internal Reporting (Amazon Employees)
-1. Create a security ticket in the internal ticketing system
-2. Mark as "Security" priority with appropriate severity
-3. Include detailed vulnerability description and reproduction steps
-4. Notify the security team via secure channels
-
-### External Reporting
 If you discover a security vulnerability, please report it responsibly:
 
+### Preferred Method: GitHub Security Advisories
+1. Go to the [Security tab](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/security/advisories)
+2. Click "Report a vulnerability"
+3. Provide detailed information about the vulnerability
+4. Allow reasonable time for investigation and remediation
+
+### Alternative: Private Disclosure
 1. **Do not** create public GitHub issues for security vulnerabilities
-2. Email security concerns to: aws-drs-orchestration-security@amazon.com
+2. Contact the maintainers privately via GitHub
 3. Include detailed information about the vulnerability
 4. Allow reasonable time for investigation and remediation
 
@@ -107,14 +107,15 @@ If you discover a security vulnerability, please report it responsibly:
 
 ## Security Controls Implementation
 
-### Current Status (v1.2.2)
+### Current Status (v3.0.1)
 - ✅ Authentication & Authorization (Cognito + RBAC)
 - ✅ Input Validation & Output Encoding
 - ✅ Secure Communication (HTTPS/TLS)
 - ✅ Infrastructure Security (IAM, CloudTrail)
-- ✅ Automated Security Scanning
-- ⚠️ Dependency Vulnerabilities (7 identified, fixes in progress)
-- ⚠️ Code Quality Issues (30+ identified, remediation ongoing)
+- ✅ Automated Security Scanning (CI/CD pipeline)
+- ✅ Dependency Vulnerability Scanning (Safety, npm audit)
+- ✅ Static Code Analysis (Bandit, Semgrep, ESLint)
+- ✅ Infrastructure Security Scanning (cfn-lint)
 
 ### Planned Enhancements
 - [ ] AWS WAF integration for API protection
@@ -153,9 +154,9 @@ If you discover a security vulnerability, please report it responsibly:
 
 ## Contact Information
 
-- **Security Team**: aws-drs-orchestration-security@amazon.com
-- **Development Team**: aws-drs-orchestration@amazon.com
-- **Emergency Contact**: Follow internal escalation procedures
+- **Security Issues**: Use [GitHub Security Advisories](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/security/advisories)
+- **General Issues**: [GitHub Issues](https://github.com/johnjcousens/aws-elasticdrs-orchestrator/issues)
+- **Project Repository**: [github.com/johnjcousens/aws-elasticdrs-orchestrator](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 
 ## Acknowledgments
 
@@ -163,5 +164,5 @@ We appreciate the security research community's efforts in responsibly disclosin
 
 ---
 
-**Last Updated**: January 3, 2026
-**Next Review**: April 3, 2026
+**Last Updated**: January 15, 2026
+**Next Review**: April 15, 2026
