@@ -26,6 +26,10 @@ The application uses React 19.1.1 + TypeScript 5.9.3 + AWS CloudScape Design Sys
 - Permission-aware UI with RBAC integration
 - Multi-account context switching with enforcement
 
+**Related Documentation**:
+- [Visual Design System](./UX_VISUAL_DESIGN_SYSTEM.md) - Complete color palette, typography, spacing, and branding guidelines
+- [Technology Stack](./UX_TECHNOLOGY_STACK.md) - Detailed setup instructions and dependency versions
+
 ---
 
 ## Technology Stack
@@ -46,6 +50,8 @@ The application uses React 19.1.1 + TypeScript 5.9.3 + AWS CloudScape Design Sys
 ---
 
 ## Application Architecture
+
+**For detailed page specifications with complete layouts, features, and API integration requirements, see [Page Specifications](./UX_PAGE_SPECIFICATIONS.md).**
 
 ### Page Structure (7 Pages)
 
@@ -178,6 +184,8 @@ The application uses React 19.1.1 + TypeScript 5.9.3 + AWS CloudScape Design Sys
 ---
 
 ## Component Library (32+ Components)
+
+**For complete component specifications with detailed layouts and implementation requirements, see [Component Library](./UX_COMPONENT_LIBRARY.md).**
 
 ### CloudScape Wrappers (2)
 
@@ -619,6 +627,8 @@ The application uses React 19.1.1 + TypeScript 5.9.3 + AWS CloudScape Design Sys
 
 ## Build Configuration
 
+**For complete setup instructions, dependency versions, and configuration files, see [Technology Stack](./UX_TECHNOLOGY_STACK.md).**
+
 ### Vite Configuration
 ```typescript
 // vite.config.ts
@@ -671,8 +681,17 @@ export default defineConfig({
 
 ## References
 
+**Related UX Documentation**:
+- [Component Library](./UX_COMPONENT_LIBRARY.md) - Complete specifications for all 32+ components with detailed layouts
+- [Page Specifications](./UX_PAGE_SPECIFICATIONS.md) - Detailed page layouts, features, and API integration requirements
+- [Technology Stack](./UX_TECHNOLOGY_STACK.md) - Setup instructions, dependency versions, and configuration
+- [Visual Design System](./UX_VISUAL_DESIGN_SYSTEM.md) - Color palette, typography, spacing, and branding guidelines
+
+**Project Documentation**:
 - [Product Requirements Document](./PRODUCT_REQUIREMENTS_DOCUMENT.md)
 - [Software Requirements Specification](./SOFTWARE_REQUIREMENTS_SPECIFICATION.md)
+
+**External Resources**:
 - [CloudScape Design System Documentation](https://cloudscape.design/)
 - [React 19 Documentation](https://react.dev/)
 - [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
