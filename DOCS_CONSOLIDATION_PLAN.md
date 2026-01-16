@@ -127,26 +127,18 @@ DELETE docs/security/
 ### Phase 2: CONSOLIDATE (Merge Related Content)
 **Merge 20+ files into 8 comprehensive guides**
 
-#### A. Consolidate Requirements (7 → 3 files)
+#### A. Requirements Documentation (KEEP ALL - CRITICAL)
 ```
-MERGE INTO docs/requirements/PRODUCT_OVERVIEW.md:
-  - PRODUCT_REQUIREMENTS_DOCUMENT.md (keep core features)
-  - SOFTWARE_REQUIREMENTS_SPECIFICATION.md (keep technical specs)
+KEEP ALL REQUIREMENTS DOCS (7 files - DO NOT CONSOLIDATE):
+  - PRODUCT_REQUIREMENTS_DOCUMENT.md ✅ CRITICAL
+  - SOFTWARE_REQUIREMENTS_SPECIFICATION.md ✅ CRITICAL
+  - UX_UI_DESIGN_SPECIFICATIONS.md ✅ (677 lines)
+  - UX_COMPONENT_LIBRARY.md ✅ (643 lines)
+  - UX_PAGE_SPECIFICATIONS.md ✅ (486 lines)
+  - UX_TECHNOLOGY_STACK.md ✅ (243 lines)
+  - UX_VISUAL_DESIGN_SYSTEM.md ✅ (126 lines)
 
-KEEP SEPARATE (UX Documentation - 2,175 lines total):
-  - UX_UI_DESIGN_SPECIFICATIONS.md (677 lines - UI principles)
-  - UX_COMPONENT_LIBRARY.md (643 lines - component reference)
-  - UX_PAGE_SPECIFICATIONS.md (486 lines - page specs)
-  - UX_TECHNOLOGY_STACK.md (243 lines - tech stack)
-  - UX_VISUAL_DESIGN_SYSTEM.md (126 lines - design system)
-
-RESULT: 6 files
-  - PRODUCT_OVERVIEW.md (business + features + technical specs)
-  - UX_UI_DESIGN_SPECIFICATIONS.md ✅
-  - UX_COMPONENT_LIBRARY.md ✅
-  - UX_PAGE_SPECIFICATIONS.md ✅
-  - UX_TECHNOLOGY_STACK.md ✅
-  - UX_VISUAL_DESIGN_SYSTEM.md ✅
+RESULT: 7 files (NO CHANGES)
 ```
 
 #### B. Consolidate Implementation (8 → 2 files)
@@ -207,17 +199,15 @@ RESULT: 1 comprehensive file
   - API_AND_INTEGRATION_GUIDE.md (complete API reference + integration patterns + development guide)
 ```
 
-#### F. Consolidate Handoff & Developer Guides (2 → 1 file)
+#### F. Consolidate Developer Guides (3 → 1 file)
 ```
 MERGE INTO docs/guides/DEVELOPER_GUIDE.md:
-  - SOLUTION_HANDOFF_GUIDE.md (onboarding)
-  - DEVELOPMENT_WORKFLOW_GUIDE.md (workflow)
   - LOCAL_DEVELOPMENT.md (local setup)
-  - development/developer-onboarding-checklist.md (checklist)
-  - development/python-coding-standards.md (standards)
+  - DEVELOPMENT_WORKFLOW_GUIDE.md (workflow)
+  - TESTING_AND_QUALITY_ASSURANCE.md (testing)
 
 RESULT: 1 file
-  - DEVELOPER_GUIDE.md (complete developer onboarding + workflow + standards)
+  - DEVELOPER_GUIDE.md (complete developer guide)
 ```
 
 **Total after CONSOLIDATE: 5 merged guides (UX docs kept separate)**
@@ -306,11 +296,11 @@ docs/changelog/
   - CHANGELOG_FULL_HISTORY.md (project history)
 ```
 
-**Total KEEP: 35 files**
+**Total KEEP: 36 files**
 
 ---
 
-## Final Structure (35 files)
+## Final Structure (36 files)
 
 ```
 docs/
@@ -347,8 +337,9 @@ docs/
 │   ├── DRS_LAUNCH_CONFIGURATION_REFERENCE.md
 │   └── DRS_SERVICE_LIMITS_AND_CAPABILITIES.md
 │
-├── requirements/                     # Product requirements (6 files)
-│   ├── PRODUCT_OVERVIEW.md (consolidated: PRD + SRS)
+├── requirements/                     # Product requirements (7 files - KEEP ALL)
+│   ├── PRODUCT_REQUIREMENTS_DOCUMENT.md ✅ CRITICAL
+│   ├── SOFTWARE_REQUIREMENTS_SPECIFICATION.md ✅ CRITICAL
 │   ├── UX_UI_DESIGN_SPECIFICATIONS.md (677 lines)
 │   ├── UX_COMPONENT_LIBRARY.md (643 lines)
 │   ├── UX_PAGE_SPECIFICATIONS.md (486 lines)
@@ -374,15 +365,14 @@ docs/
 
 ## Implementation Steps
 
-### Step 1: Create Consolidated Files (5 new files)
-1. `docs/requirements/PRODUCT_OVERVIEW.md`
-2. `docs/implementation/FEATURES.md`
-3. `docs/implementation/ROADMAP.md`
-4. `docs/architecture/ARCHITECTURE.md`
-5. `docs/guides/API_AND_INTEGRATION_GUIDE.md`
-6. `docs/guides/DEVELOPER_GUIDE.md`
-7. `docs/guides/DEPLOYMENT_GUIDE.md`
-8. `docs/guides/CICD_GUIDE.md`
+### Step 1: Create Consolidated Files (7 new files)
+1. `docs/implementation/FEATURES.md`
+2. `docs/implementation/ROADMAP.md`
+3. `docs/architecture/ARCHITECTURE.md`
+4. `docs/guides/API_AND_INTEGRATION_GUIDE.md` ✅ DONE
+5. `docs/guides/DEVELOPER_GUIDE.md`
+6. `docs/guides/DEPLOYMENT_GUIDE.md`
+7. `docs/guides/CICD_GUIDE.md`
 
 ### Step 2: Delete Internal Artifacts (36 files)
 - Remove all files listed in Phase 1: DELETE
