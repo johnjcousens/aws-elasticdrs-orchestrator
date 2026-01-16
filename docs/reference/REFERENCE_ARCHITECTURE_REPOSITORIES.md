@@ -1,30 +1,41 @@
 # Reference Architecture Repositories
 
-## AWS DRS Orchestration Reference Materials
+## HRP-DR-Orchestration System Reference Materials
 
 **Version**: 1.0  
 **Date**: January 16, 2026  
-**Purpose**: Catalog of reference architecture repositories used during AWS DRS Orchestration development
+**Purpose**: Catalog of reference architecture repositories for the Greater HRP-DR-Orchestration System
 
 ---
 
 ## Overview
 
-This document catalogs the reference architecture repositories that provided design patterns, implementation examples, and best practices for disaster recovery orchestration.
+This document catalogs the reference architecture repositories that provide design patterns, implementation examples, and best practices for the **Greater HRP-DR-Orchestration System** documented in `archive/HealthEdge/HRP-DR-Orchestration/DESIGN-DOCS`.
 
-### Project Relationships
+### System Architecture
 
-**This Repository** (AWS DRS Orchestration):
-- **Current Repository**: https://github.com/johnjcousens/aws-elasticdrs-orchestrator
-- **Based On**: AWS DRS Tools (Official AWS Sample)
-- **Purpose**: DRS-specific orchestration with Protection Groups, Recovery Plans, and wave-based execution
-- **Scope**: AWS Elastic Disaster Recovery (DRS) service automation
-
-**Greater DR Orchestration System** (HRP-DR-Orchestration):
-- **Based On**: DR Orchestration Artifacts (Internal AWS Reference)
+**Greater HRP-DR-Orchestration System**:
+- **Design Documentation**: `archive/HealthEdge/HRP-DR-Orchestration/DESIGN-DOCS`
+- **Primary Template**: DR Orchestration Artifacts (Internal AWS Reference)
 - **Purpose**: Multi-service DR orchestration including DRS, EKS, SQL AG, and managed services
 - **Scope**: Tag-driven DR orchestration for 1,000+ servers across 20+ customer environments
-- **Integration**: This DRS Orchestration project would be one component within the greater system
+- **Architecture**: CLI-triggered Step Functions orchestration with multi-service recovery modules
+
+**System Components**:
+
+1. **DRS Recovery Module** (https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
+   - **Based On**: AWS DRS Tools (Official AWS Sample)
+   - **Purpose**: DRS-specific orchestration with Protection Groups, Recovery Plans, and wave-based execution
+   - **Role**: Handles AWS Elastic Disaster Recovery (DRS) service automation within the greater system
+
+2. **EKS DNS Failover Module**
+   - **Purpose**: Route 53 health checks and DNS-based failover for EKS workloads
+
+3. **SQL Server AG Failover Module**
+   - **Purpose**: Availability Group failover with sync validation
+
+4. **Managed Services Module**
+   - **Purpose**: EFS/FSx replication validation and Route 53 updates
 
 ---
 
