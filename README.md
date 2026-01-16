@@ -202,36 +202,22 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 ## Documentation
 
 ### Essential Guides
-- [API Reference Guide](docs/guides/API_REFERENCE_GUIDE.md) - Complete REST API documentation (47+ endpoints)
-- [Orchestration Integration Guide](docs/guides/ORCHESTRATION_INTEGRATION_GUIDE.md) - CLI, SSM, Step Functions integration
+- [API and Integration Guide](docs/guides/API_AND_INTEGRATION_GUIDE.md) - Complete REST API documentation (47+ endpoints) and integration patterns
+- [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) - Local development, testing, and workflow
+- [Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md) - Fresh deployment, CI/CD pipeline, and operations
+- [CI/CD Guide](docs/guides/CICD_GUIDE.md) - GitHub Actions setup and usage
 - [DRS Execution Walkthrough](docs/guides/DRS_EXECUTION_WALKTHROUGH.md) - Complete drill and recovery procedures
 - [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) - Common issues and debugging
-- [Deployment and Operations Guide](docs/guides/DEPLOYMENT_AND_OPERATIONS_GUIDE.md) - Complete deployment procedures
-- [Development Workflow Guide](docs/guides/DEVELOPMENT_WORKFLOW_GUIDE.md) - Development, testing, and CI/CD workflows
-
-### Deployment Guides
-- [Fresh Deployment Guide](docs/guides/deployment/FRESH_DEPLOYMENT_GUIDE.md) - Complete fresh environment setup
-- [GitHub Actions CI/CD Guide](docs/guides/deployment/GITHUB_ACTIONS_CICD_GUIDE.md) - CI/CD setup and usage
-
-### Development Guides
-- [Developer Onboarding Checklist](docs/guides/development/developer-onboarding-checklist.md) - New developer setup
-- [Python Coding Standards](docs/guides/development/python-coding-standards.md) - PEP 8 compliance
-- [PyCharm Setup Guide](docs/guides/development/pycharm-setup.md) - IDE configuration
-
-### Troubleshooting Guides
-- [Deployment Troubleshooting](docs/guides/troubleshooting/DEPLOYMENT_TROUBLESHOOTING_GUIDE.md) - Deployment issues
-- [DRS Execution Troubleshooting](docs/guides/troubleshooting/DRS_EXECUTION_TROUBLESHOOTING_GUIDE.md) - Recovery debugging
 
 ### Requirements & Architecture
 - [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD
 - [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications
 - [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design
-- [Architectural Design Document](docs/architecture/ARCHITECTURAL_DESIGN_DOCUMENT.md) - System architecture
+- [Architecture](docs/architecture/ARCHITECTURE.md) - System architecture and AWS service integration
 
-### Implementation Features
-- [Cross-Account Features](docs/implementation/CROSS_ACCOUNT_FEATURES.md) - Multi-account DRS operations
-- [DRS Source Server Management](docs/implementation/DRS_SOURCE_SERVER_MANAGEMENT.md) - Advanced server management
-- [Automation & Orchestration](docs/implementation/AUTOMATION_AND_ORCHESTRATION.md) - Workflow automation patterns
+### Implementation & Roadmap
+- [Features](docs/implementation/FEATURES.md) - Automation, cross-account operations, DRS management, notifications
+- [Roadmap](docs/implementation/ROADMAP.md) - Infrastructure improvements and enhancement timeline
 
 ### Reference Documentation
 - [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Complete IAM requirements
