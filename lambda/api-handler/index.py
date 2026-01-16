@@ -36,6 +36,56 @@ LAMBDA_BUILD_VERSION = "v1.3.1-Build3-CamelCase-Final"
 print(f"Lambda Build Version: {LAMBDA_BUILD_VERSION} - Deployment Trigger")
 
 
+# Sanitized logging utility to prevent sensitive data exposure
+def sanitize_for_logging(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Remove sensitive fields from data before logging.
+    Prevents exposure of JWT tokens, credentials, and other sensitive information.
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    sanitized = data.copy()
+    sensitive_keys = [
+        "authorization", "Authorization",
+        "token", "Token",
+        "password", "Password",
+        "secret", "Secret",
+        "credential", "Credential",
+        "apiKey", "ApiKey",
+        "accessToken", "AccessToken",
+        "idToken", "IdToken",
+        "refreshToken", "RefreshToken"
+    ]
+    
+    # Sanitize headers
+    if "headers" in sanitized:
+        headers = sanitized["headers"].copy() if isinstance(sanitized["headers"], dict) else {}
+        for key in list(headers.keys()):
+            if any(sensitive in key for sensitive in sensitive_keys):
+                headers[key] = "***REDACTED***"
+        sanitized["headers"] = headers
+    
+    # Sanitize requestContext (contains authorizer claims)
+    if "requestContext" in sanitized and isinstance(sanitized["requestContext"], dict):
+        if "authorizer" in sanitized["requestContext"]:
+            sanitized["requestContext"]["authorizer"] = "***REDACTED***"
+    
+    # Sanitize body if it contains sensitive fields
+    if "body" in sanitized and isinstance(sanitized["body"], str):
+        try:
+            body_obj = json.loads(sanitized["body"])
+            if isinstance(body_obj, dict):
+                for key in list(body_obj.keys()):
+                    if any(sensitive in key for sensitive in sensitive_keys):
+                        body_obj[key] = "***REDACTED***"
+                sanitized["body"] = json.dumps(body_obj)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    return sanitized
+
+
 # Initialize AWS clients
 dynamodb = boto3.resource("dynamodb")
 stepfunctions = boto3.client("stepfunctions")
@@ -1460,7 +1510,7 @@ def get_drs_account_capacity(region: str) -> Dict:  # noqa: C901
 
 def lambda_handler(event: Dict, context: Any) -> Dict:  # noqa: C901
     """Main Lambda handler - routes requests to appropriate functions"""
-    print(f"Received event: {json.dumps(event)}")
+    print(f"Received event: {json.dumps(sanitize_for_logging(event))}")
     print("Lambda handler started")
 
     try:
@@ -11036,7 +11086,7 @@ def handle_eventbridge_tag_sync(event: Dict) -> Dict:
     """Handle EventBridge-triggered tag sync requests - direct Lambda invocation pattern"""
     try:
         print("Processing EventBridge-triggered tag sync")
-        print(f"EventBridge event received: {json.dumps(event, default=str)}")
+        print(f"EventBridge event received: {json.dumps(sanitize_for_logging(event), default=str)}")
 
         # EventBridge directly invokes Lambda - validate EventBridge source indicators
         request_context = event.get("requestContext", {})
