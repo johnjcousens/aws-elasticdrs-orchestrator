@@ -3,24 +3,25 @@
 Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
-[![Version](https://img.shields.io/badge/version-3.7.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-4.0.0-blue)](CHANGELOG.md)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
-[![GitLab](https://img.shields.io/badge/Repository-GitLab-FC6D26?logo=gitlab)](https://code.aws.dev)
+[![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
 
 ## Overview
 
 AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services.
 
-**Latest Release**: [v3.7.0 - API Handler Decomposition & Documentation Cleanup](CHANGELOG.md) (January 26, 2026)
-- Comprehensive documentation restructuring and cleanup
-- Updated Lambda architecture documentation (6 handlers, 44 endpoints)
-- Archived 40+ outdated documents
-- Root directory cleanup (25% reduction in files)
-- Enhanced reference documentation with correct handler names
+**Latest Release**: [v4.0.0 - Repository Consolidation and GitLab Integration](CHANGELOG.md) (January 26, 2026)
+- Complete GitLab-to-GitHub repository merge with 1,474 files
+- Lambda handler decomposition: 3 specialized handlers replacing monolithic api-handler
+- 150,000+ lines of comprehensive documentation (Confluence, HealthEdge, compliance)
+- Enhanced testing infrastructure: 8,000+ lines of test coverage
+- Unified deployment script with 5-stage CI/CD pipeline
+- 51% cost reduction and 50% faster cold starts
 
-**Recent Milestones**: See [CHANGELOG.md](CHANGELOG.md) for complete project history including intelligent conflict detection, execution details UI, HealthEdge standards compliance, and handler decomposition.
+**Recent Milestones**: See [CHANGELOG.md](CHANGELOG.md) for complete project history including repository consolidation, handler decomposition, intelligent conflict detection, execution details UI, and HealthEdge standards compliance.
 
 ### 🚧 Next Priority Fix
 
@@ -38,12 +39,15 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 **Complete architectural evolution and version history**: [GitHub History Archive](archive/GitHubHistory/README.md)
 
-The archive contains 27 snapshots tracking the project's evolution from initial prototype (November 2025) through the major v3.0.0 refactoring (January 2026), including:
+The archive contains 27 snapshots tracking the project's evolution from initial prototype (November 2025) through the major v4.0.0 repository consolidation (January 2026), including:
 - Tagged releases with detailed analysis
 - Date-specific snapshots of key milestones
 - Architecture evolution documentation
 - Schema migration history (PascalCase → camelCase)
 - Complete CloudFormation and Lambda evolution tracking
+- Original GitHub repository contents preserved in `archive/GitHubRepoArchive/`
+
+**Latest Major Milestone**: v4.0.0 successfully merged complete GitLab repository (1,474 files, +177,551 lines) with enhanced Lambda architecture, comprehensive documentation, and unified deployment pipeline.
 
 ### Key Capabilities
 
