@@ -29,21 +29,187 @@ Complete guide for developing, testing, and deploying the AWS DRS Orchestration 
 - Python 3.12+ for Lambda development
 - S3 bucket for deployment artifacts
 
+### Required Python Tools (for Local CI/CD)
+
+```bash
+# Install all development tools
+pip install cfn-lint flake8 black isort bandit safety semgrep pytest pytest-cov moto
+
+# Or use requirements file
+pip install -r requirements-dev.txt
+```
+
+### Security Scanning Tools
+
+The deployment pipeline includes comprehensive security scanning:
+
+**Python Tools** (install in virtual environment):
+```bash
+source .venv/bin/activate
+pip install bandit detect-secrets
+```
+
+**Ruby Tool** (cfn_nag for CloudFormation security):
+```bash
+# macOS
+gem install cfn-nag
+
+# Known Issue: cfn_nag has compatibility issues with Ruby 4.0
+# Workaround: Use Ruby 3.x or skip cfn_nag (non-blocking)
+brew install ruby@3.3
+export PATH="/opt/homebrew/opt/ruby@3.3/bin:$PATH"
+gem install cfn-nag
+```
+
+**Shell Script Linter**:
+```bash
+# macOS
+brew install shellcheck
+
+# Linux
+sudo apt-get install shellcheck
+```
+
+**Frontend Security** (already included with Node.js):
+- npm audit (included with npm)
+
+**Verification**:
+```bash
+bandit --version
+cfn_nag_scan --version
+detect-secrets --version
+shellcheck --version
+npm --version
+```
+
+**Security Scan Coverage**:
+
+| Tool | Scans | Detects |
+|------|-------|---------|
+| bandit | Python Lambda functions | SQL injection, hardcoded passwords, insecure functions |
+| cfn_nag | CloudFormation templates | IAM misconfigurations, encryption gaps, security groups |
+| detect-secrets | All files | Hardcoded credentials, API keys, tokens |
+| shellcheck | Bash scripts | Script errors, security issues, best practices |
+| npm audit | Frontend dependencies | Known CVEs in npm packages |
+
+**Configuration Files**:
+- `.cfn_nag_deny_list.yml` - Suppresses specific cfn_nag rules with justification
+- `.secrets.baseline` - Baseline for detect-secrets to track known false positives
+
+**Manual Security Scans**:
+```bash
+# Python SAST
+bandit -r lambda/ -ll
+
+# CloudFormation security
+cfn_nag_scan --input-path cfn/
+
+# Secrets detection
+detect-secrets scan
+
+# Shell script security
+shellcheck scripts/*.sh
+
+# Frontend dependencies
+cd frontend && npm audit
+```
+
+### Virtual Environment Setup
+
+Using a virtual environment ensures isolated dependencies and consistent tool versions.
+
+```bash
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Upgrade pip
+pip install --upgrade pip setuptools wheel
+
+# Install dependencies
+pip install -r requirements-dev.txt
+
+# Install botocore CRT extension (required for latest boto3)
+pip install "botocore[crt]"
+```
+
+**Why Virtual Environment?**
+- **Isolated dependencies**: Avoids conflicts with system Python packages
+- **Latest versions**: Uses boto3 1.42.33, moto 5.1.20 (vs system's 1.34.34, 5.0.0)
+- **Clean testing**: Zero deprecation warnings (vs 159 warnings with old versions)
+- **Reproducible**: Exact versions specified in requirements-dev.txt
+
+**Test Results:**
+- With virtual environment: ✅ 687 unit tests pass (0 warnings), ✅ 84 integration tests pass (0 warnings)
+- Without virtual environment: ✅ 687 unit tests pass (0 warnings), ⚠️ 84 integration tests pass (159 botocore deprecation warnings)
+
+**Current Versions:**
+- boto3: 1.42.33 (January 2026)
+- botocore: 1.42.33 (January 2026)
+- moto: 5.1.20 (January 2026)
+- pytest: 8.0.0
+- pytest-cov: 4.1.0
+
+**Notes:**
+- The `.venv/` directory is gitignored
+- Lambda runtime provides boto3 automatically (not included in deployment packages)
+- Virtual environment is only for local development and testing
+- Deactivate with: `deactivate`
+
 ### Repository Setup
 
 ```bash
 # Clone repository
 git clone <repository-url>
-cd aws-drs-orchestration
+cd infra/orchestration/drs-orchestration
+
+# Setup environment configuration
+cp .env.dev.template .env.dev
+# Edit .env.dev with your configuration (see Environment Configuration below)
+
+# Source environment variables
+source .env.dev
 
 # Frontend setup
 cd frontend
 npm install
 
-# Backend setup
-cd lambda
+# Backend setup (for testing)
+cd ../tests/python
 pip install -r requirements.txt
 ```
+
+### Environment Configuration
+
+The `.env.dev.template` file provides all required environment variables:
+
+```bash
+# AWS DRS Orchestration - Dev Environment Configuration
+export ENVIRONMENT=dev
+export PROJECT_NAME=aws-drs-orch
+export STACK_NAME=aws-drs-orch-dev
+export PARENT_STACK_NAME=aws-drs-orch-dev
+
+# AWS Configuration
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=<your-account-id>
+export DEPLOYMENT_BUCKET=aws-drs-orch-dev
+export DEPLOYMENT_REGION=us-east-1
+
+# Admin Configuration
+export ADMIN_EMAIL=your-email@example.com
+
+# Security Thresholds (for local CI/CD)
+export SECURITY_THRESHOLD_CRITICAL=0
+export SECURITY_THRESHOLD_HIGH=10
+export SECURITY_THRESHOLD_TOTAL=50
+```
+
+**Important**: 
+- `.env.dev` is gitignored and should NOT be committed
+- Always use `aws-drs-orch-dev` stack for development (NEVER `aws-elasticdrs-orchestrator-test`)
 
 ### Frontend Configuration (CRITICAL)
 
@@ -164,54 +330,310 @@ pkill -f "vite"
 
 ## Development Workflow
 
-### CI/CD Pipeline Integration (MANDATORY)
+### Local CI/CD Pipeline (No External Dependencies)
 
-**ALL deployments MUST use GitHub Actions CI/CD pipeline. Manual deployment scripts are for emergencies only.**
+The project includes a complete local CI/CD pipeline that mirrors GitHub Actions, requiring no external services like GitHub, GitLab, or CodePipeline.
 
-| Component | Description |
-|-----------|-------------|
-| **Workflow** | `.github/workflows/deploy.yml` |
-| **Repository** | GitHub repository |
-| **Authentication** | OIDC (OpenID Connect) |
-| **OIDC Stack** | `cfn/github-oidc-stack.yaml` |
-| **Deployment Bucket** | `aws-elasticdrs-orchestrator` |
+#### Testing the Local CI/CD Pipeline
 
-### Pipeline Stages
+**Quick Test:**
+```bash
+# 1. Make a small change
+echo "# Test change" >> README.md
 
-1. **Detect Changes** (~10s) - Analyzes changed files to determine deployment scope
-2. **Validate** (~2 min) - CloudFormation validation, Python linting, TypeScript checking
-3. **Security Scan** (~2 min) - Bandit security scan, Safety dependency check
-4. **Build** (~3 min) - Lambda packaging, frontend build
-5. **Test** (~2 min) - Unit tests
-6. **Deploy Infrastructure** (~10 min) - CloudFormation stack deployment
-7. **Deploy Frontend** (~2 min) - S3 sync, CloudFront invalidation
+# 2. Commit the change
+git add README.md
+git commit -m "test: verify local CI/CD pipeline"
 
-**Total Duration**: ~22 minutes for complete deployment
-
-**Intelligent Pipeline Optimization**:
-- **Documentation-only**: ~30 seconds (95% time savings)
-- **Frontend-only**: ~12 minutes (45% time savings)  
-- **Full deployment**: ~22 minutes (complete pipeline)
-
-### Automatic Concurrency Control
-
-The workflow includes built-in concurrency control that automatically queues new pushes if a deployment is running:
-
-```yaml
-concurrency:
-  group: deploy-${{ github.ref }}
-  cancel-in-progress: false
+# 3. Run safe push (full pipeline)
+./scripts/safe-push.sh
 ```
 
-**Features**:
-- **Automatic queuing**: New workflows wait for running workflows to complete
-- **Sequential execution**: Deployments happen in order, never overlapping
-- **No conflicts**: Prevents deployment race conditions automatically
-- **Built-in safety**: No manual checking required
+**What You'll See:**
 
-### Development Workflow Options
+Stage 1: Validation (Real-time Output)
+```
+═══════════════════════════════════════════════════════════
+  STAGE 1: VALIDATION
+═══════════════════════════════════════════════════════════
 
-#### Option 1: GitHub Actions CI/CD (RECOMMENDED)
+[1.1] CloudFormation Template Validation
+✓ cfn-lint: All templates valid
+✓ AWS CloudFormation: All templates valid
+
+[1.2] Python Code Quality
+✓ flake8: No issues found
+✓ black: Code is formatted correctly
+✓ isort: Imports are sorted correctly
+
+[1.3] Frontend Code Quality
+✓ TypeScript: No type errors
+✓ ESLint: No critical issues
+
+[1.4] CloudScape Design System Compliance
+✓ CloudScape: Compliant
+
+[1.5] CamelCase Consistency Validation
+✓ CamelCase: Consistent
+
+[1.6] API Gateway Architecture Validation
+✓ API Architecture: Valid
+```
+
+Stage 2: Security Scans
+```
+═══════════════════════════════════════════════════════════
+  STAGE 2: SECURITY SCANS
+═══════════════════════════════════════════════════════════
+
+[2.1] Python Security Scanning (Bandit)
+✓ Bandit: No high severity issues
+
+[2.2] Python Security Scanning (Semgrep)
+✓ Semgrep: Scan complete
+
+[2.3] Python Dependency Vulnerability Scan (Safety)
+✓ Safety: Scan complete
+
+[2.4] Frontend Security Scanning (NPM Audit)
+✓ NPM Audit: No critical vulnerabilities
+
+[2.5] Infrastructure Security Scanning
+✓ Semgrep CFN: Scan complete
+
+[2.6] Security Summary
+✓ Security thresholds: PASSED
+```
+
+Stage 3: Tests
+```
+═══════════════════════════════════════════════════════════
+  STAGE 3: TESTS
+═══════════════════════════════════════════════════════════
+
+[3.1] Python Unit Tests
+✓ Python unit tests: PASSED
+
+[3.2] Frontend Tests
+✓ Frontend tests: PASSED
+```
+
+Stage 4: Build
+```
+═══════════════════════════════════════════════════════════
+  BUILD STAGE
+═══════════════════════════════════════════════════════════
+
+Building Lambda packages...
+✓ Lambda packages built successfully
+
+Package sizes:
+  build/lambda/api-handler.zip: 93.2 KB
+  build/lambda/execution-finder.zip: 10.1 KB
+  build/lambda/execution-poller.zip: 4.2 KB
+  build/lambda/bucket-cleaner.zip: 7.3 KB
+  build/lambda/notification-formatter.zip: 2.1 KB
+  build/lambda/orchestration-stepfunctions.zip: 4.5 KB
+  build/lambda/frontend-builder.zip: 1.3 MB
+```
+
+Pipeline Summary
+```
+═══════════════════════════════════════════════════════════
+  PIPELINE SUMMARY
+═══════════════════════════════════════════════════════════
+
+✅ Local CI/CD pipeline completed successfully
+Duration: 45s
+
+Pipeline stages completed:
+  ✅ Validation (CloudFormation, Python, Frontend, CloudScape)
+  ✅ Security Scan (Bandit, Semgrep, Safety, NPM Audit)
+  ✅ Build (Lambda packages, Frontend validation)
+  ✅ Test (Python unit tests, Frontend tests)
+
+📊 Reports available in: docs/logs/latest/
+```
+
+**Testing Different Modes:**
+
+Full Pipeline (Recommended):
+```bash
+./scripts/safe-push.sh
+```
+Duration: ~45-60 seconds | Runs: All validation, security, tests, build
+
+Quick Mode (Fast Iteration):
+```bash
+./scripts/safe-push.sh --quick
+```
+Duration: ~15-20 seconds | Runs: Validation and build only (skips security and tests)
+
+Force Mode (Emergency Only):
+```bash
+./scripts/safe-push.sh --force
+```
+Duration: ~2 seconds | Runs: Nothing - immediate push (NOT RECOMMENDED)
+
+**Monitoring Progress:**
+
+The pipeline provides real-time console output with:
+- ✅ Green checkmarks for passed stages
+- ❌ Red X marks for failed stages
+- ⚠️ Yellow warnings for skipped stages
+- 📊 Progress indicators
+- ⏱️ Duration tracking
+
+**Detailed Reports:**
+
+After each run, check the `docs/logs/latest/` directory:
+```bash
+# View validation reports
+cat docs/logs/latest/validation/flake8.txt
+cat docs/logs/latest/validation/eslint.txt
+
+# View security reports
+cat docs/logs/latest/security/summary.txt
+cat docs/logs/latest/security/thresholds.txt
+
+# View test reports
+cat docs/logs/latest/tests/python-unit.txt
+cat docs/logs/latest/tests/frontend.txt
+```
+
+**Handling Failures:**
+
+Validation Failure:
+```bash
+# 1. Check the specific report
+cat reports/validation/flake8.txt
+
+# 2. Fix the issues in your code
+
+# 3. Re-run
+./scripts/safe-push.sh
+```
+
+Security Failure:
+```bash
+# 1. Check security summary
+cat reports/security/summary.txt
+cat reports/security/thresholds.txt
+
+# 2. Fix critical/high severity issues
+
+# 3. Re-run
+./scripts/safe-push.sh
+```
+
+Test Failure:
+```bash
+# 1. Check test output
+cat reports/tests/python-unit.txt
+
+# 2. Fix failing tests
+
+# 3. Re-run
+./scripts/safe-push.sh
+```
+
+**Performance Benchmarks:**
+
+| Mode | Duration | Stages |
+|------|----------|--------|
+| Full | 45-60s | All stages |
+| Quick | 15-20s | Validation + Build |
+| Force | 2s | None (immediate push) |
+
+**Best Practices:**
+1. Always use full pipeline for production code: `./scripts/safe-push.sh`
+2. Use quick mode for rapid iteration during development: `./scripts/safe-push.sh --quick`
+3. Never use force mode unless emergency: `./scripts/safe-push.sh --force`
+4. Check reports after failures: `cat reports/validation/*.txt`
+5. Clean up reports periodically: `rm -rf reports/`
+
+#### Full Local Deployment
+
+```bash
+# Source environment configuration
+source .env.dev
+
+# Run full CI/CD pipeline: Validate → Security → Build → Test → Deploy
+./scripts/local-deploy.sh dev full
+
+# Quick deployment (skip validation for faster iteration)
+./scripts/local-deploy.sh dev full --quick
+```
+
+#### Local CI Checks Only (No Deployment)
+
+```bash
+# Full validation pipeline
+./scripts/local-ci-checks.sh
+
+# Quick validation (skip tests and security)
+./scripts/local-ci-checks.sh --quick
+
+# Skip only tests
+./scripts/local-ci-checks.sh --skip-tests
+
+# Skip only security scans
+./scripts/local-ci-checks.sh --skip-security
+```
+
+#### Fast Deployment Options
+
+```bash
+# Lambda-only update (~5 seconds)
+./scripts/sync-to-deployment-bucket.sh --update-lambda-code
+
+# Frontend-only deployment
+./scripts/local-deploy.sh dev frontend-only
+
+# CloudFormation deployment only
+./scripts/sync-to-deployment-bucket.sh --deploy-cfn
+
+# Sync to S3 with validation
+./scripts/sync-to-deployment-bucket.sh --validate
+```
+
+### Local CI/CD Stages
+
+| Stage | Duration | Tools Used |
+|-------|----------|------------|
+| **Validation** | ~2 min | cfn-lint, flake8, black, isort, TypeScript, ESLint |
+| **Security** | ~2 min | Bandit, Semgrep, Safety, NPM Audit |
+| **Build** | ~3 min | Lambda packaging (FrontendBuilder handles frontend) |
+| **Test** | ~2 min | pytest, vitest |
+| **Deploy** | ~10 min | CloudFormation |
+
+### CI/CD Reports
+
+All CI/CD runs generate detailed reports:
+
+```
+docs/logs/
+├── latest/                 # Symlink to most recent run
+└── runs/                   # All pipeline runs (timestamped)
+    └── YYYYMMDD_HHMMSS/
+        ├── run-metadata.txt
+        ├── validation/     # CloudFormation, Python, Frontend
+        ├── security/       # Bandit, Semgrep, Safety, NPM Audit
+        ├── tests/          # Python unit tests, Frontend tests
+        ├── build/          # Lambda packages
+        └── deploy/         # CloudFormation deployment logs
+```
+
+**View latest reports:**
+```bash
+cat docs/logs/latest/validation/flake8.txt
+cat docs/logs/latest/security/summary.txt
+cat docs/logs/latest/tests/python-unit.txt
+```
+
+### GitHub Actions CI/CD (Optional)
+
+For repositories hosted on GitHub with OIDC authentication:
 
 ```bash
 # Check workflow status before pushing (optional but recommended)
@@ -229,10 +651,29 @@ concurrency:
 3. **Third push** triggers workflow → **automatically queued** (waits for second)
 4. Workflows run sequentially, never overlapping
 
-#### Option 2: Emergency Manual Deployment (RESTRICTED)
+### FrontendBuilder Lambda (100% CloudFormation Deployment)
+
+The solution uses a **FrontendBuilder Lambda Custom Resource** that eliminates the need for external CI/CD for frontend deployment:
+
+**How It Works:**
+1. Lambda package includes pre-built `frontend/dist/` folder
+2. During CloudFormation deployment, FrontendBuilder:
+   - Copies pre-built dist to temp directory
+   - Generates `aws-config.json` from stack outputs
+   - Injects `aws-config.js` script tag into `index.html`
+   - Uploads to S3 with proper cache headers
+   - Invalidates CloudFront cache
+
+**Benefits:**
+- ✅ No npm/node required at deployment time
+- ✅ Frontend config always matches stack outputs
+- ✅ Single CloudFormation deploy handles everything
+- ✅ Works without GitHub/GitLab/CodePipeline
+
+### Emergency Manual Deployment (RESTRICTED)
 
 **ONLY use manual deployment for:**
-- GitHub Actions service outage (confirmed AWS/GitHub issue)
+- CI/CD service outage (confirmed issue)
 - Critical production hotfix when pipeline is broken
 - Pipeline debugging (with immediate Git follow-up)
 

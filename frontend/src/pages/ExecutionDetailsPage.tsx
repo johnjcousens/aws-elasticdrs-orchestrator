@@ -27,7 +27,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TerminateInstancesDialog } from '../components/TerminateInstancesDialog';
 import { useApiErrorHandler } from '../hooks/useApiErrorHandler';
 import apiClient from '../services/api';
-import type { Execution, WaveExecution, JobLogsResponse } from '../types';
+import type { Execution, WaveExecution, ServerExecution, JobLogsResponse } from '../types';
 
 export const ExecutionDetailsPage: React.FC = () => {
   const { executionId } = useParams<{ executionId: string }>();
@@ -82,7 +82,7 @@ export const ExecutionDetailsPage: React.FC = () => {
       }
       
       // Reset resumeInProgress when execution is no longer paused
-      if (data.status !== 'paused' && resumeInProgress) {
+      if (data.status?.toUpperCase() !== 'PAUSED' && resumeInProgress) {
         setResumeInProgress(false);
       }
     } catch (err: unknown) {
@@ -106,7 +106,9 @@ export const ExecutionDetailsPage: React.FC = () => {
   // Initial fetch - only depend on executionId to prevent unnecessary refetches
   useEffect(() => {
     fetchExecution();
-  }, [executionId]); // Only depend on executionId, not fetchExecution
+    // fetchExecution is stable (wrapped in useCallback)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [executionId]);
 
   // Cleanup all intervals on unmount to prevent navigation blocking
   useEffect(() => {
@@ -117,51 +119,67 @@ export const ExecutionDetailsPage: React.FC = () => {
   }, []);
 
   // Real-time polling for active executions
+  // This effect starts polling when execution data is loaded and status is active
   useEffect(() => {
-    if (!execution) return;
+    if (!executionId) return;
 
-    const isActive = 
-      resumeInProgress || // Poll while resume is in progress
-      execution.status === 'in_progress' || 
-      execution.status === 'pending' ||
-      execution.status === 'paused' ||
-      execution.status === 'running' ||
-      execution.status === 'started' ||
-      execution.status === 'polling' ||
-      execution.status === 'launching' ||
-      execution.status === 'initiated' ||
-      execution.status === 'cancelling' ||
-      (execution.status as string) === 'RUNNING' ||
-      (execution.status as string) === 'STARTED' ||
-      (execution.status as string) === 'POLLING' ||
-      (execution.status as string) === 'LAUNCHING' ||
-      (execution.status as string) === 'INITIATED' ||
-      (execution.status as string) === 'CANCELLING';
+    // Determine if we should poll based on current execution status
+    const status = (execution?.status || '').toUpperCase();
+    const isTerminal = 
+      status === 'COMPLETED' || 
+      status === 'FAILED' ||
+      status === 'CANCELLED' ||
+      status === 'TIMEOUT';
 
-    if (!isActive) return;
+    // Don't poll if execution is loaded and status is terminal (unless resuming)
+    if (execution && isTerminal && !resumeInProgress) {
+      return;
+    }
 
-    const interval = setInterval(() => {
-      fetchExecution(true); // Silent refresh
-    }, 3000); // Poll every 3 seconds for faster updates
+    // Poll function - fetches latest execution data
+    const poll = async () => {
+      try {
+        // Always bust cache during polling to get fresh data
+        const data = await apiClient.getExecution(executionId, true);
+        // Force new object reference to ensure React re-renders
+        setExecution({ ...data });
+        
+        // Clear resumeInProgress when execution is no longer paused
+        if (data.status?.toUpperCase() !== 'PAUSED' && resumeInProgress) {
+          setResumeInProgress(false);
+        }
+        
+        // Also fetch job logs
+        try {
+          const jobLogsData = await apiClient.getJobLogs(executionId);
+          setJobLogs({ ...jobLogsData });
+        } catch {
+          // Job logs are optional
+        }
+      } catch {
+        // Polling error - silently continue
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [execution, executionId, resumeInProgress]); // Add resumeInProgress to dependencies
+    // Immediate poll on mount or when resumeInProgress changes
+    poll();
+
+    // Start polling every 3 seconds
+    const interval = setInterval(poll, 3000);
+
+    return () => {
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [execution?.status, executionId, resumeInProgress, fetchExecution]);
 
   // Timer to update duration display every second for active executions
-  const [, setDurationTick] = useState(0);
+  const [durationTick, setDurationTick] = useState(0);
   useEffect(() => {
     if (!execution) return;
 
-    const isActive = 
-      execution.status === 'in_progress' || 
-      execution.status === 'pending' ||
-      execution.status === 'paused' ||
-      execution.status === 'running' ||
-      execution.status === 'started' ||
-      execution.status === 'polling' ||
-      execution.status === 'launching' ||
-      execution.status === 'initiated' ||
-      execution.status === 'cancelling';
+    const status = execution.status?.toUpperCase() || '';
+    const isActive = ['IN_PROGRESS', 'PENDING', 'PAUSED', 'RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED', 'CANCELLING'].includes(status);
 
     if (!isActive) return;
 
@@ -247,7 +265,8 @@ export const ExecutionDetailsPage: React.FC = () => {
     pollTerminationStatus();
 
     return () => clearInterval(interval);
-  }, [terminationInProgress, terminationJobInfo?.totalInstances, executionId, fetchExecution]); // Don't depend on full execution object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminationInProgress, terminationJobInfo?.totalInstances, terminationJobInfo?.jobIds, terminationJobInfo?.region, executionId, fetchExecution]);
 
   const handleCancelExecution = async () => {
     if (!executionId) return;
@@ -344,16 +363,16 @@ export const ExecutionDetailsPage: React.FC = () => {
   };
 
   // Check if execution is paused
-  const isPaused = execution && (
-    execution.status === 'paused' ||
-    (execution.status as string) === 'PAUSED'
-  );
+  const isPaused = execution && execution.status?.toUpperCase() === 'PAUSED';
 
   // Get paused before wave number (from execution data)
   const pausedBeforeWave = execution ? (execution as Execution & { pausedBeforeWave?: number }).pausedBeforeWave : undefined;
 
   // Calculate execution duration
   const calculateDuration = (): string => {
+    // Force re-render every second via durationTick state
+    void durationTick;
+    
     if (!execution || !execution.startTime) return '-';
     
     let startTimeMs: number | string = execution.startTime;
@@ -469,27 +488,11 @@ export const ExecutionDetailsPage: React.FC = () => {
   
 
   
-  const canCancel = execution && !isOnFinalWave && (
-    execution.status === 'in_progress' || 
-    execution.status === 'pending' ||
-    execution.status === 'paused' ||
-    execution.status === 'running' ||
-    execution.status === 'started' ||
-    execution.status === 'polling' ||
-    execution.status === 'launching' ||
-    execution.status === 'initiated' ||
-    (execution.status as string) === 'RUNNING' ||
-    (execution.status as string) === 'STARTED' ||
-    (execution.status as string) === 'PAUSED' ||
-    (execution.status as string) === 'PENDING' ||
-    (execution.status as string) === 'IN_PROGRESS' ||
-    (execution.status as string) === 'POLLING' ||
-    (execution.status as string) === 'LAUNCHING' ||
-    (execution.status as string) === 'INITIATED'
-  ) && !(
-    execution.status === 'cancelling' ||
-    (execution.status as string) === 'CANCELLING'
-  );
+  const canCancel = execution && !isOnFinalWave && (() => {
+    const status = execution.status?.toUpperCase() || '';
+    const activeStatuses = ['IN_PROGRESS', 'PENDING', 'PAUSED', 'RUNNING', 'STARTED', 'POLLING', 'LAUNCHING', 'INITIATED'];
+    return activeStatuses.includes(status) && status !== 'CANCELLING';
+  })();
 
 
 
@@ -514,15 +517,17 @@ export const ExecutionDetailsPage: React.FC = () => {
   // Map API response (waves/servers) to frontend types (waveExecutions/serverExecutions)
   const mapWavesToWaveExecutions = (exec: Execution): WaveExecution[] => {
     // API returns 'waves' but type expects 'waveExecutions'
-    const waves = (exec as Execution & { waves?: WaveExecution[] }).waves || exec.waveExecutions || [];
-    return waves.map((wave: any, index: number) => {
-      const waveRegion = wave.region || wave.Region || 'us-east-1';
+    const execAny = exec as Execution & { waves?: WaveExecution[] };
+    const waves = execAny.waves || exec.waveExecutions || [];
+    
+    return waves.map((wave: WaveExecution, index: number) => {
+      const waveRegion = (wave as WaveExecution & { region?: string; Region?: string }).region || 
+                         (wave as WaveExecution & { region?: string; Region?: string }).Region || 
+                         'us-east-1';
       
-      // FIXED: Check multiple server data sources in priority order:
-      // 1. serverStatuses - populated by execution-poller with enriched EC2 data (Name tag, IP)
-      // 2. servers - populated by API reconcile from DRS participatingServers
-      // 3. serverExecutions - frontend type field name
-      const servers = wave.serverStatuses || wave.servers || wave.serverExecutions || [];
+      // API returns 'serverStatuses' but type expects 'serverExecutions'
+      const waveAny = wave as WaveExecution & { serverStatuses?: ServerExecution[] };
+      const servers = wave.serverExecutions || waveAny.serverStatuses || [];
       
       return {
         waveNumber: wave.waveNumber ?? index,
@@ -531,10 +536,9 @@ export const ExecutionDetailsPage: React.FC = () => {
         startTime: wave.startTime,
         jobId: wave.jobId,
         endTime: wave.endTime,
-        serverExecutions: servers.map((server: any) => {
+        serverExecutions: servers.map((server: ServerExecution & { serverId?: string; instanceId?: string; ec2InstanceId?: string }) => {
           return {
-            serverId: server.sourceServerId || server.serverId,
-            // serverName from execution-poller has EC2 Name tag
+            serverId: server.serverId || (server as ServerExecution & { sourceServerId?: string }).sourceServerId || '',
             serverName: server.serverName || server.hostname,
             hostname: server.hostname,
             status: server.status || server.launchStatus || 'pending',
@@ -555,6 +559,44 @@ export const ExecutionDetailsPage: React.FC = () => {
         error: wave.error,
       };
     });
+  };
+
+  // Calculate current wave number from waves array (more accurate than API currentWave)
+  const calculateCurrentWaveDisplay = (exec: Execution): number => {
+    const execAny = exec as Execution & { waves?: WaveExecution[] };
+    const waves = execAny.waves || exec.waveExecutions || [];
+    const total = exec.totalWaves || waves.length || 1;
+    
+    // If execution is completed, show total waves
+    const status = exec.status?.toUpperCase() || '';
+    if (status === 'COMPLETED') {
+      return total;
+    }
+    
+    // Active statuses that indicate a wave is currently running
+    const activeStatuses = ['IN_PROGRESS', 'POLLING', 'LAUNCHING', 'STARTED', 'INITIATED', 'PENDING'];
+    // Completed statuses
+    const completedStatuses = ['COMPLETED', 'LAUNCHED'];
+    
+    // Find the first active wave (1-indexed for display)
+    for (let i = 0; i < waves.length; i++) {
+      const waveStatus = (waves[i].status || '').toUpperCase();
+      if (activeStatuses.includes(waveStatus)) {
+        return i + 1; // 1-indexed
+      }
+    }
+    
+    // If no active wave, count completed waves
+    let completedCount = 0;
+    for (const wave of waves) {
+      const waveStatus = (wave.status || '').toUpperCase();
+      if (completedStatuses.includes(waveStatus)) {
+        completedCount++;
+      }
+    }
+    
+    // Return completed count (or 1 if none completed yet)
+    return completedCount > 0 ? completedCount : 1;
   };
 
   if (loading && !execution) {
@@ -768,7 +810,7 @@ export const ExecutionDetailsPage: React.FC = () => {
                   <StatusBadge status={execution.status} />
                   {execution.totalWaves && (
                     <Badge color="blue">
-                      Wave {execution.status === 'completed' ? execution.totalWaves : (execution.currentWave ?? 1)} of {execution.totalWaves}
+                      Wave {calculateCurrentWaveDisplay(execution)} of {execution.totalWaves}
                     </Badge>
                   )}
                   {execution.executedBy && (
@@ -814,7 +856,7 @@ export const ExecutionDetailsPage: React.FC = () => {
               </ColumnLayout>
 
               {/* Progress Bar for Active Executions */}
-              {(execution.status === 'in_progress' || execution.status === 'paused') && execution.currentWave && (
+              {['IN_PROGRESS', 'PAUSED'].includes(execution.status?.toUpperCase() || '') && execution.currentWave && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <div style={{ fontSize: '12px', color: '#5f6b7a' }}>

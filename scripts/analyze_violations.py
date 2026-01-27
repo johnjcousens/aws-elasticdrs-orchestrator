@@ -359,7 +359,9 @@ class ViolationAnalyzer:
         for i, (file_path, score, file_type) in enumerate(
             migration_plan["priority_files"][:10], 1
         ):
-            print(f"  {i: 2d}. {file_path} (score: {score}, type: {file_type})")
+            print(
+                f"  {i: 2d}. {file_path} (score: {score}, type: {file_type})"
+            )
 
         print("\nMigration Categories:")
         categories = migration_plan["migration_categories"]

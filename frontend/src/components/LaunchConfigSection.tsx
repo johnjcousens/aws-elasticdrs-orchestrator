@@ -127,7 +127,7 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
     launchConfig.licensing?.osByol !== undefined;
 
   // Build header text
-  const headerText = hasConfig ? 'Launch Settings (configured)' : 'Launch Settings';
+  const headerText = hasConfig ? 'Launch Settings (All Servers in Protection Group)' : 'Launch Settings';
 
   return (
     <ExpandableSection

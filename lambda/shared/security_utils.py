@@ -1,12 +1,265 @@
 """
-Security utilities for AWS DRS Orchestration
-Provides input validation, sanitization, and security helpers
+Security Utilities for AWS DRS Orchestration
+
+Provides input validation, sanitization, and security helpers for protecting against
+common web vulnerabilities (injection attacks, XSS, path traversal, etc.).
+
+## Architecture Pattern
+
+Defense-in-Depth Security:
+- Input validation at API boundaries
+- String sanitization for user-provided data
+- Format validation for AWS resource identifiers
+- Security event logging for audit trails
+- Rate limiting hooks (requires DynamoDB/Redis implementation)
+
+## Integration Points
+
+### 1. API Gateway Event Validation (Entry Point)
+```python
+from shared.security_utils import validate_api_gateway_event, InputValidationError
+
+def lambda_handler(event, context):
+    try:
+        # Validate and sanitize API Gateway event
+        safe_event = validate_api_gateway_event(event)
+
+        # Use sanitized data
+        method = safe_event["httpMethod"]
+        path = safe_event["path"]
+        query_params = safe_event["queryStringParameters"]
+
+    except InputValidationError as e:
+        return {"statusCode": 400, "body": json.dumps({"error": str(e)})}
+```
+
+### 2. String Sanitization (User Input)
+```python
+from shared.security_utils import sanitize_string, InputValidationError
+
+try:
+    # Sanitize user-provided strings
+    plan_name = sanitize_string(user_input["planName"], max_length=100)
+    description = sanitize_string(user_input["description"], max_length=500)
+
+except InputValidationError as e:
+    return {"statusCode": 400, "body": json.dumps({"error": str(e)})}
+```
+
+### 3. DynamoDB Input Sanitization (Before Write)
+```python
+from shared.security_utils import sanitize_dynamodb_input
+
+# Sanitize data before DynamoDB write
+user_data = {
+    "planName": "<script>alert('xss')</script>",
+    "description": "Test plan",
+    "waves": [{"waveNumber": 1, "name": "Wave 1"}]
+}
+
+safe_data = sanitize_dynamodb_input(user_data)
+# Result: {"planName": "scriptalert('xss')/script", ...}
+
+dynamodb.put_item(TableName="RecoveryPlans", Item=safe_data)
+```
+
+### 4. AWS Resource ID Validation
+```python
+from shared.security_utils import (
+    validate_aws_region,
+    validate_drs_server_id,
+    validate_aws_account_id,
+    validate_uuid
+)
+
+# Validate AWS identifiers before API calls
+if not validate_aws_region(region):
+    return {"statusCode": 400, "body": "Invalid region"}
+
+if not validate_drs_server_id(server_id):
+    return {"statusCode": 400, "body": "Invalid DRS server ID"}
+
+if not validate_aws_account_id(account_id):
+    return {"statusCode": 400, "body": "Invalid AWS account ID"}
+```
+
+### 5. Security Event Logging (Audit Trail)
+```python
+from shared.security_utils import log_security_event
+
+# Log security-relevant events
+log_security_event(
+    event_type="unauthorized_access_attempt",
+    details={
+        "user_id": user["userId"],
+        "endpoint": "/recovery-plans/plan-123/execute",
+        "reason": "Missing START_RECOVERY permission"
+    },
+    severity="WARN"
+)
+
+# Log critical security events
+log_security_event(
+    event_type="path_traversal_blocked",
+    details={"path": "../../etc/passwd", "user_id": user["userId"]},
+    severity="CRITICAL"
+)
+```
+
+### 6. Sensitive Data Masking (Logs)
+```python
+from shared.security_utils import mask_sensitive_data
+
+# Mask sensitive fields before logging
+user_data = {
+    "username": "jdoe",
+    "password": "secret123",
+    "api_token": "abc123xyz789",
+    "email": "jdoe@example.com"
+}
+
+masked = mask_sensitive_data(user_data)
+# Result: {"username": "jdoe", "password": "secr********", "api_token": "abc1********", "email": "jdoe@example.com"}
+
+logger.info(f"User data: {json.dumps(masked)}")
+```
+
+### 7. Security Headers (HTTP Responses)
+```python
+from shared.security_utils import create_security_headers
+
+headers = create_security_headers()
+# Returns:
+# {
+#     "X-Content-Type-Options": "nosniff",
+#     "X-Frame-Options": "DENY",
+#     "X-XSS-Protection": "1; mode=block",
+#     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+#     "Content-Security-Policy": "default-src 'self'; ...",
+#     "Referrer-Policy": "strict-origin-when-cross-origin",
+#     "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+# }
+
+return {
+    "statusCode": 200,
+    "headers": {**headers, "Content-Type": "application/json"},
+    "body": json.dumps({"message": "Success"})
+}
+```
+
+## Validation Functions
+
+### String Validation
+- `sanitize_string()`: Remove dangerous characters (<>\"';\\, control chars)
+- `validate_protection_group_name()`: 3-50 chars, alphanumeric + spaces/hyphens/underscores
+- `validate_recovery_plan_name()`: Same as protection group names
+- `validate_email()`: Standard email format validation
+
+### AWS Resource Validation
+- `validate_aws_region()`: us-east-1, eu-west-2, us-gov-west-1 patterns
+- `validate_drs_server_id()`: s-[17 hex chars] format
+- `validate_aws_account_id()`: 12-digit number
+- `validate_uuid()`: Standard UUID format (8-4-4-4-12)
+
+### Input Validation
+- `validate_json_input()`: Parse JSON with size limits (default 1MB)
+- `validate_api_gateway_event()`: Validate API Gateway event structure
+- `validate_file_path()`: Block path traversal attacks (.., %2e%2e)
+- `validate_dynamodb_input()`: Validate DynamoDB field formats
+
+## Performance Optimizations
+
+### Sanitization Shortcuts
+```python
+# FAST PATH: Skip sanitization for safe alphanumeric strings
+"server-123" → No regex processing (alphanumeric + safe chars)
+
+# FAST PATH: Skip sanitization for known-safe fields
+{"executionId": "...", "status": "..."} → No sanitization
+
+# SLOW PATH: Full regex sanitization only for potentially dangerous content
+"<script>alert('xss')</script>" → Full sanitization
+```
+
+### Large Data Handling
+```python
+# Skip deep sanitization for large objects (>50 fields)
+execution_data = {...}  # 100+ fields from DynamoDB
+sanitize_dynamodb_input(execution_data)  # Minimal processing
+
+# Skip sanitization for large strings (>1000 chars)
+large_description = "..." * 2000
+sanitize_string(large_description)  # Returns unchanged
+```
+
+## Security Headers
+
+### X-Content-Type-Options: nosniff
+Prevents MIME-sniffing attacks where browsers interpret files as different types.
+
+### X-Frame-Options: DENY
+Prevents clickjacking by blocking iframe embedding.
+
+### X-XSS-Protection: 1; mode=block
+Enables browser XSS filter (legacy browsers).
+
+### Strict-Transport-Security
+Forces HTTPS connections for 1 year including subdomains.
+
+### Content-Security-Policy
+Restricts resource loading to same origin (prevents XSS).
+
+### Referrer-Policy
+Controls referrer information sent with requests.
+
+### Permissions-Policy
+Disables browser features (geolocation, microphone, camera).
+
+## Error Handling
+
+### InputValidationError
+Raised for validation failures:
+- String too long
+- Invalid format
+- Empty required field
+- Dangerous characters detected
+
+### SecurityError
+Raised for security violations:
+- AWS access denied
+- Path traversal attempt
+- Rate limit exceeded
+
+## Testing Considerations
+
+### Mock Security Validation
+```python
+from shared.security_utils import sanitize_string
+
+# Test sanitization
+assert sanitize_string("<script>") == "script"
+assert sanitize_string("safe-string-123") == "safe-string-123"
+
+# Test validation
+from shared.security_utils import validate_aws_region
+assert validate_aws_region("us-east-1") == True
+assert validate_aws_region("invalid") == False
+```
+
+### Mock Security Logging
+```python
+from unittest.mock import patch
+
+with patch('shared.security_utils.logger') as mock_logger:
+    log_security_event("test_event", {"key": "value"}, "INFO")
+    assert mock_logger.info.called
+```
 """
 
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from botocore.exceptions import ClientError
@@ -418,7 +671,7 @@ def log_security_event(
         severity: Event severity (INFO, WARN, ERROR, CRITICAL)
     """
     security_log = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
         "event_type": event_type,
         "severity": severity,
         "details": details,
@@ -636,77 +889,52 @@ def sanitize_string_input(input_str: str, max_length: int = 255) -> str:
     return sanitize_string(input_str, max_length)
 
 
-def validate_file_path(file_path: str) -> bool:
+def validate_file_path(path: str) -> str:
     """
-    Validate file path to prevent path traversal attacks
+    Validate file path - only block actual path traversal attacks.
+
+    This function is DEFENSIVE - it allows safe operations and only
+    blocks actual path traversal attempts. It does NOT block Lambda
+    from accessing its own runtime directories (/var/task/frontend)
+    or temporary directories (/tmp).
+
+    Security utilities should be defensive (block attacks) NOT offensive
+    (sanitize/modify legitimate data). This function returns the path
+    unchanged if valid.
 
     Args:
-        file_path: File path to validate
+        path: File path to validate
 
     Returns:
-        True if path is safe
+        Path unchanged if valid
 
     Raises:
-        InputValidationError: If path contains dangerous patterns
+        InputValidationError: If path is empty or contains path traversal
     """
-    if not isinstance(file_path, str):
-        raise InputValidationError("File path must be a string")
+    if not path:
+        raise InputValidationError("Path cannot be empty")
 
-    # Check for path traversal patterns
-    dangerous_patterns = [
-        "..",
-        "~",
-        "/etc/",
-        "/proc/",
-        "/sys/",
-        "/dev/",
-        "/var/",
-        "/tmp/",
-        "/root/",
-        "/home/",
-        "\\",  # Windows path separators
+    # Check ONLY for actual path traversal attacks
+    # These are the patterns that could escape intended directories
+    traversal_patterns = [
+        "..",  # Parent directory traversal
         "%2e%2e",  # URL encoded ..
-        "%2f",  # URL encoded /
-        "%5c",  # URL encoded \
+        "%252e%252e",  # Double URL encoded ..
     ]
 
-    file_path_lower = file_path.lower()
-    for pattern in dangerous_patterns:
-        if pattern in file_path_lower:
+    path_lower = path.lower()
+
+    for pattern in traversal_patterns:
+        if pattern in path_lower:
             log_security_event(
-                "path_traversal_attempt",
-                {"file_path": file_path, "pattern": pattern},
+                "path_traversal_blocked",
+                {"path": path, "pattern": pattern},
                 "WARN",
             )
-            raise InputValidationError(
-                f"File path contains dangerous pattern: {pattern}"
-            )
+            raise InputValidationError(f"Path traversal detected: {path}")
 
-    # Ensure path is within allowed directories
-    allowed_prefixes = [
-        "/var/task/",  # Lambda task directory
-        "/tmp/",  # Lambda temp directory (if explicitly allowed)
-        "./",  # Relative paths from current directory
-        "dist/",  # Build output directory
-        "frontend/",  # Frontend source directory
-        "assets/",  # Assets directory
-    ]
-
-    # Allow absolute paths that start with allowed prefixes
-    if file_path.startswith("/"):
-        if not any(
-            file_path.startswith(prefix) for prefix in allowed_prefixes
-        ):
-            log_security_event(
-                "unauthorized_path_access",
-                {"file_path": file_path},
-                "WARN",
-            )
-            raise InputValidationError(
-                f"File path not in allowed directories: {file_path}"
-            )
-
-    return True
+    # Return path unchanged - defensive validation does not modify data
+    return path
 
 
 def validate_dynamodb_input(field_name: str, value: str) -> bool:

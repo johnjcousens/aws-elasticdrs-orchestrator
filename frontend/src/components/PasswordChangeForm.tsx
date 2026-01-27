@@ -164,7 +164,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
             <Input
               type="password"
               value={newPassword}
-              onChange={({ detail }) => setNewPassword(detail.value)}
+              onChange={({ detail }: { detail: { value: string } }) => setNewPassword(detail.value)}
               placeholder="Enter your new password"
               autoComplete="new-password"
               autoFocus
@@ -177,7 +177,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
             <Input
               type="password"
               value={confirmPassword}
-              onChange={({ detail }) => setConfirmPassword(detail.value)}
+              onChange={({ detail }: { detail: { value: string } }) => setConfirmPassword(detail.value)}
               placeholder="Confirm your new password"
               autoComplete="new-password"
             />

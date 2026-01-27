@@ -32,8 +32,9 @@ interface WaveProgressProps {
 /**
  * Determine effective wave status based on wave status and server statuses
  * If wave says "started" but all servers are "LAUNCHED", it's actually completed
+ * Also checks job logs for LAUNCH_END events as authoritative completion signal
  */
-const getEffectiveWaveStatus = (wave: WaveExecution): string => {
+const getEffectiveWaveStatus = (wave: WaveExecution, jobLogs?: JobLogsResponse | null): string => {
   const waveStatus = (wave.status || 'pending').toLowerCase();
   
   // If wave already shows completed/failed, use that
@@ -61,6 +62,21 @@ const getEffectiveWaveStatus = (wave: WaveExecution): string => {
     
     if (allLaunched) return 'completed';
     if (anyFailed) return 'failed';
+    
+    // Check job logs for authoritative completion signal
+    if (jobLogs && wave.jobId) {
+      const waveLog = jobLogs.jobLogs?.find(log => log.jobId === wave.jobId);
+      if (waveLog) {
+        const hasJobEnd = waveLog.events.some(e => e.event === 'JOB_END');
+        const launchEndEvents = waveLog.events.filter(e => e.event === 'LAUNCH_END');
+        
+        // If job ended and we have LAUNCH_END for all servers, wave is complete
+        if (hasJobEnd && launchEndEvents.length === servers.length) {
+          return 'completed';
+        }
+      }
+    }
+    
     if (anyInProgress) return 'in_progress';
   }
   
@@ -132,7 +148,7 @@ const getStatusColor = (status: string): string => {
  * Get job logs for a specific wave
  */
 const getWaveJobLogs = (jobLogs: JobLogsResponse | null, waveNumber: number): JobLogEvent[] => {
-  if (!jobLogs) return [];
+  if (!jobLogs || !jobLogs.jobLogs) return [];
   
   const waveLog = jobLogs.jobLogs.find(log => log.waveNumber === waveNumber);
   return waveLog?.events || [];
@@ -247,25 +263,29 @@ const getConsoleLink = (instanceId: string, region: string): string => {
  * 
  * Progress calculation:
  * - Completed waves: 1.0 each
- * - In-progress waves: (launched servers / total servers in wave)
+ * - In-progress waves: base 0.1 + (launched servers / total servers * 0.9)
+ *   This ensures in-progress waves show some progress even before servers launch
  * - Pending waves: 0
  * 
  * Example with 3 waves, wave 1 has 4 servers:
- * - 0 servers launched: 0/3 = 0%
- * - 1 server launched: 0.25/3 = 8%
- * - 2 servers launched: 0.5/3 = 17%
- * - 3 servers launched: 0.75/3 = 25%
+ * - Wave started, 0 servers launched: 0.1/3 = 3%
+ * - 1 server launched: (0.1 + 0.225)/3 = 11%
+ * - 2 servers launched: (0.1 + 0.45)/3 = 18%
+ * - 3 servers launched: (0.1 + 0.675)/3 = 26%
  * - 4 servers launched (wave complete): 1/3 = 33%
  */
 const calculateProgress = (
   waves: WaveExecution[], 
-  totalWaves?: number
+  totalWaves?: number,
+  jobLogs?: JobLogsResponse | null
 ): { percentage: number; completed: number; total: number } => {
+  // Use waves.length as fallback if totalWaves not provided
+  const total = totalWaves || waves?.length || 0;
+  
   if (!waves || waves.length === 0) {
-    return { percentage: 0, completed: 0, total: totalWaves || 0 };
+    return { percentage: 0, completed: 0, total };
   }
   
-  const total = totalWaves || 0;
   if (total === 0) {
     return { percentage: 0, completed: 0, total: 0 };
   }
@@ -273,24 +293,28 @@ const calculateProgress = (
   let totalProgress = 0;
   
   waves.forEach(w => {
-    const effectiveStatus = getEffectiveWaveStatus(w);
+    const effectiveStatus = getEffectiveWaveStatus(w, jobLogs);
     
     if (effectiveStatus === 'completed' || effectiveStatus === 'launched') {
       // Fully completed wave = 1.0
       totalProgress += 1.0;
     } else if (effectiveStatus === 'in_progress' || effectiveStatus === 'started' || 
                effectiveStatus === 'launching' || effectiveStatus === 'polling') {
-      // In-progress wave: calculate based on launched servers
+      // In-progress wave: base progress (0.1) + server launch progress (0.9)
       const servers = w.serverExecutions || [];
+      const baseProgress = 0.1; // Wave started = 10% of wave progress
+      
       if (servers.length > 0) {
         const launchedServers = servers.filter(s => {
           const status = (s.launchStatus || s.status || '').toUpperCase();
           return status === 'LAUNCHED';
         }).length;
-        totalProgress += (launchedServers / servers.length);
+        // Server progress contributes remaining 90% of wave progress
+        const serverProgress = (launchedServers / servers.length) * 0.9;
+        totalProgress += baseProgress + serverProgress;
       } else {
-        // No servers yet, count as 0.5 (started but no progress)
-        totalProgress += 0.5;
+        // No servers yet, count as base progress
+        totalProgress += baseProgress;
       }
     }
     // Pending waves contribute 0
@@ -298,7 +322,7 @@ const calculateProgress = (
   
   // Count fully completed waves for display
   const completed = waves.filter(w => {
-    const effectiveStatus = getEffectiveWaveStatus(w);
+    const effectiveStatus = getEffectiveWaveStatus(w, jobLogs);
     return effectiveStatus === 'completed' || effectiveStatus === 'launched';
   }).length;
   
@@ -310,7 +334,7 @@ const calculateProgress = (
 /**
  * Create server table column definitions with wave context for consistent status display
  */
-const createServerColumnDefinitions = (wave: WaveExecution) => [
+const createServerColumnDefinitions = (wave: WaveExecution, jobLogs?: JobLogsResponse | null) => [
   {
     id: 'serverId',
     header: 'Server ID',
@@ -342,7 +366,7 @@ const createServerColumnDefinitions = (wave: WaveExecution) => [
     id: 'status',
     header: 'Status',
     cell: (server: ServerExecution) => {
-      const waveEffectiveStatus = getEffectiveWaveStatus(wave);
+      const waveEffectiveStatus = getEffectiveWaveStatus(wave, jobLogs);
       const serverStatus = server.launchStatus || server.status || 'pending';
       
       // CRITICAL FIX: If wave is completed, ALL servers should show completed status
@@ -468,8 +492,8 @@ const createServerColumnDefinitions = (wave: WaveExecution) => [
     id: 'launchTime',
     header: 'Launch Time',
     cell: (server: ServerExecution) => {
-      // Check for various timestamp field names
-      const timestamp = (server as any).launchTime || (server as any).startTime;
+      const serverWithTimestamp = server as ServerExecution & { launchTime?: number; startTime?: number };
+      const timestamp = serverWithTimestamp.launchTime || serverWithTimestamp.startTime;
       const formattedTime = formatTimestamp(timestamp);
       
       return (
@@ -505,7 +529,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
     new Set(currentWave !== undefined ? [currentWave] : [0])
   );
 
-  const progress = calculateProgress(waves, totalWaves);
+  const progress = calculateProgress(waves, totalWaves, jobLogs);
   
   return (
     <SpaceBetween size="m">
@@ -530,8 +554,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
         const isJobEventsExpanded = expandedJobEvents.has(waveNum);
         const hasServers = wave.serverExecutions && wave.serverExecutions.length > 0;
         
-        // Use effective status that considers server statuses
-        const effectiveStatus = getEffectiveWaveStatus(wave);
+        // Use effective status that considers server statuses and job logs
+        const effectiveStatus = getEffectiveWaveStatus(wave, jobLogs);
         const statusIndicator = getWaveStatusIndicator(effectiveStatus);
         const statusColor = getStatusColor(effectiveStatus);
         const duration = calculateWaveDuration(wave);
@@ -635,7 +659,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                   }}
                 >
                   <Table
-                    columnDefinitions={createServerColumnDefinitions(wave)}
+                    columnDefinitions={createServerColumnDefinitions(wave, jobLogs)}
                     items={wave.serverExecutions}
                     variant="embedded"
                     stripedRows
@@ -662,8 +686,8 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     <SpaceBetween size="xs">
                       {wave.serverExecutions
                         .filter(s => s.error)
-                        .map((server, idx) => (
-                          <Alert type="error" key={idx}>
+                        .map((server) => (
+                          <Alert type="error" key={server.serverId}>
                             <strong>{server.serverName || server.serverId}:</strong>{' '}
                             {typeof server.error === 'string' 
                               ? server.error 
@@ -712,7 +736,7 @@ export const WaveProgress: React.FC<WaveProgressProps> = ({
                     }
 
                     // Create timeline items from job log events
-                    const timelineItems = waveJobLogs.map((event, idx) => ({
+                    const timelineItems = waveJobLogs.map((event) => ({
                       type: event.error ? 'error' : 'success',
                       content: (
                         <Box>

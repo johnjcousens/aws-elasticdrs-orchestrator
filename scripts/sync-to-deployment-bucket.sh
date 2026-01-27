@@ -1,33 +1,37 @@
 #!/bin/bash
-# Sync repository to S3 for GitHub Actions deployment
-# Purpose: Keep s3://aws-elasticdrs-orchestrator in sync with local git repo
+# Sync repository to S3 for deployment
+# Purpose: Keep S3 deployment bucket in sync with local git repo
 # Usage: ./scripts/sync-to-deployment-bucket.sh [options]
+#
+# Repository Structure:
+#   This script works from the repository root directory.
+#   All paths are relative to the repository root.
 
 set -e  # Exit on error
 
 # Disable AWS CLI pager for all commands
 export AWS_PAGER=""
 
-# Configuration
+# Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Load configuration from environment files
-if [ -f "$PROJECT_ROOT/.env.deployment.fresh" ]; then
-    echo "📋 Loading fresh stack configuration from .env.deployment.fresh"
-    source "$PROJECT_ROOT/.env.deployment.fresh"
-elif [ -f "$PROJECT_ROOT/.env.deployment" ]; then
+# Change to project root for all operations
+cd "$PROJECT_ROOT"
+
+# Load configuration from environment files (optional)
+if [ -f ".env.deployment" ]; then
     echo "📋 Loading configuration from .env.deployment"
-    source "$PROJECT_ROOT/.env.deployment"
+    source ".env.deployment"
 fi
 
-if [ -f "$PROJECT_ROOT/.env.deployment.local" ]; then
+if [ -f ".env.deployment.local" ]; then
     echo "📋 Loading local overrides from .env.deployment.local"
-    source "$PROJECT_ROOT/.env.deployment.local"
+    source ".env.deployment.local"
 fi
 
-# Default configuration - Current Working Stack
-BUCKET="${DEPLOYMENT_BUCKET:-aws-elasticdrs-orchestrator}"  # Current working stack deployment bucket
+# Default configuration
+BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orchestration-dev}"
 REGION="${DEPLOYMENT_REGION:-us-east-1}"
 BUILD_FRONTEND=false
 DRY_RUN=false
@@ -40,10 +44,10 @@ RUN_LOCAL_VALIDATION=false
 AWS_PROFILE="${AWS_PROFILE:-default}"
 LIST_PROFILES=false
 
-# CloudFormation stack configuration (Current working stack configuration)
-PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"  # Current working stack project name
-ENVIRONMENT="${ENVIRONMENT:-test}"  # Current working stack uses test environment
-PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-test}"  # Current working stack actual name
+# CloudFormation stack configuration
+PROJECT_NAME="${PROJECT_NAME:-aws-drs-orchestration}"
+ENVIRONMENT="${ENVIRONMENT:-dev}"
+PARENT_STACK_NAME="${PARENT_STACK_NAME:-${PROJECT_NAME}-${ENVIRONMENT}}"
 
 # Approved directories for sync
 APPROVED_DIRS=("cfn" "docs" "frontend" "lambda" "scripts")
@@ -356,288 +360,19 @@ if [ "$RUN_LOCAL_VALIDATION" = true ]; then
     echo "======================================"
     echo ""
     
-    VALIDATION_START=$(date +%s)
-    VALIDATION_FAILED=false
-    
-    # Stage 1: Validate (CloudFormation + Code Quality)
-    echo "📋 Stage 1: Validate (CloudFormation + Code Quality)..."
-    
-    # 1.1. CloudFormation Validation
-    echo "  📋 CloudFormation Validation..."
-    if command -v aws >/dev/null 2>&1; then
-        for template in cfn/*.yaml; do
-            if [ -f "$template" ]; then
-                echo "    Validating $template..."
-                if ! aws cloudformation validate-template --template-body file://"$template" $PROFILE_FLAG --region $REGION >/dev/null 2>&1; then
-                    echo "    ❌ $template validation failed"
-                    VALIDATION_FAILED=true
-                else
-                    echo "    ✅ $template valid"
-                fi
-            fi
-        done
-    else
-        echo "    ⚠️  AWS CLI not available - skipping CloudFormation validation"
-    fi
-    
-    # 1.2. Python Code Quality
-    echo ""
-    echo "  🐍 Python Code Quality..."
-    if command -v flake8 >/dev/null 2>&1; then
-        if flake8 lambda/ scripts/ --max-line-length=79 --exclude=__pycache__,*.pyc --count --show-source --statistics; then
-            echo "    ✅ Python linting passed"
-        else
-            echo "    ❌ Python linting failed"
-            VALIDATION_FAILED=true
-        fi
-    else
-        echo "    ⚠️  Flake8 not available - install with: pip install flake8"
-    fi
-    
-    # 1.3. Frontend Type Checking
-    if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+    # Call the comprehensive CI checks script
+    if ./scripts/local-ci-checks.sh; then
         echo ""
-        echo "  📘 Frontend Type Checking..."
-        cd frontend
-        if [ -f "package-lock.json" ]; then
-            if npm run type-check >/dev/null 2>&1; then
-                echo "    ✅ TypeScript types valid"
-            else
-                echo "    ❌ TypeScript type errors found"
-                VALIDATION_FAILED=true
-            fi
-        else
-            echo "    ⚠️  Dependencies not installed - run: cd frontend && npm install"
-        fi
-        
-        # 1.4. Frontend ESLint
+        echo "✅ All CI/CD quality checks passed"
         echo ""
-        echo "  🔍 Frontend ESLint..."
-        if npm run lint -- --max-warnings 200 >/dev/null 2>&1; then
-            echo "    ✅ ESLint validation passed"
-        else
-            echo "    ⚠️  ESLint warnings found (continuing)"
-        fi
-        
-        cd ..
-    fi
-    
-    # 1.5. CloudScape Design System Compliance
-    echo ""
-    echo "  🎨 CloudScape Design System Compliance..."
-    if [ -f "scripts/check-cloudscape-compliance.sh" ]; then
-        chmod +x scripts/check-cloudscape-compliance.sh
-        if ./scripts/check-cloudscape-compliance.sh frontend/src; then
-            echo "    ✅ CloudScape compliance passed"
-        else
-            echo "    ❌ CloudScape compliance failed"
-            VALIDATION_FAILED=true
-        fi
     else
-        echo "    ⚠️  CloudScape compliance script not found"
-    fi
-    
-    # 1.6. API Gateway Architecture Validation
-    echo ""
-    echo "  🔗 API Gateway Architecture Validation..."
-    if [ -f "scripts/validate-api-gateway-compliance.sh" ]; then
-        chmod +x scripts/validate-api-gateway-compliance.sh
-        if ./scripts/validate-api-gateway-compliance.sh; then
-            echo "    ✅ API Gateway architecture compliance passed"
-        else
-            echo "    ❌ API Gateway architecture compliance failed"
-            VALIDATION_FAILED=true
-        fi
-    else
-        echo "    ⚠️  API Gateway architecture validation script not found"
-    fi
-    
-    # Stage 2: Security Scan
-    echo ""
-    echo "🔒 Stage 2: Security Scan..."
-    
-    # Create security reports directory
-    mkdir -p reports/security/raw
-    mkdir -p reports/security/formatted
-    
-    # 2.1. Python Security Scanning
-    echo "  🐍 Python Security Scanning..."
-    
-    # Bandit security scan
-    if command -v bandit >/dev/null 2>&1; then
-        echo "    Running Bandit security scan..."
-        bandit -r lambda/ scripts/ -f json -o reports/security/raw/bandit-report.json -ll || true
-        bandit -r lambda/ scripts/ -ll > reports/security/formatted/bandit-report.txt || true
-        echo "    ✅ Bandit scan completed"
-    else
-        echo "    ⚠️  Bandit not available - install with: pip install bandit"
-    fi
-    
-    # Semgrep security scan for Python
-    if command -v semgrep >/dev/null 2>&1; then
-        echo "    Running Semgrep security scan on Python code..."
-        semgrep --config=python.lang.security lambda/ scripts/ --json -o reports/security/raw/semgrep-python.json --severity ERROR --severity WARNING || true
-        semgrep --config=python.lang.security lambda/ scripts/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-python.txt || true
-        echo "    ✅ Semgrep Python scan completed"
-    else
-        echo "    ⚠️  Semgrep not available - install with: pip install semgrep"
-    fi
-    
-    # Safety dependency vulnerability scan
-    if command -v safety >/dev/null 2>&1; then
-        echo "    Running Safety dependency vulnerability scan..."
-        safety check --json > reports/security/raw/safety-report.json || true
-        safety check > reports/security/formatted/safety-report.txt || true
-        echo "    ✅ Safety scan completed"
-    else
-        echo "    ⚠️  Safety not available - install with: pip install safety"
-    fi
-    
-    # 2.2. Frontend Security Scanning
-    if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
         echo ""
-        echo "  🌐 Frontend Security Scanning..."
-        cd frontend
-        
-        # NPM audit security scan
-        echo "    Running NPM audit security scan..."
-        npm audit --audit-level moderate --json > ../reports/security/raw/npm-audit.json || true
-        npm audit --audit-level moderate > ../reports/security/formatted/npm-audit.txt || true
-        
-        # ESLint security scan
-        echo "    Running ESLint security scan..."
-        npx eslint src/ --ext .ts,.tsx --format json -o ../reports/security/raw/eslint-security.json || true
-        npx eslint src/ --ext .ts,.tsx --format compact > ../reports/security/formatted/eslint-security.txt || true
-        
-        cd ..
-        echo "    ✅ Frontend security scans completed"
-    fi
-    
-    # 2.3. Infrastructure Security Scanning
-    echo ""
-    echo "  ☁️  Infrastructure Security Scanning..."
-    
-    # CloudFormation security linting
-    if command -v cfn-lint >/dev/null 2>&1; then
-        echo "    Running CloudFormation security linting..."
-        cfn-lint cfn/*.yaml --format json > reports/security/raw/cfn-lint.json || true
-        cfn-lint cfn/*.yaml > reports/security/formatted/cfn-lint.txt || true
-        echo "    ✅ CFN-lint scan completed"
-    else
-        echo "    ⚠️  CFN-lint not available - install with: pip install cfn-lint"
-    fi
-    
-    # Semgrep security scan for CloudFormation
-    if command -v semgrep >/dev/null 2>&1; then
-        echo "    Running Semgrep security scan on CloudFormation templates..."
-        semgrep --config=yaml.lang.security cfn/ --json -o reports/security/raw/semgrep-cfn.json --severity ERROR --severity WARNING || true
-        semgrep --config=yaml.lang.security cfn/ --severity ERROR --severity WARNING > reports/security/formatted/semgrep-cfn.txt || true
-        echo "    ✅ Semgrep CloudFormation scan completed"
-    fi
-    
-    # 2.4. Generate Security Summary
-    echo ""
-    echo "  📊 Generating Security Summary..."
-    if [ -f "scripts/generate-security-summary.py" ]; then
-        export SECURITY_THRESHOLD_CRITICAL="0"
-        export SECURITY_THRESHOLD_HIGH="10"
-        export SECURITY_THRESHOLD_TOTAL="50"
-        
-        if python scripts/generate-security-summary.py; then
-            echo "    ✅ Security summary generated"
-        else
-            echo "    ❌ Security summary generation failed"
-            VALIDATION_FAILED=true
-        fi
-        
-        # Check security thresholds
-        if [ -f "scripts/check-security-thresholds.py" ]; then
-            if python scripts/check-security-thresholds.py; then
-                echo "    ✅ Security thresholds passed"
-            else
-                echo "    ❌ Security thresholds failed"
-                VALIDATION_FAILED=true
-            fi
-        fi
-    else
-        echo "    ⚠️  Security summary script not found"
-    fi
-    
-    # Stage 3: Build (simulation)
-    echo ""
-    echo "🏗️  Stage 3: Build Simulation..."
-    echo "    ✅ Lambda packaging logic validated"
-    echo "    ✅ Frontend build dependencies checked"
-    
-    # Stage 4: Test
-    echo ""
-    echo "🧪 Stage 4: Test..."
-    
-    # 4.1. Python Unit Tests
-    echo "  🐍 Python Unit Tests..."
-    if [ -d "tests/python" ]; then
-        if command -v pytest >/dev/null 2>&1; then
-            cd tests/python
-            if pytest unit/ -v --tb=short; then
-                echo "    ✅ Python unit tests passed"
-            else
-                echo "    ❌ Python unit tests failed"
-                VALIDATION_FAILED=true
-            fi
-            cd ../..
-        else
-            echo "    ⚠️  Pytest not available - install with: pip install pytest"
-        fi
-    else
-        echo "    ⚠️  No Python tests found - skipping unit tests"
-    fi
-    
-    # 4.2. Frontend Tests
-    if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+        echo "❌ CI/CD quality checks failed"
         echo ""
-        echo "  🌐 Frontend Tests..."
-        cd frontend
-        if grep -q '"test"' package.json; then
-            if npm test -- --run >/dev/null 2>&1; then
-                echo "    ✅ Frontend tests passed"
-            else
-                echo "    ⚠️  Frontend tests had issues (continuing)"
-            fi
-        else
-            echo "    ⚠️  No frontend tests configured - skipping"
-        fi
-        cd ..
-    fi
-    
-    VALIDATION_END=$(date +%s)
-    VALIDATION_DURATION=$((VALIDATION_END - VALIDATION_START))
-    
-    echo ""
-    echo "======================================"
-    if [ "$VALIDATION_FAILED" = true ]; then
-        echo "❌ LOCAL VALIDATION FAILED (${VALIDATION_DURATION}s)"
-        echo "======================================"
-        echo "Fix the issues above before deploying"
-        echo ""
-        echo "💡 This mirrors the GitHub Actions pipeline stages:"
-        echo "   Validate → Security Scan → Build → Test → Deploy"
-        echo ""
-        echo "🔍 Security reports available in: reports/security/"
+        echo "Fix the issues above before syncing to deployment bucket."
+        echo "Or use --skip-validation to bypass (not recommended)."
         exit 1
-    else
-        echo "✅ LOCAL VALIDATION PASSED (${VALIDATION_DURATION}s)"
-        echo "======================================"
-        echo "All quality gates passed - ready for deployment"
-        echo ""
-        echo "📊 Pipeline stages completed:"
-        echo "   ✅ Validate (CloudFormation + Code Quality)"
-        echo "   ✅ Security Scan (Python + Frontend + Infrastructure)"
-        echo "   ✅ Build Simulation"
-        echo "   ✅ Test (Unit + Frontend)"
-        echo ""
-        echo "🔍 Security reports available in: reports/security/"
     fi
-    echo ""
 fi
 
 # Verify AWS credentials

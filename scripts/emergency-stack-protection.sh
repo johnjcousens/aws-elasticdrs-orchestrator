@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-deployment-config.sh"
 
 PROTECTED_STACKS=(
-    "aws-elasticdrs-orchestrator-dev"
+    "aws-drs-orch-dev"
     "aws-elasticdrs-orchestrator-test" 
     "aws-elasticdrs-orchestrator-prod"
 )

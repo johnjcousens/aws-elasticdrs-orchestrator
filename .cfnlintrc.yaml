@@ -3,6 +3,7 @@
 
 ignore_checks:
   # Warnings
+  - W1030  # Parameter pattern mismatch - optional ARN parameters can be empty
   - W2001  # Parameter not used - common in reusable templates
   - W3002  # Hardcoded path - acceptable for this project
   - W3005  # DependsOn may not be necessary - architectural choice
@@ -15,9 +16,6 @@ ignore_checks:
 
 templates:
   - cfn/*.yaml
-
-ignore_templates:
-  - cfn/security-stack.yaml  # Optional stack, may have conditional resources
 
 regions:
   - us-east-1

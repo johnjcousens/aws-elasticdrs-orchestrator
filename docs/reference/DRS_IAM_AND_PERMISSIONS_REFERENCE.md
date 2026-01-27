@@ -1,6 +1,6 @@
 # DRS IAM and Permissions Reference
 
-**Version**: 2.1 (January 1, 2026)  
+**Version**: 2.2 (January 26, 2026)  
 **Purpose**: Comprehensive IAM permissions analysis for AWS DRS operations  
 **Scope**: Service roles, cross-account setup, and troubleshooting
 
@@ -9,6 +9,19 @@
 ## Overview
 
 AWS Elastic Disaster Recovery (DRS) requires specific IAM permissions to perform recovery operations. This document consolidates all IAM analysis including service role permissions, complete IAM requirements, and cross-account configurations.
+
+## Lambda Handler Architecture
+
+The orchestration platform uses **6 Lambda functions** with the unified orchestration role:
+
+- **data-management-handler**: Protection groups, recovery plans, configuration management
+- **execution-handler**: Recovery execution control, pause/resume, termination
+- **query-handler**: Read-only queries, DRS status, EC2 resource discovery
+- **frontend-deployer**: Frontend build and deployment operations
+- **orch-sf**: Step Functions orchestration logic
+- **notification-formatter**: SNS notification routing and formatting
+
+All handlers share the **UnifiedOrchestrationRole** with comprehensive permissions.
 
 ## Service Role Permissions Analysis
 
@@ -99,6 +112,8 @@ When Lambda calls `drs:StartRecovery`, DRS service performs these phases:
 ### Lambda Function IAM Requirements
 
 For orchestration Lambda functions calling DRS APIs:
+
+**Functions**: `data-management-handler`, `execution-handler`, `query-handler`, `frontend-deployer`, `orch-sf`, `notification-formatter`
 
 ```yaml
 # DRS Permissions (CRITICAL)

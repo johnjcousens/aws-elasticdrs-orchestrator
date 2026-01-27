@@ -3,6 +3,7 @@
  * 
  * Sets up routing, authentication, theming, and layout structure.
  * Entry point for the React application.
+ * Build: 2026-01-25T02:25:00Z
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -11,6 +12,7 @@ import { PermissionsProvider } from './contexts/PermissionsContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ApiProvider } from './contexts/ApiContext';
 import { AccountProvider } from './contexts/AccountContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './components/cloudscape/AppLayout';
@@ -29,15 +31,19 @@ import { RecoveryPlansPage } from './pages/RecoveryPlansPage';
  * Uses single AppLayout instance for AWS console-style navigation.
  */
 function App() {
+  // Force cache bust: 2026-01-25T02:26:00Z
+  console.log('DR Orchestrator v2026.01.25');
+  
   return (
     <AuthProvider>
-      <PermissionsProvider>
-        <NotificationProvider>
-          <ApiProvider>
-            <AccountProvider>
-              <BrowserRouter>
-                <ErrorBoundary>
-                  <Routes>
+      <SettingsProvider>
+        <PermissionsProvider>
+          <NotificationProvider>
+            <ApiProvider>
+              <AccountProvider>
+                <BrowserRouter>
+                  <ErrorBoundary>
+                    <Routes>
                     {/* Public routes - no AppLayout wrapper */}
                     <Route path="/login" element={<LoginPage />} />
                     
@@ -139,6 +145,7 @@ function App() {
           </ApiProvider>
         </NotificationProvider>
       </PermissionsProvider>
+      </SettingsProvider>
     </AuthProvider>
   );
 }

@@ -1,0 +1,138 @@
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": [
+				"ssm:PutParameter",
+				"ssm:DeleteParameter",
+				"ssm:GetParameterHistory",
+				"ssm:GetParametersByPath",
+				"ssm:GetParameters",
+				"ssm:GetParameter",
+				"ssm:DeleteParameters"
+			],
+			"Resource": "arn:aws:ssm:*:*:parameter/hyper_automation/*"
+		},
+		{
+			"Effect": "Allow",
+			"Action": "ssm:DescribeParameters",
+			"Resource": "*"
+		},
+		{
+			"Sid": "AllowCreateDeleteSecret",
+			"Effect": "Allow",
+			"Action": [
+				"secretsmanager:CreateSecret",
+				"secretsmanager:DeleteSecret",
+				"secretsmanager:PutSecretValue",
+				"secretsmanager:UpdateSecret"
+			],
+			"Resource": "arn:aws:secretsmanager:*:*:secret:/hyper_automation/*"
+		},
+		{
+			"Effect": "Allow",
+			"Action": "secretsmanager:ListSecrets",
+			"Resource": "*"
+		},
+		{
+			"Sid": "StepFunctions",
+			"Effect": "Allow",
+			"Action": [
+				"states:ListStateMachines",
+				"states:ListStateMachineAliases",
+				"states:ListStateMachineVersions",
+				"states:CreateStateMachine",
+				"states:CreateStateMachineAlias",
+				"states:TagResource",
+				"states:UntagResource",
+				"states:DeleteStateMachine",
+				"states:DeleteStateMachineAlias",
+				"states:DeleteStateMachineVersion"
+			],
+			"Resource": "arn:aws:states:*:*:stateMachine:aws-*-runbook-template-manager"
+		},
+		{
+			"Sid": "EventBus",
+			"Effect": "Allow",
+			"Action": [
+				"events:ListEventBuses",
+				"events:CreateEventBus",
+				"events:DeleteEventBus",
+				"events:UpdateEventBus",
+				"events:DescribeEventBus"
+			],
+			"Resource": "arn:aws:events:*:*:event-bus/HyperAutomationAesEventBus"
+		},
+		{
+			"Sid": "CodeBuild",
+			"Effect": "Allow",
+			"Action": [
+				"codebuild:CreateProject",
+				"codebuild:DeleteProject",
+				"codebuild:UpdateProject"
+			],
+			"Resource": [
+				"arn:aws:codebuild:*:*:project/HyperAutomation-Infrastructure*"
+			]
+		},
+		{
+			"Sid": "CodeBuildList",
+			"Effect": "Allow",
+			"Action": [
+				"codebuild:ListBuilds",
+				"codebuild:ListProjects"
+			],
+			"Resource": [
+				"*"
+			]
+		},
+		{
+			"Sid": "CodePipeline",
+			"Effect": "Allow",
+			"Action": [
+				"codepipeline:GetPipeline",
+				"codepipeline:CreatePipeline",
+				"codepipeline:DeletePipeline",
+				"codepipeline:UpdatePipeline",
+				"codepipeline:ListPipelineExecutions",
+				"codepipeline:GetPipelineExecution",
+				"codepipeline:GetPipelineState",
+				"codepipeline:StartPipelineExecution",
+				"codepipeline:StopPipelineExecution",
+				"codepipeline:RetryStageExecution"
+			],
+			"Resource": [
+				"arn:aws:codepipeline:*:*:HyperAutomation-Infrastructure*"
+			]
+		},
+		{
+			"Sid": "CodePipelineList",
+			"Effect": "Allow",
+			"Action": [
+				"codepipeline:ListPipelines"
+			],
+			"Resource": [
+				"*"
+			]
+		},
+		{
+			"Sid": "DDBDelete",
+			"Effect": "Allow",
+			"Action": [
+				"dynamodb:UpdateGlobalTableSettings",
+				"dynamodb:UpdateGlobalTable",
+				"dynamodb:UpdateGlobalTableVersion",
+				"dynamodb:UpdateItem",
+				"dynamodb:DeleteTable",
+				"dynamodb:DeleteTableReplica",
+				"dynamodb:UpdateTable"
+			],
+			"Resource": [
+				"arn:aws:dynamodb:*:*:table/IdempotenceCheckTable",
+				"arn:aws:dynamodb:*:*:table/AESSSMJobsTable",
+				"arn:aws:dynamodb:*:*:table/AESAutomationTimeoutTable"
+			]
+		}
+	]
+}

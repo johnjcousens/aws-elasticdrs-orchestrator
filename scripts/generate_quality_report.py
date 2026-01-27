@@ -78,9 +78,9 @@ class QualityReporter:
                 "tool": "black",
                 "status": "passed" if result.returncode == 0 else "failed",
                 "files_checked": len(self.python_files),
-                "files_needing_format": 0
-                if result.returncode == 0
-                else "unknown",
+                "files_needing_format": (
+                    0 if result.returncode == 0 else "unknown"
+                ),
                 "output": result.stdout,
                 "errors": result.stderr,
                 "return_code": result.returncode,
@@ -123,12 +123,16 @@ class QualityReporter:
                             violations.append(
                                 {
                                     "file": parts[0],
-                                    "line": int(parts[1])
-                                    if parts[1].isdigit()
-                                    else 0,
-                                    "column": int(parts[2])
-                                    if parts[2].isdigit()
-                                    else 0,
+                                    "line": (
+                                        int(parts[1])
+                                        if parts[1].isdigit()
+                                        else 0
+                                    ),
+                                    "column": (
+                                        int(parts[2])
+                                        if parts[2].isdigit()
+                                        else 0
+                                    ),
                                     "message": parts[3].strip(),
                                 }
                             )
@@ -171,9 +175,9 @@ class QualityReporter:
                 "tool": "isort",
                 "status": "passed" if result.returncode == 0 else "failed",
                 "files_checked": len(self.python_files),
-                "files_needing_sort": 0
-                if result.returncode == 0
-                else "unknown",
+                "files_needing_sort": (
+                    0 if result.returncode == 0 else "unknown"
+                ),
                 "output": result.stdout,
                 "errors": result.stderr,
                 "return_code": result.returncode,
@@ -255,9 +259,9 @@ class QualityReporter:
             "flake8_violations": flake8_violations,
             "baseline_violations": baseline_count,
             "flake8_status": flake8_status,
-            "overall_status": "PASSED"
-            if tools_passed == total_tools
-            else "FAILED",
+            "overall_status": (
+                "PASSED" if tools_passed == total_tools else "FAILED"
+            ),
             "timestamp": self.timestamp.isoformat(),
             "files_analyzed": [str(f) for f in self.python_files],
         }
@@ -381,9 +385,11 @@ class QualityReporter:
             if tool_name == "flake8" and result.get("violations"):
                 violations_list = result.get("violations", [])
                 violations_count = len(violations_list)
-                content += f'<p><strong>Total Violations:</strong> {violations_count}</p>'  # noqa: E231
+                content += f"<p><strong>Total Violations:</strong> {violations_count}</p>"  # noqa: E231
                 content += '<div class="violations">'
-                for violation in violations_list[:10]:  # Show first 10 violations
+                for violation in violations_list[
+                    :10
+                ]:  # Show first 10 violations
                     file_path = violation.get("file", "")
                     line_num = violation.get("line", 0)
                     col_num = violation.get("column", 0)
@@ -392,11 +398,11 @@ class QualityReporter:
                         f'<div class="violation">'
                         f'<div class="violation-file">{file_path}: {line_num}: {col_num}</div>'
                         f'<div class="violation-message">{message}</div>'
-                        f'</div>'
+                        f"</div>"
                     )
                 if len(violations_list) > 10:
                     remaining_count = len(violations_list) - 10
-                    content += f'<p><em>... and {remaining_count} more violations</em></p>'
+                    content += f"<p><em>... and {remaining_count} more violations</em></p>"
                 content += "</div>"
             elif result.get("status") == "passed":
                 content += (
@@ -405,7 +411,9 @@ class QualityReporter:
 
             if result.get("output") and result.get("status") != "passed":
                 output_text = result.get("output", "")[:1000]
-                content += f'<h4>Output:</h4><pre>{output_text}</pre>'  # noqa: E231
+                content += (
+                    f"<h4>Output:</h4><pre>{output_text}</pre>"  # noqa: E231
+                )
 
             content += "</div>"
 
@@ -413,8 +421,8 @@ class QualityReporter:
             tool_sections.append(
                 f'<div class="tool-section">'
                 f'<h3 class="tool-header">{tool_title} Results</h3>'
-                f'{content}'
-                f'</div>'
+                f"{content}"
+                f"</div>"
             )
 
         # Generate files list
@@ -426,9 +434,11 @@ class QualityReporter:
         html_content = html_template.format(
             timestamp=self.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             overall_status=metrics["overall_status"],
-            status_class="status-passed"
-            if metrics["overall_status"] == "PASSED"
-            else "status-failed",
+            status_class=(
+                "status-passed"
+                if metrics["overall_status"] == "PASSED"
+                else "status-failed"
+            ),
             compliance_percentage=metrics["tool_compliance_percentage"],
             total_files=metrics["total_files_analyzed"],
             flake8_violations=metrics["flake8_violations"],

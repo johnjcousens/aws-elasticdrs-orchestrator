@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-PROJECT_NAME="aws-elasticdrs-orchestrator"
+PROJECT_NAME="aws-drs-orch"
 ENVIRONMENT="dev"
 STACK_NAME="${PROJECT_NAME}-${ENVIRONMENT}"
 AWS_REGION="${AWS_DEFAULT_REGION:-us-east-1}"

@@ -1,7 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS DRS Orchestration Solution - Master Template (Nested Stack Architecture)'
-
-# Updated: 2026-01-10 - Emergency deployment after stack restoration (commit 9e94b77)
+Description: |
+  DR Orchestration Master Stack (AWSM-1103)
+  
+  Deploys complete wave-based disaster recovery orchestration solution via nested stacks:
+  - Database: DynamoDB tables for Protection Groups, Recovery Plans, Execution History
+  - Notification: SNS topics for execution events, DRS alerts, pause notifications
+  - Lambda: 6 functions for API, orchestration, polling, notifications, frontend
+  - Step Functions: Wave-based orchestration state machine with Archive Pattern
+  - API Gateway: REST API with Cognito authentication (7 nested stacks)
+  - EventBridge: DRS event routing and scheduled polling
+  - Frontend: React UI hosted on S3/CloudFront (optional)
+  
+  Unified IAM Role: All Lambda functions share single orchestration role for DRS, DynamoDB,
+  Step Functions, SNS, EC2, S3, CloudFront access. Supports cross-account DRS operations.
+  
+  Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -16,22 +29,12 @@ Metadata:
           default: 'Authentication Configuration'
         Parameters:
           - AdminEmail
-          - CognitoDomainPrefix
-      - Label:
-          default: 'Notification Configuration'
-        Parameters:
-          - NotificationEmail
-      - Label:
-          default: 'Security Configuration (Optional)'
-        Parameters:
-          - EnableWAF
-          - EnableCloudTrail
-          - EnableSecretsManager
+          - EnableNotifications
 
 Parameters:
   ProjectName:
     Type: String
-    Default: 'aws-elasticdrs-orchestrator'
+    Default: 'aws-drs-orchestration'
     Description: 'Project name used for resource naming'
     AllowedPattern: '^[a-z0-9-]+$'
     ConstraintDescription: 'Must contain only lowercase letters, numbers, and hyphens'
@@ -54,73 +57,14 @@ Parameters:
 
   AdminEmail:
     Type: String
-    Description: 'Email address for initial Cognito admin user'
+    Description: 'Email address for initial Cognito admin user and all notifications'
     AllowedPattern: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
     ConstraintDescription: 'Must be a valid email address'
 
-  CognitoDomainPrefix:
-    Type: String
-    Default: ''
-    Description: 'Optional: Custom domain prefix for Cognito (leave empty for auto-generated)'
-
-  NotificationEmail:
-    Type: String
-    Default: ''
-    Description: 'Optional: Email address for execution notifications (leave empty to skip)'
-
-  EnablePipelineNotifications:
-    Type: String
-    Default: 'true'
-    Description: 'Enable SNS email notifications for pipeline and security scan failures'
-    AllowedValues:
-      - 'true'
-      - 'false'
-
-  EnableWAF:
-    Type: String
-    Default: 'true'
-    Description: 'Enable AWS WAF for API Gateway protection'
-    AllowedValues:
-      - 'true'
-      - 'false'
-
-  EnableCloudTrail:
-    Type: String
-    Default: 'true'
-    Description: 'Enable CloudTrail for audit logging'
-    AllowedValues:
-      - 'true'
-      - 'false'
-
-  EnableSecurityStack:
+  EnableNotifications:
     Type: String
     Default: 'false'
-    Description: 'Enable Security Stack (WAF, CloudTrail, Secrets Manager)'
-    AllowedValues:
-      - 'true'
-      - 'false'
-
-  EnableSecretsManager:
-    Type: String
-    Default: 'true'
-    Description: 'Enable Secrets Manager for secure credential storage'
-    AllowedValues:
-      - 'true'
-      - 'false'
-
-  EnableTerminationProtection:
-    Type: String
-    Default: 'true'
-    Description: 'Enable CloudFormation stack termination protection (CRITICAL for production)'
-    AllowedValues:
-      - 'true'
-      - 'false'
-
-  # Tag Sync Configuration
-  EnableTagSync:
-    Type: String
-    Default: 'true'
-    Description: 'Enable scheduled DRS tag synchronization'
+    Description: 'Enable email notifications for execution events (true/false)'
     AllowedValues:
       - 'true'
       - 'false'
@@ -128,40 +72,445 @@ Parameters:
   # Cross-Account Configuration
   CrossAccountRoleName:
     Type: String
-    Default: 'aws-elasticdrs-orchestrator-cross-account-role'
-    Description: 'Name of the cross-account IAM role for DRS operations in target accounts'
-    AllowedPattern: '^[a-zA-Z0-9+=,.@_-]+$'
-    ConstraintDescription: 'Must be a valid IAM role name'
+    Default: ''
+    Description: 'Optional: Name of pre-existing cross-account IAM role (leave empty to create)'
+    AllowedPattern: '^[a-zA-Z0-9+=,.@_-]*$'
+    ConstraintDescription: 'Must be a valid IAM role name or empty'
 
-  TagSyncIntervalHours:
-    Type: Number
-    Default: 4
-    MinValue: 1
-    MaxValue: 24
-    Description: 'Tag sync interval in hours (1-24)'
-
-  # API Gateway Deployment
-  ApiDeploymentTimestamp:
+  # Deployment Flexibility Parameters
+  OrchestrationRoleArn:
     Type: String
-    Default: 'initial'
-    Description: 'Timestamp to force API Gateway redeployment (pass unique value on each deploy)'
+    Default: ''
+    Description: >-
+      Optional ARN of an existing orchestration role for all Lambda functions.
+      If empty (default), the stack creates a unified role with all required permissions.
+      If provided (e.g., from HRP), all Lambdas use that role instead.
+    AllowedPattern: '^(arn:aws:iam::[0-9]{12}:role/.+)?$'
+    ConstraintDescription: 'Must be a valid IAM role ARN or empty'
 
-  # Database Recreation (CamelCase Migration)
-  ForceRecreation:
+  DeployFrontend:
     Type: String
-    Default: 'false'
-    Description: 'Force DynamoDB table recreation for camelCase migration (true/false)'
+    Default: 'true'
     AllowedValues:
       - 'true'
       - 'false'
+    Description: >-
+      Set to 'false' to skip frontend deployment (S3, CloudFront, frontend-builder).
+      Use 'false' for API-only deployments or HRP integration.
+
+  FrontendBuildVersion:
+    Type: String
+    Default: 'v1'
+    Description: 'Frontend build version - auto-generated timestamp to trigger rebuilds'
+
+  EnableTagSync:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: 'Enable scheduled DRS tag synchronization every 1 hour'
 
 Conditions:
-  HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
+  CreateOrchestrationRole: !Equals [!Ref OrchestrationRoleArn, '']
+  DeployFrontendCondition: !Equals [!Ref DeployFrontend, 'true']
+  EnableNotificationsCondition: !Equals [!Ref EnableNotifications, 'true']
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
-  EnableSecurityStackCondition: !Equals [!Ref EnableSecurityStack, 'true']
 
 Resources:
-  # Database Stack - DynamoDB Tables (CamelCase Migration)
+  # Unified Orchestration IAM Role
+  # Created only when OrchestrationRoleArn parameter is empty
+  # Consolidates permissions for all 6 Lambda functions (API, orchestration, polling, notifications, frontend)
+  # Supports cross-account DRS operations via sts:AssumeRole
+  UnifiedOrchestrationRole:
+    Type: AWS::IAM::Role
+    Condition: CreateOrchestrationRole
+    Properties:
+      RoleName: !Sub "${ProjectName}-orchestration-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # DynamoDB access for all Lambda functions
+        # Tables: Protection Groups, Recovery Plans, Execution History, Target Accounts
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProjectName}-*"
+        
+        # Step Functions access for API handler and orchestration
+        # Includes SendTaskSuccess/SendTaskFailure for pause/resume callback pattern
+        - PolicyName: StepFunctionsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                  - states:DescribeExecution
+                  - states:ListExecutions
+                  - states:SendTaskSuccess
+                  - states:SendTaskFailure
+                  - states:SendTaskHeartbeat
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-*"
+                  - !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:execution:${ProjectName}-*:*"
+        
+        # DRS read-only operations for status queries and configuration retrieval
+        # Resource "*" required by DRS API design
+        - PolicyName: DRSReadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:DescribeSourceServers
+                  - drs:DescribeRecoverySnapshots
+                  - drs:DescribeRecoveryInstances
+                  - drs:DescribeJobs
+                  - drs:DescribeJobLogItems
+                  - drs:GetLaunchConfiguration
+                  - drs:GetReplicationConfiguration
+                  - drs:GetFailbackReplicationConfiguration
+                  - drs:DescribeLaunchConfigurationTemplates
+                  - drs:DescribeReplicationConfigurationTemplates
+                  - drs:ListLaunchActions
+                  - drs:ListTagsForResource
+                  - drs:ListExtensibleSourceServers
+                  - drs:ListStagingAccounts
+                Resource: "*"
+        
+        # DRS write operations for recovery execution and configuration updates
+        # Includes CreateRecoveryInstanceForDrs for AllowLaunchingIntoThisInstance pattern
+        - PolicyName: DRSWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - drs:StartRecovery
+                  - drs:CreateRecoveryInstanceForDrs
+                  - drs:TerminateRecoveryInstances
+                  - drs:DisconnectRecoveryInstance
+                  - drs:StartFailbackLaunch
+                  - drs:StopFailback
+                  - drs:ReverseReplication
+                  - drs:UpdateLaunchConfiguration
+                  - drs:UpdateReplicationConfiguration
+                  - drs:UpdateFailbackReplicationConfiguration
+                  - drs:PutLaunchAction
+                  - drs:DeleteLaunchAction
+                  - drs:TagResource
+                  - drs:UntagResource
+                  - drs:GetAgentInstallationAssetsForDrs
+                  - drs:IssueAgentCertificateForDrs
+                  - drs:CreateSourceServerForDrs
+                Resource: "*"
+        
+        # EC2 access for instance queries and launch template management
+        # Comprehensive permissions for all DRS operations including failover, failback, and agent installation
+        # Based on AWS managed policy: AWSElasticDisasterRecoveryServiceRolePolicy
+        - PolicyName: EC2Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  # Instance operations
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeInstanceAttribute
+                  - ec2:DescribeInstanceTypeOfferings
+                  - ec2:StartInstances
+                  - ec2:StopInstances
+                  - ec2:TerminateInstances
+                  - ec2:ModifyInstanceAttribute
+                  - ec2:GetConsoleOutput
+                  - ec2:GetConsoleScreenshot
+                  - ec2:RunInstances
+                  # Volume operations
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeVolumeAttribute
+                  - ec2:CreateVolume
+                  - ec2:DeleteVolume
+                  - ec2:AttachVolume
+                  - ec2:DetachVolume
+                  - ec2:ModifyVolume
+                  # Snapshot operations
+                  - ec2:DescribeSnapshots
+                  - ec2:CreateSnapshot
+                  - ec2:DeleteSnapshot
+                  # Image operations (required for DRS drill conversions)
+                  - ec2:DescribeImages
+                  - ec2:RegisterImage
+                  - ec2:DeregisterImage
+                  # Network operations
+                  - ec2:DescribeSecurityGroups
+                  - ec2:CreateSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
+                  - ec2:RevokeSecurityGroupEgress
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeVpcAttribute
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                  - ec2:ModifyNetworkInterfaceAttribute
+                  - ec2:CreateNetworkInterfacePermission
+                  # VPC networking (required for DRS source network recovery)
+                  - ec2:DescribeInternetGateways
+                  - ec2:DescribeNetworkAcls
+                  - ec2:DescribeRouteTables
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeManagedPrefixLists
+                  - ec2:GetManagedPrefixListEntries
+                  - ec2:GetManagedPrefixListAssociations
+                  # Availability and capacity
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeAccountAttributes
+                  - ec2:DescribeCapacityReservations
+                  - ec2:DescribeHosts
+                  - ec2:DescribeKeyPairs
+                  # Encryption
+                  - ec2:GetEbsEncryptionByDefault
+                  - ec2:GetEbsDefaultKmsKeyId
+                  # Tags
+                  - ec2:CreateTags
+                  - ec2:DeleteTags
+                  - ec2:DescribeTags
+                  # Launch templates (critical for DRS)
+                  - ec2:CreateLaunchTemplate
+                  - ec2:CreateLaunchTemplateVersion
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:ModifyLaunchTemplate
+                  - ec2:DeleteLaunchTemplate
+                  - ec2:DeleteLaunchTemplateVersions
+                Resource: "*"
+        
+        # IAM PassRole for DRS and EC2 service principals
+        # Required for DRS to launch EC2 instances with IAM instance profiles
+        - PolicyName: IAMAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - drs.amazonaws.com
+                      - ec2.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - iam:GetInstanceProfile
+                  - iam:ListInstanceProfiles
+                  - iam:ListRoles
+                Resource: "*"
+        
+        # STS AssumeRole for cross-account DRS operations
+        # Assumes roles in workload accounts for multi-account recovery
+        - PolicyName: STSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/${ProjectName}-cross-account-*"
+        
+        # KMS access for encrypted EBS volumes and DRS replication
+        # Scoped to EC2 and DRS service usage only
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:ListAliases
+                  - kms:CreateGrant
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService:
+                      - !Sub "ec2.${AWS::Region}.amazonaws.com"
+                      - !Sub "drs.${AWS::Region}.amazonaws.com"
+        
+        # CloudFormation access for custom resource handlers
+        # Used by frontend deployer for stack queries
+        - PolicyName: CloudFormationAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ListStacks
+                Resource: "*"
+        
+        # Policy 10: S3 Access (from CustomResource, BucketCleaner)
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*"
+                  - !Sub "arn:${AWS::Partition}:s3:::${ProjectName}-*/*"
+        
+        # Policy 11: CloudFront Access (from CustomResource)
+        - PolicyName: CloudFrontAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                  - cloudfront:ListInvalidations
+                Resource: "*"
+        
+        # Policy 12: Lambda Invoke Access (from ApiHandler, ExecutionFinder)
+        - PolicyName: LambdaInvokeAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-*"
+        
+        # Policy 13: EventBridge Access (from ApiHandler)
+        - PolicyName: EventBridgeAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DeleteRule
+                  - events:DescribeRule
+                  - events:EnableRule
+                  - events:DisableRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}-*"
+        
+        # Policy 14: SSM Access (from Orchestration) - CRITICAL: includes ssm:CreateOpsItem
+        - PolicyName: SSMAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:DescribeDocument
+                  - ssm:DescribeInstanceInformation
+                  - ssm:SendCommand
+                  - ssm:StartAutomationExecution
+                  - ssm:ListDocuments
+                  - ssm:ListCommandInvocations
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                  - ssm:GetDocument
+                  - ssm:GetAutomationExecution
+                  - ssm:CreateOpsItem
+                Resource: "*"
+        
+        # SNS publish for execution notifications and DRS alerts
+        # Scoped to project-specific topics only
+        - PolicyName: SNSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-*"
+        
+        # CloudWatch metrics for execution monitoring
+        # Used by execution poller for custom metrics and DRS for monitoring
+        - PolicyName: CloudWatchAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:GetMetricData
+                Resource: "*"
+        
+        # License Manager access for DRS license configuration queries
+        # Required for DRS console operations and license tracking
+        - PolicyName: LicenseManagerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - license-manager:ListLicenseConfigurations
+                Resource: "*"
+        
+        # Resource Groups access for DRS resource organization
+        # Required for DRS console operations and resource grouping
+        - PolicyName: ResourceGroupsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - resource-groups:ListGroups
+                Resource: "*"
+        
+        # Elastic Load Balancing access for DRS load balancer queries
+        # Required for DRS console operations and load balancer integration
+        - PolicyName: ELBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:DescribeLoadBalancers
+                Resource: "*"
+
+  # DynamoDB tables for Protection Groups, Recovery Plans, Execution History, Target Accounts
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -171,7 +520,6 @@ Resources:
       Parameters:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
-        ForceRecreation: !Ref ForceRecreation
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -181,7 +529,8 @@ Resources:
           Value: CamelCaseV2
       TimeoutInMinutes: 15
 
-  # Lambda Stack - Lambda Functions and IAM Roles
+  # 6 Lambda functions: API handler, orchestration, polling, notifications, frontend deployer
+  # All functions share unified OrchestrationRoleArn
   LambdaStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -195,18 +544,17 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         SourceBucket: !Ref SourceBucket
+        OrchestrationRoleArn: !If
+          - CreateOrchestrationRole
+          - !GetAtt UnifiedOrchestrationRole.Arn
+          - !Ref OrchestrationRoleArn
         ProtectionGroupsTableName: !GetAtt DatabaseStack.Outputs.ProtectionGroupsTableName
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
         TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
-        NotificationTopicArn: ""
-        CrossAccountRoleName: !Ref CrossAccountRoleName
-        AdminEmail: !Ref AdminEmail
-        EnablePipelineNotifications: !Ref EnablePipelineNotifications
-        # SNS Topic ARNs from Notification Stack
         ExecutionNotificationsTopicArn: !GetAtt NotificationStack.Outputs.ExecutionNotificationsTopicArn
         DRSAlertsTopicArn: !GetAtt NotificationStack.Outputs.DRSOperationalAlertsTopicArn
-        ApprovalWorkflowTopicArn: !GetAtt NotificationStack.Outputs.ApprovalWorkflowTopicArn
+        ExecutionPauseTopicArn: !GetAtt NotificationStack.Outputs.ExecutionPauseTopicArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -214,7 +562,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 30
 
-  # Step Functions Stack - State Machine for DRS Orchestration
+  # Wave-based orchestration state machine (AWSM-1103)
+  # Implements Archive Pattern with pause/resume capability
   StepFunctionsStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -228,7 +577,10 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         OrchestrationLambdaArn: !GetAtt LambdaStack.Outputs.OrchestrationStepFunctionsFunctionArn
-        ApiHandlerFunctionName: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionName
+        OrchestrationRoleArn: !If
+          - CreateOrchestrationRole
+          - !GetAtt UnifiedOrchestrationRole.Arn
+          - !Ref OrchestrationRoleArn
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -236,7 +588,7 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Authentication Stack - Cognito, IAM, SNS
+  # Cognito user pool and authorizer for API Gateway authentication
   ApiAuthStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -249,8 +601,6 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         AdminEmail: !Ref AdminEmail
-        CognitoDomainPrefix: !Ref CognitoDomainPrefix
-        NotificationEmail: !If [HasNotificationEmail, !Ref NotificationEmail, !Ref AdminEmail]
         ExecutionHistoryTableArn: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableArn
       Tags:
         - Key: Project
@@ -269,7 +619,7 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         AdminEmail: !Ref AdminEmail
-        NotificationEmail: !If [HasNotificationEmail, !Ref NotificationEmail, '']
+        EnableNotifications: !Ref EnableNotifications
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -277,7 +627,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 15
 
-  # API Gateway Core Stack - REST API, Authorizer, Validator
+  # Creates REST API foundation with Cognito authorizer and request validator
+  # Provides base API Gateway infrastructure for all endpoint methods
   ApiGatewayCoreStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -294,7 +645,6 @@ Resources:
         UserPoolId: !GetAtt ApiAuthStack.Outputs.UserPoolId
         UserPoolClientId: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
-        DeploymentTimestamp: !Ref ApiDeploymentTimestamp
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -302,7 +652,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Gateway Resources Stack - All API Path Definitions
+  # Defines all API Gateway resource paths for the REST API hierarchy
+  # Creates URL structure for health, users, protection groups, recovery plans, executions, DRS operations, and infrastructure endpoints
   ApiGatewayResourcesStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -323,7 +674,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Gateway Core Methods Stack - Health, User, Protection Groups, Recovery Plans
+  # Implements HTTP methods for core API endpoints: health checks, user management, protection groups, and recovery plans
+  # Connects API Gateway resources to Lambda handler with Cognito authorization and request validation
   ApiGatewayCoreMethodsStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -331,6 +683,7 @@ Resources:
     DependsOn:
       - ApiGatewayCoreStack
       - ApiGatewayResourcesStack
+      - LambdaStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-core-methods-stack.yaml'
       Parameters:
@@ -339,7 +692,8 @@ Resources:
         RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
         ApiAuthorizerId: !GetAtt ApiGatewayCoreStack.Outputs.ApiAuthorizerId
         ApiRequestValidatorId: !GetAtt ApiGatewayCoreStack.Outputs.ApiRequestValidatorId
-        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+        QueryHandlerArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+        DataManagementHandlerArn: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
         # Core Resource IDs from Resources Stack
         HealthResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.HealthResourceId
         UserProfileResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.UserProfileResourceId
@@ -359,7 +713,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Gateway Operations Methods Stack - All Execution Endpoints
+  # Implements HTTP methods for DR execution operations: list, get, cancel, pause, resume, terminate, and job log retrieval
+  # Provides DRS-specific failover and failback endpoints for recovery instance management
   ApiGatewayOperationsMethodsStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -367,6 +722,7 @@ Resources:
     DependsOn:
       - ApiGatewayCoreStack
       - ApiGatewayResourcesStack
+      - LambdaStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/api-gateway-operations-methods-stack.yaml'
       Parameters:
@@ -375,7 +731,7 @@ Resources:
         RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
         ApiAuthorizerId: !GetAtt ApiGatewayCoreStack.Outputs.ApiAuthorizerId
         ApiRequestValidatorId: !GetAtt ApiGatewayCoreStack.Outputs.ApiRequestValidatorId
-        ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+        ExecutionHandlerArn: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
         # Execution Resource IDs from Resources Stack
         ExecutionsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionsResourceId
         ExecutionsDeleteResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.ExecutionsDeleteResourceId
@@ -408,7 +764,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Gateway Infrastructure Methods Stack - DRS, EC2, Config, Target Accounts
+  # Implements HTTP methods for infrastructure management: DRS source servers, EC2 resources, configuration import/export, and target account management
+  # Provides comprehensive DRS infrastructure endpoints for replication, launch configuration, source networks, and recovery snapshots
   ApiGatewayInfrastructureMethodsStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -425,6 +782,7 @@ Resources:
         ApiAuthorizerId: !GetAtt ApiGatewayCoreStack.Outputs.ApiAuthorizerId
         ApiRequestValidatorId: !GetAtt ApiGatewayCoreStack.Outputs.ApiRequestValidatorId
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+        QueryHandlerArn: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
         # Infrastructure Resource IDs from Resources Stack
         DrsSourceServersResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSSourceServersResourceId
         DrsQuotasResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSQuotasResourceId
@@ -478,7 +836,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # API Gateway Deployment Stack - Deployment Orchestrator and Stage
+  # Creates API Gateway deployment and stage to activate all configured methods
+  # Depends on all method stacks to ensure complete API definition before deployment
   ApiGatewayDeploymentStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -495,7 +854,6 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
-        DeploymentTimestamp: !Ref ApiDeploymentTimestamp
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -503,7 +861,8 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # EventBridge Stack - Scheduled Drills and Tag Sync
+  # Configures EventBridge rules for automated DR operations: scheduled drills and DRS tag synchronization
+  # Weekly drill schedule disabled by default to prevent unintended DR activations
   EventBridgeStack:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
@@ -519,7 +878,6 @@ Resources:
         ModularOrchestratorArn: !GetAtt StepFunctionsStack.Outputs.StateMachineArn
         EnableWeeklyDrill: 'false'  # Disabled by default
         EnableTagSync: !Ref EnableTagSync
-        TagSyncIntervalHours: !Ref TagSyncIntervalHours
         ApiHandlerFunctionArn: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
       Tags:
         - Key: Project
@@ -528,9 +886,12 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 10
 
-  # Frontend Stack - S3, CloudFront, Custom Resources
+  # Deploys React frontend to S3 with CloudFront distribution for global content delivery
+  # Injects runtime configuration (API endpoint, Cognito pools) during deployment via custom resource
+  # 60-minute timeout accommodates frontend build, S3 sync, and CloudFront invalidation
   FrontendStack:
     Type: AWS::CloudFormation::Stack
+    Condition: DeployFrontendCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
@@ -545,36 +906,15 @@ Resources:
         UserPoolClientId: !GetAtt ApiAuthStack.Outputs.UserPoolClientId
         IdentityPoolId: !GetAtt ApiAuthStack.Outputs.IdentityPoolId
         ApiEndpoint: !GetAtt ApiGatewayDeploymentStack.Outputs.ApiEndpoint
-        BucketCleanerFunctionArn: !GetAtt LambdaStack.Outputs.BucketCleanerFunctionArn
+        FrontendDeployerFunctionArn: !GetAtt LambdaStack.Outputs.FrontendDeployerFunctionArn
+        SourceBucket: !Ref SourceBucket
+        FrontendBuildVersion: !Ref FrontendBuildVersion
       Tags:
         - Key: Project
           Value: !Ref ProjectName
         - Key: Environment
           Value: !Ref Environment
       TimeoutInMinutes: 60
-
-  # Security Stack - WAF, CloudTrail, Secrets Manager (Optional)
-  SecurityStack:
-    Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Condition: EnableSecurityStackCondition
-    DependsOn:
-      - ApiGatewayCoreStack
-    Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/security-stack.yaml'
-      Parameters:
-        ProjectName: !Ref ProjectName
-        Environment: !Ref Environment
-        RestApiId: !GetAtt ApiGatewayCoreStack.Outputs.RestApiId
-        EnableWAF: !Ref EnableWAF
-        EnableCloudTrail: !Ref EnableCloudTrail
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-      TimeoutInMinutes: 15
 
 Outputs:
   # Database Stack Outputs
@@ -627,11 +967,23 @@ Outputs:
       Name: !Sub '${AWS::StackName}-TargetAccountsTableArn'
 
   # Lambda Stack Outputs
-  ApiHandlerFunctionArn:
-    Description: 'API Handler Lambda Function ARN'
-    Value: !GetAtt LambdaStack.Outputs.ApiHandlerFunctionArn
+  DataManagementHandlerFunctionArn:
+    Description: 'Data Management Handler Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.DataManagementHandlerFunctionArn
     Export:
-      Name: !Sub '${AWS::StackName}-ApiHandlerArn'
+      Name: !Sub '${AWS::StackName}-DataManagementHandlerArn'
+
+  ExecutionHandlerFunctionArn:
+    Description: 'Execution Handler Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.ExecutionHandlerFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionHandlerArn'
+
+  QueryHandlerFunctionArn:
+    Description: 'Query Handler Lambda Function ARN'
+    Value: !GetAtt LambdaStack.Outputs.QueryHandlerFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-QueryHandlerArn'
 
   OrchestrationFunctionArn:
     Description: 'Orchestration Lambda Function ARN'
@@ -700,22 +1052,35 @@ Outputs:
 
   # Frontend Stack Outputs
   CloudFrontUrl:
+    Condition: DeployFrontendCondition
     Description: 'CloudFront Distribution URL'
     Value: !GetAtt FrontendStack.Outputs.CloudFrontUrl
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontUrl'
 
   CloudFrontDistributionId:
+    Condition: DeployFrontendCondition
     Description: 'CloudFront Distribution ID'
     Value: !GetAtt FrontendStack.Outputs.CloudFrontDistributionId
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
 
   FrontendBucketName:
+    Condition: DeployFrontendCondition
     Description: 'S3 bucket for frontend hosting'
     Value: !GetAtt FrontendStack.Outputs.FrontendBucketName
     Export:
       Name: !Sub '${AWS::StackName}-FrontendBucket'
+
+  # Orchestration Role Output
+  OrchestrationRoleArn:
+    Description: 'ARN of the orchestration role used by all Lambda functions'
+    Value: !If
+      - CreateOrchestrationRole
+      - !GetAtt UnifiedOrchestrationRole.Arn
+      - !Ref OrchestrationRoleArn
+    Export:
+      Name: !Sub '${AWS::StackName}-OrchestrationRoleArn'
 
 
 
@@ -731,18 +1096,3 @@ Outputs:
     Value: !Ref SourceBucket
     Export:
       Name: !Sub '${AWS::StackName}-DeploymentBucket'
-
-  # Security Stack Outputs (Conditional)
-  WAFWebAclId:
-    Description: 'WAF Web ACL ID'
-    Value: !GetAtt SecurityStack.Outputs.WAFWebAclId
-    Export:
-      Name: !Sub '${AWS::StackName}-WAFWebAclId'
-    Condition: EnableSecurityStackCondition
-
-  CloudTrailArn:
-    Description: 'CloudTrail ARN'
-    Value: !GetAtt SecurityStack.Outputs.CloudTrailArn
-    Export:
-      Name: !Sub '${AWS::StackName}-CloudTrailArn'
-    Condition: EnableSecurityStackCondition

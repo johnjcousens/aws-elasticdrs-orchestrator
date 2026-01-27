@@ -80,7 +80,7 @@ export const TagSyncConfigPanel: React.FC<TagSyncConfigPanelProps> = ({
   };
 
   /**
-   * Save tag sync settings
+   * Save tag sync settings and trigger immediate sync
    */
   const saveSettings = async () => {
     try {
@@ -96,6 +96,20 @@ export const TagSyncConfigPanel: React.FC<TagSyncConfigPanelProps> = ({
       
       setSettings(response);
       toast.success('Tag sync settings updated successfully');
+      
+      // Trigger immediate manual tag sync so user doesn't have to wait for schedule
+      if (enabled) {
+        try {
+          toast.loading('Starting initial tag sync...', { id: 'tag-sync' });
+          await apiClient.triggerTagSync();
+          toast.success('Tag sync completed successfully', { id: 'tag-sync' });
+        } catch (syncErr: unknown) {
+          const syncError = syncErr as Error & { message?: string };
+          console.error('Failed to trigger immediate tag sync:', syncError);
+          // Don't fail the save operation, just warn the user
+          toast.error('Settings saved, but initial sync failed. It will run on schedule.', { id: 'tag-sync' });
+        }
+      }
       
       if (onConfigurationChange) {
         onConfigurationChange();

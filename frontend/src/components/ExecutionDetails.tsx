@@ -96,10 +96,8 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
   useEffect(() => {
     if (!open || !execution) return;
 
-    const isActive = 
-      execution.status === 'in_progress' || 
-      execution.status === 'pending' ||
-      execution.status === 'paused';
+    const status = execution.status?.toUpperCase() || '';
+    const isActive = ['IN_PROGRESS', 'PENDING', 'PAUSED'].includes(status);
 
     if (!isActive) return;
 
@@ -186,6 +184,45 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
     return `${seconds}s`;
   };
 
+  // Calculate current wave number from waves array (more accurate than API currentWave)
+  const calculateCurrentWaveDisplay = (): number => {
+    if (!execution) return 1;
+    
+    const waves = execution.waveExecutions || [];
+    const total = execution.totalWaves || waves.length || 1;
+    
+    // If execution is completed, show total waves
+    const status = execution.status?.toUpperCase() || '';
+    if (status === 'COMPLETED') {
+      return total;
+    }
+    
+    // Active statuses that indicate a wave is currently running
+    const activeStatuses = ['IN_PROGRESS', 'POLLING', 'LAUNCHING', 'STARTED', 'INITIATED', 'PENDING'];
+    // Completed statuses
+    const completedStatuses = ['COMPLETED', 'LAUNCHED'];
+    
+    // Find the first active wave (1-indexed for display)
+    for (let i = 0; i < waves.length; i++) {
+      const waveStatus = (waves[i].status || '').toUpperCase();
+      if (activeStatuses.includes(waveStatus)) {
+        return i + 1; // 1-indexed
+      }
+    }
+    
+    // If no active wave, count completed waves
+    let completedCount = 0;
+    for (const wave of waves) {
+      const waveStatus = (wave.status || '').toUpperCase();
+      if (completedStatuses.includes(waveStatus)) {
+        completedCount++;
+      }
+    }
+    
+    // Return completed count (or 1 if none completed yet)
+    return completedCount > 0 ? completedCount : 1;
+  };
+
   // Calculate progress percentage
   const calculateProgress = (): number => {
     if (!execution || !execution.currentWave) return 0;
@@ -201,13 +238,10 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
   // Check if we're on the final wave
   const isOnFinalWave = currentWave >= totalWaves;
   
-
-  
-  const canCancel = execution && !isOnFinalWave && (
-    execution.status === 'in_progress' || 
-    execution.status === 'pending' ||
-    execution.status === 'paused'
-  );
+  const canCancel = execution && !isOnFinalWave && (() => {
+    const status = execution.status?.toUpperCase() || '';
+    return ['IN_PROGRESS', 'PENDING', 'PAUSED'].includes(status);
+  })();
 
 
 
@@ -277,9 +311,9 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
                   </div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <StatusBadge status={execution.status} />
-                    {execution.currentWave && (
+                    {execution.totalWaves && (
                       <Badge color="blue">
-                        Wave {execution.status === 'completed' ? execution.totalWaves : execution.currentWave} of {execution.totalWaves}
+                        Wave {calculateCurrentWaveDisplay()} of {execution.totalWaves}
                       </Badge>
                     )}
                     {execution.executedBy && (
@@ -325,7 +359,7 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({
                 </ColumnLayout>
 
                 {/* Progress Bar for Active Executions */}
-                {execution.status === 'in_progress' && execution.currentWave && (
+                {execution.status?.toUpperCase() === 'IN_PROGRESS' && execution.currentWave && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <div style={{ fontSize: '12px', color: '#5f6b7a' }}>

@@ -26,6 +26,10 @@ export interface DRSCapacity {
   status: 'OK' | 'INFO' | 'WARNING' | 'CRITICAL' | 'UNKNOWN';
   message: string;
   error?: string;
+  regionalBreakdown?: Array<{
+    region: string;
+    replicatingServers: number;
+  }>;
 }
 
 export interface DRSQuotaStatus {

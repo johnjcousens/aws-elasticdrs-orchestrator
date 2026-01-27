@@ -104,13 +104,13 @@ test_lambda_functions() {
     echo -e "\n${BLUE}Testing Lambda Functions...${NC}"
     
     LAMBDA_FUNCTIONS=(
-        "aws-elasticdrs-orchestrator-api-handler-dev"
-        "aws-elasticdrs-orchestrator-execution-finder-dev"
-        "aws-elasticdrs-orchestrator-execution-poller-dev"
-        "aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev"
-        "aws-elasticdrs-orchestrator-frontend-builder-dev"
-        "aws-elasticdrs-orchestrator-notification-formatter-dev"
-        "aws-elasticdrs-orchestrator-bucket-cleaner-dev"
+        "aws-drs-orch-api-handler-dev"
+        "aws-drs-orch-execution-finder-dev"
+        "aws-drs-orch-execution-poller-dev"
+        "aws-drs-orch-orchestration-stepfunctions-dev"
+        "aws-drs-orch-frontend-builder-dev"
+        "aws-drs-orch-notification-formatter-dev"
+        "aws-drs-orch-bucket-cleaner-dev"
     )
     
     for func in "${LAMBDA_FUNCTIONS[@]}"; do
@@ -176,10 +176,10 @@ test_dynamodb_tables() {
     echo -e "\n${BLUE}Testing DynamoDB Tables...${NC}"
     
     TABLES=(
-        "aws-elasticdrs-orchestrator-protection-groups-dev"
-        "aws-elasticdrs-orchestrator-recovery-plans-dev"
-        "aws-elasticdrs-orchestrator-execution-history-dev"
-        "aws-elasticdrs-orchestrator-target-accounts-dev"
+        "aws-drs-orch-protection-groups-dev"
+        "aws-drs-orch-recovery-plans-dev"
+        "aws-drs-orch-execution-history-dev"
+        "aws-drs-orch-target-accounts-dev"
     )
     
     for table in "${TABLES[@]}"; do
@@ -297,7 +297,7 @@ test_eventbridge_rules() {
     
     # Check for execution finder rule
     RULE_STATUS=$(aws events describe-rule \
-        --name "aws-elasticdrs-orchestrator-execution-finder-schedule-dev" \
+        --name "aws-drs-orch-execution-finder-schedule-dev" \
         --region "$REGION" \
         --query 'State' \
         --output text 2>/dev/null || echo "FAILED")
@@ -342,8 +342,8 @@ test_lambda_logs() {
     
     # Check for recent errors in critical Lambda functions
     CRITICAL_FUNCTIONS=(
-        "aws-elasticdrs-orchestrator-api-handler-dev"
-        "aws-elasticdrs-orchestrator-orchestration-stepfunctions-dev"
+        "aws-drs-orch-api-handler-dev"
+        "aws-drs-orch-orchestration-stepfunctions-dev"
     )
     
     for func in "${CRITICAL_FUNCTIONS[@]}"; do

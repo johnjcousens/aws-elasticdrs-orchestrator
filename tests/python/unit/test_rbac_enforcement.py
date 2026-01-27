@@ -649,7 +649,7 @@ class TestCriticalSecurityEndpoints:
         ), "Import config must require IMPORT_CONFIGURATION permission"
 
 
-class TestGetEndpointPermissionsFixed:
+class TestGetEndpointPermissionsNormalization:
     """
     Test that get_endpoint_permissions correctly normalizes paths.
     

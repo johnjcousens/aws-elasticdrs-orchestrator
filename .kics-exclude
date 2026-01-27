@@ -1,0 +1,38 @@
+# KICS Security Scanner Exclusions
+# Exclude large files and non-infrastructure directories
+
+# Git internals
+.git/
+
+# Documentation (large PDFs, PPTXs)
+docs/confluence/
+
+# Archive and history
+archive/
+
+# Node modules
+**/node_modules/
+
+# Test fixtures
+tests/e2e/
+
+# Build artifacts
+build/
+dist/
+*.zip
+
+# Frontend dependencies
+frontend/node_modules/
+frontend/dist/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# Large binary files
+*.pdf
+*.pptx
+*.docx
+*.zip
+*.pack

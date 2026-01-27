@@ -160,84 +160,47 @@ AWS DRS Orchestration is a serverless disaster recovery orchestration platform t
 
 ## High-Level Architecture
 
-### System Architecture Diagram
+### Full-Stack Architecture (CloudFront + Cognito + API Gateway)
 
-```mermaid
-graph TB
-    subgraph "User Layer"
-        USER[End Users]
-        DEVOPS[DevOps/Automation]
-    end
-    
-    subgraph "Frontend Layer"
-        CF[CloudFront CDN]
-        S3_FE[S3 Static Hosting]
-    end
-    
-    subgraph "API Layer"
-        APIGW[API Gateway]
-        COGNITO[Cognito User Pool]
-    end
-    
-    subgraph "Application Layer"
-        API_LAMBDA[api-handler Lambda]
-        ORCH_LAMBDA[orchestration-stepfunctions Lambda]
-        POLLER_LAMBDA[execution-poller Lambda]
-        FINDER_LAMBDA[execution-finder Lambda]
-    end
-    
-    subgraph "Orchestration Layer"
-        STEPFN[Step Functions State Machine]
-        EB[EventBridge Rules]
-    end
-    
-    subgraph "Data Layer"
-        DDB_PG[(Protection Groups)]
-        DDB_RP[(Recovery Plans)]
-        DDB_EH[(Execution History)]
-        DDB_TA[(Target Accounts)]
-    end
-    
-    subgraph "AWS Services"
-        DRS[AWS DRS]
-        EC2[EC2 Instances]
-        SNS[SNS Notifications]
-    end
-    
-    USER --> CF
-    DEVOPS --> APIGW
-    CF --> S3_FE
-    CF --> APIGW
-    APIGW --> COGNITO
-    APIGW --> API_LAMBDA
-    
-    API_LAMBDA --> DDB_PG
-    API_LAMBDA --> DDB_RP
-    API_LAMBDA --> DDB_EH
-    API_LAMBDA --> DDB_TA
-    API_LAMBDA --> STEPFN
-    
-    STEPFN --> ORCH_LAMBDA
-    ORCH_LAMBDA --> DRS
-    ORCH_LAMBDA --> DDB_EH
-    
-    EB --> FINDER_LAMBDA
-    FINDER_LAMBDA --> DDB_EH
-    FINDER_LAMBDA --> POLLER_LAMBDA
-    POLLER_LAMBDA --> DRS
-    POLLER_LAMBDA --> EC2
-    POLLER_LAMBDA --> DDB_EH
-    
-    ORCH_LAMBDA --> SNS
-    
-    DRS --> EC2
-    
-    style USER fill:#FF9900
-    style DEVOPS fill:#FF9900
-    style CF fill:#0066CC
-    style APIGW fill:#0066CC
-    style STEPFN fill:#E7157B
-```
+![AWS DRS Orchestration - Comprehensive Architecture](AWS-DRS-Orchestration-Architecture-Comprehensive.png)
+
+**Architecture Overview**:
+- **Frontend Layer**: CloudFront CDN → S3 Static Hosting (React 19.1.1 + CloudScape)
+- **Authentication**: Cognito User Pool with 5 RBAC roles (45-minute JWT sessions)
+- **API Layer**: API Gateway REST API with Cognito authorizer
+- **Application Layer**: 5 Lambda functions (orchestration-stepfunctions, query-handler, data-mgmt-handler, execution-handler, notification-formatter)
+- **Orchestration**: Step Functions with waitForTaskToken pattern for pause/resume
+- **Data Layer**: 4 DynamoDB tables (protection-groups, recovery-plans, execution-history, target-accounts)
+- **Monitoring**: EventBridge (1-min polling), CloudWatch Logs/Metrics, SNS notifications
+- **DR Services**: AWS DRS + Cross-Account IAM Roles for multi-account operations
+
+**User Roles**: DRSOrchestrationAdmin (red), DRSRecoveryManager (orange), DRSPlanManager (purple), DRSOperator (green), DRSReadOnly (magenta)
+
+### Backend-Only Architecture (Direct Lambda Invocation)
+
+![AWS DRS Orchestration - Backend Only](AWS-DRS-Orchestration-Backend-Only.png)
+
+**Architecture Overview**:
+- **No Frontend Components**: No CloudFront, S3 static hosting, Cognito, or API Gateway
+- **Direct Lambda Invocation**: AWS CLI (`aws lambda invoke`) or SDK (`boto3.client('lambda')`)
+- **IAM Role Authentication**: DROrchestrationExecutionRole with native AWS authentication
+- **Same Backend Components**: 5 Lambda functions, Step Functions, DynamoDB, EventBridge, CloudWatch, SNS
+- **Cross-Account Operations**: Same DRS integration and cross-account IAM role pattern
+
+**Use Cases**:
+- DR orchestration automation and scripting
+- Internal operations tools and dashboards
+- CI/CD pipeline integration
+- Scheduled disaster recovery testing
+- Infrastructure-as-Code workflows
+
+**Benefits**:
+- **60% Lower Cost**: No API Gateway request charges ($3.50/million requests)
+- **Simpler Architecture**: Fewer components to manage and secure
+- **Native AWS Authentication**: No JWT token management required
+- **Ideal for Automation**: Perfect for CLI tools and programmatic access
+
+**Deployment**: Use `--no-frontend` flag with deployment scripts to deploy backend-only mode
 
 
 ### Component Responsibilities

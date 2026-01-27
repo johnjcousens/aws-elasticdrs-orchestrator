@@ -1,0 +1,16 @@
+# Data-Protection-Overview
+
+**Confluence Page:** https://healthedge.atlassian.net/wiki/spaces/CP1/pages/4867097867/Data-Protection-Overview
+
+**Created by:** Chris Falk on June 16, 2025  
+**Last modified by:** Chris Falk on June 16, 2025 at 02:33 AM
+
+---
+
+With AWS, you control your data by using powerful AWS services and tools to determine where your data is stored, how it is secured, and who has access to it. Services such as [**AWS Identity and Access Management (IAM)**](https://aws.amazon.com/iam/) allow you to securely manage access to AWS services and resources. [**AWS CloudTrail**](https://aws.amazon.com/cloudtrail/) and [**Amazon Macie**](https://aws.amazon.com/macie/) enable compliance, detection, and auditing, while [**AWS CloudHSM**](https://aws.amazon.com/cloudhsm/) and [**AWS Key Management Service (KMS)**](https://aws.amazon.com/kms/) allow you to securely generate and manage encryption keys. [**AWS Control Tower**](https://aws.amazon.com/controltower/?control-blogs.sort-by=item.additionalFields.createdDate&control-blogs.sort-order=desc) provides governance and controls for data residency.
+
+We continuously raise the bar on privacy safeguards with services and features that let you to implement your own privacy controls, including advanced access, encryption, and logging features. We make it easy to encrypt data in transit and at rest using keys either managed by AWS or fully managed by you. You can bring your own keys that were generated and managed outside of AWS. We implement consistent and scalable processes to [**manage privacy**](https://aws.amazon.com/compliance/data-privacy/), including how data is collected, used, accessed, stored, and deleted. We provide a wide variety of best practice documents, training, and guidance that you can leverage to protect your data, such as the [**Security Pillar of the AWS Well-Architected Framework**](https://wa.aws.amazon.com/wellarchitected/2020-07-02T19-33-23/wat.pillar.security.en.html). We only process customer data - that is any personal data you upload to your AWS account - under your documented instructions and do not access, use, or share your data without your agreement, except as required to prevent fraud and abuse, or to comply with law, as described in our [**AWS Customer Agreement**](https://aws.amazon.com/agreement/) and [**AWS GDPR Data Processing Addendum**](https://d1.awsstatic.com/legal/aws-gdpr/AWS_GDPR_DPA.pdf). Thousands of customers who are subject to [**GDPR**](https://aws.amazon.com/compliance/gdpr-center/), [**PCI**](https://aws.amazon.com/compliance/pci-dss-level-1-faqs/), and [**HIPAA**](https://aws.amazon.com/compliance/hipaa-compliance/) use AWS services for these types of workloads. AWS has achieved numerous internationally-recognized certifications and accreditations, demonstrating compliance with rigorous international standards, such as [**ISO 27017**](https://aws.amazon.com/compliance/iso-27017-faqs/) for cloud security, [**ISO 27701**](https://aws.amazon.com/compliance/iso-27701-faqs/) for privacy information management, and [**ISO 27018**](https://aws.amazon.com/compliance/iso-27018-faqs/) for cloud privacy. We do not use customer data or derive information from it for marketing or advertising purposes.
+
+### Want to learn more?
+
+<https://aws.amazon.com/compliance/data-protection/>

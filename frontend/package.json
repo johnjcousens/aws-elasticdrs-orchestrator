@@ -49,5 +49,16 @@
     "typescript-eslint": "^8.45.0",
     "vite": "^7.1.7",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "@aws-amplify/ui": {
+      "lodash": "^4.17.21"
+    },
+    "@aws-amplify/ui-react": {
+      "lodash": "^4.17.21"
+    },
+    "@aws-amplify/ui-react-core": {
+      "lodash": "^4.17.21"
+    }
   }
 }

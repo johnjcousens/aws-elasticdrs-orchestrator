@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2025-12-12T00:00:00.000Z" agent="HRP AD/DNS DR Architecture" version="22.1.0" type="device">
+  <diagram id="hrp-ad-dns-4region" name="HRP AD/DNS 4-Region Architecture">
+    <mxGraphModel dx="1434" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="HRP Active Directory &amp; IDM Multi-Region Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="500" y="10" width="600" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="50" width="260" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-title" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="55" width="100" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-deployed" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F2F8;strokeColor=#147EBA;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="80" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-deployed-text" value="PRIMARY (Deployed)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1455" y="80" width="100" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-planned" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="105" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-planned-text" value="DR (Planned)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1455" y="105" width="80" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-hrp" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="80" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-hrp-text" value="HRP-SharedServices" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1585" y="80" width="90" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-net" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#7986CB;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="105" width="20" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-net-text" value="Network Account" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1585" y="105" width="90" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-ad" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#1E88E5;dashed=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="135" width="24" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-ad-text" value="Windows AD DC" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1458" y="135" width="90" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-idm" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#ED7100;dashed=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="135" width="24" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-idm-text" value="RedHat IDM" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1588" y="135" width="70" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-ad-plan" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#1565C0;fillColor=#BBDEFB;dashed=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="165" width="24" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-ad-plan-text" value="AD DC (Planned)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1458" y="165" width="90" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-idm-plan" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#C25700;fillColor=#FFE4B2;dashed=1;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1560" y="165" width="24" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-idm-plan-text" value="IDM (Planned)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1588" y="165" width="80" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend-conn" value="—— AD Repl  —— IDM Repl  - - TGW Peer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1430" y="195" width="240" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="region-use1" value="us-east-1 (N. Virginia) - PRIMARY" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;strokeColor=#147EBA;fillColor=#E6F2F8;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="60" width="660" height="600" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-hrp-acct" value="HRP-SharedServices (211234826829)" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#82b366;fillColor=#E8F5E9;verticalAlign=top;align=left;spacingLeft=30;fontColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="620" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-ad-group" value="Windows AD DCs (healthedge.biz)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="140" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-dc1" value="he3-mgtdc-1&#xa;10.196.210.95&#xa;(us-east-1d)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#1E88E5;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="75" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-dc2" value="he3-mgtdc-2&#xa;10.196.214.166&#xa;(us-east-1a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#1E88E5;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="165" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-dc3" value="he3-mgtdc-3&#xa;10.196.218.73&#xa;(us-east-1b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#1E88E5;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="255" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-idm-group" value="RedHat IDM (idm.healthedge.biz)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="140" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-idm1" value="he3-idm-01&#xa;10.196.208.129&#xa;(us-east-1d)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#ED7100;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="375" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-idm2" value="he3-idm-02&#xa;10.196.214.248&#xa;(us-east-1a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#ED7100;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="465" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-idm3" value="he3-idm-03&#xa;10.196.219.233&#xa;(us-east-1b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#ED7100;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="555" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-net-acct" value="Network Account (639966646465)" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#7986CB;fillColor=#E8EAF6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#7986CB;" vertex="1" parent="1">
+          <mxGeometry x="40" y="400" width="620" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-r53" value="Route53 Resolver&#xa;Inbound/Outbound" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53;" vertex="1" parent="1">
+          <mxGeometry x="120" y="460" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use1-tgw" value="Transit Gateway&#xa;tgw-015161a2212309004" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.transit_gateway;" vertex="1" parent="1">
+          <mxGeometry x="320" y="460" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="region-use2" value="us-east-2 (Ohio) - DR" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;strokeColor=#D6B656;fillColor=#FFF2CC;verticalAlign=top;align=left;spacingLeft=30;fontColor=#D6B656;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="60" width="660" height="600" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-hrp-acct" value="HRP-SharedServices (211234826829) - PLANNED" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#82b366;fillColor=#E8F5E9;verticalAlign=top;align=left;spacingLeft=30;fontColor=#82b366;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="100" width="620" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-ad-group" value="Windows AD DCs (PLANNED)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=10;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="140" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-dc1" value="&amp;lt;hrp-dc-use2-01&amp;gt;&#xa;(Planned)&#xa;(us-east-2a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#1565C0;fillColor=#BBDEFB;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="775" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-dc2" value="&amp;lt;hrp-dc-use2-02&amp;gt;&#xa;(Planned)&#xa;(us-east-2b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#1565C0;fillColor=#BBDEFB;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="865" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-dc3" value="&amp;lt;hrp-dc-use2-03&amp;gt;&#xa;(Planned)&#xa;(us-east-2c)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#1565C0;fillColor=#BBDEFB;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="955" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-idm-group" value="RedHat IDM (PLANNED)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=10;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="140" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-idm1" value="&amp;lt;hrp-idm-use2-01&amp;gt;&#xa;(Planned)&#xa;(us-east-2a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#C25700;fillColor=#FFE4B2;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1075" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-idm2" value="&amp;lt;hrp-idm-use2-02&amp;gt;&#xa;(Planned)&#xa;(us-east-2b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#C25700;fillColor=#FFE4B2;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1165" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-idm3" value="&amp;lt;hrp-idm-use2-03&amp;gt;&#xa;(Planned)&#xa;(us-east-2c)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#C25700;fillColor=#FFE4B2;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1255" y="180" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-net-acct" value="Network Account (639966646465) - DEPLOYED" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#7986CB;fillColor=#E8EAF6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#7986CB;" vertex="1" parent="1">
+          <mxGeometry x="740" y="400" width="620" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-r53" value="Route53 Resolver&#xa;Inbound/Outbound" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53;" vertex="1" parent="1">
+          <mxGeometry x="820" y="460" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="use2-tgw" value="Transit Gateway&#xa;tgw-05a059452f80f47df" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.transit_gateway;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="460" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="region-usw2" value="us-west-2 (Oregon) - PRIMARY" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;strokeColor=#147EBA;fillColor=#E6F2F8;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="700" width="660" height="600" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-hrp-acct" value="HRP-SharedServices (211234826829)" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#82b366;fillColor=#E8F5E9;verticalAlign=top;align=left;spacingLeft=30;fontColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="40" y="740" width="620" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-ad-group" value="Windows AD DCs (healthedge.biz)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="780" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-dc1" value="he3-mgtdc-03&#xa;10.222.50.100&#xa;(us-west-2b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#1E88E5;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="75" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-dc2" value="he3-mgtdc-04&#xa;10.222.53.225&#xa;(us-west-2a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#1E88E5;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="165" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-dc3" value="he3-mgtdc-05&#xa;10.222.58.173&#xa;(us-west-2c)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#1E88E5;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="255" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-idm-group" value="RedHat IDM (idm.healthedge.biz)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="780" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-idm1" value="he3-idm-04&#xa;10.222.49.221&#xa;(us-west-2b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#ED7100;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="375" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-idm2" value="he3-idm-05&#xa;10.222.59.162&#xa;(us-west-2c)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#ED7100;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="465" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-idm3" value="he3-idm-06&#xa;10.222.54.170&#xa;(us-west-2a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#ED7100;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=9;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="555" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-net-acct" value="Network Account (639966646465)" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#7986CB;fillColor=#E8EAF6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#7986CB;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1040" width="620" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-r53" value="Route53 Resolver&#xa;Inbound/Outbound" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1100" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw2-tgw" value="Transit Gateway&#xa;tgw-06d6189d0728dd473" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.transit_gateway;" vertex="1" parent="1">
+          <mxGeometry x="320" y="1100" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="region-usw1" value="us-west-1 (N. California) - DR" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;strokeColor=#D6B656;fillColor=#FFF2CC;verticalAlign=top;align=left;spacingLeft=30;fontColor=#D6B656;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="700" width="660" height="600" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-hrp-acct" value="HRP-SharedServices (211234826829) - PLANNED" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#82b366;fillColor=#E8F5E9;verticalAlign=top;align=left;spacingLeft=30;fontColor=#82b366;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="740" width="620" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-ad-group" value="Windows AD DCs (PLANNED)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=10;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="780" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-dc1" value="&amp;lt;hrp-dc-usw1-01&amp;gt;&#xa;(Planned)&#xa;(us-west-1a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#1565C0;fillColor=#BBDEFB;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="775" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-dc2" value="&amp;lt;hrp-dc-usw1-02&amp;gt;&#xa;(Planned)&#xa;(us-west-1b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#1565C0;fillColor=#BBDEFB;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="865" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-dc3" value="&amp;lt;hrp-dc-usw1-03&amp;gt;&#xa;(Planned)&#xa;(us-west-1c)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#1565C0;fillColor=#BBDEFB;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="955" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-idm-group" value="RedHat IDM (PLANNED)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=10;fontStyle=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="780" width="280" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-idm1" value="&amp;lt;hrp-idm-usw1-01&amp;gt;&#xa;(Planned)&#xa;(us-west-1a)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#C25700;fillColor=#FFE4B2;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1075" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-idm2" value="&amp;lt;hrp-idm-usw1-02&amp;gt;&#xa;(Planned)&#xa;(us-west-1b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#C25700;fillColor=#FFE4B2;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1165" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-idm3" value="&amp;lt;hrp-idm-usw1-03&amp;gt;&#xa;(Planned)&#xa;(us-west-1c)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#C25700;fillColor=#FFE4B2;dashed=1;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=2;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="1">
+          <mxGeometry x="1255" y="820" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-net-acct" value="Network Account (639966646465) - DEPLOYED" style="sketch=0;outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=1;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_account;strokeColor=#7986CB;fillColor=#E8EAF6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#7986CB;" vertex="1" parent="1">
+          <mxGeometry x="740" y="1040" width="620" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-r53" value="Route53 Resolver&#xa;Inbound/Outbound" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53;" vertex="1" parent="1">
+          <mxGeometry x="820" y="1100" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="usw1-tgw" value="Transit Gateway&#xa;tgw-00393e08109429992" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#ffffff;fillColor=#8C4FFF;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=8;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.transit_gateway;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="1100" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="tgw-peer-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0066CC;strokeWidth=2;dashed=1;dashPattern=8 8;" edge="1" parent="1" source="use1-tgw" target="use2-tgw">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="tgw-peer-1-label" value="TGW Peering" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=8;fontColor=#0066CC;" vertex="1" connectable="0" parent="tgw-peer-1">
+          <mxGeometry x="0.2" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+        </mxCell>
+        <mxCell id="tgw-peer-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0066CC;strokeWidth=2;dashed=1;dashPattern=8 8;" edge="1" parent="1" source="use1-tgw" target="usw2-tgw">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="tgw-peer-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0066CC;strokeWidth=2;dashed=1;dashPattern=8 8;" edge="1" parent="1" source="use1-tgw" target="usw1-tgw">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="tgw-peer-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0066CC;strokeWidth=2;dashed=1;dashPattern=8 8;" edge="1" parent="1" source="use2-tgw" target="usw2-tgw">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="tgw-peer-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0066CC;strokeWidth=2;dashed=1;dashPattern=8 8;" edge="1" parent="1" source="use2-tgw" target="usw1-tgw">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="tgw-peer-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0066CC;strokeWidth=2;dashed=1;dashPattern=8 8;" edge="1" parent="1" source="usw2-tgw" target="usw1-tgw">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ad-repl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#00AA00;strokeWidth=2;startArrow=classic;endArrow=classic;" edge="1" parent="1" source="use1-dc1" target="usw2-dc1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ad-repl-label" value="AD Replication" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=8;fontColor=#00AA00;" vertex="1" connectable="0" parent="ad-repl">
+          <mxGeometry x="0.2" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+        </mxCell>
+        <mxCell id="idm-repl" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF6600;strokeWidth=2;startArrow=classic;endArrow=classic;" edge="1" parent="1" source="use1-idm1" target="usw2-idm1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="idm-repl-label" value="IDM Replication" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=8;fontColor=#FF6600;" vertex="1" connectable="0" parent="idm-repl">
+          <mxGeometry x="0.2" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -68,9 +68,8 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
         setServers(mappedServers);
       }
     } catch (err: unknown) {
-      console.error('Error fetching servers:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      if (errorMessage.includes('DRS_NOT_INITIALIZED') || errorMessage.includes('not initialized')) {
+      if (errorMessage.includes('DRS_NOT_INITIALIZED') || errorMessage.includes('not initialized') || errorMessage.includes('REGION_NOT_ENABLED') || errorMessage.includes('not enabled')) {
         setDrsInitialized(false);
         setError(errorMessage);
         setServers([]);
@@ -206,7 +205,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
               type="search"
               placeholder="Search by name, hostname, instance ID, IP..."
               value={searchTerm}
-              onChange={({ detail }) => setSearchTerm(detail.value)}
+              onChange={({ detail }: { detail: { value: string } }) => setSearchTerm(detail.value)}
             />
           </FormField>
         </div>

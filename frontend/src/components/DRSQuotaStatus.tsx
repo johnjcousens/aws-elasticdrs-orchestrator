@@ -35,6 +35,14 @@ export function DRSQuotaStatusPanel({ quotas, compact = false }: Props): React.R
     ? `${quotas.accountName} (${quotas.accountId})`
     : quotas.accountId;
 
+  // Find top region by replicating servers
+  const regionalBreakdown = quotas.capacity.regionalBreakdown || [];
+  const topRegion = regionalBreakdown.length > 0 
+    ? regionalBreakdown.reduce((max, region) => 
+        region.replicatingServers > max.replicatingServers ? region : max
+      )
+    : null;
+
   const replicatingPct = (quotas.capacity.replicatingServers / quotas.capacity.maxReplicatingServers) * 100;
   const replicatingDesc = quotas.capacity.replicatingServers + ' / ' + quotas.capacity.maxReplicatingServers;
   const replicatingStatus = getProgressStatus(quotas.capacity.replicatingServers, quotas.capacity.maxReplicatingServers);
@@ -56,12 +64,16 @@ export function DRSQuotaStatusPanel({ quotas, compact = false }: Props): React.R
       <SpaceBetween direction="horizontal" size="m">
         <Box>
           <Box variant="awsui-key-label">Account</Box>
-          <Box variant="awsui-value-large">{accountDisplay}</Box>
+          <Box variant="p">{accountDisplay}</Box>
         </Box>
-        <Box>
-          <Box variant="awsui-key-label">Region</Box>
-          <Box variant="awsui-value-large">{quotas.region}</Box>
-        </Box>
+        {topRegion && (
+          <Box>
+            <Box variant="awsui-key-label">Top Region</Box>
+            <Box variant="p">
+              {topRegion.region} ({topRegion.replicatingServers} servers)
+            </Box>
+          </Box>
+        )}
       </SpaceBetween>
       <Box>
         <StatusIndicator type={getCapacityStatusType(quotas.capacity.status)}>

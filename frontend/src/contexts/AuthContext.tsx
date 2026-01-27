@@ -45,8 +45,10 @@ const configureAmplify = () => {
     ];
     
     for (const field of requiredFields) {
-      const value = field.split('.').reduce((obj: any, key: string) => obj?.[key], config);
-      if (!value) {
+      const value = field.split('.').reduce((obj: Record<string, unknown>, key: string) => 
+        (obj?.[key] as Record<string, unknown>) ?? {}, config as Record<string, unknown>
+      );
+      if (!value || (typeof value === 'object' && Object.keys(value).length === 0)) {
         console.error(`❌ Missing required configuration field: ${field}`);
         throw new Error(`Invalid AWS configuration: missing ${field}`);
       }

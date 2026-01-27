@@ -110,6 +110,12 @@ export interface ResolvedServer {
   replicationState: string;
   lagDuration?: string;
   lastSeen?: string;
+  lastLaunchType?: string;
+  lastLaunchStatus?: string;
+  lastLaunchTime?: string;
+  replicatedStorageBytes?: number;
+  sourceAvailabilityZone?: string;
+  targetAvailabilityZone?: string;
   hardware?: {
     cpus?: Array<{
       modelName: string;
@@ -407,6 +413,7 @@ export interface ExecutionListItem {
   executionType?: 'DRILL' | 'RECOVERY';  // Execution type (DRILL or RECOVERY)
   selectionMode?: 'TAGS' | 'PLAN';  // Server selection mode (tag-based or plan-based)
   hasActiveDrsJobs?: boolean;  // True if cancelled execution still has active DRS jobs
+  waves?: Array<{ status?: string }>;  // Wave status array for progress calculation
   // Unified orchestration fields
   invocationSource?: InvocationSource;
   invocationDetails?: InvocationDetails;
@@ -516,11 +523,18 @@ export interface DRSServer {
   sourceMac?: string;
   sourceRegion?: string;
   sourceAccount?: string;
+  sourceAvailabilityZone?: string;
+  targetAvailabilityZone?: string;
   os?: string;
   state: string;
   replicationState: string;
   lagDuration: string;
   lastSeen: string;
+  lastLaunchResult?: string;
+  lastLaunchType?: string;
+  lastLaunchStatus?: string;
+  lastLaunchTime?: string;
+  replicatedStorageBytes?: number;
   hardware?: {
     cpus?: Array<{
       modelName: string;

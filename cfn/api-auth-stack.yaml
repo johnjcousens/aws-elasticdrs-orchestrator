@@ -14,23 +14,9 @@ Parameters:
     Type: String
     Description: 'Email address for initial Cognito admin user'
 
-  CognitoDomainPrefix:
-    Type: String
-    Default: ''
-    Description: 'Optional: Custom domain prefix for Cognito'
-
-  NotificationEmail:
-    Type: String
-    Default: ''
-    Description: 'Optional: Email address for execution notifications'
-
   ExecutionHistoryTableArn:
     Type: String
     Description: 'DynamoDB table ARN for Execution History'
-
-Conditions:
-  HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
-  HasCognitoDomain: !Not [!Equals [!Ref CognitoDomainPrefix, '']]
 
 Resources:
   # ============================================================================
@@ -39,6 +25,7 @@ Resources:
   
   UserPool:
     Type: AWS::Cognito::UserPool
+    DeletionPolicy: Delete
     Properties:
       UserPoolName: !Sub '${ProjectName}-users-${Environment}'
       AutoVerifiedAttributes:
@@ -133,6 +120,7 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
@@ -162,6 +150,7 @@ Resources:
 
   IdentityPool:
     Type: AWS::Cognito::IdentityPool
+    DeletionPolicy: Delete
     Properties:
       IdentityPoolName: !Sub '${ProjectName}_identity_pool_${Environment}'
       AllowUnauthenticatedIdentities: false
@@ -217,28 +206,8 @@ Resources:
         authenticated: !GetAtt CognitoAuthenticatedRole.Arn
 
   # ============================================================================
-  # SNS Topic for Notifications (Optional)
+  # SNS Topic for Notifications (Removed - use notification-stack.yaml instead)
   # ============================================================================
-
-  NotificationTopic:
-    Type: AWS::SNS::Topic
-    Condition: HasNotificationEmail
-    Properties:
-      TopicName: !Sub '${ProjectName}-notifications-${Environment}'
-      DisplayName: !Sub 'DRS Orchestration Notifications (${Environment})'
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  NotificationSubscription:
-    Type: AWS::SNS::Subscription
-    Condition: HasNotificationEmail
-    Properties:
-      TopicArn: !Ref NotificationTopic
-      Protocol: email
-      Endpoint: !Ref NotificationEmail
 
 Outputs:
   UserPoolId:
@@ -258,13 +227,6 @@ Outputs:
     Value: !Ref IdentityPool
     Export:
       Name: !Sub '${AWS::StackName}-IdentityPoolId'
-
-  NotificationTopicArn:
-    Condition: HasNotificationEmail
-    Description: 'SNS Topic ARN for notifications'
-    Value: !Ref NotificationTopic
-    Export:
-      Name: !Sub '${AWS::StackName}-NotificationTopicArn'
 
   # RBAC Group Information - DRS Orchestration Roles
   DRSOrchestrationAdminGroupName:

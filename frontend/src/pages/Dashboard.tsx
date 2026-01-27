@@ -22,46 +22,46 @@ import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
-import { RegionSelector } from '../components/RegionSelector';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
 import type { DRSQuotaStatus } from '../services/drsQuotaService';
-import type { SelectProps } from '@cloudscape-design/components';
 
-// Status colors for the pie chart
+// Status colors for the pie chart (CloudScape AWS marketing approved colors)
+// Green: Success/Completed, Blue: In Progress, Red: Failed/Error
+// Yellow/Amber: Warning/Paused/Suspended, Grey: Neutral/Cancelled
 const STATUS_COLORS: Record<string, string> = {
-  completed: '#037f0c',
-  in_progress: '#0972d3',
-  pending: '#5f6b7a',
-  failed: '#d91515',
-  rolled_back: '#ff9900',
-  cancelled: '#5f6b7a',
-  paused: '#5f6b7a',
+  COMPLETED: '#037f0c',      // Green - success
+  IN_PROGRESS: '#0972d3',    // Blue - in progress
+  PENDING: '#5f6b7a',        // Grey - neutral
+  FAILED: '#d91515',         // Red - error
+  ROLLED_BACK: '#ff9900',    // Orange - warning
+  CANCELLED: '#5f6b7a',      // Grey - neutral/closed
+  CANCELLING: '#ff9900',     // Orange - warning/in progress
+  PAUSED: '#ff9900',         // Yellow/Amber - suspended/awaiting input
+  RUNNING: '#0972d3',        // Blue - in progress
+  POLLING: '#0972d3',        // Blue - in progress
+  INITIATED: '#0972d3',      // Blue - in progress
+  LAUNCHING: '#0972d3',      // Blue - in progress
+  STARTED: '#0972d3',        // Blue - in progress
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  completed: 'Completed',
-  in_progress: 'In Progress',
-  pending: 'Pending',
-  failed: 'Failed',
-  rolled_back: 'Rolled Back',
-  cancelled: 'Cancelled',
-  paused: 'Paused',
+  COMPLETED: 'Completed',
+  IN_PROGRESS: 'In Progress',
+  PENDING: 'Pending',
+  FAILED: 'Failed',
+  ROLLED_BACK: 'Rolled Back',
+  CANCELLED: 'Cancelled',
+  CANCELLING: 'Cancelling',
+  PAUSED: 'Paused',
+  RUNNING: 'Running',
+  POLLING: 'In Progress',
+  INITIATED: 'Initiated',
+  LAUNCHING: 'Launching',
+  STARTED: 'Started',
 };
-
-// Common regions to check for finding the busiest region
-const COMMON_REGIONS = [
-  { value: 'us-east-1', label: 'us-east-1 (N. Virginia)' },
-  { value: 'us-east-2', label: 'us-east-2 (Ohio)' },
-  { value: 'us-west-2', label: 'us-west-2 (Oregon)' },
-  { value: 'eu-west-1', label: 'eu-west-1 (Ireland)' },
-  { value: 'eu-central-1', label: 'eu-central-1 (Frankfurt)' },
-  { value: 'ap-northeast-1', label: 'ap-northeast-1 (Tokyo)' },
-  { value: 'ap-southeast-1', label: 'ap-southeast-1 (Singapore)' },
-  { value: 'ap-southeast-2', label: 'ap-southeast-2 (Sydney)' },
-];
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -76,8 +76,6 @@ export const Dashboard: React.FC = () => {
   const [quotasLoading, setQuotasLoading] = useState(false);
   const [quotasError, setQuotasError] = useState<string | null>(null);
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState<SelectProps.Option | null>(null);
-  const [initialRegionDetected, setInitialRegionDetected] = useState(false);
 
   const fetchExecutions = useCallback(async () => {
     const accountId = getCurrentAccountId();
@@ -103,61 +101,17 @@ export const Dashboard: React.FC = () => {
     }
   }, [getCurrentAccountId]);
 
-  const fetchDRSQuotas = useCallback(async (accountId: string, region: string) => {
+  const fetchDRSQuotas = useCallback(async (accountId: string) => {
     setQuotasLoading(true);
     setQuotasError(null);
     try {
-      const quotas = await apiClient.getDRSQuotas(accountId, region);
+      // Fetch account-wide capacity (backend aggregates all regions)
+      const quotas = await apiClient.getDRSQuotas(accountId);
       setDrsQuotas(quotas);
     } catch (err) {
       console.error('Error fetching DRS quotas:', err);
       setQuotasError('Unable to fetch DRS capacity');
       setDrsQuotas(null);
-    } finally {
-      setQuotasLoading(false);
-    }
-  }, []);
-
-  // Find the region with the most replicating servers
-  const detectBusiestRegion = useCallback(async (accountId: string) => {
-    setQuotasLoading(true);
-    try {
-      // Fetch quotas for common regions in parallel
-      const results = await Promise.allSettled(
-        COMMON_REGIONS.map(async (region) => {
-          const quotas = await apiClient.getDRSQuotas(accountId, region.value);
-          return { region, quotas };
-        })
-      );
-
-      // Find region with most replicating servers
-      let busiestRegion = COMMON_REGIONS[0];
-      let maxServers = 0;
-      let busiestQuotas: DRSQuotaStatus | null = null;
-
-      for (const result of results) {
-        if (result.status === 'fulfilled') {
-          const { region, quotas } = result.value;
-          const serverCount = quotas.capacity?.replicatingServers || 0;
-          if (serverCount > maxServers) {
-            maxServers = serverCount;
-            busiestRegion = region;
-            busiestQuotas = quotas;
-          }
-        }
-      }
-
-      // Set the busiest region as default
-      setSelectedRegion(busiestRegion);
-      if (busiestQuotas) {
-        setDrsQuotas(busiestQuotas);
-      }
-      setInitialRegionDetected(true);
-    } catch (err) {
-      console.error('Error detecting busiest region:', err);
-      // Fall back to us-east-1
-      setSelectedRegion(COMMON_REGIONS[0]);
-      setInitialRegionDetected(true);
     } finally {
       setQuotasLoading(false);
     }
@@ -170,33 +124,19 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
-  // Detect busiest region on account change (only once per account)
+  // Fetch DRS quotas when account changes and auto-refresh every 30 seconds
   useEffect(() => {
     const accountId = getCurrentAccountId();
-    if (accountId && !initialRegionDetected) {
-      detectBusiestRegion(accountId);
-    }
-  }, [selectedAccount, getCurrentAccountId, initialRegionDetected, detectBusiestRegion]);
-
-  // Reset region detection when account changes
-  useEffect(() => {
-    setInitialRegionDetected(false);
-    setSelectedRegion(null);
-    setDrsQuotas(null);
-  }, [selectedAccount]);
-
-  // Fetch DRS quotas on region change (after initial detection) and auto-refresh every 30 seconds
-  useEffect(() => {
-    const accountId = getCurrentAccountId();
-    const region = selectedRegion?.value;
-    if (accountId && region && initialRegionDetected) {
-      fetchDRSQuotas(accountId, region);
+    if (accountId) {
+      fetchDRSQuotas(accountId);
       const interval = setInterval(() => {
-        fetchDRSQuotas(accountId, region);
+        fetchDRSQuotas(accountId);
       }, 30000);
       return () => clearInterval(interval);
+    } else {
+      setDrsQuotas(null);
     }
-  }, [selectedRegion, fetchDRSQuotas, getCurrentAccountId, initialRegionDetected]);
+  }, [selectedAccount, getCurrentAccountId, fetchDRSQuotas]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -241,13 +181,14 @@ export const Dashboard: React.FC = () => {
     'initiated', 'INITIATED',
     'launching', 'LAUNCHING',
     'started', 'STARTED',
+    'cancelling', 'CANCELLING',
   ];
   const activeExecutions = executions.filter((e) =>
     activeStatuses.includes(e.status)
   );
-  const completedCount = statusCounts['completed'] || 0;
-  const failedCount = statusCounts['failed'] || 0;
-  const rolledBackCount = statusCounts['rolled_back'] || 0;
+  const completedCount = statusCounts['COMPLETED'] || 0;
+  const failedCount = statusCounts['FAILED'] || 0;
+  const rolledBackCount = statusCounts['ROLLED_BACK'] || 0;
 
   // Pie chart data
   const pieData = Object.entries(statusCounts)
@@ -268,15 +209,17 @@ export const Dashboard: React.FC = () => {
   const getStatusType = (
     status: string
   ): 'success' | 'error' | 'warning' | 'in-progress' | 'stopped' => {
-    switch (status) {
-      case 'completed':
+    const upperStatus = status.toUpperCase();
+    switch (upperStatus) {
+      case 'COMPLETED':
         return 'success';
-      case 'failed':
+      case 'FAILED':
         return 'error';
-      case 'rolled_back':
+      case 'ROLLED_BACK':
+      case 'CANCELLING':
         return 'warning';
-      case 'cancelled':
-      case 'paused':
+      case 'CANCELLED':
+      case 'PAUSED':
         return 'stopped';
       default:
         return 'in-progress';
@@ -290,6 +233,16 @@ export const Dashboard: React.FC = () => {
           <Header
             variant="h1"
             description="Real-time execution status and system metrics"
+            actions={
+              <Button
+                onClick={handleTagSync}
+                loading={tagSyncLoading}
+                disabled={!selectedAccount}
+                iconName="refresh"
+              >
+                Sync Tags
+              </Button>
+            }
           >
             Dashboard
           </Header>
@@ -435,27 +388,8 @@ export const Dashboard: React.FC = () => {
 
             <Container
               header={
-                <Header
-                  variant="h2"
-                  actions={
-                    <SpaceBetween direction="horizontal" size="xs">
-                      <Button
-                        onClick={handleTagSync}
-                        loading={tagSyncLoading}
-                        disabled={!selectedAccount}
-                        iconName="refresh"
-                      >
-                        Sync Tags
-                      </Button>
-                      <RegionSelector
-                        selectedRegion={selectedRegion}
-                        onRegionChange={setSelectedRegion}
-                        placeholder="Select region"
-                      />
-                    </SpaceBetween>
-                  }
-                >
-                  DRS Capacity by Region
+                <Header variant="h2">
+                  DRS Capacity per Account
                 </Header>
               }
             >
@@ -469,7 +403,7 @@ export const Dashboard: React.FC = () => {
                 <DRSQuotaStatusPanel quotas={drsQuotas} />
               ) : (
                 <Box textAlign="center" padding="l" color="text-body-secondary">
-                  Select a region to view DRS capacity
+                  No DRS capacity data available
                 </Box>
               )}
             </Container>

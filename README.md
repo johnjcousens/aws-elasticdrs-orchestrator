@@ -3,14 +3,47 @@
 Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
+[![Version](https://img.shields.io/badge/version-3.7.0-blue)](CHANGELOG.md)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
-[![GitHub](https://img.shields.io/badge/Repository-GitHub-181717?logo=github)](https://github.com/johnjcousens/aws-elasticdrs-orchestrator)
+[![GitLab](https://img.shields.io/badge/Repository-GitLab-FC6D26?logo=gitlab)](https://code.aws.dev)
 
 ## Overview
 
 AWS DRS Orchestration enables organizations to orchestrate complex multi-tier application recovery with wave-based execution, dependency management, and automated health checks using AWS-native serverless services.
+
+**Latest Release**: [v3.7.0 - API Handler Decomposition & Documentation Cleanup](CHANGELOG.md) (January 26, 2026)
+- Comprehensive documentation restructuring and cleanup
+- Updated Lambda architecture documentation (6 handlers, 44 endpoints)
+- Archived 40+ outdated documents
+- Root directory cleanup (25% reduction in files)
+- Enhanced reference documentation with correct handler names
+
+**Recent Milestones**: See [CHANGELOG.md](CHANGELOG.md) for complete project history including intelligent conflict detection, execution details UI, HealthEdge standards compliance, and handler decomposition.
+
+### 🚧 Next Priority Fix
+
+**Partial Execution Status Enhancement** - Improve status handling for cancelled executions with partial progress
+
+**Problem**: When a recovery plan is cancelled after some waves complete successfully, the system shows "CANCELLED" without indicating partial progress. This creates confusion about what succeeded and prevents proper cleanup of recovery instances.
+
+**Solution**: Implement `PARTIAL_SUCCESS` status for executions where some waves completed before cancellation/failure. Enable "Terminate Recovery Instances" button for all cancelled executions with recovery instances.
+
+**Details**: See [Partial Execution Status Enhancement](docs/requirements/PARTIAL_EXECUTION_STATUS_ENHANCEMENT.md)
+
+**Estimate**: 1-2 days
+
+### 📚 Project History
+
+**Complete architectural evolution and version history**: [GitHub History Archive](archive/GitHubHistory/README.md)
+
+The archive contains 27 snapshots tracking the project's evolution from initial prototype (November 2025) through the major v3.0.0 refactoring (January 2026), including:
+- Tagged releases with detailed analysis
+- Date-specific snapshots of key milestones
+- Architecture evolution documentation
+- Schema migration history (PascalCase → camelCase)
+- Complete CloudFormation and Lambda evolution tracking
 
 ### Key Capabilities
 
@@ -52,7 +85,23 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ## Architecture
 
-![AWS DRS Orchestration Architecture](docs/architecture/AWS-DRS-Orchestration-Architecture.png)
+### Full-Stack Architecture (CloudFront + Cognito + API Gateway)
+
+![AWS DRS Orchestration - Comprehensive Architecture](docs/architecture/AWS-DRS-Orchestration-Architecture-Comprehensive.png)
+
+**Components**: CloudFront CDN, S3 Static Hosting, Cognito User Pool, API Gateway, 5 Lambda Functions, Step Functions, DynamoDB (4 tables), EventBridge, CloudWatch, SNS, AWS DRS, Cross-Account IAM Roles
+
+**User Roles**: DRSOrchestrationAdmin, DRSRecoveryManager, DRSPlanManager, DRSOperator, DRSReadOnly
+
+### Backend-Only Architecture (Direct Lambda Invocation)
+
+![AWS DRS Orchestration - Backend Only](docs/architecture/AWS-DRS-Orchestration-Backend-Only.png)
+
+**Use Case**: CLI/SDK automation, internal operations tools, CI/CD pipeline integration
+
+**Benefits**: 60% lower cost (no API Gateway), simpler architecture, native AWS authentication, ideal for automation
+
+**Deployment**: Use `--no-frontend` flag to deploy backend-only mode
 
 ### Technology Stack
 
@@ -65,26 +114,152 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 | Hosting    | Amazon S3, Amazon CloudFront                                  |
 | DR Service | AWS Elastic Disaster Recovery (DRS)                           |
 
+## Deployment Flexibility
+
+The solution supports **4 flexible deployment modes** to accommodate different use cases:
+
+| Mode | IAM Role | Frontend | Use Case |
+|------|----------|----------|----------|
+| **Default Standalone** | Created | ✅ Deployed | Complete standalone solution |
+| **API-Only Standalone** | Created | ❌ Skipped | Custom frontend or CLI/SDK only |
+| **External Role + Frontend** | External Provided | ✅ Deployed | External IAM integration with DRS UI |
+| **Full External Integration** | External Provided | ❌ Skipped | External unified frontend |
+
+### Unified Orchestration Role
+
+All Lambda functions use a **single unified IAM role** that consolidates permissions from 7 individual function roles:
+
+**Key Benefits:**
+- **Simplified Management**: One role instead of seven (~500 lines of CloudFormation removed)
+- **Consistent Permissions**: All functions have access to required services
+- **External Role Support**: Integrate with HRP's centralized permission management
+- **16 Policy Statements**: Comprehensive permissions for DRS, EC2, Step Functions, DynamoDB, and more
+
+**Critical Permissions Included:**
+- `states:SendTaskHeartbeat` - Long-running Step Functions tasks
+- `drs:CreateRecoveryInstanceForDrs` - AllowLaunchingIntoThisInstance pattern (IP preservation)
+- `ec2:CreateLaunchTemplateVersion` - Launch template updates for pre-provisioned instances
+- `ssm:CreateOpsItem` - Operational tracking and visibility
+
+**For External Integration:** See [Orchestration Role Specification](docs/reference/ORCHESTRATION_ROLE_SPECIFICATION.md) for complete role requirements.
+
+### Deployment Mode Examples
+
+```bash
+# Mode 1: Default Standalone (no parameters needed)
+./scripts/deploy.sh dev
+
+# Mode 2: API-Only Standalone
+./scripts/deploy.sh dev --no-frontend
+
+# Mode 3: External Integration with Frontend
+./scripts/deploy.sh dev --orchestration-role arn:aws:iam::123456789012:role/ExternalOrchestrationRole
+
+# Mode 4: Full External Integration (API-Only)
+./scripts/deploy.sh dev --no-frontend --orchestration-role arn:aws:iam::123456789012:role/ExternalOrchestrationRole
+```
+
+### CloudFormation Parameters
+
+**New Parameters:**
+- `OrchestrationRoleArn` (String, optional) - External IAM role ARN for HRP integration
+- `DeployFrontend` (String, default: 'true') - Controls frontend deployment
+
+**Example CloudFormation Deployment:**
+```bash
+aws cloudformation deploy \
+  --template-file cfn/master-template.yaml \
+  --stack-name aws-drs-orchestration-dev \
+  --parameter-overrides \
+    ProjectName=aws-drs-orchestration \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-dev \
+    AdminEmail=admin@example.com \
+    OrchestrationRoleArn=arn:aws:iam::123456789012:role/ExternalOrchestrationRole \
+    DeployFrontend=false \
+  --capabilities CAPABILITY_NAMED_IAM
+```
+
+**See [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) for complete documentation.**
+
 ## Quick Start
 
 ### Prerequisites
 
 - AWS Account with DRS configured and source servers replicating
 - AWS CLI v2 configured with appropriate permissions
+- Node.js 18+ and npm (for frontend development)
+- Python 3.12+ (for Lambda development and local CI/CD)
 - S3 bucket for deployment artifacts
 
-### Deploy with CloudFormation
+### Environment Setup
 
 ```bash
-# Deploy the complete solution
+# Clone repository
+git clone <repository-url>
+cd aws-drs-orchestration
+
+# Copy environment template and configure
+cp .env.dev.template .env.dev
+# Edit .env.dev with your configuration
+
+# Source environment variables
+source .env.dev
+
+# Setup Python virtual environment (optional but recommended)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+```
+
+### Deploy with Unified Deploy Script (Recommended)
+
+The solution uses a **unified deployment script** that handles validation, security scanning, testing, and deployment in a single command.
+
+```bash
+# Full deployment pipeline (validate, test, deploy)
+./scripts/deploy.sh dev
+
+# Quick deployment (skip security scans and tests)
+./scripts/deploy.sh dev --quick
+
+# Validation only (no deployment)
+./scripts/deploy.sh dev --validate-only
+
+# Lambda-only update (fastest - ~30-60 seconds)
+./scripts/deploy.sh dev --lambda-only
+
+# Frontend-only update
+./scripts/deploy.sh dev --frontend-only
+
+# Skip git push (local testing)
+./scripts/deploy.sh dev --skip-push
+```
+
+#### Deployment Pipeline Stages
+
+| Stage | Duration | Description |
+|-------|----------|-------------|
+| **[1/5] Validation** | ~1 min | cfn-lint, flake8, black, TypeScript type checking |
+| **[2/5] Security** | ~1 min | bandit, cfn_nag, detect-secrets, npm audit (skipped with `--quick`) |
+| **[3/5] Tests** | ~1 min | pytest, vitest (skipped with `--quick`) |
+| **[4/5] Git Push** | ~5 sec | Push to remote (skipped with `--skip-push` or `--validate-only`) |
+| **[5/5] Deploy** | ~5-10 min | Lambda packaging, S3 sync, CloudFormation deployment |
+
+**Total Time**: 3-5 minutes (full), 2-3 minutes (quick), 30-60 seconds (lambda-only)
+
+### Alternative: Direct CloudFormation Deployment
+
+```bash
+# Direct CloudFormation deployment (after manual artifact sync)
 aws cloudformation deploy \
-  --template-url https://your-bucket.s3.us-east-1.amazonaws.com/cfn/master-template.yaml \
-  --stack-name aws-elasticdrs-orchestrator \
+  --template-file cfn/master-template.yaml \
+  --stack-name aws-drs-orchestration-dev \
   --parameter-overrides \
-    ProjectName=aws-elasticdrs-orchestrator \
-    Environment=test \
-    SourceBucket=your-bucket \
-    AdminEmail=admin@yourcompany.com \
+    ProjectName=aws-drs-orchestration \
+    Environment=dev \
+    SourceBucket=aws-drs-orchestration-dev \
+    AdminEmail=your-email@example.com \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
   --region us-east-1
 ```
@@ -93,7 +268,7 @@ aws cloudformation deploy \
 
 ```bash
 aws cloudformation describe-stacks \
-  --stack-name aws-elasticdrs-orchestrator-test \
+  --stack-name aws-drs-orchestration-dev \
   --query 'Stacks[0].Outputs' \
   --output table
 ```
@@ -119,15 +294,15 @@ The solution orchestrates disaster recovery in all **30 AWS regions** where Elas
 
 ## Infrastructure
 
-### CloudFormation Stacks (18 Templates)
+### CloudFormation Stacks (16 Templates)
 
 The solution uses a modular nested stack architecture. The API Gateway is split across 6 stacks due to CloudFormation limits (500 resources/stack, 51,200 bytes template body, 1MB S3 template) and best practices for maintainability:
 
 | Stack | Purpose | Key Resources |
 | ----- | ------- | ------------- |
-| `master-template.yaml` | Root orchestrator | Parameter propagation, nested stack coordination |
+| `master-template.yaml` | Root orchestrator | Parameter propagation, nested stack coordination, **UnifiedOrchestrationRole** (consolidates 7 individual roles) |
 | `database-stack.yaml` | Data persistence | 4 DynamoDB tables with encryption (camelCase schema) |
-| `lambda-stack.yaml` | Compute layer | 7 Lambda functions, IAM roles |
+| `lambda-stack.yaml` | Compute layer | 8 Lambda functions (all use unified role) |
 | `api-auth-stack.yaml` | Authentication | Cognito User Pool, Identity Pool, RBAC groups |
 | `api-gateway-core-stack.yaml` | API Gateway base | REST API, Cognito authorizer |
 | `api-gateway-resources-stack.yaml` | API paths | URL path resources for all endpoints |
@@ -137,26 +312,27 @@ The solution uses a modular nested stack architecture. The API Gateway is split 
 | `api-gateway-deployment-stack.yaml` | API deployment | Stage deployment, throttling settings |
 | `step-functions-stack.yaml` | Orchestration | State machine with waitForTaskToken |
 | `eventbridge-stack.yaml` | Event scheduling | Execution polling rules |
-| `frontend-stack.yaml` | Frontend hosting | S3 bucket, CloudFront distribution |
+| `frontend-stack.yaml` | Frontend hosting | S3 bucket, CloudFront distribution (conditional) |
 | `notification-stack.yaml` | Notifications | SNS topics, email subscriptions |
-| `security-stack.yaml` | Security | WAF, security groups |
-| `security-monitoring-stack.yaml` | Monitoring | CloudWatch alarms, dashboards |
 | `cross-account-role-stack.yaml` | Multi-account | Cross-account IAM roles |
-| `github-oidc-stack.yaml` | CI/CD | GitHub Actions OIDC authentication |
+| `github-oidc-stack.yaml` | CI/CD | OIDC authentication (legacy, not actively used) |
 
-### Lambda Functions (7 Active)
+**Note:** The UnifiedOrchestrationRole consolidates permissions from 7 individual Lambda roles, simplifying IAM management while maintaining security. See [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) for details.
 
-| Function | Directory | Purpose |
-| -------- | --------- | ------- |
-| `api-handler` | `lambda/api-handler/` | REST API request handling (47+ endpoints) |
-| `orchestration-stepfunctions` | `lambda/orchestration-stepfunctions/` | Step Functions orchestration with launch config sync |
-| `execution-finder` | `lambda/execution-finder/` | Find active executions for EventBridge polling |
-| `execution-poller` | `lambda/execution-poller/` | Poll DRS job status and update execution state |
-| `frontend-builder` | `lambda/frontend-builder/` | Frontend deployment automation |
-| `bucket-cleaner` | `lambda/bucket-cleaner/` | S3 cleanup on stack deletion |
-| `notification-formatter` | `lambda/notification-formatter/` | SNS notification formatting |
+### Lambda Functions (6 Handlers)
 
-Shared utilities in `lambda/shared/` provide common functionality across all functions.
+All Lambda functions use the **UnifiedOrchestrationRole** (or externally-provided role in external integration mode). Shared utilities in `lambda/shared/` provide common functionality across all functions.
+
+| Function | Directory | Purpose | Endpoints |
+| -------- | --------- | ------- | --------- |
+| `data-management-handler` | `lambda/data-management-handler/` | Protection groups, recovery plans, configuration management | 21 |
+| `execution-handler` | `lambda/execution-handler/` | Recovery execution control, pause/resume, termination | 11 |
+| `query-handler` | `lambda/query-handler/` | Read-only queries, DRS status, EC2 resource discovery | 12 |
+| `orchestration-stepfunctions` | `lambda/orchestration-stepfunctions/` | Step Functions orchestration with launch config sync | N/A |
+| `frontend-deployer` | `lambda/frontend-deployer/` | Frontend deployment automation (CloudFormation Custom Resource) | N/A |
+| `notification-formatter` | `lambda/notification-formatter/` | SNS notification formatting | N/A |
+
+**Total API Endpoints**: 44 endpoints across 3 API handlers
 
 ### DynamoDB Tables (Native camelCase Schema)
 
@@ -201,83 +377,130 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 
 ## Documentation
 
-### Essential Guides
-- [API and Integration Guide](docs/guides/API_AND_INTEGRATION_GUIDE.md) - Complete REST API documentation (47+ endpoints) and integration patterns
-- [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) - Local development, testing, and workflow
-- [Deployment Guide](docs/guides/DEPLOYMENT_GUIDE.md) - Fresh deployment, CI/CD pipeline, and operations
-- [CI/CD Guide](docs/guides/CICD_GUIDE.md) - GitHub Actions setup and usage
+### User Guides
+- [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) - 4 deployment modes, external IAM integration, migration guide
+- [Developer Guide](docs/guides/DEVELOPER_GUIDE.md) - Local development, testing, debugging workflows
 - [DRS Execution Walkthrough](docs/guides/DRS_EXECUTION_WALKTHROUGH.md) - Complete drill and recovery procedures
-- [Troubleshooting Guide](docs/guides/TROUBLESHOOTING_GUIDE.md) - Common issues and debugging
+- [DRS Pre-Provisioned Instance Recovery](docs/guides/DRS_PRE_PROVISIONED_INSTANCE_RECOVERY.md) - AllowLaunchingIntoThisInstance pattern for IP preservation
+- [DRS Recovery and Failback Complete Guide](docs/guides/DRS_RECOVERY_AND_FAILBACK_COMPLETE_GUIDE.md) - End-to-end recovery procedures
+- [API Development Quick Reference](docs/guides/API_DEVELOPMENT_QUICK_REFERENCE.md) - API development patterns and examples
+
+### Deployment & CI/CD
+- [Quick Start Guide](docs/deployment/QUICK_START_GUIDE.md) - Fast deployment walkthrough
+- [CI/CD Guide](docs/deployment/CICD_GUIDE.md) - Deployment workflows and automation
+- [CI/CD Enforcement](docs/deployment/CI_CD_ENFORCEMENT.md) - Deployment policy and validation requirements
 
 ### Requirements & Architecture
-- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD
-- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications
-- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design
+- [Product Requirements Document](docs/requirements/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Complete PRD with feature specifications
+- [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications and system requirements
+- [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design and component specifications
 - [Architecture](docs/architecture/ARCHITECTURE.md) - System architecture and AWS service integration
 
-### Implementation & Roadmap
-- [Features](docs/implementation/FEATURES.md) - Automation, cross-account operations, DRS management, notifications
-- [Roadmap](docs/implementation/ROADMAP.md) - Infrastructure improvements and enhancement timeline
-
 ### Reference Documentation
-- [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Complete IAM requirements
-- [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service constraints
-- [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) - Multi-account configuration
+- [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (44 endpoints)
+- [Orchestration Role Specification](docs/reference/ORCHESTRATION_ROLE_SPECIFICATION.md) - Complete IAM role requirements for external integration
+- [DRS IAM and Permissions Reference](docs/reference/DRS_IAM_AND_PERMISSIONS_REFERENCE.md) - Comprehensive IAM policy analysis
+- [DRS Service Limits and Capabilities](docs/reference/DRS_SERVICE_LIMITS_AND_CAPABILITIES.md) - Service quotas and constraints
+- [DRS Cross-Account Reference](docs/reference/DRS_CROSS_ACCOUNT_REFERENCE.md) - Multi-account configuration and cross-account roles
+- [DRS Launch Configuration Reference](docs/reference/DRS_LAUNCH_CONFIGURATION_REFERENCE.md) - Launch template management and configuration
+- [DR Wave Priority Mapping](docs/reference/DR_WAVE_PRIORITY_MAPPING.md) - Wave and priority assignment strategy
+
+### Troubleshooting
+- [Deployment Troubleshooting Guide](docs/troubleshooting/DEPLOYMENT_TROUBLESHOOTING_GUIDE.md) - Common deployment issues and solutions
+- [DRS Execution Troubleshooting Guide](docs/troubleshooting/DRS_EXECUTION_TROUBLESHOOTING_GUIDE.md) - Recovery execution debugging
+- [Authentication Issues](docs/troubleshooting/AUTHENTICATION_ISSUES.md) - Cognito and API Gateway authentication troubleshooting
+- [Known Issues](docs/troubleshooting/KNOWN_ISSUES.md) - Current known issues and workarounds
 
 ## CI/CD Pipeline
 
-The project uses **GitHub Actions** for automated deployment with comprehensive security scanning, OIDC-based AWS authentication, and automatic concurrency control.
+The project uses a **unified deployment script** that provides comprehensive validation, security scanning, and testing.
 
-### Pipeline Stages
+### Unified Deploy Script
 
-| Stage | Duration | Description |
-|-------|----------|-------------|
-| **Detect Changes** | ~10s | Analyzes changed files for intelligent deployment |
-| **Validate** | ~2 min | CloudFormation validation, linting |
-| **Security Scan** | ~2 min | Bandit, Safety security scanning |
-| **Build** | ~3 min | Lambda packaging, frontend build |
-| **Test** | ~2 min | Unit tests |
-| **Deploy** | ~10 min | CloudFormation stack deployment |
-
-### Pipeline Optimization
-- **Documentation-only**: ~30 seconds (95% time savings)
-- **Frontend-only**: ~12 minutes (45% time savings)
-- **Full deployment**: ~22 minutes (complete pipeline)
-
-### Concurrency Control
-The pipeline includes automatic concurrency control to prevent overlapping deployments:
-- **Queued execution**: New pushes wait for running workflows to complete
-- **Sequential deployment**: Ensures deployments happen in order
-- **No manual checking needed**: Built into the workflow automatically
-
-### Safe Push Workflow
+**Recommended for all deployment scenarios.**
 
 ```bash
-# RECOMMENDED: Safe push with automatic workflow checking
-./scripts/safe-push.sh
+# Full deployment pipeline (validate, security, test, deploy)
+./scripts/deploy.sh dev
 
-# Preview deployment scope before pushing
-./scripts/check-deployment-scope.sh
+# Quick deployment (skip security scans and tests)
+./scripts/deploy.sh dev --quick
 
-# Alternative: Quick check before manual push
-./scripts/check-workflow.sh && git push
+# Validation only (no deployment)
+./scripts/deploy.sh dev --validate-only
+
+# Lambda-only update (fastest - ~30-60 seconds)
+./scripts/deploy.sh dev --lambda-only
+
+# Frontend-only deployment
+./scripts/deploy.sh dev --frontend-only
+
+# Skip git push (local testing)
+./scripts/deploy.sh dev --skip-push
+```
+
+#### Deployment Pipeline Stages
+
+| Stage | Duration | Description | Skip With |
+|-------|----------|-------------|-----------|
+| **[1/5] Validation** | ~1 min | cfn-lint, flake8, black, TypeScript | N/A (always runs) |
+| **[2/5] Security** | ~1 min | bandit, cfn_nag, detect-secrets, npm audit | `--quick` |
+| **[3/5] Tests** | ~1 min | pytest, vitest | `--quick` |
+| **[4/5] Git Push** | ~5 sec | Push to remote | `--skip-push`, `--validate-only` |
+| **[5/5] Deploy** | ~5-10 min | Lambda packaging, S3 sync, CloudFormation | `--validate-only` |
+
+**Total Time**: 
+- Full pipeline: 3-5 minutes
+- Quick deployment: 2-3 minutes  
+- Lambda-only: 30-60 seconds
+- Validation-only: 2-3 minutes (no deployment)
+
+### Built-in Protections
+
+The deploy script includes automatic safety checks:
+
+- **Stack Protection**: Blocks deployment to protected `-test` stacks
+- **Concurrency Protection**: Prevents overlapping deployments
+- **Credential Check**: Verifies AWS credentials before starting
+- **Validation Gates**: Stops deployment if validation fails
+- **Rollback Recovery**: Automatically handles `UPDATE_ROLLBACK_FAILED` states
+
+### Makefile Shortcuts
+
+```bash
+make validate-only          # Run validation without deployment
+make deploy-dev             # Full deployment to dev
+make deploy-dev-quick       # Quick deployment (skip security/tests)
+make deploy-lambda-only     # Update Lambda functions only
+make deploy-frontend-only   # Update frontend only
 ```
 
 ## Contributing
 
-1. **Fork the GitHub repository**
+1. **Clone the repository**
 2. **Create a feature branch** (`git checkout -b feature/amazing-feature`)
 3. **Make changes and test locally**
-4. **Commit changes** (`git commit -m 'Add amazing feature'`)
-5. **Push to GitHub** (`./scripts/safe-push.sh origin feature/amazing-feature`)
-6. **Open a Pull Request**
+4. **Run validation** (`./scripts/deploy.sh dev --validate-only`)
+5. **Commit changes** (`git commit -m 'Add amazing feature'`)
+6. **Push to remote** (`git push origin feature/amazing-feature`)
+7. **Open a Pull Request**
 
 ### Local Development
 
 ```bash
 # Clone repository
-git clone https://github.com/johnjcousens/aws-elasticdrs-orchestrator.git
-cd aws-elasticdrs-orchestrator
+git clone <repository-url>
+cd aws-drs-orchestration
+
+# Setup Python virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+# Setup environment
+cp .env.dev.template .env.dev
+# Edit .env.dev with your configuration
+source .env.dev
 
 # Frontend development
 cd frontend
@@ -285,28 +508,69 @@ npm install
 npm run dev  # Development server at localhost:5173
 
 # Backend testing
-cd tests/python
-pip install -r requirements.txt
-pytest unit/ -v
+pytest tests/python/unit/ -v
+pytest tests/integration/ -v
 
-# Validate before committing
-make validate  # CloudFormation validation
+# Run validation before committing
+./scripts/deploy.sh dev --validate-only
+
+# Full deployment
+./scripts/deploy.sh dev
+```
+
+### Deployment Options
+
+```bash
+# Full deployment with validation, security, and tests
+./scripts/deploy.sh dev
+
+# Quick deployment (skip security/tests)
+./scripts/deploy.sh dev --quick
+
+# Validation only (no deployment)
+./scripts/deploy.sh dev --validate-only
+
+# Lambda-only update (fastest)
+./scripts/deploy.sh dev --lambda-only
+
+# Frontend-only update
+./scripts/deploy.sh dev --frontend-only
 ```
 
 ## Directory Structure
 
 ```text
-aws-elasticdrs-orchestrator/
-├── .github/                      # GitHub Actions CI/CD workflows
-│   └── workflows/deploy.yml      # Main deployment workflow
-├── cfn/                          # CloudFormation IaC (15+ templates)
+aws-drs-orchestration/
+├── cfn/                          # CloudFormation IaC (16 templates)
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
-│   └── github-oidc-stack.yaml    # GitHub Actions OIDC integration
+│   └── github-oidc-stack.yaml    # OIDC integration (legacy, not actively used)
 ├── frontend/                     # React + CloudScape UI (32+ components)
-├── lambda/                       # Python Lambda functions (7 active)
+├── lambda/                       # Python Lambda functions (6 handlers + shared utilities)
+│   ├── data-management-handler/  # Protection groups, recovery plans CRUD
+│   ├── execution-handler/        # Recovery execution control
+│   ├── query-handler/            # Read-only queries, DRS status
+│   ├── orchestration-stepfunctions/  # Step Functions orchestration
+│   ├── frontend-deployer/        # Frontend deployment automation
+│   ├── notification-formatter/   # SNS notification formatting
+│   └── shared/                   # Shared utilities (RBAC, DRS, security)
 ├── scripts/                      # Deployment and automation scripts
+│   ├── deploy.sh                 # Unified deployment script (recommended)
+│   ├── package_lambda.py         # Lambda packaging utility
+│   └── *.sh                      # Additional utility scripts
 ├── tests/                        # Python unit/integration tests
-└── docs/                         # Comprehensive documentation (40+ files)
+│   ├── python/unit/              # Unit tests
+│   ├── integration/              # Integration tests
+│   └── e2e/                      # End-to-end tests
+├── docs/                         # Comprehensive documentation (40+ files)
+│   ├── guides/                   # User guides and walkthroughs
+│   ├── reference/                # API and technical reference
+│   ├── architecture/             # Architecture diagrams and docs
+│   ├── deployment/               # Deployment guides
+│   └── troubleshooting/          # Troubleshooting guides
+├── .venv/                        # Python virtual environment (local)
+├── Makefile                      # Build automation shortcuts
+├── mise.toml                     # Tool version management
+└── README.md                     # This file
 ```
 
 ## Changelog

@@ -1,10 +1,14 @@
 #!/bin/bash
 # Shared deployment configuration loader
-# Usage: source scripts/load-deployment-config.sh
+# Usage: source scripts/load-deployment-config.sh [environment]
+# Environment: dev (default) or test
 
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Determine environment (default: dev)
+DEPLOY_ENV="${1:-${ENVIRONMENT:-dev}}"
 
 # Load configuration from environment files in priority order
 if [ -f "$PROJECT_ROOT/.env.deployment.fresh" ]; then
@@ -20,15 +24,23 @@ if [ -f "$PROJECT_ROOT/.env.deployment.local" ]; then
     source "$PROJECT_ROOT/.env.deployment.local"
 fi
 
-# Set default values if not provided in config files
-export DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-aws-elasticdrs-orchestrator}"
-export DEPLOYMENT_REGION="${DEPLOYMENT_REGION:-us-east-1}"
-export PROJECT_NAME="${PROJECT_NAME:-aws-elasticdrs-orchestrator}"
-export ENVIRONMENT="${ENVIRONMENT:-test}"
-export PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-elasticdrs-orchestrator-test}"
+# Set environment-specific defaults
+if [ "$DEPLOY_ENV" = "dev" ]; then
+    export DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orch-dev}"
+    export PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-drs-orch-dev}"
+    export ENVIRONMENT="dev"
+else
+    export DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-aws-drs-orch}"
+    export PARENT_STACK_NAME="${PARENT_STACK_NAME:-aws-drs-orch-test}"
+    export ENVIRONMENT="test"
+fi
 
-# Only set AWS_PROFILE if not in CI environment (GitHub Actions uses OIDC, not profiles)
-if [ -z "$GITHUB_ACTIONS" ]; then
+# Common defaults
+export DEPLOYMENT_REGION="${DEPLOYMENT_REGION:-us-east-1}"
+export PROJECT_NAME="${PROJECT_NAME:-aws-drs-orch}"
+
+# Only set AWS_PROFILE if not in CI environment (GitLab/GitHub Actions use OIDC, not profiles)
+if [ -z "$GITHUB_ACTIONS" ] && [ -z "$GITLAB_CI" ]; then
     export AWS_PROFILE="${AWS_PROFILE:-default}"
 fi
 
@@ -43,7 +55,8 @@ export USER_POOL_ID="${USER_POOL_ID:-}"
 export USER_POOL_CLIENT_ID="${USER_POOL_CLIENT_ID:-}"
 
 echo "🔧 Configuration loaded:"
-echo "   Stack: $STACK_NAME"
 echo "   Environment: $ENVIRONMENT"
+echo "   Stack: $STACK_NAME"
+echo "   Bucket: $DEPLOYMENT_BUCKET"
 echo "   Region: $REGION"
 echo "   Project: $PROJECT_NAME"

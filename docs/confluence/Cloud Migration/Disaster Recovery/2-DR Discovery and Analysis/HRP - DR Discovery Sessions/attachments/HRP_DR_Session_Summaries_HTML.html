@@ -1,0 +1,262 @@
+<h1>HRP Disaster Recovery Assessment - Session Summaries</h1>
+
+<h2>Session 1: Infrastructure and Database Architecture Review</h2>
+
+<p><strong>Date:</strong> Based on transcript analysis<br>
+<strong>Participants:</strong> Vaughn Sargent, Venkata Kommuri, Jared Sheltry, Senthil Ramasamy</p>
+
+<h3>Key Discussion Points:</h3>
+
+<h4>Application Architecture</h4>
+<p><strong>Payer System Components:</strong></p>
+<ul>
+<li>Web Logic servers running on Linux (1-15 servers per customer)</li>
+<li>Oracle OLTP databases</li>
+<li>SQL Server Data Warehouse</li>
+<li>Third-party integrations: CES, CXT, Source, Easy Group</li>
+<li>SSO integration through Okta</li>
+<li>RSO (Reduced Sign On) through customer Active Directory/LDAP</li>
+</ul>
+
+<h4>Current DR Strategy</h4>
+<p><strong>Storage-Level Replication:</strong></p>
+<ul>
+<li>Entire customer volume replicated in real-time to secondary site</li>
+<li>Includes databases, applications, and third-party apps</li>
+<li>No Oracle-specific replication currently used</li>
+<li>Stretched networks between data centers (same IPs, hostnames)</li>
+</ul>
+
+<h4>Database Replication</h4>
+<p><strong>Current Technologies:</strong></p>
+<ul>
+<li>Golden Gate replication (legacy)</li>
+<li>Click replication (new standard since January)</li>
+<li>Both need to be supported during migration</li>
+<li>OLTP to Data Warehouse replication via Golden Gate/Click</li>
+</ul>
+
+<h4>Network Architecture</h4>
+<p><strong>Customer Isolation:</strong></p>
+<ul>
+<li>Each customer has dedicated /24 subnet</li>
+<li>Split into /25 for prod and non-prod</li>
+<li>Stretched networks for DR (active-active data centers)</li>
+<li>VPN tunnels for DR connectivity</li>
+</ul>
+
+<h4>DR Testing Requirements</h4>
+<p><strong>Contractual Obligations:</strong></p>
+<ul>
+<li>Annual DR tests required</li>
+<li>Live production failover testing</li>
+<li>5-minute failover capability for clean shutdowns</li>
+<li>RPO/RTO varies by customer contract</li>
+</ul>
+
+<h3>Key Findings:</h3>
+<ol>
+<li>Current DR is "all or nothing" - cannot fail over individual components</li>
+<li>No containerization currently (working on it)</li>
+<li>Melissa Data microservices require Kubernetes cluster</li>
+<li>Each customer has dedicated infrastructure (not shared)</li>
+<li>DR only applies to production environments</li>
+</ol>
+
+<hr>
+
+<h2>Session 2: Database and Replication Deep Dive</h2>
+
+<p><strong>Date:</strong> Based on transcript analysis<br>
+<strong>Participants:</strong> Venkata Kommuri, Madhu Ravi, Jared Sheltry, Senthil Ramasamy</p>
+
+<h3>Key Discussion Points:</h3>
+
+<h4>Replication Technologies</h4>
+<p><strong>Golden Gate vs Click:</strong></p>
+<ul>
+<li>Golden Gate: Legacy solution for existing customers</li>
+<li>Click: New standard for customers onboarded since January</li>
+<li>Migration from Golden Gate to Click in progress</li>
+<li>Both technologies must be supported in AWS migration</li>
+</ul>
+
+<h4>Database Architecture</h4>
+<p><strong>Standard Configuration:</strong></p>
+<ul>
+<li>OLTP Database (Oracle)</li>
+<li>Data Warehouse (SQL Server)</li>
+<li>Optional Custom Database (Oracle) for specific customers</li>
+<li>Dedicated replication server per customer (Golden Gate or Click)</li>
+</ul>
+
+<h4>Customer Variations</h4>
+<p><strong>Custom Databases:</strong></p>
+<ul>
+<li>Not all customers require custom databases</li>
+<li>Contains customer-specific stored procedures, functions, triggers</li>
+<li>Additional Oracle database when required</li>
+<li>Increases infrastructure footprint per customer</li>
+</ul>
+
+<h4>Network Segmentation</h4>
+<p><strong>Customer Isolation:</strong></p>
+<ul>
+<li>Dedicated network segments per customer</li>
+<li>/24 subnet split between prod and non-prod</li>
+<li>Active-active data centers (Ohio and Massachusetts)</li>
+<li>50/50 customer distribution across data centers</li>
+</ul>
+
+<h4>Shared vs Dedicated Components</h4>
+<p><strong>Shared Services:</strong></p>
+<ul>
+<li>SFTP servers (with customer-specific folders)</li>
+<li>Move-IT file transfer services</li>
+</ul>
+<p><strong>Dedicated Services:</strong></p>
+<ul>
+<li>All application servers per customer</li>
+<li>All database instances per customer</li>
+<li>Replication servers per customer</li>
+</ul>
+
+<h3>Key Findings:</h3>
+<ol>
+<li>Minimum 3 databases per customer (OLTP, DW, Replication)</li>
+<li>Up to 4 databases if custom database required</li>
+<li>Both Golden Gate and Click replication must be supported</li>
+<li>Each customer environment is completely isolated</li>
+<li>File transfer services are shared with logical separation</li>
+</ol>
+
+<hr>
+
+<h2>Session 3: Application Architecture and Integration Points</h2>
+
+<p><strong>Date:</strong> Based on transcript analysis<br>
+<strong>Participants:</strong> Venkata Kommuri, Brijesh Singh, Vaughn Sargent, Kendra McCormick, Chris Falk, Jared Sheltry</p>
+
+<h3>Key Discussion Points:</h3>
+
+<h4>Application Technology Stack</h4>
+<p><strong>Core Platform:</strong></p>
+<ul>
+<li>Java applications running on Oracle WebLogic</li>
+<li>All Payer applications are Java-based</li>
+<li>Apache Camel for connector services</li>
+<li>Multiple WebLogic instances per customer</li>
+</ul>
+
+<h4>Authentication and Authorization</h4>
+<p><strong>SSO Implementation:</strong></p>
+<ul>
+<li>Health Edge Okta instance integrates with customer Okta</li>
+<li>Token-based authentication flow</li>
+<li>Permissions managed within HRP application</li>
+</ul>
+<p><strong>RSO Implementation:</strong></p>
+<ul>
+<li>Direct LDAP/LDAPS calls to customer Active Directory</li>
+<li>WebLogic native integration capabilities</li>
+<li>Customer AD configuration required in HRP</li>
+</ul>
+
+<h4>Third-Party Integrations</h4>
+<p><strong>Claim Editing Software:</strong></p>
+<ul>
+<li>CES (Claim Editing Software) by Optum</li>
+<li>CXT (Claim eXTend) by Lyric Health</li>
+<li>EZ Grouper by Optum</li>
+<li>Source (Health Edge proprietary)</li>
+</ul>
+
+<h4>Hosting Models</h4>
+<p><strong>Health Edge Hosted:</strong></p>
+<ul>
+<li>Majority of CES and EZ Grouper instances</li>
+<li>All Source instances (proprietary)</li>
+<li>6 customers with Health Edge hosted CXT</li>
+</ul>
+<p><strong>Vendor Hosted:</strong></p>
+<ul>
+<li>1 customer with Optum-hosted CES</li>
+<li>2 customers with Lyric Health-hosted CXT</li>
+<li>Site-to-site VPN connectivity required</li>
+</ul>
+
+<h4>Additional Products</h4>
+<p><strong>Optional Components:</strong></p>
+<ul>
+<li>Pick (used by few customers)</li>
+<li>Payer Promote (used by few customers)</li>
+<li>Correspondence Accelerator/Next Gen Correspondence</li>
+<li>All Java-based applications</li>
+</ul>
+
+<h4>Network Connectivity</h4>
+<p><strong>External Integrations:</strong></p>
+<ul>
+<li>Site-to-site VPNs with vendors</li>
+<li>No public internet traffic for integrations</li>
+<li>Secure connectivity for all external services</li>
+<li>Some integrations through customer networks</li>
+</ul>
+
+<h3>Key Findings:</h3>
+<ol>
+<li>All applications are Java-based running on WebLogic</li>
+<li>Complex authentication flows with external dependencies</li>
+<li>Mix of Health Edge and vendor-hosted third-party services</li>
+<li>Secure network connectivity requirements for all integrations</li>
+<li>Customer-specific configurations for authentication systems</li>
+<li>Multiple optional products increase complexity per customer</li>
+</ol>
+
+<hr>
+
+<h2>Summary of Critical DR Requirements</h2>
+
+<h3>Infrastructure Requirements:</h3>
+<ol>
+<li><strong>Dedicated Resources:</strong> Each customer requires completely isolated infrastructure</li>
+<li><strong>Database Support:</strong> Oracle and SQL Server databases with replication capabilities</li>
+<li><strong>Application Platform:</strong> Java/WebLogic application server environment</li>
+<li><strong>Network Isolation:</strong> Secure, isolated network segments per customer</li>
+</ol>
+
+<h3>Replication Requirements:</h3>
+<ol>
+<li><strong>Dual Technology Support:</strong> Both Golden Gate and Click replication</li>
+<li><strong>Real-time Replication:</strong> Near real-time data synchronization</li>
+<li><strong>Storage-Level DR:</strong> Volume-level replication capabilities</li>
+<li><strong>Network Stretching:</strong> Consistent IP addressing across sites</li>
+</ol>
+
+<h3>Integration Requirements:</h3>
+<ol>
+<li><strong>External Connectivity:</strong> Site-to-site VPN capabilities</li>
+<li><strong>Authentication Integration:</strong> Okta and LDAP/AD connectivity</li>
+<li><strong>Third-Party Services:</strong> Secure connections to vendor-hosted services</li>
+<li><strong>File Transfer:</strong> Secure SFTP and Move-IT services</li>
+</ol>
+
+<h3>Testing Requirements:</h3>
+<ol>
+<li><strong>Annual DR Tests:</strong> Live production failover testing</li>
+<li><strong>RTO Targets:</strong> 5-minute failover for clean shutdowns</li>
+<li><strong>RPO Compliance:</strong> Customer-specific data loss tolerances</li>
+<li><strong>Contractual Obligations:</strong> Meet customer SLA requirements</li>
+</ol>
+
+<div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 10px; margin: 10px 0;">
+<h4>Document Information</h4>
+<p><strong>Assessment Team:</strong></p>
+<ul>
+<li>Venkata Kommuri (Lead Assessor)</li>
+<li>Technical Subject Matter Experts from Health Edge</li>
+<li>Infrastructure and Database Teams</li>
+</ul>
+<p><strong>Assessment Period:</strong> September 2024<br>
+<strong>Report Version:</strong> 1.0</p>
+</div>

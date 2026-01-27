@@ -10,18 +10,92 @@ interface ServerListItemProps {
 }
 
 const getStateStatus = (state: string): 'success' | 'info' | 'error' | 'warning' | 'stopped' | 'pending' | 'in-progress' | 'loading' => {
-  switch (state) {
+  const upperState = state.toUpperCase();
+  switch (upperState) {
+    case 'CONTINUOUS':
+    case 'CONTINUOUS_REPLICATION':
     case 'READY_FOR_RECOVERY':
       return 'success';
     case 'SYNCING':
     case 'INITIATED':
+    case 'INITIAL_SYNC':
       return 'in-progress';
     case 'DISCONNECTED':
     case 'STOPPED':
+    case 'STALLED':
       return 'error';
+    case 'PAUSED':
+      return 'stopped';
     default:
       return 'pending';
   }
+};
+
+const getStateLabel = (state: string): string => {
+  const upperState = state.toUpperCase();
+  switch (upperState) {
+    case 'CONTINUOUS':
+    case 'CONTINUOUS_REPLICATION':
+      return 'Ready';
+    case 'READY_FOR_RECOVERY':
+      return 'Ready';
+    case 'INITIAL_SYNC':
+      return 'Initial Sync';
+    case 'SYNCING':
+      return 'Syncing';
+    case 'DISCONNECTED':
+      return 'Disconnected';
+    case 'STOPPED':
+      return 'Stopped';
+    case 'STALLED':
+      return 'Stalled';
+    case 'PAUSED':
+      return 'Paused';
+    default:
+      return state;
+  }
+};
+
+const formatRecoveryResult = (type?: string, status?: string, time?: string): string => {
+  if (!type && !status) return '';
+  
+  const parts: string[] = [];
+  
+  // Add type (Drill or Recovery)
+  if (type) {
+    parts.push(type === 'DRILL' ? 'Drill' : type === 'RECOVERY' ? 'Recovery' : type);
+  }
+  
+  // Add status (Failed, Succeeded, etc)
+  if (status) {
+    const statusText = status === 'FAILED' ? 'Failed' : 
+                      status === 'SUCCEEDED' ? 'Succeeded' : 
+                      status === 'PENDING' ? 'Pending' : status;
+    parts.push(statusText);
+  }
+  
+  // Add relative time
+  if (time) {
+    const launchDate = new Date(time);
+    const now = new Date();
+    const diffMs = now.getTime() - launchDate.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    
+    if (diffDays > 1) {
+      parts.push(`${diffDays} days ago`);
+    } else if (diffDays === 1) {
+      parts.push('a day ago');
+    } else if (diffHours > 1) {
+      parts.push(`${diffHours} hours ago`);
+    } else if (diffHours === 1) {
+      parts.push('an hour ago');
+    } else {
+      parts.push('recently');
+    }
+  }
+  
+  return parts.join(', ');
 };
 
 export const ServerListItem: React.FC<ServerListItemProps> = ({
@@ -99,7 +173,7 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
               {displayName}
             </span>
             <StatusIndicator type={getStateStatus(state)}>
-              {state}
+              {getStateLabel(state)}
             </StatusIndicator>
             <span style={{ 
               fontSize: '11px', 
@@ -245,6 +319,49 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
                 </div>
               </div>
               
+              {/* Replication Health */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontWeight: 600, marginBottom: '6px', color: '#16191f' }}>Replication Health</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '4px 12px' }}>
+                  <span style={{ color: '#5f6b7a' }}>Ready for recovery:</span>
+                  <span>
+                    <StatusIndicator type={getStateStatus(state)}>
+                      {getStateLabel(state)}
+                    </StatusIndicator>
+                  </span>
+                  <span style={{ color: '#5f6b7a' }}>Data replication status:</span>
+                  <span>Healthy</span>
+                  {(server.lastLaunchType || server.lastLaunchStatus) && (
+                    <>
+                      <span style={{ color: '#5f6b7a' }}>Last recovery result:</span>
+                      <span>{formatRecoveryResult(server.lastLaunchType, server.lastLaunchStatus, server.lastLaunchTime)}</span>
+                    </>
+                  )}
+                  {server.lagDuration && server.lagDuration !== 'P0D' && (
+                    <>
+                      <span style={{ color: '#5f6b7a' }}>Replication lag:</span>
+                      <span>{server.lagDuration}</span>
+                    </>
+                  )}
+                  {server.lastSeen && (
+                    <>
+                      <span style={{ color: '#5f6b7a' }}>Last seen by service:</span>
+                      <span>{new Date(server.lastSeen).toLocaleString()}</span>
+                    </>
+                  )}
+                  {server.replicatedStorageBytes !== undefined && server.replicatedStorageBytes > 0 && (
+                    <>
+                      <span style={{ color: '#5f6b7a' }}>Replicated storage:</span>
+                      <span>{(server.replicatedStorageBytes / (1024**3)).toFixed(2)} GiB</span>
+                    </>
+                  )}
+                  <span style={{ color: '#5f6b7a' }}>Replicating from:</span>
+                  <span>{server.sourceAvailabilityZone || sourceRegion || 'N/A'}</span>
+                  <span style={{ color: '#5f6b7a' }}>Replicating to:</span>
+                  <span>{server.targetAvailabilityZone || 'N/A'}</span>
+                </div>
+              </div>
+              
               {/* All Tags */}
               {(() => {
                 // Combine all available tags - start with drsTags and ensure Name tag is included
@@ -292,6 +409,21 @@ export const ServerListItem: React.FC<ServerListItemProps> = ({
               border: '1px solid #f5c6cb'
             }}>
               ⚠️ Already assigned to: <strong>{assignedToProtectionGroup.protectionGroupName}</strong>
+            </div>
+          )}
+          
+          {/* Not ready status */}
+          {!selectable && !assignedToProtectionGroup && (
+            <div style={{ 
+              fontSize: '11px', 
+              color: '#d13212', 
+              marginTop: '6px',
+              padding: '4px 8px',
+              backgroundColor: '#fdf2f2',
+              borderRadius: '4px',
+              border: '1px solid #f5c6cb'
+            }}>
+              ⚠️ Server not ready for recovery - replication status: <strong>{getStateLabel(state)}</strong>
             </div>
           )}
         </div>

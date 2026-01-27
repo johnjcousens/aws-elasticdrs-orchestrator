@@ -31,6 +31,7 @@ from security_utils import (
     validate_aws_region,
     validate_drs_server_id,
     validate_email,
+    validate_file_path,
     validate_json_input,
     validate_protection_group_name,
     validate_uuid,
@@ -523,6 +524,323 @@ class TestCreateSecurityHeaders:
         """Should include Referrer-Policy."""
         headers = create_security_headers()
         assert "Referrer-Policy" in headers
+
+
+class TestValidateFilePath:
+    """Test validate_file_path function (Requirement 4: Defensive Security)."""
+
+    def test_allows_lambda_runtime_path(self):
+        """Should allow Lambda runtime paths like /var/task/frontend."""
+        path = "/var/task/frontend/index.html"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_lambda_task_directory(self):
+        """Should allow /var/task directory paths."""
+        path = "/var/task/frontend"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_tmp_directory(self):
+        """Should allow temporary directory paths like /tmp."""
+        path = "/tmp/build/output.js"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_tmp_root(self):
+        """Should allow /tmp root path."""
+        path = "/tmp"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_relative_paths(self):
+        """Should allow relative paths without traversal."""
+        path = "frontend/dist/index.html"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_absolute_paths(self):
+        """Should allow absolute paths without traversal."""
+        path = "/home/user/project/file.txt"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_paths_with_dots_in_filename(self):
+        """Should allow paths with dots in filename (not traversal)."""
+        path = "/var/task/frontend/app.config.js"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_hidden_files(self):
+        """Should allow hidden files starting with dot."""
+        path = "/var/task/.env"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_blocks_parent_directory_traversal(self):
+        """Should block .. path traversal patterns."""
+        path = "../../../etc/passwd"
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path(path)
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_traversal_in_middle_of_path(self):
+        """Should block .. traversal in middle of path."""
+        path = "/var/task/../../../etc/passwd"
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path(path)
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_url_encoded_traversal(self):
+        """Should block URL-encoded .. (%2e%2e) traversal."""
+        path = "%2e%2e/etc/passwd"
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path(path)
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_double_url_encoded_traversal(self):
+        """Should block double URL-encoded .. (%252e%252e) traversal."""
+        path = "%252e%252e/etc/passwd"
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path(path)
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_mixed_case_url_encoded_traversal(self):
+        """Should block mixed case URL-encoded traversal."""
+        path = "%2E%2E/etc/passwd"
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path(path)
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_raises_error_for_empty_path(self):
+        """Should raise error for empty path."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path("")
+        assert "cannot be empty" in str(exc_info.value)
+
+    def test_raises_error_for_none_path(self):
+        """Should raise error for None path."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path(None)
+        assert "cannot be empty" in str(exc_info.value)
+
+    def test_returns_path_unchanged(self):
+        """Should return valid path unchanged (defensive, not offensive)."""
+        original_path = "/var/task/frontend/dist/assets/index-abc123.js"
+        result = validate_file_path(original_path)
+        assert result == original_path
+
+    def test_allows_deep_nested_paths(self):
+        """Should allow deeply nested paths without traversal."""
+        path = "/var/task/frontend/dist/assets/js/vendor/lodash.min.js"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_paths_with_special_chars(self):
+        """Should allow paths with special characters (not traversal)."""
+        path = "/var/task/frontend/dist/assets/file-name_v1.2.3.js"
+        result = validate_file_path(path)
+        assert result == path
+
+
+class TestValidateFilePathDefensiveBehavior:
+    """Test that validate_file_path is defensive, not offensive."""
+
+    def test_does_not_modify_valid_paths(self):
+        """Defensive validation should NOT modify valid paths."""
+        test_paths = [
+            "/var/task/frontend/index.html",
+            "/tmp/build/output.js",
+            "relative/path/file.txt",
+            "/home/user/project/src/main.py",
+            "/var/task/.hidden/config.json",
+        ]
+
+        for path in test_paths:
+            result = validate_file_path(path)
+            assert result == path, f"Path was modified: {path} -> {result}"
+
+    def test_only_blocks_actual_attacks(self):
+        """Should only block actual path traversal attacks."""
+        # These should be blocked (actual attacks)
+        attack_paths = [
+            "../../../etc/passwd",
+            "../../secret.txt",
+            "/var/task/../../../etc/shadow",
+            "%2e%2e/etc/passwd",
+            "%252e%252e/etc/passwd",
+        ]
+
+        for path in attack_paths:
+            with pytest.raises(InputValidationError):
+                validate_file_path(path)
+
+    def test_allows_legitimate_operations(self):
+        """Should allow all legitimate Lambda operations."""
+        # These should all be allowed (legitimate operations)
+        legitimate_paths = [
+            "/var/task/frontend/dist/index.html",
+            "/var/task/frontend/dist/assets/index-abc123.js",
+            "/var/task/frontend/dist/assets/index-def456.css",
+            "/tmp/frontend-build/dist/index.html",
+            "/tmp/config.json",
+            "frontend/dist/index.html",
+            "assets/aws-config.js",
+        ]
+
+        for path in legitimate_paths:
+            result = validate_file_path(path)
+            assert result == path
+
+
+class TestValidateFilePathLambdaPaths:
+    """Test validate_file_path allows Lambda runtime paths (Requirement 4)."""
+
+    def test_allows_var_task_frontend(self):
+        """Should allow /var/task/frontend path."""
+        path = "/var/task/frontend"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_var_task_frontend_dist(self):
+        """Should allow /var/task/frontend/dist path."""
+        path = "/var/task/frontend/dist"
+        result = validate_file_path(path)
+        assert result == path
+
+    def test_allows_var_task_frontend_nested(self):
+        """Should allow deeply nested /var/task/frontend paths."""
+        paths = [
+            "/var/task/frontend/dist/index.html",
+            "/var/task/frontend/dist/assets/index-abc123.js",
+            "/var/task/frontend/dist/assets/css/styles.css",
+            "/var/task/frontend/dist/assets/images/logo.png",
+        ]
+
+        for path in paths:
+            result = validate_file_path(path)
+            assert result == path
+
+    def test_allows_tmp_directory(self):
+        """Should allow /tmp directory paths."""
+        paths = [
+            "/tmp",
+            "/tmp/build",
+            "/tmp/build/output.js",
+            "/tmp/frontend-build/dist/index.html",
+            "/tmp/config.json",
+        ]
+
+        for path in paths:
+            result = validate_file_path(path)
+            assert result == path
+
+    def test_allows_var_task_root(self):
+        """Should allow /var/task root path."""
+        path = "/var/task"
+        result = validate_file_path(path)
+        assert result == path
+
+
+class TestValidateFilePathBlocksTraversal:
+    """Test validate_file_path blocks path traversal patterns."""
+
+    def test_blocks_simple_traversal(self):
+        """Should block simple .. traversal."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path("../etc/passwd")
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_multiple_traversal(self):
+        """Should block multiple .. traversal."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path("../../../etc/passwd")
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_traversal_in_middle(self):
+        """Should block .. traversal in middle of path."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path("/var/task/../../../etc/passwd")
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_url_encoded_traversal_lowercase(self):
+        """Should block URL-encoded .. (%2e%2e) traversal."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path("%2e%2e/etc/passwd")
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_url_encoded_traversal_uppercase(self):
+        """Should block URL-encoded .. (%2E%2E) traversal."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path("%2E%2E/etc/passwd")
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_double_url_encoded_traversal(self):
+        """Should block double URL-encoded .. (%252e%252e) traversal."""
+        with pytest.raises(InputValidationError) as exc_info:
+            validate_file_path("%252e%252e/etc/passwd")
+        assert "Path traversal detected" in str(exc_info.value)
+
+    def test_blocks_mixed_traversal(self):
+        """Should block mixed traversal patterns."""
+        attack_paths = [
+            "..%2f..%2f..%2fetc/passwd",
+            "/var/task/..%2f..%2fetc/passwd",
+        ]
+
+        for path in attack_paths:
+            # These contain .. so should be blocked
+            if ".." in path:
+                with pytest.raises(InputValidationError):
+                    validate_file_path(path)
+
+
+class TestValidateFilePathDoesNotBlockLegitimate:
+    """Test validate_file_path does NOT block legitimate paths."""
+
+    def test_does_not_block_based_on_depth(self):
+        """Should NOT block paths based on directory depth."""
+        deep_path = "/var/task/frontend/dist/assets/js/vendor/lodash/core.min.js"
+        result = validate_file_path(deep_path)
+        assert result == deep_path
+
+    def test_does_not_block_absolute_paths(self):
+        """Should NOT block absolute paths without traversal."""
+        absolute_paths = [
+            "/var/task/frontend",
+            "/tmp/build",
+            "/home/user/project",
+            "/etc/config",  # Even sensitive paths without traversal
+        ]
+
+        for path in absolute_paths:
+            result = validate_file_path(path)
+            assert result == path
+
+    def test_does_not_block_dots_in_filenames(self):
+        """Should NOT block dots in filenames (not traversal)."""
+        paths = [
+            "/var/task/frontend/app.config.js",
+            "/var/task/frontend/.env",
+            "/var/task/frontend/file.min.js",
+            "/var/task/frontend/v1.2.3/index.js",
+        ]
+
+        for path in paths:
+            result = validate_file_path(path)
+            assert result == path
+
+    def test_does_not_block_hidden_files(self):
+        """Should NOT block hidden files starting with dot."""
+        paths = [
+            "/var/task/.env",
+            "/var/task/.hidden/config.json",
+            "/tmp/.cache/data.json",
+        ]
+
+        for path in paths:
+            result = validate_file_path(path)
+            assert result == path
 
 
 if __name__ == "__main__":
