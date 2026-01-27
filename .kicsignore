@@ -1,0 +1,34 @@
+# KICS ignore file - exclude paths from security scanning
+
+# Documentation (large files)
+docs/
+
+# Archive and history
+archive/
+
+# Dependencies
+**/node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Tests
+tests/e2e/
+
+# Build artifacts
+build/
+dist/
+**/*.zip
+
+# Git internals
+.git/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# Large binary files
+**/*.pdf
+**/*.pptx
+**/*.docx
+**/*.pack

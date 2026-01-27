@@ -12,7 +12,7 @@ Usage:
 
 import argparse
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
 
@@ -61,7 +61,9 @@ def add_target_account(table_name, account_id, account_name=None):
         try:
             response = table.get_item(Key={"AccountId": account_id})
             if "Item" in response:
-                print(f"✅ Account {account_id} already exists as a target account")
+                print(
+                    f"✅ Account {account_id} already exists as a target account"
+                )
                 return True
         except Exception as e:
             print(f"Error checking existing account: {e}")
@@ -71,8 +73,8 @@ def add_target_account(table_name, account_id, account_name=None):
             "AccountId": account_id,
             "IsCurrentAccount": True,
             "Status": "active",
-            "CreatedAt": datetime.utcnow().isoformat() + "Z",
-            "lastValidated": datetime.utcnow().isoformat() + "Z",
+            "CreatedAt": datetime.now(timezone.utc).isoformat() + "Z",
+            "lastValidated": datetime.now(timezone.utc).isoformat() + "Z",
         }
 
         if account_name:
@@ -87,7 +89,9 @@ def add_target_account(table_name, account_id, account_name=None):
         print(f"✅ Successfully added {account_display} as a target account")
         print("   - No cross-account role required (same account)")
         print("   - Status: Active")
-        print("   - You can now use the Dashboard and all DRS orchestration features")
+        print(
+            "   - You can now use the Dashboard and all DRS orchestration features"
+        )
 
         return True
 
@@ -138,7 +142,7 @@ def main():
     table_name = args.table_name
     if not table_name:
         # Try to detect from environment or use default pattern
-        table_name = "aws-elasticdrs-orchestrator-target-accounts-dev"
+        table_name = "aws-drs-orch-target-accounts-dev"
         print(f"📋 Using table name: {table_name}")
 
     # Add the account
@@ -148,11 +152,17 @@ def main():
         print("\n🎉 Setup complete!")
         print("   1. Refresh your browser")
         print("   2. The Dashboard should now load without errors")
-        print("   3. You can start creating Protection Groups and Recovery Plans")
+        print(
+            "   3. You can start creating Protection Groups and Recovery Plans"
+        )
         print("\n💡 Next steps:")
-        print("   - Go to Protection Groups to discover your DRS source servers")
+        print(
+            "   - Go to Protection Groups to discover your DRS source servers"
+        )
         print("   - Create Recovery Plans to orchestrate disaster recovery")
-        print("   - Use the Settings gear icon to manage additional target accounts")
+        print(
+            "   - Use the Settings gear icon to manage additional target accounts"
+        )
     else:
         print("\n❌ Setup failed. Please check the error messages above.")
         sys.exit(1)

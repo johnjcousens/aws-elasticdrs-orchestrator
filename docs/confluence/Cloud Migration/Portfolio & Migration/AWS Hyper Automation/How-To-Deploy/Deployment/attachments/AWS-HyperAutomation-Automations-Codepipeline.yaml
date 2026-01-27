@@ -1,0 +1,213 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CodePipeline to build and deploy a CloudFormation template for HyperAutomation-Automations
+
+Parameters:
+  S3Bucket:
+    Type: String
+    Description: The S3 bucket where the project is located and where built artifacts will be stored
+  ProjectZipFile:
+    Type: String
+    Description: The S3 object key for the project zip file
+  ParamFilePath:
+    Type: String
+    Description: The path to the parameter file for CloudFormation deployment
+
+Resources:
+  HyperAutomationCodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: HyperAutomationCodePipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
+                  - !Sub arn:aws:s3:::${S3Bucket}
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource: '*'
+
+  HyperAutomationCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: HyperAutomationCodeBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
+                  - !Sub arn:aws:s3:::${S3Bucket}
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+
+  HyperAutomationCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: HyperAutomationBuildProject
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
+        ComputeType: BUILD_GENERAL1_SMALL
+        ImagePullCredentialsType: 'CODEBUILD'
+        PrivilegedMode: True
+        EnvironmentVariables:
+          - Name: LAMBDA_ARTIFACT_BUCKET
+            Value: !Ref S3Bucket
+      ServiceRole: !GetAtt HyperAutomationCodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: 3.12
+            build:
+              commands:
+                - echo "Building the automations"
+                - mkdir -p cloudformation
+                # Build lambda layer
+                - (cd ./modules/automation_layer && make clean && make build)
+                # Build CMF Automation Packages
+                - (cd ./modules/cmf_automation_packages && make zip-only)
+                - aws cloudformation package --template-file modules/automations_stack.template.yaml --s3-bucket $LAMBDA_ARTIFACT_BUCKET --output-template-file cloudformation/packaged-resources.template.yaml
+          artifacts:
+            files:
+              - '**/*'
+
+  HyperAutomationCodeBuildProjectDeploy:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: HyperAutomationDeployProject
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0'
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: PARAM_FILE
+            Value: !Ref ParamFilePath
+      ServiceRole: !GetAtt HyperAutomationCodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            build:
+              commands:
+                - echo "Deploying with parameter file $PARAM_FILE"
+                - |
+                  aws cloudformation deploy \
+                    --template-file cloudformation/packaged-resources.template.yaml \
+                    --stack-name HA-Automation-Stack \
+                    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+                    --parameter-overrides file://$PARAM_FILE \
+                    --no-fail-on-empty-changeset
+                - echo "Uploading CMF Automation packages to S3"
+                - (cd ./modules/cmf_automation_packages && make sync-to-s3)
+          artifacts:
+            files:
+              - 'cloudformation/*.yaml'
+
+  HyperAutomationCodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: HyperAutomation-Automations
+      RoleArn: !GetAtt HyperAutomationCodePipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref S3Bucket
+      PipelineType: V2
+      ExecutionMode: QUEUED
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref S3Bucket
+                S3ObjectKey: !Ref ProjectZipFile
+              OutputArtifacts:
+                - Name: SourceArtifact
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref HyperAutomationCodeBuildProject
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref HyperAutomationCodeBuildProjectDeploy
+              InputArtifacts:
+                - Name: BuildArtifact
+              RunOrder: 1
+
+Outputs:
+  PipelineName:
+    Description: The CodePipeline for building and deploying HyperAutomation automations
+    Value: !Ref HyperAutomationCodePipeline

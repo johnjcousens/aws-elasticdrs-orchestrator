@@ -8,6 +8,41 @@ The AWS DRS Orchestration platform provides a comprehensive REST API with **42+ 
 **Authentication**: Cognito JWT Bearer token  
 **RBAC**: 5 roles with granular permissions (see [RBAC System](#rbac-system))
 
+## Lambda Handler Architecture
+
+The API is served by **3 specialized Lambda handlers** for optimal performance and separation of concerns:
+
+### 1. Data Management Handler
+**Function**: `data-management-handler`  
+**Purpose**: Create, update, delete operations for configuration data  
+**Endpoints**:
+- Protection Groups (6 endpoints)
+- Recovery Plans (6 endpoints)
+- Target Accounts (5 endpoints)
+- Tag Sync & Configuration (4 endpoints)
+
+### 2. Execution Handler
+**Function**: `execution-handler`  
+**Purpose**: Recovery execution control and monitoring  
+**Endpoints**:
+- Executions (11 endpoints)
+- Execution control (pause, resume, cancel, terminate)
+- DRS job monitoring
+
+### 3. Query Handler
+**Function**: `query-handler`  
+**Purpose**: Read-only queries and resource discovery  
+**Endpoints**:
+- DRS Integration (4 endpoints)
+- EC2 Resources (4 endpoints)
+- Configuration Export (1 endpoint)
+- User Permissions (1 endpoint)
+
+### Supporting Handlers
+- **frontend-deployer**: Frontend build and deployment (internal)
+- **orch-sf**: Step Functions orchestration logic (internal)
+- **notification-formatter**: SNS notification routing (internal)
+
 ## API Categories
 
 1. [Protection Groups](#1-protection-groups) - 6 endpoints
@@ -23,6 +58,8 @@ The AWS DRS Orchestration platform provides a comprehensive REST API with **42+ 
 ---
 
 ## 1. Protection Groups
+
+**Handler**: `data-management-handler`
 
 Manage logical groupings of DRS source servers for coordinated recovery.
 
@@ -100,6 +137,8 @@ Preview servers that would be selected by tag-based criteria.
 ---
 
 ## 2. Recovery Plans
+
+**Handler**: `data-management-handler`
 
 Manage multi-wave disaster recovery execution plans.
 
@@ -187,9 +226,13 @@ Check for existing recovery instances before execution.
 
 **Response:** Array of existing recovery instances that would conflict
 
+**Status**: ⚠️ Not yet implemented (returns 501)
+
 ---
 
 ## 3. Executions
+
+**Handler**: `execution-handler`
 
 Monitor and control disaster recovery executions.
 
@@ -298,6 +341,8 @@ Delete specific executions by IDs.
 
 ## 4. DRS Integration
 
+**Handler**: `query-handler`
+
 Direct integration with AWS Elastic Disaster Recovery service.
 
 ### `GET /drs/source-servers`
@@ -339,6 +384,8 @@ Get available DRS-enabled accounts.
 ---
 
 ## 5. Account Management
+
+**Handler**: `data-management-handler`
 
 Manage cross-account DRS operations and target accounts.
 
@@ -396,6 +443,8 @@ Get current account information.
 
 ## 6. EC2 Resources
 
+**Handler**: `query-handler`
+
 Retrieve EC2 resources for launch configuration dropdowns.
 
 ### `GET /ec2/subnets`
@@ -436,6 +485,8 @@ Get available EC2 instance types.
 ---
 
 ## 7. Configuration
+
+**Handlers**: `query-handler` (export), `data-management-handler` (import, tag-sync)
 
 Export/import configuration and manage settings.
 
@@ -478,6 +529,8 @@ Update tag synchronization settings.
 
 ## 8. User Management
 
+**Handler**: `query-handler`
+
 User permissions and role information.
 
 ### `GET /user/permissions`
@@ -499,6 +552,8 @@ Get current user's roles and permissions.
 ---
 
 ## 9. Health Check
+
+**Handler**: All handlers support health checks
 
 Service health monitoring.
 

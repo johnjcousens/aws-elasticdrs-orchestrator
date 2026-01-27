@@ -110,6 +110,7 @@ export const RecoveryPlansPage: React.FC = () => {
   useEffect(() => {
     fetchPlans();
     checkInProgressExecutions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
@@ -130,6 +131,7 @@ export const RecoveryPlansPage: React.FC = () => {
       clearInterval(plansInterval);
       clearInterval(executionInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   useEffect(() => {
@@ -141,6 +143,7 @@ export const RecoveryPlansPage: React.FC = () => {
     
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   useEffect(() => {
@@ -269,6 +272,7 @@ export const RecoveryPlansPage: React.FC = () => {
     }
 
     await executeRecoveryPlanInternal(plan, executionType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [executing, checkingInstances]);
 
   const executeRecoveryPlanInternal = useCallback(async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
@@ -411,14 +415,14 @@ export const RecoveryPlansPage: React.FC = () => {
                 id: 'edit', 
                 text: 'Edit', 
                 iconName: 'edit', 
-                disabled: hasInProgressExecution,
+                disabled: hasInProgressExecution || hasServerConflict,
                 requiredPermission: DRSPermission.MODIFY_RECOVERY_PLANS
               },
               { 
                 id: 'delete', 
                 text: 'Delete', 
                 iconName: 'remove', 
-                disabled: hasInProgressExecution,
+                disabled: hasInProgressExecution || hasServerConflict,
                 requiredPermission: DRSPermission.DELETE_RECOVERY_PLANS
               },
             ]}
@@ -485,6 +489,8 @@ export const RecoveryPlansPage: React.FC = () => {
       cell: (item: RecoveryPlan) => {
         // Show active execution status if plan has one in progress
         const hasActiveExecution = plansWithInProgressExecution.has(item.planId);
+        const hasServerConflict = item.hasServerConflict === true;
+        
         if (hasActiveExecution) {
           const progress = executionProgress.get(item.planId);
           if (progress) {
@@ -500,11 +506,26 @@ export const RecoveryPlansPage: React.FC = () => {
           return <StatusBadge status="in_progress" />;
         }
         
-        // Show last execution status if no active execution
-        if (!item.lastExecutionStatus) {
+        // Show last execution status (not "Blocked")
+        // Conflict detection only affects ability to start new executions, not status display
+        const lastStatus = item.lastExecutionStatus;
+        if (!lastStatus) {
           return <Badge>Not Run</Badge>;
         }
-        return <StatusBadge status={item.lastExecutionStatus} />;
+        
+        // Show status with conflict indicator if servers are blocked
+        if (hasServerConflict) {
+          return (
+            <SpaceBetween direction="vertical" size="xxxs">
+              <StatusBadge status={lastStatus} />
+              <Box variant="small" color="text-status-warning" fontSize="body-s">
+                ⚠️ Cannot start: servers in use by another plan
+              </Box>
+            </SpaceBetween>
+          );
+        }
+        
+        return <StatusBadge status={lastStatus} />;
       },
     },
     {

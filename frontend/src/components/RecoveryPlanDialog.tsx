@@ -290,7 +290,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                 >
                   <Input
                     value={name}
-                    onChange={({ detail }) => setName(detail.value)}
+                    onChange={({ detail }: { detail: { value: string } }) => setName(detail.value)}
                     placeholder="e.g., Production Recovery Plan"
                     disabled={loading}
                     autoFocus
@@ -303,7 +303,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
                 >
                   <Textarea
                     value={description}
-                    onChange={({ detail }) => setDescription(detail.value)}
+                    onChange={({ detail }: { detail: { value: string } }) => setDescription(detail.value)}
                     placeholder="e.g., Recovery plan for all production servers"
                     rows={2}
                     disabled={loading}

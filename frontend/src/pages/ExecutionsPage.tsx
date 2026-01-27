@@ -121,6 +121,7 @@ export const ExecutionsPage: React.FC = () => {
   // Initial fetch
   useEffect(() => {
     fetchExecutions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-refresh polling - runs independently every 3 seconds when there are active executions
@@ -166,19 +167,8 @@ export const ExecutionsPage: React.FC = () => {
         return;
       }
 
-      // Debug: Log selected items and their statuses
-      console.log('Selected items for deletion:', selectedItems.map(item => ({
-        executionId: item.executionId,
-        status: item.status,
-        recoveryPlanName: item.recoveryPlanName
-      })));
-
-      // Delete selected executions by ID
       const executionIds = selectedItems.map(item => item.executionId);
-      console.log('Calling deleteExecutions with IDs:', executionIds);
-      
       const result = await apiClient.deleteExecutions(executionIds);
-      console.log('Delete result:', result);
       
       // Show detailed results to user
       if (result.deletedCount > 0) {
@@ -282,6 +272,43 @@ export const ExecutionsPage: React.FC = () => {
     return true;
   });
 
+  // Calculate current wave number from waves array (more accurate than API currentWave)
+  const calculateCurrentWaveDisplay = (execution: ExecutionListItem): number => {
+    const waves = execution.waves || [];
+    const total = execution.totalWaves || waves.length || 1;
+    
+    // If execution is completed, show total waves
+    const status = execution.status?.toUpperCase() || '';
+    if (status === 'COMPLETED') {
+      return total;
+    }
+    
+    // Active statuses that indicate a wave is currently running
+    const activeStatuses = ['IN_PROGRESS', 'POLLING', 'LAUNCHING', 'STARTED', 'INITIATED', 'PENDING'];
+    // Completed statuses
+    const completedStatuses = ['COMPLETED', 'LAUNCHED'];
+    
+    // Find the first active wave (1-indexed for display)
+    for (let i = 0; i < waves.length; i++) {
+      const waveStatus = ((waves[i] as { status?: string }).status || '').toUpperCase();
+      if (activeStatuses.includes(waveStatus)) {
+        return i + 1; // 1-indexed
+      }
+    }
+    
+    // If no active wave, count completed waves
+    let completedCount = 0;
+    for (const wave of waves) {
+      const waveStatus = ((wave as { status?: string }).status || '').toUpperCase();
+      if (completedStatuses.includes(waveStatus)) {
+        completedCount++;
+      }
+    }
+    
+    // Return completed count (or 1 if none completed yet)
+    return completedCount > 0 ? completedCount : 1;
+  };
+
   const calculateProgress = (execution: ExecutionListItem): number => {
     if (execution.status !== 'in_progress' || !execution.currentWave) return 0;
     return (execution.currentWave / execution.totalWaves) * 100;
@@ -378,7 +405,7 @@ export const ExecutionsPage: React.FC = () => {
 
           <Tabs
             activeTabId={activeTabId}
-            onChange={({ detail }) => setActiveTabId(detail.activeTabId)}
+            onChange={({ detail }: { detail: { activeTabId: string } }) => setActiveTabId(detail.activeTabId)}
             tabs={[
               {
                 id: 'active',
@@ -402,15 +429,15 @@ export const ExecutionsPage: React.FC = () => {
                           <SpaceBetween size="m">
                             <SpaceBetween direction="horizontal" size="m">
                               <StatusBadge status={execution.status} />
-                              {execution.currentWave && (
+                              {execution.totalWaves && (
                                 <Box color="text-body-secondary">
-                                  Wave {execution.status === 'completed' ? execution.totalWaves : execution.currentWave} of {execution.totalWaves}
+                                  Wave {calculateCurrentWaveDisplay(execution)} of {execution.totalWaves}
                                 </Box>
                               )}
                               <DateTimeDisplay value={execution.startTime} format="full" />
                               <Box color="text-body-secondary">Duration: {calculateDuration(execution)}</Box>
                             </SpaceBetween>
-                            {execution.status === 'in_progress' && execution.currentWave && (
+                            {execution.status?.toUpperCase() === 'IN_PROGRESS' && execution.currentWave && (
                               <Box>
                                 <SpaceBetween direction="horizontal" size="xs">
                                   <Box variant="small" color="text-body-secondary">Progress</Box>
@@ -502,14 +529,14 @@ export const ExecutionsPage: React.FC = () => {
                           <FormField label="From Date">
                             <DateInput
                               value={startDate}
-                              onChange={({ detail }) => setStartDate(detail.value)}
+                              onChange={({ detail }: { detail: { value: string } }) => setStartDate(detail.value)}
                               placeholder="MM-DD-YYYY"
                             />
                           </FormField>
                           <FormField label="To Date">
                             <DateInput
                               value={endDate}
-                              onChange={({ detail }) => setEndDate(detail.value)}
+                              onChange={({ detail }: { detail: { value: string } }) => setEndDate(detail.value)}
                               placeholder="MM-DD-YYYY"
                             />
                           </FormField>

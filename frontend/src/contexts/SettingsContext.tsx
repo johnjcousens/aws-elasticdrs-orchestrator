@@ -7,6 +7,7 @@
 
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { setTheme } from '../styles/cloudscape-theme';
 
 interface UserSettings {
   defaultAccountId?: string;
@@ -42,6 +43,10 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings);
           setSettings(parsed);
+          // Apply saved theme
+          if (parsed.theme) {
+            setTheme(parsed.theme);
+          }
         }
       } catch (error) {
         console.warn('Failed to load user settings:', error);
@@ -54,6 +59,11 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     const updatedSettings = { ...settings, ...newSettings };
     setSettings(updatedSettings);
+
+    // Apply theme change immediately
+    if (newSettings.theme) {
+      setTheme(newSettings.theme);
+    }
 
     if (isAuthenticated && user) {
       try {

@@ -14,13 +14,11 @@ Parameters:
     Type: String
     Description: 'Admin email for critical notifications'
   
-  NotificationEmail:
+  EnableNotifications:
     Type: String
-    Default: ''
-    Description: 'Optional: Additional email for execution notifications'
-
-Conditions:
-  HasNotificationEmail: !Not [!Equals [!Ref NotificationEmail, '']]
+    Description: 'Enable email notifications (true/false)'
+    Default: 'true'
+    AllowedValues: ['true', 'false']
 
 Resources:
   # ===== EXECUTION NOTIFICATIONS =====
@@ -37,14 +35,6 @@ Resources:
       Protocol: email
       TopicArn: !Ref ExecutionNotificationsTopic
       Endpoint: !Ref AdminEmail
-      
-  ExecutionNotificationsSubscriptionOptional:
-    Type: AWS::SNS::Subscription
-    Condition: HasNotificationEmail
-    Properties:
-      Protocol: email
-      TopicArn: !Ref ExecutionNotificationsTopic
-      Endpoint: !Ref NotificationEmail
 
   # ===== DRS OPERATIONAL ALERTS =====
   
@@ -61,19 +51,19 @@ Resources:
       TopicArn: !Ref DRSOperationalAlertsTopic
       Endpoint: !Ref AdminEmail
 
-  # ===== APPROVAL WORKFLOW TOPIC =====
+  # ===== EXECUTION PAUSE TOPIC =====
   
-  ApprovalWorkflowTopic:
+  ExecutionPauseTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: !Sub '${ProjectName}-approval-workflow-${Environment}'
-      DisplayName: 'DRS Orchestration Approval Workflow'
+      TopicName: !Sub '${ProjectName}-execution-pause-${Environment}'
+      DisplayName: 'DRS Orchestration Execution Pause'
       
-  ApprovalWorkflowSubscription:
+  ExecutionPauseSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: email
-      TopicArn: !Ref ApprovalWorkflowTopic
+      TopicArn: !Ref ExecutionPauseTopic
       Endpoint: !Ref AdminEmail
 
   # ===== EVENTBRIDGE RULES FOR DRS EVENTS =====
@@ -174,13 +164,13 @@ Resources:
             Action: sns:Publish
             Resource: !Ref DRSOperationalAlertsTopic
 
-  ApprovalWorkflowTopicPolicy:
+  ExecutionPauseTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
       Topics:
-        - !Ref ApprovalWorkflowTopic
+        - !Ref ExecutionPauseTopic
       PolicyDocument:
-        Id: ApprovalWorkflowTopicPolicy
+        Id: ExecutionPauseTopicPolicy
         Version: '2012-10-17'
         Statement:
           - Sid: AllowStepFunctionsPublish
@@ -188,7 +178,7 @@ Resources:
             Principal:
               Service: states.amazonaws.com
             Action: sns:Publish
-            Resource: !Ref ApprovalWorkflowTopic
+            Resource: !Ref ExecutionPauseTopic
 
   # ===== NOTIFICATION FORMATTER LAMBDA =====
   
@@ -216,7 +206,7 @@ Resources:
                 Resource:
                   - !Ref ExecutionNotificationsTopic
                   - !Ref DRSOperationalAlertsTopic
-                  - !Ref ApprovalWorkflowTopic
+                  - !Ref ExecutionPauseTopic
 
 Outputs:
   ExecutionNotificationsTopicArn:
@@ -231,11 +221,11 @@ Outputs:
     Export:
       Name: !Sub '${ProjectName}-drs-alerts-topic-${Environment}'
 
-  ApprovalWorkflowTopicArn:
-    Description: 'ARN of the Approval Workflow SNS Topic'
-    Value: !Ref ApprovalWorkflowTopic
+  ExecutionPauseTopicArn:
+    Description: 'ARN of the Execution Pause SNS Topic'
+    Value: !Ref ExecutionPauseTopic
     Export:
-      Name: !Sub '${ProjectName}-approval-workflow-topic-${Environment}'
+      Name: !Sub '${ProjectName}-execution-pause-topic-${Environment}'
 
   NotificationFormatterRoleArn:
     Description: 'ARN of the Notification Formatter Lambda Role'

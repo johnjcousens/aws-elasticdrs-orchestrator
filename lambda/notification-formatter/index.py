@@ -4,17 +4,17 @@ AWS DRS Orchestration - Notification Formatter Lambda Function
 This function formats and sends notifications for various DRS orchestration events:
 - Execution status updates (started, completed, failed, paused)
 - DRS operational alerts (recovery failures, replication issues)
-- Approval workflow notifications
+- Execution pause notifications (for manual intervention)
 - System health alerts
 
 Author: AWS DRS Orchestration Team
-Version: 1.0.0
+Version: 1.1.0
 """
 
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 import boto3
@@ -29,9 +29,10 @@ sns = boto3.client("sns")
 # Environment variables
 EXECUTION_TOPIC_ARN = os.environ.get("EXECUTION_NOTIFICATIONS_TOPIC_ARN")
 DRS_ALERTS_TOPIC_ARN = os.environ.get("DRS_ALERTS_TOPIC_ARN")
-APPROVAL_TOPIC_ARN = os.environ.get("APPROVAL_WORKFLOW_TOPIC_ARN")
+EXECUTION_PAUSE_TOPIC_ARN = os.environ.get("EXECUTION_PAUSE_TOPIC_ARN")
 PROJECT_NAME = os.environ.get("PROJECT_NAME", "aws-elasticdrs-orchestrator")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -57,8 +58,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_execution_notification(event)
         elif notification_type == "drs_alert":
             return handle_drs_alert_notification(event)
-        elif notification_type == "approval":
-            return handle_approval_notification(event)
+        elif notification_type == "pause":
+            return handle_pause_notification(event)
         else:
             logger.error(f"Unknown notification type: {notification_type}")
             return {
@@ -161,47 +162,53 @@ def handle_drs_alert_notification(event: Dict[str, Any]) -> Dict[str, Any]:
         raise
 
 
-def handle_approval_notification(event: Dict[str, Any]) -> Dict[str, Any]:
+def handle_pause_notification(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Handle approval workflow notifications.
+    Handle execution pause notifications.
+
+    Sends notifications when an execution is paused for manual intervention,
+    such as wave completion verification or protection group pause.
 
     Args:
-        event: Event containing approval workflow data
+        event: Event containing pause notification data
 
     Returns:
         Dict containing response status
     """
     try:
-        approval_data = event.get("approvalData", {})
-        execution_id = approval_data.get("executionId", "Unknown")
-        wave_name = approval_data.get("waveName", "Unknown")
-        approve_url = approval_data.get("approveUrl", "")
-        reject_url = approval_data.get("rejectUrl", "")
+        pause_data = event.get("pauseData", {})
+        execution_id = pause_data.get("executionId", "Unknown")
+        protection_group_name = pause_data.get(
+            "protectionGroupName", "Unknown"
+        )
+        pause_reason = pause_data.get("pauseReason", "Manual pause")
 
-        # Format approval message
-        subject, message = format_approval_message(
-            execution_id, wave_name, approve_url, reject_url, approval_data
+        # Format pause message
+        subject, message = format_pause_message(
+            execution_id, protection_group_name, pause_reason, pause_data
         )
 
         # Send notification
         response = sns.publish(
-            TopicArn=APPROVAL_TOPIC_ARN, Subject=subject, Message=message
+            TopicArn=EXECUTION_PAUSE_TOPIC_ARN,
+            Subject=subject,
+            Message=message,
         )
 
-        logger.info(f"Approval notification sent: {response['MessageId']}")
+        logger.info(f"Pause notification sent: {response['MessageId']}")
 
         return {
             "statusCode": 200,
             "body": json.dumps(
                 {
-                    "message": "Approval notification sent successfully",
+                    "message": "Pause notification sent successfully",
                     "messageId": response["MessageId"],
                 }
             ),
         }
 
     except Exception as e:
-        logger.error(f"Error sending approval notification: {str(e)}")
+        logger.error(f"Error sending pause notification: {str(e)}")
         raise
 
 
@@ -223,7 +230,7 @@ def format_execution_message(
     Returns:
         Tuple of (subject, message)
     """
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # Status-specific formatting
     status_messages = {
@@ -357,7 +364,7 @@ def format_drs_alert_message(
     Returns:
         Tuple of (subject, message)
     """
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     subject = f"🚨 DRS Alert: {alert_type} - {source_server_id}"
 
@@ -415,69 +422,63 @@ Environment: {ENVIRONMENT}
     return subject, message
 
 
-def format_approval_message(
+def format_pause_message(
     execution_id: str,
-    wave_name: str,
-    approve_url: str,
-    reject_url: str,
-    approval_data: Dict[str, Any],
+    protection_group_name: str,
+    pause_reason: str,
+    pause_data: Dict[str, Any],
 ) -> tuple[str, str]:
     """
-    Format approval workflow message.
+    Format execution pause notification message.
 
     Args:
         execution_id: Execution identifier
-        wave_name: Name of the wave requiring approval
-        approve_url: URL to approve the execution
-        reject_url: URL to reject the execution
-        approval_data: Additional approval data
+        protection_group_name: Name of the protection group
+        pause_reason: Reason for the pause
+        pause_data: Additional pause data
 
     Returns:
         Tuple of (subject, message)
     """
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-    recovery_plan_name = approval_data.get("recoveryPlanName", "Unknown")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    recovery_plan_name = pause_data.get("recoveryPlanName", "Unknown")
+    current_wave = pause_data.get("currentWave", "Unknown")
+    total_waves = pause_data.get("totalWaves", "Unknown")
+    resume_instructions = pause_data.get(
+        "resumeInstructions",
+        "Use the DRS Orchestration console or API to resume this execution.",
+    )
 
-    subject = f"⏳ Approval Required: {wave_name} - {recovery_plan_name}"
+    subject = f"⏸️ Execution Paused: {protection_group_name}"
+
+    # Build console URL
+    console_url = (
+        f"https://{AWS_REGION}.console.aws.amazon.com/cloudformation/home"
+        f"?region={AWS_REGION}#/stacks"
+    )
 
     message = f"""
-⏳ AWS DRS Orchestration - Approval Required
+⏸️ AWS DRS Orchestration - Execution Paused
 
 Execution Details:
 • Execution ID: {execution_id}
+• Protection Group: {protection_group_name}
 • Recovery Plan: {recovery_plan_name}
-• Wave: {wave_name}
+• Pause Reason: {pause_reason}
 • Timestamp: {timestamp}
 • Environment: {ENVIRONMENT.upper()}
 
-Approval Request:
-The execution has paused before starting wave "{wave_name}" and requires your approval to continue.
+Wave Progress:
+• Current Wave: {current_wave}
+• Total Waves: {total_waves}
 
-Wave Information:
-"""
+To Resume:
+{resume_instructions}
 
-    # Add wave details if available
-    wave_servers = approval_data.get("waveServers", [])
-    if wave_servers:
-        message += f"• Servers in this wave: {len(wave_servers)}\n"
-        for server in wave_servers[:5]:  # Show first 5 servers
-            message += f"  - {server.get('hostname', server.get('sourceServerId', 'Unknown'))}\n"
-        if len(wave_servers) > 5:
-            message += f"  ... and {len(wave_servers) - 5} more servers\n"
-
-    message += f"""
-Actions Required:
-Please review the wave configuration and choose one of the following actions:
-
-✅ APPROVE: Continue with the execution
-{approve_url}
-
-❌ REJECT: Cancel the execution
-{reject_url}
+Console URL: {console_url}
 
 ---
-Note: This approval request will expire after 24 hours.
-AWS DRS Orchestration Console: https://console.aws.amazon.com/cloudformation/home
+Note: The execution will remain paused until manually resumed.
 Project: {PROJECT_NAME}
 Environment: {ENVIRONMENT}
 """

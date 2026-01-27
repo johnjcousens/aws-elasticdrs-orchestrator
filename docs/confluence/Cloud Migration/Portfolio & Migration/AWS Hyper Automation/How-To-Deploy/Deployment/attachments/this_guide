@@ -1,0 +1,124 @@
+## Cutover.com initial setup
+
+### Initial Setup and Configuration
+
+<table>
+    <colgroup>
+        <col></col>
+        <col></col>
+        <col></col>
+        <col></col>
+        <col></col>
+        <col></col>
+    </colgroup>
+    <tbody>
+        <tr>
+            <th>Step</th>
+            <th>Task Name</th>
+            <th>Description</th>
+            <th>Role Owner</th>
+            <th>Requirements</th>
+            <th>Important Notes</th>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>
+                <p>Request Cutover License on Behalf of the Customer</p>
+            </td>
+            <td>
+                <p>If using a Cutover license, an AWS delivery team member or opportunity owner will need to request a license on behalf of the customer.</p>
+            </td>
+            <td>ESM/Engagement Manager</td>
+            <td>
+                <ul>
+                 <li>Ensure Customer has eigned a Cutover EULA prior to requesting a license </li>
+                 <li>Submit a ticket via SIM and fill out all fields. You may need to work with your customer to gather some of the information.</li>
+                 <li>AWS internal approver will review and approve the ticket and set up a Cutover instance within 5 business days </li>
+                 <li>If the customer would like to use Cutover Connect, please indicate to the Cutover team now (~$30k to enable); see next section for guidance on Cutover Connect and other options. </li>
+                </ul>
+            </td>
+            <td>
+                <p>Link to full instructions and information needed can be found <a href="https://w.amazon.com/bin/view/AWS/Teams/Proserve/MigrationModernizationGPO/Cutover/#HHowtorequestaLicenseforanendcustomer">here</a>
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>
+                <p>Required Cutover Features for Hyper Automation</p>
+            </td>
+            <td>
+                <p>In order to support automation, Cutover will need to be configured with the following features. This should be requested from the cutover team as part of the customer's instance set up.</p>
+            </td>
+            <td>ESM/Engagement Manager</td>
+            <td>
+                <ul>
+                 <li>Branching</li>
+                 <li>Runbook Templates</li>
+                 <li>Custom Fields</li>
+                 <li>Task Type Integrations</li>
+                 <li>Cutover Connect (Optional, based on deployment decision). See Architecture</li>
+                 <li>Private Link (Optional, based on deployment decision). See Architecture</li>
+                </ul>
+            </td>
+            <td>
+             <p>Link to Cutover Client Instance Configuration <a href="https://dk-knowledgebase.pages.aws.dev/dk-migration-accelerator/Delivery-Kit/Artifacts/Cutover-Client-Instance-Configuration-Form/">Form</a></p>
+            </td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>
+                <p>Single Sign On (SSO)</p>
+            </td>
+            <td>
+                <p>Customer will need to establish SSO with their preferred Identity Provider (IdP).</p>
+            </td>
+            <td>Customer's Cutover Application Owner</td>
+            <td>
+            </td>
+            <td>
+            </td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>
+                <p>Onboard AWS Delivery Team</p>
+            </td>
+            <td>
+                <p>Customer will need to invite and provide RBAC to AWS delivery team members.</p>
+            </td>
+            <td>Customer's Cutover Application Owner</td>
+            <td>
+                <ul>
+                 <li>Assign AWS Delivery team members according to AWS AppSec Usage Policy </li>
+                 <li>Assign customer team roles (customer establish internal RBAC)</li>
+                </ul>
+            </td>
+            <td>
+             <p>AWS Usage Policy and Level of Access Roles by AWS AppSec <a href="https://w.amazon.com/bin/view/AWS/Teams/Proserve/MigrationModernizationGPO/Cutover/CutoverCollaborationSpace/#HUsagePolicy28AWSOnly29">Link</a></p>
+            </td>
+        </tr>
+        <tr>
+            <td>5</td>
+            <td>
+                <p>Create Workspaces</p>
+            </td>
+            <td>
+                <p>To get started, Cutover Workspaces will be used to host runbooks.</p>
+            </td>
+            <td>Customer's Cutover Application Owner OR AWS Engagement Manager</td>
+            <td>
+                <ul>
+                 <li>Ensure you have role access to create workspaces </li>
+                 <li>Click the '+' buttom in the bottom right corner to add a workspace </li>
+                 <li>To add members, go back to the left navigation bar and click 'Access Management' </li>
+                 <li>From there, you can sort by your workspace and '+' to manually or bulk upload users and assign access roles</li>
+                </ul>
+            </td>
+            <td>
+             <p>Navigating a Workspace <a href=" https://help.cutover.com/en/articles/5850376-navigate-your-workspace">Link</a></p>
+            </td>
+        </tr>
+    </tbody>
+</table>
+

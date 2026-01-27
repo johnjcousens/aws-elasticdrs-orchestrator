@@ -56,6 +56,7 @@ export const ProtectionGroupsPage: React.FC = () => {
   useEffect(() => {
     fetchGroups();
     fetchRecoveryPlansForGroupCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-refresh every 30 seconds, but pause when any dialog is open
@@ -68,6 +69,7 @@ export const ProtectionGroupsPage: React.FC = () => {
     }, 30000);
     
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchRecoveryPlansForGroupCheck = async () => {
@@ -111,6 +113,16 @@ export const ProtectionGroupsPage: React.FC = () => {
             groupIds.forEach(gid => activeGroupIds.add(String(gid).replace(/[^a-zA-Z0-9\-_]/g, '')));
           }
         });
+        
+        // Also check for plans with server conflicts (DRS jobs)
+        plans.forEach((plan: { hasServerConflict?: boolean; planId?: string }) => {
+          if (plan.hasServerConflict && plan.planId) {
+            const sanitizedPlanId = String(plan.planId).replace(/[^a-zA-Z0-9\-_]/g, '');
+            const groupIds = planToGroups[sanitizedPlanId] || [];
+            groupIds.forEach(gid => activeGroupIds.add(String(gid).replace(/[^a-zA-Z0-9\-_]/g, '')));
+          }
+        });
+        
         setGroupsInActiveExecutions(activeGroupIds);
       } catch (err) {
         console.error('Failed to check active executions:', err);
@@ -128,8 +140,8 @@ export const ProtectionGroupsPage: React.FC = () => {
       const data = await apiClient.listProtectionGroups(accountId ? { accountId } : undefined);
       // Defensive check: ensure data is an array
       setGroups(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to load protection groups';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load protection groups';
       setError(errorMessage);
       addNotification('error', errorMessage);
     } finally {
@@ -152,8 +164,8 @@ export const ProtectionGroupsPage: React.FC = () => {
       addNotification('success', `Protection group "${groupToDelete.groupName}" deleted successfully`);
       setDeleteDialogOpen(false);
       setGroupToDelete(null);
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to delete protection group';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete protection group';
       setError(errorMessage);
       addNotification('error', errorMessage);
       setDeleteDialogOpen(false);

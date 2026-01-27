@@ -1,0 +1,18 @@
+# cfn_nag deny list - Rules to ignore
+# These rules are intentionally suppressed with justification
+
+RulesToSuppress:
+  # W92: Lambda functions should define ReservedConcurrentExecutions
+  # Justification: Reserved concurrency not needed for DR orchestration workloads
+  - id: W92
+    reason: "DR orchestration Lambdas use on-demand concurrency"
+
+  # W89: Lambda functions should be deployed inside a VPC
+  # Justification: These Lambdas need internet access for AWS API calls
+  - id: W89
+    reason: "Lambdas require internet access for AWS service APIs"
+
+  # W58: Lambda functions require permission to write CloudWatch Logs
+  # Justification: Permissions granted via execution role, not inline
+  - id: W58
+    reason: "CloudWatch Logs permissions in execution role"

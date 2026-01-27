@@ -1,0 +1,253 @@
+=================================================
+Oracle Basic Health Check Script
+=================================================
+Run Date: Mon Nov 10 13:45:20 EST 2025
+
+1. Oracle Environments from /etc/oratab:
+---------------------------------------
+SID: MONCPYTT
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+SID: MONCDWTT
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+SID: MONCPYTR
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+SID: MONCDWTR
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+SID: MONCPYCF
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+SID: MONCDWCF
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+SID: MONCPYDM
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+SID: MONCDWDM
+ORACLE_HOME: /u01/app/oracle/product/19c/db_1
+Status: Y
+-------------------
+
+2. Oracle PMON Processes:
+-----------------------
+oracle      3741       1  0 12:37 ?        00:00:00 ora_pmon_MONCPYTT
+oracle      6561       1  0 12:38 ?        00:00:00 ora_pmon_MONCDWTT
+oracle      8281       1  0 12:38 ?        00:00:00 ora_pmon_MONCPYTR
+oracle     14329       1  0 12:38 ?        00:00:00 ora_pmon_MONCDWTR
+oracle     17208       1  0 12:38 ?        00:00:00 ora_pmon_MONCPYCF
+oracle     19593       1  0 12:39 ?        00:00:00 ora_pmon_MONCDWCF
+oracle     20241       1  0 12:39 ?        00:00:00 ora_pmon_MONCPYDM
+oracle     21016       1  0 12:39 ?        00:00:00 ora_pmon_MONCDWDM
+
+3. Database Status for each instance:
+-----------------------------------
+Checking database: MONCPYTT
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCPYTT  29-MAR-22 READ WRITE           PRIMARY
+
+Checking database: MONCDWTT
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCDWTT  29-MAR-22 READ WRITE           PRIMARY
+
+Checking database: MONCPYTR
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCPYTR  29-MAR-22 READ WRITE           PRIMARY
+
+Checking database: MONCDWTR
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCDWTR  29-MAR-22 READ WRITE           PRIMARY
+
+Checking database: MONCPYCF
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCPYCF  29-MAR-22 READ WRITE           PRIMARY
+
+Checking database: MONCDWCF
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCDWCF  29-MAR-22 READ WRITE           PRIMARY
+
+Checking database: MONCPYDM
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCPYDM  29-MAR-22 READ WRITE           PRIMARY
+
+Checking database: MONCDWDM
+----------------------
+
+NAME      CREATED   OPEN_MODE            DATABASE_ROLE
+--------- --------- -------------------- ----------------
+MONCDWDM  29-MAR-22 READ WRITE           PRIMARY
+
+4. Instance Status for each instance:
+----------------------------------
+Checking instance: MONCPYTT
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCPYTT         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+Checking instance: MONCDWTT
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCDWTT         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+Checking instance: MONCPYTR
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCPYTR         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+Checking instance: MONCDWTR
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCDWTR         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+Checking instance: MONCPYCF
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCPYCF         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+Checking instance: MONCDWCF
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCDWCF         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+Checking instance: MONCPYDM
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCPYDM         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+Checking instance: MONCDWDM
+----------------------
+
+INSTANCE_NAME    STATUS       DATABASE_STATUS   INSTANCE_ROLE
+---------------- ------------ ----------------- ------------------
+MONCDWDM         OPEN         ACTIVE            PRIMARY_INSTANCE
+
+5. Listener Status:
+-----------------
+
+LSNRCTL for Linux: Version 19.0.0.0.0 - Production on 10-NOV-2025 13:45:20
+
+Copyright (c) 1991, 2025, Oracle.  All rights reserved.
+
+Connecting to (DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=mona-ora-mn001.healthedge.biz)(PORT=1521)))
+STATUS of the LISTENER
+------------------------
+Alias                     LISTENER
+Version                   TNSLSNR for Linux: Version 19.0.0.0.0 - Production
+Start Date                10-NOV-2025 12:37:43
+Uptime                    0 days 1 hr. 7 min. 37 sec
+Trace Level               off
+Security                  ON: Local OS Authentication
+SNMP                      OFF
+Listener Parameter File   /u01/app/oracle/product/19c/db_1/network/admin/listener.ora
+Listener Log File         /u01/app/oracle/diag/tnslsnr/mona-ora-mn001/listener/alert/log.xml
+Listening Endpoints Summary...
+  (DESCRIPTION=(ADDRESS=(PROTOCOL=tcp)(HOST=mona-ora-mn001.healthedge.biz)(PORT=1521)))
+  (DESCRIPTION=(ADDRESS=(PROTOCOL=ipc)(KEY=EXTPROC1521)))
+Services Summary...
+Service "MONCDWCF" has 1 instance(s).
+  Instance "MONCDWCF", status READY, has 1 handler(s) for this service...
+Service "MONCDWCFXDB" has 1 instance(s).
+  Instance "MONCDWCF", status READY, has 1 handler(s) for this service...
+Service "MONCDWDM" has 1 instance(s).
+  Instance "MONCDWDM", status READY, has 1 handler(s) for this service...
+Service "MONCDWDMXDB" has 1 instance(s).
+  Instance "MONCDWDM", status READY, has 1 handler(s) for this service...
+Service "MONCDWTR" has 1 instance(s).
+  Instance "MONCDWTR", status READY, has 1 handler(s) for this service...
+Service "MONCDWTRXDB" has 1 instance(s).
+  Instance "MONCDWTR", status READY, has 1 handler(s) for this service...
+Service "MONCDWTT" has 1 instance(s).
+  Instance "MONCDWTT", status READY, has 1 handler(s) for this service...
+Service "MONCDWTTXDB" has 1 instance(s).
+  Instance "MONCDWTT", status READY, has 1 handler(s) for this service...
+Service "MONCPYCF" has 1 instance(s).
+  Instance "MONCPYCF", status READY, has 1 handler(s) for this service...
+Service "MONCPYCFXDB" has 1 instance(s).
+  Instance "MONCPYCF", status READY, has 1 handler(s) for this service...
+Service "MONCPYDM" has 1 instance(s).
+  Instance "MONCPYDM", status READY, has 1 handler(s) for this service...
+Service "MONCPYDMXDB" has 1 instance(s).
+  Instance "MONCPYDM", status READY, has 1 handler(s) for this service...
+Service "MONCPYTR" has 1 instance(s).
+  Instance "MONCPYTR", status READY, has 1 handler(s) for this service...
+Service "MONCPYTRXDB" has 1 instance(s).
+  Instance "MONCPYTR", status READY, has 1 handler(s) for this service...
+Service "MONCPYTT" has 1 instance(s).
+  Instance "MONCPYTT", status READY, has 1 handler(s) for this service...
+Service "MONCPYTTXDB" has 1 instance(s).
+  Instance "MONCPYTT", status READY, has 1 handler(s) for this service...
+Service "db4ad47061031c54e053972a1dace3b3" has 4 instance(s).
+  Instance "MONCPYCF", status READY, has 1 handler(s) for this service...
+  Instance "MONCPYDM", status READY, has 1 handler(s) for this service...
+  Instance "MONCPYTR", status READY, has 1 handler(s) for this service...
+  Instance "MONCPYTT", status READY, has 1 handler(s) for this service...
+Service "db4adbea0e3521d4e053972a1dac2d06" has 4 instance(s).
+  Instance "MONCDWCF", status READY, has 1 handler(s) for this service...
+  Instance "MONCDWDM", status READY, has 1 handler(s) for this service...
+  Instance "MONCDWTR", status READY, has 1 handler(s) for this service...
+  Instance "MONCDWTT", status READY, has 1 handler(s) for this service...
+Service "monpdwcf" has 1 instance(s).
+  Instance "MONCDWCF", status READY, has 1 handler(s) for this service...
+Service "monpdwdm" has 1 instance(s).
+  Instance "MONCDWDM", status READY, has 1 handler(s) for this service...
+Service "monpdwtr" has 1 instance(s).
+  Instance "MONCDWTR", status READY, has 1 handler(s) for this service...
+Service "monpdwtt" has 1 instance(s).
+  Instance "MONCDWTT", status READY, has 1 handler(s) for this service...
+Service "monppycf" has 1 instance(s).
+  Instance "MONCPYCF", status READY, has 1 handler(s) for this service...
+Service "monppydm" has 1 instance(s).
+  Instance "MONCPYDM", status READY, has 1 handler(s) for this service...
+Service "monppytr" has 1 instance(s).
+  Instance "MONCPYTR", status READY, has 1 handler(s) for this service...
+Service "monppytt" has 1 instance(s).
+  Instance "MONCPYTT", status READY, has 1 handler(s) for this service...
+The command completed successfully
+
+=================================================
+Script Completed
+=================================================

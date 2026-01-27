@@ -34,9 +34,22 @@ Parameters:
     Description: 'API Gateway endpoint URL'
 
   # Lambda ARNs from Lambda Stack
-  BucketCleanerFunctionArn:
+  FrontendDeployerFunctionArn:
     Type: String
-    Description: 'Bucket Cleaner Lambda Function ARN'
+    Description: 'Frontend Deployer Lambda Function ARN (Consolidated)'
+
+  # Source bucket for frontend source code
+  SourceBucket:
+    Type: String
+    Description: 'S3 bucket containing frontend source code'
+
+  # Frontend build version for triggering rebuilds
+  FrontendBuildVersion:
+    Type: String
+    Description: 'Frontend build version - auto-generated timestamp to trigger rebuilds'
+    Default: 'v1'
+
+
 
 Resources:
   # S3 Bucket for Frontend Hosting
@@ -73,6 +86,7 @@ Resources:
   # CloudFront Origin Access Control
   CloudFrontOAC:
     Type: AWS::CloudFront::OriginAccessControl
+    DeletionPolicy: Delete
     Properties:
       OriginAccessControlConfig:
         Name: !Sub '${ProjectName}-oac-${Environment}'
@@ -83,6 +97,7 @@ Resources:
   # CloudFront Distribution
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    DeletionPolicy: Delete
     Properties:
       DistributionConfig:
         Enabled: true
@@ -132,10 +147,10 @@ Resources:
           Value: !Ref Environment
 
   # S3 Bucket Policy for CloudFront
-  # DependsOn EmptyFrontendBucketResource ensures bucket is emptied before policy deletion
+  # DependsOn FrontendDeploymentResource ensures proper resource ordering
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    DependsOn: EmptyFrontendBucketResource
+    DependsOn: FrontendDeploymentResource
     Properties:
       Bucket: !Ref FrontendBucket
       PolicyDocument:
@@ -149,14 +164,23 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
 
-  # Custom Resource to Empty Frontend Bucket Before Deletion
-  # Note: Frontend deployment is handled by GitHub Actions deploy-frontend job
-  # which deploys directly to S3 after infrastructure is created
-  EmptyFrontendBucketResource:
-    Type: Custom::EmptyBucket
+  # Custom Resource for Frontend Deployment (Consolidated)
+  FrontendDeploymentResource:
+    Type: Custom::FrontendDeployer
+    DependsOn:
+      - FrontendBucket
+      - CloudFrontDistribution
     Properties:
-      ServiceToken: !Ref BucketCleanerFunctionArn
+      ServiceToken: !Ref FrontendDeployerFunctionArn
       BucketName: !Ref FrontendBucket
+      DistributionId: !Ref CloudFrontDistribution
+      SourceBucket: !Ref SourceBucket
+      ApiEndpoint: !Ref ApiEndpoint
+      UserPoolId: !Ref UserPoolId
+      UserPoolClientId: !Ref UserPoolClientId
+      IdentityPoolId: !Ref IdentityPoolId
+      Region: !Ref AWS::Region
+      FrontendBuildVersion: !Ref FrontendBuildVersion
 
 Outputs:
   FrontendBucketName:
@@ -176,5 +200,11 @@ Outputs:
     Value: !Ref CloudFrontDistribution
     Export:
       Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+
+  FrontendBuildVersion:
+    Description: 'Current frontend build version'
+    Value: !Ref FrontendBuildVersion
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBuildVersion'
 
 

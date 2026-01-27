@@ -38,6 +38,7 @@ Resources:
   # Protection Groups Table - CamelCase Schema Migration
   ProtectionGroupsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-protection-groups-${Environment}'
       BillingMode: PAY_PER_REQUEST
@@ -67,6 +68,7 @@ Resources:
   # Recovery Plans Table - CamelCase Schema
   RecoveryPlansTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-recovery-plans-${Environment}'
       BillingMode: PAY_PER_REQUEST
@@ -96,6 +98,7 @@ Resources:
   # Execution History Table - CamelCase Schema with StatusIndex GSI
   ExecutionHistoryTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-execution-history-${Environment}'
       BillingMode: PAY_PER_REQUEST
@@ -146,6 +149,7 @@ Resources:
   # Target Accounts Table - CamelCase Schema (Initial creation without GSIs)
   TargetAccountsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
     Properties:
       TableName: !Sub '${ProjectName}-target-accounts-${Environment}'
       BillingMode: PAY_PER_REQUEST

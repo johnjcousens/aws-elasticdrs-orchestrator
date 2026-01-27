@@ -1,0 +1,14 @@
+## Quick Guide
+
+### Step By Step
+
+**1.** Agree with your customers on [Architecture](../Architecture/Overview.md) and [Solution Deployment](../How-To-Deploy/Deployment.md)
+**2.** Edit the [Architecture Diagram](../attachments/HA-Architecture-Diagram.drawio) to match your customer implementation
+**3.** Work with your customer and the Cutover.com representative to [setup the Cutover.com instance and workspace](../User-Guide/Cutover-com-initial-setup.md)
+**4.** Ensure you have Developer Role to the Cutover.com instance and workspace (this is required to generate an API Token that will be used later on to interact with the Cutover.com public API).
+**5.** Once the implementation has been reviewed and approved for deployment, proceed to [deploy](../How-To-Deploy/Deployment.md) the solution.
+**6.** [Bootstrap Cutover.com workspace](../User-Guide/Bootstrapping-Cutover-com.md)
+**7.** Undestsand how to work with [runbook templates](../User-Guide/How-To-Create-Runbook-templates.md)
+**8.** Understand how to [instantiate runbooks](../User-Guide/Instantiating-Runbooks.md) for execution
+**9.** Understand [how to use and deploy automations](../User-Guide/Using-And-Deploying-Automations.md)
+**10.** Undersatnd [how to work with data in your automations](../User-Guide/Using-Runbook-Data-Layer.md)

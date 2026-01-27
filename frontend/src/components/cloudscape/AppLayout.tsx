@@ -9,6 +9,7 @@ import React, { useState, type ReactNode } from 'react';
 import {
   AppLayout as CloudScapeAppLayout,
   SideNavigation,
+  type SideNavigationProps,
   BreadcrumbGroup,
   Flashbar,
   TopNavigation,
@@ -16,6 +17,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useSettings } from '../../contexts/SettingsContext';
 import { SettingsModal } from '../SettingsModal';
 import { AccountSelector } from '../AccountSelector';
 
@@ -46,8 +48,15 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { notifications } = useNotifications();
+  const { settings, updateSettings } = useSettings();
   const [navigationOpen, setNavigationOpen] = useState(true);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+
+  // Toggle theme between light and dark
+  const toggleTheme = () => {
+    const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
+    updateSettings({ theme: newTheme });
+  };
 
   // Navigation items
   const navigationItems = [
@@ -60,13 +69,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   ];
 
   // Handle navigation
-  const handleNavigationFollow = (event: any) => {
+  const handleNavigationFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
     navigate(event.detail.href);
   };
 
   // Handle breadcrumb navigation
-  const handleBreadcrumbFollow = (event: any) => {
+  const handleBreadcrumbFollow = (event: { preventDefault: () => void; detail: { href: string } }) => {
     event.preventDefault();
     navigate(event.detail.href);
   };
@@ -99,6 +108,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             },
           }}
           utilities={[
+            {
+              type: 'button',
+              iconName: settings.theme === 'dark' ? 'view-full' : 'view-vertical',
+              text: settings.theme === 'dark' ? 'Light Mode' : 'Dark Mode',
+              ariaLabel: settings.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode',
+              disableUtilityCollapse: false,
+              onClick: toggleTheme,
+            },
             {
               type: 'button',
               iconName: 'notification',
@@ -139,7 +156,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           !navigationHide ? (
             <SideNavigation
               activeHref={location.pathname}
-              items={navigationItems as any}
+              items={navigationItems as SideNavigationProps.Item[]}
               onFollow={handleNavigationFollow}
             />
           ) : undefined

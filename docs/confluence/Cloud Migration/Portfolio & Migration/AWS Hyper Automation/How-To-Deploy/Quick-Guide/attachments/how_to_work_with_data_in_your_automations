@@ -1,0 +1,178 @@
+# Working with Data Clients in Automations
+
+This document will cover the Runbook Data Layer (RLD).
+
+## What is RDL
+
+RDL sits between automations and data sources, allowing for the separation of “what” data from “where” the data is stored by creating the concept of Data Client vs Data Provider. This allows consultants to change the “where” of the data without impacting the automations. It is deployed as a Lambda layer, which all automations will use to get data it needs to complete.
+
+We currently rely on CMF as the data provider. Therefore, it is expected that CMF metadata store will be populated with Servers, Applications, and Waves. However, New Data Clients and Data Providers can be created as needed following the below guidance.
+
+## How to use the existent data clients
+
+RDL is used via the data client, all clients extend the BaseClient which has the following methods:
+- `get(id: str = None)`
+    - Use this function to get a single resource or all resources, if id is not defiend, it returns all resources
+- `get_filtered(filter_dict: Dict[str, Union[Any, List[Any]]])`
+    - Use this function to get filtered resources using an `AND` filter compounding
+- `create(item:Dict)`
+    - Use this function to create a new resource, note schema validation is currently not supported by the client. 
+- `delete(id: str)`
+    - Use this function to delete a specific resource using the id
+- `update(id: str, item: Dict)`
+    - Use this function to update specific resource using the id
+
+We solely rely on the CMF data provider currently, but new providers can be added as needed. 
+
+Currently we have the following data clients availabe to use out of the box:
+- WaveClient
+- AppClient
+- ServerClient
+- DatabaseClient
+
+Here is an example of how to use the AppClient
+
+```
+# First thing we need to do is import the AppClient
+from aws_automation_helpers.runbook_data_layer.clients.app_client import AppClient
+
+# next we need to initialize it, an instance of the aws_lambda_powertools logger will need to be passed so the client can publish logs of its activities
+
+app_client = AppClient(logger)
+
+# Now we are ready to interact with the client
+
+1. Lets get all applications
+
+all_applications = app_client.get()
+
+2. Lets get an application by name, the app is called "App1"
+
+app_1 = client.get_filtered({"app_name": "App1"}) 
+
+3. Lets get an application with id 5.
+
+app_5 = app_client.get(5)
+
+and, lets get the ID of "App1" in our previous example
+
+app_1 = client.get_filtered({"app_name": "App1"}) 
+app_1_id = app_client.get(app_1.app_id)
+
+4. Lets get all applications in Wave3
+
+wave_filter = {"wave_name": "Wave3"}
+apps_in_wave3 = app_client.get_filtered(wave_filter)
+
+5. Lets get all applications in Wave2 and DependencyGroup5
+
+filters = {"wave_name": "Wave2", "dependency_group_name": "DependencyGroup5"}
+apps_in_wave2_and_group5 = app_client.get_filtered(filters)
+
+6. Lets create an application
+Note: when using CMF as a data provider, the app_id is generated automatically, hence not included in the creation attributes below
+
+app1 = {
+    "app_name": "App1-Monitoring",
+    "wave_name": "Wave3",
+    "aws_region": "us-west-2",
+    "aws_accountid": "111222333444",
+    "dependency_group_name": "DependencyGroup2"
+}
+
+app_client.create(app1)
+
+7. Lets delete an application with app_id "App1"
+
+app_client.delete("App1")
+```
+
+## How to add a new data client
+
+**1.** Create a new file under `modules/automation_layer/lib/aws_automation_helpers/runbook_data_layer/clients/<new file name>.py`
+**2.** Copy the following content into the file, replace ```\<resource>``` with the new resource name for logging purposes:
+```
+from typing import Dict, Union, Any, List
+from aws_lambda_powertools import Logger
+from copy import deepcopy
+
+from .base_client import BaseClient
+from ...helpers import filter_data
+
+class <Resource>Client(BaseClient):
+    def __init__(self, logger: Logger):
+        super().__init__(logger)
+    
+    def get(self, id: str = None):
+        self.logger.info(f"Getting <resource> with id: {id}")
+        # Implement the function here using one of the data providers
+
+    def get_filtered(self, filter_dict: Dict[str, Union[Any, List[Any]]]):
+        self.logger.info(f"Getting filtered <resource>s with filter_dict: {filter_dict}")
+        # Implement the function here using one of the data providers
+
+    def create(self, item: Dict):
+        self.logger.info(f"Creating <resource> with item: {item}")
+        # Implement the function here using one of the data providers
+    
+    def delete(self, id: str):
+        self.logger.info(f"Deleting <resource> with id: {id}")
+        # Implement the function here using one of the data providers
+
+    
+    def update(self, id: str, item: Dict):
+        self.logger.info(f"Updating <resource> with id: {id} and item: {item}")
+        # Implement the function here using one of the data providers
+    
+```
+**3.** Implement each function using the availabe data providers
+**4.** The newly created DataClient is now ready, to use it, import the file in the automation and initialize the client like so:
+```
+from aws_automation_helpers.runbook_data_layer.clients.<new file name> import <New Client Name>
+new_client = <NewClient>(logger)
+
+# Now the new client is ready to be used
+```
+
+## How to add a new data provider
+
+**1.** Create a new file under `modules/automation_layer/lib/aws_automation_helpers/runbook_data_layer/providers/<new file name>.py`
+**2.** Copy the following content into the file:
+```
+from typing import Dict
+
+from aws_lambda_powertools import Logger
+
+from .base_provider import BaseProvider
+
+class <Name>Provider(BaseProvider):
+    logger: Logger = None
+
+    def __init__(self, logger: Logger):
+        self.logger = logger
+    
+    def get(self, id: str = None):
+        self.logger.info(f"Getting item from <Provider> with id: {id}")
+        # Implement the function
+
+    def create(self, item: Dict):
+        self.logger.info(f"Creating item in <Provider>: {item}")
+        # Implement the function
+    
+    def delete(self, id: str):
+        self.logger.info(f"Deleting item in <Provider> with id: {id}")
+        # Implement the function
+    
+    def update(self, id: str, item: Dict):
+        self.logger.info(f"Updating item in <Provider> with id: {id}: {item}")
+        # Implement the function
+```
+**3.** Implement each function, use the cmf_provider.py file as a reference
+**4.** The DataProvider is now ready to be used by the DataClients, import the provider and initialize in the client and update the functions there as needed
+```
+from ..providers.<new file name> import <NewProviderClass>
+
+new_provider = <NewProviderClass>(logger, <other parameters needed to initialize>)
+
+# The client can now use the new provider
+```

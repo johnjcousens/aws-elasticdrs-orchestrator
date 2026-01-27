@@ -45,13 +45,6 @@ Parameters:
     AllowedValues: ['true', 'false']
     Description: Enable scheduled tag synchronization
 
-  TagSyncIntervalHours:
-    Type: Number
-    Default: 4
-    MinValue: 1
-    MaxValue: 24
-    Description: Tag sync interval in hours (1-24)
-
   ApiHandlerFunctionArn:
     Type: String
     Description: ARN of the API Handler Lambda function for tag sync
@@ -173,8 +166,8 @@ Resources:
     Condition: EnableTagSyncCondition
     Properties:
       Name: !Sub '${ProjectName}-tag-sync-schedule-${Environment}'
-      Description: !Sub 'Scheduled DRS tag synchronization every ${TagSyncIntervalHours} hours'
-      ScheduleExpression: !Sub 'rate(${TagSyncIntervalHours} hours)'
+      Description: 'Scheduled DRS tag synchronization every 1 hour'
+      ScheduleExpression: 'rate(1 hour)'
       State: ENABLED
       Targets:
         - Id: TagSyncTarget
@@ -220,4 +213,4 @@ Outputs:
   TagSyncScheduleExpression:
     Condition: EnableTagSyncCondition
     Description: Schedule expression for tag sync
-    Value: !Sub 'rate(${TagSyncIntervalHours} hours)'
+    Value: 'rate(1 hour)'

@@ -201,14 +201,14 @@ export const WaveConfigEditor: React.FC<WaveConfigEditorProps> = ({
                     <FormField label="Wave Name" constraintText="Required">
                       <Input
                         value={wave.waveName}
-                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'waveName', detail.value)}
+                        onChange={({ detail }: { detail: { value: string } }) => handleUpdateWave(wave.waveNumber, 'waveName', detail.value)}
                         disabled={readonly}
                       />
                     </FormField>
                     <FormField label="Description">
                       <Textarea
                         value={wave.waveDescription || ''}
-                        onChange={({ detail }) => handleUpdateWave(wave.waveNumber, 'waveDescription', detail.value)}
+                        onChange={({ detail }: { detail: { value: string } }) => handleUpdateWave(wave.waveNumber, 'waveDescription', detail.value)}
                         disabled={readonly}
                         rows={2}
                       />

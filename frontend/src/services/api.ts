@@ -419,9 +419,8 @@ class ApiClient {
    * List all recovery plans
    */
   public async listRecoveryPlans(params?: { accountId?: string }): Promise<RecoveryPlan[]> {
-    const response = await this.get<{ plans: RecoveryPlan[]; count: number }>('/recovery-plans', params);
-    // API returns {plans: [...], count: N}
-    return response.plans || [];
+    const response = await this.get<{ recoveryPlans: RecoveryPlan[]; count: number }>('/recovery-plans', params);
+    return response.recoveryPlans || [];
   }
 
   /**
@@ -769,8 +768,8 @@ class ApiClient {
     }>;
     warning?: string;
   }> {
-    // Use DELETE /executions with body instead of POST /executions/delete
-    // This should work since the Lambda function handles both routes
+    // Backend expects IDs as query parameter: DELETE /executions?ids=id1,id2,id3
+    const idsParam = executionIds.join(',');
     const result = await this.delete<{
       message: string;
       deletedCount: number;
@@ -789,7 +788,7 @@ class ApiClient {
         error: string;
       }>;
       warning?: string;
-    }>('/executions', { executionIds });
+    }>(`/executions?ids=${encodeURIComponent(idsParam)}`);
     
     return result;
   }
@@ -1134,5 +1133,6 @@ export const {
   importConfiguration,
   getTagSyncSettings,
   updateTagSyncSettings,
+  triggerTagSync,
   healthCheck,
 } = apiClient;

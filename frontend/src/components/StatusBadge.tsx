@@ -104,14 +104,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       case 'initiated':
       case 'launching':
       case 'started':
-        return {
-          label: normalizedStatus.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-          color: 'blue' as const,
-        };
-      
       case 'polling':
         return {
-          label: 'Polling',
+          label: 'In Progress',
           color: 'blue' as const,
         };
       

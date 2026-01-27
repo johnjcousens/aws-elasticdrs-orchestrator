@@ -359,7 +359,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           >
           <Input
             value={name}
-            onChange={({ detail }) => setName(detail.value)}
+            onChange={({ detail }: { detail: { value: string } }) => setName(detail.value)}
             placeholder="e.g., HRP Database Tier"
             disabled={loading}
           />
@@ -371,7 +371,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         >
           <Textarea
             value={description}
-            onChange={({ detail }) => setDescription(detail.value)}
+            onChange={({ detail }: { detail: { value: string } }) => setDescription(detail.value)}
             placeholder="e.g., All database servers for HRP application"
             rows={2}
             disabled={loading}
@@ -399,7 +399,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         {region && (
           <Tabs
             activeTabId={selectionMode}
-            onChange={({ detail }) => {
+            onChange={({ detail }: { detail: { activeTabId: string } }) => {
               const newMode = detail.activeTabId as 'tags' | 'servers';
               setSelectionMode(newMode);
               // Clear the other mode's data when switching
@@ -472,7 +472,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                             <FormField label={index === 0 ? 'Tag Key' : undefined}>
                               <Input
                                 value={tag.key}
-                                onChange={({ detail }) => handleTagChange(index, 'key', detail.value)}
+                                onChange={({ detail }: { detail: { value: string } }) => handleTagChange(index, 'key', detail.value)}
                                 placeholder="e.g., DR-Application"
                                 disabled={loading}
                               />
@@ -480,7 +480,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                             <FormField label={index === 0 ? 'Tag Value' : undefined}>
                               <Input
                                 value={tag.value}
-                                onChange={({ detail }) => handleTagChange(index, 'value', detail.value)}
+                                onChange={({ detail }: { detail: { value: string } }) => handleTagChange(index, 'value', detail.value)}
                                 placeholder="e.g., HRP"
                                 disabled={loading}
                               />

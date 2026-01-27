@@ -17,11 +17,6 @@ Parameters:
     Type: String
     Description: REST API ID from Core Stack
 
-  DeploymentTimestamp:
-    Type: String
-    Description: Timestamp for forcing API Gateway deployments
-    Default: '2026-01-06T23:10:00Z'
-
 Resources:
   # ============================================================================
   # DEPLOYMENT ORCHESTRATOR FUNCTION - Enterprise-grade deployment logic
@@ -57,7 +52,7 @@ Resources:
                   props = event['ResourceProperties']
                   rest_api_id = props['RestApiId']
                   stage_name = props['StageName']
-                  timestamp = props['DeploymentTimestamp']
+                  timestamp = context.aws_request_id  # Use Lambda request ID as unique identifier
                   
                   api_client = boto3.client('apigateway')
                   
@@ -200,10 +195,9 @@ Resources:
       ServiceToken: !GetAtt DeploymentOrchestratorFunction.Arn
       RestApiId: !Ref RestApiId
       StageName: !Ref Environment
-      DeploymentTimestamp: !Ref DeploymentTimestamp
       StackName: !Ref AWS::StackName
-      # Force update on every deployment
-      ForceUpdate: !Sub '${DeploymentTimestamp}-${AWS::StackId}'
+      # Force update on every stack update using StackId
+      ForceUpdate: !Ref AWS::StackId
       # Force replacement due to PROJECT_NAME change
       Version: "2026-01-10-project-name-fix"
 
@@ -233,7 +227,6 @@ Resources:
           ThrottlingBurstLimit: 5000
           ThrottlingRateLimit: 2000
       Variables:
-        deploymentTimestamp: !Ref DeploymentTimestamp
         stackName: !Ref AWS::StackName
         enterpriseDeployment: 'true'
       Tags:
@@ -260,12 +253,6 @@ Outputs:
     Value: !GetAtt ApiDeploymentOrchestrator.DeploymentId
     Export:
       Name: !Sub '${AWS::StackName}-DeploymentId'
-
-  DeploymentTimestamp:
-    Description: 'Deployment timestamp for tracking'
-    Value: !GetAtt ApiDeploymentOrchestrator.DeploymentTimestamp
-    Export:
-      Name: !Sub '${AWS::StackName}-DeploymentTimestamp'
 
   ApiStageArn:
     Description: 'API Gateway Stage ARN'

@@ -10,12 +10,28 @@ import { applyMode, Mode } from '@cloudscape-design/global-styles';
 /**
  * Initialize CloudScape theme
  * 
- * Applies AWS branded light mode theme.
+ * Applies AWS branded theme based on saved preference or system default.
  * Call this once at application startup.
  */
-export const initializeTheme = () => {
-  // Apply AWS branded light mode theme
-  applyMode(Mode.Light);
+export const initializeTheme = (theme?: 'light' | 'dark') => {
+  if (theme === 'dark') {
+    applyMode(Mode.Dark);
+  } else if (theme === 'light') {
+    applyMode(Mode.Light);
+  } else {
+    // Default to light mode
+    applyMode(Mode.Light);
+  }
+};
+
+/**
+ * Switch theme dynamically
+ * 
+ * Changes the theme without page reload.
+ * All CloudScape components automatically adapt.
+ */
+export const setTheme = (theme: 'light' | 'dark') => {
+  applyMode(theme === 'dark' ? Mode.Dark : Mode.Light);
 };
 
 /**

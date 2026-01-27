@@ -1,124 +1,10 @@
 # =============================================================================
-# AWS DRS Orchestration - Production Repository
+# AWS DRS Orchestration Platform - .gitignore
 # =============================================================================
-
-# -------------------------
-# INTERNAL/DEVELOPMENT FILES (NOT FOR CUSTOMERS)
-# -------------------------
-
-# Project status and session history (internal tracking)
-docs/PROJECT_STATUS.md
-docs/SESSION_*.md
-
-# Temporary commit message file
-.git_commit_msg.txt
-
-# MCP integration docs (future work)
-docs/implementation/AMAZON_Q_MCP_INTEGRATION.md
-docs/implementation/MCP_INTEGRATION_PLAN.md
-
-# Development scripts (not part of MVP)
-deploy.sh
-scripts/check-mcp-status.sh
-
-# Archive folder (internal development history)
-docs/archive/
-
-# Competitor comparison docs (internal only)
-docs/guides/DRS_SRM_API_MAPPING.md
-docs/guides/DR_SOLUTIONS_API_COMPARISON.md
-
-# Test files and results
-test_results_*.json
-test-screenshots/
-*.test.ts
-*.spec.ts
-playwright-report/
-playwright.config.ts
-lambda/*/test_*.py
-lambda/*/.coverage
-
-# Cline memory (internal)
-.cline_memory/
-
-# AI Assistant configurations (internal)
-.kiro/
-.amazonq/
-
-# Internal scripts (not for customers)
-# Keep only: sync-to-deployment-bucket.sh, validate-templates.sh, create-test-user.sh, package-frontend-builder.sh
-scripts/check-jsx-corruption.sh
-scripts/check_drill_status.py
-scripts/check_job_completion.sh
-scripts/cleanup_stuck_drs_jobs.py
-scripts/commit-files-individually.sh
-scripts/deploy-and-sync-all.sh
-scripts/execute_drill.py
-scripts/incremental-commit.sh
-scripts/monitor_active_job.sh
-scripts/monitor_drill.py
-scripts/monitor_lambda_drill.py
-scripts/run-automated-tests.sh
-scripts/run-tests.sh
-scripts/safe-edit.sh
-scripts/setup-gitlab-cicd.sh
-scripts/test_drs_drill_trace.py
-scripts/test-drill.sh
-scripts/validate-deployment.sh
-scripts/verify-cleanup.sh
-scripts/verify-tsx.sh
-scripts/wait_for_completion.sh
-
-# Backup files
-*.backup
-
-# -------------------------
-# BUILD ARTIFACTS
-# -------------------------
-
-# Build output directory
-build/
-
-# Lambda build artifacts (keep deployment ZIPs for easy customer deployment)
-# Required ZIPs are tracked: api-handler.zip, orchestration-stepfunctions.zip, 
-# execution-finder.zip, execution-poller.zip, frontend-builder.zip
-lambda/deployment-package.zip
-lambda/lambda-package.zip
-lambda/orchestration-package.zip
-lambda/*/*.zip
-lambda/__pycache__/
-lambda/package/
-
-# Frontend build artifacts
-frontend/node_modules/
-frontend/build/
-frontend/dist/
-frontend/playwright-report/
-frontend/test-results/
-
-# Reference build artifacts (old builds)
-reference-build/
-
-# Python artifacts
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-venv/
-env/
-.coverage
-.pytest_cache/
-
-# Security scan reports (temporary)
-reports/
-
-# Security documentation (internal)
-docs/security/
 
 # -------------------------
 # IDE AND SYSTEM FILES
 # -------------------------
-
 .vscode/
 .idea/
 .DS_Store
@@ -128,63 +14,111 @@ docs/security/
 *~
 
 # -------------------------
+# AI ASSISTANT CONFIGURATIONS
+# -------------------------
+.amazonq/
+.cline_memory/
+.kiro/memory/
+history/
+
+# -------------------------
 # SECURITY SENSITIVE
 # -------------------------
-
 .env
 .env.*
-!.env.test.template
-history/
-# Context Historian checkpoints and session data
-**/history/
-history/**/*
+!.env.*.template
+!.env.dev.template
+!.env.test
+.env.deployment
+.env.deployment.local
 
-# Confidential review folder (removed from git history)
+# AWS credentials
+.aws/
+*.pem
+*.key
+
+# -------------------------
+# PYTHON ARTIFACTS
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.coverage
+.pytest_cache/
+*.egg-info/
+dist/
+*.pyc
+
+# -------------------------
+# NODE.JS / FRONTEND ARTIFACTS
+# -------------------------
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json.backup
+
+# Frontend build artifacts
+frontend/build/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+frontend/*.test.ts
+frontend/*.spec.ts
+frontend/.vite/
+
+# -------------------------
+# BUILD ARTIFACTS
+# -------------------------
+build/
+reference-build/
+reports/
+
+# -------------------------
+# LAMBDA ARTIFACTS
+# -------------------------
+lambda/deployment-package.zip
+lambda/lambda-package.zip
+lambda/orchestration-package.zip
+lambda/*/*.zip
+lambda/__pycache__/
+lambda/package/
+lambda/*/test_*.py
+lambda/*/.coverage
+
+# -------------------------
+# DOCUMENTATION (INTERNAL)
+# -------------------------
+docs/PROJECT_STATUS.md
+docs/SESSION_*.md
+docs/archive/
+docs/security/
+docs/logs/
+archive/
 REVIEW/
 
-# Root level node_modules (should only be in frontend/)
-/node_modules/
+# -------------------------
+# TEST ARTIFACTS
+# -------------------------
+test_results_*.json
+test-screenshots/
+playwright-report/
+playwright.config.ts
+.pytest_cache/
 
 # -------------------------
-# DISABLED/LEGACY
+# TEMPORARY / DEBUG FILES
 # -------------------------
-
-.git_disabled/
-archive/
-
-# -------------------------
-# DIAGRAMS (EMPTY/INTERNAL)
-# -------------------------
-
-diagrams/
-
-# -------------------------
-# SSM DOCUMENTS (CUSTOMER-SPECIFIC)
-# -------------------------
-
-# SSM Documents should be customer-specific and not tracked in git
-# Create your own SSM automation documents in ssm-documents/ directory
-ssm-documents/
-
-# -------------------------
-# TEMPORARY/DEBUG FILES (PREVENT ACCUMULATION)
-# -------------------------
-
-# Debug files
 debug-*
 *debug*
 mock-*
-
-# Test files at root level (tests should be in tests/ directory)
 test-*
-/*test*.json
-/*test*.py
-/*test*.js
-/*test*.sh
-
-# Response files
+*test*.json
 *response*.json
 *-response.json
+.git_commit_msg.txt
 
 # Temporary markdown files
 DRILL_*.md
@@ -195,22 +129,29 @@ FINAL_*.md
 UI_*.md
 CHECKPOINT_*.md
 
-# Backup files
+# -------------------------
+# BACKUP FILES
+# -------------------------
 *.backup
 *_backup.*
 *_fresh.*
+*.bkp
 
-# Root level package files (should be in frontend/)
-/package.json
-/package-lock.json
+# -------------------------
+# CUSTOMER-SPECIFIC
+# -------------------------
+ssm-documents/
+diagrams/
 
-# Environment files (except templates)
-/.env.*
-!/.env.test.template
-!/.env.deployment.template
-.env.deployment
-.env.deployment.local
+# -------------------------
+# MISE TOOL MANAGER
+# -------------------------
+.mise.local.toml
 
-# Temporary directories
+# -------------------------
+# TEMPORARY DIRECTORIES
+# -------------------------
 temp/
+tmp/
 aws_logo.png
+

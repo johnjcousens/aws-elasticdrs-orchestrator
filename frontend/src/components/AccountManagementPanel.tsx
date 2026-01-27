@@ -25,8 +25,6 @@ import { DRSPermission } from '../types/permissions';
 export interface TargetAccount {
   accountId: string;
   accountName?: string;
-  stagingAccountId?: string;
-  stagingAccountName?: string;
   isCurrentAccount: boolean;
   status: 'active' | 'pending' | 'error' | 'ACTIVE' | 'INACTIVE' | 'ERROR';
   lastValidated?: string;
@@ -63,8 +61,6 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   const [formData, setFormData] = useState({
     accountId: '',
     accountName: '',
-    stagingAccountId: '',
-    stagingAccountName: '',
     crossAccountRoleArn: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -158,10 +154,6 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       errors.accountId = 'Account ID must be 12 digits';
     }
     
-    if (formData.stagingAccountId && !/^\d{12}$/.test(formData.stagingAccountId.trim())) {
-      errors.stagingAccountId = 'Staging Account ID must be 12 digits';
-    }
-    
     // Enhanced wizard validation for cross-account role
     if (showWizardMode && currentAccount) {
       const isSameAccount = formData.accountId.trim() === currentAccount.accountId;
@@ -191,35 +183,9 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     try {
       const accountData = {
         accountId: formData.accountId.trim(),
-        accountName: '',
-        stagingAccountId: '',
-        stagingAccountName: '',
-        crossAccountRoleArn: '',
+        accountName: formData.accountName.trim(),
+        crossAccountRoleArn: formData.crossAccountRoleArn.trim(),
       };
-
-      // For updates, always include all fields (even if empty) so they get updated
-      // For creates, only include non-empty fields
-      if (editingAccount) {
-        // Update mode - include all fields to allow clearing them
-        accountData.accountName = formData.accountName.trim();
-        accountData.stagingAccountId = formData.stagingAccountId.trim();
-        accountData.stagingAccountName = formData.stagingAccountName.trim();
-        accountData.crossAccountRoleArn = formData.crossAccountRoleArn.trim();
-      } else {
-        // Create mode - only include non-empty fields
-        if (formData.accountName.trim()) {
-          accountData.accountName = formData.accountName.trim();
-        }
-        if (formData.stagingAccountId.trim()) {
-          accountData.stagingAccountId = formData.stagingAccountId.trim();
-        }
-        if (formData.stagingAccountName.trim()) {
-          accountData.stagingAccountName = formData.stagingAccountName.trim();
-        }
-        if (formData.crossAccountRoleArn.trim()) {
-          accountData.crossAccountRoleArn = formData.crossAccountRoleArn.trim();
-        }
-      }
 
       if (editingAccount) {
         await apiClient.updateTargetAccount(editingAccount.accountId, {
@@ -275,8 +241,6 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     setFormData({
       accountId: account?.accountId || '',
       accountName: account?.accountName || '',
-      stagingAccountId: account?.stagingAccountId || '',
-      stagingAccountName: account?.stagingAccountName || '',
       crossAccountRoleArn: account?.crossAccountRoleArn || '',
     });
     setFormErrors({});
@@ -289,8 +253,6 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     setFormData({
       accountId: '',
       accountName: '',
-      stagingAccountId: '',
-      stagingAccountName: '',
       crossAccountRoleArn: '',
     });
     setFormErrors({});
@@ -360,24 +322,6 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       header: 'Account Name',
       cell: (item: TargetAccount) => item.accountName || '-',
       sortingField: 'accountName',
-      width: 200,
-    },
-    {
-      id: 'stagingAccount',
-      header: 'Staging Account',
-      cell: (item: TargetAccount) => {
-        if (!item.stagingAccountId) return '-';
-        return (
-          <Box>
-            {item.stagingAccountId}
-            {item.stagingAccountName && (
-              <Box variant="small" color="text-body-secondary">
-                {item.stagingAccountName}
-              </Box>
-            )}
-          </Box>
-        );
-      },
       width: 200,
     },
     {
@@ -662,7 +606,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           >
             <Input
               value={formData.accountId}
-              onChange={({ detail }) => setFormData(prev => ({ ...prev, accountId: detail.value }))}
+              onChange={({ detail }: { detail: { value: string } }) => setFormData(prev => ({ ...prev, accountId: detail.value }))}
               placeholder={showWizardMode && currentAccount ? `e.g., ${currentAccount.accountId} (current) or 123456789012` : "123456789012"}
               disabled={!!editingAccount}
             />
@@ -675,7 +619,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           >
             <Input
               value={formData.accountName}
-              onChange={({ detail }) => setFormData(prev => ({ ...prev, accountName: detail.value }))}
+              onChange={({ detail }: { detail: { value: string } }) => setFormData(prev => ({ ...prev, accountName: detail.value }))}
               placeholder="Production Account"
             />
           </FormField>
@@ -691,32 +635,8 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           >
             <Input
               value={formData.crossAccountRoleArn}
-              onChange={({ detail }) => setFormData(prev => ({ ...prev, crossAccountRoleArn: detail.value }))}
+              onChange={({ detail }: { detail: { value: string } }) => setFormData(prev => ({ ...prev, crossAccountRoleArn: detail.value }))}
               placeholder="arn:aws:iam::123456789012:role/DRSOrchestrationCrossAccountRole"
-            />
-          </FormField>
-
-          <FormField
-            label="Staging Account ID"
-            description="Optional staging account for testing operations"
-            errorText={formErrors.stagingAccountId}
-          >
-            <Input
-              value={formData.stagingAccountId}
-              onChange={({ detail }) => setFormData(prev => ({ ...prev, stagingAccountId: detail.value }))}
-              placeholder="123456789013"
-            />
-          </FormField>
-
-          <FormField
-            label="Staging Account Name"
-            description="Optional friendly name for the staging account"
-            errorText={formErrors.stagingAccountName}
-          >
-            <Input
-              value={formData.stagingAccountName}
-              onChange={({ detail }) => setFormData(prev => ({ ...prev, stagingAccountName: detail.value }))}
-              placeholder="Staging Account"
             />
           </FormField>
         </SpaceBetween>

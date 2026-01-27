@@ -106,7 +106,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <SpaceBetween size="l">
         <Tabs
           activeTabId={activeTab}
-          onChange={({ detail }) => setActiveTab(detail.activeTabId)}
+          onChange={({ detail }: { detail: { activeTabId: string } }) => setActiveTab(detail.activeTabId)}
           tabs={tabs}
         />
       </SpaceBetween>

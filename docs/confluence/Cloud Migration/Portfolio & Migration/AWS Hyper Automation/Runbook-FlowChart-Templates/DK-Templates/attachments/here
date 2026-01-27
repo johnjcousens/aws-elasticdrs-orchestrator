@@ -1,0 +1,108 @@
+<mxfile host="Electron" modified="2024-09-23T10:22:37.945Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.1.0 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="ptWgfSdqkgYtZ01pqBIR" version="24.1.0" type="device">
+  <diagram name="Cutover-Bootstrap-Runbook-1.0.0" id="7iaCpqQu3GdpzdnzsVsJ">
+    <mxGraphModel dx="10339" dy="2047" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="HhWFev15XeHXtyFbr3pA-2" value="Portfolio Discovery" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;align=center;spacing=0;strokeColor=#BD7000;strokeOpacity=100;fillOpacity=100;fillColor=#f0a30a;lucidId=eJ7Oc~kZ2~G6;" parent="1" vertex="1">
+          <mxGeometry x="-8719" y="-74" width="3588" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-3" value="Discovery Flow" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=18.8;fontFamily=Arimo;fontColor=#ffffff;align=center;spacing=0;strokeColor=#314354;strokeOpacity=100;fillOpacity=100;fillColor=#647687;lucidId=eJ7OYtzxOKIe;" parent="1" vertex="1">
+          <mxGeometry x="-8981" y="-38" width="268" height="2179" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-4" value="" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;fontColor=default;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#eeeeee;lucidId=eJ7OgzZcaFze;" parent="1" vertex="1">
+          <mxGeometry x="-8983" y="-74" width="270" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-5" value="&lt;div style=&quot;display: flex; justify-content: flex-start; text-align: left; align-items: baseline; font-size: 0; line-height: 1.25;margin-top: -2px;&quot;&gt;&lt;span&gt;&lt;a href=&quot;http://Cutover.com&quot;&gt;&lt;span style=&quot;font-size:100px;&quot;&gt;Cutover.com&lt;/span&gt;&lt;/a&gt;&lt;span style=&quot;font-size:100px;&quot;&gt; Bootstrapping Runbook&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=13;spacing=0;strokeOpacity=0;fillOpacity=0;rounded=1;absoluteArcSize=1;arcSize=7.5;fillColor=#ffffff;strokeWidth=1.5;lucidId=eJ7OaHa31Ghw;" parent="1" vertex="1">
+          <mxGeometry x="-7281" y="-417" width="2058" height="333" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-6" value="Portfolio Runbook" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=16.7;fontColor=#3a414a;fontStyle=1;spacing=0;strokeColor=#3a414a;strokeOpacity=100;rounded=1;absoluteArcSize=1;arcSize=9;strokeWidth=0.8;fillColor=none;lucidId=eJ7OGjinw4uW;" parent="1" vertex="1">
+          <mxGeometry x="-8955" y="-78" width="180" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-16" value="" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;fontColor=default;spacing=0;strokeOpacity=100;fillOpacity=100;rounded=1;absoluteArcSize=1;arcSize=16;fillColor=#ffffff;lucidId=c47O2zaCuLfR;" parent="1" vertex="1">
+          <mxGeometry x="-8981" y="-374" width="1484" height="247" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-17" value="&lt;div style=&quot;display: flex; justify-content: flex-start; text-align: left; align-items: baseline; font-size: 0; line-height: 1.25;margin-top: -2px;&quot;&gt;&lt;span&gt;&lt;span style=&quot;font-size:48px;font-family: Arimo;&quot;&gt;Key&lt;/span&gt;&lt;span style=&quot;font-size:14.3px;font-family: Arimo;&quot;&gt;&#xa;&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;display: flex; justify-content: flex-start; text-align: left; align-items: baseline; font-size: 0; line-height: 1.25;margin-top: -2px;&quot;&gt;&lt;span&gt;&lt;span style=&quot;font-size:14.3px;font-family: Arimo;&quot;&gt;&#xa;&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=13;fontFamily=Arimo;align=left;spacing=0;verticalAlign=top;strokeOpacity=0;fillOpacity=0;fillColor=#000000;lucidId=c47OzDgPidee;" parent="1" vertex="1">
+          <mxGeometry x="-8936" y="-357" width="104" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-18" value="Manual" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#cce5ff;lucidId=c47Otk-68aL7;" parent="1" vertex="1">
+          <mxGeometry x="-8361" y="-290" width="144" height="72" as="geometry" />
+        </mxCell>
+        <UserObject label="Branch Header" TaskType="BranchHeader" id="HhWFev15XeHXtyFbr3pA-19">
+          <mxCell style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;ellipse;fontSize=15;fontFamily=Arimo;fontColor=default;spacing=0;rounded=1;absoluteArcSize=1;arcSize=7.5;fillColor=#ffffff;strokeWidth=1.5;lucidId=c47OAUaaY9ou;" parent="1" vertex="1">
+            <mxGeometry x="-7812" y="-303" width="88" height="88" as="geometry" />
+          </mxCell>
+        </UserObject>
+        <UserObject label="Milestone" TaskType="Milestone" id="HhWFev15XeHXtyFbr3pA-20">
+          <mxCell style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;shape=hexagon;perimeter=hexagonPerimeter2;fontSize=15;fontFamily=Arimo;fontColor=default;spacing=0;fillOpacity=100;rounded=1;absoluteArcSize=1;arcSize=7.5;fillColor=#c3f7c8;strokeWidth=1.5;lucidId=c47ORIfyvo1r;" parent="1" vertex="1">
+            <mxGeometry x="-8157" y="-311" width="132" height="114" as="geometry" />
+          </mxCell>
+        </UserObject>
+        <UserObject label="Branching" TaskType="Branch" id="HhWFev15XeHXtyFbr3pA-21">
+          <mxCell style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;rhombus;fontSize=14.3;fontFamily=Arimo;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#cce5ff;lucidId=c47OAND3_FGF;" parent="1" vertex="1">
+            <mxGeometry x="-7955" y="-299" width="96" height="96" as="geometry" />
+          </mxCell>
+        </UserObject>
+        <UserObject label="Out-of-the-box Automation " AutomationID="" id="HhWFev15XeHXtyFbr3pA-23">
+          <mxCell style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#cdeb8b;lucidId=c47OflvB6OCO;" parent="1" vertex="1">
+            <mxGeometry x="-8769" y="-290" width="144" height="72" as="geometry" />
+          </mxCell>
+        </UserObject>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-24" value="Custom automation candidate" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#ffd6f5;lucidId=c47OQm6gXuNe;" parent="1" vertex="1">
+          <mxGeometry x="-8565" y="-290" width="144" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="HhWFev15XeHXtyFbr3pA-25" value="&lt;span style=&quot;font-size: 17px;&quot;&gt;Child runbook&lt;/span&gt;" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;" parent="1" vertex="1">
+          <mxGeometry x="-7670" y="-290" width="120" height="60" as="geometry" />
+        </mxCell>
+        <UserObject label="Start Runbook" Start="Cutover-Bootstrap-Runbook" Version="1.0.0" id="Y6itLAEGh5b4fzxJkhAu-1">
+          <mxCell style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;ellipse;fontSize=18.8;fontFamily=Arimo;spacing=0;strokeOpacity=100;fillOpacity=100;lucidId=FJ7OxkRNn0f4;" parent="1" vertex="1">
+            <mxGeometry x="-8389" y="161" width="115" height="65" as="geometry" />
+          </mxCell>
+        </UserObject>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-2" value="" style="html=1;jettySize=18;whiteSpace=wrap;fontSize=13;strokeColor=#3a414a;strokeOpacity=100;strokeWidth=0.8;rounded=1;arcSize=12;edgeStyle=orthogonalEdgeStyle;startArrow=none;endArrow=block;endFill=1;exitX=0.5;exitY=1.007;exitPerimeter=0;entryX=0.5;entryY=-0.007;entryPerimeter=0;lucidId=LNFThCwUU~A3;" parent="1" source="Y6itLAEGh5b4fzxJkhAu-10" target="Y6itLAEGh5b4fzxJkhAu-5" edge="1">
+          <mxGeometry width="100" height="100" relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-3" value="" style="html=1;jettySize=18;whiteSpace=wrap;fontSize=13;strokeColor=#3a414a;strokeOpacity=100;strokeWidth=0.8;rounded=1;arcSize=12;edgeStyle=orthogonalEdgeStyle;startArrow=none;endArrow=block;endFill=1;exitX=0.5;exitY=1.007;exitPerimeter=0;entryX=0.5;entryY=-0.007;entryPerimeter=0;lucidId=L1zTFKrc6rdX;" parent="1" source="Y6itLAEGh5b4fzxJkhAu-8" target="Y6itLAEGh5b4fzxJkhAu-10" edge="1">
+          <mxGeometry width="100" height="100" relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-4" value="" style="html=1;jettySize=18;whiteSpace=wrap;fontSize=13;strokeColor=#3a414a;strokeOpacity=100;strokeWidth=0.8;rounded=1;arcSize=12;edgeStyle=orthogonalEdgeStyle;startArrow=none;endArrow=block;endFill=1;exitX=0.5;exitY=1.008;exitPerimeter=0;entryX=0.5;entryY=-0.007;entryPerimeter=0;lucidId=FJ7OZGYBcjYz;" parent="1" source="Y6itLAEGh5b4fzxJkhAu-1" target="Y6itLAEGh5b4fzxJkhAu-8" edge="1">
+          <mxGeometry width="100" height="100" relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <UserObject label="Bootstrap hyper automation" AutomationID="" id="Y6itLAEGh5b4fzxJkhAu-5">
+          <mxCell style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#cdeb8b;lucidId=FJ7OGhVyY5xV;" parent="1" vertex="1">
+            <mxGeometry x="-8403" y="845" width="144" height="76" as="geometry" />
+          </mxCell>
+        </UserObject>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-6" value="END" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;ellipse;fontSize=13;fontColor=#ffffff;spacing=0;strokeColor=#6F0000;strokeOpacity=100;fillOpacity=100;fillColor=#a20025;lucidId=FJ7OFFtoCgFk;" parent="1" vertex="1">
+          <mxGeometry x="-8346" y="974" width="30" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-7" value="" style="html=1;jettySize=18;whiteSpace=wrap;fontSize=13;strokeColor=#3a414a;strokeOpacity=100;strokeWidth=0.8;rounded=0;startArrow=none;endArrow=block;endFill=1;exitX=0.5;exitY=1.007;exitPerimeter=0;entryX=0.5;entryY=-0.018;entryPerimeter=0;lucidId=FJ7OeJ42zyMe;" parent="1" source="Y6itLAEGh5b4fzxJkhAu-5" target="Y6itLAEGh5b4fzxJkhAu-6" edge="1">
+          <mxGeometry width="100" height="100" relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-8" value="&lt;div style=&quot;display: flex; justify-content: center; text-align: center; align-items: baseline; font-size: 0; line-height: 1.25;margin-top: -2px;&quot;&gt;&lt;span&gt;&lt;span style=&quot;font-size:14.3px;font-family: Arimo;&quot;&gt;&lt;span style=&quot;font-size:14.3px;font-family: Arimo;&quot;&gt;Confirm you have crated the Hyper Automation &lt;/span&gt;&lt;span style=&quot;font-size:14.3px;font-family: Arimo;&quot;&gt;Cutover.com&lt;/span&gt; Integration&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=13;fontFamily=Arimo;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#cfe4ff;lucidId=K1zT8dpoMwue;" parent="1" vertex="1">
+          <mxGeometry x="-8403" y="288" width="144" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-9" value="Follow Delivery Kit to determine, implement, and configure the integration method" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;shadow=1;fontSize=13;spacing=9;strokeColor=none;strokeOpacity=100;fillColor=#FFECA9;strokeWidth=0;lucidId=a3zTNYzEWmhN;" parent="1" vertex="1">
+          <mxGeometry x="-8600" y="240" width="197" height="197" as="geometry" />
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-10" value="Configure the Bootstrap hyper automation task" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;fontSize=14.3;fontFamily=Arimo;spacing=0;strokeColor=#36393d;strokeOpacity=100;fillOpacity=100;fillColor=#cfe4ff;lucidId=INFT8asJXjzY;" parent="1" vertex="1">
+          <mxGeometry x="-8403" y="561" width="144" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-11" value="&lt;div style=&quot;display: flex; justify-content: center; text-align: center; align-items: baseline; font-size: 0; line-height: 1.25;margin-top: -2px;&quot;&gt;&lt;span&gt;&lt;span style=&quot;font-size:13px;&quot;&gt;Pre-Requisite for running this runbook: &#xa;1- If not done already, follow the Hyper Automation Delivery Kit - User Guide to configure &lt;/span&gt;&lt;span style=&quot;font-size:13px;&quot;&gt;Cutover.com&lt;/span&gt;&lt;span style=&quot;font-size:13px;&quot;&gt; API token credentials.&#xa;2- Configure the Bootstrap task below to leverage the integration (see note)&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;shadow=1;fontSize=13;spacing=9;strokeColor=none;strokeOpacity=100;fillColor=#FFECA9;strokeWidth=0;lucidId=FJ7OULI0Wi0N;" parent="1" vertex="1">
+          <mxGeometry x="-8160.5" y="70" width="507" height="279" as="geometry" />
+        </mxCell>
+        <mxCell id="Y6itLAEGh5b4fzxJkhAu-12" value="&lt;div style=&quot;display: flex; justify-content: center; text-align: center; align-items: baseline; font-size: 0; line-height: 1.25;margin-top: -2px;&quot;&gt;&lt;span&gt;&lt;span style=&quot;font-size:13px;&quot;&gt;In order for the Bootstrap automation to run, the task must be configured to use the integration between &lt;/span&gt;&lt;span style=&quot;font-size:13px;&quot;&gt;Cutover.com&lt;/span&gt;&lt;span style=&quot;font-size:13px;&quot;&gt; and hyper automation solution. This should be done directly in Cutover.com after creating a runbook out of this template.&lt;br&gt;&lt;br&gt;Follow these steps:&lt;br&gt;1 - Either&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;font-size:13px;&quot;&gt;In the cutover.com runbook template of this flowchart, or in the instantiated runbook out of that template, edit the Runbook task named &#39;Bootstrap hyper automation&#39; and change the Task Type from normal to the integration with hyper automation (it will be in the list if the integration was created by you, otherwise follow the Delivery Kit to configure the integration before moving forward)&lt;br&gt;3 - Set the &quot;taskAutomationId&quot; field of the &#39;Bootstrap hyper automation&#39; task to &#39;CUTOVER-BOOTSTRAP-AUT-001&#39;. you will find this field under the Custom Field section in the Task details.&lt;br&gt;4- This task will automatically start as a soon as the previous runbook task is closed. Otherwise start it manually.&amp;nbsp;&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;" style="html=1;overflow=block;blockSpacing=1;whiteSpace=wrap;shadow=1;fontSize=13;spacing=9;strokeColor=none;strokeOpacity=100;fillColor=#FFECA9;strokeWidth=0;lucidId=FJ7OTFGu4nxI;" parent="1" vertex="1">
+          <mxGeometry x="-8259" y="434" width="379" height="330" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,37 +1,72 @@
 """
-Step Functions Orchestration Lambda
-Archive pattern: Lambda owns ALL state via OutputPath
+DR Orchestration Step Functions Lambda
 
-State is at root level ($), not nested under $.application
-All functions return the COMPLETE state object
+Orchestrates multi-wave disaster recovery operations using AWS DRS (Elastic Disaster Recovery).
+Manages wave-based execution, cross-account operations, and pause/resume workflows.
 
-NOTE: Security validation is handled at the API layer (Cognito + API Gateway).
-This Lambda receives trusted data from Step Functions internal flow.
-Do NOT add sanitization here - it breaks the archive pattern where state
-must be modified in place.
+HRP INTEGRATION CONTEXT:
+This Lambda implements the DRS adapter for the Enterprise DR Orchestration Platform (HRP).
+The wave-based orchestration pattern demonstrated here serves as the reference implementation
+for other technology adapters (Aurora, ECS, Lambda, Route53) that will follow the same
+4-phase lifecycle: INSTANTIATE → ACTIVATE → CLEANUP → REPLICATE.
 
-SNS Notifications: Integrated for execution lifecycle events
+The DRS adapter focuses on EC2 instance recovery using AWS Elastic Disaster Recovery Service,
+while future adapters will handle database failover, container orchestration, serverless
+functions, and DNS management using the same wave execution model.
+
+DIRECT INVOCATION SUPPORT:
+This Lambda supports both API Gateway invocation (current standalone mode) and direct
+Lambda invocation (future HRP integration mode). In HRP mode, this function is called
+directly by the HRP orchestration Step Functions without API Gateway or Cognito,
+enabling unified multi-technology DR orchestration across the enterprise platform.
+
+Architecture Pattern: Archive Pattern
+- Lambda owns ALL state via Step Functions OutputPath
+- State exists at root level ($), not nested under $.application
+- All functions return the COMPLETE state object for Step Functions to persist
+- State modifications happen in-place to maintain consistency
+
+Security Model:
+- Authentication/authorization handled at API Gateway layer (Cognito) in standalone mode
+- In HRP mode, authentication handled by HRP platform (no Cognito)
+- This Lambda receives pre-validated data from Step Functions
+- Input sanitization intentionally omitted to preserve archive pattern integrity
+
+Key Capabilities:
+- Multi-wave recovery execution with dependency management (AWSM-1103)
+- Cross-account DRS operations via IAM role assumption
+- Tag-based server discovery and resolution at execution time
+- Pause/resume support with callback tokens for manual approval gates
+- Real-time DRS job polling and server launch status tracking
+- Protection Group launch configuration application before recovery
+
+Wave Execution Model (AWSM-1103):
+- Sequential waves: Wave N+1 starts only after Wave N completes
+- Parallel within wave: All resources in a wave recover simultaneously
+- Failure tolerance: Wave continues even if individual resources fail
+- Timeout support: Configurable max wait time (default 1 year for long-term pauses)
+- Cancellation: User-initiated cancellation checked at each poll cycle
+
+Technology Adapter Pattern:
+Each technology adapter (DRS, Aurora, ECS, Lambda, Route53) implements:
+1. INSTANTIATE phase: Launch recovery resources (EC2, RDS, ECS tasks, Lambda functions)
+2. ACTIVATE phase: Configure and validate services (DNS, health checks, connections)
+3. CLEANUP phase: Remove temporary resources and configurations
+4. REPLICATE phase: Re-establish replication to primary region (for failback)
+
+The DRS adapter demonstrates this pattern for EC2 instance recovery, providing the
+blueprint for other adapters to follow in the broader HRP platform.
+
+Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
 """
 
 import json
 import os
-import sys
 import time
 from decimal import Decimal
 from typing import Dict, List
 
 import boto3
-
-# Add shared modules to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "shared"))
-from notifications import (  # noqa: E402
-    send_execution_completed,
-    send_execution_failed,
-    send_execution_paused,
-    send_execution_started,
-    send_wave_completed,
-    send_wave_failed,
-)
 
 # Environment variables
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
@@ -41,13 +76,33 @@ EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 # AWS clients
 dynamodb = boto3.resource("dynamodb")
 
-# DynamoDB tables (lazy init)
+# DynamoDB tables - lazy initialization for Lambda cold start optimization
+#
+# HRP ADAPTER PATTERN NOTE:
+# This Step Functions Lambda currently reads Protection Groups and Recovery Plans
+# directly from DynamoDB. In the broader HRP platform, this pattern will be replicated
+# across all technology adapters (Aurora, ECS, Lambda, Route53).
+#
+# API Handler Decomposition Impact:
+# The API handler is being decomposed into 3 focused handlers (Query, Execution, Data Management).
+# This decomposition does NOT affect Step Functions operation because:
+# - Step Functions reads from DynamoDB (not via API handler)
+# - API handlers and Step Functions are parallel consumers of the same DynamoDB tables
+# - Communication happens via DynamoDB state, not direct Lambda invocation
+#
+# Future HRP Integration:
+# When integrated into the HRP platform, this DRS adapter will be invoked by the
+# HRP orchestration Step Functions, which will pass Protection Group and Recovery Plan
+# data as input parameters rather than requiring DynamoDB reads. Other technology
+# adapters (Aurora, ECS, Lambda, Route53) will follow this same pattern.
+#
 _protection_groups_table = None
 _recovery_plans_table = None
 _execution_history_table = None
 
 
 def get_protection_groups_table():
+    """Lazy-load Protection Groups table to optimize Lambda cold starts"""
     global _protection_groups_table
     if _protection_groups_table is None:
         _protection_groups_table = dynamodb.Table(PROTECTION_GROUPS_TABLE)
@@ -55,6 +110,7 @@ def get_protection_groups_table():
 
 
 def get_recovery_plans_table():
+    """Lazy-load Recovery Plans table to optimize Lambda cold starts"""
     global _recovery_plans_table
     if _recovery_plans_table is None:
         _recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE)
@@ -62,6 +118,7 @@ def get_recovery_plans_table():
 
 
 def get_execution_history_table():
+    """Lazy-load Execution History table to optimize Lambda cold starts"""
     global _execution_history_table
     if _execution_history_table is None:
         _execution_history_table = dynamodb.Table(EXECUTION_HISTORY_TABLE)
@@ -70,32 +127,43 @@ def get_execution_history_table():
 
 def get_account_context(state: Dict) -> Dict:
     """
-    Get account context from state, handling both camelCase and snake_case.
+    Extract account context from state, handling both camelCase and snake_case.
 
-    Initial execution uses camelCase (accountContext) from Step Functions input.
-    Resume uses snake_case (account_context) from SendTaskSuccess output.
+    Supports two input formats:
+    - Initial execution: camelCase (accountContext) from Step Functions input
+    - Resume after pause: snake_case (account_context) from SendTaskSuccess output
+
+    Returns:
+        Dict containing accountId, assumeRoleName, and isCurrentAccount flags
     """
     return state.get("accountContext") or state.get("account_context", {})
 
 
 def create_drs_client(region: str, account_context: Dict = None):
     """
-    Create DRS client with optional cross-account access
+    Create DRS client with optional cross-account access via IAM role assumption.
+
+    Cross-account access is used when:
+    - accountId is provided and not empty
+    - accountId differs from current account (isCurrentAccount=False)
 
     Args:
         region: AWS region for DRS operations
-        account_context: Dict containing accountId and assumeRoleName for cross-account access
+        account_context: Optional dict with accountId, assumeRoleName, isCurrentAccount
 
     Returns:
-        boto3 DRS client
+        boto3 DRS client configured for target account and region
+
+    Raises:
+        Exception: If role assumption fails for cross-account access
     """
-    # Check if cross-account access is needed - only if accountId is provided, not empty, and not current account
+    # Cross-account access required only if accountId provided and not current account
     if (
         account_context
         and account_context.get("accountId")
-        and account_context.get("accountId").strip()  # Not empty string
+        and account_context.get("accountId").strip()
         and not account_context.get("isCurrentAccount", False)
-    ):  # Not current account
+    ):
 
         account_id = account_context["accountId"]
         role_name = account_context.get(
@@ -106,7 +174,6 @@ def create_drs_client(region: str, account_context: Dict = None):
             f"Creating cross-account DRS client for account {account_id} in region {region}"
         )
 
-        # Assume role in target account
         sts_client = boto3.client("sts", region_name=region)
         session_name = f"drs-orchestration-{int(time.time())}"
 
@@ -143,16 +210,38 @@ def apply_launch_config_before_recovery(
     drs_client, server_ids: List[str], launch_config: Dict, region: str
 ) -> None:
     """
-    Apply Protection Group launch config to DRS servers before starting recovery.
+    Apply Protection Group launch configuration to DRS servers before recovery.
 
-    This ensures the DRS launch templates have the correct subnet, security groups,
-    instance type, etc. from the Protection Group configuration.
+    Updates both DRS launch settings and EC2 launch templates to ensure recovered
+    instances use correct network, security, and instance configurations.
+
+    DRS Launch Settings Updated:
+    - copyPrivateIp: Preserve source server private IP
+    - copyTags: Copy source server tags to recovery instance
+    - licensing: OS licensing configuration
+    - targetInstanceTypeRightSizingMethod: Instance sizing strategy
+    - launchDisposition: Launch behavior (STARTED/STOPPED)
+
+    EC2 Launch Template Updated:
+    - InstanceType: EC2 instance type for recovery
+    - NetworkInterfaces: Subnet and security groups
+    - IamInstanceProfile: IAM role for recovered instance
+
+    Args:
+        drs_client: Boto3 DRS client (may be cross-account)
+        server_ids: List of DRS source server IDs
+        launch_config: Protection Group launch configuration dict
+        region: AWS region for EC2 operations
+
+    Note:
+        Failures for individual servers are logged but don't stop recovery.
+        This ensures partial success when some servers have configuration issues.
     """
     ec2_client = boto3.client("ec2", region_name=region)
 
     for server_id in server_ids:
         try:
-            # Get current DRS launch configuration to find the EC2 launch template
+            # Get DRS launch configuration to find EC2 launch template
             current_config = drs_client.get_launch_configuration(
                 sourceServerID=server_id
             )
@@ -223,21 +312,26 @@ def apply_launch_config_before_recovery(
             print(
                 f"Warning: Failed to apply launch config to {server_id}: {e}"
             )
-            # Continue with other servers - don't fail the whole recovery
+            # Continue with other servers - partial success is acceptable
 
 
-# DRS job status constants
+# DRS job status constants - determine when job polling should stop
 DRS_JOB_STATUS_COMPLETE_STATES = ["COMPLETED"]
 DRS_JOB_STATUS_WAIT_STATES = ["PENDING", "STARTED"]
 
-# DRS server launch status constants
+# DRS server launch status constants - track individual server recovery progress
 DRS_JOB_SERVERS_COMPLETE_SUCCESS_STATES = ["LAUNCHED"]
 DRS_JOB_SERVERS_COMPLETE_FAILURE_STATES = ["FAILED", "TERMINATED"]
 DRS_JOB_SERVERS_WAIT_STATES = ["PENDING", "IN_PROGRESS"]
 
 
 class DecimalEncoder(json.JSONEncoder):
-    """Handle Decimal types from DynamoDB"""
+    """
+    JSON encoder for DynamoDB Decimal types.
+
+    DynamoDB returns numeric values as Decimal objects which aren't JSON serializable.
+    This encoder converts Decimals to int (if whole number) or float (if fractional).
+    """
 
     def default(self, obj):
         if isinstance(obj, Decimal):
@@ -247,15 +341,32 @@ class DecimalEncoder(json.JSONEncoder):
 
 def lambda_handler(event, context):
     """
-    Step Functions orchestration handler - Archive pattern
+    Main entry point for Step Functions orchestration.
 
-    All actions return COMPLETE state object (Lambda owns state)
+    Routes requests to appropriate handlers based on action parameter.
+    All handlers follow archive pattern - they return complete state objects.
+
+    Supported Actions:
+    - begin: Initialize wave plan execution
+    - update_wave_status: Poll DRS job and check server launch status
+    - store_task_token: Store callback token for pause/resume
+    - resume_wave: Resume execution after manual approval
+
+    Args:
+        event: Step Functions event containing action and state
+        context: Lambda context (unused)
+
+    Returns:
+        Complete state object for Step Functions to persist
+
+    Raises:
+        ValueError: If action is unknown
     """
     print(f"Event: {json.dumps(event, cls=DecimalEncoder)}")
 
     action = event.get("action")
 
-    # Extract account context for multi-account support
+    # Log account context for multi-account operations
     account_context = event.get("accountContext", {})
     account_id = account_context.get("accountId")
     if account_id:
@@ -275,8 +386,28 @@ def lambda_handler(event, context):
 
 def begin_wave_plan(event: Dict) -> Dict:
     """
-    Initialize wave plan execution
-    Returns COMPLETE state object (archive pattern)
+    Initialize wave plan execution and start first wave.
+
+    Creates complete state object with all tracking fields for Step Functions.
+    Supports up to 1-year execution duration for long-running DR scenarios.
+
+    State Object Structure:
+    - Core identifiers: plan_id, execution_id, is_drill, accountContext
+    - Wave tracking: waves, total_waves, current_wave_number, completed_waves
+    - Completion flags: all_waves_completed, wave_completed (for Step Functions Choice states)
+    - Polling config: update intervals and max wait times
+    - Status: running/paused/completed/failed/cancelled (for parent orchestrator)
+    - Results: wave_results, recovery_instance_ids, recovery_instance_ips
+    - Current wave: job_id, region, server_ids
+    - Error handling: error, error_code
+    - Pause/Resume: paused_before_wave, task token (stored in DynamoDB)
+    - Timing: start_time, end_time, duration_seconds (for SLA tracking)
+
+    Args:
+        event: Step Functions event with plan, execution, isDrill, accountContext
+
+    Returns:
+        Complete state object with first wave started (archive pattern)
     """
     plan = event.get("plan", {})
     execution_id = event.get("execution", "")
@@ -289,8 +420,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     print(f"Beginning wave plan for execution {execution_id}, plan {plan_id}")
     print(f"Total waves: {len(waves)}, isDrill: {is_drill}")
 
-    # Initialize state object (at root level - archive pattern)
-    # Enhanced for parent Step Function integration
+    # Initialize state object at root level (archive pattern)
     start_time = int(time.time())
     state = {
         # Core identifiers
@@ -305,21 +435,20 @@ def begin_wave_plan(event: Dict) -> Dict:
         "current_wave_number": 0,
         "completed_waves": 0,
         "failed_waves": 0,
-        # Completion flags (for Step Functions Choice states)
+        # Completion flags for Step Functions Choice states
         "all_waves_completed": False,
         "wave_completed": False,
-        # Polling configuration
+        # Polling configuration - supports up to 1 year for long-term pauses
         "current_wave_update_time": 30,
         "current_wave_total_wait_time": 0,
-        "current_wave_max_wait_time": 31536000,  # 1 year (Step Functions supports up to 1 year pauses)
+        "current_wave_max_wait_time": 31536000,  # 1 year (365 * 24 * 60 * 60)
         # Status for parent orchestrator branching
-        # Values: 'running', 'paused', 'completed', 'failed', 'cancelled'
-        "status": "running",
+        "status": "running",  # running/paused/completed/failed/cancelled
         "status_reason": None,
         # Results for downstream processing
         "wave_results": [],
-        "recovery_instance_ids": [],  # EC2 instance IDs of recovered servers
-        "recovery_instance_ips": [],  # Private IPs of recovered servers
+        "recovery_instance_ids": [],  # EC2 instance IDs
+        "recovery_instance_ips": [],  # Private IPs
         # Current wave details
         "job_id": None,
         "region": None,
@@ -346,22 +475,9 @@ def begin_wave_plan(event: Dict) -> Dict:
     except Exception as e:
         print(f"Error updating execution status: {e}")
 
-    # Send execution started notification
-    try:
-        execution_type = "DRILL" if is_drill else "RECOVERY"
-        send_execution_started(
-            execution_id,
-            plan.get("planName", "Unknown"),
-            len(waves),
-            execution_type,
-        )
-    except Exception as e:
-        print(f"Warning: Failed to send execution started notification: {e}")
-
     # Start first wave
     if len(waves) > 0:
         start_wave_recovery(state, 0)
-        # DEBUG: Log state after start_wave_recovery to verify job_id is set
         print(
             f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}"
         )
@@ -370,7 +486,6 @@ def begin_wave_plan(event: Dict) -> Dict:
         state["all_waves_completed"] = True
         state["status"] = "completed"
 
-    # DEBUG: Log final state being returned
     print(
         f"DEBUG: Returning state with job_id={state.get('job_id')}, wave_completed={state.get('wave_completed')}, status={state.get('status')}"
     )
@@ -379,12 +494,25 @@ def begin_wave_plan(event: Dict) -> Dict:
 
 def store_task_token(event: Dict) -> Dict:
     """
-    Store task token for callback pattern (pause/resume)
+    Store task token for callback pattern (manual pause/resume workflow).
 
-    ARCHIVE PATTERN: Returns COMPLETE state object
-    The state includes paused_before_wave so resume knows which wave to start
+    Task tokens enable Step Functions to pause execution and wait for external
+    approval before continuing. The token is stored in DynamoDB and used later
+    with SendTaskSuccess to resume execution.
+
+    Archive Pattern: Returns complete state object with paused_before_wave set
+    so resume knows which wave to start.
+
+    Args:
+        event: Contains state (application) and taskToken from Step Functions
+
+    Returns:
+        Complete state object with pause metadata
+
+    Raises:
+        ValueError: If task token is missing
     """
-    # State is passed directly (archive pattern)
+    # State passed directly (archive pattern)
     state = event.get("application", event)
     task_token = event.get("taskToken")
     execution_id = state.get("execution_id")
@@ -401,7 +529,7 @@ def store_task_token(event: Dict) -> Dict:
         print("ERROR: No task token provided")
         raise ValueError("No task token provided for callback")
 
-    # Store task token in DynamoDB
+    # Store task token in DynamoDB for later resume
     try:
         get_execution_history_table().update_item(
             Key={"executionId": execution_id, "planId": plan_id},
@@ -418,25 +546,33 @@ def store_task_token(event: Dict) -> Dict:
         print(f"ERROR storing task token: {e}")
         raise
 
-    # ARCHIVE PATTERN: Return COMPLETE state
-    # This state will be passed to ResumeWavePlan after SendTaskSuccess
+    # Archive pattern: Return complete state for SendTaskSuccess
     state["paused_before_wave"] = paused_before_wave
     return state
 
 
 def resume_wave(event: Dict) -> Dict:
     """
-    Resume execution by starting the paused wave
+    Resume execution by starting the paused wave.
 
-    ARCHIVE PATTERN: State is passed directly, returns COMPLETE state
+    Called after SendTaskSuccess provides the callback token. Resets execution
+    status to running and starts the wave that was paused.
+
+    Archive Pattern: State passed directly, returns complete state object.
+
+    Args:
+        event: Contains state (application) with paused_before_wave
+
+    Returns:
+        Complete state object with wave started
     """
-    # State is passed directly (archive pattern)
+    # State passed directly (archive pattern)
     state = event.get("application", event)
     execution_id = state.get("execution_id")
     plan_id = state.get("plan_id")
     paused_before_wave = state.get("paused_before_wave", 0)
 
-    # Convert Decimal to int if needed (DynamoDB returns Decimal)
+    # DynamoDB returns Decimal, convert to int
     if isinstance(paused_before_wave, Decimal):
         paused_before_wave = int(paused_before_wave)
 
@@ -449,18 +585,18 @@ def resume_wave(event: Dict) -> Dict:
     state["wave_completed"] = False
     state["paused_before_wave"] = None
 
-    # Update DynamoDB - remove endTime to allow execution to continue
+    # Update DynamoDB - remove task token and pause metadata
     try:
         get_execution_history_table().update_item(
             Key={"executionId": execution_id, "planId": plan_id},
-            UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave, endTime",
+            UpdateExpression="SET #status = :status REMOVE taskToken, pausedBeforeWave",
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={":status": "RUNNING"},
         )
     except Exception as e:
         print(f"Error updating execution status: {e}")
 
-    # Start recovery for the specified wave
+    # Start the paused wave
     start_wave_recovery(state, paused_before_wave)
 
     return state
@@ -470,11 +606,29 @@ def query_drs_servers_by_tags(  # noqa: C901
     region: str, tags: Dict[str, str], account_context: Dict = None
 ) -> List[str]:
     """
-    Query DRS source servers that have ALL specified tags.
-    Uses AND logic - DRS source server must have all tags to be included.
+    Query DRS source servers matching ALL specified tags (AND logic).
 
-    This queries the DRS source server tags directly, not EC2 instance tags.
-    Returns list of source server IDs for orchestration.
+    Tag-based discovery enables dynamic server resolution at execution time rather
+    than static server lists. This supports auto-scaling and server changes without
+    updating Protection Groups.
+
+    Tag Matching Rules:
+    - Server must have ALL specified tags to be included
+    - Tag keys and values are case-insensitive
+    - Whitespace is stripped from keys and values
+    - Tags are read from DRS source server metadata, not EC2 instance tags
+
+    Args:
+        region: AWS region to query DRS servers
+        tags: Dict of tag key-value pairs that servers must match
+        account_context: Optional cross-account context for IAM role assumption
+
+    Returns:
+        List of DRS source server IDs matching all tags
+
+    Example:
+        tags = {"Environment": "production", "Customer": "acme"}
+        # Returns only servers with BOTH tags matching
     """
     try:
         # Create DRS client with cross-account support
@@ -491,24 +645,21 @@ def query_drs_servers_by_tags(  # noqa: C901
             print("No DRS source servers found in region")
             return []
 
-        # Filter servers that match ALL specified tags
+        # Filter servers matching ALL specified tags
         matching_server_ids = []
 
         for server in all_servers:
             server_id = server.get("sourceServerID", "")
-
-            # Get DRS source server tags directly from server object
             drs_tags = server.get("tags", {})
 
-            # Check if DRS server has ALL required tags with matching values
-            # Use case-insensitive matching and strip whitespace for robustness
+            # Check if server has ALL required tags with matching values
             matches_all = True
             for tag_key, tag_value in tags.items():
-                # Normalize tag key and value (strip whitespace, case-insensitive)
+                # Normalize for case-insensitive comparison
                 normalized_required_key = tag_key.strip()
                 normalized_required_value = tag_value.strip().lower()
 
-                # Check if any DRS tag matches (case-insensitive)
+                # Check if any DRS tag matches
                 found_match = False
                 for drs_key, drs_value in drs_tags.items():
                     normalized_drs_key = drs_key.strip()
@@ -542,64 +693,54 @@ def query_drs_servers_by_tags(  # noqa: C901
         raise
 
 
-def get_drs_server_details(
-    drs_client, server_ids: List[str]
-) -> Dict[str, Dict]:
-    """
-    Get DRS source server details (Name tag, hostname) for server information display.
-
-    Uses data already available from DRS source servers - no extra EC2 API calls needed.
-
-    Args:
-        drs_client: Boto3 DRS client
-        server_ids: List of DRS source server IDs
-
-    Returns:
-        Dict mapping server_id to {serverName, hostname}
-    """
-    server_details = {}
-
-    if not server_ids:
-        return server_details
-
-    try:
-        # Query DRS for source server details
-        response = drs_client.describe_source_servers(
-            filters={"sourceServerIDs": server_ids}
-        )
-
-        for server in response.get("items", []):
-            server_id = server.get("sourceServerID", "")
-
-            # Get Name tag from DRS source server tags
-            name_tag = server.get("tags", {}).get("Name", "")
-
-            # Get hostname from identification hints
-            hostname = (
-                server.get("sourceProperties", {})
-                .get("identificationHints", {})
-                .get("hostname", "")
-            )
-
-            server_details[server_id] = {
-                "serverName": name_tag or hostname or server_id,
-                "hostname": hostname,
-            }
-
-    except Exception as e:
-        print(f"Warning: Could not get DRS server details: {e}")
-        # Return empty details - frontend will show server IDs
-
-    return server_details
-
-
 def start_wave_recovery(state: Dict, wave_number: int) -> None:
     """
-    Start DRS recovery for a wave
-    Modifies state in place (archive pattern)
+    Start DRS recovery for a wave with tag-based server resolution.
 
-    Tag-based server resolution: Servers are resolved at execution time
-    by querying DRS for servers matching the Protection Group's tags.
+    Modifies state in-place (archive pattern) to update current wave tracking,
+    job details, and wave results.
+
+    Workflow:
+    1. Retrieve Protection Group configuration from DynamoDB
+    2. Resolve servers using tag-based discovery (execution-time resolution)
+    3. Apply Protection Group launch configuration to DRS servers
+    4. Start DRS recovery job (drill or production)
+    5. Update state with job details and initial server statuses
+    6. Store wave result in DynamoDB for frontend display
+
+    Tag-Based Resolution (AWSM-1103):
+    Servers are resolved at execution time by querying DRS for servers matching
+    the Protection Group's serverSelectionTags. This enables dynamic discovery
+    without maintaining static server lists. The pattern supports:
+    - Auto-scaling: New servers automatically included if tags match
+    - Multi-tenant: Customer/Environment tags scope recovery operations
+    - Priority-based waves: dr:priority maps to wave numbers (critical→1, high→2, etc.)
+
+    Wave Execution (AWSM-1103):
+    - Sequential waves: This wave must complete before next wave starts
+    - Parallel within wave: All servers launched simultaneously via batch API
+    - Failure tolerance: Individual server failures don't stop wave execution
+
+    Args:
+        state: Complete state object (modified in-place)
+        wave_number: Zero-based wave index to start
+
+    State Updates:
+    - current_wave_number: Set to wave_number
+    - job_id: DRS job ID for tracking
+    - region: AWS region for recovery
+    - server_ids: List of resolved server IDs
+    - wave_completed: Set to False (polling will update)
+    - wave_results: Appended with new wave result
+
+    Note:
+        Failures set wave_completed=True and status='failed' to stop execution.
+        Empty server lists (no tags matched) mark wave complete without error.
+
+    HRP Platform Extension:
+        Other technology adapters (Aurora, ECS, Lambda, Route53) will implement
+        similar start_wave_recovery functions with service-specific APIs while
+        maintaining the same wave execution pattern and state management.
     """
     waves = state["waves"]
     wave = waves[wave_number]
@@ -608,7 +749,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
 
     wave_name = wave.get("waveName", f"Wave {wave_number + 1}")
 
-    # Get Protection Group
+    # Get Protection Group from DynamoDB
     protection_group_id = wave.get("protectionGroupId")
     if not protection_group_id:
         print(f"Wave {wave_number} has no protectionGroupId")
@@ -633,11 +774,10 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         pg = pg_response["Item"]
         region = pg.get("region", "us-east-1")
 
-        # TAG-BASED RESOLUTION: Resolve servers at execution time using tags
+        # Tag-based server resolution at execution time (AWSM-1103)
         selection_tags = pg.get("serverSelectionTags", {})
 
         if selection_tags:
-            # Resolve servers by tags at execution time
             print(
                 f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}"
             )
@@ -647,7 +787,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
             )
             print(f"Resolved {len(server_ids)} servers from tags")
         else:
-            # Fallback: Check if wave has explicit serverIds (legacy support)
+            # Fallback: explicit serverIds from wave (legacy support)
             server_ids = wave.get("serverIds", [])
             print(
                 f"Using explicit serverIds from wave: {len(server_ids)} servers"
@@ -655,7 +795,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
 
         if not server_ids:
             print(
-                f"Wave {wave_number} has no servers (no tags matched or no servers found), marking complete"
+                f"Wave {wave_number} has no servers (no tags matched), marking complete"
             )
             state["wave_completed"] = True
             return
@@ -667,7 +807,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         account_context = get_account_context(state)
         drs_client = create_drs_client(region, account_context)
 
-        # Apply Protection Group launch config to DRS before starting recovery
+        # Apply Protection Group launch config before recovery
         launch_config = pg.get("launchConfig")
         if launch_config:
             print(
@@ -686,26 +826,23 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         job_id = response["job"]["jobID"]
         print(f"✅ DRS Job created: {job_id}")
 
-        # Get server details (Name tag, hostname) from DRS source servers
-        server_details = get_drs_server_details(drs_client, server_ids)
-
-        # Build serverStatuses with server details for frontend display
+        # Build initial serverStatuses - execution-poller enriches with details
         server_statuses = []
         for server_id in server_ids:
-            details = server_details.get(server_id, {})
             server_statuses.append(
                 {
                     "sourceServerId": server_id,
-                    "serverName": details.get("serverName", server_id),
-                    "hostname": details.get("hostname", ""),
+                    "serverName": server_id,  # Poller updates with Name tag
+                    "hostname": "",
                     "launchStatus": "PENDING",
                     "instanceId": "",
                     "privateIp": "",
+                    "instanceType": "",
                     "launchTime": 0,
                 }
             )
 
-        # Update state IN PLACE (archive pattern - critical!)
+        # Update state in-place (archive pattern - AWSM-1103)
         state["current_wave_number"] = wave_number
         state["job_id"] = job_id
         state["region"] = region
@@ -713,7 +850,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         state["wave_completed"] = False
         state["current_wave_total_wait_time"] = 0
 
-        # Store wave result with serverStatuses for frontend display
+        # Store wave result for frontend display
         wave_result = {
             "waveNumber": wave_number,
             "waveName": wave_name,
@@ -726,22 +863,17 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         }
         state["wave_results"].append(wave_result)
 
-        # Update DynamoDB with execution-level DRS job info and wave data
+        # Update DynamoDB with wave data at specific index to preserve completed waves
         try:
-            # Calculate current wave number (1-indexed for display)
-            current_wave_number = len(state["wave_results"])
-            
             get_execution_history_table().update_item(
                 Key={"executionId": execution_id, "planId": state["plan_id"]},
-                UpdateExpression="SET waves = list_append(if_not_exists(waves, :empty), :wave), drsJobId = :job_id, drsRegion = :region, #status = :status, currentWave = :current_wave",
+                UpdateExpression=f"SET waves[{wave_number}] = :wave, drsJobId = :job_id, drsRegion = :region, #status = :status",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
-                    ":empty": [],
-                    ":wave": [wave_result],
+                    ":wave": wave_result,
                     ":job_id": job_id,
                     ":region": region,
                     ":status": "POLLING",
-                    ":current_wave": current_wave_number,
                 },
                 ConditionExpression="attribute_exists(executionId)",
             )
@@ -760,11 +892,51 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
 
 def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     """
-    Poll DRS job status and check server launch status
+    Poll DRS job status and track server launch progress.
 
-    ARCHIVE PATTERN: State is passed directly, returns COMPLETE state
+    Called repeatedly by Step Functions Wait state until wave completes or times out.
+    Checks for cancellation, tracks server launch status, and manages wave transitions.
+
+    Polling Workflow:
+    1. Check for execution cancellation (user-initiated)
+    2. Verify job exists and get current status
+    3. Track individual server launch status (PENDING → IN_PROGRESS → LAUNCHED/FAILED)
+    4. Determine current phase (CONVERTING → LAUNCHING → LAUNCHED)
+    5. Check completion conditions (all launched, any failed, timeout)
+    6. Handle wave completion: start next wave or pause/complete execution
+
+    Server Launch States:
+    - PENDING: Initial state, may be converting snapshots
+    - IN_PROGRESS: Actively launching EC2 instance
+    - LAUNCHED: Successfully created recovery instance
+    - FAILED/TERMINATED: Launch failed
+
+    Wave Completion Conditions:
+    - Success: All servers LAUNCHED
+    - Failure: Any server FAILED or TERMINATED
+    - Timeout: Exceeded current_wave_max_wait_time (default 1 year)
+    - Cancellation: User cancelled execution
+
+    Archive Pattern: State passed directly, returns complete state object.
+
+    Args:
+        event: Contains state (application) with job_id, region, wave tracking
+
+    Returns:
+        Complete state object with updated wave status and completion flags
+
+    State Updates:
+    - current_wave_total_wait_time: Incremented by update_time
+    - wave_completed: Set to True when wave finishes (success/failure/timeout)
+    - all_waves_completed: Set to True when all waves done or execution cancelled
+    - status: Updated to completed/failed/cancelled/paused
+    - wave_results: Updated with server statuses and completion time
+
+    Note:
+        DynamoDB updates for server details (instanceId, privateIp) are handled
+        by execution-poller Lambda to avoid race conditions.
     """
-    # State is passed directly (archive pattern)
+    # State passed directly (archive pattern)
     state = event.get("application", event)
     job_id = state.get("job_id")
     wave_number = state.get("current_wave_number", 0)
@@ -772,7 +944,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     execution_id = state.get("execution_id")
     plan_id = state.get("plan_id")
 
-    # Early check for cancellation - check at start of every poll cycle
+    # Check for cancellation at start of every poll cycle
     if execution_id and plan_id:
         try:
             exec_check = get_execution_history_table().get_item(
@@ -803,19 +975,16 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         state["wave_completed"] = True
         return state
 
-    # Update total wait time
+    # Update total wait time and check for timeout
     update_time = state.get("current_wave_update_time", 30)
     total_wait = state.get("current_wave_total_wait_time", 0) + update_time
-    max_wait = state.get(
-        "current_wave_max_wait_time", 31536000
-    )  # 1 year default
+    max_wait = state.get("current_wave_max_wait_time", 31536000)
     state["current_wave_total_wait_time"] = total_wait
 
     print(
         f"Checking status for job {job_id}, wait time: {total_wait}s / {max_wait}s"
     )
 
-    # Check for timeout
     if total_wait >= max_wait:
         print(f"❌ Wave {wave_number} TIMEOUT")
         state["wave_completed"] = True
@@ -864,7 +1033,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 state["wave_completed"] = False
                 return state
 
-        # Get existing server statuses from state to preserve serverName, hostname, etc.
+        # Preserve existing server data (serverName, hostname) from state
         existing_statuses = {}
         for wr in state.get("wave_results", []):
             if wr.get("waveNumber") == wave_number:
@@ -872,7 +1041,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     existing_statuses[ss.get("sourceServerId")] = ss
                 break
 
-        # Check server launch status
+        # Track server launch progress
         launched_count = 0
         failed_count = 0
         launching_count = 0
@@ -896,9 +1065,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     "launchStatus": launch_status,
                     "recoveryInstanceId": recovery_instance_id
                     or existing.get("recoveryInstanceId", ""),
-                    "recoveredInstanceId": existing.get(
-                        "recoveredInstanceId", ""
-                    ),
+                    "instanceId": existing.get("instanceId", ""),
                     "privateIp": existing.get("privateIp", ""),
                     "instanceType": existing.get("instanceType", ""),
                     "launchTime": existing.get("launchTime", 0),
@@ -953,17 +1120,12 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         if launched_count > 0 and launched_count < total_servers:
             current_wave_status = "IN_PROGRESS"
 
-        # Update wave status in DynamoDB if it has changed from STARTED
+        # NOTE: DynamoDB updates are handled by execution-poller Lambda
+        # to avoid race conditions and data overwrites
         if current_wave_status != "STARTED":
             print(
-                f"Updating wave {wave_number} status to {current_wave_status}"
-            )
-            update_wave_in_dynamodb(
-                execution_id,
-                plan_id,
-                wave_number,
-                current_wave_status,
-                server_statuses,
+                f"Wave {wave_number} status changed to {current_wave_status} "
+                "(DynamoDB update handled by execution-poller)"
             )
 
         # Check if job completed but no instances created
@@ -974,9 +1136,6 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             state["error"] = (
                 "DRS job completed but no recovery instances created"
             )
-            update_wave_in_dynamodb(
-                execution_id, plan_id, wave_number, "FAILED", server_statuses
-            )
             return state
 
         # All servers launched
@@ -985,137 +1144,17 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 f"✅ Wave {wave_number} COMPLETE - all {launched_count} servers launched"
             )
 
-            # Send wave completed notification
-            try:
-                wave_name = state.get("waves", [])[wave_number].get(
-                    "waveName", f"Wave {wave_number + 1}"
-                )
-                plan_name = state.get("plan_name", "Unknown")
-                print(
-                    f"📧 Attempting to send wave completed notification for wave {wave_number + 1}"
-                )
-                send_wave_completed(
-                    execution_id,
-                    plan_name,
-                    wave_number + 1,
-                    wave_name,
-                    launched_count,
-                )
-                print(f"✅ Wave completed notification sent successfully")
-            except Exception as e:
-                print(
-                    f"❌ ERROR: Failed to send wave completed notification: {e}"
-                )
-                import traceback
-
-                traceback.print_exc()
-
-            # Get EC2 instance IDs
-            try:
-                source_server_ids = [
-                    s.get("sourceServerId") for s in server_statuses
-                ]
-                ri_response = drs_client.describe_recovery_instances(
-                    filters={"sourceServerIDs": source_server_ids}
-                )
-                current_time = int(time.time())
-                for ri in ri_response.get("items", []):
-                    source_id = ri.get("sourceServerID")
-                    for ss in server_statuses:
-                        if ss.get("sourceServerId") == source_id:
-                            ss["recoveredInstanceId"] = ri.get(
-                                "ec2InstanceID", ""
-                            )
-                            ss["recoveryInstanceId"] = ri.get(
-                                "recoveryInstanceID", ""
-                            )
-                            # Set launchTime when server is LAUNCHED
-                            if ss.get(
-                                "launchStatus"
-                            ) == "LAUNCHED" and not ss.get("launchTime"):
-                                ss["launchTime"] = current_time
-                            break
-            except Exception as e:
-                print(
-                    f"Warning: Could not fetch recovery instance details: {e}"
-                )
-
             state["wave_completed"] = True
             state["completed_waves"] = state.get("completed_waves", 0) + 1
 
-            # Capture recovery instance IDs and IPs for parent orchestrator
-            for ss in server_statuses:
-                ec2_id = ss.get("recoveredInstanceId")
-                if ec2_id:
-                    if ec2_id not in state.get("recovery_instance_ids", []):
-                        state.setdefault("recovery_instance_ids", []).append(
-                            ec2_id
-                        )
-
-            # Fetch private IPs from EC2 and update server_statuses
-            try:
-                ec2_ids = [
-                    ss.get("recoveredInstanceId")
-                    for ss in server_statuses
-                    if ss.get("recoveredInstanceId")
-                ]
-                if ec2_ids:
-                    ec2_client = boto3.client("ec2", region_name=region)
-                    ec2_response = ec2_client.describe_instances(
-                        InstanceIds=ec2_ids
-                    )
-                    # Build mapping of instance ID to details
-                    instance_details = {}
-                    for reservation in ec2_response.get("Reservations", []):
-                        for instance in reservation.get("Instances", []):
-                            instance_id = instance.get("InstanceId")
-                            instance_details[instance_id] = {
-                                "privateIp": instance.get(
-                                    "PrivateIpAddress", ""
-                                ),
-                                "instanceType": instance.get(
-                                    "InstanceType", ""
-                                ),
-                            }
-
-                    # Update server_statuses with EC2 details
-                    for ss in server_statuses:
-                        ec2_id = ss.get("recoveredInstanceId")
-                        if ec2_id and ec2_id in instance_details:
-                            ss["privateIp"] = instance_details[ec2_id].get(
-                                "privateIp", ""
-                            )
-                            ss["instanceType"] = instance_details[ec2_id].get(
-                                "instanceType", ""
-                            )
-
-                    # Also add to state-level list
-                    for details in instance_details.values():
-                        private_ip = details.get("privateIp")
-                        if private_ip and private_ip not in state.get(
-                            "recovery_instance_ips", []
-                        ):
-                            state.setdefault(
-                                "recovery_instance_ips", []
-                            ).append(private_ip)
-            except Exception as e:
-                print(f"Warning: Could not fetch EC2 IPs: {e}")
-
-            # Update wave result
+            # Update wave result in Step Functions state
+            # EC2 instance details (instanceId, privateIp, instanceType) are
+            # populated by execution-poller which is the single source of truth
             for wr in state.get("wave_results", []):
                 if wr.get("waveNumber") == wave_number:
                     wr["status"] = "COMPLETED"
                     wr["endTime"] = int(time.time())
-                    wr["serverStatuses"] = server_statuses
                     break
-
-            update_wave_in_dynamodb(
-                execution_id,
-                plan_id,
-                wave_number,
-                "COMPLETED",
-                server_statuses,
-            )
 
             # Check if cancelled or paused
             try:
@@ -1162,20 +1201,6 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["status"] = "paused"
                     state["paused_before_wave"] = next_wave
 
-                    # Send execution paused notification
-                    try:
-                        plan_name = state.get("plan_name", "Unknown")
-                        wave_name = waves_list[next_wave].get(
-                            "waveName", f"Wave {next_wave + 1}"
-                        )
-                        send_execution_paused(
-                            execution_id, plan_name, next_wave + 1, wave_name
-                        )
-                    except Exception as e:
-                        print(
-                            f"Warning: Failed to send execution paused notification: {e}"
-                        )
-
                     # Mark execution as PAUSED for manual resume
                     try:
                         get_execution_history_table().update_item(
@@ -1212,28 +1237,6 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 state["completed_waves"] = len(waves_list)
                 if state.get("start_time"):
                     state["duration_seconds"] = end_time - state["start_time"]
-
-                # Send execution completed notification
-                try:
-                    plan_name = state.get("plan_name", "Unknown")
-                    duration = state.get("duration_seconds", 0)
-                    print(
-                        f"📧 Attempting to send execution completed notification"
-                    )
-                    send_execution_completed(
-                        execution_id, plan_name, len(waves_list), duration
-                    )
-                    print(
-                        f"✅ Execution completed notification sent successfully"
-                    )
-                except Exception as e:
-                    print(
-                        f"❌ ERROR: Failed to send execution completed notification: {e}"
-                    )
-                    import traceback
-
-                    traceback.print_exc()
-
                 get_execution_history_table().update_item(
                     Key={"executionId": execution_id, "planId": plan_id},
                     UpdateExpression="SET #status = :status, endTime = :end",
@@ -1261,38 +1264,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             state["end_time"] = end_time
             if state.get("start_time"):
                 state["duration_seconds"] = end_time - state["start_time"]
-
-            # Send wave failed notification
-            try:
-                wave_name = state.get("waves", [])[wave_number].get(
-                    "waveName", f"Wave {wave_number + 1}"
-                )
-                plan_name = state.get("plan_name", "Unknown")
-                send_wave_failed(
-                    execution_id,
-                    plan_name,
-                    wave_number + 1,
-                    wave_name,
-                    failed_count,
-                )
-            except Exception as e:
-                print(f"Warning: Failed to send wave failed notification: {e}")
-
-            # Send execution failed notification
-            try:
-                plan_name = state.get("plan_name", "Unknown")
-                error_msg = f"{failed_count} servers failed to launch in wave {wave_number + 1}"
-                send_execution_failed(
-                    execution_id, plan_name, error_msg, wave_number + 1
-                )
-            except Exception as e:
-                print(
-                    f"Warning: Failed to send execution failed notification: {e}"
-                )
-
-            update_wave_in_dynamodb(
-                execution_id, plan_id, wave_number, "FAILED", server_statuses
-            )
+            # NOTE: DynamoDB update handled by execution-poller Lambda
 
         else:
             print(
@@ -1310,38 +1282,3 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         state["error"] = str(e)
 
     return state
-
-
-def update_wave_in_dynamodb(
-    execution_id: str,
-    plan_id: str,
-    wave_number: int,
-    status: str,
-    server_statuses: List[Dict],
-) -> None:
-    """Update wave status in DynamoDB"""
-    try:
-        exec_response = get_execution_history_table().get_item(
-            Key={"executionId": execution_id, "planId": plan_id}
-        )
-
-        if "Item" in exec_response:
-            waves = exec_response["Item"].get("waves", [])
-            for i, w in enumerate(waves):
-                if w.get("waveNumber") == wave_number:
-                    waves[i]["status"] = status
-                    waves[i]["endTime"] = int(time.time())
-                    waves[i]["serverStatuses"] = server_statuses
-                    break
-
-            get_execution_history_table().update_item(
-                Key={"executionId": execution_id, "planId": plan_id},
-                UpdateExpression="SET waves = :waves",
-                ExpressionAttributeValues={":waves": waves},
-                ConditionExpression="attribute_exists(executionId)",
-            )
-    except Exception as e:
-        print(f"Error updating wave in DynamoDB: {e}")
-
-
-# Trigger rebuild with notifications module

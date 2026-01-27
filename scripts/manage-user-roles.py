@@ -63,7 +63,9 @@ class UserRoleManager:
             print(f"✅ Added user '{username}' to group '{group_name}'")
             return True
         except Exception as e:
-            print(f"❌ Error adding user '{username}' to group '{group_name}': {e}")
+            print(
+                f"❌ Error adding user '{username}' to group '{group_name}': {e}"
+            )
             return False
 
     def remove_user_from_group(self, username: str, group_name: str) -> bool:
@@ -77,7 +79,9 @@ class UserRoleManager:
             print(f"✅ Removed user '{username}' from group '{group_name}'")
             return True
         except Exception as e:
-            print(f"❌ Error removing user '{username}' from group '{group_name}': {e}")
+            print(
+                f"❌ Error removing user '{username}' from group '{group_name}': {e}"
+            )
             return False
 
     def create_user(
@@ -97,15 +101,21 @@ class UserRoleManager:
             ]
 
             if given_name:
-                user_attributes.append({"Name": "given_name", "Value": given_name})
+                user_attributes.append(
+                    {"Name": "given_name", "Value": given_name}
+                )
             if family_name:
-                user_attributes.append({"Name": "family_name", "Value": family_name})
+                user_attributes.append(
+                    {"Name": "family_name", "Value": family_name}
+                )
             if department:
                 user_attributes.append(
                     {"Name": "custom:department", "Value": department}
                 )
             if job_title:
-                user_attributes.append({"Name": "custom:job_title", "Value": job_title})
+                user_attributes.append(
+                    {"Name": "custom:job_title", "Value": job_title}
+                )
 
             self.cognito.admin_create_user(
                 UserPoolId=self.user_pool_id,
@@ -194,25 +204,31 @@ class UserRoleManager:
 
 
 def main():  # noqa: C901
-    parser = argparse.ArgumentParser(description="Manage DRS Orchestration User Roles")
-    parser.add_argument("--user-pool-id", required=True, help="Cognito User Pool ID")
+    parser = argparse.ArgumentParser(
+        description="Manage DRS Orchestration User Roles"
+    )
+    parser.add_argument(
+        "--user-pool-id", required=True, help="Cognito User Pool ID"
+    )
     parser.add_argument(
         "--region", default="us-east-1", help="AWS Region (default: us-east-1)"
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(
+        dest="command", help="Available commands"
+    )
 
     # List users command
-    subparsers.add_parser(
-        "list-users", help="List all users and their roles"
-    )
+    subparsers.add_parser("list-users", help="List all users and their roles")
 
     # List roles command
     subparsers.add_parser("list-roles", help="List available roles")
 
     # Add user to role command
     add_parser = subparsers.add_parser("add-role", help="Add user to role")
-    add_parser.add_argument("--username", required=True, help="Username (email)")
+    add_parser.add_argument(
+        "--username", required=True, help="Username (email)"
+    )
     add_parser.add_argument(
         "--role",
         required=True,
@@ -221,8 +237,12 @@ def main():  # noqa: C901
     )
 
     # Remove user from role command
-    remove_parser = subparsers.add_parser("remove-role", help="Remove user from role")
-    remove_parser.add_argument("--username", required=True, help="Username (email)")
+    remove_parser = subparsers.add_parser(
+        "remove-role", help="Remove user from role"
+    )
+    remove_parser.add_argument(
+        "--username", required=True, help="Username (email)"
+    )
     remove_parser.add_argument(
         "--role",
         required=True,
@@ -231,8 +251,12 @@ def main():  # noqa: C901
     )
 
     # Create user command
-    create_parser = subparsers.add_parser("create-user", help="Create new user")
-    create_parser.add_argument("--email", required=True, help="User email address")
+    create_parser = subparsers.add_parser(
+        "create-user", help="Create new user"
+    )
+    create_parser.add_argument(
+        "--email", required=True, help="User email address"
+    )
     create_parser.add_argument(
         "--temp-password", required=True, help="Initial password for new user"
     )
@@ -248,7 +272,9 @@ def main():  # noqa: C901
     password_parser = subparsers.add_parser(
         "set-password", help="Set permanent password"
     )
-    password_parser.add_argument("--username", required=True, help="Username (email)")
+    password_parser.add_argument(
+        "--username", required=True, help="Username (email)"
+    )
     password_parser.add_argument(
         "--password", required=True, help="New permanent password"
     )
@@ -303,7 +329,9 @@ def main():  # noqa: C901
 
         if success:
             print(f"\n✅ User '{args.email}' created successfully")
-            print("   Initial password has been set (check with administrator)")
+            print(
+                "   Initial password has been set (check with administrator)"
+            )
             print("   User must change password on first login")
         else:
             sys.exit(1)

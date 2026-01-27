@@ -1,0 +1,265 @@
+## How to Create Templates
+
+### How to convert existing flowchart templates into Cutover.com runbook templates
+
+**Pre-Requisites for conversion**
+
+**1.** The Hyper Automation solution has been deployed (see [How to Deploy](../How-To-Deploy/Deployment.md) and the [Quick Guide](../How-To-Deploy/Quick-Guide.md)).
+**2.** Ensure you have configured the [integration](../User-Guide/Configuring-Cutover-com-Integration.md) between Cutover.com and Hyper Automation
+**3.** Ensure you have configured the Cutover.com API and populated the `CutoverSecret` value in Secrets Manager before attempting the conversion (see [Configuring Cutover.com Integration](../User-Guide/Configuring-Cutover-com-Integration.md#call-back-integration))
+**4.** Ensure Cutover.com has been [bootstrapped](../User-Guide/Bootstrapping-Cutover-com.md)
+
+In order to convert existing flowchart templates to Cutover.com templates, follow the steps below.
+
+**1.** Ensure your LucidChart flowchart or DrawIO diagram has a `Version` data property set on the `Start Runbook` object.
+**2.** If your flowchart/diagram already has a `Version` property, increment the value. The publishing automation will not overwrite a runbook template in Cutover.com which has the same version number.
+**3.** Export the flowchart to CSV (if using LucidChart) or save your diagram in drawio format (if using DrawIO). Make sure your template follows the formatting rules specified in the next section.
+**4.** Upload the exported CSV file or DrawIO file to the Hyper Automation solution S3 bucket for runbook templates (named as `${ServiceName}-${AWS::AccountId}-${Environment}-templates`). This action will trigger an automation that will peform the automated conversion and import to Cutover.com.
+
+Once converted, the runbooks will appear in the templates section of your Cutover.com instance. The conversion automation supports updating these templates. If new versions of the template are uploaded the automation will verify differences and update the templates accordingly.
+
+### How to Create or modify runbook templates
+
+Whilst you can define your own runbook templates directly in Cutover.com or in a CSV file, or even use templates already provided by Cutover.com, we recommend creating runbook templates in a flow chart tool. Doing so will facilitate runbook and process reviews. This delivery kits contains [flow chart templates](../Runbook-FlowChart-Templates/DK-Templates.md).
+
+The Hyper Automation Solution supports automated flowchart conversion to Cutover.com templates from tools like LucidChart and DrawIO. The templates provided with this Delivery Kit are in DrawIO format. These templates are great start for common activities such as Discovery, Planning, Wave Design, and Rehost Migrations, with more templates being added in the future. You can update these templates and also create brand new runbooks from scratch by following the guidelines below.
+
+
+<table>
+    <colgroup>
+        <col></col>
+        <col></col>
+        <col></col>
+    </colgroup>
+    <tbody>
+        <tr>
+            <th>Shape</th>
+            <th>Name</th>
+            <th>Use When...</th>
+        </tr>
+        <tr>
+            <td>Hexagon</td>
+            <td>
+                <p>Milestone</p>
+            </td>
+            <td>
+                <p>Looking to define a milestone in the workflow</p>
+            </td>
+        </tr>
+        <tr>
+            <td>Diamond</td>
+            <td>
+                <p>Decision</p>
+            </td>
+            <td>
+                <p>Needing to specify a branch to choose different possible paths based on input</p>
+            </td>
+        </tr>
+        <tr>
+            <td>Circle</td>
+            <td>
+                <p>Branch Header or Start </p>
+            </td>
+            <td>
+                <p>Indicating the start of a flow and when indicating the start of a branch</p>
+            </td>
+        </tr>
+        <tr>
+            <td>Block or Process </td>
+            <td>
+                <p>Child Runbook</p>
+            </td>
+            <td>
+                <p>Indicating a child runbook to be inserted at a point in the main runbook flow. In LucidChart, use a 'block', in Draw.io, use a 'process' figure.</p>
+            </td>
+        </tr>
+        <tr>
+            <td>Pink Rectangle</td>
+            <td>
+                <p>Custom Automation</p>
+            </td>
+            <td>
+                <p>Indicating a task that is a candidate to be automated (new development)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>Green Rectangle</td>
+            <td>
+                <p>Automation Exists</p>
+            </td>
+            <td>
+                <p>Indicating that the automation exists already as part of the automation library of Hyper Automation</p>
+            </td>
+        </tr>
+        <tr>
+            <td>Blue Rectangle</td>
+            <td>
+                <p>Manual Task</p>
+            </td>
+            <td>
+                <p>Indicating that the task at hand is manual</p>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+## Data Attributes
+
+In order to convert flow diagrams to a runbook definition, users have to make use of data attributes on LucidChart or on DrawIO depending which tool they are using. Data attributes are used to provide additional metadata to each shape in the runbook. For example, the metadata is used to specify the beginning of a flow and to specify the task automation ID for those tasks that are automated which is then transferred automatically to the runbook management system (e.g., cutover.com). This step is key to constructing automated runbooks.
+
+Data attributes are key-value pairs that users can add to each shape in a workflow diagram.
+
+
+## Adding data attributes in LucidChart
+
+In Lucid, users need to click the icon marked by the red arrow in the diagram below, then select the “Data” tab.
+From there you can add, edit or delete data attributes on shapes.
+
+ ![](../attachments/flowchart-sample1.png)
+
+
+## Adding data attributes in DrawIO
+
+In DrawIO, you need to right click the shape, then click on “Edit Data...” button.
+From there you can add, edit or delete data attributes on shapes.
+To add a key-value pair, first you need to add the key to the “property” field then click on “Add property”. Then you would be able to set a value to that key.
+
+
+ ![](../attachments/flowchart-data-sample1.png)
+
+
+<table>
+    <colgroup>
+        <col></col>
+        <col></col>
+        <col></col>
+        <col></col>
+        <col></col>
+    </colgroup>
+    <tbody>
+        <tr>
+            <th>Attribute Key</th>
+            <th>Attribute Value</th>
+            <th>Mandatory</th>
+            <th>Recommended Shape</th>
+            <th>Use When...</th>
+        </tr>
+        <tr>
+            <td>Start</td>
+            <td>
+                <ul>
+                    Runbook Template ID
+                    <li>Example ID: Server-Rehost</li>
+                </ul>
+            </td>
+            <td>
+                <p>Yes</p>
+            </td>
+            <td>
+                <p>Circle</p>
+            </td>
+            <td>
+                <p>Used as a marker of where the runbook starts. The key name 'Start' is mandatory to denote the start of the flow. The expected value is the runbook template ID defined by the user and is also mandatory. This value is later embedded in the runbook template's JSON definition alongside its version.</p>
+            </td>
+        </tr>
+        <tr>
+            <td>Version</td>
+            <td>
+                <p>Runbook Template Version</p>
+            </td>
+            <td>
+                <p>No</p>
+            </td>
+            <td>
+                <p>Circle</p>
+            </td>
+            <td>
+                <p>If used, the value is combined with the runbook template ID.</p>
+            </td>
+        </tr>
+                <tr>
+            <td>AutomationID</td>
+            <td>
+                <ul>
+                    Automation ID for an automated task in the Hyper Automation library
+                    <li>Example: MIG-CMF-001</li>
+                </ul>
+            </td>
+            <td>
+                <p>Yes</p>
+            </td>
+            <td>
+                <p>Rectangle</p>
+            </td>
+            <td>
+                <p>Indicates that this particular task is automated and which automation should be fired. During runbook execution, the automation ID is used to signal to the automation engine that a particular task has been invoked.</p>
+            </td>
+        </tr>
+                <tr>
+            <td>TaskType</td>
+            <td>
+            <p>Used to mark special task types. Options are:</p>
+                <ul>
+                    <li>Milestone</li>
+                    <li>Branch</li>
+                    <li>BranchHeader</li>
+                    <li>RunbookTemplate</li>
+                </ul>
+            </td>
+            <td>
+                <p>No</p>
+            </td>
+            <td>
+                <p>Hexagon (Milestone), Circle (Branch, Branch-Header), Process/Block (Runbook Template)</p>
+            </td>
+            <td>
+                <p>Task types are used to distinguish between different sections in the runbook. </p>
+            </td>
+        </tr>
+        <tr>
+            <td>TemplateID</td>
+            <td>
+            <p>Runbook Template ID for a child runbook. Examples:</p>
+                <ul>
+                    <li>Server-Rehost-Pre-Migration</li>
+                </ul>
+            </td>
+            <td>
+                <p>Yes (only when using Child Runbooks)</p>
+            </td>
+            <td>
+                <p>Process/Block (Child Runbook)</p>
+            </td>
+            <td>
+                <p>Indicates the template ID of a child runbook. Template IDs have to match an existing runbook template ID</p>
+            </td>
+        </tr>
+        <tr>
+            <td>TemplateVersion</td>
+            <td>
+            <p>Runbook Template Version for a child runbook. Examples:</p>
+                <ul>
+                    <li>Server-Rehost-Pre-Migration</li>
+                </ul>
+            </td>
+            <td>
+                <p>Yes (only when using child runbooks)</p>
+            </td>
+            <td>
+                <p>Process/Block (child runbook)</p>
+            </td>
+            <td>
+                <p>Indicates the template version of a child runbook. The version must match an existing runbook template version.</p>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+
+## Best practices for creating runbooks in flow chart tools
+
+* Always update data attributes: It is very common to copy-paste blocks around when extending the runbook flow diagram. Always make sure you update the data attributes of the shape you copy-paste.
+* Give your runbook templates clear names: When naming a parent runbook or a phase runbook, make sure to provide a clear name. Names should only contain alphanumeric characters, dashes and underscores. Template names should not contain version numbers, as versions are managed separately from runbook names.
+
+
+

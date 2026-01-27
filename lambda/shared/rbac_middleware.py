@@ -1,6 +1,263 @@
 """
 RBAC Middleware for AWS DRS Orchestration
-Implements role-based access control using Cognito Groups
+
+Implements role-based access control using AWS Cognito Groups for disaster recovery operations.
+Provides fine-grained permission model with 5 roles and 16 permissions mapped to API endpoints.
+
+## Architecture Pattern
+
+Zero-Trust Security Model:
+- ALL endpoints require explicit permissions (no implicit access)
+- Cognito Groups → DRS Roles → Permissions → API Endpoints
+- Deny by default: undefined endpoints return 403 Forbidden
+- User context injected into Lambda event for audit logging
+
+## Integration Points
+
+### 1. API Gateway Authorization (Primary Use Case)
+```python
+from shared.rbac_middleware import check_authorization
+
+def lambda_handler(event, context):
+    # Check authorization for incoming request
+    auth_result = check_authorization(event)
+
+    if not auth_result["authorized"]:
+        return {
+            "statusCode": 403,
+            "body": json.dumps({"error": auth_result["reason"]})
+        }
+
+    # User info available for audit logging
+    user = auth_result["user"]
+    print(f"User {user['email']} accessed {event['path']}")
+
+    # Proceed with business logic
+    return {"statusCode": 200, "body": "Success"}
+```
+
+### 2. Function Decorators (Simplified Authorization)
+```python
+from shared.rbac_middleware import require_permission, DRSPermission
+
+@require_permission(DRSPermission.START_RECOVERY)
+def execute_recovery_plan(event, context):
+    # Authorization checked automatically
+    # User info injected into event["user"]
+    user = event["user"]
+    print(f"Recovery started by {user['email']}")
+    return {"statusCode": 200}
+
+# Multiple permissions (user needs ANY of them)
+@require_any_permission([
+    DRSPermission.CREATE_RECOVERY_PLANS,
+    DRSPermission.MODIFY_RECOVERY_PLANS
+])
+def manage_recovery_plan(event, context):
+    return {"statusCode": 200}
+```
+
+### 3. Role-Based Checks (Business Logic)
+```python
+from shared.rbac_middleware import (
+    get_user_from_event,
+    is_administrator,
+    can_execute_recovery_plans,
+    can_terminate_instances
+)
+
+def lambda_handler(event, context):
+    user = get_user_from_event(event)
+
+    # Check specific capabilities
+    if can_execute_recovery_plans(user):
+        # Allow recovery execution
+        pass
+
+    if can_terminate_instances(user):
+        # Allow instance termination
+        pass
+
+    if is_administrator(user):
+        # Allow admin-only operations
+        pass
+```
+
+### 4. Permission Queries (Frontend/API)
+```python
+from shared.rbac_middleware import get_user_permissions, get_user_roles
+
+def get_user_info(event, context):
+    user = get_user_from_event(event)
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "user": user,
+            "roles": [r.value for r in get_user_roles(user)],
+            "permissions": [p.value for p in get_user_permissions(user)]
+        })
+    }
+```
+
+## Role Hierarchy
+
+### DRSOrchestrationAdmin (Full Access)
+- All 16 permissions
+- Account management (register, modify, delete)
+- Recovery operations (start, stop, terminate)
+- Infrastructure management (protection groups, recovery plans)
+- Configuration management (import, export)
+
+### DRSRecoveryManager (Recovery Coordinator)
+- 15 permissions (all except DELETE_ACCOUNTS)
+- Can register and modify accounts
+- Full recovery operations
+- Full infrastructure management
+- Configuration management
+
+### DRSPlanManager (DR Planner)
+- 11 permissions
+- View accounts only
+- Can start/stop recovery (not terminate)
+- Full infrastructure management
+- No configuration management
+
+### DRSOperator (On-Call Operator)
+- 7 permissions
+- View accounts only
+- Can start/stop recovery (not terminate)
+- Modify existing infrastructure (not create/delete)
+
+### DRSReadOnly (Auditor/Compliance)
+- 4 permissions (all VIEW_* permissions)
+- Read-only access to all resources
+- No modification capabilities
+
+## Permission Model
+
+### Account Management
+- `REGISTER_ACCOUNTS`: Add new target accounts
+- `DELETE_ACCOUNTS`: Remove target accounts
+- `MODIFY_ACCOUNTS`: Update account configuration
+- `VIEW_ACCOUNTS`: View account details
+
+### Recovery Operations
+- `START_RECOVERY`: Execute recovery plans
+- `STOP_RECOVERY`: Cancel/pause executions
+- `TERMINATE_INSTANCES`: Terminate recovery instances
+- `VIEW_EXECUTIONS`: View execution status
+
+### Protection Groups
+- `CREATE_PROTECTION_GROUPS`: Create new groups
+- `DELETE_PROTECTION_GROUPS`: Delete groups
+- `MODIFY_PROTECTION_GROUPS`: Update group configuration
+- `VIEW_PROTECTION_GROUPS`: View group details
+
+### Recovery Plans
+- `CREATE_RECOVERY_PLANS`: Create new plans
+- `DELETE_RECOVERY_PLANS`: Delete plans
+- `MODIFY_RECOVERY_PLANS`: Update plan configuration
+- `VIEW_RECOVERY_PLANS`: View plan details
+
+### Configuration Management
+- `EXPORT_CONFIGURATION`: Export system configuration
+- `IMPORT_CONFIGURATION`: Import system configuration
+
+## Cognito Group Mapping
+
+### Primary Group Names (Recommended)
+- `DRSOrchestrationAdmin` → DRSOrchestrationAdmin role
+- `DRSRecoveryManager` → DRSRecoveryManager role
+- `DRSPlanManager` → DRSPlanManager role
+- `DRSOperator` → DRSOperator role
+- `DRSReadOnly` → DRSReadOnly role
+
+### Legacy Group Names (Backward Compatibility)
+- `aws:admin` → DRSOrchestrationAdmin
+- `aws:admin-limited` → DRSRecoveryManager
+- `aws:power-user` → DRSPlanManager
+- `aws:operator` → DRSOperator
+- `aws:read-only` → DRSReadOnly
+- `DRS-Administrator` → DRSOrchestrationAdmin
+- `DRS-Infrastructure-Admin` → DRSRecoveryManager
+- `DRS-Recovery-Plan-Manager` → DRSPlanManager
+- `DRS-Operator` → DRSOperator
+- `DRS-Read-Only` → DRSReadOnly
+
+## API Endpoint Protection
+
+ALL endpoints require explicit permissions. Examples:
+
+### Protection Groups
+- `GET /protection-groups` → VIEW_PROTECTION_GROUPS
+- `POST /protection-groups` → CREATE_PROTECTION_GROUPS
+- `PUT /protection-groups/{id}` → MODIFY_PROTECTION_GROUPS
+- `DELETE /protection-groups/{id}` → DELETE_PROTECTION_GROUPS
+
+### Recovery Plans
+- `GET /recovery-plans` → VIEW_RECOVERY_PLANS
+- `POST /recovery-plans` → CREATE_RECOVERY_PLANS
+- `POST /recovery-plans/{id}/execute` → START_RECOVERY
+
+### Executions
+- `GET /executions` → VIEW_EXECUTIONS
+- `POST /executions` → START_RECOVERY
+- `POST /executions/{id}/cancel` → STOP_RECOVERY
+- `POST /executions/{id}/terminate-instances` → TERMINATE_INSTANCES
+
+### Account Management
+- `GET /accounts/targets` → VIEW_ACCOUNTS
+- `POST /accounts/targets` → REGISTER_ACCOUNTS
+- `DELETE /accounts/targets/{id}` → DELETE_ACCOUNTS
+
+## Security Features
+
+### Zero-Trust Model
+- Deny by default: undefined endpoints return 403
+- Explicit permission mapping for ALL endpoints
+- No implicit access based on authentication alone
+
+### Path Normalization
+Dynamic path parameters normalized for permission lookup:
+- `/executions/exec-abc123` → `/executions/{executionId}`
+- `/protection-groups/pg-xyz789` → `/protection-groups/{id}`
+- UUID patterns automatically detected and normalized
+
+### Public Endpoints
+Only 2 endpoints bypass authorization:
+- `/health` - Health check endpoint
+- `OPTIONS *` - CORS preflight requests
+
+## Testing Considerations
+
+### Mock Cognito Claims
+```python
+event = {
+    "requestContext": {
+        "authorizer": {
+            "claims": {
+                "email": "test@example.com",
+                "sub": "user-123",
+                "cognito:username": "testuser",
+                "cognito:groups": "DRSOrchestrationAdmin"
+            }
+        }
+    },
+    "httpMethod": "POST",
+    "path": "/recovery-plans/plan-123/execute"
+}
+
+auth_result = check_authorization(event)
+assert auth_result["authorized"] == True
+```
+
+### Permission Testing
+```python
+user = {"groups": ["DRSOperator"]}
+assert can_execute_recovery_plans(user) == True
+assert can_terminate_instances(user) == False
+```
 """
 
 import json
@@ -259,7 +516,42 @@ ENDPOINT_PERMISSIONS = {
 
 
 def get_user_from_event(event: Dict) -> Dict:
-    """Extract user information from API Gateway event"""
+    """
+    Extract user information from API Gateway authorizer context.
+
+    Parses Cognito JWT claims from API Gateway event to extract user identity
+    and group memberships. Handles both list and comma-separated string formats
+    for cognito:groups claim.
+
+    Args:
+        event: API Gateway event with requestContext.authorizer.claims
+
+    Returns:
+        Dict with user information:
+        - email: User email address
+        - userId: Cognito user ID (sub claim)
+        - username: Cognito username
+        - groups: List of Cognito group names
+        - given_name, family_name: User name components
+        - department, job_title: Custom attributes
+
+    Example:
+        >>> event = {
+        ...     "requestContext": {
+        ...         "authorizer": {
+        ...             "claims": {
+        ...                 "email": "user@example.com",
+        ...                 "sub": "abc-123",
+        ...                 "cognito:username": "jdoe",
+        ...                 "cognito:groups": "DRSOrchestrationAdmin,DRSOperator"
+        ...             }
+        ...         }
+        ...     }
+        ... }
+        >>> user = get_user_from_event(event)
+        >>> user["groups"]
+        ['DRSOrchestrationAdmin', 'DRSOperator']
+    """
     try:
         authorizer = event.get("requestContext", {}).get("authorizer", {})
         claims = authorizer.get("claims", {})

@@ -202,7 +202,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
           type="search"
           placeholder="Search servers by hostname, ID, or tags..."
           value={searchTerm}
-          onChange={({ detail }) => setSearchTerm(detail.value)}
+          onChange={({ detail }: { detail: { value: string } }) => setSearchTerm(detail.value)}
         />
       )}
 

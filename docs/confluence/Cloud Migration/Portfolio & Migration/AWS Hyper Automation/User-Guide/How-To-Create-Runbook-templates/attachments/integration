@@ -1,0 +1,90 @@
+## Cutover.com Integration Setup
+
+### Setting up Integration with Hyper Automation
+
+**Note:** requires the Hyper Automation solution to be deployed [see How to Deploy](../How-To-Deploy/Deployment.md)
+
+Cutover.com will act as a UI for runbook management, triggering automations in the Hyper Automation Solution. In order to connect Cutover.com to Hyper Automation, the customer will need to decide one of three paths (refer to the [Architecture](../Architecture/Overview.md) for more information) when deploying the solution (refer to [how to deploy](../How-To-Deploy/Deployment.md) for more information):
+
+
+### Option 1: API Endpoint through API Gateway
+
+Create a custom integration in Cutover.com, as follows:
+
+**1.** In your Cutover.com instance, go to Settings -> Integrations as shown in the image below
+
+![](../attachments/1-settings-integrations.png)
+
+**2.** Create a new Custom Integration. Provide a name and click Create
+![](../attachments/2-create-integration.png)
+![](../attachments/3-new-integration.png)
+
+**3.** Navigate to your newly created integration and click on it, a details page will appear on the right hand side. Click 'New' to add an integrated action.
+![](../attachments/4-navigate-to-integration.png)
+![](../attachments/5-edit-integration.png)
+
+**4.** Select 'Build a Custom Integration' as action. Then click Create.
+![](../attachments/6-new-action.png)
+
+**5.** Configure the General settings for the integrated action as follows:
+![](../attachments/7-configure-integration-1.png)
+
+    - Define a name (for example, 'API GW - Hyper Automation ingress')
+    - Select the Trigger 'On Task Start'
+    - Set visibility as 'Global'
+    - Tick the checkboxes in Additional Settings as shown. Ensure 'Auto Start', 'Cancelable' are checked. Uncheck everything else. Note that the 'Execute in Rehearsal' could be checked if desired, if selected, runbooks running in rehearsal mode will invoke the integration. If unchecked, rehesals won't invoke the integration even if it is configured in the runbook tasks.
+
+**6.** Configure the Authorization settings for the integrated action as follows:
+![](../attachments/8-configure-integration-2.png)
+
+- Set `Authorization Type` to `Token Auth` (note: to use a different type you will need to update the CloudFormation template for the solution deployment)
+- Set token type to `Bearer`
+- Set the API Gateway API Token (The token should be obtained from Secrets Manager "cutover-ingress-bearer-token" value, taking the part after the word Bearer). Note that the Secrets Manager value will be specified as `Bearer + <YourToken>`. Copy the `<YourToken>` portion only (excluding the word 'Bearer') and configure it in the Token field of your integration in Cutover.com.
+
+**7.** Configure the Request settings for the integrated action as follows:
+![](../attachments/9-configure-integration-3.png)
+
+- Set the request type to 'POST'
+- Set the URL for your API Gateway ingress API. You can find this URL in AWS API Gateway, open the `hyperautomation-cutover-ingress-api` API, go to API Settings (left menu), cooy the default Endpoint URL. Add the URL + / + `<your environment name>` (e.g., `https://u0000000.execute-api.us-east-1.amazonaws.com/beta`).
+- Set the Request headers to:
+```
+{
+    "Content-Type": "application/json"
+}
+```
+
+- Set the Outbound payload to:
+
+```
+{
+  "version": "1.0",
+  "runbookId": "{{Runbook.id}}",
+  "runbookName": "{{Runbook.name}}",
+  "taskId": "{{Task.id}}",
+  "taskInternalId": "{{Task.internal_id}}",
+  "taskName": "{{Task.name}}",
+  "taskAutomationId": "{{CustomField['taskAutomationId']}}",
+  "wave": "{{CustomField['wave']}}",
+  "dependencyGroup": "{{CustomField['dependencyGroup']}}",
+  "maxDuration": "{{CustomField['maxDuration']}}",
+  "notificationRecipient": "{{CustomField['notificationRecipient']}}"
+}
+```
+- Set Execution mode to 'Response mapping'
+- Set the Response handling to 'Wait for callback'
+- Click on Create
+
+**8.** Verify your integration and integrated action are listed in the integrations page
+![](../attachments/10-integration-configured.png)
+
+**9.** Confirm the integration is configured correctly. In some cases, it's been noticed that some properties of the integration are not saved after initial creation, which could lead to runbook issues. In Cutover.com, Go to Settings->Integrations and select the integration you have created. On the right-hand side menu, check that only "Autostart" and "Cancelable" are selected as additional settings (as specified in Step 5 above), untick any other option that could appear enabled and save it.
+
+**10.** Done. Your integration is ready to be used. From now one, your integration will appear as an option in the Task Type dropdown field of your Runbook tasks. 
+![](../attachments/11-check-integration.png)
+
+
+### Option 2: Requesting Cutover Connect
+
+Cutover Connect can act as a one-way bridge between the runbook management system and the automation engine. In order to enable Cutover Connect, the customer will have to make a request to the Cutover team to set up their instance with Connect. It is worth noting that Cutover Connect will incur a fee to enable in the customer’s instance. This fee can be discussed between Cutover and customer.
+
+-- PENDING ADING DETAILS ABOUT HOW TO CONFIGURE CUTOVER CONNECT-- contact the product team in the mean time.
