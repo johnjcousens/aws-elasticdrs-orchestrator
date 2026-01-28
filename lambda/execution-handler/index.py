@@ -4512,6 +4512,7 @@ def apply_launch_config_to_servers(
     server_ids: List[str],
     launch_config: Dict,
     region: str,
+    protection_group: Dict = None,
     protection_group_id: str = None,
     protection_group_name: str = None,
 ) -> Dict:
@@ -4521,6 +4522,10 @@ def apply_launch_config_to_servers(
     Updates both DRS launch configuration and EC2 launch template for each server
     when Protection Group is saved. Ensures recovery instances launch with correct
     network, security, and instance settings.
+
+    Supports per-server configuration overrides via protection_group parameter.
+    When protection_group is provided, merges group defaults with server-specific
+    overrides using get_effective_launch_config().
     
     ## Use Cases
     
@@ -4578,6 +4583,7 @@ def apply_launch_config_to_servers(
     2. **EC2 Launch Template Update** (SECOND):
        - Updates instance type, subnet, security groups
        - Updates IAM instance profile
+       - Adds static private IP if configured
        - Sets version description with tracking info
        - Sets new version as default
     
@@ -4590,6 +4596,7 @@ def apply_launch_config_to_servers(
     - securityGroupIds: Security groups for recovery instances
     - instanceType: EC2 instance type
     - instanceProfileName: IAM instance profile
+    - staticPrivateIp: Static private IP address (per-server override)
     - copyPrivateIp: Preserve private IP (DRS setting)
     - copyTags: Copy tags to recovery instance (DRS setting)
     - licensing: License configuration (DRS setting)
@@ -4600,7 +4607,7 @@ def apply_launch_config_to_servers(
     EC2 template version description includes:
     - Timestamp (UTC)
     - Protection Group name and ID
-    - Configuration details (instance type, subnet, security groups, etc.)
+    - Configuration details (instance type, subnet, security groups, static IP, etc.)
     - Truncated to 255 characters (EC2 limit)
     
     ## Args
@@ -4608,6 +4615,7 @@ def apply_launch_config_to_servers(
     server_ids: List of DRS source server IDs
     launch_config: Launch configuration settings (dict)
     region: AWS region
+    protection_group: Optional full PG dict with servers array for per-server configs
     protection_group_id: Optional PG ID for version tracking
     protection_group_name: Optional PG name for version tracking
     
@@ -4681,6 +4689,9 @@ def apply_launch_config_to_servers(
     if not launch_config or not server_ids:
         return {"applied": 0, "skipped": 0, "failed": 0, "details": []}
 
+    # Import config merge utility for per-server overrides
+    from lambda.shared.config_merge import get_effective_launch_config
+
     regional_drs = boto3.client("drs", region_name=region)
     ec2 = boto3.client("ec2", region_name=region)
 
@@ -4688,6 +4699,14 @@ def apply_launch_config_to_servers(
 
     for server_id in server_ids:
         try:
+            # Get effective config (merge group defaults with server overrides)
+            if protection_group:
+                effective_config = get_effective_launch_config(
+                    protection_group, server_id
+                )
+            else:
+                effective_config = launch_config
+
             # Get DRS launch configuration to find template ID
             drs_config = regional_drs.get_launch_configuration(
                 sourceServerID=server_id
@@ -4708,43 +4727,56 @@ def apply_launch_config_to_servers(
             # Build EC2 template data for the new version
             template_data = {}
 
-            if launch_config.get("instanceType"):
-                template_data["InstanceType"] = launch_config["instanceType"]
+            if effective_config.get("instanceType"):
+                template_data["InstanceType"] = effective_config[
+                    "instanceType"
+                ]
 
-            # Network interface settings (subnet and security groups)
-            if launch_config.get("subnetId") or launch_config.get(
-                "securityGroupIds"
+            # Network interface settings (subnet, security groups, static IP)
+            if (
+                effective_config.get("subnetId")
+                or effective_config.get("securityGroupIds")
+                or effective_config.get("staticPrivateIp")
             ):
                 network_interface = {"DeviceIndex": 0}
-                if launch_config.get("subnetId"):
-                    network_interface["SubnetId"] = launch_config["subnetId"]
-                if launch_config.get("securityGroupIds"):
-                    network_interface["Groups"] = launch_config[
+
+                # Static private IP support
+                if effective_config.get("staticPrivateIp"):
+                    network_interface["PrivateIpAddress"] = effective_config[
+                        "staticPrivateIp"
+                    ]
+
+                if effective_config.get("subnetId"):
+                    network_interface["SubnetId"] = effective_config[
+                        "subnetId"
+                    ]
+                if effective_config.get("securityGroupIds"):
+                    network_interface["Groups"] = effective_config[
                         "securityGroupIds"
                     ]
                 template_data["NetworkInterfaces"] = [network_interface]
 
-            if launch_config.get("instanceProfileName"):
+            if effective_config.get("instanceProfileName"):
                 template_data["IamInstanceProfile"] = {
-                    "Name": launch_config["instanceProfileName"]
+                    "Name": effective_config["instanceProfileName"]
                 }
 
             # IMPORTANT: Update DRS launch configuration FIRST
             # DRS update_launch_configuration creates a new EC2 launch template version,
             # so we must call it before our EC2 template updates to avoid being overwritten
             drs_update = {"sourceServerID": server_id}
-            if "copyPrivateIp" in launch_config:
-                drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
-            if "copyTags" in launch_config:
-                drs_update["copyTags"] = launch_config["copyTags"]
-            if "licensing" in launch_config:
-                drs_update["licensing"] = launch_config["licensing"]
-            if "targetInstanceTypeRightSizingMethod" in launch_config:
+            if "copyPrivateIp" in effective_config:
+                drs_update["copyPrivateIp"] = effective_config["copyPrivateIp"]
+            if "copyTags" in effective_config:
+                drs_update["copyTags"] = effective_config["copyTags"]
+            if "licensing" in effective_config:
+                drs_update["licensing"] = effective_config["licensing"]
+            if "targetInstanceTypeRightSizingMethod" in effective_config:
                 drs_update["targetInstanceTypeRightSizingMethod"] = (
-                    launch_config["targetInstanceTypeRightSizingMethod"]
+                    effective_config["targetInstanceTypeRightSizingMethod"]
                 )
-            if "launchDisposition" in launch_config:
-                drs_update["launchDisposition"] = launch_config[
+            if "launchDisposition" in effective_config:
+                drs_update["launchDisposition"] = effective_config[
                     "launchDisposition"
                 ]
 
@@ -4766,34 +4798,40 @@ def apply_launch_config_to_servers(
                     desc_parts.append(f"ID: {protection_group_id[:8]}")
                 # Add config details
                 config_details = []
-                if launch_config.get("instanceType"):
+                if effective_config.get("staticPrivateIp"):
                     config_details.append(
-                        f"Type:{launch_config['instanceType']}"
+                        f"IP:{effective_config['staticPrivateIp']}"
                     )
-                if launch_config.get("subnetId"):
+                if effective_config.get("instanceType"):
                     config_details.append(
-                        f"Subnet:{launch_config['subnetId'][-8:]}"
+                        f"Type:{effective_config['instanceType']}"
                     )
-                if launch_config.get("securityGroupIds"):
-                    sg_count = len(launch_config["securityGroupIds"])
+                if effective_config.get("subnetId"):
+                    config_details.append(
+                        f"Subnet:{effective_config['subnetId'][-8:]}"
+                    )
+                if effective_config.get("securityGroupIds"):
+                    sg_count = len(effective_config["securityGroupIds"])
                     config_details.append(f"SGs:{sg_count}")
-                if launch_config.get("instanceProfileName"):
-                    profile = launch_config["instanceProfileName"]
+                if effective_config.get("instanceProfileName"):
+                    profile = effective_config["instanceProfileName"]
                     # Truncate long profile names
                     if len(profile) > 20:
                         profile = profile[:17] + "..."
                     config_details.append(f"Profile:{profile}")
-                if launch_config.get("copyPrivateIp"):
+                if effective_config.get("copyPrivateIp"):
                     config_details.append("CopyIP")
-                if launch_config.get("copyTags"):
+                if effective_config.get("copyTags"):
                     config_details.append("Copy Tags")
-                if launch_config.get("targetInstanceTypeRightSizingMethod"):
+                if effective_config.get(
+                    "targetInstanceTypeRightSizingMethod"
+                ):
                     config_details.append(
-                        f"RightSize:{launch_config['targetInstanceTypeRightSizingMethod']}"
+                        f"RightSize:{effective_config['targetInstanceTypeRightSizingMethod']}"
                     )
-                if launch_config.get("launchDisposition"):
+                if effective_config.get("launchDisposition"):
                     config_details.append(
-                        f"Launch:{launch_config['launchDisposition']}"
+                        f"Launch:{effective_config['launchDisposition']}"
                     )
                 if config_details:
                     desc_parts.append(" | ".join(config_details))
