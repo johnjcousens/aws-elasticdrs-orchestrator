@@ -288,6 +288,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         serverSelectionTags?: Record<string, string>;
         sourceServerIds?: string[];
         launchConfig?: LaunchConfig;
+        servers?: ServerLaunchConfig[];
         version?: number;
       } = {
         groupName: name.trim(),
