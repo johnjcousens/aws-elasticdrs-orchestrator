@@ -144,6 +144,16 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
       }
 
       try {
+        // TODO: Backend endpoint /validate-ip not yet implemented
+        // Temporarily skip API validation and only use client-side format validation
+        if (!isMountedRef.current) return;
+        
+        setValidationState('valid');
+        setValidationMessage('Format valid (backend validation pending)');
+        setErrorText('');
+        onValidation?.(true, 'Format valid');
+        
+        /* COMMENTED OUT UNTIL BACKEND ENDPOINT IS IMPLEMENTED
         const result: IPValidationResult = await apiClient.validateStaticIP(
           groupId,
           serverId,
@@ -181,6 +191,7 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
           setErrorText(errorMsg);
           onValidation?.(false, errorMsg);
         }
+        */
       } catch (error) {
         if (!isMountedRef.current) return;
         
