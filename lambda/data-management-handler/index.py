@@ -301,6 +301,7 @@ from shared.conflict_detection import (
     get_plans_with_conflicts,
     query_drs_servers_by_tags,
 )
+from shared.config_merge import get_effective_launch_config
 from shared.cross_account import get_current_account_id
 from shared.response_utils import response
 
@@ -444,6 +445,36 @@ def handle_api_gateway_request(event, context):
             if not group_id:
                 return response(400, {"error": "Missing protection group ID"})
 
+            # Bulk server configuration endpoint
+            if "/servers/bulk-launch-config" in path:
+                if http_method == "POST":
+                    return bulk_update_server_launch_config(group_id, body)
+
+            # Per-server launch config endpoints
+            elif "/servers/" in path and "/launch-config" in path:
+                server_id = path_parameters.get("serverId")
+                if not server_id:
+                    return response(400, {"error": "Missing server ID"})
+
+                if http_method == "GET":
+                    return get_server_launch_config(group_id, server_id)
+                elif http_method == "PUT":
+                    return update_server_launch_config(
+                        group_id, server_id, body
+                    )
+                elif http_method == "DELETE":
+                    return delete_server_launch_config(group_id, server_id)
+
+            # Per-server IP validation endpoint
+            elif "/servers/" in path and "/validate-ip" in path:
+                server_id = path_parameters.get("serverId")
+                if not server_id:
+                    return response(400, {"error": "Missing server ID"})
+
+                if http_method == "POST":
+                    return validate_server_static_ip(group_id, server_id, body)
+
+            # Protection group CRUD endpoints
             if http_method == "GET":
                 return get_protection_group(group_id)
             elif http_method == "PUT":
@@ -1905,6 +1936,1109 @@ def delete_protection_group(group_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error deleting Protection Group: {str(e)}")
+        return response(500, {"error": str(e)})
+
+
+def get_server_launch_config(group_id: str, server_id: str) -> Dict:
+    """
+    Get per-server launch configuration with effective config preview.
+
+    Returns the server-specific configuration along with the effective
+    configuration that results from merging group defaults with server
+    overrides.
+
+    Args:
+        group_id: Protection group ID
+        server_id: Source server ID
+
+    Returns:
+        Response with server configuration and effective config:
+        {
+            "sourceServerId": "s-xxx",
+            "instanceId": "i-xxx",
+            "instanceName": "web-server-01",
+            "useGroupDefaults": false,
+            "launchTemplate": {
+                "staticPrivateIp": "10.0.1.100",
+                "instanceType": "c6a.xlarge"
+            },
+            "effectiveConfig": {
+                "subnetId": "subnet-xxx",
+                "securityGroupIds": ["sg-xxx"],
+                "instanceType": "c6a.xlarge",
+                "staticPrivateIp": "10.0.1.100"
+            }
+        }
+
+    Requirements: 2.1, 2.4
+    """
+    try:
+        # Get protection group
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in result:
+            return response(404, {"error": "Protection Group not found"})
+
+        protection_group = result["Item"]
+
+        # Find server in protection group's servers array
+        servers = protection_group.get("servers", [])
+        server_config = next(
+            (s for s in servers if s.get("sourceServerId") == server_id),
+            None,
+        )
+
+        # If server not found in servers array, return default config
+        if not server_config:
+            # Server exists in sourceServerIds but has no custom config
+            source_server_ids = protection_group.get("sourceServerIds", [])
+            if server_id not in source_server_ids:
+                return response(
+                    404,
+                    {
+                        "error": "Server not found in protection group",
+                        "serverId": server_id,
+                        "groupId": group_id,
+                    },
+                )
+
+            # Return default configuration (no custom overrides)
+            group_defaults = protection_group.get("launchConfig", {})
+            return response(
+                200,
+                {
+                    "sourceServerId": server_id,
+                    "useGroupDefaults": True,
+                    "launchTemplate": {},
+                    "effectiveConfig": group_defaults,
+                },
+            )
+
+        # Get effective configuration (group defaults + server overrides)
+        effective_config = get_effective_launch_config(
+            protection_group, server_id
+        )
+
+        # Build response with camelCase fields for frontend
+        response_data = {
+            "sourceServerId": server_config.get("sourceServerId"),
+            "instanceId": server_config.get("instanceId"),
+            "instanceName": server_config.get("instanceName"),
+            "tags": server_config.get("tags", {}),
+            "useGroupDefaults": server_config.get("useGroupDefaults", True),
+            "launchTemplate": server_config.get("launchTemplate", {}),
+            "effectiveConfig": effective_config,
+        }
+
+        return response(200, response_data)
+
+    except Exception as e:
+        print(f"Error getting server launch config: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": str(e)})
+
+
+def update_server_launch_config(
+    group_id: str, server_id: str, body: Dict
+) -> Dict:
+    """
+    Update per-server launch configuration.
+
+    Validates all fields, updates DynamoDB, applies configuration to DRS/EC2,
+    and records audit trail entry.
+
+    Args:
+        group_id: Protection group ID
+        server_id: Source server ID
+        body: Request body with useGroupDefaults and launchTemplate
+
+    Request Body:
+        {
+            "useGroupDefaults": false,
+            "launchTemplate": {
+                "staticPrivateIp": "10.0.1.100",
+                "instanceType": "c6a.xlarge",
+                "securityGroupIds": ["sg-xxx"],
+                "subnetId": "subnet-xxx",
+                "instanceProfileName": "demo-ec2-profile"
+            }
+        }
+
+    Returns:
+        Response with updated configuration:
+        {
+            "sourceServerId": "s-xxx",
+            "instanceId": "i-xxx",
+            "useGroupDefaults": false,
+            "launchTemplate": {...},
+            "effectiveConfig": {...},
+            "auditTrail": {
+                "timestamp": "2026-01-27T23:00:00Z",
+                "user": "admin@example.com",
+                "changedFields": ["staticPrivateIp", "instanceType"]
+            }
+        }
+
+    Requirements: 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 8.1
+    """
+    try:
+        # Import validation functions
+        from shared.launch_config_validation import (
+            validate_static_ip,
+            validate_aws_approved_fields,
+            validate_security_groups,
+            validate_instance_type,
+            validate_iam_profile,
+            validate_subnet,
+        )
+
+        # Get protection group
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in result:
+            return response(404, {"error": "Protection Group not found"})
+
+        protection_group = result["Item"]
+        region = protection_group.get("region")
+
+        # Verify server exists in protection group
+        source_server_ids = protection_group.get("sourceServerIds", [])
+        if server_id not in source_server_ids:
+            return response(
+                404,
+                {
+                    "error": "Server not found in protection group",
+                    "serverId": server_id,
+                    "groupId": group_id,
+                },
+            )
+
+        # Parse request body
+        use_group_defaults = body.get("useGroupDefaults", True)
+        launch_template = body.get("launchTemplate", {})
+
+        # Validate AWS-approved fields only
+        field_validation = validate_aws_approved_fields(launch_template)
+        if not field_validation.get("valid"):
+            return response(400, field_validation)
+
+        # Validate individual fields
+        validation_errors = []
+
+        # Validate static private IP
+        if launch_template.get("staticPrivateIp"):
+            static_ip = launch_template["staticPrivateIp"]
+            # Get subnet ID (from launch template or group defaults)
+            subnet_id = launch_template.get(
+                "subnetId"
+            ) or protection_group.get("launchConfig", {}).get("subnetId")
+
+            if not subnet_id:
+                validation_errors.append(
+                    {
+                        "field": "subnetId",
+                        "error": "MISSING_SUBNET",
+                        "message": "subnetId is required when setting "
+                        "staticPrivateIp",
+                    }
+                )
+            else:
+                ip_validation = validate_static_ip(
+                    static_ip, subnet_id, region
+                )
+                if not ip_validation.get("valid"):
+                    validation_errors.append(ip_validation)
+
+        # Validate security groups
+        if launch_template.get("securityGroupIds"):
+            sg_ids = launch_template["securityGroupIds"]
+            # Get VPC ID from subnet
+            subnet_id = launch_template.get(
+                "subnetId"
+            ) or protection_group.get("launchConfig", {}).get("subnetId")
+
+            if subnet_id:
+                # Get VPC ID from subnet
+                subnet_validation = validate_subnet(subnet_id, region)
+                if subnet_validation.get("valid"):
+                    vpc_id = subnet_validation["details"]["vpcId"]
+                    sg_validation = validate_security_groups(
+                        sg_ids, vpc_id, region
+                    )
+                    if not sg_validation.get("valid"):
+                        validation_errors.append(sg_validation)
+                else:
+                    validation_errors.append(subnet_validation)
+
+        # Validate instance type
+        if launch_template.get("instanceType"):
+            instance_type = launch_template["instanceType"]
+            type_validation = validate_instance_type(instance_type, region)
+            if not type_validation.get("valid"):
+                validation_errors.append(type_validation)
+
+        # Validate IAM instance profile
+        if launch_template.get("instanceProfileName"):
+            profile_name = launch_template["instanceProfileName"]
+            profile_validation = validate_iam_profile(profile_name, region)
+            if not profile_validation.get("valid"):
+                validation_errors.append(profile_validation)
+
+        # Validate subnet
+        if launch_template.get("subnetId"):
+            subnet_id = launch_template["subnetId"]
+            subnet_validation = validate_subnet(subnet_id, region)
+            if not subnet_validation.get("valid"):
+                validation_errors.append(subnet_validation)
+
+        # Return validation errors if any
+        if validation_errors:
+            return response(
+                400,
+                {
+                    "error": "VALIDATION_FAILED",
+                    "message": "One or more fields failed validation",
+                    "validationErrors": validation_errors,
+                },
+            )
+
+        # Get existing server config to track changes
+        servers = protection_group.get("servers", [])
+        existing_server_config = next(
+            (s for s in servers if s.get("sourceServerId") == server_id),
+            None,
+        )
+
+        # Track changed fields for audit trail
+        changed_fields = []
+        if existing_server_config:
+            old_template = existing_server_config.get("launchTemplate", {})
+            for key, value in launch_template.items():
+                if old_template.get(key) != value:
+                    changed_fields.append(key)
+            # Check if useGroupDefaults changed
+            if (
+                existing_server_config.get("useGroupDefaults", True)
+                != use_group_defaults
+            ):
+                changed_fields.append("useGroupDefaults")
+        else:
+            # New server config - all fields are changes
+            changed_fields = list(launch_template.keys())
+            if not use_group_defaults:
+                changed_fields.append("useGroupDefaults")
+
+        # Build new server configuration
+        new_server_config = {
+            "sourceServerId": server_id,
+            "useGroupDefaults": use_group_defaults,
+            "launchTemplate": launch_template,
+        }
+
+        # Add instance metadata if available
+        try:
+            regional_drs = boto3.client("drs", region_name=region)
+            drs_response = regional_drs.describe_source_servers(
+                filters={"sourceServerIDs": [server_id]}
+            )
+            if drs_response.get("items"):
+                server_info = drs_response["items"][0]
+                source_props = server_info.get("sourceProperties", {})
+                new_server_config["instanceId"] = source_props.get(
+                    "lastUpdatedDateTime"
+                )
+                identification = source_props.get("identificationHints", {})
+                new_server_config["instanceName"] = identification.get(
+                    "hostname", ""
+                )
+                new_server_config["tags"] = server_info.get("tags", {})
+        except Exception as e:
+            print(f"Warning: Could not fetch server metadata: {e}")
+
+        # Update or add server config in protection group
+        if existing_server_config:
+            # Update existing config
+            for i, s in enumerate(servers):
+                if s.get("sourceServerId") == server_id:
+                    servers[i] = new_server_config
+                    break
+        else:
+            # Add new server config
+            servers.append(new_server_config)
+
+        # If useGroupDefaults is true and no custom fields, remove from array
+        if use_group_defaults and not launch_template:
+            servers = [
+                s for s in servers if s.get("sourceServerId") != server_id
+            ]
+
+        # Update protection group in DynamoDB
+        from datetime import datetime, timezone
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        protection_groups_table.update_item(
+            Key={"groupId": group_id},
+            UpdateExpression="SET servers = :servers, updatedAt = :updated",
+            ExpressionAttributeValues={
+                ":servers": servers,
+                ":updated": timestamp,
+            },
+        )
+
+        # Apply configuration to DRS/EC2
+        apply_result = apply_launch_config_to_servers(
+            server_ids=[server_id],
+            launch_config=protection_group.get("launchConfig", {}),
+            region=region,
+            protection_group={
+                **protection_group,
+                "servers": servers,
+            },
+            protection_group_id=group_id,
+            protection_group_name=protection_group.get("groupName"),
+        )
+
+        # Get effective configuration for response
+        updated_protection_group = {**protection_group, "servers": servers}
+        effective_config = get_effective_launch_config(
+            updated_protection_group, server_id
+        )
+
+        # Build audit trail entry
+        audit_entry = {
+            "timestamp": timestamp,
+            "user": protection_group.get("owner", "unknown"),
+            "changedFields": changed_fields,
+            "applyResult": apply_result,
+        }
+
+        # Build response
+        response_data = {
+            "sourceServerId": server_id,
+            "instanceId": new_server_config.get("instanceId"),
+            "instanceName": new_server_config.get("instanceName"),
+            "tags": new_server_config.get("tags", {}),
+            "useGroupDefaults": use_group_defaults,
+            "launchTemplate": launch_template,
+            "effectiveConfig": effective_config,
+            "auditTrail": audit_entry,
+        }
+
+        return response(200, response_data)
+
+    except ClientError as e:
+        print(f"DynamoDB error updating server launch config: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": f"Database error: {str(e)}"})
+    except Exception as e:
+        print(f"Error updating server launch config: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": str(e)})
+
+
+def delete_server_launch_config(group_id: str, server_id: str) -> Dict:
+    """
+    Delete per-server launch configuration and revert to group defaults.
+
+    Removes the server from the servers array in the protection group
+    document. After removal, the server will use group defaults. Applies
+    the group defaults to DRS/EC2 and records an audit trail entry.
+
+    Args:
+        group_id: Protection group ID
+        server_id: Source server ID
+
+    Returns:
+        Response with confirmation and effective config:
+        {
+            "sourceServerId": "s-xxx",
+            "message": "Server configuration deleted, reverted to group "
+                       "defaults",
+            "effectiveConfig": {
+                "subnetId": "subnet-xxx",
+                "securityGroupIds": ["sg-xxx"],
+                "instanceType": "t3.medium"
+            },
+            "auditTrail": {
+                "timestamp": "2026-01-27T23:00:00Z",
+                "user": "admin@example.com",
+                "action": "deleted_server_config"
+            }
+        }
+
+    Requirements: 6.5
+    """
+    try:
+        # Get protection group
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in result:
+            return response(404, {"error": "Protection Group not found"})
+
+        protection_group = result["Item"]
+        region = protection_group.get("region")
+
+        # Verify server exists in protection group
+        source_server_ids = protection_group.get("sourceServerIds", [])
+        if server_id not in source_server_ids:
+            return response(
+                404,
+                {
+                    "error": "Server not found in protection group",
+                    "serverId": server_id,
+                    "groupId": group_id,
+                },
+            )
+
+        # Remove server from servers array
+        servers = protection_group.get("servers", [])
+        original_count = len(servers)
+        servers = [s for s in servers if s.get("sourceServerId") != server_id]
+
+        # Check if server had custom config
+        had_custom_config = len(servers) < original_count
+
+        # Update protection group in DynamoDB
+        from datetime import datetime, timezone
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        protection_groups_table.update_item(
+            Key={"groupId": group_id},
+            UpdateExpression="SET servers = :servers, updatedAt = :updated",
+            ExpressionAttributeValues={
+                ":servers": servers,
+                ":updated": timestamp,
+            },
+        )
+
+        # Apply group defaults to DRS/EC2
+        group_defaults = protection_group.get("launchConfig", {})
+        apply_result = apply_launch_config_to_servers(
+            server_ids=[server_id],
+            launch_config=group_defaults,
+            region=region,
+            protection_group={
+                **protection_group,
+                "servers": servers,
+            },
+            protection_group_id=group_id,
+            protection_group_name=protection_group.get("groupName"),
+        )
+
+        # Build audit trail entry
+        audit_entry = {
+            "timestamp": timestamp,
+            "user": protection_group.get("owner", "unknown"),
+            "action": "deleted_server_config",
+            "applyResult": apply_result,
+        }
+
+        # Build response with camelCase fields for frontend
+        response_data = {
+            "sourceServerId": server_id,
+            "message": "Server configuration deleted, reverted to group "
+            "defaults",
+            "effectiveConfig": group_defaults,
+            "auditTrail": audit_entry,
+        }
+
+        # Add note if server had no custom config
+        if not had_custom_config:
+            response_data["message"] = (
+                "Server had no custom configuration, "
+                "already using group defaults"
+            )
+
+        return response(200, response_data)
+
+    except ClientError as e:
+        print(f"DynamoDB error deleting server launch config: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": f"Database error: {str(e)}"})
+    except Exception as e:
+        print(f"Error deleting server launch config: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": str(e)})
+
+
+def validate_server_static_ip(
+    group_id: str, server_id: str, body: Dict
+) -> Dict:
+    """
+    Validate static private IP address for a server.
+
+    Performs comprehensive validation:
+    - IPv4 format validation
+    - IP within subnet CIDR range
+    - IP not in reserved range (first 4, last 1 addresses)
+    - IP availability check via AWS API
+
+    Args:
+        group_id: Protection group ID
+        server_id: Source server ID
+        body: Request body with staticPrivateIp and subnetId
+
+    Request Body:
+        {
+            "staticPrivateIp": "10.0.1.100",
+            "subnetId": "subnet-xxx"
+        }
+
+    Returns:
+        Response with validation result:
+
+        Valid IP:
+        {
+            "valid": true,
+            "ip": "10.0.1.100",
+            "subnetId": "subnet-xxx",
+            "details": {
+                "inCidrRange": true,
+                "notReserved": true,
+                "available": true,
+                "subnetCidr": "10.0.1.0/24"
+            }
+        }
+
+        Invalid IP:
+        {
+            "valid": false,
+            "error": "IP_IN_USE",
+            "message": "IP address 10.0.1.100 is already in use by
+                       network interface eni-xxx",
+            "ip": "10.0.1.100",
+            "subnetId": "subnet-xxx"
+        }
+
+    Requirements: 3.1, 3.2, 4.1.5, 9.1
+    """
+    try:
+        # Import validation function
+        from shared.launch_config_validation import validate_static_ip
+
+        # Get protection group
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in result:
+            return response(404, {"error": "Protection Group not found"})
+
+        protection_group = result["Item"]
+        region = protection_group.get("region")
+
+        # Verify server exists in protection group
+        source_server_ids = protection_group.get("sourceServerIds", [])
+        if server_id not in source_server_ids:
+            return response(
+                404,
+                {
+                    "error": "Server not found in protection group",
+                    "serverId": server_id,
+                    "groupId": group_id,
+                },
+            )
+
+        # Parse request body (camelCase from frontend)
+        static_ip = body.get("staticPrivateIp")
+        subnet_id = body.get("subnetId")
+
+        # Validate required fields
+        if not static_ip:
+            return response(
+                400,
+                {
+                    "error": "MISSING_FIELD",
+                    "message": "staticPrivateIp is required",
+                    "field": "staticPrivateIp",
+                },
+            )
+
+        if not subnet_id:
+            return response(
+                400,
+                {
+                    "error": "MISSING_FIELD",
+                    "message": "subnetId is required",
+                    "field": "subnetId",
+                },
+            )
+
+        # Perform validation
+        validation_result = validate_static_ip(static_ip, subnet_id, region)
+
+        # If validation passed, build success response with details
+        if validation_result.get("valid"):
+            # Get subnet CIDR from validation (if available)
+            subnet_cidr = validation_result.get("subnetCidr")
+
+            response_data = {
+                "valid": True,
+                "ip": static_ip,
+                "subnetId": subnet_id,
+                "details": {
+                    "inCidrRange": True,
+                    "notReserved": True,
+                    "available": True,
+                },
+            }
+
+            # Add subnet CIDR if available
+            if subnet_cidr:
+                response_data["details"]["subnetCidr"] = subnet_cidr
+
+            return response(200, response_data)
+
+        # Validation failed - return error details
+        error_response = {
+            "valid": False,
+            "ip": static_ip,
+            "subnetId": subnet_id,
+        }
+
+        # Add error details from validation result
+        if validation_result.get("error"):
+            error_response["error"] = validation_result["error"]
+
+        if validation_result.get("message"):
+            error_response["message"] = validation_result["message"]
+
+        if validation_result.get("conflictingResource"):
+            error_response["conflictingResource"] = validation_result[
+                "conflictingResource"
+            ]
+
+        # Return 400 for validation errors
+        return response(400, error_response)
+
+    except Exception as e:
+        print(f"Error validating static IP: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": str(e)})
+
+
+def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
+    """
+    Bulk update launch configurations for multiple servers.
+
+    Validates all configurations before applying any changes (fail fast).
+    Applies configurations sequentially with error handling. Returns
+    detailed summary of applied and failed servers.
+
+    Args:
+        group_id: Protection group ID
+        body: Request body with servers array
+
+    Request Body:
+        {
+            "servers": [
+                {
+                    "sourceServerId": "s-xxx",
+                    "useGroupDefaults": false,
+                    "launchTemplate": {
+                        "staticPrivateIp": "10.0.1.100",
+                        "instanceType": "c6a.xlarge"
+                    }
+                },
+                {
+                    "sourceServerId": "s-yyy",
+                    "useGroupDefaults": false,
+                    "launchTemplate": {
+                        "staticPrivateIp": "10.0.1.101"
+                    }
+                }
+            ]
+        }
+
+    Returns:
+        Response with summary and detailed results:
+        {
+            "summary": {
+                "total": 2,
+                "applied": 1,
+                "failed": 1
+            },
+            "results": [
+                {
+                    "sourceServerId": "s-xxx",
+                    "status": "applied",
+                    "effectiveConfig": {...}
+                },
+                {
+                    "sourceServerId": "s-yyy",
+                    "status": "failed",
+                    "error": "IP_IN_USE",
+                    "message": "IP address 10.0.1.101 is already in use"
+                }
+            ]
+        }
+
+    Requirements: 7.1, 7.2, 7.3, 7.4, 7.5
+    """
+    try:
+        # Import validation functions
+        from shared.launch_config_validation import (
+            validate_static_ip,
+            validate_aws_approved_fields,
+            validate_security_groups,
+            validate_instance_type,
+            validate_iam_profile,
+            validate_subnet,
+        )
+
+        # Get protection group
+        result = protection_groups_table.get_item(Key={"groupId": group_id})
+
+        if "Item" not in result:
+            return response(404, {"error": "Protection Group not found"})
+
+        protection_group = result["Item"]
+        region = protection_group.get("region")
+        source_server_ids = protection_group.get("sourceServerIds", [])
+
+        # Parse request body
+        servers_config = body.get("servers", [])
+
+        if not servers_config:
+            return response(
+                400,
+                {
+                    "error": "MISSING_FIELD",
+                    "message": "servers array is required",
+                    "field": "servers",
+                },
+            )
+
+        if not isinstance(servers_config, list):
+            return response(
+                400,
+                {
+                    "error": "INVALID_TYPE",
+                    "message": "servers must be an array",
+                    "field": "servers",
+                },
+            )
+
+        # Phase 1: Validate ALL configurations before applying any
+        validation_errors = []
+
+        for idx, server_config in enumerate(servers_config):
+            server_id = server_config.get("sourceServerId")
+            launch_template = server_config.get("launchTemplate", {})
+
+            # Validate server ID present
+            if not server_id:
+                validation_errors.append(
+                    {
+                        "index": idx,
+                        "error": "MISSING_SERVER_ID",
+                        "message": "sourceServerId is required for each "
+                        "server",
+                    }
+                )
+                continue
+
+            # Validate server exists in protection group
+            if server_id not in source_server_ids:
+                validation_errors.append(
+                    {
+                        "index": idx,
+                        "sourceServerId": server_id,
+                        "error": "SERVER_NOT_FOUND",
+                        "message": f"Server {server_id} not found in "
+                        "protection group",
+                    }
+                )
+                continue
+
+            # Validate AWS-approved fields only
+            field_validation = validate_aws_approved_fields(launch_template)
+            if not field_validation.get("valid"):
+                validation_errors.append(
+                    {
+                        "index": idx,
+                        "sourceServerId": server_id,
+                        **field_validation,
+                    }
+                )
+                continue
+
+            # Validate static private IP
+            if launch_template.get("staticPrivateIp"):
+                static_ip = launch_template["staticPrivateIp"]
+                subnet_id = launch_template.get(
+                    "subnetId"
+                ) or protection_group.get("launchConfig", {}).get("subnetId")
+
+                if not subnet_id:
+                    validation_errors.append(
+                        {
+                            "index": idx,
+                            "sourceServerId": server_id,
+                            "field": "subnetId",
+                            "error": "MISSING_SUBNET",
+                            "message": "subnetId is required when setting "
+                            "staticPrivateIp",
+                        }
+                    )
+                    continue
+
+                ip_validation = validate_static_ip(
+                    static_ip, subnet_id, region
+                )
+                if not ip_validation.get("valid"):
+                    validation_errors.append(
+                        {
+                            "index": idx,
+                            "sourceServerId": server_id,
+                            **ip_validation,
+                        }
+                    )
+                    continue
+
+            # Validate security groups
+            if launch_template.get("securityGroupIds"):
+                sg_ids = launch_template["securityGroupIds"]
+                subnet_id = launch_template.get(
+                    "subnetId"
+                ) or protection_group.get("launchConfig", {}).get("subnetId")
+
+                if subnet_id:
+                    subnet_validation = validate_subnet(subnet_id, region)
+                    if subnet_validation.get("valid"):
+                        vpc_id = subnet_validation["details"]["vpcId"]
+                        sg_validation = validate_security_groups(
+                            sg_ids, vpc_id, region
+                        )
+                        if not sg_validation.get("valid"):
+                            validation_errors.append(
+                                {
+                                    "index": idx,
+                                    "sourceServerId": server_id,
+                                    **sg_validation,
+                                }
+                            )
+                            continue
+
+            # Validate instance type
+            if launch_template.get("instanceType"):
+                instance_type = launch_template["instanceType"]
+                type_validation = validate_instance_type(instance_type, region)
+                if not type_validation.get("valid"):
+                    validation_errors.append(
+                        {
+                            "index": idx,
+                            "sourceServerId": server_id,
+                            **type_validation,
+                        }
+                    )
+                    continue
+
+            # Validate IAM instance profile
+            if launch_template.get("instanceProfileName"):
+                profile_name = launch_template["instanceProfileName"]
+                profile_validation = validate_iam_profile(profile_name, region)
+                if not profile_validation.get("valid"):
+                    validation_errors.append(
+                        {
+                            "index": idx,
+                            "sourceServerId": server_id,
+                            **profile_validation,
+                        }
+                    )
+                    continue
+
+        # If any validation errors, fail fast and return all errors
+        if validation_errors:
+            return response(
+                400,
+                {
+                    "error": "VALIDATION_FAILED",
+                    "message": f"{len(validation_errors)} server "
+                    f"configuration(s) failed validation",
+                    "validationErrors": validation_errors,
+                },
+            )
+
+        # Phase 2: Apply configurations with error handling
+        results = []
+        applied_count = 0
+        failed_count = 0
+
+        # Get existing servers array
+        servers = protection_group.get("servers", [])
+
+        for server_config in servers_config:
+            server_id = server_config.get("sourceServerId")
+            use_group_defaults = server_config.get("useGroupDefaults", True)
+            launch_template = server_config.get("launchTemplate", {})
+
+            try:
+                # Build new server configuration
+                new_server_config = {
+                    "sourceServerId": server_id,
+                    "useGroupDefaults": use_group_defaults,
+                    "launchTemplate": launch_template,
+                }
+
+                # Add instance metadata if available
+                try:
+                    regional_drs = boto3.client("drs", region_name=region)
+                    drs_response = regional_drs.describe_source_servers(
+                        filters={"sourceServerIDs": [server_id]}
+                    )
+                    if drs_response.get("items"):
+                        server_info = drs_response["items"][0]
+                        source_props = server_info.get("sourceProperties", {})
+                        new_server_config["instanceId"] = source_props.get(
+                            "lastUpdatedDateTime"
+                        )
+                        identification = source_props.get(
+                            "identificationHints", {}
+                        )
+                        new_server_config["instanceName"] = identification.get(
+                            "hostname", ""
+                        )
+                        new_server_config["tags"] = server_info.get("tags", {})
+                except Exception as e:
+                    print(
+                        f"Warning: Could not fetch metadata for "
+                        f"{server_id}: {e}"
+                    )
+
+                # Update or add server config in array
+                existing_idx = next(
+                    (
+                        i
+                        for i, s in enumerate(servers)
+                        if s.get("sourceServerId") == server_id
+                    ),
+                    None,
+                )
+
+                if existing_idx is not None:
+                    servers[existing_idx] = new_server_config
+                else:
+                    servers.append(new_server_config)
+
+                # Get effective configuration for response
+                updated_protection_group = {
+                    **protection_group,
+                    "servers": servers,
+                }
+                effective_config = get_effective_launch_config(
+                    updated_protection_group, server_id
+                )
+
+                # Add success result
+                results.append(
+                    {
+                        "sourceServerId": server_id,
+                        "status": "applied",
+                        "effectiveConfig": effective_config,
+                    }
+                )
+                applied_count += 1
+
+            except Exception as e:
+                # Add failure result
+                print(f"Error applying config for {server_id}: {str(e)}")
+                results.append(
+                    {
+                        "sourceServerId": server_id,
+                        "status": "failed",
+                        "error": "APPLICATION_ERROR",
+                        "message": str(e),
+                    }
+                )
+                failed_count += 1
+
+        # Phase 3: Update DynamoDB with all changes
+        from datetime import datetime, timezone
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        try:
+            protection_groups_table.update_item(
+                Key={"groupId": group_id},
+                UpdateExpression="SET servers = :servers, "
+                "updatedAt = :updated",
+                ExpressionAttributeValues={
+                    ":servers": servers,
+                    ":updated": timestamp,
+                },
+            )
+        except Exception as e:
+            print(f"Error updating DynamoDB: {str(e)}")
+            return response(
+                500,
+                {
+                    "error": "DATABASE_ERROR",
+                    "message": f"Failed to save configurations: {str(e)}",
+                },
+            )
+
+        # Phase 4: Apply configurations to DRS/EC2
+        # Get list of successfully configured server IDs
+        applied_server_ids = [
+            r["sourceServerId"]
+            for r in results
+            if r.get("status") == "applied"
+        ]
+
+        if applied_server_ids:
+            try:
+                apply_result = apply_launch_config_to_servers(
+                    server_ids=applied_server_ids,
+                    launch_config=protection_group.get("launchConfig", {}),
+                    region=region,
+                    protection_group={
+                        **protection_group,
+                        "servers": servers,
+                    },
+                    protection_group_id=group_id,
+                    protection_group_name=protection_group.get("groupName"),
+                )
+            except Exception as e:
+                print(f"Warning: Error applying configs to DRS/EC2: {e}")
+                # Don't fail the entire operation if DRS/EC2 update fails
+                # Configs are saved in DynamoDB and can be retried
+
+        # Build response
+        response_data = {
+            "summary": {
+                "total": len(servers_config),
+                "applied": applied_count,
+                "failed": failed_count,
+            },
+            "results": results,
+        }
+
+        return response(200, response_data)
+
+    except ClientError as e:
+        print(f"DynamoDB error in bulk update: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": f"Database error: {str(e)}"})
+    except Exception as e:
+        print(f"Error in bulk update: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
         return response(500, {"error": str(e)})
 
 
@@ -3525,6 +4659,7 @@ def apply_launch_config_to_servers(
     server_ids: List[str],
     launch_config: Dict,
     region: str,
+    protection_group: Dict = None,
     protection_group_id: str = None,
     protection_group_name: str = None,
 ) -> Dict:
@@ -3533,10 +4668,15 @@ def apply_launch_config_to_servers(
     Called immediately when Protection Group is saved.
     Returns summary of results for each server.
 
+    Supports per-server configuration overrides via protection_group parameter.
+    When protection_group is provided, merges group defaults with server-specific
+    overrides using get_effective_launch_config().
+
     Args:
         server_ids: List of DRS source server IDs
         launch_config: Dict with SubnetId, SecurityGroupIds, InstanceProfileName, etc.
         region: AWS region
+        protection_group: Optional full PG dict with servers array for per-server configs
         protection_group_id: Optional PG ID for version tracking
         protection_group_name: Optional PG name for version tracking
 
@@ -3546,6 +4686,9 @@ def apply_launch_config_to_servers(
     if not launch_config or not server_ids:
         return {"applied": 0, "skipped": 0, "failed": 0, "details": []}
 
+    # Import config merge utility for per-server overrides
+    from shared.config_merge import get_effective_launch_config
+
     regional_drs = boto3.client("drs", region_name=region)
     ec2 = boto3.client("ec2", region_name=region)
 
@@ -3553,6 +4696,14 @@ def apply_launch_config_to_servers(
 
     for server_id in server_ids:
         try:
+            # Get effective config (merge group defaults with server overrides)
+            if protection_group:
+                effective_config = get_effective_launch_config(
+                    protection_group, server_id
+                )
+            else:
+                effective_config = launch_config
+
             # Get DRS launch configuration to find template ID
             drs_config = regional_drs.get_launch_configuration(
                 sourceServerID=server_id
@@ -3573,43 +4724,56 @@ def apply_launch_config_to_servers(
             # Build EC2 template data for the new version
             template_data = {}
 
-            if launch_config.get("instanceType"):
-                template_data["InstanceType"] = launch_config["instanceType"]
+            if effective_config.get("instanceType"):
+                template_data["InstanceType"] = effective_config[
+                    "instanceType"
+                ]
 
-            # Network interface settings (subnet and security groups)
-            if launch_config.get("subnetId") or launch_config.get(
-                "securityGroupIds"
+            # Network interface settings (subnet, security groups, static IP)
+            if (
+                effective_config.get("subnetId")
+                or effective_config.get("securityGroupIds")
+                or effective_config.get("staticPrivateIp")
             ):
                 network_interface = {"DeviceIndex": 0}
-                if launch_config.get("subnetId"):
-                    network_interface["SubnetId"] = launch_config["subnetId"]
-                if launch_config.get("securityGroupIds"):
-                    network_interface["Groups"] = launch_config[
+
+                # Static private IP support
+                if effective_config.get("staticPrivateIp"):
+                    network_interface["PrivateIpAddress"] = effective_config[
+                        "staticPrivateIp"
+                    ]
+
+                if effective_config.get("subnetId"):
+                    network_interface["SubnetId"] = effective_config[
+                        "subnetId"
+                    ]
+                if effective_config.get("securityGroupIds"):
+                    network_interface["Groups"] = effective_config[
                         "securityGroupIds"
                     ]
                 template_data["NetworkInterfaces"] = [network_interface]
 
-            if launch_config.get("instanceProfileName"):
+            if effective_config.get("instanceProfileName"):
                 template_data["IamInstanceProfile"] = {
-                    "Name": launch_config["instanceProfileName"]
+                    "Name": effective_config["instanceProfileName"]
                 }
 
             # IMPORTANT: Update DRS launch configuration FIRST
             # DRS update_launch_configuration creates a new EC2 launch template version,
             # so we must call it before our EC2 template updates to avoid being overwritten
             drs_update = {"sourceServerID": server_id}
-            if "copyPrivateIp" in launch_config:
-                drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
-            if "copyTags" in launch_config:
-                drs_update["copyTags"] = launch_config["copyTags"]
-            if "licensing" in launch_config:
-                drs_update["licensing"] = launch_config["licensing"]
-            if "targetInstanceTypeRightSizingMethod" in launch_config:
+            if "copyPrivateIp" in effective_config:
+                drs_update["copyPrivateIp"] = effective_config["copyPrivateIp"]
+            if "copyTags" in effective_config:
+                drs_update["copyTags"] = effective_config["copyTags"]
+            if "licensing" in effective_config:
+                drs_update["licensing"] = effective_config["licensing"]
+            if "targetInstanceTypeRightSizingMethod" in effective_config:
                 drs_update["targetInstanceTypeRightSizingMethod"] = (
-                    launch_config["targetInstanceTypeRightSizingMethod"]
+                    effective_config["targetInstanceTypeRightSizingMethod"]
                 )
-            if "launchDisposition" in launch_config:
-                drs_update["launchDisposition"] = launch_config[
+            if "launchDisposition" in effective_config:
+                drs_update["launchDisposition"] = effective_config[
                     "launchDisposition"
                 ]
 
@@ -3631,34 +4795,38 @@ def apply_launch_config_to_servers(
                     desc_parts.append(f"ID: {protection_group_id[:8]}")
                 # Add config details
                 config_details = []
-                if launch_config.get("instanceType"):
+                if effective_config.get("staticPrivateIp"):
                     config_details.append(
-                        f"Type:{launch_config['instanceType']}"
+                        f"IP:{effective_config['staticPrivateIp']}"
                     )
-                if launch_config.get("subnetId"):
+                if effective_config.get("instanceType"):
                     config_details.append(
-                        f"Subnet:{launch_config['subnetId'][-8:]}"
+                        f"Type:{effective_config['instanceType']}"
                     )
-                if launch_config.get("securityGroupIds"):
-                    sg_count = len(launch_config["securityGroupIds"])
+                if effective_config.get("subnetId"):
+                    config_details.append(
+                        f"Subnet:{effective_config['subnetId'][-8:]}"
+                    )
+                if effective_config.get("securityGroupIds"):
+                    sg_count = len(effective_config["securityGroupIds"])
                     config_details.append(f"SGs:{sg_count}")
-                if launch_config.get("instanceProfileName"):
-                    profile = launch_config["instanceProfileName"]
+                if effective_config.get("instanceProfileName"):
+                    profile = effective_config["instanceProfileName"]
                     # Truncate long profile names
                     if len(profile) > 20:
                         profile = profile[:17] + "..."
                     config_details.append(f"Profile:{profile}")
-                if launch_config.get("copyPrivateIp"):
+                if effective_config.get("copyPrivateIp"):
                     config_details.append("CopyIP")
-                if launch_config.get("copyTags"):
+                if effective_config.get("copyTags"):
                     config_details.append("CopyTags")
-                if launch_config.get("targetInstanceTypeRightSizingMethod"):
+                if effective_config.get("targetInstanceTypeRightSizingMethod"):
                     config_details.append(
-                        f"RightSize:{launch_config['targetInstanceTypeRightSizingMethod']}"
+                        f"RightSize:{effective_config['targetInstanceTypeRightSizingMethod']}"
                     )
-                if launch_config.get("launchDisposition"):
+                if effective_config.get("launchDisposition"):
                     config_details.append(
-                        f"Launch:{launch_config['launchDisposition']}"
+                        f"Launch:{effective_config['launchDisposition']}"
                     )
                 if config_details:
                     desc_parts.append(" | ".join(config_details))
