@@ -4905,8 +4905,13 @@ def apply_launch_config_to_servers(
             # DRS update_launch_configuration creates a new EC2 launch template version,
             # so we must call it before our EC2 template updates to avoid being overwritten
             drs_update = {"sourceServerID": server_id}
-            if "copyPrivateIp" in effective_config:
+            
+            # If static IP is specified, disable copyPrivateIp to prevent DRS from overriding it
+            if effective_config.get("staticPrivateIp"):
+                drs_update["copyPrivateIp"] = False
+            elif "copyPrivateIp" in effective_config:
                 drs_update["copyPrivateIp"] = effective_config["copyPrivateIp"]
+                
             if "copyTags" in effective_config:
                 drs_update["copyTags"] = effective_config["copyTags"]
             if "licensing" in effective_config:
