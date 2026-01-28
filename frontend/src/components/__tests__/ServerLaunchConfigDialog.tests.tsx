@@ -8,7 +8,6 @@
  * - Group defaults display (Requirement 6.1)
  */
 
-import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -140,14 +139,25 @@ describe('ServerLaunchConfigDialog', () => {
 
   // Helper function to wait for component to finish loading
   const waitForLoading = async () => {
-    await waitFor(() => {
+    // Wait for all API calls to resolve
+    await waitFor(async () => {
+      // Force a tick to let promises resolve
+      await new Promise(resolve => setTimeout(resolve, 0));
       expect(screen.queryByText(/Loading EC2 resources/)).not.toBeInTheDocument();
-    }, { timeout: 3000 });
+    }, { timeout: 5000 });
   };
 
   describe('Form Rendering', () => {
     it('renders dialog with server information', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      
+      // Wait for API calls to complete
+      await waitFor(() => {
+        expect(apiClient.getEC2Subnets).toHaveBeenCalled();
+        expect(apiClient.getEC2SecurityGroups).toHaveBeenCalled();
+        expect(apiClient.getEC2InstanceTypes).toHaveBeenCalled();
+      });
+      
       await waitForLoading();
       
       expect(screen.getByText(/Configure Launch Settings: web-server-01/)).toBeInTheDocument();
@@ -166,26 +176,30 @@ describe('ServerLaunchConfigDialog', () => {
       expect(checkbox).toBeChecked(); // Default state
     });
 
-    it('renders StaticIPInput component', () => {
+    it('renders StaticIPInput component', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByTestId('static-ip-input')).toBeInTheDocument();
     });
 
-    it('renders subnet dropdown', () => {
+    it('renders subnet dropdown', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText('Target Subnet')).toBeInTheDocument();
     });
 
-    it('renders security groups dropdown', () => {
+    it('renders security groups dropdown', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText('Security Groups')).toBeInTheDocument();
     });
 
-    it('renders instance type dropdown', () => {
+    it('renders instance type dropdown', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText('Instance Type')).toBeInTheDocument();
     });
@@ -208,26 +222,30 @@ describe('ServerLaunchConfigDialog', () => {
   });
 
   describe('Group Defaults Display', () => {
-    it('shows group default subnet in description', () => {
+    it('shows group default subnet in description', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText(/Group default: subnet-default/)).toBeInTheDocument();
     });
 
-    it('shows group default security groups in description', () => {
+    it('shows group default security groups in description', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText(/Group default: sg-default/)).toBeInTheDocument();
     });
 
-    it('shows group default instance type in description', () => {
+    it('shows group default instance type in description', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText(/Group default: c6a.large/)).toBeInTheDocument();
     });
 
-    it('shows info alert when using group defaults', () => {
+    it('shows info alert when using group defaults', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText(/Using Group Defaults/)).toBeInTheDocument();
       expect(
@@ -237,7 +255,7 @@ describe('ServerLaunchConfigDialog', () => {
   });
 
   describe('Server Configuration Initialization', () => {
-    it('initializes form with existing server configuration', () => {
+    it('initializes form with existing server configuration', async () => {
       const serverConfig: ServerLaunchConfig = {
         sourceServerId: 's-12345',
         useGroupDefaults: false,
@@ -251,6 +269,7 @@ describe('ServerLaunchConfigDialog', () => {
       render(
         <ServerLaunchConfigDialog {...defaultProps} serverConfig={serverConfig} />
       );
+      await waitForLoading();
       
       const checkbox = screen.getByRole('checkbox', {
         name: /Use Protection Group Defaults/,
@@ -258,8 +277,9 @@ describe('ServerLaunchConfigDialog', () => {
       expect(checkbox).not.toBeChecked();
     });
 
-    it('initializes with group defaults when no server config exists', () => {
+    it('initializes with group defaults when no server config exists', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const checkbox = screen.getByRole('checkbox', {
         name: /Use Protection Group Defaults/,
@@ -272,6 +292,7 @@ describe('ServerLaunchConfigDialog', () => {
     it('toggles useGroupDefaults checkbox', async () => {
       const user = userEvent.setup();
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const checkbox = screen.getByRole('checkbox', {
         name: /Use Protection Group Defaults/,
@@ -287,6 +308,7 @@ describe('ServerLaunchConfigDialog', () => {
     it('hides info alert when not using group defaults', async () => {
       const user = userEvent.setup();
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const checkbox = screen.getByRole('checkbox', {
         name: /Use Protection Group Defaults/,
@@ -302,6 +324,7 @@ describe('ServerLaunchConfigDialog', () => {
     it('updates static IP value on change', async () => {
       const user = userEvent.setup();
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const input = screen.getByPlaceholderText('IP address');
       await user.type(input, '10.0.1.100');
@@ -309,7 +332,7 @@ describe('ServerLaunchConfigDialog', () => {
       expect(input).toHaveValue('10.0.1.100');
     });
 
-    it('initializes with existing static IP from server config', () => {
+    it('initializes with existing static IP from server config', async () => {
       const serverConfig: ServerLaunchConfig = {
         sourceServerId: 's-12345',
         useGroupDefaults: true,
@@ -321,6 +344,7 @@ describe('ServerLaunchConfigDialog', () => {
       render(
         <ServerLaunchConfigDialog {...defaultProps} serverConfig={serverConfig} />
       );
+      await waitForLoading();
       
       const input = screen.getByPlaceholderText('IP address');
       expect(input).toHaveValue('10.0.1.50');
@@ -333,6 +357,7 @@ describe('ServerLaunchConfigDialog', () => {
       const onSave = vi.fn();
       
       render(<ServerLaunchConfigDialog {...defaultProps} onSave={onSave} />);
+      await waitForLoading();
       
       // Make a change to enable save button
       const checkbox = screen.getByRole('checkbox', {
@@ -357,6 +382,7 @@ describe('ServerLaunchConfigDialog', () => {
       const onSave = vi.fn();
       
       render(<ServerLaunchConfigDialog {...defaultProps} onSave={onSave} />);
+      await waitForLoading();
       
       const input = screen.getByPlaceholderText('IP address');
       await user.type(input, '10.0.1.100');
@@ -373,8 +399,9 @@ describe('ServerLaunchConfigDialog', () => {
       );
     });
 
-    it('disables save button when no changes are made', () => {
+    it('disables save button when no changes are made', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const saveButton = screen.getByRole('button', { name: /Save Configuration/ });
       expect(saveButton).toBeDisabled();
@@ -383,6 +410,7 @@ describe('ServerLaunchConfigDialog', () => {
     it('enables save button when changes are made', async () => {
       const user = userEvent.setup();
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const saveButton = screen.getByRole('button', { name: /Save Configuration/ });
       expect(saveButton).toBeDisabled();
@@ -428,6 +456,7 @@ describe('ServerLaunchConfigDialog', () => {
     it('disables save button when IP validation fails', async () => {
       const user = userEvent.setup();
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       // Type an invalid IP
       const input = screen.getByPlaceholderText('IP address');
@@ -442,14 +471,15 @@ describe('ServerLaunchConfigDialog', () => {
   });
 
   describe('Configuration Badges', () => {
-    it('shows configuration badges for fields', () => {
+    it('shows configuration badges for fields', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const badges = screen.getAllByTestId('config-badge');
       expect(badges.length).toBeGreaterThan(0);
     });
 
-    it('shows custom badge for overridden fields', () => {
+    it('shows custom badge for overridden fields', async () => {
       const serverConfig: ServerLaunchConfig = {
         sourceServerId: 's-12345',
         useGroupDefaults: false,
@@ -461,6 +491,7 @@ describe('ServerLaunchConfigDialog', () => {
       render(
         <ServerLaunchConfigDialog {...defaultProps} serverConfig={serverConfig} />
       );
+      await waitForLoading();
       
       const badges = screen.getAllByTestId('config-badge');
       expect(badges.some(badge => badge.textContent === 'Custom')).toBe(true);
@@ -506,6 +537,7 @@ describe('ServerLaunchConfigDialog', () => {
       
       // Open dialog
       rerender(<ServerLaunchConfigDialog {...defaultProps} open={true} />);
+      await waitForLoading();
       
       const checkbox = screen.getByRole('checkbox', {
         name: /Use Protection Group Defaults/,
