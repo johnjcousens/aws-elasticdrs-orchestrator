@@ -1,0 +1,277 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - GitHub Actions OIDC Integration (Deploy Once Manually)'
+
+# This stack should be deployed ONCE manually before using GitHub Actions.
+# It creates the OIDC provider and IAM role for GitHub Actions to assume.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name used for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+    AllowedValues: [dev, test, qa, uat, prod]
+
+  GitHubOrg:
+    Type: String
+    Description: 'GitHub organization or username'
+    Default: 'johnjcousens'
+
+  GitHubRepo:
+    Type: String
+    Description: 'GitHub repository name'
+    Default: 'aws-elasticdrs-orchestrator'
+
+  DeploymentBucket:
+    Type: String
+    Description: 'S3 bucket for deployment artifacts'
+
+  ApplicationStackName:
+    Type: String
+    Description: 'Name of the application stack that GitHub Actions will deploy'
+
+Resources:
+  # IAM Role for GitHub Actions
+  # Note: Uses existing GitHub OIDC provider (arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com)
+  # If OIDC provider doesn't exist, create it manually or uncomment the GitHubOidcProvider resource below
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-github-actions-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+              StringLike:
+                'token.actions.githubusercontent.com:sub':
+                  - !Sub 'repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/main'
+                  - !Sub 'repo:${GitHubOrg}/${GitHubRepo}:pull_request'
+                  - !Sub 'repo:${GitHubOrg}/${GitHubRepo}:environment:*'
+      MaxSessionDuration: 3600
+      Policies:
+        - PolicyName: GitHubActionsDeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 Access for deployment buckets (both current and archive test)
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub 'arn:aws:s3:::${DeploymentBucket}'
+                  - !Sub 'arn:aws:s3:::${DeploymentBucket}/*'
+                  # Archive test stack bucket
+                  - 'arn:aws:s3:::aws-drs-orchestrator-archive-test-bucket'
+                  - 'arn:aws:s3:::aws-drs-orchestrator-archive-test-bucket/*'
+              # S3 Access for frontend buckets (created by CloudFormation for both stacks)
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:GetBucketPolicy
+                  - s3:PutBucketPolicy
+                  - s3:DeleteBucketPolicy
+                  - s3:GetBucketAcl
+                  - s3:PutBucketAcl
+                  - s3:GetBucketCORS
+                  - s3:PutBucketCORS
+                  - s3:GetBucketWebsite
+                  - s3:PutBucketWebsite
+                  - s3:DeleteBucketWebsite
+                  - s3:GetBucketVersioning
+                  - s3:PutBucketVersioning
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketTagging
+                  - s3:PutBucketTagging
+                  - s3:GetEncryptionConfiguration
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetLifecycleConfiguration
+                  - s3:PutLifecycleConfiguration
+                  - s3:GetBucketOwnershipControls
+                  - s3:PutBucketOwnershipControls
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:GetObjectVersion
+                  - s3:DeleteObjectVersion
+                  - s3:ListBucketVersions
+                Resource:
+                  # Current stack frontend bucket
+                  - !Sub 'arn:aws:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}'
+                  - !Sub 'arn:aws:s3:::${ProjectName}-fe-${AWS::AccountId}-${Environment}/*'
+                  # All DRS orchestrator frontend buckets (wildcard pattern)
+                  - !Sub 'arn:aws:s3:::aws-*drs-orchestrator*-fe-${AWS::AccountId}-*'
+                  - !Sub 'arn:aws:s3:::aws-*drs-orchestrator*-fe-${AWS::AccountId}-*/*'
+              # CloudFormation - Full access for all DRS orchestration stacks
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:ListStacks
+                  - cloudformation:ListStackResources
+                  - cloudformation:ContinueUpdateRollback
+                Resource:
+                  # Allow access to all DRS orchestration stacks (current and archive test)
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-*drs-orchestrat*/*'
+                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-*elasticdrs-orchestrat*/*'
+              - Effect: Allow
+                Action:
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:ListStacks
+                Resource: '*'
+              # IAM for CloudFormation deployments
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:CreateServiceLinkedRole
+                Resource: '*'
+              # Lambda
+              - Effect: Allow
+                Action:
+                  - lambda:*
+                Resource: '*'
+              # API Gateway
+              - Effect: Allow
+                Action:
+                  - apigateway:*
+                Resource: '*'
+              # DynamoDB
+              - Effect: Allow
+                Action:
+                  - dynamodb:*
+                Resource: '*'
+              # Cognito
+              - Effect: Allow
+                Action:
+                  - cognito-idp:*
+                  - cognito-identity:*
+                Resource: '*'
+              # Step Functions
+              - Effect: Allow
+                Action:
+                  - states:*
+                Resource: '*'
+              # EventBridge
+              - Effect: Allow
+                Action:
+                  - events:*
+                Resource: '*'
+              # CloudFront
+              - Effect: Allow
+                Action:
+                  - cloudfront:*
+                Resource: '*'
+              # SNS
+              - Effect: Allow
+                Action:
+                  - sns:*
+                Resource: '*'
+              # CloudWatch Logs
+              - Effect: Allow
+                Action:
+                  - logs:*
+                Resource: '*'
+              # WAF
+              - Effect: Allow
+                Action:
+                  - wafv2:*
+                Resource: '*'
+              # Secrets Manager
+              - Effect: Allow
+                Action:
+                  - secretsmanager:*
+                Resource: '*'
+              # KMS
+              - Effect: Allow
+                Action:
+                  - kms:*
+                Resource: '*'
+              # STS for identity verification
+              - Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: '*'
+              # Resource tagging
+              - Effect: Allow
+                Action:
+                  - tag:*
+                Resource: '*'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  GitHubActionsRoleArn:
+    Description: 'IAM Role ARN for GitHub Actions (use in GitHub secrets as AWS_ROLE_ARN)'
+    Value: !GetAtt GitHubActionsRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-GitHubActionsRoleArn'
+
+  OidcProviderArn:
+    Description: 'GitHub OIDC Provider ARN (existing provider in account)'
+    Value: !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-OidcProviderArn'
+
+  DeploymentBucketName:
+    Description: 'S3 bucket for deployment artifacts'
+    Value: !Ref DeploymentBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentBucket'
+
+  ApplicationStackName:
+    Description: 'Application stack name for deployments'
+    Value: !Ref ApplicationStackName
+    Export:
+      Name: !Sub '${AWS::StackName}-ApplicationStackName'
+
+  GitHubSecretsInstructions:
+    Description: 'Instructions for GitHub repository secrets'
+    Value: !Sub |
+      Add these secrets to your GitHub repository:
+      - AWS_ROLE_ARN: ${GitHubActionsRole.Arn}
+      - AWS_REGION: ${AWS::Region}
+      - DEPLOYMENT_BUCKET: ${DeploymentBucket}
+      - STACK_NAME: ${ApplicationStackName}

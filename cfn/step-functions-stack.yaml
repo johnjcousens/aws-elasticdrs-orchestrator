@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Wave-Based DR Orchestration State Machine (AWSM-1103)
+  
+  Implements sequential wave-based disaster recovery with parallel execution within waves.
+  Supports multi-technology recovery (DRS, Aurora, ECS, Lambda, Route53) through standardized
+  adapter interface with 4-phase lifecycle (INSTANTIATE → ACTIVATE → CLEANUP → REPLICATE).
+  
+  Architecture Pattern: Archive Pattern
+  - Lambda owns ALL state via OutputPath
+  - State exists at root level ($), not nested
+  - All Lambda invocations return complete state object
+  - Step Functions persists state between transitions
+  
+  Wave Execution Model (AWSM-1103):
+  - Sequential waves: Wave N+1 starts only after Wave N completes
+  - Parallel within wave: All resources recover simultaneously
+  - Failure tolerance: Wave continues even if individual resources fail
+  - Pause/Resume: Manual approval gates between waves (1-year timeout)
+  
+  Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name for resource naming'
+    Default: 'drs-orchestration'
+  
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+    Default: 'test'
+  
+  OrchestrationLambdaArn:
+    Type: String
+    Description: 'ARN of the orchestration Lambda function'
+  
+  OrchestrationRoleArn:
+    Type: String
+    Description: 'ARN of the unified orchestration role (used by Lambda and Step Functions)'
+
+Resources:
+  # Wave-Based Orchestration State Machine (AWSM-1103)
+  # Archive Pattern: Lambda owns ALL state via OutputPath
+  # Lambda returns complete state object, Step Functions persists it at root level
+  # Uses unified orchestration role (shared with Lambda functions)
+  DRSOrchestrationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      StateMachineName: !Sub '${ProjectName}-orchestration-${Environment}'
+      RoleArn: !Ref OrchestrationRoleArn
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-orchestration-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+      Definition:
+        Comment: |
+          Wave-Based DR Orchestration (AWSM-1103)
+          Sequential waves with parallel execution within each wave.
+          Archive pattern: Lambda owns state via OutputPath.
+        StartAt: 'InitiateWavePlan'
+        States:
+          # Initialize wave plan and start first wave
+          # Lambda returns complete state object with all tracking fields
+          InitiateWavePlan:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'begin'
+                execution.$: '$.Execution.Id'
+                plan.$: '$.Plan'
+                isDrill.$: '$.isDrill'
+                accountContext.$: '$.accountContext'
+            OutputPath: '$.Payload'
+            Next: 'DetermineWavePlanState'
+            Retry:
+              - ErrorEquals:
+                  - 'Lambda.ServiceException'
+                  - 'Lambda.AWSLambdaException'
+                  - 'Lambda.SdkClientException'
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+          
+          # Check overall plan state
+          # Choice state logic order matters: check status='paused' before wave_completed
+          # to ensure pause gates are honored before advancing to next wave
+          DetermineWavePlanState:
+            Type: Choice
+            Choices:
+              # Check for failure first
+              - Variable: '$.status'
+                StringEquals: 'failed'
+                Next: 'PlanFailed'
+              # Check for timeout
+              - Variable: '$.status'
+                StringEquals: 'timeout'
+                Next: 'PlanTimeout'
+              # CRITICAL: Check pause BEFORE wave_completed
+              # Pause gates must be honored before advancing to next wave
+              - Variable: '$.status'
+                StringEquals: 'paused'
+                Next: 'WaitForResume'
+              # Check if all waves completed
+              - Variable: '$.all_waves_completed'
+                BooleanEquals: true
+                Next: 'PlanCompleted'
+              # Otherwise check current wave state
+              - Variable: '$.all_waves_completed'
+                BooleanEquals: false
+                Next: 'DetermineWaveState'
+            Default: 'DetermineWaveState'
+          
+          # Check current wave state
+          # Same logic order: status='paused' checked before wave_completed
+          DetermineWaveState:
+            Type: Choice
+            Choices:
+              # Check for failure first
+              - Variable: '$.status'
+                StringEquals: 'failed'
+                Next: 'PlanFailed'
+              # Check for timeout
+              - Variable: '$.status'
+                StringEquals: 'timeout'
+                Next: 'PlanTimeout'
+              # CRITICAL: Check pause BEFORE wave_completed
+              # If pauseBeforeWave is set, must pause even if wave just completed
+              # This ensures manual approval gates are honored
+              - Variable: '$.status'
+                StringEquals: 'paused'
+                Next: 'WaitForResume'
+              # Check if all waves completed (after current wave)
+              - Variable: '$.all_waves_completed'
+                BooleanEquals: true
+                Next: 'PlanCompleted'
+              # Check if current wave still in progress
+              - Variable: '$.wave_completed'
+                BooleanEquals: false
+                Next: 'WaitForWaveUpdate'
+              # Current wave completed, check plan state for next wave
+              - Variable: '$.wave_completed'
+                BooleanEquals: true
+                Next: 'DetermineWavePlanState'
+            Default: 'WaitForWaveUpdate'
+          
+          # Wait before polling DRS job status
+          # Interval configured in state.current_wave_update_time (default 30 seconds)
+          WaitForWaveUpdate:
+            Type: Wait
+            SecondsPath: '$.current_wave_update_time'
+            Next: 'UpdateWaveStatus'
+          
+          # Pause state: Wait for external resume signal via callback pattern
+          # 1-year timeout supports long-term pauses for manual approval workflows
+          # SendTaskSuccess output becomes state directly (no Payload wrapper for callbacks)
+          WaitForResume:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke.waitForTaskToken'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'store_task_token'
+                application.$: '$'
+                taskToken.$: '$$.Task.Token'
+                accountContext.$: '$.accountContext'
+            # NOTE: No OutputPath - callback returns state directly at root level
+            # 1-year timeout supports long-term pauses (e.g., multi-day approval workflows)
+            TimeoutSeconds: 31536000  # 365 days * 24 hours * 60 min * 60 sec
+            Next: 'ResumeWavePlan'
+            Catch:
+              - ErrorEquals:
+                  - 'States.Timeout'
+                Next: 'PlanTimeout'
+          
+          # Resume after manual approval - start the paused wave
+          # Lambda returns complete state with wave started
+          ResumeWavePlan:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'resume_wave'
+                application.$: '$'
+                accountContext.$: '$.accountContext'
+            OutputPath: '$.Payload'
+            Next: 'DetermineWaveState'
+            Retry:
+              - ErrorEquals:
+                  - 'Lambda.ServiceException'
+                  - 'Lambda.AWSLambdaException'
+                  - 'Lambda.SdkClientException'
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+          
+          # Poll DRS job status and check server launch progress
+          # Lambda queries DRS API and updates state with current status
+          # Returns complete state with wave_completed flag for Choice state
+          UpdateWaveStatus:
+            Type: Task
+            Resource: 'arn:aws:states:::lambda:invoke'
+            Parameters:
+              FunctionName: !Ref OrchestrationLambdaArn
+              Payload:
+                action: 'update_wave_status'
+                application.$: '$'
+            OutputPath: '$.Payload'
+            Next: 'DetermineWaveState'
+            Retry:
+              - ErrorEquals:
+                  - 'Lambda.ServiceException'
+                  - 'Lambda.AWSLambdaException'
+                  - 'Lambda.SdkClientException'
+                IntervalSeconds: 2
+                MaxAttempts: 6
+                BackoffRate: 2
+          
+          # Success state
+          PlanCompleted:
+            Type: Succeed
+          
+          # Failure states
+          PlanFailed:
+            Type: Fail
+            Error: 'PlanExecutionFailed'
+            Cause: 'DRS recovery plan execution failed'
+          
+          PlanTimeout:
+            Type: Fail
+            Error: 'PlanExecutionTimeout'
+            Cause: 'DRS recovery plan execution timed out'
+
+Outputs:
+  StateMachineArn:
+    Description: 'ARN of the DRS Orchestration State Machine'
+    Value: !Ref DRSOrchestrationStateMachine
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-arn-${Environment}'
+  
+  StateMachineName:
+    Description: 'Name of the DRS Orchestration State Machine'
+    Value: !GetAtt DRSOrchestrationStateMachine.Name
+    Export:
+      Name: !Sub '${ProjectName}-state-machine-name-${Environment}'

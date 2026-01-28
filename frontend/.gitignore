@@ -1,0 +1,29 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# AWS Config (template in public/ is OK, real values generated during build)
+# public/aws-config.json contains environment-specific values - DO NOT COMMIT
+# dist/aws-config.json is generated - ignored via dist/ above
+public/aws-config.json

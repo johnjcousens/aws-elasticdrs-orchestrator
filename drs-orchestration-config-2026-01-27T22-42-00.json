@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "exportedAt": "2026-01-27T22:42:00.116144+00:00Z",
+  "sourceRegion": "us-east-1",
+  "sourceAccount": "438465159935",
+  "protectionGroups": [
+    {
+      "groupName": "AppServersGroup",
+      "description": "",
+      "region": "us-west-2",
+      "accountId": "",
+      "owner": "",
+      "sourceServerIds": [
+        "s-57eae3bdae1f0179b",
+        "s-5d4ac077408e03d02"
+      ],
+      "launchConfig": {
+        "subnetId": "subnet-05271904a7c44689f",
+        "securityGroupIds": [
+          "sg-00d3ed189b8073ea4"
+        ],
+        "instanceType": "c6a.large",
+        "instanceProfileName": "demo-ec2-profile",
+        "targetInstanceTypeRightSizingMethod": "NONE",
+        "copyTags": true,
+        "launchDisposition": "STOPPED",
+        "licensing": {
+          "osByol": false
+        }
+      }
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "planName": "AppRecoveryPlan",
+      "description": "",
+      "waves": [
+        {
+          "waveDescription": "",
+          "protectionGroupIds": [
+            "b66e0653-c46e-4ab2-aec6-48d760a529b8"
+          ],
+          "pauseBeforeWave": false,
+          "dependsOnWaves": [],
+          "waveName": "Wave 1",
+          "waveNumber": 0,
+          "serverIds": [
+            "s-57eae3bdae1f0179b",
+            "s-5d4ac077408e03d02"
+          ],
+          "protectionGroupName": "AppServersGroup"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "protectionGroupCount": 1,
+    "recoveryPlanCount": 1,
+    "orphanedReferences": 0
+  }
+}
