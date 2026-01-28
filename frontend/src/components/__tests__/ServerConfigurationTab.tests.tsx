@@ -22,6 +22,7 @@ describe('ServerConfigurationTab', () => {
       lastSeen: '2024-01-01T00:00:00Z',
       assignedToProtectionGroup: null,
       selectable: true,
+      tags: {},
     },
     {
       sourceServerID: 's-456',
@@ -32,6 +33,7 @@ describe('ServerConfigurationTab', () => {
       lastSeen: '2024-01-01T00:00:00Z',
       assignedToProtectionGroup: null,
       selectable: true,
+      tags: {},
     },
   ];
 
