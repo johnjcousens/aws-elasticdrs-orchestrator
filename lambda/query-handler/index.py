@@ -1963,7 +1963,7 @@ def export_configuration(query_params: Dict) -> Dict:
     """
     Export all Protection Groups and Recovery Plans to JSON format.
     Returns complete configuration with metadata for backup/migration.
-    
+
     Schema v1.1: Includes per-server launch template configurations.
     """
     try:
