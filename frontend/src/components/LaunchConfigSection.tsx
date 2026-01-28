@@ -34,6 +34,7 @@ interface LaunchConfigSectionProps {
   onChange: (config: LaunchConfig) => void;
   onExpandChange?: (expanded: boolean) => void;
   disabled?: boolean;
+  customConfigCount?: number; // Number of servers with custom configurations
 }
 
 export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
@@ -42,6 +43,7 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
   onChange,
   onExpandChange,
   disabled = false,
+  customConfigCount = 0,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +150,14 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
       ) : (
         <div data-form-type="other" data-lpignore="true" data-1p-ignore="true">
           <SpaceBetween direction="vertical" size="m">
+            {/* Alert about per-server overrides */}
+            {customConfigCount > 0 && (
+              <Alert type="info">
+                {customConfigCount} {customConfigCount === 1 ? 'server has' : 'servers have'} custom launch configurations that override these group defaults. 
+                View and manage per-server settings in the <strong>Server Configurations</strong> tab.
+              </Alert>
+            )}
+
             <ColumnLayout columns={2}>
               <FormField
                 label="Target Subnet"
@@ -177,6 +187,26 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
                 />
               </FormField>
             </ColumnLayout>
+
+            {/* Static IP field - disabled with pointer to Server Configurations tab */}
+            <FormField
+              label="Static Private IP"
+              description="Configure static IPs per server in the Server Configurations tab"
+              info={
+                <Box variant="span">
+                  Static IP addresses must be configured individually for each server. 
+                  Use the <strong>Server Configurations</strong> tab to assign static IPs.
+                </Box>
+              }
+            >
+              <Select
+                selectedOption={null}
+                onChange={() => {}}
+                options={[]}
+                placeholder="Configure per server in Server Configurations tab"
+                disabled={true}
+              />
+            </FormField>
 
             <FormField
               label="Security Groups"

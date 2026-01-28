@@ -188,7 +188,10 @@ describe('ServerLaunchConfigDialog', () => {
     it('does not render when open is false', () => {
       render(<ServerLaunchConfigDialog {...defaultProps} open={false} />);
       
-      expect(screen.queryByText(/Configure Launch Settings/)).not.toBeInTheDocument();
+      // Modal component renders but should have hidden class when closed
+      // The class name has a hash suffix, so check if it contains 'hidden'
+      const modal = document.querySelector('[role="dialog"]');
+      expect(modal?.className).toMatch(/awsui_hidden/);
     });
   });
 

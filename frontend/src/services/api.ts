@@ -1124,6 +1124,36 @@ class ApiClient {
     });
   }
 
+  /**
+   * Get server configuration change history (audit log)
+   * 
+   * Retrieves chronological list of all configuration changes for a server.
+   * Supports date range filtering.
+   * 
+   * @param groupId - Protection group ID
+   * @param serverId - Source server ID
+   * @param params - Optional query parameters (startDate, endDate)
+   * @returns Array of configuration change entries
+   */
+  public async getServerConfigHistory(
+    groupId: string,
+    serverId: string,
+    params?: Record<string, string>
+  ): Promise<Array<{
+    timestamp: string;
+    user: string;
+    action: string;
+    protectionGroupId: string;
+    serverId: string;
+    changes: Array<{
+      field: string;
+      oldValue: string | null;
+      newValue: string | null;
+    }>;
+  }>> {
+    return this.get(`/protection-groups/${groupId}/servers/${serverId}/audit-log`, params);
+  }
+
   // ============================================================================
   // EC2 Resources API (for Launch Config dropdowns)
   // ============================================================================
@@ -1284,6 +1314,7 @@ export const {
   deleteServerLaunchConfig,
   validateStaticIP,
   bulkUpdateServerConfigs,
+  getServerConfigHistory,
   exportConfiguration,
   importConfiguration,
   getTagSyncSettings,

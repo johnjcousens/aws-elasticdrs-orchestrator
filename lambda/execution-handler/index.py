@@ -55,6 +55,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 # Import shared utilities
+from shared.config_merge import get_effective_launch_config
 from shared.conflict_detection import (
     check_server_conflicts,
     get_active_executions_for_plan,
@@ -4689,9 +4690,6 @@ def apply_launch_config_to_servers(
     if not launch_config or not server_ids:
         return {"applied": 0, "skipped": 0, "failed": 0, "details": []}
 
-    # Import config merge utility for per-server overrides
-    from lambda.shared.config_merge import get_effective_launch_config
-
     regional_drs = boto3.client("drs", region_name=region)
     ec2 = boto3.client("ec2", region_name=region)
 
@@ -4823,9 +4821,7 @@ def apply_launch_config_to_servers(
                     config_details.append("CopyIP")
                 if effective_config.get("copyTags"):
                     config_details.append("Copy Tags")
-                if effective_config.get(
-                    "targetInstanceTypeRightSizingMethod"
-                ):
+                if effective_config.get("targetInstanceTypeRightSizingMethod"):
                     config_details.append(
                         f"RightSize:{effective_config['targetInstanceTypeRightSizingMethod']}"
                     )

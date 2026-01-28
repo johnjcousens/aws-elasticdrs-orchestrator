@@ -405,7 +405,6 @@ ALLOWED_FIELDS = [
     "ebsOptimized",  # Maps to EbsOptimized
     "disableApiTermination",  # Maps to DisableApiTermination
     "tags",  # Maps to TagSpecifications
-    "userData",  # Maps to UserData (base64 encoded)
     "creditSpecification",  # Maps to CreditSpecification
 ]
 
@@ -414,6 +413,8 @@ ALLOWED_FIELDS = [
 # ignored or cause recovery failures
 BLOCKED_FIELDS = [
     "imageId",  # DRS creates recovery-specific AMIs
+    "userData",  # DRS may inject recovery scripts
+    "blockDeviceMappings",  # DRS manages disk mappings from source
     "placementGroup",  # DRS manages placement for recovery
     "availabilityZone",  # DRS determines AZ based on subnet
     "keyName",  # DRS manages SSH keys separately
@@ -915,3 +916,335 @@ def validate_subnet(subnet_id: str, region: str) -> Dict[str, Any]:
             "message": f"Failed to validate subnet: {str(e)}",
             "field": "subnetId",
         }
+
+
+def validate_no_duplicate_ips(
+    protection_group: Dict[str, Any],
+    current_server_id: str,
+    new_ip: str,
+    new_subnet_id: str,
+) -> Dict[str, Any]:
+    """
+    Validate that no other server in the same subnet has the same static IP.
+
+    This function checks all servers in the protection group to ensure
+    no duplicate IP addresses are configured within the same subnet.
+    This prevents IP conflicts during recovery operations.
+
+    Args:
+        protection_group: Protection group dict containing servers array
+        current_server_id: Server ID being updated (excluded from check)
+        new_ip: New static private IP being assigned
+        new_subnet_id: Subnet ID where the IP will be assigned
+
+    Returns:
+        Dict containing validation result:
+        {
+            "valid": bool,
+            "message": str (optional),
+            "conflictingServer": dict (optional)
+        }
+
+    Example:
+        >>> result = validate_no_duplicate_ips(
+        ...     protection_group,
+        ...     "s-xxx",
+        ...     "10.0.1.100",
+        ...     "subnet-xxx"
+        ... )
+        >>> result["valid"]
+        True
+
+    Validates: Requirements 12.1, 12.2
+    """
+    if not new_ip:
+        # No IP to check
+        return {"valid": True}
+
+    servers = protection_group.get("servers", [])
+    group_defaults = protection_group.get("launchConfig", {})
+
+    # Check each server for duplicate IP in same subnet
+    for server in servers:
+        server_id = server.get("sourceServerId")
+
+        # Skip the current server being updated
+        if server_id == current_server_id:
+            continue
+
+        # Get server's effective subnet and IP
+        server_template = server.get("launchTemplate", {})
+        use_defaults = server.get("useGroupDefaults", True)
+
+        # Determine effective subnet for this server
+        if use_defaults:
+            # Server uses group defaults, may override specific fields
+            server_subnet = server_template.get(
+                "subnetId"
+            ) or group_defaults.get("subnetId")
+        else:
+            # Server has full custom config
+            server_subnet = server_template.get(
+                "subnetId"
+            ) or group_defaults.get("subnetId")
+
+        # Determine effective static IP for this server
+        server_ip = server_template.get("staticPrivateIp")
+
+        # Check for duplicate: same IP in same subnet
+        if (
+            server_ip
+            and server_subnet == new_subnet_id
+            and server_ip == new_ip
+        ):
+            # Found duplicate IP in same subnet
+            return {
+                "valid": False,
+                "error": "DUPLICATE_IP",
+                "message": f"IP {new_ip} is already configured for server "
+                f"{server_id} in subnet {new_subnet_id}",
+                "field": "staticPrivateIp",
+                "conflictingServer": {
+                    "sourceServerId": server_id,
+                    "instanceId": server.get("instanceId"),
+                    "instanceName": server.get("instanceName"),
+                    "staticPrivateIp": server_ip,
+                    "subnetId": server_subnet,
+                },
+            }
+
+    # No duplicate found
+    return {
+        "valid": True,
+        "message": f"IP {new_ip} is not used by any other server in "
+        f"subnet {new_subnet_id}",
+    }
+
+
+def validate_subnet_change_ip_revalidation(
+    current_config: Dict[str, Any],
+    new_config: Dict[str, Any],
+    region: str,
+) -> Dict[str, Any]:
+    """
+    Detect subnet changes and revalidate static IP against new subnet.
+
+    When a server's subnet changes, any configured static IP must be
+    revalidated to ensure it's still valid in the new subnet's CIDR
+    range. This function detects subnet changes and performs full IP
+    validation against the new subnet.
+
+    Args:
+        current_config: Current server launch configuration
+        new_config: New server launch configuration being applied
+        region: AWS region for validation
+
+    Returns:
+        Dict containing validation result:
+        {
+            "valid": bool,
+            "subnetChanged": bool,
+            "message": str (optional),
+            "warning": str (optional),
+            "details": dict (optional)
+        }
+
+    Example:
+        >>> result = validate_subnet_change_ip_revalidation(
+        ...     {"subnetId": "subnet-old", "staticPrivateIp": "10.0.1.100"},
+        ...     {"subnetId": "subnet-new", "staticPrivateIp": "10.0.1.100"},
+        ...     "us-east-1"
+        ... )
+        >>> result["subnetChanged"]
+        True
+
+    Validates: Requirements 12.3, 12.4
+    """
+    # Extract subnet IDs from configs
+    current_subnet = current_config.get("subnetId")
+    new_subnet = new_config.get("subnetId")
+
+    # Extract static IP from new config
+    static_ip = new_config.get("staticPrivateIp")
+
+    # Check if subnet changed
+    subnet_changed = (
+        current_subnet and new_subnet and current_subnet != new_subnet
+    )
+
+    # If no subnet change, no revalidation needed
+    if not subnet_changed:
+        return {
+            "valid": True,
+            "subnetChanged": False,
+            "message": "No subnet change detected",
+        }
+
+    # If no static IP configured, subnet change is safe
+    if not static_ip:
+        return {
+            "valid": True,
+            "subnetChanged": True,
+            "message": f"Subnet changed from {current_subnet} to "
+            f"{new_subnet}, no static IP to revalidate",
+        }
+
+    # Subnet changed and static IP configured - revalidate IP
+    validation_result = validate_static_ip(static_ip, new_subnet, region)
+
+    if not validation_result["valid"]:
+        # IP is invalid in new subnet
+        return {
+            "valid": False,
+            "subnetChanged": True,
+            "error": "SUBNET_CHANGE_IP_INVALID",
+            "message": f"Subnet changed from {current_subnet} to "
+            f"{new_subnet}. Static IP {static_ip} is no longer valid: "
+            f"{validation_result.get('message', 'IP validation failed')}",
+            "warning": f"The configured static IP {static_ip} is not "
+            f"valid in the new subnet {new_subnet}. Please update the "
+            "IP address or remove it to use DHCP.",
+            "field": "staticPrivateIp",
+            "details": {
+                "oldSubnet": current_subnet,
+                "newSubnet": new_subnet,
+                "staticPrivateIp": static_ip,
+                "validationError": validation_result.get("error"),
+                "validationMessage": validation_result.get("message"),
+            },
+        }
+
+    # IP is valid in new subnet
+    return {
+        "valid": True,
+        "subnetChanged": True,
+        "message": f"Subnet changed from {current_subnet} to "
+        f"{new_subnet}. Static IP {static_ip} is valid in new subnet.",
+        "details": {
+            "oldSubnet": current_subnet,
+            "newSubnet": new_subnet,
+            "staticPrivateIp": static_ip,
+            "newSubnetCidr": validation_result.get("subnetCidr"),
+        },
+    }
+
+
+# Helper functions for testing
+def validate_static_ip_format(ip: str) -> Dict[str, Any]:
+    """
+    Validate IPv4 address format only (no AWS API calls).
+
+    This is a wrapper around _validate_ip_format for testing purposes.
+    """
+    if ip is None:
+        return {"valid": False, "message": "IP address cannot be None"}
+    return _validate_ip_format(ip)
+
+
+def validate_static_ip_cidr(ip: str, cidr: str) -> Dict[str, Any]:
+    """
+    Validate IP is within CIDR range and not reserved.
+
+    This is a testing helper that combines CIDR and reserved range checks.
+    """
+    # Validate format first
+    format_result = _validate_ip_format(ip)
+    if not format_result["valid"]:
+        return format_result
+
+    # Validate CIDR range
+    cidr_result = _validate_ip_in_cidr(ip, cidr)
+    if not cidr_result["valid"]:
+        return cidr_result
+
+    # Validate not reserved
+    return _validate_ip_not_reserved(ip, cidr)
+
+
+def is_ip_in_reserved_range(ip: str, cidr: str) -> bool:
+    """
+    Check if IP is in AWS reserved range (first 4 or last 1 addresses).
+
+    Returns True if IP is reserved, False otherwise.
+    """
+    result = _validate_ip_not_reserved(ip, cidr)
+    return not result["valid"]
+
+
+def validate_security_group_pattern(sg_id) -> Dict[str, Any]:
+    """
+    Validate security group ID pattern.
+
+    Args:
+        sg_id: Security group ID string or list of IDs
+
+    Returns:
+        Dict with validation result
+    """
+    import re
+
+    # Handle list of security groups
+    if isinstance(sg_id, list):
+        invalid_groups = []
+        for sg in sg_id:
+            if not re.match(r"^sg-[0-9a-f]{8,17}$", sg):
+                invalid_groups.append(sg)
+
+        if invalid_groups:
+            return {
+                "valid": False,
+                "message": f"Invalid security group IDs: {', '.join(invalid_groups)}",
+                "invalidGroups": invalid_groups,
+            }
+        return {"valid": True}
+
+    # Handle single security group
+    if sg_id is None or sg_id == "":
+        return {"valid": False, "message": "Security group ID cannot be empty"}
+
+    if not re.match(r"^sg-[0-9a-f]{8,17}$", sg_id):
+        return {
+            "valid": False,
+            "message": f"Invalid security group ID format: {sg_id}",
+        }
+
+    return {"valid": True}
+
+
+def validate_tag_constraints(tags) -> Dict[str, Any]:
+    """
+    Validate tag key/value length constraints.
+
+    AWS limits:
+    - Tag keys: max 128 characters
+    - Tag values: max 256 characters
+
+    Args:
+        tags: Dictionary of tag key-value pairs
+
+    Returns:
+        Dict with validation result
+    """
+    if tags is None:
+        return {"valid": False, "message": "Tags cannot be None"}
+
+    if not isinstance(tags, dict):
+        return {"valid": False, "message": "Tags must be a dictionary"}
+
+    if len(tags) == 0:
+        return {"valid": True}  # Empty tags are valid
+
+    for key, value in tags.items():
+        if len(key) > 128:
+            return {
+                "valid": False,
+                "message": f"Tag key exceeds maximum length of 128 characters: {key[:50]}...",
+            }
+
+        if len(str(value)) > 256:
+            return {
+                "valid": False,
+                "message": f"Tag value for key '{key}' exceeds maximum length of 256 characters",
+            }
+
+    return {"valid": True}

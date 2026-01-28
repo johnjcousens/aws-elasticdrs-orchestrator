@@ -26,6 +26,8 @@ interface ImportPreview {
   schemaVersion: string;
   exportedAt: string;
   sourceRegion: string;
+  serversWithCustomConfig?: number;
+  serversWithStaticIPs?: number;
 }
 
 interface ImportResults {
@@ -78,6 +80,27 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
         throw new Error('Invalid configuration file: missing schemaVersion');
       }
 
+      // Count servers with custom configs and static IPs
+      let serversWithCustomConfig = 0;
+      let serversWithStaticIPs = 0;
+      
+      if (data.protectionGroups && Array.isArray(data.protectionGroups)) {
+        data.protectionGroups.forEach((group: any) => {
+          if (group.servers && Array.isArray(group.servers)) {
+            group.servers.forEach((server: any) => {
+              // Count servers with custom config
+              if (!server.useGroupDefaults || (server.launchTemplate && Object.keys(server.launchTemplate).length > 0)) {
+                serversWithCustomConfig++;
+              }
+              // Count servers with static IPs
+              if (server.launchTemplate?.staticPrivateIp) {
+                serversWithStaticIPs++;
+              }
+            });
+          }
+        });
+      }
+
       setConfigData(data);
       setPreview({
         protectionGroups: data.protectionGroups?.length || 0,
@@ -85,6 +108,8 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
         schemaVersion: data.metadata.schemaVersion,
         exportedAt: data.metadata.exportedAt || 'Unknown',
         sourceRegion: data.metadata.sourceRegion || 'Unknown',
+        serversWithCustomConfig,
+        serversWithStaticIPs,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to parse configuration file';
@@ -180,28 +205,49 @@ export const ConfigImportPanel: React.FC<ConfigImportPanelProps> = ({
 
         {preview && (
           <Container header={<Header variant="h3">Import Preview</Header>}>
-            <ColumnLayout columns={2} variant="text-grid">
-              <div>
-                <Box variant="awsui-key-label">Protection Groups</Box>
-                <Box variant="awsui-value-large">{preview.protectionGroups}</Box>
-              </div>
-              <div>
-                <Box variant="awsui-key-label">Recovery Plans</Box>
-                <Box variant="awsui-value-large">{preview.recoveryPlans}</Box>
-              </div>
-              <div>
-                <Box variant="awsui-key-label">Schema Version</Box>
-                <Box>{preview.schemaVersion}</Box>
-              </div>
-              <div>
-                <Box variant="awsui-key-label">Source Region</Box>
-                <Box>{preview.sourceRegion}</Box>
-              </div>
-              <div>
-                <Box variant="awsui-key-label">Exported At</Box>
-                <Box>{new Date(preview.exportedAt).toLocaleString()}</Box>
-              </div>
-            </ColumnLayout>
+            <SpaceBetween size="m">
+              <ColumnLayout columns={2} variant="text-grid">
+                <div>
+                  <Box variant="awsui-key-label">Protection Groups</Box>
+                  <Box variant="awsui-value-large">{preview.protectionGroups}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">Recovery Plans</Box>
+                  <Box variant="awsui-value-large">{preview.recoveryPlans}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">Schema Version</Box>
+                  <Box>{preview.schemaVersion}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">Source Region</Box>
+                  <Box>{preview.sourceRegion}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">Exported At</Box>
+                  <Box>{new Date(preview.exportedAt).toLocaleString()}</Box>
+                </div>
+              </ColumnLayout>
+
+              {/* Show per-server config info if schema version 1.1+ */}
+              {preview.schemaVersion >= '1.1' && (preview.serversWithCustomConfig || 0) > 0 && (
+                <Alert type="info">
+                  This configuration includes {preview.serversWithCustomConfig} server{preview.serversWithCustomConfig === 1 ? '' : 's'} with custom launch settings
+                  {preview.serversWithStaticIPs && preview.serversWithStaticIPs > 0 && (
+                    <>, including {preview.serversWithStaticIPs} with static private IP{preview.serversWithStaticIPs === 1 ? '' : 's'}</>
+                  )}.
+                  {' '}Static IP availability will be validated during import.
+                </Alert>
+              )}
+
+              {/* Backward compatibility notice */}
+              {preview.schemaVersion < '1.1' && (
+                <Alert type="info">
+                  Schema version {preview.schemaVersion} detected. This configuration does not include per-server settings. 
+                  All servers will use protection group defaults.
+                </Alert>
+              )}
+            </SpaceBetween>
           </Container>
         )}
 

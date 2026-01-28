@@ -33,6 +33,16 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
     try {
       const config = await exportConfiguration();
       
+      // Count servers with custom configs
+      let serversWithCustomConfig = 0;
+      if (config.protectionGroups) {
+        config.protectionGroups.forEach((group: any) => {
+          if (group.servers && Array.isArray(group.servers)) {
+            serversWithCustomConfig += group.servers.length;
+          }
+        });
+      }
+      
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const sanitizedTimestamp = String(timestamp).replace(/[^a-zA-Z0-9-]/g, '');
@@ -50,7 +60,10 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      toast.success('Configuration exported successfully');
+      const message = serversWithCustomConfig > 0 
+        ? `Configuration exported successfully (includes ${serversWithCustomConfig} server${serversWithCustomConfig === 1 ? '' : 's'} with custom configs)`
+        : 'Configuration exported successfully';
+      toast.success(message);
       onExportComplete?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to export configuration';
@@ -74,8 +87,13 @@ export const ConfigExportPanel: React.FC<ConfigExportPanelProps> = ({
         <ul>
           <li>All Protection Groups with server selection settings</li>
           <li>All Recovery Plans with wave configurations</li>
-          <li>Launch configuration settings</li>
+          <li>Launch configuration settings (group defaults)</li>
+          <li>Per-server launch configurations (custom overrides)</li>
+          <li>Static private IP assignments</li>
         </ul>
+        <Alert type="info">
+          Export format: Schema version 1.1 (includes per-server configurations)
+        </Alert>
       </TextContent>
 
       {error && (

@@ -207,13 +207,22 @@ def create_drs_client(region: str, account_context: Dict = None):
 
 
 def apply_launch_config_before_recovery(
-    drs_client, server_ids: List[str], launch_config: Dict, region: str
+    drs_client,
+    server_ids: List[str],
+    launch_config: Dict,
+    region: str,
+    protection_group: Dict = None,
 ) -> None:
     """
     Apply Protection Group launch configuration to DRS servers before recovery.
 
     Updates both DRS launch settings and EC2 launch templates to ensure recovered
     instances use correct network, security, and instance configurations.
+
+    Supports per-server configuration overrides:
+    - If protection_group contains 'servers' array, applies per-server configs
+    - Server-specific settings override protection group defaults
+    - Supports static private IP assignment per server
 
     DRS Launch Settings Updated:
     - copyPrivateIp: Preserve source server private IP
@@ -224,14 +233,15 @@ def apply_launch_config_before_recovery(
 
     EC2 Launch Template Updated:
     - InstanceType: EC2 instance type for recovery
-    - NetworkInterfaces: Subnet and security groups
+    - NetworkInterfaces: Subnet, security groups, and static private IP
     - IamInstanceProfile: IAM role for recovered instance
 
     Args:
         drs_client: Boto3 DRS client (may be cross-account)
         server_ids: List of DRS source server IDs
-        launch_config: Protection Group launch configuration dict
+        launch_config: Protection Group launch configuration dict (group defaults)
         region: AWS region for EC2 operations
+        protection_group: Full protection group dict with per-server configs (optional)
 
     Note:
         Failures for individual servers are logged but don't stop recovery.
@@ -239,8 +249,25 @@ def apply_launch_config_before_recovery(
     """
     ec2_client = boto3.client("ec2", region_name=region)
 
+    # Import config merge function for per-server overrides
+    try:
+        from shared.config_merge import get_effective_launch_config
+    except ImportError:
+        print(
+            "Warning: config_merge module not found, per-server configs disabled"
+        )
+        get_effective_launch_config = None
+
     for server_id in server_ids:
         try:
+            # Get effective config (group defaults + per-server overrides)
+            if protection_group and get_effective_launch_config:
+                effective_config = get_effective_launch_config(
+                    protection_group, server_id
+                )
+            else:
+                effective_config = launch_config
+
             # Get DRS launch configuration to find EC2 launch template
             current_config = drs_client.get_launch_configuration(
                 sourceServerID=server_id
@@ -253,18 +280,18 @@ def apply_launch_config_before_recovery(
 
             # Update DRS launch configuration settings
             drs_update = {"sourceServerID": server_id}
-            if "copyPrivateIp" in launch_config:
-                drs_update["copyPrivateIp"] = launch_config["copyPrivateIp"]
-            if "copyTags" in launch_config:
-                drs_update["copyTags"] = launch_config["copyTags"]
-            if "licensing" in launch_config:
-                drs_update["licensing"] = launch_config["licensing"]
-            if "targetInstanceTypeRightSizingMethod" in launch_config:
+            if "copyPrivateIp" in effective_config:
+                drs_update["copyPrivateIp"] = effective_config["copyPrivateIp"]
+            if "copyTags" in effective_config:
+                drs_update["copyTags"] = effective_config["copyTags"]
+            if "licensing" in effective_config:
+                drs_update["licensing"] = effective_config["licensing"]
+            if "targetInstanceTypeRightSizingMethod" in effective_config:
                 drs_update["targetInstanceTypeRightSizingMethod"] = (
-                    launch_config["targetInstanceTypeRightSizingMethod"]
+                    effective_config["targetInstanceTypeRightSizingMethod"]
                 )
-            if "launchDisposition" in launch_config:
-                drs_update["launchDisposition"] = launch_config[
+            if "launchDisposition" in effective_config:
+                drs_update["launchDisposition"] = effective_config[
                     "launchDisposition"
                 ]
 
@@ -275,24 +302,41 @@ def apply_launch_config_before_recovery(
             # Update EC2 launch template with network/instance settings
             template_data = {}
 
-            if launch_config.get("instanceType"):
-                template_data["InstanceType"] = launch_config["instanceType"]
+            if effective_config.get("instanceType"):
+                template_data["InstanceType"] = effective_config[
+                    "instanceType"
+                ]
 
-            if launch_config.get("subnetId") or launch_config.get(
-                "securityGroupIds"
+            # Handle network interfaces with static IP support
+            if (
+                effective_config.get("subnetId")
+                or effective_config.get("securityGroupIds")
+                or effective_config.get("staticPrivateIp")
             ):
                 network_interface = {"DeviceIndex": 0}
-                if launch_config.get("subnetId"):
-                    network_interface["SubnetId"] = launch_config["subnetId"]
-                if launch_config.get("securityGroupIds"):
-                    network_interface["Groups"] = launch_config[
+
+                # Static private IP takes precedence
+                if effective_config.get("staticPrivateIp"):
+                    network_interface["PrivateIpAddress"] = effective_config[
+                        "staticPrivateIp"
+                    ]
+                    print(
+                        f"Setting static IP {effective_config['staticPrivateIp']} for {server_id}"
+                    )
+
+                if effective_config.get("subnetId"):
+                    network_interface["SubnetId"] = effective_config[
+                        "subnetId"
+                    ]
+                if effective_config.get("securityGroupIds"):
+                    network_interface["Groups"] = effective_config[
                         "securityGroupIds"
                     ]
                 template_data["NetworkInterfaces"] = [network_interface]
 
-            if launch_config.get("instanceProfileName"):
+            if effective_config.get("instanceProfileName"):
                 template_data["IamInstanceProfile"] = {
-                    "Name": launch_config["instanceProfileName"]
+                    "Name": effective_config["instanceProfileName"]
                 }
 
             if template_data:
@@ -814,7 +858,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
                 f"Applying launchConfig to {len(server_ids)} servers before recovery"
             )
             apply_launch_config_before_recovery(
-                drs_client, server_ids, launch_config, region
+                drs_client, server_ids, launch_config, region, pg
             )
 
         source_servers = [{"sourceServerID": sid} for sid in server_ids]
