@@ -457,9 +457,9 @@ describe('ServerLaunchConfigDialog', () => {
 
   describe('Edge Cases', () => {
     it('handles server without hostname gracefully', () => {
-      const serverWithoutHostname = {
+      const serverWithoutHostname: ResolvedServer = {
         ...mockServer,
-        hostname: undefined,
+        hostname: 'Unknown',
         nameTag: undefined,
       };
 

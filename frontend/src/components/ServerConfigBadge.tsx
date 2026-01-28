@@ -49,7 +49,8 @@ export const ServerConfigBadge: React.FC<ServerConfigBadgeProps> = ({
       <Box variant="strong" fontSize="body-s">
         Customized fields:
       </Box>
-      <Box variant="ul" margin={{ top: 'xs' }}>
+      <Box margin={{ top: 'xs' }}>
+        <ul>
         {customFields.length > 0 ? (
           customFields.map((field) => (
             <li key={field}>
@@ -59,6 +60,7 @@ export const ServerConfigBadge: React.FC<ServerConfigBadgeProps> = ({
         ) : (
           <li>Custom configuration applied</li>
         )}
+        </ul>
       </Box>
     </Box>
   ) : (
