@@ -27,6 +27,52 @@ import '@testing-library/jest-dom';
 vi.mock('../../services/api', () => ({
   default: {
     validateStaticIP: vi.fn(),
+    getEC2Subnets: vi.fn().mockResolvedValue([
+      {
+        value: 'subnet-default',
+        label: 'Default Subnet',
+        vpcId: 'vpc-123',
+        az: 'us-east-1a',
+        cidr: '10.0.1.0/24',
+      },
+      {
+        value: 'subnet-custom',
+        label: 'Custom Subnet',
+        vpcId: 'vpc-123',
+        az: 'us-east-1b',
+        cidr: '10.0.2.0/24',
+      },
+    ]),
+    getEC2SecurityGroups: vi.fn().mockResolvedValue([
+      {
+        value: 'sg-default',
+        label: 'Default SG',
+        name: 'default-sg',
+        vpcId: 'vpc-123',
+        description: 'Default security group',
+      },
+      {
+        value: 'sg-custom',
+        label: 'Custom SG',
+        name: 'custom-sg',
+        vpcId: 'vpc-123',
+        description: 'Custom security group',
+      },
+    ]),
+    getEC2InstanceTypes: vi.fn().mockResolvedValue([
+      {
+        value: 'c6a.large',
+        label: 'c6a.large',
+        vcpus: 2,
+        memoryGb: 4,
+      },
+      {
+        value: 't3.medium',
+        label: 't3.medium',
+        vcpus: 2,
+        memoryGb: 4,
+      },
+    ]),
   },
 }));
 
@@ -124,9 +170,6 @@ describe('ServerLaunchConfigDialog', () => {
     groupDefaults: mockGroupDefaults,
     region: 'us-east-1',
     groupId: 'group-123',
-    subnets: mockSubnets,
-    securityGroups: mockSecurityGroups,
-    instanceTypes: mockInstanceTypes,
     onClose: vi.fn(),
     onSave: vi.fn(),
   };
@@ -135,17 +178,26 @@ describe('ServerLaunchConfigDialog', () => {
     vi.clearAllMocks();
   });
 
+  // Helper function to wait for component to finish loading
+  const waitForLoading = async () => {
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading EC2 resources/)).not.toBeInTheDocument();
+    });
+  };
+
   describe('Form Rendering', () => {
-    it('renders dialog with server information', () => {
+    it('renders dialog with server information', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       expect(screen.getByText(/Configure Launch Settings: web-server-01/)).toBeInTheDocument();
       expect(screen.getByText(/Server: s-12345/)).toBeInTheDocument();
       expect(screen.getByText(/Instance: i-abcdef/)).toBeInTheDocument();
     });
 
-    it('renders "Use Protection Group Defaults" checkbox', () => {
+    it('renders "Use Protection Group Defaults" checkbox', async () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
+      await waitForLoading();
       
       const checkbox = screen.getByRole('checkbox', {
         name: /Use Protection Group Defaults/,
@@ -456,7 +508,7 @@ describe('ServerLaunchConfigDialog', () => {
   });
 
   describe('Edge Cases', () => {
-    it('handles server without hostname gracefully', () => {
+    it('handles server without hostname gracefully', async () => {
       const serverWithoutHostname: ResolvedServer = {
         ...mockServer,
         hostname: 'Unknown',
@@ -469,34 +521,18 @@ describe('ServerLaunchConfigDialog', () => {
           server={serverWithoutHostname}
         />
       );
+      await waitForLoading();
       
       expect(screen.getByText(/Configure Launch Settings: Unknown/)).toBeInTheDocument();
     });
 
-    it('handles empty subnets array', () => {
-      render(<ServerLaunchConfigDialog {...defaultProps} subnets={[]} />);
-      
-      expect(screen.getByText('Target Subnet')).toBeInTheDocument();
-    });
-
-    it('handles empty security groups array', () => {
-      render(<ServerLaunchConfigDialog {...defaultProps} securityGroups={[]} />);
-      
-      expect(screen.getByText('Security Groups')).toBeInTheDocument();
-    });
-
-    it('handles empty instance types array', () => {
-      render(<ServerLaunchConfigDialog {...defaultProps} instanceTypes={[]} />);
-      
-      expect(screen.getByText('Instance Type')).toBeInTheDocument();
-    });
-
-    it('handles missing group defaults', () => {
+    it('handles missing group defaults', async () => {
       const emptyDefaults: LaunchConfig = {};
 
       render(
         <ServerLaunchConfigDialog {...defaultProps} groupDefaults={emptyDefaults} />
       );
+      await waitForLoading();
       
       expect(screen.getByText('Target Subnet')).toBeInTheDocument();
     });
