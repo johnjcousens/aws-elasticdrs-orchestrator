@@ -310,22 +310,25 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
         <Container header={<Header variant="h3">Launch Template Settings</Header>}>
           <SpaceBetween size="l">
             {/* Static Private IP */}
-            <StaticIPInput
-              value={staticPrivateIp}
-              subnetId={getEffectiveSubnetId()}
-              groupId={groupId}
-              serverId={server.sourceServerID}
-              region={region}
-              onChange={setStaticPrivateIp}
-              onValidation={handleIpValidation}
+            <FormField
               label={
-                <>
+                <span>
                   Static Private IP Address (Optional)
                   {getFieldIndicator('staticPrivateIp')}
-                </>
+                </span>
               }
               description="Leave empty to use DHCP-assigned IP address"
-            />
+            >
+              <StaticIPInput
+                value={staticPrivateIp}
+                subnetId={getEffectiveSubnetId()}
+                groupId={groupId}
+                serverId={server.sourceServerID}
+                region={region}
+                onChange={setStaticPrivateIp}
+                onValidation={handleIpValidation}
+              />
+            </FormField>
 
             {/* Subnet */}
             <FormField
