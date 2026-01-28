@@ -193,6 +193,7 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
         // Temporarily skip API validation and only use client-side validation
         if (!isMountedRef.current) return;
         
+        // If we got here, format and CIDR are valid
         setValidationState('valid');
         setValidationMessage('');
         setErrorText('');
