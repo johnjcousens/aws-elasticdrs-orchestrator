@@ -48,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `get_effective_launch_config()`: Merges group defaults with per-server overrides
   - Handles `useGroupDefaults` flag to control override behavior
   - Used by both data-management-handler and orchestration-stepfunctions for consistent config application
+- **StaticIPInput Component**: Implemented React component for static private IP address input with real-time validation
+  - Client-side IPv4 format validation with octet range checking (0-255)
+  - Debounced API validation (500ms) to check IP availability in target subnet
+  - Visual feedback using Cloudscape StatusIndicator: ✓ Available, ✗ In use, ⚠ Invalid
+  - Inline error messages with detailed conflict information (DRS server, EC2 instance, network interface, reserved range)
+  - Automatic re-validation when subnet changes
+  - Proper cleanup and memory management to prevent state updates after unmount
+  - Integration with backend `/validate-ip` endpoint
+  - TypeScript type-safe with IPValidationResult interface
 - **StaticIPInput Component**: Created reusable React component for static IP address input with real-time validation
   - Client-side IPv4 format validation (X.X.X.X pattern, 0-255 octet range)
   - Debounced API validation (500ms) to check IP availability in target subnet
