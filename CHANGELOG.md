@@ -74,6 +74,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configured for Vitest (not Jest) with proper mocking
   - 31 of 44 tests passing (13 failures due to Cloudscape component mocking limitations)
   - Tests validate Requirements 3.1, 3.2, 5.1, 6.1, 6.3
+- **ServerLaunchConfigDialog Component**: Created modal dialog for per-server configuration
+  - Integrates StaticIPInput for IP address configuration with real-time validation
+  - Integrates ServerConfigBadge for field-level custom vs default indicators
+  - "Use Group Defaults" checkbox for partial vs full override mode
+  - Dropdown selectors for subnet, security groups, and instance type
+  - Group default value hints displayed for each field
+  - Validation before save (IP validation, change detection)
+  - Save and cancel actions with loading states
+  - Supports both partial override (useGroupDefaults=true) and full override modes
+  - Validates Requirements 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 5.1, 6.1, 6.2, 6.3, 6.4
 - **ServerConfigBadge Component**: Created reusable React component for displaying server configuration status
   - Displays "Custom" badge (blue) or "Default" badge (gray) based on configuration state
   - Popover tooltip shows list of customized fields with user-friendly names
