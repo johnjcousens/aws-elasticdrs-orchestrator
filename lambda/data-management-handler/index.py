@@ -1872,10 +1872,16 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     updated_pg["launchConfig"] = body["launchConfig"]
 
                 # Extract server IDs from servers array
-                server_ids = [s.get("sourceServerId") for s in servers if s.get("sourceServerId")]
+                server_ids = [
+                    s.get("sourceServerId")
+                    for s in servers
+                    if s.get("sourceServerId")
+                ]
 
                 # Get group name (use updated name if provided, else existing)
-                pg_name = body.get("groupName", existing_group.get("groupName", ""))
+                pg_name = body.get(
+                    "groupName", existing_group.get("groupName", "")
+                )
                 pg_id = group_id
 
                 # Apply launch configs to AWS (uses config_merge to get effective configs)
@@ -4905,13 +4911,13 @@ def apply_launch_config_to_servers(
             # DRS update_launch_configuration creates a new EC2 launch template version,
             # so we must call it before our EC2 template updates to avoid being overwritten
             drs_update = {"sourceServerID": server_id}
-            
+
             # If static IP is specified, disable copyPrivateIp to prevent DRS from overriding it
             if effective_config.get("staticPrivateIp"):
                 drs_update["copyPrivateIp"] = False
             elif "copyPrivateIp" in effective_config:
                 drs_update["copyPrivateIp"] = effective_config["copyPrivateIp"]
-                
+
             if "copyTags" in effective_config:
                 drs_update["copyTags"] = effective_config["copyTags"]
             if "licensing" in effective_config:
