@@ -975,6 +975,156 @@ class ApiClient {
   }
 
   // ============================================================================
+  // Per-Server Launch Configuration API
+  // ============================================================================
+
+  /**
+   * Get per-server launch configuration
+   * 
+   * @param groupId - Protection group ID
+   * @param serverId - Source server ID
+   * @returns Server launch configuration with effective config preview
+   */
+  public async getServerLaunchConfig(
+    groupId: string,
+    serverId: string
+  ): Promise<{
+    sourceServerId: string;
+    instanceId?: string;
+    instanceName?: string;
+    tags?: Record<string, string>;
+    useGroupDefaults: boolean;
+    launchTemplate?: Partial<LaunchConfig>;
+    effectiveConfig?: LaunchConfig;
+  }> {
+    return this.get(`/protection-groups/${groupId}/servers/${serverId}/launch-config`);
+  }
+
+  /**
+   * Update per-server launch configuration
+   * 
+   * @param groupId - Protection group ID
+   * @param serverId - Source server ID
+   * @param config - Server launch configuration to apply
+   * @returns Updated server configuration
+   */
+  public async updateServerLaunchConfig(
+    groupId: string,
+    serverId: string,
+    config: {
+      useGroupDefaults: boolean;
+      launchTemplate?: Partial<LaunchConfig>;
+    }
+  ): Promise<{
+    sourceServerId: string;
+    instanceId?: string;
+    instanceName?: string;
+    tags?: Record<string, string>;
+    useGroupDefaults: boolean;
+    launchTemplate?: Partial<LaunchConfig>;
+    effectiveConfig?: LaunchConfig;
+    message: string;
+  }> {
+    return this.put(`/protection-groups/${groupId}/servers/${serverId}/launch-config`, config);
+  }
+
+  /**
+   * Delete per-server launch configuration (reset to group defaults)
+   * 
+   * @param groupId - Protection group ID
+   * @param serverId - Source server ID
+   * @returns Confirmation message
+   */
+  public async deleteServerLaunchConfig(
+    groupId: string,
+    serverId: string
+  ): Promise<{
+    message: string;
+    sourceServerId: string;
+  }> {
+    return this.delete(`/protection-groups/${groupId}/servers/${serverId}/launch-config`);
+  }
+
+  /**
+   * Validate static private IP address
+   * 
+   * Checks if the IP is:
+   * - Valid IPv4 format
+   * - Within subnet CIDR range
+   * - Not in reserved range (first 4, last 1)
+   * - Available (not already assigned)
+   * 
+   * @param groupId - Protection group ID
+   * @param serverId - Source server ID
+   * @param ip - Static private IP address to validate
+   * @param subnetId - Target subnet ID
+   * @returns Validation result with detailed feedback
+   */
+  public async validateStaticIP(
+    groupId: string,
+    serverId: string,
+    ip: string,
+    subnetId: string
+  ): Promise<{
+    valid: boolean;
+    ip: string;
+    subnetId: string;
+    error?: string;
+    message?: string;
+    details?: {
+      inCidrRange?: boolean;
+      notReserved?: boolean;
+      available?: boolean;
+      subnetCidr?: string;
+    };
+    conflictingResource?: {
+      type: string;
+      id: string;
+      name?: string;
+      isDrsResource?: boolean;
+    };
+  }> {
+    return this.post(`/protection-groups/${groupId}/servers/${serverId}/validate-ip`, {
+      staticPrivateIp: ip,
+      subnetId,
+    });
+  }
+
+  /**
+   * Bulk update server launch configurations
+   * 
+   * Applies the same configuration to multiple servers at once.
+   * Validates all configurations before applying.
+   * 
+   * @param groupId - Protection group ID
+   * @param configs - Array of server configurations to apply
+   * @returns Summary of applied/failed configurations
+   */
+  public async bulkUpdateServerConfigs(
+    groupId: string,
+    configs: Array<{
+      serverId: string;
+      useGroupDefaults: boolean;
+      launchTemplate?: Partial<LaunchConfig>;
+    }>
+  ): Promise<{
+    message: string;
+    totalRequested: number;
+    successCount: number;
+    failureCount: number;
+    results: Array<{
+      serverId: string;
+      success: boolean;
+      message?: string;
+      error?: string;
+    }>;
+  }> {
+    return this.post(`/protection-groups/${groupId}/servers/bulk-launch-config`, {
+      servers: configs,
+    });
+  }
+
+  // ============================================================================
   // EC2 Resources API (for Launch Config dropdowns)
   // ============================================================================
 
@@ -1129,6 +1279,11 @@ export const {
   pauseExecution,
   resumeExecution,
   deleteCompletedExecutions,
+  getServerLaunchConfig,
+  updateServerLaunchConfig,
+  deleteServerLaunchConfig,
+  validateStaticIP,
+  bulkUpdateServerConfigs,
   exportConfiguration,
   importConfiguration,
   getTagSyncSettings,
