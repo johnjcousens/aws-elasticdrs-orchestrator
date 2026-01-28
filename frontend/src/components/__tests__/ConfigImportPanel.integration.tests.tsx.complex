@@ -1,0 +1,654 @@
+/**
+ * ConfigImportPanel Integration Tests
+ * 
+ * Integration tests for enhanced ConfigImportPanel covering:
+ * - Import with per-server configs (Requirements 10.2, 10.3, 10.4, 10.5)
+ * - Schema version validation (1.0 vs 1.1)
+ * - Static IP validation preview
+ * - Backward compatibility
+ */
+
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ConfigImportPanel } from '../ConfigImportPanel';
+import '@testing-library/jest-dom';
+
+// Create mock functions at module level
+const mockImportConfiguration = vi.fn();
+
+// Mock toast
+vi.mock('react-hot-toast', () => ({
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+  }
+}));
+
+// Mock ImportResultsDialog
+vi.mock('../ImportResultsDialog', () => ({
+  ImportResultsDialog: ({ visible, onDismiss }: any) => 
+    visible ? <div data-testid="import-results-dialog"><button onClick={onDismiss}>Close</button></div> : null
+}));
+
+// Mock ApiContext to provide the mocked API
+vi.mock('../../contexts/ApiContext', () => ({
+  ApiProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useApi: () => ({
+    importConfiguration: mockImportConfiguration,
+  }),
+}));
+
+describe('ConfigImportPanel - Integration Tests', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockImportConfiguration.mockReset();
+  });
+
+  // Helper function to upload a file
+  const uploadFile = (file: File) => {
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+      writable: false,
+    });
+    fireEvent.change(fileInput);
+  };
+
+  describe('Import with Per-Server Configs', () => {
+    it('parses and previews schema version 1.1 with per-server configs', async () => {
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [
+            {
+              protectionGroupId: 'pg-123',
+              groupName: 'Test Group',
+              servers: [
+                {
+                  sourceServerId: 's-123',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    staticPrivateIp: '10.0.1.100',
+                    instanceType: 't3.large'
+                  }
+                },
+                {
+                  sourceServerId: 's-456',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    staticPrivateIp: '10.0.1.101'
+                  }
+                }
+              ]
+            }
+          ],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Import Preview/i)).toBeInTheDocument();
+      });
+
+      // Verify per-server config info is displayed
+      expect(screen.getByText(/2 servers with custom launch settings/i)).toBeInTheDocument();
+      expect(screen.getByText(/2 with static private IP/i)).toBeInTheDocument();
+    });
+
+    it('shows static IP validation notice for schema 1.1', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [
+            {
+              protectionGroupId: 'pg-123',
+              groupName: 'Test Group',
+              servers: [
+                {
+                  sourceServerId: 's-123',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    staticPrivateIp: '10.0.1.100'
+                  }
+                }
+              ]
+            }
+          ],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Static IP availability will be validated during import/i)).toBeInTheDocument();
+      });
+    });
+
+    it('imports configuration with per-server configs', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [
+            {
+              protectionGroupId: 'pg-123',
+              groupName: 'Test Group',
+              servers: [
+                {
+                  sourceServerId: 's-123',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    staticPrivateIp: '10.0.1.100'
+                  }
+                }
+              ]
+            }
+          ],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      mockImportConfiguration.mockResolvedValue({
+        success: true,
+        dryRun: false,
+        correlationId: 'test-123',
+        summary: {
+          protectionGroups: { created: 1, skipped: 0, failed: 0 },
+          recoveryPlans: { created: 0, skipped: 0, failed: 0 }
+        },
+        created: [],
+        skipped: [],
+        failed: []
+      });
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Import Preview/i)).toBeInTheDocument();
+      });
+
+      const importButton = screen.getByRole('button', { name: /Import Configuration/i });
+      await user.click(importButton);
+
+      await waitFor(() => {
+        expect(mockImportConfiguration).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Schema Version Validation', () => {
+    it('displays backward compatibility notice for schema 1.0', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.0',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [
+            {
+              protectionGroupId: 'pg-123',
+              groupName: 'Test Group',
+              launchConfig: {}
+            }
+          ],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Schema version 1.0 detected/i)).toBeInTheDocument();
+        expect(screen.getByText(/does not include per-server settings/i)).toBeInTheDocument();
+        expect(screen.getByText(/All servers will use protection group defaults/i)).toBeInTheDocument();
+      });
+    });
+
+    it('does not show per-server config info for schema 1.0', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.0',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [
+            {
+              protectionGroupId: 'pg-123',
+              groupName: 'Test Group',
+              launchConfig: {}
+            }
+          ],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Import Preview/i)).toBeInTheDocument();
+      });
+
+      // Should not show per-server config info
+      expect(screen.queryByText(/servers with custom launch settings/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/with static private IP/i)).not.toBeInTheDocument();
+    });
+
+    it('validates missing schema version', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          protectionGroups: [],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Invalid configuration file: missing schemaVersion/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Static IP Preview', () => {
+    it('counts servers with static IPs correctly', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [
+            {
+              protectionGroupId: 'pg-123',
+              groupName: 'Test Group 1',
+              servers: [
+                {
+                  sourceServerId: 's-123',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    staticPrivateIp: '10.0.1.100'
+                  }
+                },
+                {
+                  sourceServerId: 's-456',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    instanceType: 't3.large'
+                  }
+                }
+              ]
+            },
+            {
+              protectionGroupId: 'pg-456',
+              groupName: 'Test Group 2',
+              servers: [
+                {
+                  sourceServerId: 's-789',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    staticPrivateIp: '10.0.2.100'
+                  }
+                }
+              ]
+            }
+          ],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/3 servers with custom launch settings/i)).toBeInTheDocument();
+        expect(screen.getByText(/2 with static private IPs/i)).toBeInTheDocument();
+      });
+    });
+
+    it('handles servers with custom config but no static IP', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [
+            {
+              protectionGroupId: 'pg-123',
+              groupName: 'Test Group',
+              servers: [
+                {
+                  sourceServerId: 's-123',
+                  useGroupDefaults: false,
+                  launchTemplate: {
+                    instanceType: 't3.large',
+                    monitoring: true
+                  }
+                }
+              ]
+            }
+          ],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/1 server with custom launch settings/i)).toBeInTheDocument();
+      });
+
+      // Should not mention static IPs if none present
+      expect(screen.queryByText(/with static private IP/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Dry Run Mode', () => {
+    it('enables dry run toggle', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Dry run/i)).toBeInTheDocument();
+      });
+
+      const dryRunToggle = screen.getByRole('checkbox', { name: /Dry run/i });
+      await user.click(dryRunToggle);
+
+      expect(dryRunToggle).toBeChecked();
+    });
+
+    it('changes button text in dry run mode', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Import Configuration/i })).toBeInTheDocument();
+      });
+
+      const dryRunToggle = screen.getByRole('checkbox', { name: /Dry run/i });
+      await user.click(dryRunToggle);
+
+      expect(screen.getByRole('button', { name: /Validate Configuration/i })).toBeInTheDocument();
+    });
+
+    it('passes dry run flag to import API', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      mockImportConfiguration.mockResolvedValue({
+        success: true,
+        dryRun: true,
+        correlationId: 'test-123',
+        summary: {
+          protectionGroups: { created: 0, skipped: 0, failed: 0 },
+          recoveryPlans: { created: 0, skipped: 0, failed: 0 }
+        },
+        created: [],
+        skipped: [],
+        failed: []
+      });
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Import Preview/i)).toBeInTheDocument();
+      });
+
+      const dryRunToggle = screen.getByRole('checkbox', { name: /Dry run/i });
+      await user.click(dryRunToggle);
+
+      const validateButton = screen.getByRole('button', { name: /Validate Configuration/i });
+      await user.click(validateButton);
+
+      await waitFor(() => {
+        expect(mockImportConfiguration).toHaveBeenCalledWith(expect.anything(), true);
+      });
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('displays error for invalid JSON', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        ['invalid json'],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Failed to parse configuration file/i)).toBeInTheDocument();
+      });
+    });
+
+    it('displays error when import fails', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      mockImportConfiguration.mockRejectedValue(new Error('Import failed'));
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Import Preview/i)).toBeInTheDocument();
+      });
+
+      const importButton = screen.getByRole('button', { name: /Import Configuration/i });
+      await user.click(importButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Import failed/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('File Selection', () => {
+    it('displays selected filename', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [],
+          recoveryPlans: []
+        })],
+        'my-config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Selected: my-config.json/i)).toBeInTheDocument();
+      });
+    });
+
+    it('clears selected file', async () => {
+      const user = userEvent.setup();
+      const mockFile = new File(
+        [JSON.stringify({
+          metadata: {
+            schemaVersion: '1.1',
+            exportedAt: '2026-01-28T00:00:00Z',
+            sourceRegion: 'us-east-1'
+          },
+          protectionGroups: [],
+          recoveryPlans: []
+        })],
+        'config.json',
+        { type: 'application/json' }
+      );
+
+      render(<ConfigImportPanel />);
+
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      
+      await user.upload(fileInput, mockFile);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Selected: config.json/i)).toBeInTheDocument();
+      });
+
+      const clearButton = screen.getByRole('button', { name: /Clear/i });
+      await user.click(clearButton);
+
+      expect(screen.queryByText(/Selected: config.json/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Import Preview/i)).not.toBeInTheDocument();
+    });
+  });
+});

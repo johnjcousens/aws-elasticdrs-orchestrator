@@ -221,16 +221,69 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
     setServerConfigs(newConfigs);
   };
 
+  // State for fetching server details in explicit selection mode
+  const [fetchingServerDetails, setFetchingServerDetails] = useState(false);
+  const [explicitModeServers, setExplicitModeServers] = useState<ResolvedServer[]>([]);
+
+  // Fetch server details when in explicit selection mode and servers are selected
+  useEffect(() => {
+    if (selectionMode === 'servers' && selectedServerIds.length > 0 && region) {
+      const fetchServerDetails = async () => {
+        try {
+          setFetchingServerDetails(true);
+          const response = await apiClient.listDRSSourceServers(region);
+          
+          // Filter to only selected servers and convert to ResolvedServer format
+          const selectedServers = response.servers
+            .filter(server => selectedServerIds.includes(server.sourceServerID))
+            .map(server => ({
+              sourceServerID: server.sourceServerID,
+              hostname: server.hostname,
+              fqdn: server.fqdn,
+              nameTag: server.nameTag,
+              sourceInstanceId: server.sourceInstanceId,
+              sourceIp: server.sourceIp,
+              sourceMac: server.sourceMac,
+              sourceRegion: server.sourceRegion,
+              sourceAccount: server.sourceAccount,
+              os: server.os,
+              state: server.state,
+              replicationState: server.replicationState,
+              lagDuration: server.lagDuration,
+              lastSeen: server.lastSeen,
+              hardware: server.hardware,
+              networkInterfaces: server.networkInterfaces,
+              drsTags: server.drsTags,
+              tags: server.drsTags || {},
+              assignedToProtectionGroup: server.assignedToProtectionGroup,
+              selectable: server.selectable,
+            }));
+          
+          setExplicitModeServers(selectedServers);
+        } catch (err) {
+          console.error('Failed to fetch server details:', err);
+          setExplicitModeServers([]);
+        } finally {
+          setFetchingServerDetails(false);
+        }
+      };
+      
+      fetchServerDetails();
+    } else if (selectionMode === 'servers' && selectedServerIds.length === 0) {
+      // Clear servers when selection is empty
+      setExplicitModeServers([]);
+    }
+  }, [selectionMode, selectedServerIds, region]);
+
   // Get list of resolved servers for Server Configuration tab
   const resolvedServers = useMemo(() => {
     if (selectionMode === 'tags') {
       return previewServers;
     } else {
-      // For explicit server selection, we need to fetch server details
-      // For now, return empty array - this will be populated when servers are selected
-      return [];
+      // For explicit server selection, use fetched server details
+      return explicitModeServers;
     }
-  }, [selectionMode, previewServers]);
+  }, [selectionMode, previewServers, explicitModeServers]);
 
   // Count servers with custom configs
   const customConfigCount = useMemo(() => {
@@ -647,7 +700,14 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                 label: `Server Configurations${customConfigCount > 0 ? ` (${customConfigCount} custom)` : ''}`,
                 content: (
                   <Container>
-                    {resolvedServers.length > 0 ? (
+                    {fetchingServerDetails ? (
+                      <Box textAlign="center" color="text-body-secondary" padding="xxl">
+                        <SpaceBetween size="s">
+                          <Icon name="status-in-progress" size="large" />
+                          <Box variant="p">Loading server details...</Box>
+                        </SpaceBetween>
+                      </Box>
+                    ) : resolvedServers.length > 0 ? (
                       <ServerConfigurationTab
                         protectionGroupId={group?.protectionGroupId || ''}
                         servers={resolvedServers}
