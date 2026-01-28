@@ -11,7 +11,7 @@
  * - Shows which fields are custom vs default
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   Box,
@@ -24,10 +24,12 @@ import {
   Container,
   ColumnLayout,
   Alert,
+  Spinner,
   type SelectProps,
 } from '@cloudscape-design/components';
 import { StaticIPInput } from './StaticIPInput';
 import { ServerConfigBadge } from './ServerConfigBadge';
+import apiClient from '../services/api';
 import type {
   ResolvedServer,
   LaunchConfig,
@@ -50,12 +52,6 @@ export interface ServerLaunchConfigDialogProps {
   region: string;
   /** Protection group ID for API calls */
   groupId: string;
-  /** Available subnets */
-  subnets?: SubnetOption[];
-  /** Available security groups */
-  securityGroups?: SecurityGroupOption[];
-  /** Available instance types */
-  instanceTypes?: InstanceTypeOption[];
   /** Callback when dialog is closed */
   onClose: () => void;
   /** Callback when configuration is saved */
@@ -77,13 +73,46 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
   serverConfig,
   region,
   groupId,
-  subnets = [],
-  securityGroups = [],
-  instanceTypes = [],
   onClose,
   onSave,
   saving = false,
 }) => {
+  // Dropdown options state
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [subnets, setSubnets] = useState<SubnetOption[]>([]);
+  const [securityGroups, setSecurityGroups] = useState<SecurityGroupOption[]>([]);
+  const [instanceTypes, setInstanceTypes] = useState<InstanceTypeOption[]>([]);
+
+  // Load dropdown options when dialog opens
+  const loadDropdownOptions = useCallback(async () => {
+    if (!region) return;
+    
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [subs, sgs, types] = await Promise.all([
+        apiClient.getEC2Subnets(region),
+        apiClient.getEC2SecurityGroups(region),
+        apiClient.getEC2InstanceTypes(region),
+      ]);
+      setSubnets(subs);
+      setSecurityGroups(sgs);
+      setInstanceTypes(types);
+    } catch (err: unknown) {
+      setLoadError('Failed to load EC2 resources. Check IAM permissions.');
+      console.error('Error loading dropdown options:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [region]);
+
+  useEffect(() => {
+    if (open && region) {
+      loadDropdownOptions();
+    }
+  }, [open, region, loadDropdownOptions]);
+
   // Form state
   const [useGroupDefaults, setUseGroupDefaults] = useState(
     serverConfig?.useGroupDefaults ?? true
@@ -295,20 +324,35 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
       }
     >
       <SpaceBetween size="l">
-        {/* Use Group Defaults Checkbox */}
-        <Container>
-          <Checkbox
-            checked={useGroupDefaults}
-            onChange={({ detail }) => setUseGroupDefaults(detail.checked)}
-            description="When enabled, only explicitly set fields will override group defaults. When disabled, all fields must be configured."
-          >
-            Use Protection Group Defaults
-          </Checkbox>
-        </Container>
+        {/* Loading State */}
+        {loading && (
+          <Box textAlign="center" padding="l">
+            <Spinner /> Loading EC2 resources...
+          </Box>
+        )}
 
-        {/* Configuration Form */}
-        <Container header={<Header variant="h3">Launch Template Settings</Header>}>
-          <SpaceBetween size="l">
+        {/* Error State */}
+        {loadError && (
+          <Alert type="error">{loadError}</Alert>
+        )}
+
+        {/* Form Content */}
+        {!loading && !loadError && (
+          <>
+            {/* Use Group Defaults Checkbox */}
+            <Container>
+              <Checkbox
+                checked={useGroupDefaults}
+                onChange={({ detail }) => setUseGroupDefaults(detail.checked)}
+                description="When enabled, only explicitly set fields will override group defaults. When disabled, all fields must be configured."
+              >
+                Use Protection Group Defaults
+              </Checkbox>
+            </Container>
+
+            {/* Configuration Form */}
+            <Container header={<Header variant="h3">Launch Template Settings</Header>}>
+              <SpaceBetween size="l">
             {/* Static Private IP */}
             <FormField
               label={
@@ -419,6 +463,8 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
             Only fields you explicitly configure will override the protection group defaults.
             All other settings will inherit from the group configuration.
           </Alert>
+        )}
+          </>
         )}
       </SpaceBetween>
     </Modal>
