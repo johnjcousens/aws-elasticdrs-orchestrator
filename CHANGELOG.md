@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `get_effective_launch_config()`: Merges group defaults with per-server overrides
   - Handles `useGroupDefaults` flag to control override behavior
   - Used by both data-management-handler and orchestration-stepfunctions for consistent config application
+- **Frontend API Client Functions**: Added 5 new API client functions in `frontend/src/services/api.ts`
+  - `getServerLaunchConfig(groupId, serverId)`: Fetches per-server configuration with effective config preview
+  - `updateServerLaunchConfig(groupId, serverId, config)`: Updates server-specific launch template settings
+  - `deleteServerLaunchConfig(groupId, serverId)`: Resets server to protection group defaults
+  - `validateStaticIP(groupId, serverId, ip, subnetId)`: Real-time IP validation with detailed feedback
+  - `bulkUpdateServerConfigs(groupId, configs)`: Bulk configuration update for multiple servers
+  - All functions follow existing API client patterns with proper TypeScript types and error handling
+  - Exported as named exports for convenient component imports
 - **CI/CD Workflow Enforcement**: Added steering rules for mandatory deployment workflow using unified deploy script
   - Enforces use of `./scripts/deploy.sh` for all deployments with validation, security scanning, and testing stages
   - Prevents direct AWS CLI deployment commands to ensure quality gates and audit trails
