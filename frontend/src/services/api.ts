@@ -27,6 +27,7 @@ import type {
   InstanceProfileOption,
   InstanceTypeOption,
   DRSServer,
+  LaunchConfig,
 } from '../types';
 
 // API configuration

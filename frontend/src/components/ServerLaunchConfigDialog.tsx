@@ -319,10 +319,10 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
               onChange={setStaticPrivateIp}
               onValidation={handleIpValidation}
               label={
-                <span>
+                <>
                   Static Private IP Address (Optional)
                   {getFieldIndicator('staticPrivateIp')}
-                </span>
+                </>
               }
               description="Leave empty to use DHCP-assigned IP address"
             />

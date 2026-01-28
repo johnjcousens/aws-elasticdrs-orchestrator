@@ -13,7 +13,7 @@ import {
   Select,
   SpaceBetween,
   Header,
-  SelectProps,
+  type SelectProps,
 } from '@cloudscape-design/components';
 import { ServerConfigBadge } from './ServerConfigBadge';
 import { ServerLaunchConfigDialog } from './ServerLaunchConfigDialog';
@@ -197,7 +197,7 @@ export const ServerConfigurationTab: React.FC<ServerConfigurationTabProps> = ({
       cell: (item: ResolvedServer) => {
         const ip = getStaticIp(item.sourceServerID);
         return (
-          <Box color={ip === 'DHCP' ? 'text-body-secondary' : 'text-body-primary'}>
+          <Box color={ip === 'DHCP' ? 'text-status-inactive' : undefined}>
             {ip}
           </Box>
         );

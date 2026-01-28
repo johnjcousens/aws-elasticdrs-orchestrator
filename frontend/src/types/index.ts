@@ -188,6 +188,7 @@ export interface CreateProtectionGroupRequest {
   serverSelectionTags?: Record<string, string>;  // Tag filters for server discovery
   sourceServerIds?: string[];  // Explicit server IDs (legacy)
   launchConfig?: LaunchConfig;  // EC2 launch settings
+  servers?: ServerLaunchConfig[];  // Per-server launch configurations
   accountId?: string;
   owner?: string;
 }
@@ -198,6 +199,7 @@ export interface UpdateProtectionGroupRequest {
   serverSelectionTags?: Record<string, string>;  // Update tag filters
   sourceServerIds?: string[];  // Explicit server IDs (legacy)
   launchConfig?: LaunchConfig;  // EC2 launch settings
+  servers?: ServerLaunchConfig[];  // Per-server launch configurations
   version?: number;  // Optimistic locking - must match current version
 }
 
