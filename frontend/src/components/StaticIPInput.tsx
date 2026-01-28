@@ -85,11 +85,24 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
   }, []);
 
   /**
+   * Check if IP looks complete (has 4 octets)
+   */
+  const isCompleteIP = (ip: string): boolean => {
+    const parts = ip.split('.');
+    return parts.length === 4 && parts.every(p => p.length > 0);
+  };
+
+  /**
    * Validate IPv4 format and check if within subnet CIDR range
    */
   const validateIPFormat = (ip: string, cidr?: string): { valid: boolean; message?: string } => {
     if (!ip || ip.trim() === '') {
       return { valid: true }; // Empty is valid (optional field)
+    }
+
+    // Don't validate incomplete IPs (still typing)
+    if (!isCompleteIP(ip)) {
+      return { valid: true }; // Don't show error while typing
     }
 
     // IPv4 pattern: X.X.X.X where X is 0-255
@@ -243,10 +256,30 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
       return;
     }
 
+    // Only validate if IP looks complete (has 4 octets)
+    if (!isCompleteIP(newValue)) {
+      onValidation?.(true);
+      return;
+    }
+
     // Debounce API validation (500ms)
     debounceTimerRef.current = setTimeout(() => {
       validateIPAvailability(newValue, subnetCidr);
     }, 500);
+  };
+
+  /**
+   * Handle blur - validate immediately
+   */
+  const handleBlur = () => {
+    if (value && value.trim() !== '') {
+      // Clear any pending debounce
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      // Validate immediately on blur
+      validateIPAvailability(value, subnetCidr);
+    }
   };
 
   /**
@@ -295,6 +328,7 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
       <Input
         value={value}
         onChange={handleChange}
+        onBlur={handleBlur}
         placeholder="e.g., 10.0.1.100"
         disabled={disabled}
         type="text"
