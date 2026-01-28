@@ -157,7 +157,17 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
     const networkNum = ipToNumber(network);
     const mask = (0xFFFFFFFF << (32 - prefix)) >>> 0;
     
-    return (ipNum & mask) === (networkNum & mask);
+    const result = (ipNum & mask) === (networkNum & mask);
+    console.log('[StaticIPInput] CIDR check:', {
+      ip,
+      cidr,
+      ipNum,
+      networkNum,
+      mask,
+      result
+    });
+    
+    return result;
   };
 
   /**
@@ -169,13 +179,18 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
         return;
       }
 
+      console.log('[StaticIPInput] Validating IP:', ip, 'against CIDR:', subnetCidr);
+
       // Client-side format and CIDR validation first
       const formatValidation = validateIPFormat(ip, subnetCidr);
+      console.log('[StaticIPInput] Format validation result:', formatValidation);
+      
       if (!formatValidation.valid) {
         if (isMountedRef.current) {
           setValidationState('invalid');
           setValidationMessage('');
           setErrorText(formatValidation.message || 'Invalid IP');
+          console.log('[StaticIPInput] Calling onValidation(false) with message:', formatValidation.message);
           onValidation?.(false, formatValidation.message);
         }
         return;
