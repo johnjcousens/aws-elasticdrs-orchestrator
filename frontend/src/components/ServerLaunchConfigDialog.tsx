@@ -178,6 +178,7 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
    * Handle IP validation callback
    */
   const handleIpValidation = (valid: boolean, message?: string) => {
+    console.log('[ServerLaunchConfigDialog] IP validation callback:', { valid, message });
     setIpValid(valid);
     setIpValidationMessage(message || '');
   };
@@ -244,10 +245,12 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
         : groupDefaults.subnetId || '';
     
     const subnet = subnets.find(s => s.value === effectiveSubnetId);
-    return {
+    const result = {
       id: effectiveSubnetId,
       cidr: subnet?.cidr,
     };
+    console.log('[ServerLaunchConfigDialog] getEffectiveSubnet:', result);
+    return result;
   };
 
   /**
@@ -297,6 +300,12 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
 
   // Determine if save button should be enabled
   const canSave = hasChanges && (staticPrivateIp === '' || ipValid);
+  console.log('[ServerLaunchConfigDialog] Save button state:', {
+    hasChanges,
+    staticPrivateIp,
+    ipValid,
+    canSave
+  });
 
   return (
     <Modal
