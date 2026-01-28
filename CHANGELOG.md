@@ -29,6 +29,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code quality standards: Integrated black (line-length=79), flake8 (max-complexity=10), cfn-lint, and pre-commit hooks throughout all tasks
   - Lambda architecture analysis: Identified data-management-handler as owner of 5 new per-server config endpoints, verified all IAM permissions already exist in UnifiedOrchestrationRole
   - Current state analysis: Documented existing bulk configuration, import/export capabilities, and gaps requiring per-server override support
+- **Per-Server Launch Config API Endpoints**: Implemented 5 new REST API endpoints in data-management-handler
+  - `GET /protection-groups/{groupId}/servers/{serverId}/launch-config`: Returns server-specific config with effective config preview
+  - `PUT /protection-groups/{groupId}/servers/{serverId}/launch-config`: Updates server config with full validation and DRS/EC2 application
+  - `DELETE /protection-groups/{groupId}/servers/{serverId}/launch-config`: Removes server config and reverts to group defaults
+  - `POST /protection-groups/{groupId}/servers/{serverId}/validate-ip`: Validates static IP format, CIDR range, and availability
+  - `POST /protection-groups/{groupId}/servers/bulk-launch-config`: Bulk update multiple server configs with fail-fast validation
+  - All endpoints use camelCase for frontend compatibility, include comprehensive validation, and record audit trails
+- **Launch Config Validation Module**: Created `lambda/shared/launch_config_validation.py` with reusable validation functions
+  - `validate_static_ip()`: Validates IPv4 format, CIDR range, reserved IPs, and availability via AWS API
+  - `validate_aws_approved_fields()`: Enforces AWS-approved fields and blocks DRS-managed fields
+  - `validate_security_groups()`: Validates security group IDs, format, and VPC membership
+  - `validate_instance_type()`: Validates instance type availability in region
+  - `validate_iam_profile()`: Validates IAM instance profile existence
+  - `validate_subnet()`: Validates subnet existence and returns VPC details
+  - All functions return detailed validation results with error codes and messages
+- **Config Merge Module**: Created `lambda/shared/config_merge.py` with configuration hierarchy logic
+  - `get_effective_launch_config()`: Merges group defaults with per-server overrides
+  - Handles `useGroupDefaults` flag to control override behavior
+  - Used by both data-management-handler and orchestration-stepfunctions for consistent config application
 - **CI/CD Workflow Enforcement**: Added steering rules for mandatory deployment workflow using unified deploy script
   - Enforces use of `./scripts/deploy.sh` for all deployments with validation, security scanning, and testing stages
   - Prevents direct AWS CLI deployment commands to ensure quality gates and audit trails
