@@ -266,7 +266,7 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
     setValidationMessage('');
     setErrorText('');
 
-    // If empty, don't validate
+    // If empty, mark as valid
     if (!newValue || newValue.trim() === '') {
       onValidation?.(true);
       return;
@@ -274,14 +274,14 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
 
     // Only validate if IP looks complete (has 4 octets)
     if (!isCompleteIP(newValue)) {
-      onValidation?.(true);
+      onValidation?.(true); // Don't block while typing
       return;
     }
 
-    // Debounce API validation (500ms)
+    // Debounce API validation (300ms - reduced from 500ms for faster feedback)
     debounceTimerRef.current = setTimeout(() => {
       validateIPAvailability(newValue, subnetCidr);
-    }, 500);
+    }, 300);
   };
 
   /**
@@ -299,19 +299,23 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
   };
 
   /**
-   * Re-validate when subnet changes
+   * Re-validate when subnet or IP changes
    */
   useEffect(() => {
-    if (value && subnetId && groupId && serverId && region) {
+    // Only validate if we have a complete IP
+    if (value && isCompleteIP(value) && subnetId && groupId && serverId && region) {
       // Clear any pending validation
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
       
-      // Validate immediately when subnet changes
+      // Validate immediately when subnet changes or on mount
       validateIPAvailability(value, subnetCidr);
+    } else if (!value || value.trim() === '') {
+      // Empty IP is valid
+      onValidation?.(true);
     }
-  }, [subnetId, subnetCidr, groupId, serverId, region, value, validateIPAvailability]);
+  }, [subnetId, subnetCidr, groupId, serverId, region, value, validateIPAvailability, onValidation]);
 
   /**
    * Render validation status indicator
