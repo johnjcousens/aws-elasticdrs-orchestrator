@@ -17,68 +17,25 @@ import type {
   ResolvedServer,
   LaunchConfig,
   ServerLaunchConfig,
-  SubnetOption,
-  SecurityGroupOption,
-  InstanceTypeOption,
 } from '../../types';
 import '@testing-library/jest-dom';
 
-// Mock the API client module
+// Mock the API client module with factory function
 vi.mock('../../services/api', () => ({
   default: {
     validateStaticIP: vi.fn(),
-    getEC2Subnets: vi.fn().mockResolvedValue([
-      {
-        value: 'subnet-default',
-        label: 'Default Subnet',
-        vpcId: 'vpc-123',
-        az: 'us-east-1a',
-        cidr: '10.0.1.0/24',
-      },
-      {
-        value: 'subnet-custom',
-        label: 'Custom Subnet',
-        vpcId: 'vpc-123',
-        az: 'us-east-1b',
-        cidr: '10.0.2.0/24',
-      },
-    ]),
-    getEC2SecurityGroups: vi.fn().mockResolvedValue([
-      {
-        value: 'sg-default',
-        label: 'Default SG',
-        name: 'default-sg',
-        vpcId: 'vpc-123',
-        description: 'Default security group',
-      },
-      {
-        value: 'sg-custom',
-        label: 'Custom SG',
-        name: 'custom-sg',
-        vpcId: 'vpc-123',
-        description: 'Custom security group',
-      },
-    ]),
-    getEC2InstanceTypes: vi.fn().mockResolvedValue([
-      {
-        value: 'c6a.large',
-        label: 'c6a.large',
-        vcpus: 2,
-        memoryGb: 4,
-      },
-      {
-        value: 't3.medium',
-        label: 't3.medium',
-        vcpus: 2,
-        memoryGb: 4,
-      },
-    ]),
+    getEC2Subnets: vi.fn(),
+    getEC2SecurityGroups: vi.fn(),
+    getEC2InstanceTypes: vi.fn(),
   },
 }));
 
+// Import the mocked module to get access to the mock functions
+import apiClient from '../../services/api';
+
 // Mock child components
 vi.mock('../StaticIPInput', () => ({
-  StaticIPInput: ({ value, onChange, onValidation, label }: any) => (
+  StaticIPInput: ({ value, onChange, label }: any) => (
     <div data-testid="static-ip-input">
       <label>{typeof label === 'string' ? label : 'Static IP'}</label>
       <input
@@ -115,55 +72,6 @@ describe('ServerLaunchConfigDialog', () => {
     instanceType: 'c6a.large',
   };
 
-  const mockSubnets: SubnetOption[] = [
-    {
-      value: 'subnet-default',
-      label: 'Default Subnet',
-      vpcId: 'vpc-123',
-      az: 'us-east-1a',
-      cidr: '10.0.1.0/24',
-    },
-    {
-      value: 'subnet-custom',
-      label: 'Custom Subnet',
-      vpcId: 'vpc-123',
-      az: 'us-east-1b',
-      cidr: '10.0.2.0/24',
-    },
-  ];
-
-  const mockSecurityGroups: SecurityGroupOption[] = [
-    {
-      value: 'sg-default',
-      label: 'Default SG',
-      name: 'default-sg',
-      vpcId: 'vpc-123',
-      description: 'Default security group',
-    },
-    {
-      value: 'sg-custom',
-      label: 'Custom SG',
-      name: 'custom-sg',
-      vpcId: 'vpc-123',
-      description: 'Custom security group',
-    },
-  ];
-
-  const mockInstanceTypes: InstanceTypeOption[] = [
-    {
-      value: 'c6a.large',
-      label: 'c6a.large',
-      vcpus: 2,
-      memoryGb: 4,
-    },
-    {
-      value: 'c6a.xlarge',
-      label: 'c6a.xlarge',
-      vcpus: 4,
-      memoryGb: 8,
-    },
-  ];
-
   const defaultProps = {
     open: true,
     server: mockServer,
@@ -176,13 +84,65 @@ describe('ServerLaunchConfigDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Setup default mock return values using the imported mocked apiClient
+    (apiClient.getEC2Subnets as any).mockResolvedValue([
+      {
+        value: 'subnet-default',
+        label: 'Default Subnet',
+        vpcId: 'vpc-123',
+        az: 'us-east-1a',
+        cidr: '10.0.1.0/24',
+      },
+      {
+        value: 'subnet-custom',
+        label: 'Custom Subnet',
+        vpcId: 'vpc-123',
+        az: 'us-east-1b',
+        cidr: '10.0.2.0/24',
+      },
+    ]);
+    
+    (apiClient.getEC2SecurityGroups as any).mockResolvedValue([
+      {
+        value: 'sg-default',
+        label: 'Default SG',
+        name: 'default-sg',
+        vpcId: 'vpc-123',
+        description: 'Default security group',
+      },
+      {
+        value: 'sg-custom',
+        label: 'Custom SG',
+        name: 'custom-sg',
+        vpcId: 'vpc-123',
+        description: 'Custom security group',
+      },
+    ]);
+    
+    (apiClient.getEC2InstanceTypes as any).mockResolvedValue([
+      {
+        value: 'c6a.large',
+        label: 'c6a.large',
+        vcpus: 2,
+        memoryGb: 4,
+      },
+      {
+        value: 't3.medium',
+        label: 't3.medium',
+        vcpus: 2,
+        memoryGb: 4,
+      },
+    ]);
+    
+    (apiClient.validateStaticIP as any).mockResolvedValue({ valid: true });
   });
 
   // Helper function to wait for component to finish loading
   const waitForLoading = async () => {
     await waitFor(() => {
       expect(screen.queryByText(/Loading EC2 resources/)).not.toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   };
 
   describe('Form Rendering', () => {
