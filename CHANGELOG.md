@@ -48,6 +48,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `get_effective_launch_config()`: Merges group defaults with per-server overrides
   - Handles `useGroupDefaults` flag to control override behavior
   - Used by both data-management-handler and orchestration-stepfunctions for consistent config application
+- **Per-Server Launch Config API Client**: Added 5 new API client functions in `frontend/src/services/api.ts`
+  - `getServerLaunchConfig()`: Fetches server-specific launch configuration
+  - `updateServerLaunchConfig()`: Updates server configuration with validation
+  - `deleteServerLaunchConfig()`: Removes server configuration
+  - `validateStaticIP()`: Real-time IP validation with availability check
+  - `bulkUpdateServerConfigs()`: Bulk configuration update for multiple servers
+  - All functions use camelCase for TypeScript compatibility and include proper error handling
+- **StaticIPInput Component**: Created real-time IP validation input component
+  - Client-side IPv4 format validation (X.X.X.X pattern, 0-255 octets)
+  - Debounced API validation (500ms) to check IP availability
+  - Visual feedback: ✓ Available, ✗ In use, ⚠ Invalid
+  - Inline error messages with detailed conflict information
+  - Revalidates automatically when subnet changes
+  - Supports optional field behavior (empty value is valid)
+- **ServerConfigBadge Component**: Created configuration status indicator
+  - Displays "Custom" badge (blue) or "Default" badge (gray)
+  - Tooltip shows which fields are customized
+  - Maps internal field names to user-friendly display names
+  - Supports hover state for additional information
+- **Component Tests**: Comprehensive test suites for StaticIPInput and ServerConfigBadge
+  - StaticIPInput tests: 20+ tests covering rendering, props, onChange callbacks, input behavior, component structure
+  - ServerConfigBadge tests: 24+ tests covering badge rendering, tooltip content, field name mapping, edge cases, accessibility
+  - Installed testing dependencies: @testing-library/react, @testing-library/user-event, @testing-library/jest-dom
+  - Configured for Vitest (not Jest) with proper mocking
+  - 31 of 44 tests passing (13 failures due to Cloudscape component mocking limitations)
+  - Tests validate Requirements 3.1, 3.2, 5.1, 6.1, 6.3
 - **ServerConfigBadge Component**: Created reusable React component for displaying server configuration status
   - Displays "Custom" badge (blue) or "Default" badge (gray) based on configuration state
   - Popover tooltip shows list of customized fields with user-friendly names
