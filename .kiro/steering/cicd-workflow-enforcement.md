@@ -4,7 +4,9 @@
 This document establishes mandatory CI/CD workflow practices to ensure code quality, security, and deployment consistency across the DR Orchestration Platform.
 
 ## Core Principle
-**ALL code changes SHOULD go through the unified deploy script for consistency and quality gates.**
+**ALL code changes MUST go through the unified deploy script. Manual AWS CLI deployments are STRICTLY PROHIBITED.**
+
+**NO EXCEPTIONS. NO SHORTCUTS. NO "JUST THIS ONCE".**
 
 ## Unified Deploy Script
 
