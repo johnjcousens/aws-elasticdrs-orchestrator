@@ -1963,6 +1963,8 @@ def export_configuration(query_params: Dict) -> Dict:
     """
     Export all Protection Groups and Recovery Plans to JSON format.
     Returns complete configuration with metadata for backup/migration.
+    
+    Schema v1.1: Includes per-server launch template configurations.
     """
     try:
         if not protection_groups_table or not recovery_plans_table:
@@ -1997,6 +1999,9 @@ def export_configuration(query_params: Dict) -> Dict:
 
         # Transform Protection Groups for export (exclude internal fields)
         exported_pgs = []
+        servers_with_custom_config = 0
+        total_server_count = 0
+
         for pg in protection_groups:
             exported_pg = {
                 "groupName": pg.get("groupName", ""),
@@ -2013,6 +2018,46 @@ def export_configuration(query_params: Dict) -> Dict:
             # Include launchConfig if present
             if pg.get("launchConfig"):
                 exported_pg["launchConfig"] = pg["launchConfig"]
+
+            # Include per-server configurations (schema v1.1)
+            if pg.get("servers"):
+                exported_servers = []
+                for server in pg["servers"]:
+                    exported_server = {
+                        "sourceServerId": server.get("sourceServerId", ""),
+                        "useGroupDefaults": server.get(
+                            "useGroupDefaults", True
+                        ),
+                    }
+                    # Include optional fields if present
+                    if server.get("instanceId"):
+                        exported_server["instanceId"] = server["instanceId"]
+                    if server.get("instanceName"):
+                        exported_server["instanceName"] = server[
+                            "instanceName"
+                        ]
+                    if server.get("tags"):
+                        exported_server["tags"] = server["tags"]
+                    if server.get("launchTemplate"):
+                        exported_server["launchTemplate"] = server[
+                            "launchTemplate"
+                        ]
+
+                    exported_servers.append(exported_server)
+                    total_server_count += 1
+
+                    # Count servers with custom configurations
+                    if not server.get("useGroupDefaults", True) or (
+                        server.get("launchTemplate")
+                        and any(
+                            v is not None
+                            for v in server["launchTemplate"].values()
+                        )
+                    ):
+                        servers_with_custom_config += 1
+
+                exported_pg["servers"] = exported_servers
+
             exported_pgs.append(exported_pg)
 
         # Transform Recovery Plans for export (resolve PG IDs to names)
@@ -2051,9 +2096,9 @@ def export_configuration(query_params: Dict) -> Dict:
                 f"Export contains {len(orphaned_pg_ids)} orphaned PG references"
             )
 
-        # Build export payload
+        # Build export payload with schema v1.1 metadata
         export_data = {
-            "schemaVersion": "1.0",
+            "schemaVersion": "1.1",
             "exportedAt": datetime.now(timezone.utc).isoformat() + "Z",
             "sourceRegion": source_region,
             "sourceAccount": get_current_account_id(),
@@ -2062,6 +2107,8 @@ def export_configuration(query_params: Dict) -> Dict:
             "metadata": {
                 "protectionGroupCount": len(exported_pgs),
                 "recoveryPlanCount": len(exported_rps),
+                "serverCount": total_server_count,
+                "serversWithCustomConfig": servers_with_custom_config,
                 "orphanedReferences": len(orphaned_pg_ids),
             },
         }
