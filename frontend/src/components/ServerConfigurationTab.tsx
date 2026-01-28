@@ -312,6 +312,7 @@ export const ServerConfigurationTab: React.FC<ServerConfigurationTabProps> = ({
           groupDefaults={groupDefaults}
           serverConfig={serverConfigs.get(selectedServer.sourceServerID)}
           region={region}
+          groupId={protectionGroupId}
           onClose={handleDialogClose}
           onSave={handleConfigSave}
         />

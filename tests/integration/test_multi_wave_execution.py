@@ -25,37 +25,75 @@ lambda_dir = os.path.join(os.path.dirname(__file__), "../../lambda")
 sys.path.insert(0, os.path.join(lambda_dir, "execution-handler"))
 sys.path.insert(0, lambda_dir)
 
-# Mock shared modules
-sys.modules['shared'] = Mock()
-sys.modules['shared.conflict_detection'] = Mock()
-sys.modules['shared.cross_account'] = Mock()
-sys.modules['shared.drs_limits'] = Mock()
-sys.modules['shared.execution_utils'] = Mock()
-sys.modules['shared.drs_utils'] = Mock()
 
-# Mock response_utils with proper response function
-mock_response_utils = Mock()
+@pytest.fixture(scope="function", autouse=False)
+def mock_shared_modules():
+    """Mock shared modules for handler import, but NOT launch_config_validation."""
+    # Save original modules
+    original_modules = {}
+    mock_modules = [
+        'shared.account_utils',
+        'shared.config_merge',
+        'shared.conflict_detection',
+        'shared.cross_account',
+        'shared.drs_limits',
+        'shared.drs_utils',
+        'shared.execution_utils',
+        'shared.rbac_middleware',
+        'shared.response_utils',
+        'shared.security_utils',
+    ]
+    
+    for module_name in mock_modules:
+        if module_name in sys.modules:
+            original_modules[module_name] = sys.modules[module_name]
+    
+    # Mock the modules (will be set up by each test file's specific mocks)
+    yield
+    
+    # Restore original modules
+    for module_name in mock_modules:
+        if module_name in original_modules:
+            sys.modules[module_name] = original_modules[module_name]
+        else:
+            sys.modules.pop(module_name, None)
 
-# Create a proper DecimalEncoder class
-class MockDecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return int(obj) if obj % 1 == 0 else float(obj)
-        return super().default(obj)
 
-def mock_response(status_code, body, headers=None):
-    """Mock response function that returns proper API Gateway response"""
-    return {
-        "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-        },
-        "body": json.dumps(body, cls=MockDecimalEncoder)
-    }
-mock_response_utils.response = mock_response
-mock_response_utils.DecimalEncoder = MockDecimalEncoder
-sys.modules['shared.response_utils'] = mock_response_utils
+# NOTE: Module-level mocking removed to prevent pytest collection conflicts
+# Tests that need mocking should use fixtures or patch decorators within the test function
+#
+# # Mock shared modules
+# sys.modules['shared'] = Mock()
+# sys.modules['shared.config_merge'] = Mock()
+# sys.modules['shared.conflict_detection'] = Mock()
+# sys.modules['shared.cross_account'] = Mock()
+# sys.modules['shared.drs_limits'] = Mock()
+# sys.modules['shared.execution_utils'] = Mock()
+# sys.modules['shared.drs_utils'] = Mock()
+# 
+# # Mock response_utils with proper response function
+# mock_response_utils = Mock()
+# 
+# # Create a proper DecimalEncoder class
+# class MockDecimalEncoder(json.JSONEncoder):
+#     def default(self, obj):
+#         if isinstance(obj, Decimal):
+#             return int(obj) if obj % 1 == 0 else float(obj)
+#         return super().default(obj)
+# 
+# def mock_response(status_code, body, headers=None):
+#     """Mock response function that returns proper API Gateway response"""
+#     return {
+#         "statusCode": status_code,
+#         "headers": {
+#             "Content-Type": "application/json",
+#             "Access-Control-Allow-Origin": "*",
+#         },
+#         "body": json.dumps(body, cls=MockDecimalEncoder)
+#     }
+# mock_response_utils.response = mock_response
+# mock_response_utils.DecimalEncoder = MockDecimalEncoder
+# sys.modules['shared.response_utils'] = mock_response_utils
 
 
 @pytest.fixture

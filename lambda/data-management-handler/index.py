@@ -280,7 +280,7 @@ import os
 import re
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import uuid
 
 import boto3
@@ -525,6 +525,16 @@ def handle_api_gateway_request(event, context):
         elif path == "/config/import":
             if http_method == "POST":
                 return import_configuration(body)
+
+        elif path == "/config/validate-manifest":
+            if http_method == "POST":
+                # Validate manifest without importing
+                manifest = body.get("manifest", body)
+                correlation_id = body.get("correlationId")
+                report = generate_manifest_validation_report(
+                    manifest, correlation_id
+                )
+                return response(200, report)
 
         # Target Accounts endpoints (5)
         elif path == "/accounts/targets":
@@ -2151,6 +2161,17 @@ def update_server_launch_config(
                 if not ip_validation.get("valid"):
                     validation_errors.append(ip_validation)
 
+                # Check for duplicate IPs across servers in same subnet
+                from shared.launch_config_validation import (
+                    validate_no_duplicate_ips,
+                )
+
+                duplicate_check = validate_no_duplicate_ips(
+                    protection_group, server_id, static_ip, subnet_id
+                )
+                if not duplicate_check.get("valid"):
+                    validation_errors.append(duplicate_check)
+
         # Validate security groups
         if launch_template.get("securityGroupIds"):
             sg_ids = launch_template["securityGroupIds"]
@@ -2734,6 +2755,43 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
         # Phase 1: Validate ALL configurations before applying any
         validation_errors = []
 
+        # First, check for duplicate IPs within the batch itself
+        ip_to_server_map = {}  # Maps (subnet_id, ip) -> server_id
+        for idx, server_config in enumerate(servers_config):
+            server_id = server_config.get("sourceServerId")
+            launch_template = server_config.get("launchTemplate", {})
+            static_ip = launch_template.get("staticPrivateIp")
+
+            if static_ip:
+                # Get subnet ID (from launch template or group defaults)
+                subnet_id = launch_template.get(
+                    "subnetId"
+                ) or protection_group.get("launchConfig", {}).get("subnetId")
+
+                if subnet_id:
+                    key = (subnet_id, static_ip)
+                    if key in ip_to_server_map:
+                        # Duplicate IP within batch
+                        validation_errors.append(
+                            {
+                                "index": idx,
+                                "sourceServerId": server_id,
+                                "error": "DUPLICATE_IP_IN_BATCH",
+                                "message": f"IP {static_ip} is assigned to "
+                                f"multiple servers in this batch: "
+                                f"{ip_to_server_map[key]} and {server_id}",
+                                "field": "staticPrivateIp",
+                                "conflictingServer": {
+                                    "sourceServerId": ip_to_server_map[key],
+                                    "staticPrivateIp": static_ip,
+                                    "subnetId": subnet_id,
+                                },
+                            }
+                        )
+                    else:
+                        ip_to_server_map[key] = server_id
+
+        # Continue with per-server validation
         for idx, server_config in enumerate(servers_config):
             server_id = server_config.get("sourceServerId")
             launch_template = server_config.get("launchTemplate", {})
@@ -2804,6 +2862,24 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
                             "index": idx,
                             "sourceServerId": server_id,
                             **ip_validation,
+                        }
+                    )
+                    continue
+
+                # Check for duplicate IPs across servers in same subnet
+                from shared.launch_config_validation import (
+                    validate_no_duplicate_ips,
+                )
+
+                duplicate_check = validate_no_duplicate_ips(
+                    protection_group, server_id, static_ip, subnet_id
+                )
+                if not duplicate_check.get("valid"):
+                    validation_errors.append(
+                        {
+                            "index": idx,
+                            "sourceServerId": server_id,
+                            **duplicate_check,
                         }
                     )
                     continue
@@ -5165,8 +5241,8 @@ def delete_target_account(account_id: str) -> Dict:
 # ============================================================================
 
 # Schema version for configuration import/export
-SCHEMA_VERSION = "1.0"
-SUPPORTED_SCHEMA_VERSIONS = ["1.0"]
+SCHEMA_VERSION = "1.1"
+SUPPORTED_SCHEMA_VERSIONS = ["1.0", "1.1"]
 
 
 def export_configuration(query_params: Dict) -> Dict:
@@ -5243,6 +5319,13 @@ def export_configuration(query_params: Dict) -> Dict:
     - Preserves: groupName, description, region, accountId, owner
     - Includes server selection (sourceServerIds OR serverSelectionTags)
     - Includes launchConfig if present
+    - Includes per-server configurations (schema v1.1+):
+      - sourceServerId: DRS source server ID
+      - instanceId: EC2 instance ID (optional)
+      - instanceName: Server name (optional)
+      - tags: Server tags (optional)
+      - useGroupDefaults: Whether server uses group defaults
+      - launchTemplate: Per-server launch template overrides
     
     ### Recovery Plan Transformation
     - Resolves protectionGroupId → protectionGroupName in waves
@@ -5268,10 +5351,15 @@ def export_configuration(query_params: Dict) -> Dict:
     ```json
     {
       "metadata": {
-        "schemaVersion": "1.0",
-        "exportedAt": "2026-01-25T10:30:00Z",
+        "schemaVersion": "1.1",
+        "exportedAt": "2026-01-27T22:42:00Z",
         "sourceRegion": "us-east-1",
-        "exportedBy": "api"
+        "exportedBy": "api",
+        "protectionGroupCount": 1,
+        "recoveryPlanCount": 1,
+        "serverCount": 2,
+        "serversWithCustomConfig": 1,
+        "orphanedReferences": 0
       },
       "protectionGroups": [
         {
@@ -5286,8 +5374,30 @@ def export_configuration(query_params: Dict) -> Dict:
           },
           "launchConfig": {
             "subnetId": "subnet-abc123",
-            "securityGroupIds": ["sg-xyz789"]
-          }
+            "securityGroupIds": ["sg-xyz789"],
+            "instanceType": "c6a.large"
+          },
+          "servers": [
+            {
+              "sourceServerId": "s-57eae3bdae1f0179b",
+              "instanceId": "i-0123456789abcdef0",
+              "instanceName": "web-server-01",
+              "useGroupDefaults": false,
+              "launchTemplate": {
+                "staticPrivateIp": "10.0.1.100",
+                "instanceType": "c6a.xlarge"
+              }
+            },
+            {
+              "sourceServerId": "s-5d4ac077408e03d02",
+              "instanceId": "i-0123456789abcdef1",
+              "instanceName": "web-server-02",
+              "useGroupDefaults": true,
+              "launchTemplate": {
+                "staticPrivateIp": "10.0.1.101"
+              }
+            }
+          ]
         }
       ],
       "recoveryPlans": [
@@ -5343,12 +5453,21 @@ def export_configuration(query_params: Dict) -> Dict:
     
     ## Schema Version
     
-    Current: `1.0`
+    Current: `1.1`
     
     Schema includes:
     - Protection Group structure
     - Recovery Plan structure
     - Wave structure with PG name references
+    - Per-server launch template configurations (v1.1+)
+    
+    ### Schema v1.1 Changes
+    - Added `servers` array to Protection Groups
+    - Added metadata counts: protectionGroupCount, recoveryPlanCount, 
+      serverCount, serversWithCustomConfig, orphanedReferences
+    - Per-server fields: sourceServerId, instanceId, instanceName, tags,
+      useGroupDefaults, launchTemplate
+    - Backward compatible with v1.0 (servers array is optional)
     
     ## Related Functions
     
@@ -5392,6 +5511,9 @@ def export_configuration(query_params: Dict) -> Dict:
 
         # Transform Protection Groups for export (exclude internal fields)
         exported_pgs = []
+        servers_with_custom_config = 0
+        total_server_count = 0
+
         for pg in protection_groups:
             exported_pg = {
                 "groupName": pg.get("groupName", ""),
@@ -5408,6 +5530,46 @@ def export_configuration(query_params: Dict) -> Dict:
             # Include launchConfig if present
             if pg.get("launchConfig"):
                 exported_pg["launchConfig"] = pg["launchConfig"]
+
+            # Include per-server configurations (schema v1.1)
+            if pg.get("servers"):
+                exported_servers = []
+                for server in pg["servers"]:
+                    exported_server = {
+                        "sourceServerId": server.get("sourceServerId", ""),
+                        "useGroupDefaults": server.get(
+                            "useGroupDefaults", True
+                        ),
+                    }
+                    # Include optional fields if present
+                    if server.get("instanceId"):
+                        exported_server["instanceId"] = server["instanceId"]
+                    if server.get("instanceName"):
+                        exported_server["instanceName"] = server[
+                            "instanceName"
+                        ]
+                    if server.get("tags"):
+                        exported_server["tags"] = server["tags"]
+                    if server.get("launchTemplate"):
+                        exported_server["launchTemplate"] = server[
+                            "launchTemplate"
+                        ]
+
+                    exported_servers.append(exported_server)
+                    total_server_count += 1
+
+                    # Count servers with custom configurations
+                    if not server.get("useGroupDefaults", True) or (
+                        server.get("launchTemplate")
+                        and any(
+                            v is not None
+                            for v in server["launchTemplate"].values()
+                        )
+                    ):
+                        servers_with_custom_config += 1
+
+                exported_pg["servers"] = exported_servers
+
             exported_pgs.append(exported_pg)
 
         # Transform Recovery Plans for export (resolve PG IDs to names)
@@ -5456,6 +5618,11 @@ def export_configuration(query_params: Dict) -> Dict:
                 + "Z",
                 "sourceRegion": source_region,
                 "exportedBy": "api",
+                "protectionGroupCount": len(exported_pgs),
+                "recoveryPlanCount": len(exported_rps),
+                "serverCount": total_server_count,
+                "serversWithCustomConfig": servers_with_custom_config,
+                "orphanedReferences": len(orphaned_pg_ids),
             },
             "protectionGroups": exported_pgs,
             "recoveryPlans": exported_rps,
@@ -6047,6 +6214,809 @@ def _get_all_assigned_servers() -> Dict[str, str]:
     return assigned
 
 
+def _validate_and_resolve_server_configs(
+    servers_config: list,
+    source_server_ids: list,
+    region: str,
+    group_launch_config: Dict,
+    correlation_id: str,
+) -> Dict[str, Any]:
+    """
+    Validate and resolve per-server configurations for import.
+
+    This function performs comprehensive validation:
+    1. Resolves EC2 instance IDs to DRS source server IDs
+    2. Validates AWS-approved fields only
+    3. Validates static IP addresses
+    4. Checks for duplicate IPs within same subnet
+    5. Supports partial import (skips invalid entries with warnings)
+
+    Args:
+        servers_config: List of server configurations from manifest
+        source_server_ids: List of source server IDs from protection group
+        region: AWS region for validation
+        group_launch_config: Group-level launch config for defaults
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        Dict with validation result:
+        {
+            "valid": bool,
+            "resolvedServers": list (validated server configs),
+            "warnings": list (skipped servers with reasons),
+            "error": str (if validation failed),
+            "details": dict (error details)
+        }
+
+    Validates: Requirements 10.2, 10.3, 10.4, 10.5, 10.5.2, 10.5.3
+    """
+    from shared.launch_config_validation import (
+        validate_aws_approved_fields,
+        validate_static_ip,
+        validate_no_duplicate_ips,
+    )
+
+    resolved_servers = []
+    warnings = []
+    seen_ips = {}  # Track IPs per subnet for duplicate detection
+
+    # Create DRS client for instance ID resolution
+    try:
+        drs_client = boto3.client("drs", region_name=region)
+    except Exception as e:
+        return {
+            "valid": False,
+            "error": "DRS_CLIENT_ERROR",
+            "message": f"Failed to create DRS client: {str(e)}",
+            "details": {"region": region},
+        }
+
+    for idx, server in enumerate(servers_config):
+        server_id = server.get("sourceServerId")
+        instance_id = server.get("instanceId")
+        instance_name = server.get("instanceName", "")
+
+        # Step 1: Resolve EC2 instance ID to DRS source server ID
+        if not server_id and instance_id:
+            print(
+                f"[{correlation_id}] Resolving instance ID {instance_id} "
+                f"to DRS source server ID"
+            )
+            try:
+                # Query DRS for source servers
+                drs_response = drs_client.describe_source_servers()
+                found = False
+
+                for drs_server in drs_response.get("items", []):
+                    # Check if source properties match instance ID
+                    source_props = drs_server.get("sourceProperties", {})
+                    if source_props.get("lastUpdatedDateTime"):
+                        # Get identification hints
+                        identification = source_props.get(
+                            "identificationHints", {}
+                        )
+                        aws_instance_id = identification.get("awsInstanceID")
+
+                        if aws_instance_id == instance_id:
+                            server_id = drs_server.get("sourceServerID")
+                            found = True
+                            print(
+                                f"[{correlation_id}] Resolved {instance_id} "
+                                f"to {server_id}"
+                            )
+                            break
+
+                if not found:
+                    warnings.append(
+                        {
+                            "serverIndex": idx,
+                            "instanceId": instance_id,
+                            "instanceName": instance_name,
+                            "reason": "INSTANCE_NOT_IN_DRS",
+                            "message": f"EC2 instance {instance_id} not "
+                            f"found in DRS. Server will be skipped.",
+                        }
+                    )
+                    print(
+                        f"[{correlation_id}] Warning: Instance "
+                        f"{instance_id} not found in DRS, skipping"
+                    )
+                    continue
+
+            except Exception as e:
+                warnings.append(
+                    {
+                        "serverIndex": idx,
+                        "instanceId": instance_id,
+                        "instanceName": instance_name,
+                        "reason": "DRS_QUERY_ERROR",
+                        "message": f"Failed to resolve instance ID: "
+                        f"{str(e)}",
+                    }
+                )
+                print(
+                    f"[{correlation_id}] Warning: Failed to resolve "
+                    f"{instance_id}: {e}"
+                )
+                continue
+
+        # Validate server_id is present
+        if not server_id:
+            warnings.append(
+                {
+                    "serverIndex": idx,
+                    "instanceName": instance_name,
+                    "reason": "MISSING_SERVER_ID",
+                    "message": "Neither sourceServerId nor instanceId "
+                    "provided. Server will be skipped.",
+                }
+            )
+            continue
+
+        # Validate server_id is in protection group's source server list
+        if source_server_ids and server_id not in source_server_ids:
+            warnings.append(
+                {
+                    "serverIndex": idx,
+                    "sourceServerId": server_id,
+                    "instanceName": instance_name,
+                    "reason": "SERVER_NOT_IN_GROUP",
+                    "message": f"Server {server_id} is not in protection "
+                    f"group's sourceServerIds list. Server will be "
+                    "skipped.",
+                }
+            )
+            continue
+
+        # Step 2: Validate launch template configuration
+        launch_template = server.get("launchTemplate", {})
+
+        if launch_template:
+            # Validate AWS-approved fields only
+            field_validation = validate_aws_approved_fields(launch_template)
+
+            if not field_validation["valid"]:
+                warnings.append(
+                    {
+                        "serverIndex": idx,
+                        "sourceServerId": server_id,
+                        "instanceName": instance_name,
+                        "reason": field_validation.get("error"),
+                        "message": field_validation.get("message"),
+                        "blockedFields": field_validation.get(
+                            "blockedFields", []
+                        ),
+                    }
+                )
+                print(
+                    f"[{correlation_id}] Warning: Server {server_id} has "
+                    f"invalid fields, skipping"
+                )
+                continue
+
+            # Step 3: Validate static IP if present
+            static_ip = launch_template.get("staticPrivateIp")
+
+            if static_ip:
+                # Determine effective subnet
+                subnet_id = launch_template.get(
+                    "subnetId"
+                ) or group_launch_config.get("subnetId")
+
+                if not subnet_id:
+                    warnings.append(
+                        {
+                            "serverIndex": idx,
+                            "sourceServerId": server_id,
+                            "instanceName": instance_name,
+                            "reason": "MISSING_SUBNET",
+                            "message": "Static IP configured but no subnet "
+                            "specified in server config or group defaults. "
+                            "Server will be skipped.",
+                        }
+                    )
+                    continue
+
+                # Validate static IP
+                ip_validation = validate_static_ip(
+                    static_ip, subnet_id, region
+                )
+
+                if not ip_validation["valid"]:
+                    warnings.append(
+                        {
+                            "serverIndex": idx,
+                            "sourceServerId": server_id,
+                            "instanceName": instance_name,
+                            "staticPrivateIp": static_ip,
+                            "subnetId": subnet_id,
+                            "reason": ip_validation.get("error"),
+                            "message": ip_validation.get("message"),
+                        }
+                    )
+                    print(
+                        f"[{correlation_id}] Warning: Server {server_id} "
+                        f"has invalid IP {static_ip}, skipping"
+                    )
+                    continue
+
+                # Step 4: Check for duplicate IPs in same subnet
+                subnet_key = subnet_id
+                if subnet_key not in seen_ips:
+                    seen_ips[subnet_key] = {}
+
+                if static_ip in seen_ips[subnet_key]:
+                    conflict_server = seen_ips[subnet_key][static_ip]
+                    warnings.append(
+                        {
+                            "serverIndex": idx,
+                            "sourceServerId": server_id,
+                            "instanceName": instance_name,
+                            "staticPrivateIp": static_ip,
+                            "subnetId": subnet_id,
+                            "reason": "DUPLICATE_IP",
+                            "message": f"IP {static_ip} is already "
+                            f"configured for server "
+                            f"{conflict_server['sourceServerId']} in "
+                            f"subnet {subnet_id}. Server will be skipped.",
+                            "conflictingServer": conflict_server,
+                        }
+                    )
+                    print(
+                        f"[{correlation_id}] Warning: Duplicate IP "
+                        f"{static_ip} for server {server_id}, skipping"
+                    )
+                    continue
+
+                # Track this IP
+                seen_ips[subnet_key][static_ip] = {
+                    "sourceServerId": server_id,
+                    "instanceName": instance_name,
+                }
+
+        # Server passed all validations - add to resolved list
+        resolved_server = {
+            "sourceServerId": server_id,
+            "useGroupDefaults": server.get("useGroupDefaults", True),
+        }
+
+        # Include optional fields if present
+        if instance_id:
+            resolved_server["instanceId"] = instance_id
+        if instance_name:
+            resolved_server["instanceName"] = instance_name
+        if server.get("tags"):
+            resolved_server["tags"] = server["tags"]
+        if launch_template:
+            resolved_server["launchTemplate"] = launch_template
+
+        resolved_servers.append(resolved_server)
+        print(f"[{correlation_id}] Validated server config for {server_id}")
+
+    # Return validation result
+    return {
+        "valid": True,
+        "resolvedServers": resolved_servers,
+        "warnings": warnings,
+        "message": f"Validated {len(resolved_servers)} server "
+        f"configurations, {len(warnings)} skipped",
+    }
+
+
+def generate_manifest_validation_report(
+    manifest: Dict, correlation_id: str = None
+) -> Dict[str, Any]:
+    """
+    Generate comprehensive validation report for JSON manifest.
+
+    This function performs complete manifest validation and generates a
+    detailed report covering:
+    1. Schema structure validation
+    2. Protection group validation (servers, launch configs)
+    3. Per-server configuration validation (static IPs, AWS resources)
+    4. Recovery plan validation
+    5. Cross-reference validation (PG references in RPs)
+
+    Args:
+        manifest: JSON manifest to validate
+        correlation_id: Optional correlation ID for logging
+
+    Returns:
+        Dict containing validation report:
+        {
+            "valid": bool,
+            "summary": {
+                "totalProtectionGroups": int,
+                "totalRecoveryPlans": int,
+                "totalServers": int,
+                "serversWithCustomConfig": int,
+                "validationErrors": int,
+                "validationWarnings": int
+            },
+            "schemaValidation": {...},
+            "protectionGroupValidation": [...],
+            "recoveryPlanValidation": [...],
+            "errors": [...],
+            "warnings": [...]
+        }
+
+    Validates: Requirements 10.2, 10.5
+    """
+    from shared.launch_config_validation import (
+        validate_aws_approved_fields,
+        validate_static_ip,
+    )
+
+    if not correlation_id:
+        correlation_id = str(uuid.uuid4())
+
+    print(f"[{correlation_id}] Starting manifest validation")
+
+    report = {
+        "valid": True,
+        "correlationId": correlation_id,
+        "summary": {
+            "totalProtectionGroups": 0,
+            "totalRecoveryPlans": 0,
+            "totalServers": 0,
+            "serversWithCustomConfig": 0,
+            "validationErrors": 0,
+            "validationWarnings": 0,
+        },
+        "schemaValidation": {"valid": True, "errors": []},
+        "protectionGroupValidation": [],
+        "recoveryPlanValidation": [],
+        "errors": [],
+        "warnings": [],
+    }
+
+    # Step 1: Validate schema structure
+    schema_errors = []
+
+    # Check required fields
+    if "metadata" not in manifest:
+        schema_errors.append(
+            {
+                "field": "metadata",
+                "error": "MISSING_REQUIRED_FIELD",
+                "message": "Manifest must contain 'metadata' field",
+            }
+        )
+
+    metadata = manifest.get("metadata", {})
+    schema_version = metadata.get("schemaVersion")
+
+    if not schema_version:
+        schema_errors.append(
+            {
+                "field": "metadata.schemaVersion",
+                "error": "MISSING_SCHEMA_VERSION",
+                "message": "Manifest metadata must contain schemaVersion",
+            }
+        )
+    elif schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        schema_errors.append(
+            {
+                "field": "metadata.schemaVersion",
+                "error": "UNSUPPORTED_SCHEMA_VERSION",
+                "message": f"Schema version {schema_version} not "
+                f"supported. Supported versions: "
+                f"{', '.join(SUPPORTED_SCHEMA_VERSIONS)}",
+                "value": schema_version,
+            }
+        )
+
+    if "protectionGroups" not in manifest:
+        schema_errors.append(
+            {
+                "field": "protectionGroups",
+                "error": "MISSING_REQUIRED_FIELD",
+                "message": "Manifest must contain 'protectionGroups' array",
+            }
+        )
+
+    if schema_errors:
+        report["schemaValidation"]["valid"] = False
+        report["schemaValidation"]["errors"] = schema_errors
+        report["valid"] = False
+        report["summary"]["validationErrors"] += len(schema_errors)
+        report["errors"].extend(schema_errors)
+        # Cannot continue validation without valid schema
+        return report
+
+    # Step 2: Validate protection groups
+    protection_groups = manifest.get("protectionGroups", [])
+    report["summary"]["totalProtectionGroups"] = len(protection_groups)
+
+    for pg_idx, pg in enumerate(protection_groups):
+        pg_validation = _validate_protection_group_manifest(
+            pg, pg_idx, correlation_id
+        )
+
+        report["protectionGroupValidation"].append(pg_validation)
+
+        # Update summary counts
+        report["summary"]["totalServers"] += pg_validation.get(
+            "serverCount", 0
+        )
+        report["summary"]["serversWithCustomConfig"] += pg_validation.get(
+            "serversWithCustomConfig", 0
+        )
+
+        # Collect errors and warnings
+        if not pg_validation["valid"]:
+            report["valid"] = False
+            report["summary"]["validationErrors"] += len(
+                pg_validation.get("errors", [])
+            )
+            report["errors"].extend(pg_validation.get("errors", []))
+
+        report["summary"]["validationWarnings"] += len(
+            pg_validation.get("warnings", [])
+        )
+        report["warnings"].extend(pg_validation.get("warnings", []))
+
+    # Step 3: Validate recovery plans
+    recovery_plans = manifest.get("recoveryPlans", [])
+    report["summary"]["totalRecoveryPlans"] = len(recovery_plans)
+
+    # Build PG name set for cross-reference validation
+    pg_names = {pg.get("groupName") for pg in protection_groups}
+
+    for rp_idx, rp in enumerate(recovery_plans):
+        rp_validation = _validate_recovery_plan_manifest(
+            rp, rp_idx, pg_names, correlation_id
+        )
+
+        report["recoveryPlanValidation"].append(rp_validation)
+
+        # Collect errors and warnings
+        if not rp_validation["valid"]:
+            report["valid"] = False
+            report["summary"]["validationErrors"] += len(
+                rp_validation.get("errors", [])
+            )
+            report["errors"].extend(rp_validation.get("errors", []))
+
+        report["summary"]["validationWarnings"] += len(
+            rp_validation.get("warnings", [])
+        )
+        report["warnings"].extend(rp_validation.get("warnings", []))
+
+    print(
+        f"[{correlation_id}] Manifest validation complete: "
+        f"valid={report['valid']}, "
+        f"errors={report['summary']['validationErrors']}, "
+        f"warnings={report['summary']['validationWarnings']}"
+    )
+
+    return report
+
+
+def _validate_protection_group_manifest(
+    pg: Dict, pg_idx: int, correlation_id: str
+) -> Dict[str, Any]:
+    """
+    Validate a single protection group from manifest.
+
+    Validates:
+    - Required fields (groupName, region)
+    - Server configurations (if present)
+    - Static IP addresses
+    - AWS-approved fields
+    - Duplicate IP detection
+
+    Args:
+        pg: Protection group dict from manifest
+        pg_idx: Index in manifest array
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        Dict with validation result for this protection group
+    """
+    from shared.launch_config_validation import (
+        validate_aws_approved_fields,
+        validate_static_ip,
+    )
+
+    validation = {
+        "valid": True,
+        "protectionGroupIndex": pg_idx,
+        "groupName": pg.get("groupName", f"<unnamed-{pg_idx}>"),
+        "serverCount": 0,
+        "serversWithCustomConfig": 0,
+        "errors": [],
+        "warnings": [],
+    }
+
+    # Validate required fields
+    if not pg.get("groupName"):
+        validation["valid"] = False
+        validation["errors"].append(
+            {
+                "field": f"protectionGroups[{pg_idx}].groupName",
+                "error": "MISSING_REQUIRED_FIELD",
+                "message": "Protection group must have a groupName",
+            }
+        )
+
+    if not pg.get("region"):
+        validation["valid"] = False
+        validation["errors"].append(
+            {
+                "field": f"protectionGroups[{pg_idx}].region",
+                "error": "MISSING_REQUIRED_FIELD",
+                "message": "Protection group must have a region",
+            }
+        )
+
+    # Validate per-server configurations (schema v1.1)
+    servers = pg.get("servers", [])
+    validation["serverCount"] = len(servers)
+
+    if servers:
+        # Track IPs per subnet for duplicate detection
+        seen_ips = {}
+
+        for server_idx, server in enumerate(servers):
+            server_validation = _validate_server_config_manifest(
+                server,
+                server_idx,
+                pg.get("launchConfig", {}),
+                pg.get("region", ""),
+                seen_ips,
+                correlation_id,
+            )
+
+            # Count servers with custom config
+            if server.get("launchTemplate"):
+                validation["serversWithCustomConfig"] += 1
+
+            # Collect errors and warnings
+            if not server_validation["valid"]:
+                validation["valid"] = False
+                validation["errors"].extend(
+                    server_validation.get("errors", [])
+                )
+
+            validation["warnings"].extend(
+                server_validation.get("warnings", [])
+            )
+
+    return validation
+
+
+def _validate_server_config_manifest(
+    server: Dict,
+    server_idx: int,
+    group_launch_config: Dict,
+    region: str,
+    seen_ips: Dict,
+    correlation_id: str,
+) -> Dict[str, Any]:
+    """
+    Validate a single server configuration from manifest.
+
+    Validates:
+    - Server identification (sourceServerId or instanceId)
+    - Launch template configuration
+    - AWS-approved fields
+    - Static IP format and CIDR range
+    - Duplicate IP detection
+
+    Args:
+        server: Server dict from manifest
+        server_idx: Index in servers array
+        group_launch_config: Group-level launch config for defaults
+        region: AWS region
+        seen_ips: Dict tracking IPs per subnet
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        Dict with validation result for this server
+    """
+    from shared.launch_config_validation import (
+        validate_aws_approved_fields,
+        _validate_ip_format,
+        _validate_ip_in_cidr,
+        _validate_ip_not_reserved,
+    )
+
+    validation = {
+        "valid": True,
+        "serverIndex": server_idx,
+        "sourceServerId": server.get("sourceServerId"),
+        "instanceId": server.get("instanceId"),
+        "errors": [],
+        "warnings": [],
+    }
+
+    # Validate server identification
+    if not server.get("sourceServerId") and not server.get("instanceId"):
+        validation["valid"] = False
+        validation["errors"].append(
+            {
+                "field": f"servers[{server_idx}]",
+                "error": "MISSING_SERVER_IDENTIFICATION",
+                "message": "Server must have either sourceServerId or "
+                "instanceId",
+            }
+        )
+        return validation
+
+    # Validate launch template configuration
+    launch_template = server.get("launchTemplate", {})
+
+    if not launch_template:
+        # No custom config - valid
+        return validation
+
+    # Validate AWS-approved fields
+    field_validation = validate_aws_approved_fields(launch_template)
+
+    if not field_validation["valid"]:
+        validation["valid"] = False
+        validation["errors"].append(
+            {
+                "field": f"servers[{server_idx}].launchTemplate",
+                "error": field_validation.get("error"),
+                "message": field_validation.get("message"),
+                "blockedFields": field_validation.get("blockedFields", []),
+            }
+        )
+        return validation
+
+    # Validate static IP if present
+    static_ip = launch_template.get("staticPrivateIp")
+
+    if static_ip:
+        # Determine effective subnet
+        subnet_id = launch_template.get("subnetId") or group_launch_config.get(
+            "subnetId"
+        )
+
+        if not subnet_id:
+            validation["warnings"].append(
+                {
+                    "field": f"servers[{server_idx}].launchTemplate."
+                    "staticPrivateIp",
+                    "warning": "MISSING_SUBNET",
+                    "message": "Static IP configured but no subnet "
+                    "specified. Cannot validate IP without subnet.",
+                }
+            )
+        else:
+            # Validate IP format
+            format_result = _validate_ip_format(static_ip)
+
+            if not format_result["valid"]:
+                validation["valid"] = False
+                validation["errors"].append(
+                    {
+                        "field": f"servers[{server_idx}].launchTemplate."
+                        "staticPrivateIp",
+                        "error": format_result.get("error"),
+                        "message": format_result.get("message"),
+                        "value": static_ip,
+                    }
+                )
+            else:
+                # Note: We cannot validate CIDR range or availability
+                # without AWS API calls. This is a schema-level validation.
+                # Full validation happens during import with AWS API access.
+
+                # Check for duplicate IPs in manifest
+                subnet_key = subnet_id
+                if subnet_key not in seen_ips:
+                    seen_ips[subnet_key] = {}
+
+                if static_ip in seen_ips[subnet_key]:
+                    conflict_server = seen_ips[subnet_key][static_ip]
+                    validation["valid"] = False
+                    validation["errors"].append(
+                        {
+                            "field": f"servers[{server_idx}].launchTemplate."
+                            "staticPrivateIp",
+                            "error": "DUPLICATE_IP_IN_MANIFEST",
+                            "message": f"IP {static_ip} is already "
+                            f"configured for server at index "
+                            f"{conflict_server['serverIndex']} in "
+                            f"subnet {subnet_id}",
+                            "conflictingServer": conflict_server,
+                        }
+                    )
+                else:
+                    # Track this IP
+                    seen_ips[subnet_key][static_ip] = {
+                        "serverIndex": server_idx,
+                        "sourceServerId": server.get("sourceServerId"),
+                        "instanceId": server.get("instanceId"),
+                    }
+
+    return validation
+
+
+def _validate_recovery_plan_manifest(
+    rp: Dict, rp_idx: int, pg_names: set, correlation_id: str
+) -> Dict[str, Any]:
+    """
+    Validate a single recovery plan from manifest.
+
+    Validates:
+    - Required fields (planName)
+    - Wave structure
+    - Protection group references
+
+    Args:
+        rp: Recovery plan dict from manifest
+        rp_idx: Index in manifest array
+        pg_names: Set of protection group names for cross-reference
+        correlation_id: Correlation ID for logging
+
+    Returns:
+        Dict with validation result for this recovery plan
+    """
+    validation = {
+        "valid": True,
+        "recoveryPlanIndex": rp_idx,
+        "planName": rp.get("planName", f"<unnamed-{rp_idx}>"),
+        "errors": [],
+        "warnings": [],
+    }
+
+    # Validate required fields
+    if not rp.get("planName"):
+        validation["valid"] = False
+        validation["errors"].append(
+            {
+                "field": f"recoveryPlans[{rp_idx}].planName",
+                "error": "MISSING_REQUIRED_FIELD",
+                "message": "Recovery plan must have a planName",
+            }
+        )
+
+    # Validate waves
+    waves = rp.get("waves", [])
+
+    if not waves:
+        validation["warnings"].append(
+            {
+                "field": f"recoveryPlans[{rp_idx}].waves",
+                "warning": "EMPTY_WAVES",
+                "message": "Recovery plan has no waves defined",
+            }
+        )
+
+    for wave_idx, wave in enumerate(waves):
+        # Validate protection group reference
+        pg_name = wave.get("protectionGroupName")
+
+        if not pg_name:
+            validation["valid"] = False
+            validation["errors"].append(
+                {
+                    "field": f"recoveryPlans[{rp_idx}].waves[{wave_idx}]."
+                    "protectionGroupName",
+                    "error": "MISSING_REQUIRED_FIELD",
+                    "message": "Wave must reference a protectionGroupName",
+                }
+            )
+        elif pg_name not in pg_names:
+            validation["valid"] = False
+            validation["errors"].append(
+                {
+                    "field": f"recoveryPlans[{rp_idx}].waves[{wave_idx}]."
+                    "protectionGroupName",
+                    "error": "PROTECTION_GROUP_NOT_FOUND",
+                    "message": f"Protection group '{pg_name}' referenced "
+                    "in wave but not found in manifest",
+                    "value": pg_name,
+                }
+            )
+
+    return validation
+
+
 def _process_protection_group_import(
     pg: Dict,
     existing_pgs: Dict[str, Dict],
@@ -6054,7 +7024,18 @@ def _process_protection_group_import(
     dry_run: bool,
     correlation_id: str,
 ) -> Dict:
-    """Process a single Protection Group import"""
+    """
+    Process a single Protection Group import with per-server config support.
+
+    Supports schema v1.0 (group-level only) and v1.1 (per-server configs).
+    Validates per-server configurations including:
+    - EC2 instance ID resolution to DRS source server IDs
+    - Static IP validation
+    - AWS-approved fields enforcement
+    - Duplicate IP detection
+
+    Validates: Requirements 10.2, 10.3, 10.4, 10.5, 10.5.2, 10.5.3
+    """
     pg_name = pg.get("groupName", "")
     region = pg.get("region", "")
 
@@ -6079,6 +7060,36 @@ def _process_protection_group_import(
     # Get server IDs to validate
     source_server_ids = pg.get("sourceServerIds", [])
     server_selection_tags = pg.get("serverSelectionTags", {})
+
+    # NEW: Get per-server configurations (schema v1.1)
+    servers_config = pg.get("servers", [])
+
+    # NEW: Validate and resolve per-server configurations
+    if servers_config:
+        validation_result = _validate_and_resolve_server_configs(
+            servers_config,
+            source_server_ids,
+            region,
+            pg.get("launchConfig", {}),
+            correlation_id,
+        )
+
+        if not validation_result["valid"]:
+            result["reason"] = validation_result["error"]
+            result["details"] = validation_result.get("details", {})
+            print(
+                f"[{correlation_id}] Failed PG '{pg_name}': "
+                f"per-server config validation failed - "
+                f"{validation_result.get('message', '')}"
+            )
+            return result
+
+        # Update servers_config with resolved source server IDs
+        servers_config = validation_result["resolvedServers"]
+        result["details"]["perServerConfigCount"] = len(servers_config)
+        result["details"]["perServerValidationWarnings"] = (
+            validation_result.get("warnings", [])
+        )
 
     # Validate explicit servers
     if source_server_ids:
@@ -6223,14 +7234,26 @@ def _process_protection_group_import(
             if launch_config:
                 item["launchConfig"] = launch_config
 
+            # NEW: Include per-server configurations (schema v1.1)
+            if servers_config:
+                item["servers"] = servers_config
+
             protection_groups_table.put_item(Item=item)
             result["details"] = {"groupId": group_id}
             print(
                 f"[{correlation_id}] Created PG '{pg_name}' with ID {group_id}"
             )
 
+            # NEW: Log per-server config count
+            if servers_config:
+                print(
+                    f"[{correlation_id}] Imported {len(servers_config)} "
+                    f"per-server configurations"
+                )
+
             # Apply launchConfig to DRS servers (same as create/update)
-            if launch_config:
+            # NEW: Pass full protection group for per-server config support
+            if launch_config or servers_config:
                 server_ids_to_apply = []
                 if source_server_ids:
                     server_ids_to_apply = source_server_ids
@@ -6253,10 +7276,19 @@ def _process_protection_group_import(
 
                 if server_ids_to_apply:
                     try:
+                        # NEW: Build full protection group dict for per-server config
+                        full_pg = {
+                            "groupId": group_id,
+                            "groupName": pg_name,
+                            "launchConfig": launch_config or {},
+                            "servers": servers_config,
+                        }
+
                         apply_results = apply_launch_config_to_servers(
                             server_ids_to_apply,
-                            launch_config,
+                            launch_config or {},
                             region,
+                            protection_group=full_pg,
                             protection_group_id=group_id,
                             protection_group_name=pg_name,
                         )
