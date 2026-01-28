@@ -28,6 +28,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Implementation plan: 14 top-level tasks with 60+ sub-tasks covering backend foundation, API layer, frontend components, and CloudFormation updates
   - Code quality standards: Integrated black (line-length=79), flake8 (max-complexity=10), cfn-lint, and pre-commit hooks throughout all tasks
   - Lambda architecture analysis: Identified data-management-handler as owner of 5 new per-server config endpoints, verified all IAM permissions already exist in UnifiedOrchestrationRole
+- **Task 7.3 - ServerLaunchConfigDialog Tests** (2026-01-28): Comprehensive test suite for per-server configuration dialog
+  - 11 test suites with 40+ test cases covering all dialog functionality
+  - Form rendering tests: Dialog header, server info, all form fields, buttons
+  - Group defaults display tests: Shows default values for subnet, security groups, instance type
+  - Server configuration initialization: Existing config vs new config scenarios
+  - Use Group Defaults toggle: Checkbox behavior, info alert visibility
+  - Static IP input: Value updates, initialization from existing config
+  - Save action: Calls onSave with correct config, enables/disables based on changes
+  - Cancel action: Calls onClose, disabled during save operation
+  - Validation: Respects IP validation state from StaticIPInput
+  - Configuration badges: Shows custom/default indicators for fields
+  - Edge cases: Missing hostname, empty arrays, missing defaults
+  - Form reset: Resets when dialog reopens
+  - Mocked child components (StaticIPInput, ServerConfigBadge) and API client
+  - Requirements validated: 2.1, 3.1, 5.1, 6.1
 - **Task 7.2 - ServerConfigurationTab Component** (2026-01-27): Table view for managing per-server launch configurations
   - Table view of servers in protection group with configuration status
   - Filter dropdown: All Servers, Custom Only, Default Only
