@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EventBridge rules for scheduled DRS orchestration drills'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: drs-orchestration
+    Description: Project name for resource naming
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, test, qa, prod]
+    Description: Deployment environment
+
+  ModularOrchestratorArn:
+    Type: String
+    Description: ARN of the modular orchestrator Step Function
+
+  EnableWeeklyDrill:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable weekly scheduled drill for Wave 1
+
+  WeeklyDrillSchedule:
+    Type: String
+    Default: 'cron(0 6 ? * SAT *)'
+    Description: Cron expression for weekly drill (default Saturday 6 AM UTC)
+
+  DrillTags:
+    Type: String
+    Default: '{"DR-Wave":"1","DR-Enabled":"true"}'
+    Description: JSON string of tags to filter servers for scheduled drills
+
+  MaxWaitMinutes:
+    Type: Number
+    Default: 120
+    Description: Maximum wait time for drill completion in minutes
+
+  # Tag Sync Parameters
+  EnableTagSync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable scheduled tag synchronization
+
+  ApiHandlerFunctionArn:
+    Type: String
+    Description: ARN of the API Handler Lambda function for tag sync
+
+Conditions:
+  EnableWeeklyDrillCondition: !Equals [!Ref EnableWeeklyDrill, 'true']
+  EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
+
+Resources:
+  # IAM Role for EventBridge to invoke Step Functions and Lambda
+  EventBridgeInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-eventbridge-invoke-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeStepFunctions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: !Ref ModularOrchestratorArn
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !Ref ApiHandlerFunctionArn
+
+  # Weekly Drill Rule - Wave 1
+  WeeklyDrillWave1Rule:
+    Type: AWS::Events::Rule
+    Condition: EnableWeeklyDrillCondition
+    Properties:
+      Name: !Sub '${ProjectName}-weekly-drill-wave1-${Environment}'
+      Description: 'Weekly DR drill for Wave 1 servers'
+      ScheduleExpression: !Ref WeeklyDrillSchedule
+      State: ENABLED
+      Targets:
+        - Id: ModularOrchestratorTarget
+          Arn: !Ref ModularOrchestratorArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: !Sub |
+            {
+              "action": "drill",
+              "tags": ${DrillTags},
+              "options": {
+                "isDrill": true,
+                "maxWaitMinutes": ${MaxWaitMinutes},
+                "region": "${AWS::Region}"
+              },
+              "invocationSource": "EVENTBRIDGE",
+              "invocationDetails": {
+                "scheduleRuleName": "${ProjectName}-weekly-drill-wave1-${Environment}",
+                "scheduleExpression": "${WeeklyDrillSchedule}"
+              }
+            }
+
+  # Monthly Full Drill Rule (all waves)
+  MonthlyFullDrillRule:
+    Type: AWS::Events::Rule
+    Condition: EnableWeeklyDrillCondition
+    Properties:
+      Name: !Sub '${ProjectName}-monthly-full-drill-${Environment}'
+      Description: 'Monthly full DR drill for all waves'
+      ScheduleExpression: 'cron(0 6 1 * ? *)'  # First day of month, 6 AM UTC
+      State: DISABLED  # Disabled by default, enable manually
+      Targets:
+        - Id: ModularOrchestratorTarget
+          Arn: !Ref ModularOrchestratorArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: !Sub |
+            {
+              "action": "drill",
+              "tags": {"DR-Enabled": "true"},
+              "options": {
+                "isDrill": true,
+                "maxWaitMinutes": 240,
+                "region": "${AWS::Region}"
+              },
+              "invocationSource": "EVENTBRIDGE",
+              "invocationDetails": {
+                "scheduleRuleName": "${ProjectName}-monthly-full-drill-${Environment}",
+                "scheduleExpression": "cron(0 6 1 * ? *)"
+              }
+            }
+
+  # Event pattern rule for manual trigger via EventBridge
+  ManualTriggerRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-manual-trigger-${Environment}'
+      Description: 'Manual trigger for DRS orchestration via EventBridge'
+      EventPattern:
+        source:
+          - !Sub '${ProjectName}.manual'
+        detail-type:
+          - 'DRS Orchestration Request'
+      State: ENABLED
+      Targets:
+        - Id: ModularOrchestratorTarget
+          Arn: !Ref ModularOrchestratorArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          InputPath: '$.detail'
+
+  # Scheduled Tag Sync Rule
+  TagSyncScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: EnableTagSyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-tag-sync-schedule-${Environment}'
+      Description: 'Scheduled DRS tag synchronization every 1 hour'
+      ScheduleExpression: 'rate(1 hour)'
+      State: ENABLED
+      Targets:
+        - Id: TagSyncTarget
+          Arn: !Ref ApiHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"synch_tags": true, "synch_instance_type": true}'
+
+  # Permission for EventBridge to invoke API Handler for tag sync
+  TagSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableTagSyncCondition
+    Properties:
+      FunctionName: !Ref ApiHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TagSyncScheduleRule.Arn
+
+Outputs:
+  EventBridgeInvokeRoleArn:
+    Description: ARN of the EventBridge invoke role
+    Value: !GetAtt EventBridgeInvokeRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-eventbridge-role-${Environment}'
+
+  WeeklyDrillRuleName:
+    Condition: EnableWeeklyDrillCondition
+    Description: Name of the weekly drill rule
+    Value: !Ref WeeklyDrillWave1Rule
+
+  ManualTriggerRuleName:
+    Description: Name of the manual trigger rule
+    Value: !Ref ManualTriggerRule
+
+  ManualTriggerEventSource:
+    Description: Event source for manual triggers
+    Value: !Sub '${ProjectName}.manual'
+
+  TagSyncScheduleRuleName:
+    Condition: EnableTagSyncCondition
+    Description: Name of the tag sync schedule rule
+    Value: !Ref TagSyncScheduleRule
+
+  TagSyncScheduleExpression:
+    Condition: EnableTagSyncCondition
+    Description: Schedule expression for tag sync
+    Value: 'rate(1 hour)'

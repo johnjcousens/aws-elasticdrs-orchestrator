@@ -1,0 +1,805 @@
+/**
+ * Recovery Plans Page
+ * 
+ * Main page for managing DRS recovery plans.
+ * Displays list of plans with CRUD operations and wave configuration.
+ * PERFORMANCE OPTIMIZED: Memoized column definitions and reduced re-renders.
+ */
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import type { RecoveryPlan } from '../types';
+import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  SpaceBetween,
+  Button,
+  Header,
+  Table,
+  Badge,
+  Pagination,
+  TextFilter,
+  CopyToClipboard,
+  Modal,
+  Alert,
+} from '@cloudscape-design/components';
+import { useCollection } from '@cloudscape-design/collection-hooks';
+import { ContentLayout } from '../components/cloudscape/ContentLayout';
+import { useNotifications } from '../contexts/NotificationContext';
+import { useAccount } from '../contexts/AccountContext';
+import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
+import { PageTransition } from '../components/PageTransition';
+import { PermissionAwareButton, PermissionAwareButtonDropdown } from '../components/PermissionAware';
+import { DRSPermission } from '../types/permissions';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { DateTimeDisplay } from '../components/DateTimeDisplay';
+import { StatusBadge } from '../components/StatusBadge';
+import { RecoveryPlanDialog } from '../components/RecoveryPlanDialog';
+import { LoadingState } from '../components/LoadingState';
+import { ErrorState } from '../components/ErrorState';
+import { useAuth } from '../contexts/AuthContext';
+import apiClient from '../services/api';
+
+/**
+ * Recovery Plans Page Component
+ * 
+ * Manages the display and CRUD operations for recovery plans.
+ */
+export const RecoveryPlansPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { addNotification } = useNotifications();
+  const { getCurrentAccountId } = useAccount();
+  const [plans, setPlans] = useState<RecoveryPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [planToDelete, setPlanToDelete] = useState<RecoveryPlan | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<RecoveryPlan | null>(null);
+  const [executing, setExecuting] = useState(false);
+  const [plansWithInProgressExecution, setPlansWithInProgressExecution] = useState<Set<string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('plansWithInProgressExecution');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [executionProgress, setExecutionProgress] = useState<Map<string, { currentWave: number; totalWaves: number }>>(new Map());
+  
+  // Existing instances confirmation dialog state
+  const [existingInstancesDialogOpen, setExistingInstancesDialogOpen] = useState(false);
+  const [existingInstancesInfo, setExistingInstancesInfo] = useState<{
+    plan: RecoveryPlan;
+    executionType: 'DRILL' | 'RECOVERY';
+    instances: Array<{
+      sourceServerId: string;
+      recoveryInstanceId: string;
+      ec2InstanceId: string;
+      ec2InstanceState: string;
+      sourceExecutionId?: string;
+      sourcePlanName?: string;
+      name?: string;
+      privateIp?: string;
+      publicIp?: string;
+      instanceType?: string;
+      launchTime?: string;
+    }>;
+  } | null>(null);
+  const [checkingInstances, setCheckingInstances] = useState(false);
+
+  // CloudScape collection hooks
+  const { items, filteredItemsCount, collectionProps, filterProps, paginationProps } = useCollection(
+    plans,
+    {
+      filtering: {
+        empty: 'No recovery plans found',
+        noMatch: 'No recovery plans match the filter',
+      },
+      pagination: { pageSize: 10 },
+      sorting: {},
+    }
+  );
+
+  // Track dialog state with ref for interval callbacks
+  const isAnyDialogOpenRef = React.useRef(false);
+  isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen || existingInstancesDialogOpen;
+
+  // Initial fetch on mount only
+  useEffect(() => {
+    fetchPlans();
+    checkInProgressExecutions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
+  useEffect(() => {
+    const plansInterval = setInterval(() => {
+      if (!isAnyDialogOpenRef.current) {
+        fetchPlans();
+      }
+    }, 60000); // Increased from 30s to 60s
+    
+    const executionInterval = setInterval(() => {
+      if (!isAnyDialogOpenRef.current) {
+        checkInProgressExecutions();
+      }
+    }, 10000); // Increased from 5s to 10s
+    
+    return () => {
+      clearInterval(plansInterval);
+      clearInterval(executionInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkInProgressExecutions();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('plansWithInProgressExecution', JSON.stringify([...plansWithInProgressExecution]));
+    } catch (error) {
+      console.warn('Failed to save execution state to sessionStorage:', error);
+    }
+  }, [plansWithInProgressExecution]);
+  
+  const checkInProgressExecutions = useCallback(async () => {
+    try {
+      const accountId = getCurrentAccountId();
+      const response = await apiClient.listExecutions(accountId ? { accountId } : undefined);
+      // Defensive check: ensure items is an array
+      const items = Array.isArray(response?.items) ? response.items : [];
+      const activeStatuses = ['IN_PROGRESS', 'PENDING', 'RUNNING', 'POLLING', 'INITIATED', 'LAUNCHING', 'STARTED', 'PAUSED', 'PAUSE_PENDING', 'CANCELLING'];
+      const activeExecutions = items.filter((exec) => activeStatuses.includes(exec.status.toUpperCase()));
+      const plansWithActiveExecution = new Set<string>(activeExecutions.map((exec) => exec.recoveryPlanId));
+      setPlansWithInProgressExecution(plansWithActiveExecution);
+      
+      const progressMap = new Map<string, { currentWave: number; totalWaves: number }>();
+      activeExecutions.forEach((exec) => {
+        progressMap.set(exec.recoveryPlanId, {
+          currentWave: exec.currentWave || 1,
+          totalWaves: exec.totalWaves || 1,
+        });
+      });
+      setExecutionProgress(progressMap);
+    } catch (err) {
+      console.error('Failed to check in-progress executions:', err);
+    }
+  }, [getCurrentAccountId]);
+
+  const fetchPlans = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const accountId = getCurrentAccountId();
+      const data = await apiClient.listRecoveryPlans(accountId ? { accountId } : undefined);
+      // Defensive check: ensure data is an array
+      setPlans(Array.isArray(data) ? data : []);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load recovery plans';
+      setError(errorMessage);
+      addNotification('error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [getCurrentAccountId, addNotification]);
+
+  const handleDelete = useCallback((plan: RecoveryPlan) => {
+    setPlanToDelete(plan);
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!planToDelete || deleting) return;
+
+    setDeleting(true);
+    try {
+      await apiClient.deleteRecoveryPlan(planToDelete.planId);
+      setPlans(plans.filter(p => p.planId !== planToDelete.planId));
+      addNotification('success', `Recovery plan "${planToDelete.planName}" deleted successfully`);
+      setDeleteDialogOpen(false);
+      setPlanToDelete(null);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete recovery plan';
+      setError(errorMessage);
+      addNotification('error', errorMessage);
+      setDeleteDialogOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  }, [planToDelete, deleting, plans, addNotification]);
+
+  const cancelDelete = useCallback(() => {
+    setDeleteDialogOpen(false);
+    setPlanToDelete(null);
+  }, []);
+
+  const handleCreate = useCallback(() => {
+    setEditingPlan(null);
+    setDialogOpen(true);
+  }, []);
+
+  const handleEdit = useCallback((plan: RecoveryPlan) => {
+    setEditingPlan(plan);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDialogSave = useCallback((savedPlan: RecoveryPlan) => {
+    const action = editingPlan ? 'updated' : 'created';
+    addNotification('success', `Recovery plan "${savedPlan.planName}" ${action} successfully`);
+    fetchPlans();
+  }, [editingPlan, addNotification, fetchPlans]);
+
+  const handleDialogClose = useCallback(() => {
+    setDialogOpen(false);
+    setEditingPlan(null);
+  }, []);
+
+  const handleExecute = useCallback(async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
+    if (executing || checkingInstances) return;
+
+    // For drills, check for existing recovery instances first
+    if (executionType === 'DRILL') {
+      setCheckingInstances(true);
+      try {
+        const result = await apiClient.checkExistingRecoveryInstances(plan.planId);
+        if (result.hasExistingInstances && result.existingInstances.length > 0) {
+          setExistingInstancesInfo({
+            plan,
+            executionType,
+            instances: result.existingInstances
+          });
+          setExistingInstancesDialogOpen(true);
+          setCheckingInstances(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to check existing instances:', err);
+      } finally {
+        setCheckingInstances(false);
+      }
+    }
+
+    await executeRecoveryPlanInternal(plan, executionType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [executing, checkingInstances]);
+
+  const executeRecoveryPlanInternal = useCallback(async (plan: RecoveryPlan, executionType: 'DRILL' | 'RECOVERY') => {
+    setExecuting(true);
+
+    try {
+      const execution = await apiClient.executeRecoveryPlan({
+        planId: plan.planId,  // Use database field name
+        executionType,
+        dryRun: false,
+        executedBy: user?.username || 'unknown'
+      });
+      
+      addNotification('success', `${executionType === 'DRILL' ? 'Drill' : 'Recovery'} execution started`);
+      
+      const updatedSet = new Set(plansWithInProgressExecution);
+      updatedSet.add(plan.planId);
+      setPlansWithInProgressExecution(updatedSet);
+      
+      setTimeout(() => checkInProgressExecutions(), 1000);
+      
+      navigate(`/executions/${execution.executionId}`);
+    } catch (err: unknown) {
+      interface ErrorData {
+        error?: string;
+        limit?: number;
+        currentJobs?: number;
+        maxJobs?: number;
+        totalAfterNew?: number;
+        maxServers?: number;
+        unhealthyCount?: number;
+        unhealthyServers?: unknown[];
+        message?: string;
+      }
+      const error = err as { response?: { data?: ErrorData }; error?: string; message?: string };
+      const errorCode = error.response?.data?.error || error.error;
+      const errorData: ErrorData = error.response?.data || {};
+      
+      switch (errorCode) {
+        case 'WAVE_SIZE_LIMIT_EXCEEDED':
+          addNotification('error', `Wave size limit exceeded. Maximum ${Number(errorData.limit) || 100} servers per wave.`);
+          break;
+        case 'CONCURRENT_JOBS_LIMIT_EXCEEDED':
+          addNotification('error', `DRS concurrent jobs limit reached (${Number(errorData.currentJobs) || 0}/${Number(errorData.maxJobs) || 20}). Wait for active jobs to complete.`);
+          break;
+        case 'SERVERS_IN_JOBS_LIMIT_EXCEEDED':
+          addNotification('error', `Would exceed max servers in active jobs (${Number(errorData.totalAfterNew) || 0}/${Number(errorData.maxServers) || 500}).`);
+          break;
+        case 'UNHEALTHY_SERVER_REPLICATION': {
+          const unhealthyCount = Number(errorData.unhealthyCount) || Number(errorData.unhealthyServers?.length) || 0;
+          addNotification('error', `${unhealthyCount} server(s) have unhealthy replication state and cannot be recovered.`);
+          break;
+        }
+        case 'SERVER_CONFLICT': {
+          // Server is already in use by another execution or DRS job
+          const conflictData = errorData as {
+            conflicts?: Array<{ serverId: string; conflictSource?: string; executionId?: string; jobId?: string }>;
+            conflictingExecutions?: Array<{ executionId: string; planId: string; servers: string[] }>;
+            conflictingDrsJobs?: Array<{ jobId: string; servers: string[] }>;
+            message?: string;
+          };
+          
+          // Build a user-friendly message
+          let conflictMessage = '';
+          
+          if (conflictData.conflictingDrsJobs?.length && !conflictData.conflictingExecutions?.length) {
+            // Only DRS job conflicts
+            const jobCount = conflictData.conflictingDrsJobs.length;
+            const serverCount = conflictData.conflictingDrsJobs.reduce((sum, j) => sum + j.servers.length, 0);
+            conflictMessage = `Cannot start: ${serverCount} server(s) are being processed by ${jobCount} active DRS job(s). Wait for jobs to complete or terminate recovery instances first.`;
+          } else if (conflictData.conflictingExecutions?.length && !conflictData.conflictingDrsJobs?.length) {
+            // Only execution conflicts
+            const execCount = conflictData.conflictingExecutions.length;
+            const serverCount = conflictData.conflictingExecutions.reduce((sum, e) => sum + e.servers.length, 0);
+            conflictMessage = `Cannot start: ${serverCount} server(s) are in ${execCount} active execution(s). Complete or cancel those executions first.`;
+          } else if (conflictData.conflictingExecutions?.length && conflictData.conflictingDrsJobs?.length) {
+            // Both types of conflicts
+            conflictMessage = `Cannot start: Servers are in use by active executions and DRS jobs. Wait for them to complete first.`;
+          } else {
+            // Fallback to API message
+            conflictMessage = conflictData.message || 'Cannot start: One or more servers are already in use by another drill or recovery operation.';
+          }
+          
+          addNotification('error', conflictMessage);
+          break;
+        }
+        default:
+          addNotification('error', error.message || errorData.message || 'Failed to execute recovery plan');
+      }
+    } finally {
+      setExecuting(false);
+    }
+  }, [user, plansWithInProgressExecution, addNotification, navigate, checkInProgressExecutions]);
+
+  const handleExistingInstancesConfirm = useCallback(async () => {
+    if (!existingInstancesInfo) return;
+    
+    setExistingInstancesDialogOpen(false);
+    const { plan, executionType } = existingInstancesInfo;
+    setExistingInstancesInfo(null);
+    
+    await executeRecoveryPlanInternal(plan, executionType);
+  }, [existingInstancesInfo, executeRecoveryPlanInternal]);
+
+  const handleExistingInstancesCancel = useCallback(() => {
+    setExistingInstancesDialogOpen(false);
+    setExistingInstancesInfo(null);
+  }, []);
+
+  // PERFORMANCE OPTIMIZATION: Memoize column definitions to prevent re-creation on every render
+  const columnDefinitions = useMemo(() => [
+    {
+      id: 'actions',
+      header: 'Actions',
+      width: 70,
+      cell: (item: RecoveryPlan) => {
+        const hasInProgressExecution = plansWithInProgressExecution.has(item.planId);
+        const hasServerConflict = item.hasServerConflict === true;
+        const isExecutionDisabled = item.status === 'archived' || executing || hasInProgressExecution || hasServerConflict;
+        
+        return (
+          <PermissionAwareButtonDropdown
+            items={[
+              { 
+                id: 'drill', 
+                text: 'Run Drill', 
+                iconName: 'check', 
+                disabled: isExecutionDisabled,
+                requiredPermission: DRSPermission.START_RECOVERY
+              },
+              { 
+                id: 'recovery', 
+                text: 'Run Recovery', 
+                iconName: 'status-warning', 
+                disabled: true,
+                requiredPermission: DRSPermission.START_RECOVERY
+              },
+              { id: 'divider', text: '-', disabled: true },
+              { 
+                id: 'edit', 
+                text: 'Edit', 
+                iconName: 'edit', 
+                disabled: hasInProgressExecution || hasServerConflict,
+                requiredPermission: DRSPermission.MODIFY_RECOVERY_PLANS
+              },
+              { 
+                id: 'delete', 
+                text: 'Delete', 
+                iconName: 'remove', 
+                disabled: hasInProgressExecution || hasServerConflict,
+                requiredPermission: DRSPermission.DELETE_RECOVERY_PLANS
+              },
+            ]}
+            onItemClick={({ detail }) => {
+              if (detail.id === 'drill') {
+                handleExecute(item, 'DRILL');
+              } else if (detail.id === 'recovery') {
+                handleExecute(item, 'RECOVERY');
+              } else if (detail.id === 'edit') {
+                handleEdit(item);
+              } else if (detail.id === 'delete') {
+                handleDelete(item);
+              }
+            }}
+            expandToViewport
+            variant="icon"
+            ariaLabel="Actions"
+          />
+        );
+      },
+    },
+    {
+      id: 'name',
+      header: 'Plan Name',
+      cell: (item: RecoveryPlan) => (
+        <span title={item.description || ''} style={{ fontWeight: 500 }}>
+          {item.planName}
+        </span>
+      ),
+      sortingField: 'planName',
+    },
+    {
+      id: 'planId',
+      header: 'ID',
+      width: 60,
+      cell: (item: RecoveryPlan) => (
+        <CopyToClipboard
+          copyButtonAriaLabel="Copy Plan ID"
+          copySuccessText="Plan ID copied"
+          copyErrorText="Failed to copy"
+          textToCopy={item.planId}
+          variant="icon"
+        />
+      ),
+    },
+    {
+      id: 'waves',
+      header: 'Waves',
+      width: 90,
+      cell: (item: RecoveryPlan) => {
+        const progress = executionProgress.get(item.planId);
+        if (progress) {
+          const sanitizedCurrentWave = Number(progress.currentWave) || 0;
+          const sanitizedTotalWaves = Number(progress.totalWaves) || 0;
+          return `${sanitizedCurrentWave} of ${sanitizedTotalWaves}`;
+        }
+        return `${Number(item.waves.length) || 0}`;
+      },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      minWidth: 120,
+      cell: (item: RecoveryPlan) => {
+        // Show active execution status if plan has one in progress
+        const hasActiveExecution = plansWithInProgressExecution.has(item.planId);
+        const hasServerConflict = item.hasServerConflict === true;
+        
+        if (hasActiveExecution) {
+          const progress = executionProgress.get(item.planId);
+          if (progress) {
+            return (
+              <SpaceBetween direction="horizontal" size="xs">
+                <StatusBadge status="in_progress" />
+                <span style={{ color: '#5f6b7a', fontSize: '12px' }}>
+                  Wave {progress.currentWave} of {progress.totalWaves}
+                </span>
+              </SpaceBetween>
+            );
+          }
+          return <StatusBadge status="in_progress" />;
+        }
+        
+        // Show last execution status (not "Blocked")
+        // Conflict detection only affects ability to start new executions, not status display
+        const lastStatus = item.lastExecutionStatus;
+        if (!lastStatus) {
+          return <Badge>Not Run</Badge>;
+        }
+        
+        // Show status with conflict indicator if servers are blocked
+        if (hasServerConflict) {
+          return (
+            <SpaceBetween direction="vertical" size="xxxs">
+              <StatusBadge status={lastStatus} />
+              <Box variant="small" color="text-status-warning" fontSize="body-s">
+                ⚠️ Cannot start: servers in use by another plan
+              </Box>
+            </SpaceBetween>
+          );
+        }
+        
+        return <StatusBadge status={lastStatus} />;
+      },
+    },
+    {
+      id: 'lastStart',
+      header: 'Last Start',
+      minWidth: 180,
+      cell: (item: RecoveryPlan) => {
+        if (!item.lastStartTime) {
+          return <span style={{ color: '#5f6b7a' }}>Never</span>;
+        }
+        return <DateTimeDisplay value={item.lastStartTime * 1000} format="full" />;
+      },
+    },
+    {
+      id: 'lastEnd',
+      header: 'Last End',
+      minWidth: 180,
+      cell: (item: RecoveryPlan) => {
+        if (!item.lastEndTime) {
+          return <span style={{ color: '#5f6b7a' }}>Never</span>;
+        }
+        return <DateTimeDisplay value={item.lastEndTime * 1000} format="full" />;
+      },
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      minWidth: 180,
+      cell: (item: RecoveryPlan) => {
+        if (!item.createdDate || (typeof item.createdDate === 'number' && item.createdDate === 0)) {
+          return <span style={{ color: '#5f6b7a' }}>Unknown</span>;
+        }
+        return <DateTimeDisplay value={item.createdDate} format="full" />;
+      },
+    },
+  ], [plansWithInProgressExecution, executionProgress, executing, handleExecute, handleEdit, handleDelete]);
+
+  if (loading) {
+    return <LoadingState message="Loading recovery plans..." />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={fetchPlans} />;
+  }
+
+  return (
+    <PageTransition>
+      <ContentLayout
+        header={
+          <Header
+            variant="h1"
+            description="Define recovery strategies with wave-based orchestration"
+            actions={
+              <PermissionAwareButton 
+                variant="primary" 
+                onClick={handleCreate}
+                requiredPermission={DRSPermission.CREATE_RECOVERY_PLANS}
+                fallbackTooltip="Requires recovery plan creation permission"
+              >
+                Create Plan
+              </PermissionAwareButton>
+            }
+          >
+            Recovery Plans
+          </Header>
+        }
+      >
+        <AccountRequiredWrapper pageName="Recovery Plans">
+          <Table
+            {...collectionProps}
+            columnDefinitions={columnDefinitions}
+            items={items}
+            loading={loading}
+            loadingText="Loading recovery plans"
+            empty={
+              <Box textAlign="center" color="inherit">
+                <b>No recovery plans</b>
+                <Box padding={{ bottom: 's' }} variant="p" color="inherit">
+                  No recovery plans found. Click &apos;Create Plan&apos; above to get started.
+                </Box>
+              </Box>
+            }
+            filter={
+              <TextFilter
+                {...filterProps}
+                filteringPlaceholder="Find recovery plans"
+                countText={`${filteredItemsCount} ${filteredItemsCount === 1 ? 'match' : 'matches'}`}
+              />
+            }
+            pagination={<Pagination {...paginationProps} />}
+            variant="full-page"
+            stickyHeader
+          />
+
+          <ConfirmDialog
+            visible={deleteDialogOpen}
+            title="Delete Recovery Plan"
+            message={
+              planToDelete
+                ? `Are you sure you want to delete "${planToDelete.planName}"? This action cannot be undone.`
+                : ''
+            }
+            confirmLabel="Delete"
+            onConfirm={confirmDelete}
+            onDismiss={cancelDelete}
+            loading={deleting}
+          />
+
+          <RecoveryPlanDialog
+            open={dialogOpen}
+            plan={editingPlan}
+            onClose={handleDialogClose}
+            onSave={handleDialogSave}
+          />
+
+          <Modal
+            visible={existingInstancesDialogOpen}
+            onDismiss={handleExistingInstancesCancel}
+            header="Existing Recovery Instances Found"
+            footer={
+              <Box float="right">
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Button onClick={handleExistingInstancesCancel}>Cancel</Button>
+                  <Button variant="primary" onClick={handleExistingInstancesConfirm}>
+                    Continue Anyway
+                  </Button>
+                </SpaceBetween>
+              </Box>
+            }
+            size="large"
+          >
+            <SpaceBetween size="m">
+              <Alert type="warning" header="Recovery instances already exist">
+                {existingInstancesInfo && existingInstancesInfo.instances.length > 1 ? (
+                  <>
+                    {existingInstancesInfo.instances.length} recovery instances from previous executions are still running. 
+                    Starting a new drill will create additional instances, which may increase costs.
+                  </>
+                ) : (
+                  <>
+                    A recovery instance from a previous execution is still running. 
+                    Starting a new drill will create an additional instance, which may increase costs.
+                  </>
+                )}
+              </Alert>
+              
+              {existingInstancesInfo && (
+                <>
+                  {existingInstancesInfo.instances.length <= 10 ? (
+                    // Show full table for small lists
+                    <Table
+                      columnDefinitions={[
+                        {
+                          id: 'serverId',
+                          header: 'Source Server',
+                          cell: (item) => item.sourceServerId,
+                          width: 200,
+                        },
+                        {
+                          id: 'instanceId',
+                          header: 'EC2 Instance',
+                          cell: (item) => item.ec2InstanceId || 'N/A',
+                          width: 180,
+                        },
+                        {
+                          id: 'state',
+                          header: 'State',
+                          cell: (item) => (
+                            <Badge color={item.ec2InstanceState === 'running' ? 'green' : 'grey'}>
+                              {item.ec2InstanceState}
+                            </Badge>
+                          ),
+                          width: 100,
+                        },
+                        {
+                          id: 'name',
+                          header: 'Name',
+                          cell: (item) => item.name || 'N/A',
+                        },
+                        {
+                          id: 'privateIp',
+                          header: 'Private IP',
+                          cell: (item) => item.privateIp || 'N/A',
+                          width: 120,
+                        },
+                      ]}
+                      items={existingInstancesInfo.instances}
+                      empty="No instances found"
+                      variant="embedded"
+                    />
+                  ) : (
+                    // Show summary for large lists
+                    <SpaceBetween size="s">
+                      <Box>
+                        <strong>Instance Summary:</strong>
+                      </Box>
+                      <Box>
+                        • Total instances: {existingInstancesInfo.instances.length}
+                      </Box>
+                      <Box>
+                        • Running: {existingInstancesInfo.instances.filter(i => i.ec2InstanceState === 'running').length}
+                      </Box>
+                      <Box>
+                        • Other states: {existingInstancesInfo.instances.filter(i => i.ec2InstanceState !== 'running').length}
+                      </Box>
+                      
+                      <details>
+                        <summary style={{ cursor: 'pointer', padding: '8px 0' }}>
+                          <strong>Show all instances</strong>
+                        </summary>
+                        <Box padding={{ top: 's' }}>
+                          <Table
+                            columnDefinitions={[
+                              {
+                                id: 'serverId',
+                                header: 'Source Server',
+                                cell: (item) => item.sourceServerId,
+                                width: 200,
+                              },
+                              {
+                                id: 'instanceId',
+                                header: 'EC2 Instance',
+                                cell: (item) => item.ec2InstanceId || 'N/A',
+                                width: 180,
+                              },
+                              {
+                                id: 'state',
+                                header: 'State',
+                                cell: (item) => (
+                                  <Badge color={item.ec2InstanceState === 'running' ? 'green' : 'grey'}>
+                                    {item.ec2InstanceState}
+                                  </Badge>
+                                ),
+                                width: 100,
+                              },
+                              {
+                                id: 'name',
+                                header: 'Name',
+                                cell: (item) => item.name || 'N/A',
+                              },
+                              {
+                                id: 'privateIp',
+                                header: 'Private IP',
+                                cell: (item) => item.privateIp || 'N/A',
+                                width: 120,
+                              },
+                            ]}
+                            items={existingInstancesInfo.instances}
+                            empty="No instances found"
+                            variant="embedded"
+                            pagination={
+                              existingInstancesInfo.instances.length > 25 ? (
+                                <Pagination
+                                  currentPageIndex={1}
+                                  pagesCount={Math.ceil(existingInstancesInfo.instances.length / 25)}
+                                />
+                              ) : undefined
+                            }
+                          />
+                        </Box>
+                      </details>
+                    </SpaceBetween>
+                  )}
+                </>
+              )}
+              
+              <Box variant="p">
+                You can terminate existing instances from the AWS DRS console before starting a new drill, 
+                or continue to create additional instances.
+              </Box>
+            </SpaceBetween>
+          </Modal>
+        </AccountRequiredWrapper>
+      </ContentLayout>
+    </PageTransition>
+  );
+};

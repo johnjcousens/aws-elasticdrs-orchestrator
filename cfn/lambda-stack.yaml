@@ -1,0 +1,342 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: |
+  DR Orchestration Lambda Functions (AWSM-1103)
+  
+  Deploys Lambda functions for wave-based disaster recovery orchestration:
+  - API Handler: REST API endpoints for Protection Groups, Recovery Plans, Executions
+  - Orchestration Step Functions: Wave execution logic with tag-based discovery
+  - Execution Finder: Queries for active executions (EventBridge scheduled)
+  - Execution Poller: Polls DRS job status and updates wave states
+  - Notification Formatter: Formats events into user-friendly notifications
+  - Frontend Deployer: Builds and deploys React frontend to S3/CloudFront
+  
+  All functions share unified OrchestrationRoleArn for DRS, DynamoDB, SNS, Step Functions access.
+  Supports cross-account DRS operations via IAM role assumption.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: "Project name for resource naming"
+
+  Environment:
+    Type: String
+    Description: "Environment name"
+
+  SourceBucket:
+    Type: String
+    Description: "S3 bucket containing Lambda deployment packages"
+
+  OrchestrationRoleArn:
+    Type: String
+    Description: "ARN of the orchestration role for all Lambda functions (passed from master stack)"
+
+  ProtectionGroupsTableName:
+    Type: String
+    Description: "DynamoDB table name for Protection Groups"
+
+  RecoveryPlansTableName:
+    Type: String
+    Description: "DynamoDB table name for Recovery Plans"
+
+  ExecutionHistoryTableName:
+    Type: String
+    Description: "DynamoDB table name for Execution History"
+
+  TargetAccountsTableName:
+    Type: String
+    Description: "DynamoDB table name for Target Accounts"
+
+  ExecutionNotificationsTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for execution notifications"
+
+  DRSAlertsTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for DRS operational alerts"
+
+  ExecutionPauseTopicArn:
+    Type: String
+    Default: ""
+    Description: "SNS topic ARN for execution pause notifications"
+
+Resources:
+  # Lambda Functions
+  # All functions share unified OrchestrationRoleArn for DRS, DynamoDB, SNS, Step Functions access
+  # Supports cross-account DRS operations via IAM role assumption
+
+  # Data Management Handler for Protection Groups and Recovery Plans CRUD operations
+  # Handles tag resolution, launch configuration, and conflict detection
+  DataManagementHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-data-management-handler-${Environment}"
+      Description: "Data Management handler for Protection Groups and Recovery Plans"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !Ref OrchestrationRoleArn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/data-management-handler.zip"
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Execution Handler for DR operations and lifecycle management
+  # Handles recovery plan execution, pause/resume, termination, and DRS operations
+  ExecutionHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-execution-handler-${Environment}"
+      Description: "Execution handler for DR operations and lifecycle management (v2)"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !Ref OrchestrationRoleArn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/execution-handler.zip"
+      Timeout: 300
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          STATE_MACHINE_ARN: !Sub "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${ProjectName}-orchestration-${Environment}"
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Query Handler for read-only DRS and EC2 infrastructure queries
+  # Handles source servers, quotas, capacity, EC2 resources, and configuration export
+  QueryHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-query-handler-${Environment}"
+      Description: "Query handler for read-only DRS and EC2 infrastructure queries"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !Ref OrchestrationRoleArn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/query-handler.zip"
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          TARGET_ACCOUNTS_TABLE: !Ref TargetAccountsTableName
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Builds and deploys React frontend to S3/CloudFront
+  # Consolidates frontend build and bucket cleanup operations
+  FrontendDeployerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-frontend-deployer-${Environment}"
+      Description: "Builds and deploys React frontend to S3/CloudFront with bucket cleanup"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !Ref OrchestrationRoleArn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/frontend-deployer.zip"
+      Timeout: 900
+      MemorySize: 2048
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # EventBridge schedule for execution polling
+  # Triggers execution-handler to find and poll active executions every 1 minute
+  ExecutionFinderScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${ProjectName}-execution-polling-schedule-${Environment}"
+      Description: "Triggers Execution Handler to find and poll active executions every 1 minute"
+      ScheduleExpression: "rate(1 minute)"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ExecutionHandlerFunction.Arn
+          Id: ExecutionHandlerTarget
+          Input: '{"operation": "find"}'
+
+  # Permission for EventBridge to invoke Execution Handler
+  ExecutionFinderSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExecutionHandlerFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExecutionFinderScheduleRule.Arn
+
+  # Wave-based orchestration logic with tag-based discovery (AWSM-1103)
+  # Implements Archive Pattern: Lambda owns state via OutputPath
+  OrchestrationStepFunctionsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-orch-sf-${Environment}"
+      Description: "Wave-based orchestration with tag-based discovery (AWSM-1103)"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !Ref OrchestrationRoleArn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/orchestration-stepfunctions.zip"
+      Timeout: 120
+      MemorySize: 512
+      Environment:
+        Variables:
+          PROTECTION_GROUPS_TABLE: !Ref ProtectionGroupsTableName
+          RECOVERY_PLANS_TABLE: !Ref RecoveryPlansTableName
+          EXECUTION_HISTORY_TABLE: !Ref ExecutionHistoryTableName
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Formats DRS orchestration events into user-friendly notifications
+  # Routes to appropriate SNS topics based on event type
+  NotificationFormatterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-notification-formatter-${Environment}"
+      Description: "Formats DRS orchestration events into user-friendly notifications"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !Ref OrchestrationRoleArn
+      Code:
+        S3Bucket: !Ref SourceBucket
+        S3Key: "lambda/notification-formatter.zip"
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          EXECUTION_NOTIFICATIONS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+          DRS_ALERTS_TOPIC_ARN: !Ref DRSAlertsTopicArn
+          EXECUTION_PAUSE_TOPIC_ARN: !Ref ExecutionPauseTopicArn
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  DataManagementHandlerFunctionArn:
+    Description: "Data Management Handler Lambda Function ARN"
+    Value: !GetAtt DataManagementHandlerFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DataManagementHandlerArn"
+
+  DataManagementHandlerFunctionName:
+    Description: "Data Management Handler Lambda Function Name"
+    Value: !Ref DataManagementHandlerFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-DataManagementHandlerName"
+
+  ExecutionHandlerFunctionArn:
+    Description: "Execution Handler Lambda Function ARN"
+    Value: !GetAtt ExecutionHandlerFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ExecutionHandlerArn"
+
+  ExecutionHandlerFunctionName:
+    Description: "Execution Handler Lambda Function Name"
+    Value: !Ref ExecutionHandlerFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-ExecutionHandlerName"
+
+  QueryHandlerFunctionArn:
+    Description: "Query Handler Lambda Function ARN"
+    Value: !GetAtt QueryHandlerFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-QueryHandlerArn"
+
+  QueryHandlerFunctionName:
+    Description: "Query Handler Lambda Function Name"
+    Value: !Ref QueryHandlerFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-QueryHandlerName"
+
+  OrchestrationStepFunctionsFunctionArn:
+    Description: "Step Functions Orchestration Lambda Function ARN"
+    Value: !GetAtt OrchestrationStepFunctionsFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-OrchestrationStepFunctionsArn"
+
+  OrchestrationStepFunctionsFunctionName:
+    Description: "Step Functions Orchestration Lambda Function Name"
+    Value: !Ref OrchestrationStepFunctionsFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-OrchestrationStepFunctionsName"
+
+  ExecutionFinderScheduleRuleArn:
+    Description: "EventBridge Schedule Rule ARN for execution polling"
+    Value: !GetAtt ExecutionFinderScheduleRule.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ScheduleRuleArn"
+
+  NotificationFormatterFunctionArn:
+    Description: "Notification Formatter Lambda Function ARN"
+    Value: !GetAtt NotificationFormatterFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-NotificationFormatterArn"
+
+  NotificationFormatterFunctionName:
+    Description: "Notification Formatter Lambda Function Name"
+    Value: !Ref NotificationFormatterFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-NotificationFormatterName"
+
+  FrontendDeployerFunctionArn:
+    Description: "Frontend Deployer Lambda Function ARN (Consolidated)"
+    Value: !GetAtt FrontendDeployerFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendDeployerArn"
+
+  # Legacy output for backward compatibility with existing CloudFormation references
+  # Points to DataManagementHandler since it handles most API endpoints
+  ApiHandlerFunctionArn:
+    Description: "Legacy API Handler ARN (backward compatibility - points to Data Management Handler)"
+    Value: !GetAtt DataManagementHandlerFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiHandlerArn"

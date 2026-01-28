@@ -1,0 +1,7 @@
+{
+  "region": "us-east-1",
+  "userPoolId": "REPLACE_WITH_STACK_OUTPUT",
+  "userPoolClientId": "REPLACE_WITH_STACK_OUTPUT",
+  "identityPoolId": "REPLACE_WITH_STACK_OUTPUT",
+  "apiEndpoint": "REPLACE_WITH_STACK_OUTPUT"
+}

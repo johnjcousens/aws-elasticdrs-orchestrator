@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - API Gateway Core Infrastructure (REST API, Authorizer, Validator)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project for resource naming
+    Default: aws-elasticdrs-orchestrator
+
+  Environment:
+    Type: String
+    Description: Environment name (dev, test, prod)
+    AllowedValues: [dev, test, prod]
+    Default: dev
+
+  UserPoolId:
+    Type: String
+    Description: Cognito User Pool ID for API authorization
+
+  UserPoolClientId:
+    Type: String
+    Description: Cognito User Pool Client ID
+
+  ApiHandlerFunctionArn:
+    Type: String
+    Description: ARN of the API Handler Lambda function
+
+  DeploymentTimestamp:
+    Type: String
+    Description: Timestamp for forcing API Gateway deployments
+    Default: '2025-01-06T00:00:00Z'
+
+Resources:
+  # ============================================================================
+  # REST API DEFINITION
+  # ============================================================================
+  
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${ProjectName}-api-${Environment}'
+      Description: 'REST API for AWS DRS Orchestration with Cognito authentication'
+      EndpointConfiguration:
+        Types: [REGIONAL]
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: execute-api:Invoke
+            Resource: '*'
+            Condition:
+              IpAddress:
+                aws:SourceIp: 
+                  - '0.0.0.0/0'
+      BinaryMediaTypes:
+        - 'application/octet-stream'
+        - 'multipart/form-data'
+
+  # ============================================================================
+  # API GATEWAY AUTHORIZER
+  # ============================================================================
+  
+  ApiAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: !Sub '${ProjectName}-cognito-authorizer-${Environment}'
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      RestApiId: !Ref RestApi
+      ProviderARNs:
+        - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${UserPoolId}'
+
+  # ============================================================================
+  # REQUEST VALIDATOR
+  # ============================================================================
+  
+  ApiRequestValidator:
+    Type: AWS::ApiGateway::RequestValidator
+    Properties:
+      Name: !Sub '${ProjectName}-request-validator-${Environment}'
+      RestApiId: !Ref RestApi
+      ValidateRequestBody: true
+      ValidateRequestParameters: true
+
+  # ============================================================================
+  # LAMBDA PERMISSION FOR API GATEWAY
+  # ============================================================================
+
+  ApiGatewayInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*'
+
+# ============================================================================
+# OUTPUTS
+# ============================================================================
+
+Outputs:
+  RestApiId:
+    Description: 'REST API ID for use in other stacks'
+    Value: !Ref RestApi
+    Export:
+      Name: !Sub '${AWS::StackName}-RestApiId'
+
+  RestApiRootResourceId:
+    Description: 'REST API Root Resource ID for use in other stacks'
+    Value: !GetAtt RestApi.RootResourceId
+    Export:
+      Name: !Sub '${AWS::StackName}-RestApiRootResourceId'
+
+  ApiAuthorizerId:
+    Description: 'API Authorizer ID for use in other stacks'
+    Value: !Ref ApiAuthorizer
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiAuthorizerId'
+
+  ApiRequestValidatorId:
+    Description: 'API Request Validator ID for use in other stacks'
+    Value: !Ref ApiRequestValidator
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiRequestValidatorId'
+
+  ApiHandlerFunctionArn:
+    Description: 'API Handler Function ARN for use in other stacks'
+    Value: !Ref ApiHandlerFunctionArn
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiHandlerFunctionArn'

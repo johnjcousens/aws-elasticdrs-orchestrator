@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS DRS Orchestrator</title>
+    <!-- Load AWS config BEFORE React app loads -->
+    <script>
+      // Create a promise that resolves when config is loaded
+      window.configReady = new Promise(async (resolve) => {
+        try {
+          // Check if we're in local development mode
+          const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          const configFile = isLocalDev ? '/aws-config.local.json' : '/aws-config.json';
+          
+          const response = await fetch(configFile);
+          const config = await response.json();
+          
+          window.AWS_CONFIG = {
+            Auth: {
+              Cognito: {
+                region: config.region,
+                userPoolId: config.userPoolId,
+                userPoolClientId: config.userPoolClientId,
+                identityPoolId: config.identityPoolId,
+                loginWith: {
+                  email: true
+                }
+              }
+            },
+            API: {
+              REST: {
+                DRSOrchestration: {
+                  endpoint: config.apiEndpoint,
+                  region: config.region
+                }
+              }
+            }
+          };
+          
+          resolve();
+        } catch (error) {
+          console.error('❌ Failed to load AWS config:', error);
+          // Resolve anyway so app doesn't hang
+          resolve();
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

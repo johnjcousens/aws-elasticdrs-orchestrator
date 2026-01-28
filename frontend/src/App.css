@@ -1,0 +1,30 @@
+/**
+ * App-level styles for AWS DRS Orchestration
+ * 
+ * Minimal overrides - CloudScape handles most styling.
+ */
+
+/* Ensure full-width layout */
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* AWS Console-style scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f2f3f3;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #879596;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5f6b7a;
+}

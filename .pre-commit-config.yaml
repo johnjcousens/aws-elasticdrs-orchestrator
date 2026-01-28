@@ -1,0 +1,121 @@
+# Pre-commit hooks for AWS DRS Orchestration security scanning
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Python security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: '1.7.5'
+    hooks:
+      - id: bandit
+        name: Bandit Python security scanner
+        args: ['--severity-level', 'medium', '--confidence-level', 'medium']
+        exclude: '^(tests/|venv/|\.venv/)'
+        files: '\.py$'
+
+  # Multi-language security scanning
+  - repo: https://github.com/returntocorp/semgrep
+    rev: 'v1.45.0'
+    hooks:
+      - id: semgrep
+        name: Semgrep security scanner
+        args: ['--config=python.lang.security', '--config=yaml.lang.security', '--error']
+        files: '\.(py|yaml|yml)$'
+        exclude: '^(tests/|node_modules/|\.git/)'
+
+  # Python dependency vulnerability scanning
+  - repo: local
+    hooks:
+      - id: safety
+        name: Safety Python dependency scanner
+        entry: safety
+        args: ['check', '--json']
+        language: system
+        files: 'requirements.*\.txt$'
+        pass_filenames: false
+
+  # CloudFormation security linting
+  - repo: local
+    hooks:
+      - id: cfn-lint
+        name: CloudFormation security linting
+        entry: cfn-lint
+        args: ['--format', 'parseable']
+        language: system
+        files: '\.ya?ml$'
+        exclude: '^(?!cfn/)'
+
+  # Frontend security scanning
+  - repo: local
+    hooks:
+      - id: npm-audit
+        name: NPM security audit
+        entry: bash
+        args: ['-c', 'cd frontend && npm audit --audit-level moderate']
+        language: system
+        files: 'frontend/package.*\.json$'
+        pass_filenames: false
+
+  # ESLint security plugin
+  - repo: local
+    hooks:
+      - id: eslint-security
+        name: ESLint security scanning
+        entry: bash
+        args: ['-c', 'cd frontend && npm run lint -- --ext .ts,.tsx --format compact']
+        language: system
+        files: 'frontend/src/.*\.(ts|tsx)$'
+        pass_filenames: false
+
+  # General code quality (supporting security)
+  - repo: pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-yaml
+        name: Check YAML syntax
+        files: '\.ya?ml$'
+      - id: check-json
+        name: Check JSON syntax
+        files: '\.json$'
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: trailing-whitespace
+        name: Remove trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of files
+
+  # Python code formatting (security-adjacent)
+  - repo: https://github.com/psf/black
+    rev: '23.7.0'
+    hooks:
+      - id: black
+        name: Black Python formatter
+        args: ['--line-length=79']
+        files: '\.py$'
+
+  # Import sorting (security-adjacent)
+  - repo: https://github.com/pycqa/isort
+    rev: '5.12.0'
+    hooks:
+      - id: isort
+        name: isort import sorting
+        args: ['--profile=black', '--line-length=79']
+        files: '\.py$'
+
+# Configuration
+default_stages: [commit]
+fail_fast: false
+minimum_pre_commit_version: '3.0.0'
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [safety, npm-audit, eslint-security]  # Skip system-dependent hooks in CI
+  submodules: false
