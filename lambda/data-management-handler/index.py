@@ -1846,6 +1846,69 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             update_expression += ", launchConfig = :launchConfig"
             expression_values[":launchConfig"] = launch_config
 
+        # Handle servers array - per-server launch template configurations
+        servers_apply_results = None
+        if "servers" in body:
+            servers = body["servers"]
+
+            # Validate servers structure
+            if not isinstance(servers, list):
+                return response(
+                    400,
+                    {
+                        "error": "servers must be an array",
+                        "code": "INVALID_SERVERS",
+                    },
+                )
+
+            # Apply per-server launch configs to AWS DRS/EC2
+            region = existing_group.get("region")
+            if servers and region:
+                # Build updated protection group dict for config merge
+                updated_pg = dict(existing_group)
+                updated_pg["servers"] = servers
+                # Include updated launchConfig if provided
+                if "launchConfig" in body:
+                    updated_pg["launchConfig"] = body["launchConfig"]
+
+                # Extract server IDs from servers array
+                server_ids = [s.get("sourceServerId") for s in servers if s.get("sourceServerId")]
+
+                # Get group name (use updated name if provided, else existing)
+                pg_name = body.get("groupName", existing_group.get("groupName", ""))
+                pg_id = group_id
+
+                # Apply launch configs to AWS (uses config_merge to get effective configs)
+                servers_apply_results = apply_launch_config_to_servers(
+                    server_ids,
+                    updated_pg.get("launchConfig", {}),
+                    region,
+                    protection_group=updated_pg,  # Pass full PG for per-server overrides
+                    protection_group_id=pg_id,
+                    protection_group_name=pg_name,
+                )
+
+                # If any failed, return error (don't save partial state)
+                if servers_apply_results.get("failed", 0) > 0:
+                    failed_servers = [
+                        d
+                        for d in servers_apply_results.get("details", [])
+                        if d.get("status") == "failed"
+                    ]
+                    return response(
+                        400,
+                        {
+                            "error": "Failed to apply per-server launch settings",
+                            "code": "SERVERS_CONFIG_APPLY_FAILED",
+                            "failedServers": failed_servers,
+                            "applyResults": servers_apply_results,
+                        },
+                    )
+
+            # Store servers array in DynamoDB
+            update_expression += ", servers = :servers_array"
+            expression_values[":servers_array"] = servers
+
         print(f"DEBUG: Final update expression: {update_expression}")
         print(f"DEBUG: Expression values: {expression_values}")
 
@@ -1883,6 +1946,10 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             response_item["launchConfigApplyResults"] = (
                 launch_config_apply_results
             )
+
+        # Include servers apply results if applicable
+        if servers_apply_results:
+            response_item["serversApplyResults"] = servers_apply_results
 
         print(f"Updated Protection Group: {group_id}")
         return response(200, response_item)
