@@ -187,6 +187,14 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
    * Handle save button click
    */
   const handleSave = () => {
+    // Final validation check before saving
+    if (staticPrivateIp && staticPrivateIp.trim() !== '') {
+      if (!ipValid) {
+        console.error('[ServerLaunchConfigDialog] Cannot save: IP validation failed');
+        return;
+      }
+    }
+
     // Build configuration object
     const config: ServerLaunchConfig = {
       sourceServerId: server.sourceServerID,
