@@ -7,7 +7,7 @@
  * - Explicit server IDs (legacy) - for backward compatibility
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Modal,
   Box,
@@ -26,11 +26,12 @@ import {
 import { RegionSelector } from './RegionSelector';
 import { ServerDiscoveryPanel } from './ServerDiscoveryPanel';
 import { LaunchConfigSection } from './LaunchConfigSection';
+import { ServerConfigurationTab } from './ServerConfigurationTab';
 import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../types/permissions';
 import { ServerListItem } from './ServerListItem';
 import apiClient from '../services/api';
-import type { ProtectionGroup, ResolvedServer, LaunchConfig } from '../types';
+import type { ProtectionGroup, ResolvedServer, LaunchConfig, ServerLaunchConfig } from '../types';
 
 interface TagEntry {
   key: string;
@@ -63,6 +64,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   const [selectedServerIds, setSelectedServerIds] = useState<string[]>([]);
   const [selectionMode, setSelectionMode] = useState<'tags' | 'servers'>('servers');
   const [launchConfig, setLaunchConfig] = useState<LaunchConfig>({});
+  const [serverConfigs, setServerConfigs] = useState<Map<string, ServerLaunchConfig>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{
@@ -76,6 +78,9 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewServers, setPreviewServers] = useState<ResolvedServer[]>([]);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  
+  // State for active tab
+  const [activeTabId, setActiveTabId] = useState<string>('servers');
 
   const isEditMode = Boolean(group);
 
@@ -122,6 +127,17 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         }
         // Load existing launch config
         setLaunchConfig(group.launchConfig || {});
+        
+        // Load existing per-server configs
+        if (group.servers && group.servers.length > 0) {
+          const configMap = new Map<string, ServerLaunchConfig>();
+          group.servers.forEach(serverConfig => {
+            configMap.set(serverConfig.sourceServerId, serverConfig);
+          });
+          setServerConfigs(configMap);
+        } else {
+          setServerConfigs(new Map());
+        }
       } else {
         // Create mode - reset form
         setName('');
@@ -131,11 +147,13 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         setSelectedServerIds([]);
         setTags([{ key: '', value: '' }]);
         setLaunchConfig({});
+        setServerConfigs(new Map());
       }
       setError(null);
       setValidationErrors({});
       setPreviewServers([]);
       setPreviewError(null);
+      setActiveTabId('servers'); // Reset to first tab
     }
   }, [open, group]);
 
@@ -189,6 +207,41 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       setPreviewLoading(false);
     }
   }, [region, tags]);
+
+  // Handle per-server configuration changes
+  const handleServerConfigChange = (serverId: string, config: ServerLaunchConfig | null) => {
+    const newConfigs = new Map(serverConfigs);
+    if (config === null) {
+      // Remove server config (reset to defaults)
+      newConfigs.delete(serverId);
+    } else {
+      // Update server config
+      newConfigs.set(serverId, config);
+    }
+    setServerConfigs(newConfigs);
+  };
+
+  // Get list of resolved servers for Server Configuration tab
+  const resolvedServers = useMemo(() => {
+    if (selectionMode === 'tags') {
+      return previewServers;
+    } else {
+      // For explicit server selection, we need to fetch server details
+      // For now, return empty array - this will be populated when servers are selected
+      return [];
+    }
+  }, [selectionMode, previewServers]);
+
+  // Count servers with custom configs
+  const customConfigCount = useMemo(() => {
+    let count = 0;
+    serverConfigs.forEach((config) => {
+      if (!config.useGroupDefaults || (config.launchTemplate && Object.keys(config.launchTemplate).length > 0)) {
+        count++;
+      }
+    });
+    return count;
+  }, [serverConfigs]);
 
   const validateForm = (): boolean => {
     const errors: { name?: string; region?: string; tags?: string; servers?: string } = {};
@@ -260,6 +313,11 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
 
       if (hasLaunchConfig) {
         groupData.launchConfig = launchConfig;
+      }
+
+      // Add per-server configs if any exist
+      if (serverConfigs.size > 0) {
+        groupData.servers = Array.from(serverConfigs.values());
       }
 
       if (isEditMode && group) {
@@ -395,177 +453,233 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           />
         </FormField>
 
-        {/* Server Selection - Tabs for different modes */}
+        {/* Main Tabs - Configuration, Server Selection, Server Configurations */}
         {region && (
           <Tabs
-            activeTabId={selectionMode}
+            activeTabId={activeTabId}
             onChange={({ detail }: { detail: { activeTabId: string } }) => {
-              const newMode = detail.activeTabId as 'tags' | 'servers';
-              setSelectionMode(newMode);
-              // Clear the other mode's data when switching
-              if (newMode === 'tags') {
-                setSelectedServerIds([]);
-              } else {
-                setTags([{ key: '', value: '' }]);
-                setPreviewServers([]);
-                setPreviewError(null);
-              }
+              setActiveTabId(detail.activeTabId);
             }}
             tabs={[
               {
                 id: 'servers',
-                label: 'Select Servers',
+                label: 'Server Selection',
                 content: (
-                  <Container
-                    header={
-                      <Header variant="h3" description="Select specific DRS source servers">
-                        Server Selection
-                      </Header>
-                    }
-                  >
-                    <SpaceBetween size="s">
-                      {validationErrors.servers && (
-                        <Alert type="error">{validationErrors.servers}</Alert>
-                      )}
-                      {/* Only render ServerDiscoveryPanel when this tab is active to prevent background API calls */}
-                      {selectionMode === 'servers' && (
-                        <ServerDiscoveryPanel
-                          region={region}
-                          selectedServerIds={selectedServerIds}
-                          onSelectionChange={setSelectedServerIds}
-                          currentProtectionGroupId={group?.protectionGroupId}
-                          pauseRefresh={true}
-                        />
-                      )}
-                    </SpaceBetween>
-                  </Container>
+                  <SpaceBetween size="m">
+                    {/* Server Selection - Tabs for different modes */}
+                    <Tabs
+                      activeTabId={selectionMode}
+                      onChange={({ detail }: { detail: { activeTabId: string } }) => {
+                        const newMode = detail.activeTabId as 'tags' | 'servers';
+                        setSelectionMode(newMode);
+                        // Clear the other mode's data when switching
+                        if (newMode === 'tags') {
+                          setSelectedServerIds([]);
+                        } else {
+                          setTags([{ key: '', value: '' }]);
+                          setPreviewServers([]);
+                          setPreviewError(null);
+                        }
+                      }}
+                      tabs={[
+                        {
+                          id: 'servers',
+                          label: 'Select Servers',
+                          content: (
+                            <Container
+                              header={
+                                <Header variant="h3" description="Select specific DRS source servers">
+                                  Server Selection
+                                </Header>
+                              }
+                            >
+                              <SpaceBetween size="s">
+                                {validationErrors.servers && (
+                                  <Alert type="error">{validationErrors.servers}</Alert>
+                                )}
+                                {/* Only render ServerDiscoveryPanel when this tab is active to prevent background API calls */}
+                                {selectionMode === 'servers' && activeTabId === 'servers' && (
+                                  <ServerDiscoveryPanel
+                                    region={region}
+                                    selectedServerIds={selectedServerIds}
+                                    onSelectionChange={setSelectedServerIds}
+                                    currentProtectionGroupId={group?.protectionGroupId}
+                                    pauseRefresh={true}
+                                  />
+                                )}
+                              </SpaceBetween>
+                            </Container>
+                          ),
+                        },
+                        {
+                          id: 'tags',
+                          label: 'Select by Tags',
+                          content: (
+                            <SpaceBetween size="m">
+                              {/* Tag Editor */}
+                              <Container
+                                header={
+                                  <Header
+                                    variant="h3"
+                                    description="Servers with ALL these tags will be included at execution time"
+                                    actions={
+                                      <Button iconName="add-plus" onClick={(e) => { e.preventDefault(); handleAddTag(); }} disabled={loading}>
+                                        Add Tag
+                                      </Button>
+                                    }
+                                  >
+                                    Server Selection Tags
+                                  </Header>
+                                }
+                              >
+                                <SpaceBetween size="s">
+                                  {validationErrors.tags && (
+                                    <Alert type="error">{validationErrors.tags}</Alert>
+                                  )}
+                                  
+                                  {tags.map((tag, index) => (
+                                    <ColumnLayout key={index} columns={3}>
+                                      <FormField label={index === 0 ? 'Tag Key' : undefined}>
+                                        <Input
+                                          value={tag.key}
+                                          onChange={({ detail }: { detail: { value: string } }) => handleTagChange(index, 'key', detail.value)}
+                                          placeholder="e.g., DR-Application"
+                                          disabled={loading}
+                                        />
+                                      </FormField>
+                                      <FormField label={index === 0 ? 'Tag Value' : undefined}>
+                                        <Input
+                                          value={tag.value}
+                                          onChange={({ detail }: { detail: { value: string } }) => handleTagChange(index, 'value', detail.value)}
+                                          placeholder="e.g., HRP"
+                                          disabled={loading}
+                                        />
+                                      </FormField>
+                                      <Box padding={{ top: index === 0 ? 'l' : 'n' }}>
+                                        <Button
+                                          iconName="close"
+                                          variant="icon"
+                                          onClick={(e) => { e.preventDefault(); handleRemoveTag(index); }}
+                                          disabled={loading || tags.length === 1}
+                                          ariaLabel="Remove tag"
+                                        />
+                                      </Box>
+                                    </ColumnLayout>
+                                  ))}
+                                </SpaceBetween>
+                              </Container>
+
+                              {/* Server Preview for tag-based selection */}
+                              <Container
+                                header={
+                                  <Header
+                                    variant="h3"
+                                    counter={previewServers.length > 0 ? `(${previewServers.length})` : undefined}
+                                    actions={
+                                      <Button
+                                        onClick={(e) => { e.preventDefault(); handlePreview(); }}
+                                        loading={previewLoading}
+                                        disabled={!tags.some(t => t.key.trim() && t.value.trim()) || loading}
+                                        iconName="refresh"
+                                      >
+                                        Preview Servers
+                                      </Button>
+                                    }
+                                  >
+                                    Matching Servers
+                                  </Header>
+                                }
+                              >
+                                {previewError && (
+                                  <Alert type="warning">{previewError}</Alert>
+                                )}
+                                
+                                {previewServers.length > 0 ? (
+                                  <div style={{ maxHeight: '400px', overflow: 'auto', border: '1px solid #e9ebed', borderRadius: '8px' }}>
+                                    {previewServers.map((server) => (
+                                      <ServerListItem
+                                        key={server.sourceServerID}
+                                        server={{
+                                          ...server,
+                                          state: server.state || 'UNKNOWN',
+                                          replicationState: server.replicationState || 'UNKNOWN',
+                                          lagDuration: server.lagDuration || 'UNKNOWN',
+                                          lastSeen: server.lastSeen || '',
+                                          assignedToProtectionGroup: server.assignedToProtectionGroup || null,
+                                          selectable: true // Keep servers looking normal
+                                        }}
+                                        selected={false} // Preview mode - no selection
+                                        onToggle={() => {}} // No-op for preview
+                                        showCheckbox={false} // Hide checkbox for tag preview
+                                      />
+                                    ))}
+                                  </div>
+                                ) : !previewError && (
+                                  <Box textAlign="center" color="text-body-secondary" padding="s">
+                                    <Icon name="search" /> Click "Preview Servers" to see which servers match your tags
+                                  </Box>
+                                )}
+                              </Container>
+                            </SpaceBetween>
+                          ),
+                        },
+                      ]}
+                    />
+                  </SpaceBetween>
                 ),
               },
               {
-                id: 'tags',
-                label: 'Select by Tags',
+                id: 'launch-config',
+                label: 'Launch Settings',
                 content: (
-                  <SpaceBetween size="m">
-                    {/* Tag Editor */}
-                    <Container
-                      header={
-                        <Header
-                          variant="h3"
-                          description="Servers with ALL these tags will be included at execution time"
-                          actions={
-                            <Button iconName="add-plus" onClick={(e) => { e.preventDefault(); handleAddTag(); }} disabled={loading}>
-                              Add Tag
-                            </Button>
-                          }
-                        >
-                          Server Selection Tags
-                        </Header>
-                      }
-                    >
-                      <SpaceBetween size="s">
-                        {validationErrors.tags && (
-                          <Alert type="error">{validationErrors.tags}</Alert>
-                        )}
-                        
-                        {tags.map((tag, index) => (
-                          <ColumnLayout key={index} columns={3}>
-                            <FormField label={index === 0 ? 'Tag Key' : undefined}>
-                              <Input
-                                value={tag.key}
-                                onChange={({ detail }: { detail: { value: string } }) => handleTagChange(index, 'key', detail.value)}
-                                placeholder="e.g., DR-Application"
-                                disabled={loading}
-                              />
-                            </FormField>
-                            <FormField label={index === 0 ? 'Tag Value' : undefined}>
-                              <Input
-                                value={tag.value}
-                                onChange={({ detail }: { detail: { value: string } }) => handleTagChange(index, 'value', detail.value)}
-                                placeholder="e.g., HRP"
-                                disabled={loading}
-                              />
-                            </FormField>
-                            <Box padding={{ top: index === 0 ? 'l' : 'n' }}>
-                              <Button
-                                iconName="close"
-                                variant="icon"
-                                onClick={(e) => { e.preventDefault(); handleRemoveTag(index); }}
-                                disabled={loading || tags.length === 1}
-                                ariaLabel="Remove tag"
-                              />
-                            </Box>
-                          </ColumnLayout>
-                        ))}
-                      </SpaceBetween>
-                    </Container>
-
-                    {/* Server Preview for tag-based selection */}
-                    <Container
-                      header={
-                        <Header
-                          variant="h3"
-                          counter={previewServers.length > 0 ? `(${previewServers.length})` : undefined}
-                          actions={
-                            <Button
-                              onClick={(e) => { e.preventDefault(); handlePreview(); }}
-                              loading={previewLoading}
-                              disabled={!tags.some(t => t.key.trim() && t.value.trim()) || loading}
-                              iconName="refresh"
-                            >
-                              Preview Servers
-                            </Button>
-                          }
-                        >
-                          Matching Servers
-                        </Header>
-                      }
-                    >
-                      {previewError && (
-                        <Alert type="warning">{previewError}</Alert>
-                      )}
-                      
-                      {previewServers.length > 0 ? (
-                        <div style={{ maxHeight: '400px', overflow: 'auto', border: '1px solid #e9ebed', borderRadius: '8px' }}>
-                          {previewServers.map((server) => (
-                            <ServerListItem
-                              key={server.sourceServerID}
-                              server={{
-                                ...server,
-                                state: server.state || 'UNKNOWN',
-                                replicationState: server.replicationState || 'UNKNOWN',
-                                lagDuration: server.lagDuration || 'UNKNOWN',
-                                lastSeen: server.lastSeen || '',
-                                assignedToProtectionGroup: server.assignedToProtectionGroup || null,
-                                selectable: true // Keep servers looking normal
-                              }}
-                              selected={false} // Preview mode - no selection
-                              onToggle={() => {}} // No-op for preview
-                              showCheckbox={false} // Hide checkbox for tag preview
-                            />
-                          ))}
-                        </div>
-                      ) : !previewError && (
-                        <Box textAlign="center" color="text-body-secondary" padding="s">
-                          <Icon name="search" /> Click "Preview Servers" to see which servers match your tags
-                        </Box>
-                      )}
-                    </Container>
-                  </SpaceBetween>
+                  <LaunchConfigSection
+                    region={region}
+                    launchConfig={launchConfig}
+                    onChange={setLaunchConfig}
+                    disabled={loading}
+                    customConfigCount={customConfigCount}
+                  />
+                ),
+              },
+              {
+                id: 'server-configs',
+                label: `Server Configurations${customConfigCount > 0 ? ` (${customConfigCount} custom)` : ''}`,
+                content: (
+                  <Container>
+                    {resolvedServers.length > 0 ? (
+                      <ServerConfigurationTab
+                        protectionGroupId={group?.protectionGroupId || ''}
+                        servers={resolvedServers}
+                        groupDefaults={launchConfig}
+                        serverConfigs={serverConfigs}
+                        region={region}
+                        onConfigChange={handleServerConfigChange}
+                        loading={loading}
+                      />
+                    ) : (
+                      <Box textAlign="center" color="text-body-secondary" padding="xxl">
+                        <SpaceBetween size="s">
+                          <Icon name="status-info" size="large" />
+                          <Box variant="p">
+                            {selectionMode === 'tags' 
+                              ? 'Preview servers in the Server Selection tab to configure per-server settings'
+                              : 'Select servers in the Server Selection tab to configure per-server settings'}
+                          </Box>
+                        </SpaceBetween>
+                      </Box>
+                    )}
+                  </Container>
                 ),
               },
             ]}
           />
         )}
 
-          {/* Launch Settings Section */}
-          {region && (
-            <LaunchConfigSection
-              region={region}
-              launchConfig={launchConfig}
-              onChange={setLaunchConfig}
-              disabled={loading}
-            />
-          )}
+        {!region && (
+          <Alert type="info">
+            Select a region to configure server selection and launch settings
+          </Alert>
+        )}
         </SpaceBetween>
       </form>
     </Modal>

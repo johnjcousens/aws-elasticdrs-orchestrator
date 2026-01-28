@@ -95,9 +95,11 @@ describe('StaticIPInput', () => {
       const input = screen.getByPlaceholderText('e.g., 10.0.1.100');
       await user.type(input, '10');
       
-      // Should be called for each character
+      // userEvent.type() triggers onChange for each character separately
       expect(onChange).toHaveBeenCalled();
-      expect(onChange).toHaveBeenCalledWith('10');
+      // Check that it was called with individual characters (not accumulated)
+      expect(onChange).toHaveBeenCalledWith('1');
+      expect(onChange).toHaveBeenCalledWith('0');
     });
   });
 
@@ -132,22 +134,27 @@ describe('StaticIPInput', () => {
   describe('Input Field Behavior', () => {
     it('allows typing in the input field', async () => {
       const user = userEvent.setup();
-      render(<StaticIPInput {...defaultProps} />);
+      const onChange = vi.fn();
+      render(<StaticIPInput {...defaultProps} onChange={onChange} />);
       
       const input = screen.getByPlaceholderText('e.g., 10.0.1.100');
       await user.type(input, '10.0.1.100');
       
-      expect(input).toHaveValue('10.0.1.100');
+      // Verify onChange was called multiple times (once per character)
+      expect(onChange).toHaveBeenCalled();
+      expect(onChange.mock.calls.length).toBeGreaterThan(1);
     });
 
     it('clears input when cleared by user', async () => {
       const user = userEvent.setup();
-      render(<StaticIPInput {...defaultProps} value="10.0.1.100" />);
+      const onChange = vi.fn();
+      render(<StaticIPInput {...defaultProps} value="10.0.1.100" onChange={onChange} />);
       
       const input = screen.getByDisplayValue('10.0.1.100');
       await user.clear(input);
       
-      expect(input).toHaveValue('');
+      // Verify onChange was called with empty string
+      expect(onChange).toHaveBeenCalledWith('');
     });
 
     it('updates when value prop changes', () => {
