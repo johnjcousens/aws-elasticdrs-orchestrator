@@ -24,6 +24,9 @@ export interface ProtectionGroup {
   // EC2 Launch Configuration - applied to all servers in this group
   launchConfig?: LaunchConfig;
   
+  // Per-server launch configurations (overrides group defaults)
+  servers?: ServerLaunchConfig[];
+  
   createdDate: number;    // Creation timestamp
   lastModifiedDate: number; // Last update timestamp
   accountId?: string;
@@ -48,6 +51,7 @@ export interface LaunchConfig {
   securityGroupIds?: string[];
   instanceProfileName?: string;
   instanceType?: string;
+  staticPrivateIp?: string;  // Static private IP for recovery instance
   
   // DRS Launch Configuration settings
   targetInstanceTypeRightSizingMethod?: 'NONE' | 'BASIC' | 'IN_AWS';
@@ -62,6 +66,38 @@ export interface LaunchConfig {
     osByol?: boolean;
   };
   postLaunchEnabled?: boolean;
+}
+
+// Per-server launch configuration (overrides group defaults)
+export interface ServerLaunchConfig {
+  sourceServerId: string;
+  instanceId?: string;
+  instanceName?: string;
+  tags?: Record<string, string>;
+  useGroupDefaults: boolean;
+  launchTemplate: Partial<LaunchConfig>;
+  effectiveConfig?: LaunchConfig;
+}
+
+// Result from IP validation endpoint
+export interface IPValidationResult {
+  valid: boolean;
+  ip: string;
+  subnetId: string;
+  error?: string;
+  message?: string;
+  details?: {
+    inCidrRange?: boolean;
+    notReserved?: boolean;
+    available?: boolean;
+    subnetCidr?: string;
+  };
+  conflictingResource?: {
+    type: string;
+    id: string;
+    name?: string;
+    isDrsResource?: boolean;
+  };
 }
 
 // EC2 Dropdown option types
