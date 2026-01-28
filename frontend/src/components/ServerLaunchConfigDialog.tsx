@@ -234,14 +234,20 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
   };
 
   /**
-   * Get effective subnet ID (server override or group default)
+   * Get effective subnet ID and CIDR (server override or group default)
    */
-  const getEffectiveSubnetId = (): string => {
-    if (!useGroupDefaults && subnetId) return subnetId;
-    if (useGroupDefaults && serverConfig?.launchTemplate?.subnetId) {
-      return serverConfig.launchTemplate.subnetId;
-    }
-    return groupDefaults.subnetId || '';
+  const getEffectiveSubnet = (): { id: string; cidr?: string } => {
+    const effectiveSubnetId = (!useGroupDefaults && subnetId) 
+      ? subnetId 
+      : (useGroupDefaults && serverConfig?.launchTemplate?.subnetId)
+        ? serverConfig.launchTemplate.subnetId
+        : groupDefaults.subnetId || '';
+    
+    const subnet = subnets.find(s => s.value === effectiveSubnetId);
+    return {
+      id: effectiveSubnetId,
+      cidr: subnet?.cidr,
+    };
   };
 
   /**
@@ -365,7 +371,8 @@ export const ServerLaunchConfigDialog: React.FC<ServerLaunchConfigDialogProps> =
             >
               <StaticIPInput
                 value={staticPrivateIp}
-                subnetId={getEffectiveSubnetId()}
+                subnetId={getEffectiveSubnet().id}
+                subnetCidr={getEffectiveSubnet().cidr}
                 groupId={groupId}
                 serverId={server.sourceServerID}
                 region={region}

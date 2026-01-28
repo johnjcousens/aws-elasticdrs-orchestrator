@@ -26,6 +26,8 @@ export interface StaticIPInputProps {
   value: string;
   /** Target subnet ID for validation */
   subnetId: string;
+  /** Target subnet CIDR for range validation */
+  subnetCidr?: string;
   /** Protection group ID for API validation */
   groupId: string;
   /** Source server ID for API validation */
@@ -51,6 +53,7 @@ type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid' | 'error';
 export const StaticIPInput: React.FC<StaticIPInputProps> = ({
   value,
   subnetId,
+  subnetCidr,
   groupId,
   serverId,
   region,
@@ -82,9 +85,9 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
   }, []);
 
   /**
-   * Validate IPv4 format client-side
+   * Validate IPv4 format and check if within subnet CIDR range
    */
-  const validateIPFormat = (ip: string): { valid: boolean; message?: string } => {
+  const validateIPFormat = (ip: string, cidr?: string): { valid: boolean; message?: string } => {
     if (!ip || ip.trim() === '') {
       return { valid: true }; // Empty is valid (optional field)
     }
@@ -96,7 +99,7 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
     if (!match) {
       return {
         valid: false,
-        message: 'IP address must be in format X.X.X.X (e.g., 10.0.1.100)',
+        message: 'Invalid IP format',
       };
     }
 
@@ -107,7 +110,18 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
       if (num < 0 || num > 255) {
         return {
           valid: false,
-          message: `Invalid IP address: each octet must be between 0 and 255`,
+          message: 'Invalid IP address',
+        };
+      }
+    }
+
+    // If CIDR provided, check if IP is within range
+    if (cidr) {
+      const isInRange = checkIPInCIDR(ip, cidr);
+      if (!isInRange) {
+        return {
+          valid: false,
+          message: `IP not in subnet range ${cidr}`,
         };
       }
     }
@@ -116,21 +130,39 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
   };
 
   /**
+   * Check if IP address is within CIDR range
+   */
+  const checkIPInCIDR = (ip: string, cidr: string): boolean => {
+    const [network, prefixStr] = cidr.split('/');
+    const prefix = parseInt(prefixStr, 10);
+    
+    const ipToNumber = (ipStr: string): number => {
+      return ipStr.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+    };
+    
+    const ipNum = ipToNumber(ip);
+    const networkNum = ipToNumber(network);
+    const mask = (0xFFFFFFFF << (32 - prefix)) >>> 0;
+    
+    return (ipNum & mask) === (networkNum & mask);
+  };
+
+  /**
    * Validate IP availability via API
    */
   const validateIPAvailability = useCallback(
-    async (ip: string): Promise<void> => {
+    async (ip: string, subnetCidr?: string): Promise<void> => {
       if (!ip || !subnetId || !groupId || !serverId || !region) {
         return;
       }
 
-      // Client-side format validation first
-      const formatValidation = validateIPFormat(ip);
+      // Client-side format and CIDR validation first
+      const formatValidation = validateIPFormat(ip, subnetCidr);
       if (!formatValidation.valid) {
         if (isMountedRef.current) {
           setValidationState('invalid');
           setValidationMessage('');
-          setErrorText(formatValidation.message || 'Invalid IP format');
+          setErrorText(formatValidation.message || 'Invalid IP');
           onValidation?.(false, formatValidation.message);
         }
         return;
@@ -139,19 +171,19 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
       // Set validating state
       if (isMountedRef.current) {
         setValidationState('validating');
-        setValidationMessage('Checking IP availability...');
+        setValidationMessage('Checking availability...');
         setErrorText('');
       }
 
       try {
         // TODO: Backend endpoint /validate-ip not yet implemented
-        // Temporarily skip API validation and only use client-side format validation
+        // Temporarily skip API validation and only use client-side validation
         if (!isMountedRef.current) return;
         
         setValidationState('valid');
-        setValidationMessage('Format valid (backend validation pending)');
+        setValidationMessage('');
         setErrorText('');
-        onValidation?.(true, 'Format valid');
+        onValidation?.(true);
         
         /* COMMENTED OUT UNTIL BACKEND ENDPOINT IS IMPLEMENTED
         const result: IPValidationResult = await apiClient.validateStaticIP(
@@ -165,31 +197,14 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
 
         if (result.valid) {
           setValidationState('valid');
-          setValidationMessage(result.message || 'IP is available');
+          setValidationMessage('');
           setErrorText('');
-          onValidation?.(true, result.message);
+          onValidation?.(true);
         } else {
           setValidationState('invalid');
           setValidationMessage('');
-          
-          // Build detailed error message
-          let errorMsg = result.message || 'IP address is not available';
-          
-          if (result.conflictingResource) {
-            const { type, id, name, isDrsResource } = result.conflictingResource;
-            if (isDrsResource && name) {
-              errorMsg = `IP is already assigned to DRS server: ${name}`;
-            } else if (type === 'instance' && name) {
-              errorMsg = `IP is in use by EC2 instance: ${name} (${id})`;
-            } else if (type === 'network-interface') {
-              errorMsg = `IP is in use by network interface: ${id}`;
-            } else if (type === 'reserved') {
-              errorMsg = 'IP is in the subnet reserved range (first 4 or last 1 addresses)';
-            }
-          }
-          
-          setErrorText(errorMsg);
-          onValidation?.(false, errorMsg);
+          setErrorText(result.message || 'IP already in use');
+          onValidation?.(false, result.message);
         }
         */
       } catch (error) {
@@ -198,11 +213,11 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
         console.error('IP validation error:', error);
         setValidationState('error');
         setValidationMessage('');
-        setErrorText('Failed to validate IP address. Please try again.');
+        setErrorText('Validation failed');
         onValidation?.(false, 'Validation failed');
       }
     },
-    [subnetId, groupId, serverId, region, onValidation]
+    [subnetId, subnetCidr, groupId, serverId, region, onValidation]
   );
 
   /**
@@ -224,13 +239,13 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
 
     // If empty, don't validate
     if (!newValue || newValue.trim() === '') {
-      onValidation?.(true, '');
+      onValidation?.(true);
       return;
     }
 
     // Debounce API validation (500ms)
     debounceTimerRef.current = setTimeout(() => {
-      validateIPAvailability(newValue);
+      validateIPAvailability(newValue, subnetCidr);
     }, 500);
   };
 
@@ -245,44 +260,29 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
       }
       
       // Validate immediately when subnet changes
-      validateIPAvailability(value);
+      validateIPAvailability(value, subnetCidr);
     }
-  }, [subnetId, groupId, serverId, region, value, validateIPAvailability]);
+  }, [subnetId, subnetCidr, groupId, serverId, region, value, validateIPAvailability]);
 
   /**
    * Render validation status indicator
    */
   const renderValidationStatus = () => {
-    if (!value || validationState === 'idle') {
+    if (!value || validationState === 'idle' || validationState === 'valid') {
       return null;
     }
 
-    switch (validationState) {
-      case 'validating':
-        return (
-          <Box margin={{ top: 'xs' }}>
-            <StatusIndicator type="loading">
-              {validationMessage}
-            </StatusIndicator>
-          </Box>
-        );
-      case 'valid':
-        return (
-          <Box margin={{ top: 'xs' }}>
-            <StatusIndicator type="success">
-              {validationMessage}
-            </StatusIndicator>
-          </Box>
-        );
-      case 'invalid':
-        // Error text is shown in FormField errorText prop
-        return null;
-      case 'error':
-        // Error text is shown in FormField errorText prop
-        return null;
-      default:
-        return null;
+    if (validationState === 'validating') {
+      return (
+        <Box margin={{ top: 'xs' }}>
+          <StatusIndicator type="loading">
+            {validationMessage}
+          </StatusIndicator>
+        </Box>
+      );
     }
+
+    return null;
   };
 
   return (
