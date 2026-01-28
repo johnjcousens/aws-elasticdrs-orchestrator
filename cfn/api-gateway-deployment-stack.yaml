@@ -1,0 +1,261 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - API Gateway Deployment (Deployment Orchestrator and Stage)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project for resource naming
+    Default: aws-elasticdrs-orchestrator
+
+  Environment:
+    Type: String
+    Description: Environment name (dev, test, prod)
+    AllowedValues: [dev, test, prod]
+    Default: dev
+
+  RestApiId:
+    Type: String
+    Description: REST API ID from Core Stack
+
+Resources:
+  # ============================================================================
+  # DEPLOYMENT ORCHESTRATOR FUNCTION - Enterprise-grade deployment logic
+  # ============================================================================
+  
+  DeploymentOrchestratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-deployment-orchestrator-${Environment}'
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt DeploymentOrchestratorRole.Arn
+      Timeout: 300
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import cfnresponse
+          import time
+          import logging
+          from datetime import datetime
+          
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def lambda_handler(event, context):
+              try:
+                  logger.info(f"Deployment orchestrator started")
+                  
+                  props = event['ResourceProperties']
+                  rest_api_id = props['RestApiId']
+                  stage_name = props['StageName']
+                  timestamp = context.aws_request_id  # Use Lambda request ID as unique identifier
+                  
+                  api_client = boto3.client('apigateway')
+                  
+                  if event['RequestType'] in ['Create', 'Update']:
+                      # Small delay to ensure all methods are fully created
+                      time.sleep(2)
+                      
+                      # Create deployment with timestamp (no stageName in create_deployment)
+                      deployment = api_client.create_deployment(
+                          restApiId=rest_api_id,
+                          description=f"Enterprise deployment {timestamp}"
+                      )
+                      
+                      deployment_id = deployment['id']
+                      region = boto3.Session().region_name
+                      # API endpoint will be available after stage is created
+                      api_endpoint = f"https://{rest_api_id}.execute-api.{region}.amazonaws.com/{stage_name}"
+                      
+                      logger.info(f"Deployment successful: {deployment_id}")
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                          'DeploymentId': deployment_id,
+                          'ApiEndpoint': api_endpoint,
+                          'DeploymentTimestamp': timestamp
+                      })
+                  
+                  elif event['RequestType'] == 'Delete':
+                      logger.info("Delete request - cleanup not required")
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                  
+              except Exception as e:
+                  logger.error(f"Deployment failed: {str(e)}")
+                  logger.error(f"Event: {json.dumps(event)}")
+                  logger.error(f"Context: {context}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {
+                      'Error': str(e)
+                  })
+
+  # ============================================================================
+  # IAM ROLE FOR DEPLOYMENT ORCHESTRATOR
+  # ============================================================================
+  
+  DeploymentOrchestratorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-deployment-orchestrator-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ApiGatewayDeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                Resource: 
+                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/*'
+                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/deployments'
+                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/deployments/*'
+                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/stages/*'
+                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/gatewayresponses'
+                  - !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/gatewayresponses/*'
+
+  # ============================================================================
+  # ENHANCED GATEWAY RESPONSES FOR ENTERPRISE CORS
+  # ============================================================================
+  
+  # Gateway Response for 4XX errors (includes CORS headers)
+  GatewayResponse4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      ResponseTemplates:
+        application/json: '{"message":"Client Error"}'
+
+  # Gateway Response for 5XX errors (includes CORS headers)
+  GatewayResponse5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      ResponseTemplates:
+        application/json: '{"message":"Server Error"}'
+
+  # Additional Gateway Responses for comprehensive CORS coverage
+  GatewayResponseUnauthorized:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResponseType: UNAUTHORIZED
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      ResponseTemplates:
+        application/json: '{"message":"Unauthorized"}'
+
+  GatewayResponseAccessDenied:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResponseType: ACCESS_DENIED
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      ResponseTemplates:
+        application/json: '{"message":"Access Denied"}'
+
+  # ============================================================================
+  # DEPLOYMENT ORCHESTRATOR - Custom Resource for Enterprise Deployment
+  # ============================================================================
+  
+  ApiDeploymentOrchestrator:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn:
+      # CRITICAL: Gateway Responses must exist before deployment
+      - GatewayResponse4XX
+      - GatewayResponse5XX
+      - GatewayResponseUnauthorized
+      - GatewayResponseAccessDenied
+    Properties:
+      ServiceToken: !GetAtt DeploymentOrchestratorFunction.Arn
+      RestApiId: !Ref RestApiId
+      StageName: !Ref Environment
+      StackName: !Ref AWS::StackName
+      # Force update on every stack update using StackId
+      ForceUpdate: !Ref AWS::StackId
+      # Force replacement due to PROJECT_NAME change
+      Version: "2026-01-10-project-name-fix"
+
+  # ============================================================================
+  # API STAGE WITH ENTERPRISE CONFIGURATION
+  # ============================================================================
+  
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    DependsOn: ApiDeploymentOrchestrator
+    Properties:
+      StageName: !Ref Environment
+      RestApiId: !Ref RestApiId
+      DeploymentId: !GetAtt ApiDeploymentOrchestrator.DeploymentId
+      TracingEnabled: true
+      # Enterprise monitoring and throttling
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: true
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 2000
+          ThrottlingRateLimit: 1000
+        - ResourcePath: '/health'
+          HttpMethod: 'GET'
+          ThrottlingBurstLimit: 5000
+          ThrottlingRateLimit: 2000
+      Variables:
+        stackName: !Ref AWS::StackName
+        enterpriseDeployment: 'true'
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DeploymentMethod
+          Value: EnterpriseOrchestrated
+
+# ============================================================================
+# OUTPUTS WITH ENTERPRISE METADATA
+# ============================================================================
+
+Outputs:
+  ApiEndpoint:
+    Description: 'Enterprise API Gateway endpoint URL'
+    Value: !GetAtt ApiDeploymentOrchestrator.ApiEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiEndpoint'
+
+  DeploymentId:
+    Description: 'Enterprise API Gateway Deployment ID'
+    Value: !GetAtt ApiDeploymentOrchestrator.DeploymentId
+    Export:
+      Name: !Sub '${AWS::StackName}-DeploymentId'
+
+  ApiStageArn:
+    Description: 'API Gateway Stage ARN'
+    Value: !Sub 'arn:aws:apigateway:${AWS::Region}::/restapis/${RestApiId}/stages/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiStageArn'

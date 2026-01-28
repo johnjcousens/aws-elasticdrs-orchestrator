@@ -1,0 +1,212 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.3.0 Chrome/140.0.7339.249 Electron/38.7.2 Safari/537.36" version="29.3.0">
+  <diagram name="AWS DRS Orchestration - Comprehensive View" id="aws-drs-orchestration-comprehensive">
+    <mxGraphModel dx="1234" dy="912" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#232F3E;" value="&lt;font style=&quot;font-size: 24px; color: #FF9900;&quot;&gt;AWS DRS Orchestration - Comprehensive Architecture&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px; color: #232F3E;&quot;&gt;Consolidated Execution Handler • 42+ API Endpoints • 5-Role RBAC • Cross-Account Operations&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="1000" x="400" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="aws-cloud" parent="1" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=14;fontStyle=1;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud_alt;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#232F3E;dashed=0;strokeWidth=4;" value="AWS Cloud" vertex="1">
+          <mxGeometry height="1000" width="1600" x="100" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="primary-account" parent="aws-cloud" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=13;fontStyle=1;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_account;strokeColor=#CD2264;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#CD2264;dashed=0;strokeWidth=3;" value="Primary Account - DRS Orchestration Platform" vertex="1">
+          <mxGeometry height="900" width="1200" x="50" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="cloudfront" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudfront;" value="CloudFront" vertex="1">
+          <mxGeometry height="70" width="70" x="100" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="s3-frontend" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;" value="S3 Frontend&lt;br&gt;React + CloudScape" vertex="1">
+          <mxGeometry height="70" width="70" x="100" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="cognito" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#DD344C;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;" value="Cognito&lt;br&gt;JWT + RBAC" vertex="1">
+          <mxGeometry height="70" width="70" x="280" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="api-gateway" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.api_gateway;" value="API Gateway&lt;br&gt;42+ Endpoints" vertex="1">
+          <mxGeometry height="70" width="70" x="460" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="api-handler" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" value="api-handler&lt;br&gt;RBAC Middleware" vertex="1">
+          <mxGeometry height="70" width="70" x="460" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="query-handler" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" value="query-handler&lt;br&gt;(read-only)" vertex="1">
+          <mxGeometry height="70" width="70" x="280" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="data-mgmt-handler" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" value="data-mgmt-handler&lt;br&gt;(CRUD)" vertex="1">
+          <mxGeometry height="70" width="70" x="280" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="orchestration-sf" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" value="orchestration-&lt;br&gt;stepfunctions" vertex="1">
+          <mxGeometry height="70" width="70" x="820" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="notification-formatter" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" value="notification-&lt;br&gt;formatter" vertex="1">
+          <mxGeometry height="70" width="70" x="980" y="680" as="geometry" />
+        </mxCell>
+        <mxCell id="step-functions" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.step_functions;" value="Step Functions&lt;br&gt;waitForTaskToken" vertex="1">
+          <mxGeometry height="70" width="70" x="640" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="dynamodb-pg" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#C925D1;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;" value="DynamoDB&lt;br&gt;protection-groups" vertex="1">
+          <mxGeometry height="70" width="70" x="460" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="dynamodb-rp" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#C925D1;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;" value="DynamoDB&lt;br&gt;recovery-plans" vertex="1">
+          <mxGeometry height="70" width="70" x="460" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="dynamodb-eh" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#C925D1;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.dynamodb;" value="DynamoDB&lt;br&gt;execution-history" vertex="1">
+          <mxGeometry height="70" width="70" x="640" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="eventbridge" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.eventbridge;" value="EventBridge&lt;br&gt;1-min Schedule" vertex="1">
+          <mxGeometry height="70" width="70" x="820" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="cloudwatch" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch;" value="CloudWatch&lt;br&gt;Logs + Metrics" vertex="1">
+          <mxGeometry height="70" width="70" x="820" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="sns-notifications" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sns;" value="SNS Topics&lt;br&gt;(3 topics)" vertex="1">
+          <mxGeometry height="70" width="70" x="820" y="680" as="geometry" />
+        </mxCell>
+        <mxCell id="sns2" edge="1" parent="primary-account" source="sns-notifications" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=2;dashed=1;endArrow=blockThin;endFill=1;fontColor=#E7157B;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#E7157B;" target="notification-formatter" value="Format">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="exec-handler" parent="primary-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.lambda;" value="execution-handler&lt;br&gt;find/poll/finalize" vertex="1">
+          <mxGeometry height="70" width="70" x="980" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="cross-account" parent="aws-cloud" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=13;fontStyle=1;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_account;strokeColor=#CD2264;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#CD2264;dashed=0;strokeWidth=3;" value="Cross-Account Resources" vertex="1">
+          <mxGeometry height="900" width="250" x="1300" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2-recovery-cross" parent="cross-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" value="Recovery EC2&lt;br&gt;Cross-Account" vertex="1">
+          <mxGeometry height="70" width="70" x="104" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2-api" parent="cross-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" value="EC2 API&lt;br&gt;(enrichment)" vertex="1">
+          <mxGeometry height="70" width="70" x="99" y="591" as="geometry" />
+        </mxCell>
+        <mxCell id="6ioO9NTJ-gwpNUWnc-Zt-2" parent="cross-account" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.role;" value="" vertex="1">
+          <mxGeometry height="50" width="88.64" x="60" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="step10" edge="1" parent="cross-account" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7AA116;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#7AA116;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" value="10: DRS API Calls">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="140" as="sourcePoint" />
+            <mxPoint x="130" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="6ioO9NTJ-gwpNUWnc-Zt-3" parent="cross-account" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudendure_disaster_recovery;" value="" vertex="1">
+          <mxGeometry height="73" width="73" x="87" y="277" as="geometry" />
+        </mxCell>
+        <mxCell id="dr-admin" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#DD344C;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;" value="DRSOrchestration&lt;br&gt;Admin" vertex="1">
+          <mxGeometry height="70" width="70" x="20" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="dr-operator" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;" value="DRSRecovery&lt;br&gt;Manager" vertex="1">
+          <mxGeometry height="70" width="70" x="20" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="dr-analyst" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;" value="DRSPlan&lt;br&gt;Manager" vertex="1">
+          <mxGeometry height="70" width="70" x="20" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="dr-viewer" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;" value="DRSOperator" vertex="1">
+          <mxGeometry height="70" width="70" x="20" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="dr-auditor" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;fillColor=#C925D1;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;" value="DRSReadOnly" vertex="1">
+          <mxGeometry height="70" width="70" x="20" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="step1" edge="1" parent="1" source="dr-admin" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#FF9900;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#FF9900;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" target="cloudfront" value="1: HTTPS Request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step2" edge="1" parent="1" source="cloudfront" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7AA116;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#7AA116;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" target="s3-frontend" value="2: Serve React App">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step3" edge="1" parent="1" source="cloudfront" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#DD344C;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#DD344C;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" target="cognito" value="3: Authenticate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step4" edge="1" parent="1" source="cognito" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#E7157B;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" target="api-gateway" value="4: JWT Token">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step5" edge="1" parent="1" source="api-gateway" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#ED7100;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" target="api-handler" value="5: Route Request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step5a" edge="1" parent="1" source="api-gateway" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=2;endArrow=blockThin;endFill=1;fontColor=#ED7100;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#ED7100;" target="query-handler" value="5a: GET">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step5b" edge="1" parent="1" source="api-gateway" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=2;endArrow=blockThin;endFill=1;fontColor=#ED7100;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#ED7100;" target="data-mgmt-handler" value="5b: CRUD">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step6" edge="1" parent="1" source="api-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C925D1;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#C925D1;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" target="dynamodb-pg" value="6: Query Data">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step6a" edge="1" parent="1" source="query-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C925D1;strokeWidth=2;endArrow=blockThin;endFill=1;fontColor=#C925D1;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#C925D1;" target="dynamodb-pg" value="6a: Read">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step6b" edge="1" parent="1" source="data-mgmt-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C925D1;strokeWidth=2;endArrow=blockThin;endFill=1;fontColor=#C925D1;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#C925D1;" target="dynamodb-rp" value="6b: Write">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step6c" edge="1" parent="1" source="api-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C925D1;strokeWidth=2;endArrow=blockThin;endFill=1;fontColor=#C925D1;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#C925D1;" target="dynamodb-eh" value="6c: Track">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step7" edge="1" parent="1" source="api-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#E7157B;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;labelBorderColor=#E7157B;" target="step-functions" value="7: Start SF">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint y="-20" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="step8" edge="1" parent="1" source="step-functions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#ED7100;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" target="orchestration-sf" value="8: Invoke Lambda">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="step9" edge="1" parent="1" source="orchestration-sf" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8C4FFF;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#8C4FFF;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" value="9: Assume Role">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1490" y="305" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="step11" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=4;endArrow=blockThin;endFill=1;fontColor=#ED7100;fontSize=12;fontStyle=1;labelBackgroundColor=#FFFFFF;" value="11: Launch Recovery">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1539" y="520" as="sourcePoint" />
+            <mxPoint x="1539" y="630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="data1" edge="1" parent="1" source="api-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C925D1;strokeWidth=2;endArrow=blockThin;endFill=1;" target="dynamodb-rp" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="data2" edge="1" parent="1" source="api-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C925D1;strokeWidth=2;endArrow=blockThin;endFill=1;" target="dynamodb-eh" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="poll1" edge="1" parent="1" source="eventbridge" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=3;dashed=1;endArrow=blockThin;endFill=1;fontColor=#666666;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#666666;" target="exec-handler" value="1min: find">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="poll3" edge="1" parent="1" source="exec-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=3;dashed=1;endArrow=blockThin;endFill=1;fontColor=#666666;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#666666;" target="cloudwatch" value="Log">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="poll5" edge="1" parent="1" source="exec-handler" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=3;dashed=1;endArrow=blockThin;endFill=1;fontColor=#666666;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#666666;" target="dynamodb-eh" value="Update">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sns1" edge="1" parent="1" source="orchestration-sf" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=2;dashed=1;endArrow=blockThin;endFill=1;fontColor=#E7157B;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#E7157B;" target="sns-notifications" value="Publish">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-10" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lambda-legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF4E6;strokeColor=#FF9900;strokeWidth=2;fontSize=11;align=left;verticalAlign=top;spacingTop=8;spacingLeft=8;" value="&lt;b style=&quot;font-size: 13px;&quot;&gt;Lambda Functions (6 Total)&lt;/b&gt;&#xa;&#xa;&lt;b&gt;1. api-handler&lt;/b&gt;&#xa;• RBAC middleware&#xa;• JWT validation&#xa;• Request routing&#xa;• 42+ API endpoints&#xa;&#xa;&lt;b&gt;2. query-handler&lt;/b&gt;&#xa;• Read-only operations&#xa;• GET endpoints&#xa;• List/describe resources&#xa;&#xa;&lt;b&gt;3. data-mgmt-handler&lt;/b&gt;&#xa;• CRUD operations&#xa;• Create/update/delete&#xa;• Protection groups&#xa;• Recovery plans&#xa;&#xa;&lt;b&gt;4. execution-handler&lt;/b&gt;&#xa;• Find executions (EventBridge)&#xa;• Poll DRS job status&#xa;• Enrich with EC2 data&#xa;• Finalize executions&#xa;• Update execution history&#xa;&#xa;&lt;b&gt;5. orchestration-stepfunctions&lt;/b&gt;&#xa;• Wave-based orchestration&#xa;• DRS API calls&#xa;• Cross-account operations&#xa;• SNS notifications&#xa;&#xa;&lt;b&gt;6. notification-formatter&lt;/b&gt;&#xa;• Format SNS messages&#xa;• Email notifications&#xa;• Execution status updates" vertex="1">
+          <mxGeometry height="530" width="280" x="100" y="1150" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F3FF;strokeColor=#0066CC;strokeWidth=2;fontSize=11;align=left;verticalAlign=top;spacingTop=8;spacingLeft=8;" value="&lt;b style=&quot;font-size: 13px;&quot;&gt;Data Flow Patterns&lt;/b&gt;&#xa;&#xa;&lt;b&gt;Main User Flow (1-11)&lt;/b&gt;&#xa;1. User → CloudFront&#xa;2. CloudFront → S3 Frontend&#xa;3. CloudFront → Cognito (auth)&#xa;4. Cognito → API Gateway (JWT)&#xa;5. API Gateway → Lambdas (5a/5b/5c)&#xa;6. Lambdas → DynamoDB (6a/6b/6c)&#xa;7. api-handler → Step Functions&#xa;8. Step Functions → orchestration-sf&#xa;9. orchestration-sf → DRS (cross-account)&#xa;10. DRS → Recovery EC2&#xa;11. DRS → EC2 Recovery&#xa;&#xa;&lt;b&gt;Async Polling (dashed)&lt;/b&gt;&#xa;• EventBridge → execution-handler (find)&#xa;• execution-handler → DRS (poll status)&#xa;• execution-handler → EC2 API (enrich)&#xa;• execution-handler → CloudWatch (log)&#xa;• execution-handler → DynamoDB (update)&#xa;&#xa;&lt;b&gt;Notifications (dashed)&lt;/b&gt;&#xa;• orchestration-sf → SNS Topics&#xa;• SNS Topics → notification-formatter&#xa;• notification-formatter → Email" vertex="1">
+          <mxGeometry height="390" width="280" x="420" y="1150" as="geometry" />
+        </mxCell>
+        <mxCell id="6ioO9NTJ-gwpNUWnc-Zt-6" connectable="0" parent="1" style="group" value="" vertex="1">
+          <mxGeometry height="240" width="299" x="1200" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="poll4" edge="1" parent="6ioO9NTJ-gwpNUWnc-Zt-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=3;dashed=1;endArrow=blockThin;endFill=1;fontColor=#666666;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#666666;" value="Enrich">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+            <mxPoint x="21.225308641975307" y="74.48275862068965" as="sourcePoint" />
+            <mxPoint x="299" y="240.00000000000003" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="poll2" edge="1" parent="6ioO9NTJ-gwpNUWnc-Zt-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=3;dashed=1;endArrow=blockThin;endFill=1;fontColor=#666666;fontSize=10;fontStyle=0;labelBackgroundColor=#FFFFFF;labelBorderColor=#666666;" value="Poll DRS">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+            <mxPoint y="74.48275862068965" as="sourcePoint" />
+            <mxPoint x="298.53858024691357" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,260 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS DRS Orchestration - API Authentication Stack (Cognito, IAM, SNS)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: 'Project name used for resource naming'
+
+  Environment:
+    Type: String
+    Description: 'Environment name (dev, test, prod)'
+
+  AdminEmail:
+    Type: String
+    Description: 'Email address for initial Cognito admin user'
+
+  ExecutionHistoryTableArn:
+    Type: String
+    Description: 'DynamoDB table ARN for Execution History'
+
+Resources:
+  # ============================================================================
+  # Cognito User Pool with RBAC Support
+  # ============================================================================
+  
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Delete
+    Properties:
+      UserPoolName: !Sub '${ProjectName}-users-${Environment}'
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: given_name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+        - Name: family_name
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      UserPoolTags:
+        Project: !Ref ProjectName
+        Environment: !Ref Environment
+
+  # ============================================================================
+  # RBAC Groups - DRS Orchestration Roles (Aligned with RBAC Middleware)
+  # ============================================================================
+
+  # DRS Orchestration Administrator - Full access to all DRS orchestration features
+  DRSOrchestrationAdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSOrchestrationAdmin
+      Description: 'Full administrative access to DRS Orchestration platform'
+      Precedence: 1
+
+  # DRS Recovery Manager - Can manage recovery plans and execute recoveries
+  DRSRecoveryManagerGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSRecoveryManager
+      Description: 'Can manage recovery plans and execute disaster recovery operations'
+      Precedence: 2
+
+  # DRS Plan Manager - Can create and modify recovery plans but not execute
+  DRSPlanManagerGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSPlanManager
+      Description: 'Can create and modify recovery plans and protection groups'
+      Precedence: 3
+
+  # DRS Operator - Can execute pre-defined recovery plans
+  DRSOperatorGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSOperator
+      Description: 'Can execute existing recovery plans and monitor executions'
+      Precedence: 4
+
+  # DRS Read-Only - View-only access to all DRS orchestration data
+  DRSReadOnlyGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      UserPoolId: !Ref UserPool
+      GroupName: DRSReadOnly
+      Description: 'Read-only access to DRS orchestration data and execution history'
+      Precedence: 5
+
+  # ============================================================================
+  # Cognito User Pool Client
+  # ============================================================================
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub '${ProjectName}-client-${Environment}'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - http://localhost:5173
+        - !Sub 'https://${ProjectName}-${Environment}.s3-website-${AWS::Region}.amazonaws.com'
+      LogoutURLs:
+        - http://localhost:5173
+        - !Sub 'https://${ProjectName}-${Environment}.s3-website-${AWS::Region}.amazonaws.com'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 45
+      IdTokenValidity: 45
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  # ============================================================================
+  # Cognito Identity Pool
+  # ============================================================================
+
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    DeletionPolicy: Delete
+    Properties:
+      IdentityPoolName: !Sub '${ProjectName}_identity_pool_${Environment}'
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+
+  # ============================================================================
+  # IAM Roles for Different User Groups
+  # ============================================================================
+
+  # Authenticated Role for Cognito Identity Pool
+  CognitoAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-cognito-authenticated-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+        - PolicyName: CognitoAuthenticatedPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-sync:*
+                  - cognito-identity:*
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - execute-api:Invoke
+                Resource: '*'
+
+  # ============================================================================
+  # Role Mapping for Identity Pool
+  # ============================================================================
+
+  IdentityPoolRoleMapping:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthenticatedRole.Arn
+
+  # ============================================================================
+  # SNS Topic for Notifications (Removed - use notification-stack.yaml instead)
+  # ============================================================================
+
+Outputs:
+  UserPoolId:
+    Description: 'Cognito User Pool ID'
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: 'Cognito User Pool Client ID'
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  IdentityPoolId:
+    Description: 'Cognito Identity Pool ID'
+    Value: !Ref IdentityPool
+    Export:
+      Name: !Sub '${AWS::StackName}-IdentityPoolId'
+
+  # RBAC Group Information - DRS Orchestration Roles
+  DRSOrchestrationAdminGroupName:
+    Description: 'DRS Orchestration Administrator Group Name'
+    Value: !Ref DRSOrchestrationAdminGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSOrchestrationAdminGroup'
+
+  DRSRecoveryManagerGroupName:
+    Description: 'DRS Recovery Manager Group Name'
+    Value: !Ref DRSRecoveryManagerGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSRecoveryManagerGroup'
+
+  DRSPlanManagerGroupName:
+    Description: 'DRS Plan Manager Group Name'
+    Value: !Ref DRSPlanManagerGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSPlanManagerGroup'
+
+  DRSOperatorGroupName:
+    Description: 'DRS Operator Group Name'
+    Value: !Ref DRSOperatorGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSOperatorGroup'
+
+  DRSReadOnlyGroupName:
+    Description: 'DRS Read-Only Group Name'
+    Value: !Ref DRSReadOnlyGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-DRSReadOnlyGroup'

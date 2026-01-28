@@ -1,0 +1,191 @@
+# =============================================================================
+# AWS DRS Orchestration Platform - .gitignore
+# =============================================================================
+
+# -------------------------
+# IDE AND SYSTEM FILES
+# -------------------------
+.vscode/
+.idea/
+.DS_Store
+*.log
+*.tmp
+*.swp
+*~
+
+# -------------------------
+# AI ASSISTANT CONFIGURATIONS
+# -------------------------
+.amazonq/
+.cline_memory/
+.kiro/memory/
+.kiro/specs/
+history/
+
+# -------------------------
+# SECURITY SENSITIVE
+# -------------------------
+.env
+.env.*
+.env.dev.template
+
+# AWS credentials and sensitive config
+.aws/
+*.pem
+*.key
+
+# Security scanning configs (may contain sensitive paths)
+.bandit
+.cfn_nag_deny_list.yml
+.cfnlintrc.yaml
+.flake8
+.kics-exclude
+.kicsignore
+.secrets.baseline
+
+# -------------------------
+# PYTHON ARTIFACTS
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.coverage
+.pytest_cache/
+*.egg-info/
+dist/
+*.pyc
+
+# -------------------------
+# NODE.JS / FRONTEND ARTIFACTS
+# -------------------------
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json.backup
+
+# Frontend build artifacts
+frontend/build/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+frontend/*.test.ts
+frontend/*.spec.ts
+frontend/.vite/
+
+# -------------------------
+# BUILD ARTIFACTS
+# -------------------------
+build/
+Makefile
+reference-build/
+reports/
+
+# -------------------------
+# LAMBDA ARTIFACTS
+# -------------------------
+lambda/deployment-package.zip
+lambda/lambda-package.zip
+lambda/orchestration-package.zip
+lambda/*/*.zip
+lambda/__pycache__/
+lambda/package/
+lambda/*/test_*.py
+lambda/*/.coverage
+
+# -------------------------
+# DOCUMENTATION (INTERNAL)
+# -------------------------
+docs/PROJECT_STATUS.md
+docs/SESSION_*.md
+docs/archive/
+docs/security/
+docs/logs/
+archive/
+REVIEW/
+
+# Internal documentation - not for public
+docs/HRP/
+docs/confluence/
+docs/user-stories/
+docs/changelog/
+history/
+
+# Root-level internal docs (not in subdirectories)
+/DEPLOYMENT_*.md
+/LAMBDA_*.md
+/VALIDATION_*.md
+/VENV_*.md
+
+# -------------------------
+# TEST ARTIFACTS
+# -------------------------
+tests/
+
+test_results_*.json
+test-screenshots/
+playwright-report/
+playwright.config.ts
+.pytest_cache/
+
+# Test files with sensitive data
+tests/manual/
+tests/fixtures/*.json
+tests/e2e/node_modules/
+
+# -------------------------
+# TEMPORARY / DEBUG FILES
+# -------------------------
+debug-*
+*debug*
+mock-*
+test-*
+*test*.json
+*response*.json
+*-response.json
+.git_commit_msg.txt
+
+# Temporary markdown files
+DRILL_*.md
+MULTI_ACCOUNT_*.md
+CONFLICT_*.md
+EXECUTION_*.md
+FINAL_*.md
+UI_*.md
+CHECKPOINT_*.md
+
+# -------------------------
+# BACKUP FILES
+# -------------------------
+*.backup
+*_backup.*
+*_fresh.*
+*.bkp
+
+# -------------------------
+# CUSTOMER-SPECIFIC / INTERNAL
+# -------------------------
+ssm-documents/
+diagrams/
+
+# Account-specific information
+.env.dev
+.env.test
+
+# Internal scripts that may contain account IDs or sensitive data
+scripts/
+
+# -------------------------
+# MISE TOOL MANAGER
+# -------------------------
+.mise.local.toml
+
+# -------------------------
+# TEMPORARY DIRECTORIES
+# -------------------------
+temp/
+tmp/
+aws_logo.png
+
