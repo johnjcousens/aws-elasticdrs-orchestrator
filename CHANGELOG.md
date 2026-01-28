@@ -28,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Implementation plan: 14 top-level tasks with 60+ sub-tasks covering backend foundation, API layer, frontend components, and CloudFormation updates
   - Code quality standards: Integrated black (line-length=79), flake8 (max-complexity=10), cfn-lint, and pre-commit hooks throughout all tasks
   - Lambda architecture analysis: Identified data-management-handler as owner of 5 new per-server config endpoints, verified all IAM permissions already exist in UnifiedOrchestrationRole
+- **Task 7.4 - ServerConfigurationTab Tests** (2026-01-28): Comprehensive test suite for server configuration table
+  - 10 test suites with 35+ test cases covering all table functionality
+  - Server list rendering: Table display, server names, source IDs, static IPs, DHCP display
+  - Server counts: Total count, custom config count, empty state messages
+  - Badge display: Custom/Default badges for each server, custom fields detection
+  - Filtering: Filter dropdown (All/Custom/Default), filtered counts, empty states
+  - Dialog opening: Opens on Configure click, passes correct server, closes on save/cancel
+  - Reset to defaults: Calls onConfigChange with null, button visibility logic
+  - Bulk configure: Button rendering, enabled/disabled based on server count
+  - Edge cases: Missing hostname, empty configs, various useGroupDefaults states
+  - Custom fields detection: Identifies staticPrivateIp, instanceType, and other overrides
+  - Mocked child components (ServerConfigBadge, ServerLaunchConfigDialog)
+  - Requirements validated: 1.1, 1.2, 1.3, 6.1
 - **Task 7.3 - ServerLaunchConfigDialog Tests** (2026-01-28): Comprehensive test suite for per-server configuration dialog
   - 11 test suites with 40+ test cases covering all dialog functionality
   - Form rendering tests: Dialog header, server info, all form fields, buttons
