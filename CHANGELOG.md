@@ -48,6 +48,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `get_effective_launch_config()`: Merges group defaults with per-server overrides
   - Handles `useGroupDefaults` flag to control override behavior
   - Used by both data-management-handler and orchestration-stepfunctions for consistent config application
+- **ServerConfigBadge Component**: Created reusable React component for displaying server configuration status
+  - Displays "Custom" badge (blue) or "Default" badge (gray) based on configuration state
+  - Popover tooltip shows list of customized fields with user-friendly names
+  - Maps internal field names (staticPrivateIp, instanceType, etc.) to display names
+  - Uses AWS Cloudscape Design System components (Badge, Popover, Box)
+  - Fully typed with TypeScript interface (ServerConfigBadgeProps)
+  - Component tests included in `__tests__/ServerConfigBadge.tests.tsx`
+- **ServerConfigBadge Component**: Created reusable badge component for server configuration status
+  - Displays "Custom" badge (blue) or "Default" badge (gray) based on configuration state
+  - Popover tooltip shows list of customized fields with user-friendly names
+  - Maps internal field names to display names (e.g., `staticPrivateIp` → "Static Private IP")
+  - Integrates with Cloudscape Design System (Badge, Popover, Box components)
+  - Includes unit tests for badge rendering and tooltip content
 - **StaticIPInput Component**: Implemented React component for static private IP address input with real-time validation
   - Client-side IPv4 format validation with octet range checking (0-255)
   - Debounced API validation (500ms) to check IP availability in target subnet
