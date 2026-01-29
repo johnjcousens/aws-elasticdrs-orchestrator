@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-01-28 - Individual Server Launch Template Management with Static IP
+
+### Added
+- **Export Configuration Enhancement**: Export now captures per-server static IP configurations
+  - Exports `servers` array with per-server `launchTemplate` configurations including `staticPrivateIp`
+  - Added server counting logic (`total_server_count`, `servers_with_custom_config`)
+  - Bumped schema version from 1.0 to 1.1
+  - Updated metadata to include `serverCount` and `serversWithCustomConfig`
+  - Fixed query-handler Lambda export_configuration function
+
+### Fixed
+- **Deploy Script Improvements**: Fixed cfn-lint and cfn_nag detection and execution
+  - Use `.venv/bin/cfn-lint` first, fallback to system cfn-lint
+  - Added proper cfn-lint config file flag and quiet format
+  - Direct path detection for cfn_nag_scan in Ruby gems (checks both Ruby 3.3 and 4.0 paths)
+  - Removed timeout workarounds in favor of proper tool detection
+  - Removed stack protection check blocking test environment deployments
+
+### Changed
+- **Configuration Schema**: Updated export schema version to 1.1 to reflect per-server configuration support
+
+---
+
 ## [Unreleased]
 
 ### Repository Maintenance
