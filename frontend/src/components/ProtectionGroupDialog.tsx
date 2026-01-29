@@ -146,7 +146,11 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
         setSelectionMode('servers');
         setSelectedServerIds([]);
         setTags([{ key: '', value: '' }]);
-        setLaunchConfig({});
+        setLaunchConfig({
+          copyTags: true,
+          launchDisposition: 'STARTED',
+          licensing: { osByol: false }
+        });
         setServerConfigs(new Map());
       }
       setError(null);
