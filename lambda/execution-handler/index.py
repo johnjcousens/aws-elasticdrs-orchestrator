@@ -6010,6 +6010,9 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
 
                         # CRITICAL FIX: Map participatingServers to servers field for frontend
                         # Frontend expects wave.servers or wave.serverExecutions for expandable server details
+                        print(
+                            f"DEBUG: Mapping {len(participating_servers)} participatingServers to wave.servers for {wave_name}"
+                        )
                         wave["servers"] = []
                         for server in participating_servers:
                             server_data = {
@@ -6043,6 +6046,9 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 ),
                                 "launchTime": server.get("launchTime", ""),
                             }
+                            print(
+                                f"DEBUG: Server {server_data['sourceServerId']}: recoveryInstanceID={server_data['recoveredInstanceId']}, launchStatus={server_data['launchStatus']}"
+                            )
                             wave["servers"].append(server_data)
 
                     else:
