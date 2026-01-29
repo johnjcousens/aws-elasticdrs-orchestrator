@@ -69,14 +69,6 @@ Parameters:
       - 'true'
       - 'false'
 
-  # Cross-Account Configuration
-  CrossAccountRoleName:
-    Type: String
-    Default: ''
-    Description: 'Optional: Name of pre-existing cross-account IAM role (leave empty to create)'
-    AllowedPattern: '^[a-zA-Z0-9+=,.@_-]*$'
-    ConstraintDescription: 'Must be a valid IAM role name or empty'
-
   # Deployment Flexibility Parameters
   OrchestrationRoleArn:
     Type: String
@@ -537,7 +529,6 @@ Resources:
     UpdateReplacePolicy: Delete
     DependsOn: 
       - DatabaseStack
-      - NotificationStack
     Properties:
       TemplateURL: !Sub 'https://s3.amazonaws.com/${SourceBucket}/cfn/lambda-stack.yaml'
       Parameters:
@@ -552,9 +543,18 @@ Resources:
         RecoveryPlansTableName: !GetAtt DatabaseStack.Outputs.RecoveryPlansTableName
         ExecutionHistoryTableName: !GetAtt DatabaseStack.Outputs.ExecutionHistoryTableName
         TargetAccountsTableName: !GetAtt DatabaseStack.Outputs.TargetAccountsTableName
-        ExecutionNotificationsTopicArn: !GetAtt NotificationStack.Outputs.ExecutionNotificationsTopicArn
-        DRSAlertsTopicArn: !GetAtt NotificationStack.Outputs.DRSOperationalAlertsTopicArn
-        ExecutionPauseTopicArn: !GetAtt NotificationStack.Outputs.ExecutionPauseTopicArn
+        ExecutionNotificationsTopicArn: !If
+          - EnableNotificationsCondition
+          - !GetAtt NotificationStack.Outputs.ExecutionNotificationsTopicArn
+          - !Ref AWS::NoValue
+        DRSAlertsTopicArn: !If
+          - EnableNotificationsCondition
+          - !GetAtt NotificationStack.Outputs.DRSOperationalAlertsTopicArn
+          - !Ref AWS::NoValue
+        ExecutionPauseTopicArn: !If
+          - EnableNotificationsCondition
+          - !GetAtt NotificationStack.Outputs.ExecutionPauseTopicArn
+          - !Ref AWS::NoValue
       Tags:
         - Key: Project
           Value: !Ref ProjectName
@@ -609,8 +609,10 @@ Resources:
           Value: !Ref Environment
 
   # Notification Stack - SNS Topics and EventBridge Rules
+  # Conditionally deployed based on EnableNotifications parameter
   NotificationStack:
     Type: AWS::CloudFormation::Stack
+    Condition: EnableNotificationsCondition
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -619,7 +621,6 @@ Resources:
         ProjectName: !Ref ProjectName
         Environment: !Ref Environment
         AdminEmail: !Ref AdminEmail
-        EnableNotifications: !Ref EnableNotifications
       Tags:
         - Key: Project
           Value: !Ref ProjectName

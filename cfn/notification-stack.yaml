@@ -13,12 +13,6 @@ Parameters:
   AdminEmail:
     Type: String
     Description: 'Admin email for critical notifications'
-  
-  EnableNotifications:
-    Type: String
-    Description: 'Enable email notifications (true/false)'
-    Default: 'true'
-    AllowedValues: ['true', 'false']
 
 Resources:
   # ===== EXECUTION NOTIFICATIONS =====
