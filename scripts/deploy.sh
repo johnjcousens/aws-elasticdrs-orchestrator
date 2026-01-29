@@ -135,6 +135,35 @@ echo -e "${BLUE}  Deploy: $STACK_NAME${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
+# ============================================================================
+# ACTIVATE VIRTUAL ENVIRONMENTS
+# ============================================================================
+
+# Activate Python virtual environment if it exists
+if [ -d ".venv" ]; then
+    echo -e "${BLUE}Activating Python virtual environment...${NC}"
+    source .venv/bin/activate
+    echo -e "${GREEN}✓ Python venv activated${NC}"
+else
+    echo -e "${YELLOW}⚠ Python .venv not found - using system Python${NC}"
+    echo -e "${YELLOW}  Run: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt${NC}"
+fi
+
+# Initialize rbenv for Ruby (if installed)
+if command -v rbenv &> /dev/null; then
+    eval "$(rbenv init - bash 2>/dev/null || rbenv init - zsh 2>/dev/null || true)"
+    if [ -f ".ruby-version" ]; then
+        RUBY_VERSION=$(cat .ruby-version)
+        echo -e "${BLUE}Using Ruby $RUBY_VERSION via rbenv${NC}"
+        echo -e "${GREEN}✓ rbenv initialized${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠ rbenv not found - cfn_nag may not work correctly${NC}"
+    echo -e "${YELLOW}  Run: brew install rbenv && rbenv install 3.3.6 && gem install cfn-nag${NC}"
+fi
+
+echo ""
+
 # Verify AWS credentials
 if ! aws sts get-caller-identity > /dev/null 2>&1; then
     echo -e "${RED}❌ AWS credentials not configured${NC}"
