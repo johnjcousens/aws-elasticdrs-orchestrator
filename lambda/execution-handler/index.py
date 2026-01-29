@@ -6219,6 +6219,14 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                     )
                     # Keep original wave status on error - don't break the UI
 
+            # CRITICAL: Frontend expects serverExecutions field, not servers
+            # Map servers array to serverExecutions for frontend compatibility
+            if "servers" in wave:
+                wave["serverExecutions"] = wave["servers"]
+                print(
+                    f"DEBUG: Mapped {len(wave['servers'])} servers to serverExecutions for wave {wave_name}"
+                )
+
             updated_waves.append(wave)
 
         execution["waves"] = updated_waves
