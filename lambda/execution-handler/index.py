@@ -6014,12 +6014,13 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             f"DEBUG: Mapping {len(participating_servers)} participatingServers to wave.servers for {wave_name}"
                         )
                         wave["servers"] = []
+                        source_server_ids = []
                         for server in participating_servers:
+                            source_server_id = server.get("sourceServerID", "")
+                            source_server_ids.append(source_server_id)
                             server_data = {
-                                "sourceServerId": server.get(
-                                    "sourceServerID", ""
-                                ),
-                                "serverId": server.get("sourceServerID", ""),
+                                "sourceServerId": source_server_id,
+                                "serverId": source_server_id,
                                 "hostname": server.get("hostname", ""),
                                 "serverName": server.get("hostname", ""),
                                 "status": server.get(
@@ -6050,6 +6051,76 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 f"DEBUG: Server {server_data['sourceServerId']}: recoveryInstanceID={server_data['recoveredInstanceId']}, launchStatus={server_data['launchStatus']}"
                             )
                             wave["servers"].append(server_data)
+
+                        # CRITICAL FIX: Query recovery instances separately
+                        # DRS clears recoveryInstanceID from participatingServers after job completes
+                        # We need to query describe_recovery_instances to get the actual recovery instance details
+                        print(
+                            f"DEBUG: Checking if should query recovery instances: source_server_ids={len(source_server_ids)}, drs_status={drs_status}"
+                        )
+                        if source_server_ids and drs_status == "COMPLETED":
+                            try:
+                                print(
+                                    f"DEBUG: Querying recovery instances for {len(source_server_ids)} source servers in {region}"
+                                )
+                                ri_response = drs_client.describe_recovery_instances(
+                                    filters={
+                                        "sourceServerIDs": source_server_ids
+                                    }
+                                )
+                                recovery_instances = ri_response.get(
+                                    "items", []
+                                )
+                                print(
+                                    f"DEBUG: Found {len(recovery_instances)} recovery instances"
+                                )
+
+                                # Map recovery instance data back to servers
+                                for ri in recovery_instances:
+                                    source_server_id = ri.get(
+                                        "sourceServerID", ""
+                                    )
+                                    # Find matching server in wave.servers
+                                    for server in wave["servers"]:
+                                        if (
+                                            server["sourceServerId"]
+                                            == source_server_id
+                                        ):
+                                            # Update with recovery instance details
+                                            server["recoveredInstanceId"] = (
+                                                ri.get("ec2InstanceID", "")
+                                            )
+                                            server["instanceId"] = ri.get(
+                                                "ec2InstanceID", ""
+                                            )
+                                            server["ec2InstanceId"] = ri.get(
+                                                "ec2InstanceID", ""
+                                            )
+                                            server["instanceType"] = ri.get(
+                                                "ec2InstanceType", ""
+                                            )
+                                            server["privateIp"] = (
+                                                ri.get(
+                                                    "recoveryInstanceProperties",
+                                                    {},
+                                                )
+                                                .get(
+                                                    "networkInterfaces", [{}]
+                                                )[0]
+                                                .get("ips", [""])[0]
+                                            )
+                                            server["launchTime"] = ri.get(
+                                                "pointInTimeSnapshotDateTime",
+                                                "",
+                                            )
+                                            print(
+                                                f"DEBUG: Enriched {source_server_id}: instanceId={server['instanceId']}, type={server['instanceType']}, ip={server['privateIp']}"
+                                            )
+                                            break
+                            except Exception as ri_error:
+                                print(
+                                    f"ERROR: Failed to query recovery instances for {wave_name}: {ri_error}"
+                                )
 
                     else:
                         print(
