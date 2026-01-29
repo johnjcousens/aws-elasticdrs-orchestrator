@@ -3,7 +3,7 @@
 Enterprise-grade disaster recovery orchestration for AWS Elastic Disaster Recovery (DRS) with wave-based execution, dependency management, and automated health checks.
 
 [![AWS](https://img.shields.io/badge/AWS-DRS-FF9900?logo=amazonaws)](https://aws.amazon.com/disaster-recovery/)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
 [![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-232F3E?logo=amazonaws)](cfn/)
 [![React](https://img.shields.io/badge/Frontend-React%2019.1.1-61DAFB?logo=react)](frontend/)
 [![Python](https://img.shields.io/badge/Backend-Python%203.12-3776AB?logo=python)](lambda/)
@@ -24,6 +24,14 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 
 ## Key Features
 
+### Per-Server Launch Configuration (v1.1.0)
+- **Individual Server Customization**: Override protection group defaults for specific servers requiring unique launch settings
+- **Static Private IP Assignment**: Assign static IPs to servers with real-time validation against subnet CIDR ranges
+- **Granular Launch Template Control**: Configure subnet, security groups, instance type, licensing, and launch disposition per server
+- **Duplicate IP Prevention**: Built-in validation prevents assigning the same static IP to multiple servers
+- **Flexible Configuration Model**: Servers inherit group defaults by default, override only what's needed
+- **UI-Driven Management**: Configure per-server settings through intuitive Server Configurations tab in Protection Group dialog
+
 ### Wave-Based Orchestration Engine
 - **Step Functions Integration**: `waitForTaskToken` pattern enables pause/resume with up to 1-year timeouts
 - **Dependency Management**: Waves execute only after dependencies complete successfully
@@ -42,7 +50,9 @@ AWS DRS Orchestration enables organizations to orchestrate complex multi-tier ap
 - **Multi-Protection-Group Waves**: Single wave can orchestrate multiple protection groups
 - **Conflict Detection**: Prevents servers from being assigned to multiple groups globally
 - **Launch Configuration Inheritance**: Group-level settings applied to all member servers at execution time
-- **Bulk Launch Settings Management**: Configure subnet, security groups, instance type, and tags once at the Protection Group level
+- **Per-Server Launch Customization**: Override group defaults for individual servers with custom launch settings
+- **Static IP Assignment**: Assign static private IP addresses to specific servers (validated against subnet CIDR)
+- **Granular Launch Control**: Configure subnet, security groups, instance type, licensing, and launch disposition per server
 - **Simplified DRS Management**: Eliminates need to manually configure each server's launch template in the DRS console
 
 ### Comprehensive REST API
