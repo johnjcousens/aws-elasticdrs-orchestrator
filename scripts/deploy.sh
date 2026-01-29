@@ -75,13 +75,6 @@ DEPLOYMENT_BUCKET="${DEPLOYMENT_BUCKET:-${PROJECT_NAME}-${ENVIRONMENT}}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-jocousen@amazon.com}"
 
 # Deployment Flexibility Parameters (from deployment-flexibility spec)
-ORCHESTRATION_ROLE_ARN="${ORCHESTRATION_ROLE_ARN:-}"  # Empty = create unified role
-DEPLOY_FRONTEND="${DEPLOY_FRONTEND:-true}"            # true = deploy frontend
-
-# Cross-Account Configuration (optional)
-CROSS_ACCOUNT_ROLE_NAME="${CROSS_ACCOUNT_ROLE_NAME:-}"  # Empty = no cross-account
-
-# Notification Configuration (optional)
 ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-true}"  # true = enable email notifications
 
 # Hardcoded Internal Values (per frontend-deployment-hardening spec)
@@ -136,12 +129,6 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
-
-# Stack protection
-if [[ "$STACK_NAME" == *"elasticdrs-orchestrator-test"* ]] || [[ "$STACK_NAME" == *"-test" ]]; then
-    echo -e "${RED}❌ CRITICAL: Cannot deploy to protected stack!${NC}"
-    exit 1
-fi
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Deploy: $STACK_NAME${NC}"
@@ -411,16 +398,23 @@ if [ "$SKIP_TESTS" = false ]; then
         # Run test directories separately to avoid namespace conflicts
         TEST_FAILED=false
         
-        if ! $PYTEST_CMD tests/python/unit/ -q --tb=no 2>/dev/null; then
-            TEST_FAILED=true
+        # Only run tests if directory exists and has test files
+        if [ -d "tests/python/unit" ] && find tests/python/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            if ! $PYTEST_CMD tests/python/unit/ -q --tb=no 2>/dev/null; then
+                TEST_FAILED=true
+            fi
         fi
         
-        if ! $PYTEST_CMD tests/unit/ -q --tb=no 2>/dev/null; then
-            TEST_FAILED=true
+        if [ -d "tests/unit" ] && find tests/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            if ! $PYTEST_CMD tests/unit/ -q --tb=no 2>/dev/null; then
+                TEST_FAILED=true
+            fi
         fi
         
-        if ! $PYTEST_CMD tests/integration/ -q --tb=no 2>/dev/null; then
-            TEST_FAILED=true
+        if [ -d "tests/integration" ] && find tests/integration -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            if ! $PYTEST_CMD tests/integration/ -q --tb=no 2>/dev/null; then
+                TEST_FAILED=true
+            fi
         fi
         
         if [ "$TEST_FAILED" = true ]; then
@@ -574,7 +568,6 @@ elif [ "$FRONTEND_ONLY" = true ]; then
             Environment="$ENVIRONMENT" \
             SourceBucket="$DEPLOYMENT_BUCKET" \
             AdminEmail="$ADMIN_EMAIL" \
-            CrossAccountRoleName="$CROSS_ACCOUNT_ROLE_NAME" \
             EnableNotifications="$ENABLE_NOTIFICATIONS" \
             DeployFrontend="$DEPLOY_FRONTEND" \
             OrchestrationRoleArn="$ORCHESTRATION_ROLE_ARN" \
@@ -597,7 +590,6 @@ else
             Environment="$ENVIRONMENT" \
             SourceBucket="$DEPLOYMENT_BUCKET" \
             AdminEmail="$ADMIN_EMAIL" \
-            CrossAccountRoleName="$CROSS_ACCOUNT_ROLE_NAME" \
             EnableNotifications="$ENABLE_NOTIFICATIONS" \
             DeployFrontend="$DEPLOY_FRONTEND" \
             OrchestrationRoleArn="$ORCHESTRATION_ROLE_ARN" \

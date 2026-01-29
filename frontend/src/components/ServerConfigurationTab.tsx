@@ -221,12 +221,11 @@ export const ServerConfigurationTab: React.FC<ServerConfigurationTabProps> = ({
       cell: (item: ResolvedServer) => (
         <SpaceBetween direction="horizontal" size="xs">
           <Button
-            variant="normal"
+            variant="inline-icon"
             onClick={() => handleConfigure(item)}
             iconName="settings"
-          >
-            Configure
-          </Button>
+            ariaLabel="Configure server"
+          />
           {hasCustomConfig(item.sourceServerID) && (
             <Button
               variant="normal"
