@@ -99,9 +99,9 @@ describe('ServerConfigurationTab', () => {
         />
       );
 
-      // There are 3 Configure buttons: 1 "Bulk Configure" in header + 2 per-server "Configure" buttons
-      const configureButtons = screen.getAllByRole('button', { name: /Configure/i });
-      expect(configureButtons).toHaveLength(3);
+      // There are 2 Configure icon buttons (one per server)
+      const configureButtons = screen.getAllByLabelText(/Configure server/i);
+      expect(configureButtons).toHaveLength(2);
     });
   });
 });
