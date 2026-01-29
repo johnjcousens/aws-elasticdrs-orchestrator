@@ -85,6 +85,15 @@ export const StaticIPInput: React.FC<StaticIPInputProps> = ({
   }, []);
 
   /**
+   * Revalidate when subnet CIDR changes
+   */
+  useEffect(() => {
+    if (value && value.trim() !== '' && isCompleteIP(value)) {
+      validateIPAvailability(value, subnetCidr);
+    }
+  }, [subnetCidr, value, validateIPAvailability]);
+
+  /**
    * Check if IP looks complete (has 4 octets)
    */
   const isCompleteIP = (ip: string): boolean => {
