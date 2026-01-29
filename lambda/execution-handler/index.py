@@ -1672,6 +1672,25 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
         # Add termination metadata for frontend button visibility
         execution["terminationMetadata"] = can_terminate_execution(execution)
 
+        # PERFORMANCE OPTIMIZATION: Enrich completed waves with recovery instance data
+        # Only call DRS API for completed waves to populate Instance ID, Type, Private IP, Launch Time
+        # This ensures UI shows recovery instance details without requiring /realtime endpoint
+        try:
+            waves = execution.get("waves", [])
+            has_completed_waves = any(
+                wave.get("status", "").upper() in ["COMPLETED", "FAILED"]
+                for wave in waves
+            )
+
+            if has_completed_waves:
+                print(
+                    f"DEBUG: Enriching completed waves with recovery instance data"
+                )
+                execution = reconcile_wave_status_with_drs(execution)
+        except Exception as enrich_error:
+            print(f"Error enriching completed waves: {enrich_error}")
+            # Don't fail the request if enrichment fails
+
         return response(200, execution)
 
     except Exception as e:
