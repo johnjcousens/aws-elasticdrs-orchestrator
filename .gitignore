@@ -189,3 +189,10 @@ temp/
 tmp/
 aws_logo.png
 
+
+# Kiro IDE settings
+.kiro/settings/
+
+# Exported configuration files
+drs-orchestration-config-*.json
+drs-manifest.json
