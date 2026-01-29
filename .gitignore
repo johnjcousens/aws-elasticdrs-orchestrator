@@ -190,8 +190,12 @@ tmp/
 aws_logo.png
 
 
-# Kiro IDE settings
+# Kiro IDE settings and steering
 .kiro/settings/
+.kiro/steering/
+
+# Hypothesis test artifacts
+.hypothesis/
 
 # Exported configuration files
 drs-orchestration-config-*.json
