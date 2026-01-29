@@ -6075,11 +6075,62 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                     f"DEBUG: Found {len(recovery_instances)} recovery instances"
                                 )
 
+                                # Query EC2 for instance details (instance type, state, etc.)
+                                ec2_instance_ids = [
+                                    ri.get("ec2InstanceID")
+                                    for ri in recovery_instances
+                                    if ri.get("ec2InstanceID")
+                                ]
+                                ec2_instance_map = {}
+                                
+                                if ec2_instance_ids:
+                                    try:
+                                        ec2_client = boto3.client(
+                                            "ec2", region_name=region
+                                        )
+                                        ec2_response = ec2_client.describe_instances(
+                                            InstanceIds=ec2_instance_ids
+                                        )
+                                        
+                                        # Build map of instance ID to instance details
+                                        for reservation in ec2_response.get(
+                                            "Reservations", []
+                                        ):
+                                            for instance in reservation.get(
+                                                "Instances", []
+                                            ):
+                                                instance_id = instance.get(
+                                                    "InstanceId"
+                                                )
+                                                ec2_instance_map[instance_id] = {
+                                                    "instanceType": instance.get(
+                                                        "InstanceType", ""
+                                                    ),
+                                                    "state": instance.get(
+                                                        "State", {}
+                                                    ).get("Name", ""),
+                                                    "launchTime": instance.get(
+                                                        "LaunchTime", ""
+                                                    ),
+                                                }
+                                        print(
+                                            f"DEBUG: Queried EC2 for {len(ec2_instance_map)} instances"
+                                        )
+                                    except Exception as ec2_error:
+                                        print(
+                                            f"ERROR: Failed to query EC2 instances: {ec2_error}"
+                                        )
+
                                 # Map recovery instance data back to servers
                                 for ri in recovery_instances:
                                     source_server_id = ri.get(
                                         "sourceServerID", ""
                                     )
+                                    ec2_instance_id = ri.get("ec2InstanceID", "")
+                                    ec2_details = ec2_instance_map.get(
+                                        ec2_instance_id, {}
+                                    )
+                                    
                                     # Find matching server in wave.servers
                                     for server in wave["servers"]:
                                         if (
@@ -6088,16 +6139,12 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                         ):
                                             # Update with recovery instance details
                                             server["recoveredInstanceId"] = (
-                                                ri.get("ec2InstanceID", "")
+                                                ec2_instance_id
                                             )
-                                            server["instanceId"] = ri.get(
-                                                "ec2InstanceID", ""
-                                            )
-                                            server["ec2InstanceId"] = ri.get(
-                                                "ec2InstanceID", ""
-                                            )
-                                            server["instanceType"] = ri.get(
-                                                "ec2InstanceType", ""
+                                            server["instanceId"] = ec2_instance_id
+                                            server["ec2InstanceId"] = ec2_instance_id
+                                            server["instanceType"] = ec2_details.get(
+                                                "instanceType", ""
                                             )
                                             server["privateIp"] = (
                                                 ri.get(
@@ -6109,9 +6156,12 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                                 )[0]
                                                 .get("ips", [""])[0]
                                             )
-                                            server["launchTime"] = ri.get(
-                                                "pointInTimeSnapshotDateTime",
-                                                "",
+                                            server["launchTime"] = ec2_details.get(
+                                                "launchTime",
+                                                ri.get(
+                                                    "pointInTimeSnapshotDateTime",
+                                                    "",
+                                                ),
                                             )
                                             print(
                                                 f"DEBUG: Enriched {source_server_id}: instanceId={server['instanceId']}, type={server['instanceType']}, ip={server['privateIp']}"
