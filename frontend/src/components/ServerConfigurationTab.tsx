@@ -228,12 +228,11 @@ export const ServerConfigurationTab: React.FC<ServerConfigurationTabProps> = ({
           />
           {hasCustomConfig(item.sourceServerID) && (
             <Button
-              variant="normal"
+              variant="inline-icon"
               onClick={() => handleResetToDefaults(item.sourceServerID)}
               iconName="undo"
-            >
-              Reset
-            </Button>
+              ariaLabel="Reset to defaults"
+            />
           )}
         </SpaceBetween>
       ),
@@ -272,23 +271,14 @@ export const ServerConfigurationTab: React.FC<ServerConfigurationTabProps> = ({
             variant="h2"
             counter={`(${filteredServers.length}/${servers.length})`}
             actions={
-              <SpaceBetween direction="horizontal" size="xs">
-                <Select
-                  selectedOption={filterOption}
-                  onChange={({ detail }) =>
-                    setFilterOption(detail.selectedOption)
-                  }
-                  options={FILTER_OPTIONS}
-                  selectedAriaLabel="Selected"
-                />
-                <Button
-                  variant="primary"
-                  iconName="add-plus"
-                  disabled={servers.length === 0}
-                >
-                  Bulk Configure
-                </Button>
-              </SpaceBetween>
+              <Select
+                selectedOption={filterOption}
+                onChange={({ detail }) =>
+                  setFilterOption(detail.selectedOption)
+                }
+                options={FILTER_OPTIONS}
+                selectedAriaLabel="Selected"
+              />
             }
             description={
               customConfigCount > 0
