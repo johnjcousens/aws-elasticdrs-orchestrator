@@ -83,17 +83,19 @@ npm install
 
 `cfn_nag` is a Ruby gem that scans CloudFormation templates for security issues.
 
-**Note:** cfn_nag currently has compatibility issues with Ruby 4.0+. It works best with Ruby 2.7-3.x.
+**Installation (using rbenv - recommended):**
 
-**Option 1: Skip cfn_nag (Recommended for now)**
-The deploy script treats cfn_nag as optional and will continue without it.
+The project includes a `.ruby-version` file that specifies Ruby 3.3.6. If you have rbenv installed, it will automatically use the correct version.
 
-**Option 2: Install with compatible Ruby version**
 ```bash
-# Install Ruby 3.x via rbenv or rvm
-brew install rbenv
-rbenv install 3.3.0
-rbenv global 3.3.0
+# Install rbenv (if not already installed)
+brew install rbenv ruby-build
+
+# Initialize rbenv in your shell (add to ~/.zshrc for persistence)
+eval "$(rbenv init - zsh)"
+
+# Install Ruby 3.3.6 (already specified in .ruby-version)
+RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl@3) --with-libyaml-dir=$(brew --prefix libyaml)" rbenv install 3.3.6
 
 # Install cfn_nag
 gem install cfn-nag
@@ -102,9 +104,9 @@ gem install cfn-nag
 cfn_nag --version
 ```
 
-**Option 3: Use Docker**
+**Alternative: Use Docker**
 ```bash
-# Run cfn_nag via Docker
+# Run cfn_nag via Docker (no Ruby installation needed)
 docker run --rm -v $(pwd):/templates stelligent/cfn_nag /templates/cfn/
 ```
 
