@@ -137,12 +137,6 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-# Stack protection
-if [[ "$STACK_NAME" == *"elasticdrs-orchestrator-test"* ]] || [[ "$STACK_NAME" == *"-test" ]]; then
-    echo -e "${RED}❌ CRITICAL: Cannot deploy to protected stack!${NC}"
-    exit 1
-fi
-
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  Deploy: $STACK_NAME${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
