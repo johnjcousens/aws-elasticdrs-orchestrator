@@ -6104,6 +6104,15 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                                 instance_id = instance.get(
                                                     "InstanceId"
                                                 )
+                                                launch_time = instance.get(
+                                                    "LaunchTime"
+                                                )
+                                                # Convert datetime to ISO string for JSON serialization
+                                                if launch_time:
+                                                    launch_time = (
+                                                        launch_time.isoformat()
+                                                    )
+
                                                 ec2_instance_map[
                                                     instance_id
                                                 ] = {
@@ -6113,9 +6122,8 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                                     "state": instance.get(
                                                         "State", {}
                                                     ).get("Name", ""),
-                                                    "launchTime": instance.get(
-                                                        "LaunchTime", ""
-                                                    ),
+                                                    "launchTime": launch_time
+                                                    or "",
                                                 }
                                         print(
                                             f"DEBUG: Queried EC2 for {len(ec2_instance_map)} instances"
