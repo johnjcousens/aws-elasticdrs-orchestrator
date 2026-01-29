@@ -206,6 +206,141 @@ aws cloudformation deploy \
 
 **See [Deployment Flexibility Guide](docs/guides/DEPLOYMENT_FLEXIBILITY_GUIDE.md) for complete documentation.**
 
+## Configuration Example
+
+### Sample Recovery Plan with Per-Server Launch Configuration
+
+Below is an example configuration showing a 3-tier application recovery plan with per-server launch customization:
+
+```json
+{
+  "schemaVersion": "1.1",
+  "exportedAt": "2026-01-29T02:47:18Z",
+  "sourceRegion": "us-east-1",
+  "sourceAccount": "123456789012",
+  "protectionGroups": [
+    {
+      "groupName": "DatabaseServersWaveGroup",
+      "description": "Database tier servers",
+      "region": "us-west-2",
+      "sourceServerIds": ["s-db001", "s-db002"],
+      "launchConfig": {
+        "subnetId": "subnet-db123456",
+        "securityGroupIds": ["sg-db123456"],
+        "instanceType": "r7a.large",
+        "copyTags": true,
+        "launchDisposition": "STARTED",
+        "licensing": { "osByol": false }
+      },
+      "servers": [
+        {
+          "sourceServerId": "s-db001",
+          "useGroupDefaults": false,
+          "launchTemplate": {
+            "subnetId": "subnet-db-az1",
+            "staticPrivateIp": "10.100.56.13",
+            "securityGroupIds": ["sg-db123456"],
+            "instanceType": "r7a.large"
+          }
+        },
+        {
+          "sourceServerId": "s-db002",
+          "useGroupDefaults": false,
+          "launchTemplate": {
+            "subnetId": "subnet-db-az2",
+            "staticPrivateIp": "10.100.56.132",
+            "securityGroupIds": ["sg-db123456"],
+            "instanceType": "r7a.large"
+          }
+        }
+      ]
+    },
+    {
+      "groupName": "ApplicationServersWaveGroup",
+      "description": "Application tier servers",
+      "region": "us-west-2",
+      "sourceServerIds": ["s-app001", "s-app002"],
+      "launchConfig": {
+        "subnetId": "subnet-app123456",
+        "securityGroupIds": ["sg-app123456"],
+        "instanceType": "c6a.large",
+        "copyTags": true,
+        "launchDisposition": "STARTED",
+        "licensing": { "osByol": false }
+      },
+      "servers": [
+        {
+          "sourceServerId": "s-app001",
+          "useGroupDefaults": false,
+          "launchTemplate": {
+            "subnetId": "subnet-app-az1",
+            "staticPrivateIp": "10.100.216.147",
+            "instanceType": "c6a.large"
+          }
+        },
+        {
+          "sourceServerId": "s-app002",
+          "useGroupDefaults": false,
+          "launchTemplate": {
+            "subnetId": "subnet-app-az2",
+            "staticPrivateIp": "10.100.216.65",
+            "instanceType": "r6a.large"
+          }
+        }
+      ]
+    },
+    {
+      "groupName": "WebServersWaveGroup",
+      "description": "Web tier servers",
+      "region": "us-west-2",
+      "sourceServerIds": ["s-web001", "s-web002"],
+      "launchConfig": {
+        "launchDisposition": "STARTED",
+        "copyTags": true,
+        "licensing": { "osByol": false }
+      }
+    }
+  ],
+  "recoveryPlans": [
+    {
+      "planName": "3TierFullStackRecoveryPlan",
+      "description": "Database → Application → Web recovery sequence",
+      "waves": [
+        {
+          "waveName": "Wave 1 - Database Tier",
+          "waveNumber": 0,
+          "protectionGroupIds": ["db-group-id"],
+          "pauseBeforeWave": false,
+          "dependsOnWaves": []
+        },
+        {
+          "waveName": "Wave 2 - Application Tier",
+          "waveNumber": 1,
+          "protectionGroupIds": ["app-group-id"],
+          "pauseBeforeWave": true,
+          "dependsOnWaves": [0]
+        },
+        {
+          "waveName": "Wave 3 - Web Tier",
+          "waveNumber": 2,
+          "protectionGroupIds": ["web-group-id"],
+          "pauseBeforeWave": true,
+          "dependsOnWaves": [1]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Key Configuration Features:**
+- **Schema Version 1.1**: Includes per-server launch configuration support
+- **Protection Group Defaults**: Database and Application groups define default launch settings
+- **Per-Server Overrides**: Individual servers override subnet and static IP assignments
+- **Static IP Assignment**: Database and Application servers use static IPs validated against subnet CIDR
+- **Wave Dependencies**: Application tier waits for Database, Web tier waits for Application
+- **Manual Validation Points**: Pause before Application and Web tiers for health checks
+
 ## Quick Start
 
 ### Prerequisites
