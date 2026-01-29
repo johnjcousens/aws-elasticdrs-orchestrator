@@ -192,7 +192,7 @@ export const LaunchConfigSection: React.FC<LaunchConfigSectionProps> = ({
             <FormField
               label="Static Private IP"
               description="Configure static IPs per server in the Server Configurations tab"
-              info="Configure per server in Server Configurations tab"
+              info="Set per server in Server Configurations tab"
             >
               <Select
                 selectedOption={null}

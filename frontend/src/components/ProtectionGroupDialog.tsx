@@ -331,6 +331,28 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       return;
     }
 
+    // Validate for duplicate static IPs
+    const staticIPs = new Map<string, string[]>(); // IP -> [serverIds]
+    serverConfigs.forEach((config, serverId) => {
+      const staticIp = config.launchTemplate?.staticPrivateIp;
+      if (staticIp && staticIp.trim() !== '') {
+        if (!staticIPs.has(staticIp)) {
+          staticIPs.set(staticIp, []);
+        }
+        staticIPs.get(staticIp)!.push(serverId);
+      }
+    });
+
+    // Check for duplicates
+    const duplicates = Array.from(staticIPs.entries()).filter(([_, serverIds]) => serverIds.length > 1);
+    if (duplicates.length > 0) {
+      const duplicateMessages = duplicates.map(([ip, serverIds]) => 
+        `IP ${ip} is assigned to ${serverIds.length} servers`
+      ).join(', ');
+      setError(`Duplicate static IP addresses detected: ${duplicateMessages}. Each server must have a unique static IP.`);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
