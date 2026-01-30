@@ -125,7 +125,7 @@ export const ExecutionsPage: React.FC = () => {
       fetchExecutions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
+  }, [getCurrentAccountId()]); // Track the actual account ID value, not the function
 
   // Auto-refresh polling - runs independently every 3 seconds when there are active executions
   useEffect(() => {
@@ -152,7 +152,7 @@ export const ExecutionsPage: React.FC = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActiveExecutions(), selectedAccount]);
+  }, [hasActiveExecutions(), getCurrentAccountId()]); // Track account ID and active executions
 
   const handleViewDetails = (execution: ExecutionListItem) => {
     navigate(`/executions/${execution.executionId}`);

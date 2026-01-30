@@ -155,7 +155,7 @@ export const RecoveryPlansPage: React.FC = () => {
       checkInProgressExecutions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
+  }, [getCurrentAccountId()]); // Track the actual account ID value, not the function
 
   // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
   useEffect(() => {
@@ -177,7 +177,7 @@ export const RecoveryPlansPage: React.FC = () => {
       clearInterval(executionInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
+  }, [getCurrentAccountId()]); // Track the actual account ID value
 
   const handleDelete = useCallback((plan: RecoveryPlan) => {
     setPlanToDelete(plan);

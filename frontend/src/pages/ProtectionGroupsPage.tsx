@@ -139,6 +139,19 @@ export const ProtectionGroupsPage: React.FC = () => {
       fetchRecoveryPlansForGroupCheck();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getCurrentAccountId()]); // Track the actual account ID value, not the function
+
+  // Auto-refresh every 30 seconds, but pause when any dialog is open
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!isAnyDialogOpenRef.current && selectedAccount) {
+        fetchGroups();
+        fetchRecoveryPlansForGroupCheck();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAccount]);
 
   const handleDelete = (group: ProtectionGroup) => {
