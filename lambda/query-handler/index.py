@@ -696,6 +696,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                         account_context = {
                             "accountId": account_id,
                             "assumeRoleName": assume_role_name,
+                            "isCurrentAccount": False,
                         }
                         print(
                             f"Found target account {account_id} with role {assume_role_name}"
