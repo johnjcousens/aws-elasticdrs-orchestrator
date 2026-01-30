@@ -684,12 +684,21 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     )
                     if "Item" in account_result:
                         account = account_result["Item"]
+
+                        # Extract role name from roleArn if assumeRoleName not present
+                        assume_role_name = account.get("assumeRoleName")
+                        if not assume_role_name:
+                            role_arn = account.get("roleArn")
+                            if role_arn:
+                                # Extract role name from ARN: arn:aws:iam::123456789012:role/RoleName
+                                assume_role_name = role_arn.split("/")[-1]
+
                         account_context = {
                             "accountId": account_id,
-                            "assumeRoleName": account.get("assumeRoleName"),
+                            "assumeRoleName": assume_role_name,
                         }
                         print(
-                            f"Found target account {account_id} with role {account.get('assumeRoleName')}"
+                            f"Found target account {account_id} with role {assume_role_name}"
                         )
                     else:
                         print(
