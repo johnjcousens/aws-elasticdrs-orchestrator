@@ -260,40 +260,50 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # DRS Agent Deployer for automated cross-account agent installation
+  # ============================================================================
+  # DRS Agent Deployer - COMMENTED OUT (Under Development)
+  # ============================================================================
+  # Automated DRS agent deployment across AWS accounts
   # Discovers instances with DR tags and deploys DRS agents via SSM
   # Supports cross-account role assumption for multi-account orchestration
-  DRSAgentDeployerFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "${ProjectName}-drs-agent-deployer-${Environment}"
-      Description: "Automated DRS agent deployment across AWS accounts"
-      Runtime: python3.11
-      Handler: index.lambda_handler
-      Role: !Ref OrchestrationRoleArn
-      Code:
-        S3Bucket: !Ref SourceBucket
-        S3Key: "lambda/drs-agent-deployer.zip"
-      Timeout: 900  # 15 minutes
-      MemorySize: 512
-      Environment:
-        Variables:
-          TARGET_REGION: us-west-2
-          SNS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
-          PROJECT_NAME: !Ref ProjectName
-          ENVIRONMENT: !Ref Environment
-      Tags:
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-
-  # CloudWatch Log Group for DRS Agent Deployer
-  DRSAgentDeployerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${ProjectName}-drs-agent-deployer-${Environment}"
-      RetentionInDays: 30
+  #
+  # TODO: Complete development before enabling
+  # - Finalize SSM command execution logic
+  # - Add comprehensive error handling
+  # - Implement retry mechanisms
+  # - Add integration tests
+  #
+  # DRSAgentDeployerFunction:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     FunctionName: !Sub "${ProjectName}-drs-agent-deployer-${Environment}"
+  #     Description: "Automated DRS agent deployment across AWS accounts"
+  #     Runtime: python3.11
+  #     Handler: index.lambda_handler
+  #     Role: !Ref OrchestrationRoleArn
+  #     Code:
+  #       S3Bucket: !Ref SourceBucket
+  #       S3Key: "lambda/drs-agent-deployer.zip"
+  #     Timeout: 900  # 15 minutes
+  #     MemorySize: 512
+  #     Environment:
+  #       Variables:
+  #         TARGET_REGION: us-west-2
+  #         SNS_TOPIC_ARN: !Ref ExecutionNotificationsTopicArn
+  #         PROJECT_NAME: !Ref ProjectName
+  #         ENVIRONMENT: !Ref Environment
+  #     Tags:
+  #       - Key: Project
+  #         Value: !Ref ProjectName
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #
+  # # CloudWatch Log Group for DRS Agent Deployer
+  # DRSAgentDeployerLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub "/aws/lambda/${ProjectName}-drs-agent-deployer-${Environment}"
+  #     RetentionInDays: 30
 
 Outputs:
   DataManagementHandlerFunctionArn:
@@ -368,17 +378,18 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-FrontendDeployerArn"
 
-  DRSAgentDeployerFunctionArn:
-    Description: "DRS Agent Deployer Lambda Function ARN"
-    Value: !GetAtt DRSAgentDeployerFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-DRSAgentDeployerArn"
-
-  DRSAgentDeployerFunctionName:
-    Description: "DRS Agent Deployer Lambda Function Name"
-    Value: !Ref DRSAgentDeployerFunction
-    Export:
-      Name: !Sub "${AWS::StackName}-DRSAgentDeployerName"
+  # DRS Agent Deployer outputs - COMMENTED OUT (Under Development)
+  # DRSAgentDeployerFunctionArn:
+  #   Description: "DRS Agent Deployer Lambda Function ARN"
+  #   Value: !GetAtt DRSAgentDeployerFunction.Arn
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-DRSAgentDeployerArn"
+  #
+  # DRSAgentDeployerFunctionName:
+  #   Description: "DRS Agent Deployer Lambda Function Name"
+  #   Value: !Ref DRSAgentDeployerFunction
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-DRSAgentDeployerName"
 
   # Legacy output for backward compatibility with existing CloudFormation references
   # Points to DataManagementHandler since it handles most API endpoints
