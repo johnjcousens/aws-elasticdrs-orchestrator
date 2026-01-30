@@ -124,7 +124,8 @@ export const ExecutionsPage: React.FC = () => {
     if (accountId) {
       fetchExecutions();
     }
-  }, [selectedAccount, fetchExecutions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccount]);
 
   // Auto-refresh polling - runs independently every 3 seconds when there are active executions
   useEffect(() => {
@@ -150,7 +151,8 @@ export const ExecutionsPage: React.FC = () => {
         pollingIntervalRef.current = null;
       }
     };
-  }, [hasActiveExecutions, fetchExecutions, selectedAccount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveExecutions(), selectedAccount]);
 
   const handleViewDetails = (execution: ExecutionListItem) => {
     navigate(`/executions/${execution.executionId}`);
