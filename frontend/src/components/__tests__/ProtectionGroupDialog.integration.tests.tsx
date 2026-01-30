@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProtectionGroupDialog } from '../ProtectionGroupDialog';
 import { PermissionsProvider } from '../../contexts/PermissionsContext';
 import { AuthProvider } from '../../contexts/AuthContext';
+import { AccountProvider } from '../../contexts/AccountContext';
 import type { ProtectionGroup } from '../../types';
 import '@testing-library/jest-dom';
 
@@ -50,7 +51,10 @@ vi.mock('../../services/api', () => ({
       servers: [],
       serverCount: 0,
       region: 'us-east-1'
-    })
+    }),
+    getTargetAccounts: vi.fn().mockResolvedValue([
+      { accountId: '123456789012', accountName: 'Test Account' }
+    ])
   }
 }));
 
@@ -58,9 +62,11 @@ vi.mock('../../services/api', () => ({
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
     <AuthProvider>
-      <PermissionsProvider>
-        {ui}
-      </PermissionsProvider>
+      <AccountProvider>
+        <PermissionsProvider>
+          {ui}
+        </PermissionsProvider>
+      </AccountProvider>
     </AuthProvider>
   );
 };
