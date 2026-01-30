@@ -65,6 +65,17 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  
+  // Auto-populate cross-account role ARN based on account ID
+  // Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole-{Environment}
+  const autoGenerateRoleArn = useCallback((accountId: string): string => {
+    if (!accountId || !/^\d{12}$/.test(accountId.trim())) {
+      return '';
+    }
+    // Get environment from window config or default to 'dev'
+    const environment = (window as any).AWS_CONFIG?.environment || 'dev';
+    return `arn:aws:iam::${accountId.trim()}:role/DRSOrchestrationRole-${environment}`;
+  }, []);
 
   // Fetch current account info for wizard
   const fetchCurrentAccount = useCallback(async () => {
@@ -96,8 +107,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       if (accountsArray.length === 1 && !defaultAccountId) {
         const singleAccount = accountsArray[0];
         setDefaultAccountId(singleAccount.accountId);
-        // Apply the default account selection immediately
-        applyDefaultAccount(singleAccount.accountId);
+        // Don't apply the default account selection here - let the context handle it
       }
     } catch (err) {
       console.error('Error fetching accounts:', err);
@@ -105,7 +115,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [defaultAccountId, onAccountsChange, setDefaultAccountId, applyDefaultAccount]);
+  }, [defaultAccountId, onAccountsChange, setDefaultAccountId]);
 
   useEffect(() => {
     refreshAccounts();
@@ -238,10 +248,13 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
 
   const handleOpenModal = (account?: TargetAccount) => {
     setEditingAccount(account || null);
+    const accountId = account?.accountId || '';
+    const roleArn = account?.crossAccountRoleArn || (accountId ? autoGenerateRoleArn(accountId) : '');
+    
     setFormData({
-      accountId: account?.accountId || '',
+      accountId,
       accountName: account?.accountName || '',
-      crossAccountRoleArn: account?.crossAccountRoleArn || '',
+      crossAccountRoleArn: roleArn,
     });
     setFormErrors({});
     setModalVisible(true);
@@ -263,12 +276,12 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     const accountId = detail.selectedOption?.value || null;
     setDefaultAccountId(accountId);
     
-    // Apply the new default immediately if no account is currently selected
+    // Just save the preference - don't force account selection
+    // The user can manually select the account from the dropdown
     if (accountId) {
-      applyDefaultAccount(accountId);
-      toast.success('Default account updated');
+      toast.success('Default account preference saved');
     } else {
-      toast.success('Default account cleared');
+      toast.success('Default account preference cleared');
     }
   };
 
@@ -335,7 +348,14 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       header: 'Last Validated',
       cell: (item: TargetAccount) => {
         if (!item.lastValidated) return '-';
-        return new Date(item.lastValidated).toLocaleDateString();
+        try {
+          const date = new Date(item.lastValidated);
+          // Check if date is valid
+          if (isNaN(date.getTime())) return '-';
+          return date.toLocaleString();
+        } catch (e) {
+          return '-';
+        }
       },
       width: 150,
     },
@@ -606,7 +626,20 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           >
             <Input
               value={formData.accountId}
-              onChange={({ detail }: { detail: { value: string } }) => setFormData(prev => ({ ...prev, accountId: detail.value }))}
+              onChange={({ detail }: { detail: { value: string } }) => {
+                const newAccountId = detail.value;
+                setFormData(prev => {
+                  // Auto-populate role ARN if account ID is valid and different from current account
+                  const isSameAccount = currentAccount && newAccountId.trim() === currentAccount.accountId;
+                  const newRoleArn = isSameAccount ? '' : autoGenerateRoleArn(newAccountId);
+                  
+                  return {
+                    ...prev,
+                    accountId: newAccountId,
+                    crossAccountRoleArn: newRoleArn,
+                  };
+                });
+              }}
               placeholder={showWizardMode && currentAccount ? `e.g., ${currentAccount.accountId} (current) or 123456789012` : "123456789012"}
               disabled={!!editingAccount}
             />
@@ -628,15 +661,26 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
             label="Cross-Account Role ARN"
             description={
               showWizardMode && currentAccount
-                ? `Required only for different AWS accounts. Leave empty if target account is ${currentAccount.accountId} (same as solution account).`
-                : "Required only for different AWS accounts. Leave empty if target account is the same as this solution account."
+                ? `Auto-populated based on account ID. Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole-{Environment}. Leave empty if target account is ${currentAccount.accountId} (same as solution account).`
+                : "Auto-populated based on account ID. Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole-{Environment}. Leave empty if target account is the same as this solution account."
             }
             errorText={formErrors.crossAccountRoleArn}
+            info={
+              formData.crossAccountRoleArn && formData.accountId && currentAccount && formData.accountId !== currentAccount.accountId
+                ? "Auto-generated based on standard role naming convention. You can edit this if your role has a different name."
+                : undefined
+            }
           >
             <Input
               value={formData.crossAccountRoleArn}
               onChange={({ detail }: { detail: { value: string } }) => setFormData(prev => ({ ...prev, crossAccountRoleArn: detail.value }))}
-              placeholder="arn:aws:iam::123456789012:role/DRSOrchestrationCrossAccountRole"
+              placeholder={
+                formData.accountId && !/^\d{12}$/.test(formData.accountId.trim())
+                  ? "Enter a valid 12-digit account ID first"
+                  : formData.accountId && currentAccount && formData.accountId === currentAccount.accountId
+                  ? "Not needed for same account"
+                  : "Will auto-populate when you enter account ID"
+              }
             />
           </FormField>
         </SpaceBetween>
