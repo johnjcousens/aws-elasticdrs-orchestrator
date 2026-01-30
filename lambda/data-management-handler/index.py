@@ -3424,11 +3424,33 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         # Apply filters to plans
         filtered_plans = []
         for plan in plans:
-            # Account filter - check if plan targets the specified account
+            # Account filter - derive account from protection groups in waves
             if account_id:
-                # Only include plans that explicitly match the requested account
-                plan_account = plan.get("accountId")
-                if not plan_account or plan_account != account_id:
+                # Recovery plans don't store accountId directly - they derive it
+                # from their protection groups. Check if ANY wave's protection
+                # group matches the requested account.
+                plan_matches_account = False
+                waves = plan.get("waves", [])
+                
+                for wave in waves:
+                    pg_id = wave.get("protectionGroupId")
+                    if pg_id:
+                        try:
+                            pg_result = protection_groups_table.get_item(
+                                Key={"groupId": pg_id}
+                            )
+                            if "Item" in pg_result:
+                                pg = pg_result["Item"]
+                                pg_account = pg.get("accountId")
+                                if pg_account == account_id:
+                                    plan_matches_account = True
+                                    break
+                        except Exception as e:
+                            print(f"Error checking PG {pg_id} account: {e}")
+                            continue
+                
+                # Skip plan if no waves match the requested account
+                if not plan_matches_account:
                     continue
 
             # Name filter (partial match, case-insensitive)
