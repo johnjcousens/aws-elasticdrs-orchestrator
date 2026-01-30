@@ -28,7 +28,9 @@ export const AccountSelector: React.FC = () => {
   const accountOptions: SelectProps.Option[] = Array.isArray(availableAccounts) 
     ? availableAccounts.map(account => ({
         value: account.accountId,
-        label: account.accountId,
+        label: account.accountName 
+          ? `${account.accountName} (${account.accountId})`
+          : account.accountId,
         description: account.isCurrentAccount ? 'Current account' : undefined,
       }))
     : [];
@@ -39,7 +41,7 @@ export const AccountSelector: React.FC = () => {
 
   if (accountsLoading) {
     return (
-      <Box>
+      <Box padding={{ horizontal: 's' }}>
         <StatusIndicator type="loading">Loading accounts...</StatusIndicator>
       </Box>
     );
@@ -47,7 +49,7 @@ export const AccountSelector: React.FC = () => {
 
   if (accountsError) {
     return (
-      <Box>
+      <Box padding={{ horizontal: 's' }}>
         <StatusIndicator type="error">Account error</StatusIndicator>
       </Box>
     );
@@ -55,7 +57,7 @@ export const AccountSelector: React.FC = () => {
 
   if (!Array.isArray(availableAccounts) || availableAccounts.length === 0) {
     return (
-      <Box>
+      <Box padding={{ horizontal: 's' }}>
         <StatusIndicator type="warning">No accounts</StatusIndicator>
       </Box>
     );
@@ -65,7 +67,7 @@ export const AccountSelector: React.FC = () => {
   // This ensures users can see which account is selected and change it if needed
 
   return (
-    <Box>
+    <div style={{ minWidth: '300px' }}>
       <Select
         selectedOption={selectedAccount}
         onChange={handleSelectionChange}
@@ -75,8 +77,8 @@ export const AccountSelector: React.FC = () => {
         ariaLabel="Select target account"
         expandToViewport={true}
         disabled={false}
-        triggerVariant="option"
+        filteringType="auto"
       />
-    </Box>
+    </div>
   );
 };
