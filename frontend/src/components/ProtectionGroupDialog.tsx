@@ -503,7 +503,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           <Input
             value={name}
             onChange={({ detail }: { detail: { value: string } }) => setName(detail.value)}
-            placeholder="e.g., HRP Database Tier"
+            placeholder="e.g., Production Database Tier"
             disabled={loading}
           />
         </FormField>
@@ -515,7 +515,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
           <Textarea
             value={description}
             onChange={({ detail }: { detail: { value: string } }) => setDescription(detail.value)}
-            placeholder="e.g., All database servers for HRP application"
+            placeholder="e.g., All database servers for production application"
             rows={2}
             disabled={loading}
           />
@@ -636,7 +636,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
                                         <Input
                                           value={tag.value}
                                           onChange={({ detail }: { detail: { value: string } }) => handleTagChange(index, 'value', detail.value)}
-                                          placeholder="e.g., HRP"
+                                          placeholder="e.g., Production"
                                           disabled={loading}
                                         />
                                       </FormField>

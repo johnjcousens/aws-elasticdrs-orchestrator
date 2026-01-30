@@ -386,7 +386,7 @@ def lambda_handler(event, context):
         "queryStringParameters": {"region": "us-east-1"}
     }
 
-    Direct Invocation Event (HRP Mode):
+    Direct Invocation Event (Direct Lambda Mode):
     {
         "operation": "get_drs_source_servers",
         "queryParams": {"region": "us-east-1"}
@@ -398,7 +398,7 @@ def lambda_handler(event, context):
             # API Gateway invocation (standalone mode)
             return handle_api_gateway_request(event, context)
         elif "operation" in event:
-            # Direct invocation (HRP mode)
+            # Direct invocation (direct Lambda mode)
             return handle_direct_invocation(event, context)
         else:
             return {
@@ -481,7 +481,7 @@ def handle_api_gateway_request(event, context):
 
 
 def handle_direct_invocation(event, context):
-    """Handle direct Lambda invocation (HRP mode)"""
+    """Handle direct Lambda invocation (direct Lambda mode)"""
     operation = event.get("operation")
     query_params = event.get("queryParams", {})
 
@@ -759,9 +759,10 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     pg_id = pg.get("groupId") or pg.get("protectionGroupId")
                     pg_name = pg.get("groupName") or pg.get("name")
                     pg_region = pg.get("region")
+                    pg_account = pg.get("accountId")
 
                     print(
-                        f"DEBUG: PG '{pg_name}' - region={pg_region}, target_region={region}"
+                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}"
                     )
 
                     # Skip if this is the current PG being edited
@@ -772,6 +773,13 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     # Only check PGs in the same region
                     if pg_region != region:
                         print(f"DEBUG: Skipping PG in different region")
+                        continue
+
+                    # Only check PGs in the same account (if account filtering is enabled)
+                    if account_id and pg_account != account_id:
+                        print(
+                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})"
+                        )
                         continue
 
                     # Check manual server selection (sourceServerIds)

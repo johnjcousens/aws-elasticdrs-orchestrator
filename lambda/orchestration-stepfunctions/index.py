@@ -4,8 +4,8 @@ DR Orchestration Step Functions Lambda
 Orchestrates multi-wave disaster recovery operations using AWS DRS (Elastic Disaster Recovery).
 Manages wave-based execution, cross-account operations, and pause/resume workflows.
 
-HRP INTEGRATION CONTEXT:
-This Lambda implements the DRS adapter for the Enterprise DR Orchestration Platform (HRP).
+ENTERPRISE INTEGRATION CONTEXT:
+This Lambda implements the DRS adapter for enterprise DR orchestration platforms.
 The wave-based orchestration pattern demonstrated here serves as the reference implementation
 for other technology adapters (Aurora, ECS, Lambda, Route53) that will follow the same
 4-phase lifecycle: INSTANTIATE → ACTIVATE → CLEANUP → REPLICATE.
@@ -16,8 +16,8 @@ functions, and DNS management using the same wave execution model.
 
 DIRECT INVOCATION SUPPORT:
 This Lambda supports both API Gateway invocation (current standalone mode) and direct
-Lambda invocation (future HRP integration mode). In HRP mode, this function is called
-directly by the HRP orchestration Step Functions without API Gateway or Cognito,
+Lambda invocation (future enterprise integration mode). In enterprise mode, this function is called
+directly by the orchestration Step Functions without API Gateway or Cognito,
 enabling unified multi-technology DR orchestration across the enterprise platform.
 
 Architecture Pattern: Archive Pattern
@@ -28,7 +28,7 @@ Architecture Pattern: Archive Pattern
 
 Security Model:
 - Authentication/authorization handled at API Gateway layer (Cognito) in standalone mode
-- In HRP mode, authentication handled by HRP platform (no Cognito)
+- In enterprise mode, authentication handled by enterprise platform (no Cognito)
 - This Lambda receives pre-validated data from Step Functions
 - Input sanitization intentionally omitted to preserve archive pattern integrity
 
@@ -55,7 +55,7 @@ Each technology adapter (DRS, Aurora, ECS, Lambda, Route53) implements:
 4. REPLICATE phase: Re-establish replication to primary region (for failback)
 
 The DRS adapter demonstrates this pattern for EC2 instance recovery, providing the
-blueprint for other adapters to follow in the broader HRP platform.
+blueprint for other adapters to follow in broader enterprise platforms.
 
 Reference: docs/user-stories/AWSM-1088/AWSM-1103/IMPLEMTATION.md
 """
@@ -78,9 +78,9 @@ dynamodb = boto3.resource("dynamodb")
 
 # DynamoDB tables - lazy initialization for Lambda cold start optimization
 #
-# HRP ADAPTER PATTERN NOTE:
+# ADAPTER PATTERN NOTE:
 # This Step Functions Lambda currently reads Protection Groups and Recovery Plans
-# directly from DynamoDB. In the broader HRP platform, this pattern will be replicated
+# directly from DynamoDB. In broader enterprise platforms, this pattern will be replicated
 # across all technology adapters (Aurora, ECS, Lambda, Route53).
 #
 # API Handler Decomposition Impact:
@@ -90,9 +90,9 @@ dynamodb = boto3.resource("dynamodb")
 # - API handlers and Step Functions are parallel consumers of the same DynamoDB tables
 # - Communication happens via DynamoDB state, not direct Lambda invocation
 #
-# Future HRP Integration:
-# When integrated into the HRP platform, this DRS adapter will be invoked by the
-# HRP orchestration Step Functions, which will pass Protection Group and Recovery Plan
+# Future Enterprise Integration:
+# When integrated into enterprise platforms, this DRS adapter will be invoked by the
+# orchestration Step Functions, which will pass Protection Group and Recovery Plan
 # data as input parameters rather than requiring DynamoDB reads. Other technology
 # adapters (Aurora, ECS, Lambda, Route53) will follow this same pattern.
 #
