@@ -17,7 +17,6 @@
 #
 # Examples:
 #   ./scripts/deploy.sh dev                                    # Full pipeline: validate, test, push, deploy
-#   ./scripts/deploy.sh dev --quick                            # Skip security scans and tests
 #   ./scripts/deploy.sh dev --lambda-only                      # Just update Lambda code
 #   ./scripts/deploy.sh dev --frontend-only                    # Just rebuild frontend
 #   ./scripts/deploy.sh dev --validate-only                    # Run validation/tests only (no deployment)
@@ -88,8 +87,6 @@ ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-true}"  # true = enable email noti
 # - ForceRecreation: Removed (dangerous migration hack)
 
 # Parse options
-SKIP_SECURITY=false
-SKIP_TESTS=false
 LAMBDA_ONLY=false
 FRONTEND_ONLY=false
 SKIP_PUSH=false
@@ -114,7 +111,6 @@ generate_frontend_version() {
 shift || true
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --quick) SKIP_SECURITY=true; SKIP_TESTS=true ;;
         --lambda-only) LAMBDA_ONLY=true ;;
         --frontend-only) FRONTEND_ONLY=true ;;
         --skip-push) SKIP_PUSH=true ;;
@@ -313,105 +309,99 @@ fi
 
 echo ""
 
-# Stage 2: Security (unless skipped)
-if [ "$SKIP_SECURITY" = false ]; then
-    echo -e "${BLUE}[2/5] Security${NC}"
-    
-    # Python SAST - Bandit
-    if [ -f ".venv/bin/bandit" ]; then
-        BANDIT_CMD=".venv/bin/bandit"
-    elif command -v bandit &> /dev/null; then
-        BANDIT_CMD="bandit"
-    else
-        BANDIT_CMD=""
-    fi
+# Stage 2: Security
+echo -e "${BLUE}[2/5] Security${NC}"
 
-    if [ -n "$BANDIT_CMD" ]; then
-        if $BANDIT_CMD -r lambda/ -ll -q 2>/dev/null; then
-            echo -e "${GREEN}  ✓ bandit (Python SAST)${NC}"
-        else
-            echo -e "${YELLOW}  ⚠ bandit: issues found (non-blocking)${NC}"
-        fi
-    else
-        echo -e "${YELLOW}  ⚠ bandit not installed (pip install bandit)${NC}"
-    fi
-    
-    # CloudFormation Security - cfn_nag
-    # Direct path to cfn_nag_scan (Ruby gem)
-    CFNNAG_CMD=""
-    if [ -f "/opt/homebrew/lib/ruby/gems/3.3.0/bin/cfn_nag_scan" ]; then
-        CFNNAG_CMD="/opt/homebrew/lib/ruby/gems/3.3.0/bin/cfn_nag_scan"
-    elif [ -f "/opt/homebrew/lib/ruby/gems/4.0.0/bin/cfn_nag_scan" ]; then
-        CFNNAG_CMD="/opt/homebrew/lib/ruby/gems/4.0.0/bin/cfn_nag_scan"
-    elif command -v cfn_nag_scan &> /dev/null; then
-        CFNNAG_CMD="cfn_nag_scan"
-    fi
-    
-    if [ -n "$CFNNAG_CMD" ]; then
-        if $CFNNAG_CMD --input-path cfn/ --deny-list-path .cfn_nag_deny_list.yml 2>/dev/null | grep -q "Failures count: 0"; then
-            echo -e "${GREEN}  ✓ cfn_nag (IaC security)${NC}"
-        else
-            echo -e "${YELLOW}  ⚠ cfn_nag: issues found (non-blocking)${NC}"
-        fi
-    else
-        echo -e "${YELLOW}  ⚠ cfn_nag not installed (gem install cfn-nag)${NC}"
-    fi
-    
-    # Secrets Detection - detect-secrets
-    if [ -f ".venv/bin/detect-secrets" ]; then
-        # Use virtual environment version
-        if .venv/bin/detect-secrets scan --baseline .secrets.baseline > /dev/null 2>&1; then
-            echo -e "${GREEN}  ✓ detect-secrets${NC}"
-        else
-            echo -e "${YELLOW}  ⚠ detect-secrets: potential secrets found (non-blocking)${NC}"
-        fi
-    elif command -v detect-secrets &> /dev/null; then
-        # Fallback to system version
-        if detect-secrets scan --baseline .secrets.baseline > /dev/null 2>&1; then
-            echo -e "${GREEN}  ✓ detect-secrets${NC}"
-        else
-            echo -e "${YELLOW}  ⚠ detect-secrets: potential secrets found (non-blocking)${NC}"
-        fi
-    else
-        echo -e "${YELLOW}  ⚠ detect-secrets not installed (pip install detect-secrets)${NC}"
-    fi
-    
-    # Shell Script Security - shellcheck (only production code, not utility scripts)
-    if command -v shellcheck &> /dev/null; then
-        # Only check shell scripts embedded in Lambda layers or CFN templates
-        # Skip utility scripts in /scripts directory
-        if [ -d "lambda" ] && find lambda/ -name "*.sh" 2>/dev/null | grep -q .; then
-            if find lambda/ -name "*.sh" -exec shellcheck -S warning {} + 2>/dev/null; then
-                echo -e "${GREEN}  ✓ shellcheck (Lambda scripts)${NC}"
-            else
-                echo -e "${YELLOW}  ⚠ shellcheck: issues in Lambda scripts (non-blocking)${NC}"
-            fi
-        else
-            echo -e "${GREEN}  ✓ shellcheck (no Lambda scripts found)${NC}"
-        fi
-    else
-        echo -e "${YELLOW}  ⚠ shellcheck not installed (brew install shellcheck)${NC}"
-    fi
-    
-    # Frontend Dependencies - npm audit
-    if [ -d "frontend" ]; then
-        cd frontend
-        if npm audit --audit-level=critical 2>/dev/null | grep -q "found 0 vulnerabilities"; then
-            echo -e "${GREEN}  ✓ npm audit (dependencies)${NC}"
-        else
-            echo -e "${YELLOW}  ⚠ npm audit: vulnerabilities (non-blocking)${NC}"
-        fi
-        cd ..
-    fi
-    echo ""
+# Python SAST - Bandit
+if [ -f ".venv/bin/bandit" ]; then
+    BANDIT_CMD=".venv/bin/bandit"
+elif command -v bandit &> /dev/null; then
+    BANDIT_CMD="bandit"
 else
-    echo -e "${YELLOW}[2/5] Security: SKIPPED${NC}"
-    echo ""
+    BANDIT_CMD=""
 fi
 
-# Stage 3: Tests (unless skipped)
-if [ "$SKIP_TESTS" = false ]; then
-    echo -e "${BLUE}[3/5] Tests${NC}"
+if [ -n "$BANDIT_CMD" ]; then
+    if $BANDIT_CMD -r lambda/ -ll -q 2>/dev/null; then
+        echo -e "${GREEN}  ✓ bandit (Python SAST)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ bandit: issues found (non-blocking)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ bandit not installed (pip install bandit)${NC}"
+fi
+
+# CloudFormation Security - cfn_nag
+# Direct path to cfn_nag_scan (Ruby gem)
+CFNNAG_CMD=""
+if [ -f "/opt/homebrew/lib/ruby/gems/3.3.0/bin/cfn_nag_scan" ]; then
+    CFNNAG_CMD="/opt/homebrew/lib/ruby/gems/3.3.0/bin/cfn_nag_scan"
+elif [ -f "/opt/homebrew/lib/ruby/gems/4.0.0/bin/cfn_nag_scan" ]; then
+    CFNNAG_CMD="/opt/homebrew/lib/ruby/gems/4.0.0/bin/cfn_nag_scan"
+elif command -v cfn_nag_scan &> /dev/null; then
+    CFNNAG_CMD="cfn_nag_scan"
+fi
+
+if [ -n "$CFNNAG_CMD" ]; then
+    if $CFNNAG_CMD --input-path cfn/ --deny-list-path .cfn_nag_deny_list.yml 2>/dev/null | grep -q "Failures count: 0"; then
+        echo -e "${GREEN}  ✓ cfn_nag (IaC security)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ cfn_nag: issues found (non-blocking)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ cfn_nag not installed (gem install cfn-nag)${NC}"
+fi
+
+# Secrets Detection - detect-secrets
+if [ -f ".venv/bin/detect-secrets" ]; then
+    # Use virtual environment version
+    if .venv/bin/detect-secrets scan --baseline .secrets.baseline > /dev/null 2>&1; then
+        echo -e "${GREEN}  ✓ detect-secrets${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ detect-secrets: potential secrets found (non-blocking)${NC}"
+    fi
+elif command -v detect-secrets &> /dev/null; then
+    # Fallback to system version
+    if detect-secrets scan --baseline .secrets.baseline > /dev/null 2>&1; then
+        echo -e "${GREEN}  ✓ detect-secrets${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ detect-secrets: potential secrets found (non-blocking)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ detect-secrets not installed (pip install detect-secrets)${NC}"
+fi
+
+# Shell Script Security - shellcheck (only production code, not utility scripts)
+if command -v shellcheck &> /dev/null; then
+    # Only check shell scripts embedded in Lambda layers or CFN templates
+    # Skip utility scripts in /scripts directory
+    if [ -d "lambda" ] && find lambda/ -name "*.sh" 2>/dev/null | grep -q .; then
+        if find lambda/ -name "*.sh" -exec shellcheck -S warning {} + 2>/dev/null; then
+            echo -e "${GREEN}  ✓ shellcheck (Lambda scripts)${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ shellcheck: issues in Lambda scripts (non-blocking)${NC}"
+        fi
+    else
+        echo -e "${GREEN}  ✓ shellcheck (no Lambda scripts found)${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠ shellcheck not installed (brew install shellcheck)${NC}"
+fi
+
+# Frontend Dependencies - npm audit
+if [ -d "frontend" ]; then
+    cd frontend
+    if npm audit --audit-level=critical 2>/dev/null | grep -q "found 0 vulnerabilities"; then
+        echo -e "${GREEN}  ✓ npm audit (dependencies)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ npm audit: vulnerabilities (non-blocking)${NC}"
+    fi
+    cd ..
+fi
+echo ""
+
+# Stage 3: Tests
+echo -e "${BLUE}[3/5] Tests${NC}"
     
     # Python tests
     if [ -d "tests" ]; then
@@ -476,10 +466,6 @@ if [ "$SKIP_TESTS" = false ]; then
         cd ..
     fi
     echo ""
-else
-    echo -e "${YELLOW}[3/5] Tests: SKIPPED${NC}"
-    echo ""
-fi
 
 # Check for failures
 if [ "$FAILED" = true ]; then

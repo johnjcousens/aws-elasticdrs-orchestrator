@@ -108,23 +108,25 @@ export const RecoveryPlansPage: React.FC = () => {
 
   // Fetch data when account changes or on mount
   useEffect(() => {
-    if (selectedAccount) {
+    const accountId = getCurrentAccountId();
+    if (accountId) {
       fetchPlans();
       checkInProgressExecutions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
+  }, [getCurrentAccountId()]);
 
   // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
   useEffect(() => {
+    const accountId = getCurrentAccountId();
     const plansInterval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current && selectedAccount) {
+      if (!isAnyDialogOpenRef.current && accountId) {
         fetchPlans();
       }
     }, 60000); // Increased from 30s to 60s
     
     const executionInterval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current && selectedAccount) {
+      if (!isAnyDialogOpenRef.current && accountId) {
         checkInProgressExecutions();
       }
     }, 10000); // Increased from 5s to 10s
@@ -134,7 +136,7 @@ export const RecoveryPlansPage: React.FC = () => {
       clearInterval(executionInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
+  }, [getCurrentAccountId()]);
   
   useEffect(() => {
     const handleVisibilityChange = () => {

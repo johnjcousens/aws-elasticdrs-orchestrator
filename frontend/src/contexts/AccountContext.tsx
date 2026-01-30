@@ -49,13 +49,20 @@ interface AccountProviderProps {
 const DEFAULT_ACCOUNT_STORAGE_KEY = 'drs-orchestration-default-account';
 
 export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
-  const [selectedAccount, setSelectedAccount] = useState<SelectProps.Option | null>(null);
+  const [selectedAccount, setSelectedAccountState] = useState<SelectProps.Option | null>(null);
   const [availableAccounts, setAvailableAccounts] = useState<TargetAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [accountsError, setAccountsError] = useState<string | null>(null);
   const [defaultAccountId, setDefaultAccountIdState] = useState<string | null>(null);
 
   const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Wrapper to log account changes
+  const setSelectedAccount = (account: SelectProps.Option | null) => {
+    console.log('[AccountContext] setSelectedAccount called:', account);
+    console.log('[AccountContext] Previous account:', selectedAccount);
+    setSelectedAccountState(account);
+  };
 
   // Load default account preference from localStorage
   useEffect(() => {
@@ -92,7 +99,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     // If only one account, auto-select it
     if (availableAccounts.length === 1) {
       const account = availableAccounts[0];
-      setSelectedAccount({
+      setSelectedAccountState({
         value: account.accountId,
         label: account.accountName || account.accountId,
       });
@@ -106,7 +113,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     if (targetDefaultId) {
       const account = availableAccounts.find(acc => acc.accountId === targetDefaultId);
       if (account) {
-        setSelectedAccount({
+        setSelectedAccountState({
           value: account.accountId,
           label: account.accountName || account.accountId,
         });
@@ -226,7 +233,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     } else if (!isAuthenticated && !authLoading) {
       // Clear accounts when not authenticated
       setAvailableAccounts([]);
-      setSelectedAccount(null);
+      setSelectedAccountState(null);
       setAccountsLoading(false);
       setAccountsError(null);
     }
