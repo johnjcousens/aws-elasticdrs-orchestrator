@@ -54,12 +54,15 @@ export const ProtectionGroupsPage: React.FC = () => {
 
   // Fetch data when account changes or on mount
   useEffect(() => {
-    if (selectedAccount) {
+    const accountId = getCurrentAccountId();
+    console.log('[ProtectionGroupsPage] Account changed to:', accountId);
+    if (accountId) {
+      console.log('[ProtectionGroupsPage] Fetching groups for account:', accountId);
       fetchGroups();
       fetchRecoveryPlansForGroupCheck();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
+  }, [getCurrentAccountId()]);
 
   // Auto-refresh every 30 seconds, but pause when any dialog is open
   useEffect(() => {
