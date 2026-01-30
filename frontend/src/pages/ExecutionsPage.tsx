@@ -120,14 +120,17 @@ export const ExecutionsPage: React.FC = () => {
 
   // Fetch data when account changes or on mount
   useEffect(() => {
-    if (selectedAccount) {
+    const accountId = getCurrentAccountId();
+    if (accountId) {
       fetchExecutions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
+  }, [getCurrentAccountId()]);
 
   // Auto-refresh polling - runs independently every 3 seconds when there are active executions
   useEffect(() => {
+    const accountId = getCurrentAccountId();
+    
     // Clear any existing interval
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -135,7 +138,7 @@ export const ExecutionsPage: React.FC = () => {
     }
 
     // Start polling if there are active executions and account is selected
-    if (hasActiveExecutions() && selectedAccount) {
+    if (hasActiveExecutions() && accountId) {
       pollingIntervalRef.current = setInterval(() => {
         fetchExecutions();
       }, 3000);
