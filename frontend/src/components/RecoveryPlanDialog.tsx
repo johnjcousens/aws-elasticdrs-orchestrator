@@ -21,6 +21,7 @@ import {
 } from '@cloudscape-design/components';
 import { LoadingState } from './LoadingState';
 import { WaveConfigEditor } from './WaveConfigEditor';
+import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 import { DRS_LIMITS } from '../services/drsQuotaService';
 import { PermissionAwareButton } from './PermissionAware';
@@ -44,6 +45,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
   onClose,
   onSave,
 }) => {
+  const { getCurrentAccountId } = useAccount();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [waves, setWaves] = useState<Wave[]>([]);
@@ -101,7 +103,8 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
   const fetchProtectionGroups = async () => {
     try {
       setLoadingGroups(true);
-      const data = await apiClient.listProtectionGroups();
+      const accountId = getCurrentAccountId();
+      const data = await apiClient.listProtectionGroups(accountId ? { accountId } : undefined);
       // Defensive check: ensure data is an array
       setProtectionGroups(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
