@@ -1499,14 +1499,11 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
 
         # Filter by account if specified
         if account_id:
-            # For now, implement client-side filtering based on region or stored account info
-            # In future, could add AccountId field to DynamoDB schema
             filtered_groups = []
             for group in groups:
-                # Check if group has account info or matches current account
+                # Only include groups that explicitly match the requested account
                 group_account = group.get("accountId")
-                if group_account == account_id or not group_account:
-                    # Include groups that match account or have no account specified (legacy)
+                if group_account == account_id:
                     filtered_groups.append(group)
             groups = filtered_groups
 
@@ -3429,12 +3426,10 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         for plan in plans:
             # Account filter - check if plan targets the specified account
             if account_id:
-                # For now, implement client-side filtering based on stored account info
-                # In future, could add AccountId field to DynamoDB schema
+                # Only include plans that explicitly match the requested account
                 plan_account = plan.get("accountId")
-                if plan_account and plan_account != account_id:
+                if not plan_account or plan_account != account_id:
                     continue
-                # If no account specified in plan, include it (legacy plans)
 
             # Name filter (partial match, case-insensitive)
             if name_filter:
