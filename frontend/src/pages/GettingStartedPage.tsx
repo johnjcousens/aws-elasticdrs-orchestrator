@@ -45,7 +45,7 @@ const tipStyle: React.CSSProperties = {
 
 export const GettingStartedPage: React.FC = () => {
   const navigate = useNavigate();
-  const { availableAccounts, accountsLoading } = useAccount();
+  const { availableAccounts, accountsLoading, selectedAccount } = useAccount();
   
   // Show loading state while accounts are being fetched
   if (accountsLoading) {
@@ -83,7 +83,7 @@ export const GettingStartedPage: React.FC = () => {
       >
         <SpaceBetween size="l">
           {/* Welcome message for new users */}
-          {availableAccounts.length > 0 && (
+          {availableAccounts.length > 0 && selectedAccount && (
             <Alert
               type="success"
               header="Welcome to AWS DRS Orchestration"
@@ -94,7 +94,7 @@ export const GettingStartedPage: React.FC = () => {
                   You can now create protection groups and recovery plans to orchestrate your disaster recovery operations.
                 </Box>
                 <Box>
-                  <strong>Current Account:</strong> {availableAccounts[0]?.accountId}
+                  <strong>Selected Account:</strong> {selectedAccount.accountName || selectedAccount.accountId} ({selectedAccount.accountId})
                 </Box>
               </SpaceBetween>
             </Alert>
