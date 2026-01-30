@@ -47,6 +47,7 @@ interface AccountProviderProps {
 }
 
 const DEFAULT_ACCOUNT_STORAGE_KEY = 'drs-orchestration-default-account';
+const SELECTED_ACCOUNT_STORAGE_KEY = 'drs-orchestration-selected-account';
 
 export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
   const [selectedAccount, setSelectedAccountState] = useState<SelectProps.Option | null>(null);
@@ -57,11 +58,22 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
 
   const { isAuthenticated, loading: authLoading } = useAuth();
 
-  // Wrapper to log account changes
+  // Wrapper to log account changes and persist to localStorage
   const setSelectedAccount = (account: SelectProps.Option | null) => {
     console.log('[AccountContext] setSelectedAccount called:', account);
     console.log('[AccountContext] Previous account:', selectedAccount);
     setSelectedAccountState(account);
+    
+    // Persist selected account to localStorage
+    try {
+      if (account?.value) {
+        localStorage.setItem(SELECTED_ACCOUNT_STORAGE_KEY, account.value);
+      } else {
+        localStorage.removeItem(SELECTED_ACCOUNT_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.warn('Failed to save selected account to localStorage:', error);
+    }
   };
 
   // Load default account preference from localStorage
@@ -75,6 +87,24 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       console.warn('Failed to load default account preference:', error);
     }
   }, []);
+  
+  // Restore selected account from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedAccountId = localStorage.getItem(SELECTED_ACCOUNT_STORAGE_KEY);
+      if (storedAccountId && availableAccounts.length > 0) {
+        const account = availableAccounts.find(acc => acc.accountId === storedAccountId);
+        if (account) {
+          setSelectedAccountState({
+            value: account.accountId,
+            label: account.accountName || account.accountId,
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to restore selected account from localStorage:', error);
+    }
+  }, [availableAccounts.length]); // Only run when accounts are loaded
 
   // Save default account preference to localStorage
   const setDefaultAccountId = (accountId: string | null) => {
