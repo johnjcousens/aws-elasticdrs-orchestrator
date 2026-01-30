@@ -106,56 +106,6 @@ export const RecoveryPlansPage: React.FC = () => {
   const isAnyDialogOpenRef = React.useRef(false);
   isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen || existingInstancesDialogOpen;
 
-  // Fetch data when account changes or on mount
-  useEffect(() => {
-    const accountId = getCurrentAccountId();
-    if (accountId) {
-      fetchPlans();
-      checkInProgressExecutions();
-    }
-  }, [selectedAccount, fetchPlans, checkInProgressExecutions]);
-
-  // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
-  useEffect(() => {
-    const accountId = getCurrentAccountId();
-    const plansInterval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current && accountId) {
-        fetchPlans();
-      }
-    }, 60000); // Increased from 30s to 60s
-    
-    const executionInterval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current && accountId) {
-        checkInProgressExecutions();
-      }
-    }, 10000); // Increased from 5s to 10s
-    
-    return () => {
-      clearInterval(plansInterval);
-      clearInterval(executionInterval);
-    };
-  }, [selectedAccount, fetchPlans, checkInProgressExecutions]);
-  
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        checkInProgressExecutions();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('plansWithInProgressExecution', JSON.stringify([...plansWithInProgressExecution]));
-    } catch (error) {
-      console.warn('Failed to save execution state to sessionStorage:', error);
-    }
-  }, [plansWithInProgressExecution]);
-  
   const checkInProgressExecutions = useCallback(async () => {
     try {
       const accountId = getCurrentAccountId();
@@ -196,6 +146,38 @@ export const RecoveryPlansPage: React.FC = () => {
       setLoading(false);
     }
   }, [getCurrentAccountId, addNotification]);
+
+  // Fetch data when account changes or on mount
+  useEffect(() => {
+    const accountId = getCurrentAccountId();
+    if (accountId) {
+      fetchPlans();
+      checkInProgressExecutions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccount]);
+
+  // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
+  useEffect(() => {
+    const accountId = getCurrentAccountId();
+    const plansInterval = setInterval(() => {
+      if (!isAnyDialogOpenRef.current && accountId) {
+        fetchPlans();
+      }
+    }, 60000); // Increased from 30s to 60s
+    
+    const executionInterval = setInterval(() => {
+      if (!isAnyDialogOpenRef.current && accountId) {
+        checkInProgressExecutions();
+      }
+    }, 10000); // Increased from 5s to 10s
+    
+    return () => {
+      clearInterval(plansInterval);
+      clearInterval(executionInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccount]);
 
   const handleDelete = useCallback((plan: RecoveryPlan) => {
     setPlanToDelete(plan);
