@@ -583,22 +583,64 @@ elif [ "$FRONTEND_ONLY" = true ]; then
     FRONTEND_VERSION=$(generate_frontend_version)
     echo "  Triggering frontend rebuild (version: $FRONTEND_VERSION)..."
     
-    # Force CloudFormation update to trigger frontend-deployer Lambda
-    # Note: Removed --no-fail-on-empty-changeset to ensure FrontendBuildVersion change triggers deployment
-    aws cloudformation deploy \
-        --template-file cfn/master-template.yaml \
+    # Get FrontendStack name from master stack
+    FRONTEND_STACK_NAME=$(aws cloudformation describe-stack-resources \
         --stack-name "$STACK_NAME" \
-        --parameter-overrides \
-            ProjectName="$PROJECT_NAME" \
-            Environment="$ENVIRONMENT" \
-            SourceBucket="$DEPLOYMENT_BUCKET" \
-            AdminEmail="$ADMIN_EMAIL" \
-            EnableNotifications="$ENABLE_NOTIFICATIONS" \
-            DeployFrontend="$DEPLOY_FRONTEND" \
-            OrchestrationRoleArn="$ORCHESTRATION_ROLE_ARN" \
-            FrontendBuildVersion="$FRONTEND_VERSION" \
-        --capabilities CAPABILITY_NAMED_IAM \
-        --region "$AWS_REGION" > /dev/null 2>&1
+        --logical-resource-id FrontendStack \
+        --query 'StackResources[0].PhysicalResourceId' \
+        --output text 2>/dev/null)
+    
+    if [ -z "$FRONTEND_STACK_NAME" ] || [ "$FRONTEND_STACK_NAME" = "None" ]; then
+        echo -e "${YELLOW}  ⚠ FrontendStack not found, deploying full stack...${NC}"
+        # Fallback to full stack deployment
+        aws cloudformation deploy \
+            --template-file cfn/master-template.yaml \
+            --stack-name "$STACK_NAME" \
+            --parameter-overrides \
+                ProjectName="$PROJECT_NAME" \
+                Environment="$ENVIRONMENT" \
+                SourceBucket="$DEPLOYMENT_BUCKET" \
+                AdminEmail="$ADMIN_EMAIL" \
+                EnableNotifications="$ENABLE_NOTIFICATIONS" \
+                DeployFrontend="$DEPLOY_FRONTEND" \
+                OrchestrationRoleArn="$ORCHESTRATION_ROLE_ARN" \
+                FrontendBuildVersion="$FRONTEND_VERSION" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region "$AWS_REGION" > /dev/null 2>&1
+    else
+        echo "  Updating FrontendStack directly: $FRONTEND_STACK_NAME"
+        
+        # Get current parameters from FrontendStack
+        CURRENT_PARAMS=$(aws cloudformation describe-stacks \
+            --stack-name "$FRONTEND_STACK_NAME" \
+            --query 'Stacks[0].Parameters' \
+            --output json)
+        
+        # Extract individual parameters
+        USER_POOL_ID=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="UserPoolId") | .ParameterValue')
+        USER_POOL_CLIENT_ID=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="UserPoolClientId") | .ParameterValue')
+        IDENTITY_POOL_ID=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="IdentityPoolId") | .ParameterValue')
+        API_ENDPOINT=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="ApiEndpoint") | .ParameterValue')
+        FRONTEND_DEPLOYER_ARN=$(echo "$CURRENT_PARAMS" | jq -r '.[] | select(.ParameterKey=="FrontendDeployerFunctionArn") | .ParameterValue')
+        
+        # Update FrontendStack directly with new FrontendBuildVersion
+        aws cloudformation deploy \
+            --template-file cfn/frontend-stack.yaml \
+            --stack-name "$FRONTEND_STACK_NAME" \
+            --parameter-overrides \
+                ProjectName="$PROJECT_NAME" \
+                Environment="$ENVIRONMENT" \
+                UserPoolId="$USER_POOL_ID" \
+                UserPoolClientId="$USER_POOL_CLIENT_ID" \
+                IdentityPoolId="$IDENTITY_POOL_ID" \
+                ApiEndpoint="$API_ENDPOINT" \
+                FrontendDeployerFunctionArn="$FRONTEND_DEPLOYER_ARN" \
+                SourceBucket="$DEPLOYMENT_BUCKET" \
+                FrontendBuildVersion="$FRONTEND_VERSION" \
+            --capabilities CAPABILITY_IAM \
+            --region "$AWS_REGION" > /dev/null 2>&1
+    fi
+    
     echo -e "${GREEN}  ✓ Frontend rebuild triggered (version: $FRONTEND_VERSION)${NC}"
 
 else
