@@ -36,7 +36,7 @@ import apiClient from '../services/api';
  */
 export const ProtectionGroupsPage: React.FC = () => {
   const { addNotification } = useNotifications();
-  const { getCurrentAccountId } = useAccount();
+  const { getCurrentAccountId, selectedAccount } = useAccount();
   const [groups, setGroups] = useState<ProtectionGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,17 +52,19 @@ export const ProtectionGroupsPage: React.FC = () => {
   const isAnyDialogOpenRef = React.useRef(false);
   isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen;
 
-  // Initial fetch on mount only
+  // Fetch data when account changes or on mount
   useEffect(() => {
-    fetchGroups();
-    fetchRecoveryPlansForGroupCheck();
+    if (selectedAccount) {
+      fetchGroups();
+      fetchRecoveryPlansForGroupCheck();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedAccount]);
 
   // Auto-refresh every 30 seconds, but pause when any dialog is open
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current) {
+      if (!isAnyDialogOpenRef.current && selectedAccount) {
         fetchGroups();
         fetchRecoveryPlansForGroupCheck();
       }
@@ -70,7 +72,7 @@ export const ProtectionGroupsPage: React.FC = () => {
     
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedAccount]);
 
   const fetchRecoveryPlansForGroupCheck = async () => {
     try {
