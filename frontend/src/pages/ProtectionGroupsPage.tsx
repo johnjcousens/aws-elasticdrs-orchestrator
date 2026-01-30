@@ -52,30 +52,6 @@ export const ProtectionGroupsPage: React.FC = () => {
   const isAnyDialogOpenRef = React.useRef(false);
   isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen;
 
-  // Fetch data when account changes or on mount
-  useEffect(() => {
-    const accountId = getCurrentAccountId();
-    console.log('[ProtectionGroupsPage] Account changed to:', accountId);
-    if (accountId) {
-      console.log('[ProtectionGroupsPage] Fetching groups for account:', accountId);
-      fetchGroups();
-      fetchRecoveryPlansForGroupCheck();
-    }
-  }, [selectedAccount, fetchGroups, fetchRecoveryPlansForGroupCheck]);
-
-  // Auto-refresh every 30 seconds, but pause when any dialog is open
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current && selectedAccount) {
-        fetchGroups();
-        fetchRecoveryPlansForGroupCheck();
-      }
-    }, 30000);
-    
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccount]);
-
   const fetchRecoveryPlansForGroupCheck = async () => {
     try {
       const accountId = getCurrentAccountId();
@@ -152,6 +128,18 @@ export const ProtectionGroupsPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Fetch data when account changes or on mount
+  useEffect(() => {
+    const accountId = getCurrentAccountId();
+    console.log('[ProtectionGroupsPage] Account changed to:', accountId);
+    if (accountId) {
+      console.log('[ProtectionGroupsPage] Fetching groups for account:', accountId);
+      fetchGroups();
+      fetchRecoveryPlansForGroupCheck();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccount]);
 
   const handleDelete = (group: ProtectionGroup) => {
     setGroupToDelete(group);
