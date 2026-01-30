@@ -334,7 +334,7 @@ Resources:
                 Action:
                   - sts:AssumeRole
                 Resource:
-                  - !Sub "arn:${AWS::Partition}:iam::*:role/${ProjectName}-cross-account-*"
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole-*"
         
         # KMS access for encrypted EBS volumes and DRS replication
         # Scoped to EC2 and DRS service usage only

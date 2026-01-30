@@ -20,7 +20,6 @@
 #   ./scripts/deploy.sh dev --lambda-only                      # Just update Lambda code
 #   ./scripts/deploy.sh dev --frontend-only                    # Just rebuild frontend
 #   ./scripts/deploy.sh dev --validate-only                    # Run validation/tests only (no deployment)
-#   ./scripts/deploy.sh dev --skip-push                        # Skip git push (but still deploy)
 #   ./scripts/deploy.sh dev --no-frontend                      # API-only deployment (no S3/CloudFront)
 #   ./scripts/deploy.sh dev --orchestration-role arn:aws:iam::123456789012:role/MyRole  # Use external role
 #
@@ -89,7 +88,6 @@ ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-true}"  # true = enable email noti
 # Parse options
 LAMBDA_ONLY=false
 FRONTEND_ONLY=false
-SKIP_PUSH=false
 FORCE=false
 DEPLOY_FRONTEND="true"
 ORCHESTRATION_ROLE_ARN=""
@@ -113,8 +111,7 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --lambda-only) LAMBDA_ONLY=true ;;
         --frontend-only) FRONTEND_ONLY=true ;;
-        --skip-push) SKIP_PUSH=true ;;
-        --validate-only) VALIDATE_ONLY=true; SKIP_PUSH=true ;;
+        --validate-only) VALIDATE_ONLY=true ;;
         --force) FORCE=true ;;
         --no-frontend) DEPLOY_FRONTEND="false" ;;
         --orchestration-role)
@@ -485,26 +482,21 @@ if [ "$VALIDATE_ONLY" = true ]; then
     exit 0
 fi
 
-# Stage 4: Git push (unless skipped)
-if [ "$SKIP_PUSH" = false ]; then
-    echo -e "${BLUE}[4/5] Git Push${NC}"
-    
-    if git diff --quiet && git diff --cached --quiet; then
-        echo -e "${YELLOW}  ⚠ No changes to commit${NC}"
-    else
-        echo -e "${YELLOW}  ⚠ Uncommitted changes - commit first${NC}"
-    fi
-    
-    if git push origin HEAD --quiet 2>/dev/null; then
-        echo -e "${GREEN}  ✓ Pushed to remote${NC}"
-    else
-        echo -e "${YELLOW}  ⚠ Push failed or nothing to push${NC}"
-    fi
-    echo ""
+# Stage 4: Git push (ALWAYS runs)
+echo -e "${BLUE}[4/5] Git Push${NC}"
+
+if git diff --quiet && git diff --cached --quiet; then
+    echo -e "${YELLOW}  ⚠ No changes to commit${NC}"
 else
-    echo -e "${YELLOW}[4/5] Git Push: SKIPPED${NC}"
-    echo ""
+    echo -e "${YELLOW}  ⚠ Uncommitted changes - commit first${NC}"
 fi
+
+if git push origin HEAD --quiet 2>/dev/null; then
+    echo -e "${GREEN}  ✓ Pushed to remote${NC}"
+else
+    echo -e "${YELLOW}  ⚠ Push failed or nothing to push${NC}"
+fi
+echo ""
 
 # Stage 5: Deploy
 echo -e "${BLUE}[5/5] Deploy${NC}"
