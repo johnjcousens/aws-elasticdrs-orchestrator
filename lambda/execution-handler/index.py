@@ -1493,7 +1493,7 @@ def list_executions(query_params: Dict) -> Dict:
             filtered_executions = []
             for execution in executions:
                 exec_account = execution.get("accountId")
-                if exec_account == account_id or not exec_account:
+                if exec_account == account_id:
                     filtered_executions.append(execution)
             executions = filtered_executions
 
