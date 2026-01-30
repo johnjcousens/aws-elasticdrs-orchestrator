@@ -676,7 +676,33 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
         # Determine account context for cross-account queries
         account_context = None
         if account_id:
-            account_context = {"accountId": account_id}
+            # Look up target account details to get assumeRoleName
+            if target_accounts_table:
+                try:
+                    account_result = target_accounts_table.get_item(
+                        Key={"accountId": account_id}
+                    )
+                    if "Item" in account_result:
+                        account = account_result["Item"]
+                        account_context = {
+                            "accountId": account_id,
+                            "assumeRoleName": account.get("assumeRoleName"),
+                        }
+                        print(
+                            f"Found target account {account_id} with role {account.get('assumeRoleName')}"
+                        )
+                    else:
+                        print(
+                            f"WARNING: Account {account_id} not found in target accounts table"
+                        )
+                        # Still try with just accountId (will use current account)
+                        account_context = {"accountId": account_id}
+                except Exception as e:
+                    print(f"Error looking up target account: {e}")
+                    account_context = {"accountId": account_id}
+            else:
+                # No target accounts table, use just accountId
+                account_context = {"accountId": account_id}
 
         regional_drs = create_drs_client(region, account_context)
 
