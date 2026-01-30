@@ -86,12 +86,15 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
   const applyDefaultAccount = useCallback((overrideDefaultId?: string) => {
     if (availableAccounts.length === 0) return;
     
-    // If only one account, auto-select it as default
+    // Only apply default if no account is currently selected
+    if (selectedAccount) return;
+    
+    // If only one account, auto-select it
     if (availableAccounts.length === 1) {
       const account = availableAccounts[0];
       setSelectedAccount({
         value: account.accountId,
-        label: account.accountId,
+        label: account.accountName || account.accountId,
       });
       return;
     }
@@ -105,14 +108,14 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       if (account) {
         setSelectedAccount({
           value: account.accountId,
-          label: account.accountId,
+          label: account.accountName || account.accountId,
         });
         return;
       }
     }
     
     // Otherwise, don't auto-select - enforce user selection for multiple accounts
-  }, [availableAccounts, defaultAccountId]);
+  }, [availableAccounts, defaultAccountId, selectedAccount]);
 
   // Account enforcement helper methods
   const isAccountRequired = true; // Always require account selection
@@ -204,12 +207,12 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return account?.accountName || accountId;
   };
 
-  // Apply default account selection when accounts are loaded
+  // Apply default account selection when accounts are loaded (only once)
   useEffect(() => {
     if (!accountsLoading && availableAccounts.length > 0 && !selectedAccount) {
       applyDefaultAccount();
     }
-  }, [availableAccounts, accountsLoading, selectedAccount, defaultAccountId, applyDefaultAccount]);
+  }, [availableAccounts.length, accountsLoading]); // Removed selectedAccount and defaultAccountId from deps
 
   // Load accounts only after authentication is complete and not loading
   useEffect(() => {
