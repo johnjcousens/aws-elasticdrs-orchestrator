@@ -420,11 +420,20 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
 
         print(f"Assuming role: {role_arn}")
 
-        assumed_role = sts_client.assume_role(
-            RoleArn=role_arn,
-            RoleSessionName=session_name,
-            DurationSeconds=3600,  # 1 hour
-        )
+        # Build assume_role parameters
+        assume_role_params = {
+            "RoleArn": role_arn,
+            "RoleSessionName": session_name,
+            "DurationSeconds": 3600,  # 1 hour
+        }
+
+        # Add External ID if provided in account_context
+        external_id = account_context.get("externalId")
+        if external_id:
+            assume_role_params["ExternalId"] = external_id
+            print(f"Using External ID for role assumption")
+
+        assumed_role = sts_client.assume_role(**assume_role_params)
 
         credentials = assumed_role["Credentials"]
 
