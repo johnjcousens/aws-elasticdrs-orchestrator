@@ -124,8 +124,7 @@ export const ExecutionsPage: React.FC = () => {
     if (accountId) {
       fetchExecutions();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getCurrentAccountId()]);
+  }, [selectedAccount, fetchExecutions]);
 
   // Auto-refresh polling - runs independently every 3 seconds when there are active executions
   useEffect(() => {

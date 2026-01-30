@@ -113,8 +113,7 @@ export const RecoveryPlansPage: React.FC = () => {
       fetchPlans();
       checkInProgressExecutions();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getCurrentAccountId()]);
+  }, [selectedAccount, fetchPlans, checkInProgressExecutions]);
 
   // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
   useEffect(() => {
@@ -135,8 +134,7 @@ export const RecoveryPlansPage: React.FC = () => {
       clearInterval(plansInterval);
       clearInterval(executionInterval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getCurrentAccountId()]);
+  }, [selectedAccount, fetchPlans, checkInProgressExecutions]);
   
   useEffect(() => {
     const handleVisibilityChange = () => {
