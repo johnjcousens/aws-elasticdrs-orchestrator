@@ -3431,7 +3431,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
                 # group matches the requested account.
                 plan_matches_account = False
                 waves = plan.get("waves", [])
-                
+
                 for wave in waves:
                     pg_id = wave.get("protectionGroupId")
                     if pg_id:
@@ -3448,7 +3448,7 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
                         except Exception as e:
                             print(f"Error checking PG {pg_id} account: {e}")
                             continue
-                
+
                 # Skip plan if no waves match the requested account
                 if not plan_matches_account:
                     continue
