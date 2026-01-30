@@ -48,7 +48,7 @@ export const RecoveryPlansPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addNotification } = useNotifications();
-  const { getCurrentAccountId } = useAccount();
+  const { getCurrentAccountId, selectedAccount } = useAccount();
   const [plans, setPlans] = useState<RecoveryPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,23 +106,25 @@ export const RecoveryPlansPage: React.FC = () => {
   const isAnyDialogOpenRef = React.useRef(false);
   isAnyDialogOpenRef.current = dialogOpen || deleteDialogOpen || existingInstancesDialogOpen;
 
-  // Initial fetch on mount only
+  // Fetch data when account changes or on mount
   useEffect(() => {
-    fetchPlans();
-    checkInProgressExecutions();
+    if (selectedAccount) {
+      fetchPlans();
+      checkInProgressExecutions();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedAccount]);
 
   // PERFORMANCE OPTIMIZATION: Reduce polling frequency and use longer intervals
   useEffect(() => {
     const plansInterval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current) {
+      if (!isAnyDialogOpenRef.current && selectedAccount) {
         fetchPlans();
       }
     }, 60000); // Increased from 30s to 60s
     
     const executionInterval = setInterval(() => {
-      if (!isAnyDialogOpenRef.current) {
+      if (!isAnyDialogOpenRef.current && selectedAccount) {
         checkInProgressExecutions();
       }
     }, 10000); // Increased from 5s to 10s
@@ -132,7 +134,7 @@ export const RecoveryPlansPage: React.FC = () => {
       clearInterval(executionInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedAccount]);
   
   useEffect(() => {
     const handleVisibilityChange = () => {

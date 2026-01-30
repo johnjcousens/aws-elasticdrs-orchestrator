@@ -41,7 +41,7 @@ import type { ExecutionListItem } from '../types';
 export const ExecutionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
-  const { getCurrentAccountId } = useAccount();
+  const { getCurrentAccountId, selectedAccount } = useAccount();
   const { handleError } = useApiErrorHandler();
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,11 +118,13 @@ export const ExecutionsPage: React.FC = () => {
     }
   }, [loading, getCurrentAccountId, handleError, addNotification]);
 
-  // Initial fetch
+  // Fetch data when account changes or on mount
   useEffect(() => {
-    fetchExecutions();
+    if (selectedAccount) {
+      fetchExecutions();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedAccount]);
 
   // Auto-refresh polling - runs independently every 3 seconds when there are active executions
   useEffect(() => {
@@ -132,8 +134,8 @@ export const ExecutionsPage: React.FC = () => {
       pollingIntervalRef.current = null;
     }
 
-    // Start polling if there are active executions
-    if (hasActiveExecutions()) {
+    // Start polling if there are active executions and account is selected
+    if (hasActiveExecutions() && selectedAccount) {
       pollingIntervalRef.current = setInterval(() => {
         fetchExecutions();
       }, 3000);
@@ -146,7 +148,7 @@ export const ExecutionsPage: React.FC = () => {
         pollingIntervalRef.current = null;
       }
     };
-  }, [hasActiveExecutions, fetchExecutions]);
+  }, [hasActiveExecutions, fetchExecutions, selectedAccount]);
 
   const handleViewDetails = (execution: ExecutionListItem) => {
     navigate(`/executions/${execution.executionId}`);
