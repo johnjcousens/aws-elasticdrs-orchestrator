@@ -61,8 +61,7 @@ export const ProtectionGroupsPage: React.FC = () => {
       fetchGroups();
       fetchRecoveryPlansForGroupCheck();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getCurrentAccountId()]);
+  }, [selectedAccount, fetchGroups, fetchRecoveryPlansForGroupCheck]);
 
   // Auto-refresh every 30 seconds, but pause when any dialog is open
   useEffect(() => {
