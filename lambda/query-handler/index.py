@@ -693,9 +693,13 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                                 # Extract role name from ARN: arn:aws:iam::123456789012:role/RoleName
                                 assume_role_name = role_arn.split("/")[-1]
 
+                        # Get External ID if present
+                        external_id = account.get("externalId")
+
                         account_context = {
                             "accountId": account_id,
                             "assumeRoleName": assume_role_name,
+                            "externalId": external_id,
                             "isCurrentAccount": False,
                         }
                         print(
