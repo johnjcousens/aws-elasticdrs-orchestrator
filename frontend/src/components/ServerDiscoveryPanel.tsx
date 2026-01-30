@@ -10,6 +10,7 @@ import {
   Container,
 } from '@cloudscape-design/components';
 import { ServerListItem } from './ServerListItem';
+import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 import type { DRSServer } from '../types';
 
@@ -29,6 +30,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   currentProtectionGroupId,
   pauseRefresh = false,
 }) => {
+  const { getCurrentAccountId } = useAccount();
   const [servers, setServers] = useState<DRSServer[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +43,14 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
   const fetchServers = useCallback(async (silent = false) => {
     if (!region) return;
     
+    const accountId = getCurrentAccountId();
+    if (!accountId) return;
+    
     if (!silent) setLoading(true);
     setError(null);
     
     try {
-      const response = await apiClient.listDRSSourceServers(region, currentProtectionGroupId);
+      const response = await apiClient.listDRSSourceServers(region, accountId, currentProtectionGroupId);
       
       // Check if DRS is initialized - response may have 'initialized' field or just servers
       const responseAny = response as { initialized?: boolean; message?: string; servers: typeof response.servers };
@@ -79,7 +84,7 @@ export const ServerDiscoveryPanel: React.FC<ServerDiscoveryPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [region, currentProtectionGroupId]);
+  }, [region, currentProtectionGroupId, getCurrentAccountId]);
 
   // Initial fetch
   useEffect(() => {

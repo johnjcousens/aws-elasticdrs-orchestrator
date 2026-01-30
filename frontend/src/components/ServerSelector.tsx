@@ -18,6 +18,7 @@ import {
 } from '@cloudscape-design/components';
 import { LoadingState } from './LoadingState';
 import { ErrorState } from './ErrorState';
+import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 
 interface ServerSelectorProps {
@@ -56,6 +57,8 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
   readonly = false,
   protectionGroups = [],
 }) => {
+  const { getCurrentAccountId } = useAccount();
+  
   // Defensive: ensure selectedServerIds is always an array
   const safeSelectedServerIds = selectedServerIds || [];
   
@@ -77,6 +80,9 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
       setLoading(true);
       setError(null);
       
+      const accountId = getCurrentAccountId();
+      if (!accountId) return;
+      
       // Fetch servers from all selected Protection Groups
       const allServers: Server[] = [];
       
@@ -91,6 +97,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
             const region = pg.region || 'us-east-1'; // Use PG's region
             const response = await apiClient.listDRSSourceServers(
               region,
+              accountId,
               undefined, // currentProtectionGroupId
               undefined  // Don't filter by PG - we want all servers to find our specific IDs
             );
@@ -126,6 +133,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
             // Tag-based Protection Group - fetch servers filtered by PG
             const response = await apiClient.listDRSSourceServers(
               'us-east-1',
+              accountId,
               undefined, // currentProtectionGroupId - not editing a PG
               pgId // filterByProtectionGroup - show only this PG's servers
             );
@@ -166,7 +174,7 @@ export const ServerSelector: React.FC<ServerSelectorProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [pgIds, protectionGroups]);
+  }, [pgIds, protectionGroups, getCurrentAccountId]);
 
   useEffect(() => {
     if (pgIds.length > 0) {

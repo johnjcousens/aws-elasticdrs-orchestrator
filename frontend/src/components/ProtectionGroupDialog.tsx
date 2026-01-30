@@ -30,6 +30,7 @@ import { ServerConfigurationTab } from './ServerConfigurationTab';
 import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../types/permissions';
 import { ServerListItem } from './ServerListItem';
+import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
 import type { ProtectionGroup, ResolvedServer, LaunchConfig, ServerLaunchConfig } from '../types';
 
@@ -57,6 +58,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
   onClose,
   onSave,
 }) => {
+  const { getCurrentAccountId } = useAccount();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [region, setRegion] = useState('');
@@ -235,7 +237,10 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
       const fetchServerDetails = async () => {
         try {
           setFetchingServerDetails(true);
-          const response = await apiClient.listDRSSourceServers(region);
+          const accountId = getCurrentAccountId();
+          if (!accountId) return;
+          
+          const response = await apiClient.listDRSSourceServers(region, accountId);
           
           // Filter to only selected servers and convert to ResolvedServer format
           const selectedServers = response.servers

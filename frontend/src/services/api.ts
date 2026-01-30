@@ -802,11 +802,13 @@ class ApiClient {
    * List DRS source servers in a region
    * 
    * @param region - AWS region
+   * @param accountId - Optional account ID for cross-account queries
    * @param currentProtectionGroupId - Optional PG ID to exclude when editing
    * @param filterByProtectionGroup - Optional PG ID to filter servers (only show servers in this PG)
    */
   public async listDRSSourceServers(
     region: string, 
+    accountId?: string,
     currentProtectionGroupId?: string,
     filterByProtectionGroup?: string
   ): Promise<{
@@ -815,6 +817,9 @@ class ApiClient {
     region: string;
   }> {
     const queryParams: Record<string, string> = { region };
+    if (accountId) {
+      queryParams.accountId = accountId;
+    }
     if (currentProtectionGroupId) {
       queryParams.currentProtectionGroupId = currentProtectionGroupId;
     }
