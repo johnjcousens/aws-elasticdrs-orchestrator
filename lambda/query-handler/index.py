@@ -480,14 +480,25 @@ def handle_api_gateway_request(event, context):
         return handle_validate_staging_account(body)
 
     # Combined capacity endpoint
+    # Supports both:
+    # - /api/accounts/{targetAccountId}/capacity
+    # - /api/accounts/targets/{targetAccountId}/capacity
     elif (
         path.startswith("/api/accounts/")
         and path.endswith("/capacity")
         and method == "GET"
     ):
-        # Extract target account ID from path: /api/accounts/{targetAccountId}/capacity
+        # Extract target account ID from path
         path_parts = path.split("/")
-        if len(path_parts) >= 4:
+        
+        # Handle /api/accounts/targets/{id}/capacity
+        if len(path_parts) >= 6 and path_parts[3] == "targets":
+            target_account_id = path_parts[4]
+            return handle_get_combined_capacity(
+                {"targetAccountId": target_account_id}
+            )
+        # Handle /api/accounts/{id}/capacity
+        elif len(path_parts) >= 5:
             target_account_id = path_parts[3]
             return handle_get_combined_capacity(
                 {"targetAccountId": target_account_id}
