@@ -166,7 +166,7 @@ fi
 # Concurrency protection - check if stack is already being updated
 STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
-if [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]]; then
+if [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]] || [[ "$STACK_STATUS" == *"CLEANUP"* ]]; then
     if [ "$FORCE" = true ]; then
         echo -e "${YELLOW}⚠ Stack status: $STACK_STATUS (forcing deployment)${NC}"
     else
@@ -176,6 +176,32 @@ if [[ "$STACK_STATUS" == *"IN_PROGRESS"* ]]; then
         echo ""
         echo "   To check status: aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].StackStatus'"
         exit 1
+    fi
+fi
+
+# For frontend-only deployments, also check FrontendStack status
+if [ "$FRONTEND_ONLY" = true ] && [ "$STACK_STATUS" != "DOES_NOT_EXIST" ]; then
+    FRONTEND_STACK_NAME=$(aws cloudformation describe-stack-resources \
+        --stack-name "$STACK_NAME" \
+        --logical-resource-id FrontendStack \
+        --query 'StackResources[0].PhysicalResourceId' \
+        --output text 2>/dev/null || echo "")
+    
+    if [ -n "$FRONTEND_STACK_NAME" ] && [ "$FRONTEND_STACK_NAME" != "None" ]; then
+        FRONTEND_STATUS=$(aws cloudformation describe-stacks --stack-name "$FRONTEND_STACK_NAME" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "UNKNOWN")
+        
+        if [[ "$FRONTEND_STATUS" == *"IN_PROGRESS"* ]] || [[ "$FRONTEND_STATUS" == *"CLEANUP"* ]]; then
+            if [ "$FORCE" = true ]; then
+                echo -e "${YELLOW}⚠ FrontendStack status: $FRONTEND_STATUS (forcing deployment)${NC}"
+            else
+                echo -e "${RED}❌ FrontendStack is currently being updated (status: $FRONTEND_STATUS)${NC}"
+                echo -e "${YELLOW}   Wait for the current deployment to complete before starting another.${NC}"
+                echo -e "${YELLOW}   Or use --force to bypass this check.${NC}"
+                echo ""
+                echo "   To check status: aws cloudformation describe-stacks --stack-name $FRONTEND_STACK_NAME --query 'Stacks[0].StackStatus'"
+                exit 1
+            fi
+        fi
     fi
 fi
 
@@ -411,51 +437,29 @@ echo -e "${BLUE}[3/5] Tests${NC}"
             PYTEST_CMD="python3 -m pytest"
         fi
         
-        # TEMPORARILY DISABLED: Python tests require additional dependencies (hypothesis, etc.)
-        # TODO: Fix test dependencies and re-enable
-        echo -e "${YELLOW}  ⚠ pytest: skipped (tests require additional dependencies)${NC}"
+        # Run unit tests
+        TEST_FAILED=false
         
-        # Run test directories separately to avoid namespace conflicts
-        # TEST_FAILED=false
+        if [ -d "tests/unit" ] && find tests/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
+            echo -e "${BLUE}  Running unit tests...${NC}"
+            if ! $PYTEST_CMD tests/unit/ -q --tb=no; then
+                TEST_FAILED=true
+            fi
+        fi
         
-        # # Only run tests if directory exists and has test files
-        # if [ -d "tests/python/unit" ] && find tests/python/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
-        #     if ! $PYTEST_CMD tests/python/unit/ -q --tb=no 2>/dev/null; then
-        #         TEST_FAILED=true
-        #     fi
-        # fi
-        
-        # if [ -d "tests/unit" ] && find tests/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
-        #     # Temporarily skip property-based tests that require hypothesis package
-        #     # Also skip execution handler tests that require additional dependencies
-        #     if ! $PYTEST_CMD tests/unit/ -q --tb=no \
-        #         --ignore=tests/unit/test_aws_approved_fields_property.py \
-        #         --ignore=tests/unit/test_config_merge_property.py \
-        #         --ignore=tests/unit/test_execution_handler_operations.py 2>/dev/null; then
-        #         TEST_FAILED=true
-        #     fi
-        # fi
-        
-        # if [ -d "tests/integration" ] && find tests/integration -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
-        #     # Temporarily skip integration tests that require hypothesis package
-        #     if ! $PYTEST_CMD tests/integration/ -q --tb=no --ignore=tests/integration/test_execution_handler.py 2>/dev/null; then
-        #         TEST_FAILED=true
-        #     fi
-        # fi
-        
-        # if [ "$TEST_FAILED" = true ]; then
-        #     echo -e "${RED}  ✗ pytest: failures${NC}"
-        #     FAILED=true
-        # else
-        #     echo -e "${GREEN}  ✓ pytest${NC}"
-        # fi
+        if [ "$TEST_FAILED" = true ]; then
+            echo -e "${RED}  ✗ pytest: failures${NC}"
+            FAILED=true
+        else
+            echo -e "${GREEN}  ✓ pytest: all tests passed${NC}"
+        fi
     fi
     
     # Frontend tests
     if [ -d "frontend" ]; then
         cd frontend
-        if npm run test --silent -- --run 2>/dev/null; then
-            echo -e "${GREEN}  ✓ vitest${NC}"
+        if npm run test:skip-integration --silent 2>/dev/null; then
+            echo -e "${GREEN}  ✓ vitest (integration tests skipped)${NC}"
         else
             echo -e "${RED}  ✗ vitest: failures${NC}"
             FAILED=true

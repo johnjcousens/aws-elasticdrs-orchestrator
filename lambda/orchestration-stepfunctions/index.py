@@ -68,6 +68,26 @@ from typing import Dict, List
 
 import boto3
 
+# Import shared utilities
+try:
+    from shared.account_utils import construct_role_arn
+    from shared.cross_account import create_drs_client
+except ImportError:
+    # Fallback for local testing
+    def construct_role_arn(account_id: str) -> str:
+        """Construct standardized role ARN from account ID."""
+        if not account_id or len(account_id) != 12 or not account_id.isdigit():
+            raise ValueError(
+                f"Invalid account ID: {account_id}. Must be 12 digits."
+            )
+        return f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole"
+
+    # Fallback create_drs_client for local testing
+    def create_drs_client(region: str, account_context: Dict = None):
+        """Fallback DRS client creation for local testing."""
+        return boto3.client("drs", region_name=region)
+
+
 # Environment variables
 PROTECTION_GROUPS_TABLE = os.environ.get("PROTECTION_GROUPS_TABLE")
 RECOVERY_PLANS_TABLE = os.environ.get("RECOVERY_PLANS_TABLE")
@@ -137,73 +157,6 @@ def get_account_context(state: Dict) -> Dict:
         Dict containing accountId, assumeRoleName, and isCurrentAccount flags
     """
     return state.get("accountContext") or state.get("account_context", {})
-
-
-def create_drs_client(region: str, account_context: Dict = None):
-    """
-    Create DRS client with optional cross-account access via IAM role assumption.
-
-    Cross-account access is used when:
-    - accountId is provided and not empty
-    - accountId differs from current account (isCurrentAccount=False)
-
-    Args:
-        region: AWS region for DRS operations
-        account_context: Optional dict with accountId, assumeRoleName, isCurrentAccount
-
-    Returns:
-        boto3 DRS client configured for target account and region
-
-    Raises:
-        Exception: If role assumption fails for cross-account access
-    """
-    # Cross-account access required only if accountId provided and not current account
-    if (
-        account_context
-        and account_context.get("accountId")
-        and account_context.get("accountId").strip()
-        and not account_context.get("isCurrentAccount", False)
-    ):
-
-        account_id = account_context["accountId"]
-        role_name = account_context.get(
-            "assumeRoleName", "drs-orchestration-cross-account-role"
-        )
-
-        print(
-            f"Creating cross-account DRS client for account {account_id} in region {region}"
-        )
-
-        sts_client = boto3.client("sts", region_name=region)
-        session_name = f"drs-orchestration-{int(time.time())}"
-
-        try:
-            assumed_role = sts_client.assume_role(
-                RoleArn=f"arn:aws:iam::{account_id}:role/{role_name}",  # noqa: E231
-                RoleSessionName=session_name,
-            )
-
-            credentials = assumed_role["Credentials"]
-            print(
-                f"Successfully assumed role {role_name} in account {account_id}"
-            )
-
-            return boto3.client(
-                "drs",
-                region_name=region,
-                aws_access_key_id=credentials["AccessKeyId"],
-                aws_secret_access_key=credentials["SecretAccessKey"],
-                aws_session_token=credentials["SessionToken"],
-            )
-        except Exception as e:
-            print(
-                f"Failed to assume role {role_name} in account {account_id}: {e}"
-            )
-            raise
-
-    # Default: use current account credentials
-    print(f"Creating DRS client for current account in region {region}")
-    return boto3.client("drs", region_name=region)
 
 
 def apply_launch_config_before_recovery(

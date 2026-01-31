@@ -319,7 +319,6 @@ from botocore.exceptions import ClientError
 
 # Import shared utilities
 from shared.account_utils import (
-    ensure_default_account,
     get_account_name,
     get_target_accounts,
     validate_target_account,
@@ -474,6 +473,28 @@ def handle_api_gateway_request(event, context):
     elif path == "/user/roles" and method == "GET":
         return handle_user_roles(event)
 
+    # Staging account validation endpoint
+    elif path == "/staging-accounts/validate" and method == "POST":
+        # Extract body from API Gateway event
+        body = json.loads(event.get("body", "{}"))
+        return handle_validate_staging_account(body)
+
+    # Combined capacity endpoint
+    elif (
+        path.startswith("/api/accounts/")
+        and path.endswith("/capacity")
+        and method == "GET"
+    ):
+        # Extract target account ID from path: /api/accounts/{targetAccountId}/capacity
+        path_parts = path.split("/")
+        if len(path_parts) >= 4:
+            target_account_id = path_parts[3]
+            return handle_get_combined_capacity(
+                {"targetAccountId": target_account_id}
+            )
+        else:
+            return response(400, {"error": "Invalid path format"})
+
     else:
         return response(
             404, {"error": "Not Found", "message": f"Path {path} not found"}
@@ -513,6 +534,12 @@ def handle_direct_invocation(event, context):
         "get_user_permissions": lambda: {
             "error": "User permissions not available in direct invocation mode"
         },
+        "validate_staging_account": lambda: handle_validate_staging_account(
+            query_params
+        ),
+        "get_combined_capacity": lambda: handle_get_combined_capacity(
+            query_params
+        ),
     }
 
     if operation in operations:
@@ -2490,3 +2517,1091 @@ def get_drs_source_server_details(
     except Exception as e:
         print(f"Error getting server details: {str(e)}")
         return []
+
+
+# ============================================================================
+# Staging Account Validation Functions
+# ============================================================================
+
+
+def handle_validate_staging_account(query_params: Dict) -> Dict:
+    """
+    Validate staging account access and DRS status.
+
+    Validates that:
+    1. Role can be assumed in staging account
+    2. DRS is initialized in the specified region
+    3. Current server counts can be retrieved
+
+    Args:
+        query_params: Dict with:
+            - accountId: Staging account ID (12-digit string)
+            - roleArn: IAM role ARN for cross-account access
+            - externalId: External ID for role assumption
+            - region: AWS region to validate
+
+    Returns:
+        Dict with validation results:
+        {
+            "valid": bool,
+            "roleAccessible": bool,
+            "drsInitialized": bool,
+            "currentServers": int,
+            "replicatingServers": int,
+            "totalAfter": int,  # Projected combined capacity
+            "error": str  # Only present if validation fails
+        }
+
+    Requirements: 3.1, 3.2, 3.3, 3.4, 7.3
+    """
+    try:
+        # Extract and validate required parameters
+        account_id = query_params.get("accountId")
+        role_arn = query_params.get("roleArn")
+        external_id = query_params.get("externalId")
+        region = query_params.get("region")
+
+        # Validate required fields
+        if not account_id:
+            return response(
+                400,
+                {"valid": False, "error": "Missing required field: accountId"},
+            )
+
+        # Construct roleArn if not provided
+        if not role_arn:
+            from shared.account_utils import construct_role_arn
+
+            role_arn = construct_role_arn(account_id)
+            print(
+                f"Constructed standardized role ARN for validation: {role_arn}"
+            )
+        else:
+            print(f"Using provided role ARN for validation: {role_arn}")
+
+        if not external_id:
+            return response(
+                400,
+                {
+                    "valid": False,
+                    "error": "Missing required field: externalId",
+                },
+            )
+
+        if not region:
+            return response(
+                400,
+                {"valid": False, "error": "Missing required field: region"},
+            )
+
+        # Validate account ID format (12 digits)
+        if not account_id.isdigit() or len(account_id) != 12:
+            return response(
+                400,
+                {
+                    "valid": False,
+                    "error": f"Invalid account ID format: {account_id}. Must be 12-digit string.",
+                },
+            )
+
+        # Step 1: Attempt to assume role in staging account
+        print(f"Validating staging account {account_id} in region {region}")
+        print(f"Attempting to assume role: {role_arn}")
+
+        try:
+            sts_client = boto3.client("sts")
+            assumed_role = sts_client.assume_role(
+                RoleArn=role_arn,
+                RoleSessionName="drs-orchestration-staging-validation",
+                ExternalId=external_id,
+                DurationSeconds=900,  # 15 minutes
+            )
+
+            credentials = assumed_role["Credentials"]
+            print(f"Successfully assumed role in account {account_id}")
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+
+            print(f"Failed to assume role: {error_code} - {error_message}")
+
+            if error_code == "AccessDenied":
+                return response(
+                    200,
+                    {
+                        "valid": False,
+                        "roleAccessible": False,
+                        "error": "Unable to assume role: Access Denied. Verify role trust policy includes this account and external ID is correct.",
+                    },
+                )
+            elif error_code == "InvalidClientTokenId":
+                return response(
+                    200,
+                    {
+                        "valid": False,
+                        "roleAccessible": False,
+                        "error": "Invalid credentials. Verify role ARN is correct.",
+                    },
+                )
+            else:
+                return response(
+                    200,
+                    {
+                        "valid": False,
+                        "roleAccessible": False,
+                        "error": f"Role assumption failed: {error_message}",
+                    },
+                )
+
+        # Step 2: Create DRS client with assumed credentials
+        drs_client = boto3.client(
+            "drs",
+            region_name=region,
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+
+        # Step 3: Check DRS initialization and count servers
+        try:
+            print(f"Checking DRS initialization in {region}")
+
+            # Count servers using the helper function
+            server_counts = _count_drs_servers(drs_client)
+
+            total_servers = server_counts["totalServers"]
+            replicating_servers = server_counts["replicatingServers"]
+
+            print(
+                f"DRS initialized. Total servers: {total_servers}, Replicating: {replicating_servers}"
+            )
+
+            # Calculate projected combined capacity
+            # Note: This is a simplified calculation. In production, you'd query
+            # the target account's current capacity and add this staging account's capacity.
+            # For validation purposes, we just return the staging account's current count.
+            total_after = replicating_servers  # Simplified - would add target account count
+
+            return response(
+                200,
+                {
+                    "valid": True,
+                    "roleAccessible": True,
+                    "drsInitialized": True,
+                    "currentServers": total_servers,
+                    "replicatingServers": replicating_servers,
+                    "totalAfter": total_after,
+                },
+            )
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+
+            print(f"DRS error: {error_code} - {error_message}")
+
+            if (
+                error_code == "UninitializedAccountException"
+                or "not initialized" in error_message.lower()
+            ):
+                return response(
+                    200,
+                    {
+                        "valid": False,
+                        "roleAccessible": True,
+                        "drsInitialized": False,
+                        "error": f"DRS is not initialized in region {region}. Initialize DRS in the staging account before adding it.",
+                    },
+                )
+            else:
+                return response(
+                    200,
+                    {
+                        "valid": False,
+                        "roleAccessible": True,
+                        "drsInitialized": False,
+                        "error": f"DRS query failed: {error_message}",
+                    },
+                )
+
+    except Exception as e:
+        print(f"Unexpected error validating staging account: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+        return response(
+            500, {"valid": False, "error": f"Internal error: {str(e)}"}
+        )
+
+
+# ============================================================================
+# Multi-Account Capacity Query Functions
+# ============================================================================
+
+
+def query_account_capacity(account_config: Dict) -> Dict:
+    """
+    Query DRS capacity for a single account across all regions.
+
+    This function:
+    1. Assumes role in the account (if not the current account)
+    2. Queries all DRS-enabled regions concurrently
+    3. Handles uninitialized regions gracefully (returns zero servers)
+    4. Aggregates regional results
+
+    Args:
+        account_config: Dict with:
+            - accountId: Account ID (12-digit string)
+            - accountName: Human-readable account name
+            - accountType: 'target' or 'staging'
+            - roleArn: IAM role ARN (optional, not needed for current account)
+            - externalId: External ID (optional, not needed for current account)
+
+    Returns:
+        Dict with account capacity:
+        {
+            "accountId": str,
+            "accountName": str,
+            "accountType": str,
+            "replicatingServers": int,
+            "totalServers": int,
+            "regionalBreakdown": [
+                {
+                    "region": str,
+                    "totalServers": int,
+                    "replicatingServers": int
+                }
+            ],
+            "accessible": bool,
+            "error": str  # Only present if query fails
+        }
+
+    Requirements: 9.2, 9.3, 9.4
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    account_id = account_config.get("accountId")
+    account_name = account_config.get("accountName", "Unknown")
+    account_type = account_config.get("accountType", "staging")
+    role_arn = account_config.get("roleArn")
+    external_id = account_config.get("externalId")
+
+    # Construct roleArn if not present (for cross-account access)
+    if not role_arn and external_id:
+        from shared.account_utils import construct_role_arn
+
+        role_arn = construct_role_arn(account_id)
+        print(
+            f"Constructed standardized role ARN for account {account_id}: {role_arn}"
+        )
+    elif role_arn:
+        print(f"Using provided role ARN for account {account_id}: {role_arn}")
+
+    print(f"Querying capacity for account {account_id} ({account_name})")
+
+    try:
+        # Step 1: Get credentials for the account
+        if role_arn and external_id:
+            # Cross-account access - assume role
+            print(f"Assuming role {role_arn} in account {account_id}")
+
+            try:
+                sts_client = boto3.client("sts")
+                assumed_role = sts_client.assume_role(
+                    RoleArn=role_arn,
+                    RoleSessionName="drs-orchestration-capacity-query",
+                    ExternalId=external_id,
+                    DurationSeconds=900,  # 15 minutes
+                )
+
+                credentials = assumed_role["Credentials"]
+                print(f"Successfully assumed role in account {account_id}")
+
+            except ClientError as e:
+                error_code = e.response["Error"]["Code"]
+                error_message = e.response["Error"]["Message"]
+
+                print(
+                    f"Failed to assume role in account {account_id}: {error_code} - {error_message}"
+                )
+
+                return {
+                    "accountId": account_id,
+                    "accountName": account_name,
+                    "accountType": account_type,
+                    "replicatingServers": 0,
+                    "totalServers": 0,
+                    "regionalBreakdown": [],
+                    "accessible": False,
+                    "error": f"Role assumption failed: {error_message}",
+                }
+        else:
+            # Current account - use default credentials
+            credentials = None
+            print(f"Using default credentials for account {account_id}")
+
+        # Step 2: Query all DRS regions concurrently
+        def query_region(region: str) -> Dict:
+            """Query a single region for DRS capacity."""
+            try:
+                # Create DRS client for this region
+                if credentials:
+                    drs_client = boto3.client(
+                        "drs",
+                        region_name=region,
+                        aws_access_key_id=credentials["AccessKeyId"],
+                        aws_secret_access_key=credentials["SecretAccessKey"],
+                        aws_session_token=credentials["SessionToken"],
+                    )
+                else:
+                    drs_client = boto3.client("drs", region_name=region)
+
+                # Count servers in this region
+                server_counts = _count_drs_servers(drs_client)
+
+                return {
+                    "region": region,
+                    "totalServers": server_counts["totalServers"],
+                    "replicatingServers": server_counts["replicatingServers"],
+                    "error": None,
+                }
+
+            except ClientError as e:
+                error_code = e.response["Error"]["Code"]
+                error_message = e.response["Error"]["Message"]
+
+                # Handle uninitialized regions gracefully
+                if (
+                    error_code == "UninitializedAccountException"
+                    or "not initialized" in error_message.lower()
+                ):
+                    print(
+                        f"DRS not initialized in {region} for account {account_id} - treating as zero servers"
+                    )
+                    return {
+                        "region": region,
+                        "totalServers": 0,
+                        "replicatingServers": 0,
+                        "error": None,
+                    }
+                else:
+                    print(
+                        f"Error querying {region} for account {account_id}: {error_code} - {error_message}"
+                    )
+                    return {
+                        "region": region,
+                        "totalServers": 0,
+                        "replicatingServers": 0,
+                        "error": error_message,
+                    }
+
+            except Exception as e:
+                print(
+                    f"Unexpected error querying {region} for account {account_id}: {e}"
+                )
+                return {
+                    "region": region,
+                    "totalServers": 0,
+                    "replicatingServers": 0,
+                    "error": str(e),
+                }
+
+        # Query all regions in parallel
+        regional_results = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(query_region, region): region
+                for region in DRS_REGIONS
+            }
+
+            for future in as_completed(futures):
+                region = futures[future]
+                try:
+                    result = future.result()
+                    regional_results.append(result)
+                except Exception as e:
+                    print(f"Failed to get result for region {region}: {e}")
+                    regional_results.append(
+                        {
+                            "region": region,
+                            "totalServers": 0,
+                            "replicatingServers": 0,
+                            "error": str(e),
+                        }
+                    )
+
+        # Step 3: Aggregate results
+        total_servers = sum(r["totalServers"] for r in regional_results)
+        replicating_servers = sum(
+            r["replicatingServers"] for r in regional_results
+        )
+
+        # Filter out regions with no servers for cleaner output
+        regional_breakdown = [
+            r for r in regional_results if r["totalServers"] > 0 or r["error"]
+        ]
+
+        print(
+            f"Account {account_id} capacity: {replicating_servers} replicating, {total_servers} total"
+        )
+
+        return {
+            "accountId": account_id,
+            "accountName": account_name,
+            "accountType": account_type,
+            "replicatingServers": replicating_servers,
+            "totalServers": total_servers,
+            "regionalBreakdown": regional_breakdown,
+            "accessible": True,
+        }
+
+    except Exception as e:
+        print(f"Unexpected error querying account {account_id}: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+        return {
+            "accountId": account_id,
+            "accountName": account_name,
+            "accountType": account_type,
+            "replicatingServers": 0,
+            "totalServers": 0,
+            "regionalBreakdown": [],
+            "accessible": False,
+            "error": f"Internal error: {str(e)}",
+        }
+
+
+def query_all_accounts_parallel(
+    target_account: Dict, staging_accounts: List[Dict]
+) -> List[Dict]:
+    """
+    Query DRS capacity for target account and all staging accounts in parallel.
+
+    This function:
+    1. Queries target account and all staging accounts concurrently
+    2. Handles role assumption failures gracefully (marks as inaccessible)
+    3. Continues querying remaining accounts on individual failures
+    4. Returns list of account capacity results
+
+    Args:
+        target_account: Dict with target account configuration
+        staging_accounts: List of staging account configurations
+
+    Returns:
+        List of account capacity results (one per account)
+
+    Requirements: 9.1, 9.5, 9.6
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    print(
+        f"Querying capacity for {len(staging_accounts) + 1} accounts in parallel"
+    )
+
+    # Prepare account configurations
+    all_accounts = []
+
+    # Add target account
+    target_config = {
+        "accountId": target_account.get("accountId"),
+        "accountName": target_account.get("accountName", "Target Account"),
+        "accountType": "target",
+        "roleArn": target_account.get("roleArn"),
+        "externalId": target_account.get("externalId"),
+    }
+    all_accounts.append(target_config)
+
+    # Add staging accounts
+    for staging in staging_accounts:
+        staging_config = {
+            "accountId": staging.get("accountId"),
+            "accountName": staging.get("accountName", "Unknown Staging"),
+            "accountType": "staging",
+            "roleArn": staging.get("roleArn"),
+            "externalId": staging.get("externalId"),
+        }
+        all_accounts.append(staging_config)
+
+    # Query all accounts in parallel
+    results = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {
+            executor.submit(query_account_capacity, account): account
+            for account in all_accounts
+        }
+
+        for future in as_completed(futures):
+            account = futures[future]
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                print(
+                    f"Failed to query account {account.get('accountId')}: {e}"
+                )
+                # Return error result for this account
+                results.append(
+                    {
+                        "accountId": account.get("accountId"),
+                        "accountName": account.get("accountName", "Unknown"),
+                        "accountType": account.get("accountType", "staging"),
+                        "replicatingServers": 0,
+                        "totalServers": 0,
+                        "regionalBreakdown": [],
+                        "accessible": False,
+                        "error": f"Query failed: {str(e)}",
+                    }
+                )
+
+    print(f"Completed querying {len(results)} accounts")
+    return results
+
+
+def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
+    """
+    Calculate combined capacity metrics from account query results.
+
+    This function:
+    1. Sums replicating servers across all accessible accounts
+    2. Calculates maximum capacity (num_accounts × 300)
+    3. Calculates percentage used
+    4. Calculates available slots
+
+    Args:
+        account_results: List of account capacity results from query_all_accounts_parallel
+
+    Returns:
+        Dict with combined metrics:
+        {
+            "totalReplicating": int,
+            "totalServers": int,
+            "maxReplicating": int,
+            "percentUsed": float,
+            "availableSlots": int,
+            "accessibleAccounts": int,
+            "totalAccounts": int
+        }
+
+    Requirements: 4.2, 4.3, 9.6
+    """
+    # Count accessible accounts
+    accessible_accounts = [
+        a for a in account_results if a.get("accessible", False)
+    ]
+    total_accounts = len(account_results)
+
+    # Sum servers across all accessible accounts
+    total_replicating = sum(
+        a.get("replicatingServers", 0) for a in accessible_accounts
+    )
+
+    total_servers = sum(a.get("totalServers", 0) for a in accessible_accounts)
+
+    # Calculate maximum capacity (300 per account)
+    max_replicating = len(accessible_accounts) * 300
+
+    # Calculate percentage used
+    percent_used = (
+        (total_replicating / max_replicating * 100)
+        if max_replicating > 0
+        else 0.0
+    )
+
+    # Calculate available slots
+    available_slots = max_replicating - total_replicating
+
+    print(
+        f"Combined metrics: {total_replicating}/{max_replicating} ({percent_used:.1f}%)"
+    )
+
+    return {
+        "totalReplicating": total_replicating,
+        "totalServers": total_servers,
+        "maxReplicating": max_replicating,
+        "percentUsed": round(percent_used, 2),
+        "availableSlots": available_slots,
+        "accessibleAccounts": len(accessible_accounts),
+        "totalAccounts": total_accounts,
+    }
+
+
+def calculate_account_status(replicating_servers: int) -> str:
+    """
+    Calculate status for a single account based on server count.
+
+    Status thresholds:
+    - OK: 0-200 servers (0-67%)
+    - INFO: 200-225 servers (67-75%)
+    - WARNING: 225-250 servers (75-83%)
+    - CRITICAL: 250-280 servers (83-93%)
+    - HYPER-CRITICAL: 280-300 servers (93-100%)
+
+    Args:
+        replicating_servers: Number of replicating servers in account
+
+    Returns:
+        Status string: OK, INFO, WARNING, CRITICAL, or HYPER-CRITICAL
+
+    Requirements: 5.3, 5.4, 5.5, 5.6
+    """
+    if replicating_servers < 200:
+        return "OK"
+    elif replicating_servers < 225:
+        return "INFO"
+    elif replicating_servers < 250:
+        return "WARNING"
+    elif replicating_servers < 280:
+        return "CRITICAL"
+    else:
+        return "HYPER-CRITICAL"
+
+
+def calculate_combined_status(
+    total_replicating: int, num_accounts: int
+) -> str:
+    """
+    Calculate combined status based on total replicating servers.
+
+    Considers both operational capacity (250 per account) and hard
+    capacity (300 per account).
+
+    Args:
+        total_replicating: Total replicating servers across all accounts
+        num_accounts: Number of accessible accounts
+
+    Returns:
+        Status string: OK, INFO, WARNING, CRITICAL, or HYPER-CRITICAL
+
+    Requirements: 4.4
+    """
+    if num_accounts == 0:
+        return "OK"
+
+    operational_capacity = num_accounts * 250
+    hard_capacity = num_accounts * 300
+
+    # Check against hard capacity first
+    if total_replicating >= hard_capacity:
+        return "HYPER-CRITICAL"
+    elif total_replicating >= operational_capacity:
+        return "CRITICAL"
+
+    # Calculate percentage of operational capacity
+    percent_of_operational = (total_replicating / operational_capacity) * 100
+
+    if percent_of_operational >= 93:
+        return "WARNING"
+    elif percent_of_operational >= 83:
+        return "INFO"
+    else:
+        return "OK"
+
+
+def generate_warnings(
+    account_results: List[Dict], combined_metrics: Dict
+) -> List[str]:
+    """
+    Generate capacity warnings based on thresholds.
+
+    Generates per-account warnings and combined capacity warnings with
+    actionable guidance.
+
+    Warning thresholds:
+    - INFO: 200-225 servers (67-75%) - Monitor capacity
+    - WARNING: 225-250 servers (75-83%) - Plan to add staging account
+    - CRITICAL: 250-280 servers (83-93%) - Add staging account
+      immediately
+    - HYPER-CRITICAL: 280-300 servers (93-100%) - Immediate action
+      required
+
+    Args:
+        account_results: List of account capacity results
+        combined_metrics: Combined capacity metrics
+
+    Returns:
+        List of warning messages with actionable guidance
+
+    Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
+    """
+    warnings = []
+
+    # Generate per-account warnings
+    for account in account_results:
+        if not account.get("accessible", False):
+            continue
+
+        account_id = account.get("accountId", "Unknown")
+        account_name = account.get("accountName", "Unknown")
+        replicating = account.get("replicatingServers", 0)
+        status = calculate_account_status(replicating)
+
+        if status == "INFO":
+            warnings.append(
+                f"INFO: Account {account_name} ({account_id}) has "
+                f"{replicating} replicating servers (67-75% capacity). "
+                f"Monitor capacity usage."
+            )
+        elif status == "WARNING":
+            warnings.append(
+                f"WARNING: Account {account_name} ({account_id}) has "
+                f"{replicating} replicating servers (75-83% capacity). "
+                f"Plan to add a staging account soon."
+            )
+        elif status == "CRITICAL":
+            warnings.append(
+                f"CRITICAL: Account {account_name} ({account_id}) has "
+                f"{replicating} replicating servers (83-93% capacity). "
+                f"Add a staging account immediately to avoid hitting "
+                f"the 300-server limit."
+            )
+        elif status == "HYPER-CRITICAL":
+            warnings.append(
+                f"HYPER-CRITICAL: Account {account_name} ({account_id}) "
+                f"has {replicating} replicating servers (93-100% "
+                f"capacity). Immediate action required - you are "
+                f"approaching the hard limit of 300 servers per account."
+            )
+
+    # Generate combined capacity warnings
+    total_replicating = combined_metrics.get("totalReplicating", 0)
+    num_accounts = combined_metrics.get("accessibleAccounts", 0)
+
+    if num_accounts > 0:
+        operational_capacity = num_accounts * 250
+        hard_capacity = num_accounts * 300
+        combined_status = calculate_combined_status(
+            total_replicating, num_accounts
+        )
+
+        if combined_status == "INFO":
+            warnings.append(
+                f"INFO: Combined capacity at {total_replicating}/"
+                f"{operational_capacity} servers (83%+ of operational "
+                f"limit). Monitor overall capacity usage."
+            )
+        elif combined_status == "WARNING":
+            warnings.append(
+                f"WARNING: Combined capacity at {total_replicating}/"
+                f"{operational_capacity} servers (93%+ of operational "
+                f"limit). Consider adding another staging account."
+            )
+        elif combined_status == "CRITICAL":
+            warnings.append(
+                f"CRITICAL: Combined capacity at {total_replicating}/"
+                f"{hard_capacity} servers. You have exceeded the "
+                f"operational limit of {operational_capacity} servers. "
+                f"Add staging accounts immediately."
+            )
+        elif combined_status == "HYPER-CRITICAL":
+            warnings.append(
+                f"HYPER-CRITICAL: Combined capacity at {total_replicating}"
+                f"/{hard_capacity} servers. You are at or near the hard "
+                f"limit. Immediate action required - add staging accounts "
+                f"or reduce server count."
+            )
+
+    return warnings
+
+
+def calculate_recovery_capacity(target_account_servers: int) -> Dict:
+    """
+    Calculate recovery capacity metrics for the target account.
+
+    Recovery capacity is based only on the target account (not staging
+    accounts) and measures against the 4,000 instance recovery limit.
+
+    Status thresholds:
+    - OK: < 3,200 servers (< 80% of 4,000)
+    - WARNING: 3,200-3,600 servers (80-90%)
+    - CRITICAL: > 3,600 servers (> 90%)
+
+    Args:
+        target_account_servers: Number of replicating servers in target
+            account only
+
+    Returns:
+        Dictionary containing:
+        - currentServers: Number of servers in target account
+        - maxRecoveryInstances: Maximum recovery instances (4,000)
+        - percentUsed: Percentage of recovery capacity used
+        - availableSlots: Available recovery slots
+        - status: OK, WARNING, or CRITICAL
+
+    Requirements: 10.1, 10.2, 10.3, 10.4, 10.5
+    """
+    max_recovery_instances = 4000
+    percent_used = (target_account_servers / max_recovery_instances) * 100
+    available_slots = max_recovery_instances - target_account_servers
+
+    # Determine status based on thresholds
+    if percent_used < 80:
+        status = "OK"
+    elif percent_used < 90:
+        status = "WARNING"
+    else:
+        status = "CRITICAL"
+
+    return {
+        "currentServers": target_account_servers,
+        "maxRecoveryInstances": max_recovery_instances,
+        "percentUsed": round(percent_used, 2),
+        "availableSlots": available_slots,
+        "status": status,
+    }
+
+
+def handle_get_combined_capacity(query_params: Dict) -> Dict:
+    """
+    Get combined capacity across target and staging accounts.
+
+    This operation:
+    1. Retrieves target account configuration from DynamoDB
+    2. Extracts staging accounts list (defaults to empty list if not present)
+    3. Queries all accounts in parallel (target + staging)
+    4. Calculates combined metrics
+    5. Calculates per-account status and warnings
+    6. Calculates recovery capacity
+    7. Returns complete CombinedCapacityData response
+
+    Args:
+        query_params: Dict with:
+            - targetAccountId: Target account ID (12-digit string)
+
+    Returns:
+        Dict with combined capacity data:
+        {
+            "combined": {
+                "totalReplicating": int,
+                "maxReplicating": int,
+                "percentUsed": float,
+                "status": str,
+                "message": str
+            },
+            "accounts": [
+                {
+                    "accountId": str,
+                    "accountName": str,
+                    "accountType": str,
+                    "replicatingServers": int,
+                    "totalServers": int,
+                    "maxReplicating": int,
+                    "percentUsed": float,
+                    "availableSlots": int,
+                    "status": str,
+                    "regionalBreakdown": [...],
+                    "warnings": [...]
+                }
+            ],
+            "recoveryCapacity": {
+                "currentServers": int,
+                "maxRecoveryInstances": int,
+                "percentUsed": float,
+                "availableSlots": int,
+                "status": str
+            },
+            "warnings": [...]
+        }
+
+    Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2, 8.5, 10.1
+    """
+    try:
+        # Step 1: Validate required parameters
+        target_account_id = query_params.get("targetAccountId")
+
+        if not target_account_id:
+            return response(
+                400,
+                {"error": "Missing required field: targetAccountId"},
+            )
+
+        # Validate account ID format (12 digits)
+        if not target_account_id.isdigit() or len(target_account_id) != 12:
+            return response(
+                400,
+                {
+                    "error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."
+                },
+            )
+
+        print(
+            f"Querying combined capacity for target account {target_account_id}"
+        )
+
+        # Step 2: Retrieve target account configuration from DynamoDB
+        if not target_accounts_table:
+            return response(
+                500,
+                {"error": "Target accounts table not configured"},
+            )
+
+        try:
+            account_result = target_accounts_table.get_item(
+                Key={"accountId": target_account_id}
+            )
+
+            if "Item" not in account_result:
+                return response(
+                    404,
+                    {
+                        "error": "TARGET_ACCOUNT_NOT_FOUND",
+                        "message": f"Target account {target_account_id} not found",
+                    },
+                )
+
+            target_account = account_result["Item"]
+            print(f"Found target account: {target_account.get('accountName')}")
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+            print(f"DynamoDB error: {error_code} - {error_message}")
+
+            return response(
+                500,
+                {
+                    "error": "Failed to retrieve target account",
+                    "message": error_message,
+                },
+            )
+
+        # Step 3: Extract staging accounts list (default to empty list if not present)
+        # Requirement 8.5: When stagingAccounts attribute does not exist, treat as empty list
+        staging_accounts = target_account.get("stagingAccounts", [])
+
+        print(
+            f"Found {len(staging_accounts)} staging accounts for target {target_account_id}"
+        )
+
+        # Step 4: Query all accounts in parallel (target + staging)
+        account_results = query_all_accounts_parallel(
+            target_account, staging_accounts
+        )
+
+        print(f"Queried {len(account_results)} accounts")
+
+        # Step 5: Calculate combined metrics
+        combined_metrics = calculate_combined_metrics(account_results)
+
+        # Step 6: Calculate per-account status and warnings
+        # Add status, percentage, available slots, and warnings to each account
+        for account in account_results:
+            replicating = account.get("replicatingServers", 0)
+            max_replicating = 300
+
+            # Calculate status
+            account["status"] = calculate_account_status(replicating)
+
+            # Calculate percentage and available slots
+            account["maxReplicating"] = max_replicating
+            account["percentUsed"] = round(
+                (
+                    (replicating / max_replicating * 100)
+                    if max_replicating > 0
+                    else 0.0
+                ),
+                2,
+            )
+            account["availableSlots"] = max_replicating - replicating
+
+            # Generate per-account warnings
+            account_warnings = []
+            status = account["status"]
+
+            if status == "INFO":
+                account_warnings.append(
+                    f"Monitor capacity - at {replicating} servers (67-75%)"
+                )
+            elif status == "WARNING":
+                account_warnings.append(
+                    f"Plan to add staging account - at {replicating} servers (75-83%)"
+                )
+            elif status == "CRITICAL":
+                account_warnings.append(
+                    f"Add staging account immediately - at {replicating} servers (83-93%)"
+                )
+            elif status == "HYPER-CRITICAL":
+                account_warnings.append(
+                    f"Immediate action required - at {replicating} servers (93-100%)"
+                )
+
+            account["warnings"] = account_warnings
+
+        # Step 7: Calculate recovery capacity (target account only)
+        # Find target account in results
+        target_account_result = next(
+            (a for a in account_results if a.get("accountType") == "target"),
+            None,
+        )
+
+        if target_account_result:
+            target_replicating = target_account_result.get(
+                "replicatingServers", 0
+            )
+        else:
+            target_replicating = 0
+
+        recovery_capacity = calculate_recovery_capacity(target_replicating)
+
+        # Step 8: Generate combined warnings
+        warnings = generate_warnings(account_results, combined_metrics)
+
+        # Step 9: Calculate combined status
+        total_replicating = combined_metrics.get("totalReplicating", 0)
+        num_accounts = combined_metrics.get("accessibleAccounts", 0)
+        combined_status = calculate_combined_status(
+            total_replicating, num_accounts
+        )
+
+        # Generate combined status message
+        if combined_status == "OK":
+            status_message = "Capacity OK"
+        elif combined_status == "INFO":
+            status_message = "Monitor capacity usage"
+        elif combined_status == "WARNING":
+            status_message = "Consider adding staging account"
+        elif combined_status == "CRITICAL":
+            status_message = "Add staging accounts immediately"
+        else:  # HYPER-CRITICAL
+            status_message = "Immediate action required"
+
+        # Step 10: Build response
+        response_data = {
+            "combined": {
+                "totalReplicating": combined_metrics.get(
+                    "totalReplicating", 0
+                ),
+                "maxReplicating": combined_metrics.get("maxReplicating", 0),
+                "percentUsed": combined_metrics.get("percentUsed", 0.0),
+                "status": combined_status,
+                "message": status_message,
+            },
+            "accounts": account_results,
+            "recoveryCapacity": recovery_capacity,
+            "warnings": warnings,
+        }
+
+        print(
+            f"Combined capacity: {response_data['combined']['totalReplicating']}/"
+            f"{response_data['combined']['maxReplicating']} "
+            f"({response_data['combined']['percentUsed']}%)"
+        )
+
+        return response(200, response_data)
+
+    except Exception as e:
+        print(f"Error in handle_get_combined_capacity: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+        return response(
+            500,
+            {
+                "error": "Internal error",
+                "message": str(e),
+            },
+        )

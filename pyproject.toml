@@ -67,6 +67,11 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning:botocore.auth",
+    "ignore::pytest.PytestDeprecationWarning"
+]
 
 [tool.coverage.run]
 source = ["lambda"]

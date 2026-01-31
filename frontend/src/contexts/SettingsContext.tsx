@@ -19,6 +19,10 @@ interface SettingsContextType {
   settings: UserSettings;
   updateSettings: (newSettings: Partial<UserSettings>) => void;
   isLoading: boolean;
+  openSettingsModal: (tab?: string) => void;
+  settingsModalVisible: boolean;
+  settingsModalTab: string | null;
+  closeSettingsModal: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -32,7 +36,19 @@ const SETTINGS_STORAGE_KEY = 'drs-orchestration-settings';
 export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) => {
   const [settings, setSettings] = useState<UserSettings>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [settingsModalTab, setSettingsModalTab] = useState<string | null>(null);
   const { user, isAuthenticated } = useAuth();
+
+  const openSettingsModal = (tab?: string) => {
+    setSettingsModalTab(tab || null);
+    setSettingsModalVisible(true);
+  };
+
+  const closeSettingsModal = () => {
+    setSettingsModalVisible(false);
+    setSettingsModalTab(null);
+  };
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -79,6 +95,10 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     settings,
     updateSettings,
     isLoading,
+    openSettingsModal,
+    settingsModalVisible,
+    settingsModalTab,
+    closeSettingsModal,
   };
 
   return (

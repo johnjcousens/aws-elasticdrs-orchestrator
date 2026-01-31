@@ -113,13 +113,13 @@ from shared.security_utils import mask_sensitive_data
 # Mask sensitive fields before logging
 user_data = {
     "username": "jdoe",
-    "password": "secret123",
+    "password": "secret123",  # pragma: allowlist secret
     "api_token": "abc123xyz789",
     "email": "jdoe@example.com"
 }
 
 masked = mask_sensitive_data(user_data)
-# Result: {"username": "jdoe", "password": "secr********", "api_token": "abc1********", "email": "jdoe@example.com"}
+# Result: {"username": "jdoe", "password": "secr********", "api_token": "abc1********", "email": "jdoe@example.com"}  # pragma: allowlist secret
 
 logger.info(f"User data: {json.dumps(masked)}")
 ```

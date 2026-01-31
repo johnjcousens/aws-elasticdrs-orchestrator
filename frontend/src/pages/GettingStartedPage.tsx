@@ -15,6 +15,7 @@ import {
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { useAccount } from '../contexts/AccountContext';
+import { useSettings } from '../contexts/SettingsContext';
 
 const stepCardStyle: React.CSSProperties = {
   display: 'flex',
@@ -45,13 +46,17 @@ const tipStyle: React.CSSProperties = {
 
 export const GettingStartedPage: React.FC = () => {
   const navigate = useNavigate();
-  const { availableAccounts, accountsLoading, getCurrentAccountId } = useAccount();
+  const { availableAccounts, accountsLoading, getCurrentAccountId, refreshAccounts } = useAccount();
+  const { openSettingsModal } = useSettings();
   
-  // Get the current account object
   const currentAccountId = getCurrentAccountId();
   const currentAccount = availableAccounts.find(acc => acc.accountId === currentAccountId);
+  const hasAccounts = availableAccounts.length > 0;
   
-  // Show loading state while accounts are being fetched
+  React.useEffect(() => {
+    refreshAccounts();
+  }, [refreshAccounts]);
+  
   if (accountsLoading) {
     return (
       <PageTransition>
@@ -75,7 +80,111 @@ export const GettingStartedPage: React.FC = () => {
     );
   }
 
-  // Show regular getting started content (accounts are auto-initialized by backend)
+  if (!hasAccounts) {
+    return (
+      <PageTransition>
+        <ContentLayout
+          header={
+            <Header variant="h1" description="AWS Disaster Recovery Service Orchestration Platform">
+              Getting Started
+            </Header>
+          }
+        >
+          <SpaceBetween size="l">
+            <Alert
+              type="info"
+              header="Welcome to AWS DRS Orchestration Platform"
+              action={
+                <Button
+                  onClick={() => openSettingsModal('accounts')}
+                  variant="primary"
+                  iconName="add-plus"
+                >
+                  Add Target Account
+                </Button>
+              }
+            >
+              To get started, you need to add at least one target account where your DRS source servers are replicating.
+            </Alert>
+
+            <Container
+              header={
+                <Header variant="h2">
+                  Quick Setup
+                </Header>
+              }
+            >
+              <SpaceBetween size="l">
+                <div style={stepCardStyle}>
+                  <div style={stepNumberStyle}>1</div>
+                  <SpaceBetween size="xxs">
+                    <Box variant="h3">Add Your First Target Account</Box>
+                    <Box color="text-body-secondary">
+                      Click the <strong>Add Target Account</strong> button above to configure your first target account where DRS source servers are replicating.
+                    </Box>
+                  </SpaceBetween>
+                </div>
+
+                <div style={stepCardStyle}>
+                  <div style={stepNumberStyle}>2</div>
+                  <SpaceBetween size="xxs">
+                    <Box variant="h3">Review Capacity Dashboard</Box>
+                    <Box color="text-body-secondary">
+                      After adding an account, view your DRS capacity and server status on the dashboard.
+                    </Box>
+                  </SpaceBetween>
+                </div>
+
+                <div style={stepCardStyle}>
+                  <div style={stepNumberStyle}>3</div>
+                  <SpaceBetween size="xxs">
+                    <Box variant="h3">Create Protection Groups</Box>
+                    <Box color="text-body-secondary">
+                      Organize your source servers into protection groups for easier management.
+                    </Box>
+                  </SpaceBetween>
+                </div>
+
+                <div style={stepCardStyle}>
+                  <div style={stepNumberStyle}>4</div>
+                  <SpaceBetween size="xxs">
+                    <Box variant="h3">Build Recovery Plans</Box>
+                    <Box color="text-body-secondary">
+                      Create recovery plans with multiple waves to orchestrate your DR operations.
+                    </Box>
+                  </SpaceBetween>
+                </div>
+              </SpaceBetween>
+            </Container>
+
+            <Container
+              header={
+                <Header variant="h2">Prerequisites</Header>
+              }
+            >
+              <SpaceBetween size="m">
+                <Box variant="p">
+                  Before adding accounts, ensure you have:
+                </Box>
+                <ul>
+                  <li>
+                    <strong>AWS DRS Initialized:</strong> DRS must be initialized in at least one region of your target account
+                  </li>
+                  <li>
+                    <strong>Cross-Account IAM Role:</strong> Deploy the <code>DRSOrchestrationRole</code> in each target/staging account
+                  </li>
+                  <li>
+                    <strong>Source Servers:</strong> At least one source server configured for replication in DRS
+                  </li>
+                </ul>
+              </SpaceBetween>
+            </Container>
+          </SpaceBetween>
+        </ContentLayout>
+      </PageTransition>
+    );
+  }
+
   return (
     <PageTransition>
       <ContentLayout
@@ -86,16 +195,15 @@ export const GettingStartedPage: React.FC = () => {
         }
       >
         <SpaceBetween size="l">
-          {/* Welcome message for new users */}
-          {availableAccounts.length > 0 && currentAccount && (
+          {currentAccount && (
             <Alert
               type="success"
-              header="Welcome to AWS DRS Orchestration"
+              header="Account Configured"
             >
               <SpaceBetween size="s">
                 <Box>
-                  Your account has been automatically configured for DRS orchestration. 
-                  You can now create protection groups and recovery plans to orchestrate your disaster recovery operations.
+                  Your account is configured for DRS orchestration. 
+                  You can now create protection groups and recovery plans.
                 </Box>
                 <Box>
                   <strong>Selected Account:</strong> {currentAccount.accountName || currentAccount.accountId} ({currentAccount.accountId})

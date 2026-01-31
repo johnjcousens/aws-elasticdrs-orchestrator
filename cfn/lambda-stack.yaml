@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: |
-  DR Orchestration Lambda Functions (AWSM-1103)
+  DR Orchestration Lambda Functions (AWSM-1103) - v2026.01.31
   
   Deploys Lambda functions for wave-based disaster recovery orchestration:
   - API Handler: REST API endpoints for Protection Groups, Recovery Plans, Executions
@@ -12,6 +12,8 @@ Description: |
   
   All functions share unified OrchestrationRoleArn for DRS, DynamoDB, SNS, Step Functions access.
   Supports cross-account DRS operations via IAM role assumption.
+  
+  Note: DRS Agent Deployer is commented out (under development).
 
 Parameters:
   ProjectName:

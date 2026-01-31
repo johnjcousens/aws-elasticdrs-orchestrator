@@ -325,7 +325,8 @@ Resources:
                 Resource: "*"
         
         # STS AssumeRole for cross-account DRS operations
-        # Assumes roles in workload accounts for multi-account recovery
+        # Assumes standardized role (DRSOrchestrationRole) in workload accounts
+        # Pattern: arn:aws:iam::{account-id}:role/DRSOrchestrationRole
         - PolicyName: STSAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -334,7 +335,8 @@ Resources:
                 Action:
                   - sts:AssumeRole
                 Resource:
-                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole-*"
+                  # Standardized role name pattern (no environment suffix)
+                  - !Sub "arn:${AWS::Partition}:iam::*:role/DRSOrchestrationRole"
         
         # KMS access for encrypted EBS volumes and DRS replication
         # Scoped to EC2 and DRS service usage only
@@ -800,6 +802,10 @@ Resources:
         AccountsTargetsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetsResourceId
         AccountsTargetByIdResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetResourceId
         AccountsTargetValidateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetValidateResourceId
+        StagingAccountsValidateResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.StagingAccountsValidateResourceId
+        AccountsTargetStagingAccountsResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsResourceId
+        AccountsTargetStagingAccountResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountResourceId
+        AccountsTargetCapacityResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetCapacityResourceId
         # Comprehensive DRS Infrastructure Resource IDs from Resources Stack
         DrsReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSReplicationResourceId
         DrsStartReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSStartReplicationResourceId

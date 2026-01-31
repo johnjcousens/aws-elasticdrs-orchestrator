@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
+import { CapacityDashboard } from '../components/CapacityDashboard';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
@@ -65,17 +66,22 @@ const STATUS_LABELS: Record<string, string> = {
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { selectedAccount, getCurrentAccountId, getCurrentAccountName } = useAccount();
+  const { selectedAccount, getCurrentAccountId, getCurrentAccountName, availableAccounts, accountsLoading } = useAccount();
   
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // DRS Quota state
   const [drsQuotas, setDrsQuotas] = useState<DRSQuotaStatus | null>(null);
   const [quotasLoading, setQuotasLoading] = useState(false);
   const [quotasError, setQuotasError] = useState<string | null>(null);
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
+
+  useEffect(() => {
+    if (!accountsLoading && availableAccounts.length === 0) {
+      navigate('/getting-started');
+    }
+  }, [accountsLoading, availableAccounts, navigate]);
 
   const fetchExecutions = useCallback(async () => {
     const accountId = getCurrentAccountId();
@@ -307,6 +313,25 @@ export const Dashboard: React.FC = () => {
                 </Box>
               </Container>
             </ColumnLayout>
+
+            <Container
+              header={
+                <Header variant="h2">
+                  Combined Capacity (Target + Staging Accounts)
+                </Header>
+              }
+            >
+              {selectedAccount ? (
+                <CapacityDashboard 
+                  targetAccountId={getCurrentAccountId() || ''} 
+                  refreshInterval={30000}
+                />
+              ) : (
+                <Box textAlign="center" padding="l" color="text-body-secondary">
+                  Select a target account to view capacity
+                </Box>
+              )}
+            </Container>
 
             <ColumnLayout columns={2}>
               <Container header={<Header variant="h2">Execution Status</Header>}>

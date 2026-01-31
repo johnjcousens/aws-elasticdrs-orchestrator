@@ -105,8 +105,7 @@ class StagingAccount:
             roleArn=data["roleArn"],
             externalId=data["externalId"],
             addedAt=data.get(
-                "addedAt",
-                datetime.now(timezone.utc).isoformat() + "Z"
+                "addedAt", datetime.now(timezone.utc).isoformat() + "Z"
             ),
             addedBy=data.get("addedBy", "system"),
         )
@@ -152,8 +151,11 @@ class TargetAccount:
         data = asdict(self)
         # Convert StagingAccount objects to dicts
         data["stagingAccounts"] = [
-            account.to_dict() if isinstance(account, StagingAccount)
-            else account
+            (
+                account.to_dict()
+                if isinstance(account, StagingAccount)
+                else account
+            )
             for account in self.stagingAccounts
         ]
         return data
@@ -162,9 +164,11 @@ class TargetAccount:
     def from_dict(cls, data: Dict) -> "TargetAccount":
         """Create TargetAccount from dictionary."""
         staging_accounts = [
-            StagingAccount.from_dict(account)
-            if isinstance(account, dict)
-            else account
+            (
+                StagingAccount.from_dict(account)
+                if isinstance(account, dict)
+                else account
+            )
             for account in data.get("stagingAccounts", [])
         ]
 
@@ -176,12 +180,10 @@ class TargetAccount:
             stagingAccounts=staging_accounts,
             status=data.get("status", "active"),
             createdAt=data.get(
-                "createdAt",
-                datetime.now(timezone.utc).isoformat() + "Z"
+                "createdAt", datetime.now(timezone.utc).isoformat() + "Z"
             ),
             updatedAt=data.get(
-                "updatedAt",
-                datetime.now(timezone.utc).isoformat() + "Z"
+                "updatedAt", datetime.now(timezone.utc).isoformat() + "Z"
             ),
             createdBy=data.get("createdBy", "system"),
         )
@@ -194,7 +196,7 @@ def validate_staging_account_structure(staging_account: Dict) -> Dict:
     Checks that all required fields are present and have valid formats:
     - accountId: 12-digit string
     - accountName: non-empty string
-    - roleArn: valid IAM role ARN format
+    - roleArn: valid IAM role ARN format (optional - will be constructed if not provided)
     - externalId: non-empty string
 
     Args:
@@ -219,8 +221,8 @@ def validate_staging_account_structure(staging_account: Dict) -> Dict:
     """
     errors = []
 
-    # Check required fields
-    required_fields = ["accountId", "accountName", "roleArn", "externalId"]
+    # Check required fields (roleArn is now optional)
+    required_fields = ["accountId", "accountName", "externalId"]
     for field in required_fields:
         if field not in staging_account:
             errors.append(f"Missing required field: {field}")
@@ -229,15 +231,13 @@ def validate_staging_account_structure(staging_account: Dict) -> Dict:
 
     # Validate account ID format (12 digits)
     account_id = staging_account.get("accountId", "")
-    if account_id and (
-        not account_id.isdigit() or len(account_id) != 12
-    ):
+    if account_id and (not account_id.isdigit() or len(account_id) != 12):
         errors.append(
             f"Invalid account ID format: {account_id}. "
             "Must be 12-digit string."
         )
 
-    # Validate role ARN format
+    # Validate role ARN format if provided
     role_arn = staging_account.get("roleArn", "")
     if role_arn and not role_arn.startswith("arn:aws:iam::"):
         errors.append(
@@ -320,9 +320,7 @@ def get_staging_accounts(target_account_id: str) -> List[StagingAccount]:
         response = table.get_item(Key={"accountId": target_account_id})
 
         if "Item" not in response:
-            raise ValueError(
-                f"Target account {target_account_id} not found"
-            )
+            raise ValueError(f"Target account {target_account_id} not found")
 
         # Get stagingAccounts attribute, default to empty list if not present
         staging_accounts_data = response["Item"].get("stagingAccounts", [])
@@ -339,9 +337,7 @@ def get_staging_accounts(target_account_id: str) -> List[StagingAccount]:
 
 
 def add_staging_account(
-    target_account_id: str,
-    staging_account: Dict,
-    added_by: str = "system"
+    target_account_id: str, staging_account: Dict, added_by: str = "system"
 ) -> Dict:
     """
     Add staging account to target account configuration.
@@ -382,6 +378,23 @@ def add_staging_account(
     table = _get_target_accounts_table()
     if not table:
         raise ValueError("Target accounts table not configured")
+
+    # Construct roleArn if not provided
+    if not staging_account.get("roleArn"):
+        from shared.account_utils import construct_role_arn
+
+        staging_account["roleArn"] = construct_role_arn(
+            staging_account["accountId"]
+        )
+        print(
+            f"Constructed standardized role ARN for staging account "
+            f"{staging_account['accountId']}: {staging_account['roleArn']}"
+        )
+    else:
+        print(
+            f"Using provided role ARN for staging account "
+            f"{staging_account['accountId']}: {staging_account['roleArn']}"
+        )
 
     # Validate staging account structure
     validation = validate_staging_account_structure(staging_account)
@@ -445,9 +458,7 @@ def add_staging_account(
 
     except ClientError as e:
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            raise ValueError(
-                f"Target account {target_account_id} not found"
-            )
+            raise ValueError(f"Target account {target_account_id} not found")
         print(f"Error adding staging account: {e}")
         raise
 
@@ -538,9 +549,7 @@ def remove_staging_account(
 
     except ClientError as e:
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            raise ValueError(
-                f"Target account {target_account_id} not found"
-            )
+            raise ValueError(f"Target account {target_account_id} not found")
         print(f"Error removing staging account: {e}")
         raise
 
@@ -617,8 +626,6 @@ def update_staging_accounts(
 
     except ClientError as e:
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            raise ValueError(
-                f"Target account {target_account_id} not found"
-            )
+            raise ValueError(f"Target account {target_account_id} not found")
         print(f"Error updating staging accounts: {e}")
         raise

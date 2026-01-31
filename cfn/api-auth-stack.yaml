@@ -116,7 +116,7 @@ Resources:
     Properties:
       UserPoolId: !Ref UserPool
       ClientName: !Sub '${ProjectName}-client-${Environment}'
-      GenerateSecret: false
+      GenerateSecret: false  # pragma: allowlist secret
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH

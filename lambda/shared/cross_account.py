@@ -219,6 +219,53 @@ def get_current_account_id() -> str:
         return "unknown"
 
 
+def get_cross_account_session(
+    role_arn: str, external_id: str = None
+) -> boto3.Session:
+    """
+    Create a boto3 Session by assuming a cross-account IAM role.
+
+    Args:
+        role_arn: Full ARN of the IAM role to assume
+        external_id: Optional external ID for role assumption
+
+    Returns:
+        boto3.Session configured with temporary credentials
+
+    Raises:
+        Exception: If role assumption fails
+    """
+    import time
+
+    sts_client = boto3.client("sts")
+    session_name = f"drs-orchestration-{int(time.time())}"
+
+    print(f"Assuming role: {role_arn}")
+
+    assume_role_params = {
+        "RoleArn": role_arn,
+        "RoleSessionName": session_name,
+    }
+
+    if external_id:
+        assume_role_params["ExternalId"] = external_id
+        print("Using External ID for role assumption")
+
+    try:
+        assumed_role = sts_client.assume_role(**assume_role_params)
+        credentials = assumed_role["Credentials"]
+
+        return boto3.Session(
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+    except Exception as e:
+        error_msg = f"Failed to assume role {role_arn}: {str(e)}"
+        print(error_msg)
+        raise
+
+
 def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
     """
     Determine target account for cross-account DR operations in hub-and-spoke architecture.
@@ -413,38 +460,17 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
     )
 
     try:
-        # Assume role in target account
-        sts_client = boto3.client("sts", region_name=region)
+        # Build role ARN
         role_arn = f"arn:aws:iam::{account_id}:role/{assume_role_name}"
-        session_name = f"drs-orchestration-{int(time.time())}"
-
-        print(f"Assuming role: {role_arn}")
-
-        # Build assume_role parameters
-        assume_role_params = {
-            "RoleArn": role_arn,
-            "RoleSessionName": session_name,
-            "DurationSeconds": 3600,  # 1 hour
-        }
-
-        # Add External ID if provided in account_context
         external_id = account_context.get("externalId")
-        if external_id:
-            assume_role_params["ExternalId"] = external_id
-            print(f"Using External ID for role assumption")
 
-        assumed_role = sts_client.assume_role(**assume_role_params)
-
-        credentials = assumed_role["Credentials"]
-
-        # Create DRS client with assumed role credentials
-        drs_client = boto3.client(
-            "drs",
-            region_name=region,
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
+        # Use get_cross_account_session to assume role
+        session = get_cross_account_session(
+            role_arn=role_arn, external_id=external_id
         )
+
+        # Create DRS client with assumed role session
+        drs_client = session.client("drs", region_name=region)
 
         print(
             f"Successfully created cross-account DRS client for account {account_id}"
@@ -461,7 +487,7 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
                 f"1. Cross-account role '{assume_role_name}' does not exist in account {account_id}\n"
                 f"2. Trust relationship not configured to allow this hub account\n"
                 f"3. Insufficient permissions on the cross-account role\n"
-                f"4. Role ARN: {role_arn}\n\n"
+                f"4. Role ARN: arn:aws:iam::{account_id}:role/{assume_role_name}\n\n"
                 f"Please verify the cross-account role is deployed and configured correctly."
             )
         elif "InvalidUserID.NotFound" in str(e):
