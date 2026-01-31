@@ -490,7 +490,7 @@ def handle_api_gateway_request(event, context):
     ):
         # Extract target account ID from path
         path_parts = path.split("/")
-        
+
         # Handle /api/accounts/targets/{id}/capacity
         if len(path_parts) >= 6 and path_parts[3] == "targets":
             target_account_id = path_parts[4]
