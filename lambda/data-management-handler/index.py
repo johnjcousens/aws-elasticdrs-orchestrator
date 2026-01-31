@@ -5246,6 +5246,7 @@ def create_target_account(body: Dict) -> Dict:
                             "accountId": sa["accountId"],
                             "accountName": sa["accountName"],
                             "roleArn": sa["roleArn"],
+                            "externalId": sa["externalId"],
                             "addedAt": now,
                             "addedBy": "auto-discovery",
                             "discoveredFrom": sa["discoveredFrom"],

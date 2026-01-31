@@ -17,10 +17,11 @@ def discover_staging_accounts_from_drs(
     regions: List[str] = None,
 ) -> List[Dict[str, str]]:
     """
-    Discover staging accounts by querying DRS source servers.
+    Discover staging accounts using DRS list-staging-accounts API.
 
-    DRS source servers contain staging area information that includes
-    the staging account ID where replication data is stored.
+    The list-staging-accounts API returns all accounts that have DRS
+    replication configured, including the target account itself and any
+    staging accounts. We filter out the target account to get only staging.
 
     Args:
         target_account_id: Target account to query
@@ -34,7 +35,8 @@ def discover_staging_accounts_from_drs(
             {
                 "accountId": "444455556666",
                 "accountName": "Staging Account 444455556666",
-                "roleArn": "arn:aws:iam::444455556666:role/...",
+                "roleArn": "arn:aws:iam::444455556666:role/DRSOrchestrationRole",
+                "externalId": "drs-orchestration-444455556666",
                 "discoveredFrom": "us-east-1"
             }
         ]
@@ -65,32 +67,38 @@ def discover_staging_accounts_from_drs(
         try:
             drs_client = session.client("drs", region_name=region)
 
-            paginator = drs_client.get_paginator("describe_source_servers")
-            for page in paginator.paginate():
-                servers = page.get("items", [])
+            # Use list-staging-accounts API to get all DRS-configured accounts
+            response = drs_client.list_staging_accounts()
+            accounts = response.get("accounts", [])
 
-                for server in servers:
-                    staging_area = server.get("stagingArea", {})
-                    staging_account_id = staging_area.get("stagingAccountID")
+            print(
+                f"Found {len(accounts)} DRS accounts in {region}: "
+                f"{[acc.get('accountID') for acc in accounts]}"
+            )
 
-                    if (
-                        staging_account_id
-                        and staging_account_id != target_account_id
-                        and staging_account_id not in discovered_accounts
-                    ):
-                        from .account_utils import construct_role_arn
+            for account in accounts:
+                staging_account_id = account.get("accountID")
 
-                        discovered_accounts[staging_account_id] = {
-                            "accountId": staging_account_id,
-                            "accountName": f"Staging Account {staging_account_id}",
-                            "roleArn": construct_role_arn(staging_account_id),
-                            "discoveredFrom": region,
-                        }
+                # Filter out the target account itself
+                if (
+                    staging_account_id
+                    and staging_account_id != target_account_id
+                    and staging_account_id not in discovered_accounts
+                ):
+                    from .account_utils import construct_role_arn
 
-                        print(
-                            f"Discovered staging account {staging_account_id} "
-                            f"in region {region}"
-                        )
+                    discovered_accounts[staging_account_id] = {
+                        "accountId": staging_account_id,
+                        "accountName": f"Staging Account {staging_account_id}",
+                        "roleArn": construct_role_arn(staging_account_id),
+                        "externalId": f"drs-orchestration-{staging_account_id}",
+                        "discoveredFrom": region,
+                    }
+
+                    print(
+                        f"Discovered staging account {staging_account_id} "
+                        f"in region {region}"
+                    )
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
