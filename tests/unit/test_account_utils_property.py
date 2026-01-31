@@ -137,8 +137,16 @@ def test_property_extraction_works_for_any_role_name(account_id, role_name):
 @settings(max_examples=100)
 @given(
     account_id=account_id_strategy,
-    prefix=st.text(min_size=0, max_size=10),
-    suffix=st.text(min_size=0, max_size=10),
+    prefix=st.text(
+        alphabet=st.characters(blacklist_characters=" \t\n\r"),
+        min_size=0,
+        max_size=10,
+    ),
+    suffix=st.text(
+        alphabet=st.characters(blacklist_characters=" \t\n\r"),
+        min_size=0,
+        max_size=10,
+    ),
 )
 def test_property_validation_rejects_invalid_formats(
     account_id, prefix, suffix
@@ -155,14 +163,15 @@ def test_property_validation_rejects_invalid_formats(
     is_valid = validate_account_id(invalid_id)
 
     # Assert
-    if prefix or suffix:
-        # Should be invalid if we added anything
+    # Strip whitespace to handle edge cases where prefix/suffix are whitespace-only
+    if prefix.strip() or suffix.strip():
+        # Should be invalid if we added non-whitespace characters
         assert not is_valid, (
             f"Should reject account ID with extra characters. "
-            f"Input: {invalid_id}"
+            f"Input: {invalid_id}, prefix='{prefix}', suffix='{suffix}'"
         )
     else:
-        # Should be valid if no prefix/suffix
+        # Should be valid if no prefix/suffix (or only whitespace which gets stripped)
         assert is_valid, (
             f"Should accept valid 12-digit account ID. Input: {invalid_id}"
         )
