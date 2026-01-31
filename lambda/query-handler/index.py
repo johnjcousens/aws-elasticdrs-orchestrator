@@ -481,25 +481,25 @@ def handle_api_gateway_request(event, context):
 
     # Combined capacity endpoint
     # Supports both:
-    # - /api/accounts/{targetAccountId}/capacity
-    # - /api/accounts/targets/{targetAccountId}/capacity
+    # - /accounts/{targetAccountId}/capacity
+    # - /accounts/targets/{targetAccountId}/capacity
     elif (
-        path.startswith("/api/accounts/")
+        path.startswith("/accounts/")
         and path.endswith("/capacity")
         and method == "GET"
     ):
         # Extract target account ID from path
         path_parts = path.split("/")
 
-        # Handle /api/accounts/targets/{id}/capacity
-        if len(path_parts) >= 6 and path_parts[3] == "targets":
-            target_account_id = path_parts[4]
+        # Handle /accounts/targets/{id}/capacity
+        if len(path_parts) >= 5 and path_parts[2] == "targets":
+            target_account_id = path_parts[3]
             return handle_get_combined_capacity(
                 {"targetAccountId": target_account_id}
             )
-        # Handle /api/accounts/{id}/capacity
-        elif len(path_parts) >= 5:
-            target_account_id = path_parts[3]
+        # Handle /accounts/{id}/capacity
+        elif len(path_parts) >= 4:
+            target_account_id = path_parts[2]
             return handle_get_combined_capacity(
                 {"targetAccountId": target_account_id}
             )
