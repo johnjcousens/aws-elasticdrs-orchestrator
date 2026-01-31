@@ -3580,13 +3580,16 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             status_message = "Immediate action required"
 
         # Step 10: Build response
+        total_replicating = combined_metrics.get("totalReplicating", 0)
+        max_replicating = combined_metrics.get("maxReplicating", 0)
+        available_slots = max_replicating - total_replicating
+
         response_data = {
             "combined": {
-                "totalReplicating": combined_metrics.get(
-                    "totalReplicating", 0
-                ),
-                "maxReplicating": combined_metrics.get("maxReplicating", 0),
+                "totalReplicating": total_replicating,
+                "maxReplicating": max_replicating,
                 "percentUsed": combined_metrics.get("percentUsed", 0.0),
+                "availableSlots": available_slots,
                 "status": combined_status,
                 "message": status_message,
             },
