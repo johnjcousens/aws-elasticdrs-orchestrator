@@ -122,18 +122,17 @@ history/
 # -------------------------
 # TEST ARTIFACTS
 # -------------------------
-tests/
-
+# Keep test artifacts out but allow test code
+.pytest_cache/
+.hypothesis/
 test_results_*.json
 test-screenshots/
 playwright-report/
 playwright.config.ts
-.pytest_cache/
 
-# Test files with sensitive data
-tests/manual/
-tests/fixtures/*.json
-tests/e2e/node_modules/
+# Test files with sensitive data (if any)
+tests/manual/sensitive/
+tests/fixtures/sensitive/
 
 # -------------------------
 # TEMPORARY / DEBUG FILES
@@ -170,12 +169,9 @@ CHECKPOINT_*.md
 ssm-documents/
 diagrams/
 
-# Account-specific information
+# Account-specific environment files
 .env.dev
 .env.test
-
-# Internal scripts that may contain account IDs or sensitive data
-scripts/
 
 # -------------------------
 # MISE TOOL MANAGER
