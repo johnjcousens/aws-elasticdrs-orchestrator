@@ -38,6 +38,7 @@ import {
   Toggle,
   Spinner,
 } from "@cloudscape-design/components";
+import { getCombinedCapacity } from "../services/staging-accounts-api";
 import type {
   CapacityDashboardProps,
   CapacityDashboardState,
@@ -133,77 +134,8 @@ export const CapacityDashboard: React.FC<CapacityDashboardProps> = ({
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
-      // TODO: Replace with actual API call
-      // const response = await api.getCombinedCapacity(targetAccountId);
-      // const data = response.data;
-
-      // Mock data for development
-      const data: CombinedCapacityData = {
-        combined: {
-          totalReplicating: 267,
-          maxReplicating: 1200,
-          percentUsed: 22.25,
-          status: "OK",
-          message: "Capacity is within normal operating limits",
-          availableSlots: 933,
-        },
-        accounts: [
-          {
-            accountId: "111122223333",
-            accountName: "DEMO_TARGET",
-            accountType: "target",
-            replicatingServers: 225,
-            totalServers: 225,
-            maxReplicating: 300,
-            percentUsed: 75,
-            availableSlots: 75,
-            status: "WARNING",
-            regionalBreakdown: [
-              {
-                region: "us-east-1",
-                totalServers: 150,
-                replicatingServers: 150,
-              },
-              {
-                region: "us-west-2",
-                totalServers: 75,
-                replicatingServers: 75,
-              },
-            ],
-            warnings: [
-              "Account at 75% capacity - consider adding staging account",
-            ],
-          },
-          {
-            accountId: "444455556666",
-            accountName: "STAGING_01",
-            accountType: "staging",
-            replicatingServers: 42,
-            totalServers: 42,
-            maxReplicating: 300,
-            percentUsed: 14,
-            availableSlots: 258,
-            status: "OK",
-            regionalBreakdown: [
-              {
-                region: "us-east-1",
-                totalServers: 42,
-                replicatingServers: 42,
-              },
-            ],
-            warnings: [],
-          },
-        ],
-        recoveryCapacity: {
-          currentServers: 267,
-          maxRecoveryInstances: 4000,
-          percentUsed: 6.68,
-          availableSlots: 3733,
-          status: "OK",
-        },
-        warnings: [],
-        timestamp: new Date().toISOString(),
-      };
+      // Call the real API
+      const data = await getCombinedCapacity(targetAccountId || "", true);
 
       setState((prev) => ({
         ...prev,
