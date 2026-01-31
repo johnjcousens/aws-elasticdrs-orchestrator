@@ -21,6 +21,7 @@ import apiClient from '../services/api';
 import { useAccount } from '../contexts/AccountContext';
 import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../types/permissions';
+import { TargetAccountSettingsModal } from './TargetAccountSettingsModal';
 
 export interface TargetAccount {
   accountId: string;
@@ -45,6 +46,8 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TargetAccount | null>(null);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [settingsAccount, setSettingsAccount] = useState<TargetAccount | null>(null);
   
   // Current account info for wizard
   const [currentAccount, setCurrentAccount] = useState<{
@@ -67,14 +70,13 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   const [saving, setSaving] = useState(false);
   
   // Auto-populate cross-account role ARN based on account ID
-  // Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole-{Environment}
+  // Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole (standardized naming)
   const autoGenerateRoleArn = useCallback((accountId: string): string => {
     if (!accountId || !/^\d{12}$/.test(accountId.trim())) {
       return '';
     }
-    // Get environment from window config or default to 'dev'
-    const environment = (window as any).AWS_CONFIG?.environment || 'dev';
-    return `arn:aws:iam::${accountId.trim()}:role/DRSOrchestrationRole-${environment}`;
+    // Standardized role name without environment suffix
+    return `arn:aws:iam::${accountId.trim()}:role/DRSOrchestrationRole`;
   }, []);
 
   // Fetch current account info for wizard
@@ -246,6 +248,29 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     }
   };
 
+  const handleOpenSettings = (account: TargetAccount) => {
+    setSettingsAccount(account);
+    setSettingsModalVisible(true);
+  };
+
+  const handleCloseSettings = () => {
+    setSettingsModalVisible(false);
+    setSettingsAccount(null);
+  };
+
+  const handleSaveSettings = async (updatedAccount: any) => {
+    try {
+      // The TargetAccountSettingsModal handles the API calls internally
+      // Just refresh the accounts list after save
+      await refreshAccounts();
+      toast.success('Account settings updated successfully');
+      handleCloseSettings();
+    } catch (err) {
+      console.error('Error saving account settings:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save account settings');
+    }
+  };
+
   const handleOpenModal = (account?: TargetAccount) => {
     setEditingAccount(account || null);
     const accountId = account?.accountId || '';
@@ -364,6 +389,12 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
       header: 'Actions',
       cell: (item: TargetAccount) => (
         <SpaceBetween direction="horizontal" size="xs">
+          <Button
+            variant="icon"
+            iconName="settings"
+            ariaLabel="Manage staging accounts"
+            onClick={() => handleOpenSettings(item)}
+          />
           <PermissionAwareButton
             variant="icon"
             iconName="edit"
@@ -388,7 +419,7 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           />
         </SpaceBetween>
       ),
-      width: 120,
+      width: 150,
     },
   ];
 
@@ -661,8 +692,8 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
             label="Cross-Account Role ARN"
             description={
               showWizardMode && currentAccount
-                ? `Auto-populated based on account ID. Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole-{Environment}. Leave empty if target account is ${currentAccount.accountId} (same as solution account).`
-                : "Auto-populated based on account ID. Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole-{Environment}. Leave empty if target account is the same as this solution account."
+                ? `Auto-populated based on account ID. Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole. Leave empty if target account is ${currentAccount.accountId} (same as solution account).`
+                : "Auto-populated based on account ID. Pattern: arn:aws:iam::{AccountId}:role/DRSOrchestrationRole. Leave empty if target account is the same as this solution account."
             }
             errorText={formErrors.crossAccountRoleArn}
             info={
@@ -685,6 +716,21 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
           </FormField>
         </SpaceBetween>
       </Modal>
+
+      {settingsAccount && (
+        <TargetAccountSettingsModal
+          targetAccount={{
+            accountId: settingsAccount.accountId,
+            accountName: settingsAccount.accountName || '',
+            roleArn: settingsAccount.crossAccountRoleArn || '',
+            externalId: '', // Will be fetched by the modal
+            stagingAccounts: [], // Will be fetched by the modal
+          }}
+          visible={settingsModalVisible}
+          onDismiss={handleCloseSettings}
+          onSave={handleSaveSettings}
+        />
+      )}
     </SpaceBetween>
   );
 };
