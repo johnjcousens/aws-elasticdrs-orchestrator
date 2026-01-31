@@ -414,10 +414,27 @@ fi
 # Frontend Dependencies - npm audit
 if [ -d "frontend" ]; then
     cd frontend
-    if npm audit --audit-level=critical 2>/dev/null | grep -q "found 0 vulnerabilities"; then
-        echo -e "${GREEN}  ✓ npm audit (dependencies)${NC}"
+    # Check for critical vulnerabilities only (high severity is non-blocking)
+    AUDIT_JSON=$(npm audit --json 2>/dev/null)
+    CRITICAL_COUNT=$(echo "$AUDIT_JSON" | grep '"critical":' | grep -o '[0-9]*' | head -1)
+    HIGH_COUNT=$(echo "$AUDIT_JSON" | grep '"high":' | grep -o '[0-9]*' | head -1)
+    
+    if [ -z "$CRITICAL_COUNT" ]; then
+        CRITICAL_COUNT=0
+    fi
+    if [ -z "$HIGH_COUNT" ]; then
+        HIGH_COUNT=0
+    fi
+    
+    if [ "$CRITICAL_COUNT" = "0" ]; then
+        if [ "$HIGH_COUNT" = "0" ]; then
+            echo -e "${GREEN}  ✓ npm audit (0 vulnerabilities)${NC}"
+        else
+            echo -e "${GREEN}  ✓ npm audit (0 critical, $HIGH_COUNT high - non-blocking)${NC}"
+        fi
     else
-        echo -e "${YELLOW}  ⚠ npm audit: vulnerabilities (non-blocking)${NC}"
+        echo -e "${RED}  ✗ npm audit: $CRITICAL_COUNT critical vulnerabilities${NC}"
+        VALIDATION_FAILED=true
     fi
     cd ..
 fi
