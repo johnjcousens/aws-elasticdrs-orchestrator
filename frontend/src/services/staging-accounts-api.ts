@@ -45,7 +45,7 @@ export async function validateStagingAccount(
 ): Promise<ValidationResult> {
   try {
     const response = await apiClient["post"]<ValidationResult>(
-      "/api/staging-accounts/validate",
+      "/staging-accounts/validate",
       request
     );
     return response;

@@ -57,7 +57,7 @@ describe("Staging Accounts API Client", () => {
       const result = await validateStagingAccount(request);
 
       expect(apiClient.post).toHaveBeenCalledWith(
-        "/api/staging-accounts/validate",
+        "/staging-accounts/validate",
         request
       );
       expect(result).toEqual(mockResponse);
