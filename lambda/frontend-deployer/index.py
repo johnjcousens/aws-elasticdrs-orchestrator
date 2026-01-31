@@ -78,8 +78,8 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
     """
     Determine if bucket should be emptied based on stack status.
 
-    Only empties bucket during actual stack deletion (DELETE_IN_PROGRESS).
-    Skips cleanup for UPDATE operations, rollbacks, and any other scenario.
+    SAFETY FIRST: Only empties bucket during confirmed stack deletion.
+    Skips cleanup for UPDATE operations, rollbacks, and uncertain scenarios.
 
     Args:
         stack_id: CloudFormation stack ID from the event
@@ -109,16 +109,71 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
             },
         )
 
-        # Check for ROLLBACK operations first (explicit check per requirements)
-        if "ROLLBACK" in stack_status:
-            return (False, "rollback_in_progress", stack_status)
+        # SAFETY CHECK 1: Never empty during UPDATE_ROLLBACK
+        # This means an UPDATE failed and is rolling back - bucket should stay
+        if "UPDATE_ROLLBACK" in stack_status:
+            return (False, "update_rollback_in_progress", stack_status)
 
-        # Only proceed with bucket cleanup if stack is being DELETED
-        # Any other status means this is an UPDATE operation
-        if "DELETE" in stack_status:
+        # SAFETY CHECK 2: Only proceed if stack is actively being DELETED
+        # DELETE_IN_PROGRESS: Stack deletion in progress - safe to empty
+        # DELETE_FAILED: Stack deletion failed (likely due to bucket) - retry
+        if stack_status in ["DELETE_IN_PROGRESS", "DELETE_FAILED"]:
             return (True, "stack_deletion", stack_status)
 
+        # SAFETY CHECK 3: Any other status means NOT a deletion - skip cleanup
+        # This includes UPDATE_IN_PROGRESS, UPDATE_COMPLETE, etc.
         return (False, "not_stack_deletion", stack_status)
+
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+
+        # SAFETY CHECK 4: If stack doesn't exist, be VERY careful
+        # This could mean:
+        # a) Stack was deleted (safe to empty bucket)
+        # b) Wrong stack ID provided (NOT safe)
+        # Default to NOT emptying unless we're certain
+        if error_code == "ValidationError" and "does not exist" in str(e):
+            print(
+                f"Frontend Deployer DELETE: Stack does not exist - "
+                f"skipping cleanup for safety (stack may have been deleted "
+                f"already or wrong stack ID)"
+            )
+            logger.warning(
+                f"Frontend Deployer DELETE: Stack does not exist - "
+                f"skipping cleanup for safety"
+            )
+            log_security_event(
+                "stack_not_found_skip_cleanup",
+                {
+                    "bucket_name": bucket_name,
+                    "stack_id": stack_id,
+                    "reason": "Cannot verify stack deletion intent",
+                },
+                severity="WARN",
+            )
+            return (False, "stack_not_found", "UNKNOWN")
+
+        # Other errors - skip cleanup to be safe
+        stack_trace = traceback.format_exc()
+        print(
+            f"Frontend Deployer DELETE: Could not check stack status: {e} - "
+            f"skipping cleanup to be safe"
+        )
+        logger.error(
+            f"Frontend Deployer DELETE: Could not check stack status: {e}"
+        )
+        logger.error(f"Frontend Deployer DELETE Stack trace: {stack_trace}")
+        log_security_event(
+            "stack_status_check_failed",
+            {
+                "bucket_name": bucket_name,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "stack_trace": stack_trace,
+            },
+            severity="WARN",
+        )
+        return (False, "status_check_failed", "unknown")
 
     except Exception as e:
         # If we can't check status, skip cleanup to be safe
@@ -183,12 +238,16 @@ def empty_bucket(bucket_name: str) -> int:
         # Delete all object versions and delete markers
         paginator = s3.get_paginator("list_object_versions")
 
+        # Track if we found any objects
+        found_objects = False
+
         for page in paginator.paginate(Bucket=bucket_name):
             # Collect objects to delete
             objects_to_delete = []
 
             # Add current versions
             if "Versions" in page:
+                found_objects = True
                 for version in page["Versions"]:
                     objects_to_delete.append(
                         {
@@ -199,6 +258,7 @@ def empty_bucket(bucket_name: str) -> int:
 
             # Add delete markers
             if "DeleteMarkers" in page:
+                found_objects = True
                 for marker in page["DeleteMarkers"]:
                     objects_to_delete.append(
                         {
@@ -224,24 +284,45 @@ def empty_bucket(bucket_name: str) -> int:
 
                     response = s3.delete_objects(
                         Bucket=bucket_name,
-                        Delete={"Objects": batch, "Quiet": True},
+                        Delete={"Objects": batch, "Quiet": False},
                     )
 
                     # Log any errors
                     if "Errors" in response and response["Errors"]:
                         for error in response["Errors"]:
                             logger.warning(
-                                f"Failed to delete {error['Key']}: "
-                                f"{error['Message']}"
+                                f"Failed to delete {error['Key']} "
+                                f"(version {error.get('VersionId', 'N/A')}): "
+                                f"{error['Code']} - {error['Message']}"
                             )
 
-                    total_deleted += len(batch)
+                    # Count successful deletions
+                    if "Deleted" in response:
+                        total_deleted += len(response["Deleted"])
 
-        # Verify bucket is empty
+        if not found_objects:
+            print(f"Frontend Deployer: Bucket {bucket_name} is already empty")
+            logger.info(f"Bucket {bucket_name} is already empty")
+
+        # Verify bucket is empty by checking both regular objects and versions
         response = s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
-        if "Contents" in response:
+        versions_response = s3.list_object_versions(
+            Bucket=bucket_name, MaxKeys=1
+        )
+
+        has_objects = "Contents" in response
+        has_versions = "Versions" in versions_response
+        has_markers = "DeleteMarkers" in versions_response
+
+        if has_objects or has_versions or has_markers:
             logger.warning(
-                f"Bucket {bucket_name} still contains objects after cleanup"
+                f"Bucket {bucket_name} still contains objects after cleanup: "
+                f"objects={has_objects}, versions={has_versions}, "
+                f"markers={has_markers}"
+            )
+            print(
+                f"Frontend Deployer: ⚠️ Bucket {bucket_name} still has "
+                f"content after cleanup"
             )
         else:
             print(f"Frontend Deployer: Bucket {bucket_name} is now empty")
@@ -680,18 +761,26 @@ def delete(event, context):
     """
     Handle delete events from CloudFormation.
 
-    IMPORTANT: During UPDATE operations that change PhysicalResourceId,
-    CloudFormation sends a DELETE for the old resource. We should NOT
-    empty the bucket in this case - only on actual stack deletion.
+    CRITICAL SAFETY LOGIC:
+    This function ONLY empties the S3 bucket when we can CONFIRM the stack
+    is being deleted. We check the stack status and only proceed if:
 
-    We detect this by checking if the stack is being deleted
-    (DELETE_IN_PROGRESS). Only empty the bucket if the stack itself is
-    being deleted.
+    1. Stack status is DELETE_IN_PROGRESS (deletion in progress)
+    2. Stack status is DELETE_FAILED (deletion failed, likely due to bucket)
+
+    We NEVER empty the bucket if:
+    - Stack status contains UPDATE_ROLLBACK (update failed, rolling back)
+    - Stack status is anything else (UPDATE_IN_PROGRESS, etc.)
+    - Stack doesn't exist (could be wrong ID, not safe to assume)
+    - We can't verify stack status (fail safe)
+
+    This prevents accidental data loss during UPDATE operations where
+    CloudFormation sends DELETE events for old resources.
 
     SAFETY RULES:
-    1. Only empty bucket when stack status contains "DELETE_IN_PROGRESS"
-    2. Skip cleanup for UPDATE operations (no "DELETE" in status)
-    3. Skip cleanup for ROLLBACK operations (explicit check)
+    1. Only empty bucket when stack status is DELETE_IN_PROGRESS or DELETE_FAILED
+    2. Skip cleanup for UPDATE_ROLLBACK operations (explicit check)
+    3. Skip cleanup for all other statuses (not a deletion)
     4. Skip cleanup if status check fails (safe default)
     5. Always return SUCCESS to allow stack deletion to continue
     """
