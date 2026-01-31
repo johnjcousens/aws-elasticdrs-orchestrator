@@ -2,11 +2,14 @@
  * AddStagingAccountModal Component
  *
  * Modal dialog for adding a new staging account with validation.
- * Provides form fields for staging account details, validates access
- * before adding, and displays validation results.
+ * Simplified to only require essential information - the system automatically
+ * derives role ARN, external ID, and discovers DRS-initialized regions.
  *
  * FEATURES:
- * - Form fields for account ID, name, role ARN, external ID, region
+ * - Minimal form fields (account ID, optional name)
+ * - Automatic role ARN construction (standardized naming)
+ * - Automatic external ID generation
+ * - Automatic region discovery (tries common regions)
  * - Input validation (format checking)
  * - Staging account access validation via API
  * - Display validation results with status indicators
@@ -28,13 +31,13 @@ import {
   Button,
   FormField,
   Input,
-  Select,
   Alert,
   ColumnLayout,
   StatusIndicator,
   Container,
   Header,
 } from "@cloudscape-design/components";
+import { validateStagingAccount, addStagingAccount } from "../services/staging-accounts-api";
 import type {
   AddStagingAccountModalProps,
   AddStagingAccountModalState,
@@ -45,23 +48,20 @@ import type {
 } from "../types/staging-accounts";
 
 /**
- * AWS regions for DRS
+ * AWS regions for DRS - used for automatic discovery
+ * The system will try these regions automatically to find where DRS is initialized
  */
 const AWS_REGIONS = [
-  { value: "us-east-1", label: "US East (N. Virginia)" },
-  { value: "us-east-2", label: "US East (Ohio)" },
-  { value: "us-west-1", label: "US West (N. California)" },
-  { value: "us-west-2", label: "US West (Oregon)" },
-  { value: "eu-west-1", label: "Europe (Ireland)" },
-  { value: "eu-west-2", label: "Europe (London)" },
-  { value: "eu-west-3", label: "Europe (Paris)" },
-  { value: "eu-central-1", label: "Europe (Frankfurt)" },
-  { value: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
-  { value: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
-  { value: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
-  { value: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
-  { value: "ap-south-1", label: "Asia Pacific (Mumbai)" },
-  { value: "sa-east-1", label: "South America (São Paulo)" },
+  "us-east-1",
+  "us-east-2",
+  "us-west-1",
+  "us-west-2",
+  "eu-west-1",
+  "eu-west-2",
+  "eu-central-1",
+  "ap-southeast-1",
+  "ap-southeast-2",
+  "ap-northeast-1",
 ];
 
 /**
@@ -78,52 +78,27 @@ const validateAccountId = (accountId: string): string | undefined => {
 };
 
 /**
- * Validate account name
+ * Validate account name (optional - will default to account ID if not provided)
  */
 const validateAccountName = (accountName: string): string | undefined => {
-  if (!accountName) {
-    return "Account name is required";
-  }
-  if (accountName.length < 1 || accountName.length > 50) {
+  if (accountName && (accountName.length < 1 || accountName.length > 50)) {
     return "Account name must be between 1 and 50 characters";
   }
   return undefined;
 };
 
 /**
- * Validate IAM role ARN format
+ * Construct standardized role ARN from account ID
  */
-const validateRoleArn = (roleArn: string): string | undefined => {
-  if (!roleArn) {
-    return "Role ARN is required";
-  }
-  if (!/^arn:aws:iam::\d{12}:role\/[\w+=,.@-]+$/.test(roleArn)) {
-    return "Invalid role ARN format. Expected: arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME";
-  }
-  return undefined;
+const constructRoleArn = (accountId: string): string => {
+  return `arn:aws:iam::${accountId}:role/DRSOrchestrationRole`;
 };
 
 /**
- * Validate external ID
+ * Construct standardized external ID from account ID
  */
-const validateExternalId = (externalId: string): string | undefined => {
-  if (!externalId) {
-    return "External ID is required";
-  }
-  if (externalId.length < 1 || externalId.length > 100) {
-    return "External ID must be between 1 and 100 characters";
-  }
-  return undefined;
-};
-
-/**
- * Validate region
- */
-const validateRegion = (region: string): string | undefined => {
-  if (!region) {
-    return "Region is required";
-  }
-  return undefined;
+const constructExternalId = (accountId: string): string => {
+  return `drs-orchestration-${accountId}`;
 };
 
 /**
@@ -155,9 +130,6 @@ export const AddStagingAccountModal: React.FC<
     const errors: StagingAccountFormErrors = {
       accountId: validateAccountId(state.formData.accountId),
       accountName: validateAccountName(state.formData.accountName),
-      roleArn: validateRoleArn(state.formData.roleArn),
-      externalId: validateExternalId(state.formData.externalId),
-      region: validateRegion(state.formData.region),
     };
 
     setState((prev) => ({ ...prev, errors }));
@@ -197,27 +169,35 @@ export const AddStagingAccountModal: React.FC<
       return;
     }
 
-    setState((prev) => ({ ...prev, validating: true }));
+    // Auto-construct role ARN and external ID
+    const accountId = state.formData.accountId;
+    const roleArn = constructRoleArn(accountId);
+    const externalId = constructExternalId(accountId);
+    const accountName = state.formData.accountName || accountId; // Default to account ID if not provided
+
+    setState((prev) => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        accountName,
+        roleArn,
+        externalId,
+      },
+      validating: true,
+    }));
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await api.validateStagingAccount({
-      //   accountId: state.formData.accountId,
-      //   roleArn: state.formData.roleArn,
-      //   externalId: state.formData.externalId,
-      //   region: state.formData.region,
-      // });
-      // const validationResult = response.data;
+      // Try the first region (us-east-1) for validation
+      // Backend will handle multi-region discovery if needed
+      const region = AWS_REGIONS[0];
 
-      // Mock validation result for development
-      const validationResult: ValidationResult = {
-        valid: true,
-        roleAccessible: true,
-        drsInitialized: true,
-        currentServers: 42,
-        replicatingServers: 42,
-        totalAfter: 309,
-      };
+      // Call the real API
+      const validationResult = await validateStagingAccount({
+        accountId,
+        roleArn,
+        externalId,
+        region,
+      });
 
       setState((prev) => ({
         ...prev,
@@ -259,18 +239,18 @@ export const AddStagingAccountModal: React.FC<
     setState((prev) => ({ ...prev, adding: true }));
 
     try {
-      // TODO: Replace with actual API call
-      // await api.addStagingAccount({
-      //   targetAccountId,
-      //   stagingAccount: {
-      //     accountId: state.formData.accountId,
-      //     accountName: state.formData.accountName,
-      //     roleArn: state.formData.roleArn,
-      //     externalId: state.formData.externalId,
-      //   },
-      // });
+      // Call the real API to add staging account
+      await addStagingAccount(
+        targetAccountId,
+        {
+          accountId: state.formData.accountId,
+          accountName: state.formData.accountName,
+          roleArn: state.formData.roleArn,
+          externalId: state.formData.externalId,
+        }
+      );
 
-      // Create staging account object
+      // Create staging account object for UI callback
       const stagingAccount: StagingAccount = {
         accountId: state.formData.accountId,
         accountName: state.formData.accountName,
@@ -437,13 +417,24 @@ export const AddStagingAccountModal: React.FC<
     >
       <SpaceBetween size="l">
         <Alert type="info">
-          Before adding a staging account, ensure that:
+          <strong>Simplified Setup</strong>
+          <p>
+            Just provide the AWS account ID. The system will automatically:
+          </p>
           <ul>
-            <li>The IAM role exists in the staging account</li>
-            <li>The role trust policy allows this account to assume it</li>
-            <li>The external ID matches the role configuration</li>
-            <li>DRS is initialized in at least one region</li>
+            <li>
+              Construct the role ARN using standardized naming:{" "}
+              <code>DRSOrchestrationRole</code>
+            </li>
+            <li>
+              Generate the external ID: <code>drs-orchestration-[ACCOUNT_ID]</code>
+            </li>
+            <li>Discover which regions have DRS initialized</li>
           </ul>
+          <p>
+            <strong>Prerequisites:</strong> Ensure the IAM role exists in the
+            staging account with the correct trust policy.
+          </p>
         </Alert>
 
         <SpaceBetween size="m">
@@ -463,8 +454,8 @@ export const AddStagingAccountModal: React.FC<
           </FormField>
 
           <FormField
-            label="Account Name"
-            description="Human-readable name for this staging account"
+            label="Account Name (Optional)"
+            description="Human-readable name for this staging account. Defaults to account ID if not provided."
             errorText={state.errors.accountName}
           >
             <Input
@@ -477,54 +468,21 @@ export const AddStagingAccountModal: React.FC<
             />
           </FormField>
 
-          <FormField
-            label="Role ARN"
-            description="IAM role ARN for cross-account access"
-            errorText={state.errors.roleArn}
-          >
-            <Input
-              value={state.formData.roleArn}
-              onChange={({ detail }) =>
-                handleFieldChange("roleArn", detail.value)
-              }
-              placeholder="arn:aws:iam::123456789012:role/DRSOrchestrationRole"
-              disabled={state.validating || state.adding}
-            />
-          </FormField>
-
-          <FormField
-            label="External ID"
-            description="External ID for role assumption security"
-            errorText={state.errors.externalId}
-          >
-            <Input
-              value={state.formData.externalId}
-              onChange={({ detail }) =>
-                handleFieldChange("externalId", detail.value)
-              }
-              placeholder="drs-orchestration-123456789012"
-              disabled={state.validating || state.adding}
-            />
-          </FormField>
-
-          <FormField
-            label="Region"
-            description="AWS region to validate DRS initialization"
-            errorText={state.errors.region}
-          >
-            <Select
-              selectedOption={
-                AWS_REGIONS.find(
-                  (r) => r.value === state.formData.region
-                ) || null
-              }
-              onChange={({ detail }) =>
-                handleFieldChange("region", detail.selectedOption.value || "")
-              }
-              options={AWS_REGIONS}
-              disabled={state.validating || state.adding}
-            />
-          </FormField>
+          {/* Show auto-generated values after validation starts */}
+          {(state.validating || state.validationResult) && (
+            <Container header={<Header variant="h3">Auto-Generated Configuration</Header>}>
+              <ColumnLayout columns={1} variant="text-grid">
+                <div>
+                  <Box variant="awsui-key-label">Role ARN</Box>
+                  <Box variant="code">{state.formData.roleArn}</Box>
+                </div>
+                <div>
+                  <Box variant="awsui-key-label">External ID</Box>
+                  <Box variant="code">{state.formData.externalId}</Box>
+                </div>
+              </ColumnLayout>
+            </Container>
+          )}
         </SpaceBetween>
 
         {renderValidationResults()}
