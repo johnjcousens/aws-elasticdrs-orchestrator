@@ -66,12 +66,12 @@ export const SystemStatusPage: React.FC = () => {
 
   // Find paused executions
   const pausedExecutions = executions.filter(
-    (e) => e.status === 'PAUSED' || e.status === 'paused'
+    (e) => e.status === 'paused'
   );
 
   // Find executions waiting for action
   const waitingExecutions = executions.filter(
-    (e) => e.status === 'PENDING' || e.status === 'pending'
+    (e) => e.status === 'pending'
   );
 
   return (
