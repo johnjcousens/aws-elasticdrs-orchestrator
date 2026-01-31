@@ -22,7 +22,9 @@ import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
 import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
-import { CapacityDashboard } from '../components/CapacityDashboard';
+import { CompactCapacitySummary } from '../components/CompactCapacitySummary';
+import { getCombinedCapacity } from '../services/staging-accounts-api';
+import type { CombinedCapacityData } from '../types/staging-accounts';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { useAccount } from '../contexts/AccountContext';
 import apiClient from '../services/api';
@@ -76,6 +78,10 @@ export const Dashboard: React.FC = () => {
   const [quotasLoading, setQuotasLoading] = useState(false);
   const [quotasError, setQuotasError] = useState<string | null>(null);
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
+  
+  const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
+  const [capacityError, setCapacityError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!accountsLoading && availableAccounts.length === 0) {
@@ -123,6 +129,21 @@ export const Dashboard: React.FC = () => {
     }
   }, []);
 
+  const fetchCapacityData = useCallback(async (accountId: string) => {
+    setCapacityLoading(true);
+    setCapacityError(null);
+    try {
+      const data = await getCombinedCapacity(accountId, false); // Don't need regional breakdown for summary
+      setCapacityData(data);
+    } catch (err) {
+      console.error('Error fetching capacity data:', err);
+      setCapacityError('Unable to fetch capacity data');
+      setCapacityData(null);
+    } finally {
+      setCapacityLoading(false);
+    }
+  }, []);
+
   // Fetch executions when account changes
   useEffect(() => {
     fetchExecutions();
@@ -130,19 +151,22 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
-  // Fetch DRS quotas when account changes and auto-refresh every 30 seconds
+  // Fetch DRS quotas and capacity when account changes
   useEffect(() => {
     const accountId = getCurrentAccountId();
     if (accountId) {
       fetchDRSQuotas(accountId);
+      fetchCapacityData(accountId);
       const interval = setInterval(() => {
         fetchDRSQuotas(accountId);
+        fetchCapacityData(accountId);
       }, 30000);
       return () => clearInterval(interval);
     } else {
       setDrsQuotas(null);
+      setCapacityData(null);
     }
-  }, [selectedAccount, getCurrentAccountId, fetchDRSQuotas]);
+  }, [selectedAccount, getCurrentAccountId, fetchDRSQuotas, fetchCapacityData]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -317,20 +341,16 @@ export const Dashboard: React.FC = () => {
             <Container
               header={
                 <Header variant="h2">
-                  Combined Capacity (Target + Staging Accounts)
+                  Combined Capacity Summary
                 </Header>
               }
             >
-              {selectedAccount ? (
-                <CapacityDashboard 
-                  targetAccountId={getCurrentAccountId() || ''} 
-                  refreshInterval={30000}
-                />
-              ) : (
-                <Box textAlign="center" padding="l" color="text-body-secondary">
-                  Select a target account to view capacity
-                </Box>
-              )}
+              <CompactCapacitySummary
+                data={capacityData}
+                loading={capacityLoading}
+                error={capacityError}
+                onViewDetails={() => navigate('/system-status')}
+              />
             </Container>
 
             <ColumnLayout columns={2}>
