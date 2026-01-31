@@ -202,6 +202,7 @@ def main():
         ("frontend-deployer", True),  # Frontend deployment automation (includes frontend dist)
         ("notification-formatter", False),  # SNS notification formatting
         ("orchestration-stepfunctions", False),  # Step Functions orchestration
+        # ("drs-agent-deployer", False),  # DRS agent deployment automation - NOT YET DEVELOPED
     ]
 
     # Build frontend if needed (for frontend-builder Lambda)

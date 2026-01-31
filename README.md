@@ -364,6 +364,52 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 ```
 
+### Cross-Account Setup (Simplified)
+
+The solution uses **standardized cross-account role naming** to simplify multi-account configuration. When adding target or staging accounts, you only need to provide the account ID - the system automatically constructs the role ARN.
+
+**Standardized Role Name**: `DRSOrchestrationRole` (no environment suffix)
+
+**Setup Steps**:
+
+1. **Deploy cross-account role in target/staging account**:
+   ```bash
+   aws cloudformation deploy \
+     --template-file cfn/cross-account-role-stack.yaml \
+     --stack-name drs-orchestration-role \
+     --capabilities CAPABILITY_NAMED_IAM \
+     --parameter-overrides \
+       OrchestrationAccountId=YOUR_ORCHESTRATION_ACCOUNT_ID \
+       ExternalId=YOUR_UNIQUE_EXTERNAL_ID
+   ```
+
+2. **Add account via API** (roleArn is optional):
+   ```bash
+   curl -X POST https://api-endpoint/accounts/target \
+     -H "Authorization: Bearer $TOKEN" \
+     -d '{
+       "accountId": "123456789012",
+       "accountName": "Production Account",
+       "externalId": "YOUR_UNIQUE_EXTERNAL_ID"
+     }'
+   ```
+
+   The system automatically constructs: `arn:aws:iam::123456789012:role/DRSOrchestrationRole`
+
+**Backward Compatibility**: Existing accounts with custom role names continue to work. You can still provide an explicit `roleArn` if needed:
+```bash
+curl -X POST https://api-endpoint/accounts/target \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "accountId": "123456789012",
+    "accountName": "Legacy Account",
+    "externalId": "YOUR_UNIQUE_EXTERNAL_ID",
+    "roleArn": "arn:aws:iam::123456789012:role/CustomRole-dev"
+  }'
+```
+
+**See**: [DRS Cross-Account Setup Guide](docs/guides/DRS_CROSS_ACCOUNT_SETUP_VERIFICATION.md) for complete setup instructions.
+
 ### CloudFormation Deployment
 
 ```bash

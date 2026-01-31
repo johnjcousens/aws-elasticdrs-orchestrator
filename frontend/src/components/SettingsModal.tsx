@@ -23,14 +23,23 @@ import { DRSPermission } from '../types/permissions';
 interface SettingsModalProps {
   visible: boolean;
   onDismiss: () => void;
+  initialTab?: string;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   visible,
   onDismiss,
+  initialTab,
 }) => {
-  const [activeTab, setActiveTab] = useState('accounts');
+  const [activeTab, setActiveTab] = useState(initialTab || 'accounts');
   const { hasPermission } = usePermissions();
+
+  // Update active tab when initialTab prop changes
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Check permissions for import/export functionality
   const canExport = hasPermission(DRSPermission.EXPORT_CONFIGURATION);

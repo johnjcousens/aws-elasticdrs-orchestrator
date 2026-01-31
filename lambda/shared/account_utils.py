@@ -9,6 +9,7 @@ This module provides utilities for:
 - Auto-initializing default target accounts
 - Listing configured target accounts
 - Validating target account access and permissions
+- Standardized cross-account role ARN construction
 
 ## Integration Points
 
@@ -37,6 +38,17 @@ if not result['valid']:
     return {"statusCode": 400, "body": {"errors": result['errors']}}
 ```
 
+### 4. Standardized Role ARN Construction
+```python
+from shared.account_utils import construct_role_arn, get_role_arn
+
+# Construct ARN from account ID
+arn = construct_role_arn("123456789012")
+
+# Get ARN with fallback to construction
+arn = get_role_arn("123456789012", explicit_arn=None)
+```
+
 ## Dependencies
 
 - boto3: AWS SDK for IAM, Organizations, DynamoDB, STS
@@ -45,6 +57,7 @@ if not result['valid']:
 """
 
 import os
+import re
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
@@ -55,9 +68,137 @@ from botocore.exceptions import ClientError
 from shared.cross_account import get_current_account_id
 from shared.response_utils import response
 
+# Standardized role name across all accounts
+STANDARD_ROLE_NAME = "DRSOrchestrationRole"
+
+# Account ID validation pattern (12 digits)
+ACCOUNT_ID_PATTERN = re.compile(r"^\d{12}$")
+
 # Lazy initialization
 _dynamodb = None
 _target_accounts_table = None
+
+
+def construct_role_arn(account_id: str) -> str:
+    """
+    Construct standardized role ARN from account ID.
+
+    Args:
+        account_id: 12-digit AWS account ID
+
+    Returns:
+        Role ARN in format: arn:aws:iam::{account_id}:role/DRSOrchestrationRole
+
+    Raises:
+        ValueError: If account_id is not exactly 12 digits
+
+    Example:
+        >>> construct_role_arn("123456789012")
+        'arn:aws:iam::123456789012:role/DRSOrchestrationRole'
+
+        >>> construct_role_arn("12345")
+        ValueError: Invalid account ID: 12345. Must be exactly 12 digits.
+    """
+    if not validate_account_id(account_id):
+        raise ValueError(
+            f"Invalid account ID: {account_id}. Must be exactly 12 digits."
+        )
+
+    return f"arn:aws:iam::{account_id}:role/{STANDARD_ROLE_NAME}"
+
+
+def validate_account_id(account_id: str) -> bool:
+    """
+    Validate AWS account ID format.
+
+    Args:
+        account_id: Account ID to validate
+
+    Returns:
+        True if valid (exactly 12 digits), False otherwise
+
+    Example:
+        >>> validate_account_id("123456789012")
+        True
+
+        >>> validate_account_id("12345")
+        False
+
+        >>> validate_account_id("12345678901a")
+        False
+
+        >>> validate_account_id(None)
+        False
+    """
+    if not account_id:
+        return False
+
+    return ACCOUNT_ID_PATTERN.match(account_id) is not None
+
+
+def extract_account_id_from_arn(role_arn: str) -> Optional[str]:
+    """
+    Extract account ID from role ARN.
+
+    Args:
+        role_arn: IAM role ARN
+
+    Returns:
+        12-digit account ID, or None if extraction fails
+
+    Example:
+        >>> extract_account_id_from_arn(
+        ...     "arn:aws:iam::123456789012:role/DRSOrchestrationRole"
+        ... )
+        '123456789012'
+
+        >>> extract_account_id_from_arn("invalid-arn")
+        None
+
+        >>> extract_account_id_from_arn(
+        ...     "arn:aws:iam::999999999999:role/CustomRole"
+        ... )
+        '999999999999'
+    """
+    # ARN format: arn:aws:iam::123456789012:role/RoleName
+    match = re.match(r"arn:aws:iam::(\d{12}):role/", role_arn)
+    if match:
+        return match.group(1)
+    return None
+
+
+def get_role_arn(account_id: str, explicit_arn: Optional[str] = None) -> str:
+    """
+    Get role ARN for account, using explicit ARN if provided or constructing it.
+
+    This function implements the backward compatibility strategy:
+    - If explicit_arn is provided, use it (existing accounts)
+    - Otherwise, construct standardized ARN (new accounts)
+
+    Args:
+        account_id: 12-digit AWS account ID
+        explicit_arn: Optional explicit role ARN (for backward compatibility)
+
+    Returns:
+        Role ARN (explicit or constructed)
+
+    Raises:
+        ValueError: If account_id is invalid
+
+    Example:
+        >>> get_role_arn("123456789012")
+        'arn:aws:iam::123456789012:role/DRSOrchestrationRole'
+
+        >>> get_role_arn(
+        ...     "123456789012",
+        ...     explicit_arn="arn:aws:iam::123456789012:role/CustomRole"
+        ... )
+        'arn:aws:iam::123456789012:role/CustomRole'
+    """
+    if explicit_arn:
+        return explicit_arn
+
+    return construct_role_arn(account_id)
 
 
 def _get_target_accounts_table():
@@ -121,60 +262,6 @@ def get_account_name(account_id: str) -> Optional[str]:
         return None
 
 
-def ensure_default_account() -> None:
-    """
-    Automatically add current account as default target account if no accounts exist.
-
-    Used for first-time setup to bootstrap the target accounts table.
-    This function is idempotent - safe to call multiple times.
-
-    Non-blocking: Logs errors but doesn't raise exceptions.
-
-    Example:
-        >>> ensure_default_account()
-        Auto-initialized default target account: 123456789012 (prod-account)
-    """
-    try:
-        target_accounts_table = _get_target_accounts_table()
-        if not target_accounts_table:
-            return
-
-        # Check if any accounts already exist
-        scan_result = target_accounts_table.scan(Select="COUNT")
-        total_accounts = scan_result.get("Count", 0)
-
-        if total_accounts == 0:
-            # No accounts exist - auto-add current account as default
-            current_account_id = get_current_account_id()
-            current_account_name = (
-                get_account_name(current_account_id)
-                or f"Account {current_account_id}"
-            )
-
-            now = datetime.now(timezone.utc).isoformat() + "Z"
-
-            # Create default account entry
-            default_account = {
-                "accountId": current_account_id,
-                "accountName": current_account_name,
-                "status": "active",
-                "IsCurrentAccount": True,
-                "IsDefault": True,
-                "createdAt": now,
-                "lastValidated": now,
-                "createdBy": "system-auto-init",
-            }
-
-            target_accounts_table.put_item(Item=default_account)
-
-            print(
-                f"Auto-initialized default target account: {current_account_id} ({current_account_name})"
-            )
-
-    except Exception as e:
-        print(f"Error auto-initializing default account: {e}")
-
-
 def get_target_accounts() -> Dict:
     """
     Get all configured target accounts from DynamoDB.
@@ -209,9 +296,6 @@ def get_target_accounts() -> Dict:
             return response(
                 500, {"error": "Target accounts table not configured"}
             )
-
-        # Auto-initialize default account if none exist
-        ensure_default_account()
 
         # Get current account info
         current_account_id = get_current_account_id()

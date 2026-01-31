@@ -907,6 +907,8 @@ class ApiClient {
     status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
     lastValidated?: string;
     error?: string;
+    message?: string;
+    discoveredStagingAccounts?: string[];
   }> {
     return this.post<{
       accountId: string;
@@ -916,6 +918,8 @@ class ApiClient {
       status: 'ACTIVE' | 'INACTIVE' | 'ERROR';
       lastValidated?: string;
       error?: string;
+      message?: string;
+      discoveredStagingAccounts?: string[];
     }>('/accounts/targets', accountData);
   }
 

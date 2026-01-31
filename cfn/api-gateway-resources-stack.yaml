@@ -645,6 +645,45 @@ Resources:
       ParentId: !Ref AccountsTargetResource
       PathPart: validate
 
+  # ============================================================================
+  # API Resources - Staging Accounts Management
+  # ============================================================================
+
+  StagingAccountsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RestApiRootResourceId
+      PathPart: staging-accounts
+
+  StagingAccountsValidateResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref StagingAccountsResource
+      PathPart: validate
+
+  AccountsTargetStagingAccountsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsTargetResource
+      PathPart: staging-accounts
+
+  AccountsTargetStagingAccountResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsTargetStagingAccountsResource
+      PathPart: '{stagingAccountId}'
+
+  AccountsTargetCapacityResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsTargetResource
+      PathPart: capacity
+
 # ============================================================================
 # OUTPUTS - All Resource IDs for Methods Stack
 # ============================================================================
@@ -1151,3 +1190,34 @@ Outputs:
     Value: !Ref AccountsTargetValidateResource
     Export:
       Name: !Sub '${AWS::StackName}-AccountsTargetValidateResourceId'
+
+  # Staging Accounts Resources
+  StagingAccountsResourceId:
+    Description: 'Staging Accounts Resource ID'
+    Value: !Ref StagingAccountsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-StagingAccountsResourceId'
+
+  StagingAccountsValidateResourceId:
+    Description: 'Staging Accounts Validate Resource ID'
+    Value: !Ref StagingAccountsValidateResource
+    Export:
+      Name: !Sub '${AWS::StackName}-StagingAccountsValidateResourceId'
+
+  AccountsTargetStagingAccountsResourceId:
+    Description: 'Accounts Target Staging Accounts Resource ID'
+    Value: !Ref AccountsTargetStagingAccountsResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetStagingAccountsResourceId'
+
+  AccountsTargetStagingAccountResourceId:
+    Description: 'Accounts Target Staging Account Resource ID'
+    Value: !Ref AccountsTargetStagingAccountResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetStagingAccountResourceId'
+
+  AccountsTargetCapacityResourceId:
+    Description: 'Accounts Target Capacity Resource ID'
+    Value: !Ref AccountsTargetCapacityResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetCapacityResourceId'
