@@ -8,15 +8,41 @@ execution-finder and execution-poller with operation-based routing.
 import json
 import os
 import sys
+import importlib.util
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from botocore.exceptions import ClientError
 
-# Add lambda directory to path for imports
+
+# Module-level setup to load execution-handler index
 lambda_dir = os.path.join(os.path.dirname(__file__), "../../lambda")
-sys.path.insert(0, os.path.join(lambda_dir, "execution-handler"))
-sys.path.insert(0, lambda_dir)
+execution_handler_dir = os.path.join(lambda_dir, "execution-handler")
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_execution_handler_import():
+    """Ensure execution-handler index is imported correctly for each test"""
+    # Save original sys.path and modules
+    original_path = sys.path.copy()
+    original_index = sys.modules.get('index')
+    
+    # Remove any existing 'index' module
+    if 'index' in sys.modules:
+        del sys.modules['index']
+    
+    # Add execution-handler to front of path
+    sys.path.insert(0, execution_handler_dir)
+    sys.path.insert(0, lambda_dir)
+    
+    yield
+    
+    # Restore original state
+    sys.path = original_path
+    if 'index' in sys.modules:
+        del sys.modules['index']
+    if original_index is not None:
+        sys.modules['index'] = original_index
 
 
 @pytest.fixture(scope="function", autouse=False)
@@ -94,7 +120,7 @@ def mock_env_vars():
         "EXECUTION_HISTORY_TABLE": "test-execution-table",
         "PROTECTION_GROUPS_TABLE": "test-pg-table",
         "RECOVERY_PLANS_TABLE": "test-plans-table",
-        "TARGET_ACCOUNTS_TABLE": "test-accounts-table",
+        "TARGET_ACCOUNTS_TABLE": "test-target-accounts-table",
         "PROJECT_NAME": "test-project",
         "ENVIRONMENT": "test",
         "STATE_MACHINE_ARN": "arn:aws:states:us-east-1:123456789012:stateMachine:test"

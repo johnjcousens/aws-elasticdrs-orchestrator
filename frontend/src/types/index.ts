@@ -688,3 +688,10 @@ export interface AuthState {
   loading: boolean;
   error?: string;
 }
+
+// ============================================================================
+// Staging Accounts Management Types
+// ============================================================================
+
+// Re-export all staging accounts types
+export * from './staging-accounts';

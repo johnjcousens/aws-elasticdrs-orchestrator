@@ -289,7 +289,6 @@ from botocore.exceptions import ClientError
 
 # Import shared utilities
 from shared.account_utils import (
-    ensure_default_account,
     get_account_name,
     get_target_accounts,
     validate_target_account,
@@ -548,9 +547,33 @@ def handle_api_gateway_request(event, context):
             if not account_id:
                 return response(400, {"error": "Missing account ID"})
 
-            if "/validate" in path:
+            # Staging accounts endpoints
+            if "/staging-accounts" in path:
+                if path.endswith("/staging-accounts"):
+                    # POST /accounts/{id}/staging-accounts - Add staging account
+                    if http_method == "POST":
+                        body["targetAccountId"] = account_id
+                        return handle_add_staging_account(body)
+                else:
+                    # DELETE /accounts/{id}/staging-accounts/{stagingId}
+                    staging_id = path_parameters.get("stagingId")
+                    if not staging_id:
+                        return response(
+                            400, {"error": "Missing staging account ID"}
+                        )
+                    if http_method == "DELETE":
+                        return handle_remove_staging_account(
+                            {
+                                "targetAccountId": account_id,
+                                "stagingAccountId": staging_id,
+                            }
+                        )
+
+            # Target account validation endpoint
+            elif "/validate" in path:
                 if http_method == "POST":
                     return validate_target_account(account_id)
+            # Target account CRUD endpoints
             elif http_method == "GET":
                 return get_target_account(account_id)
             elif http_method == "PUT":
@@ -613,6 +636,9 @@ def handle_direct_invocation(event, context):
         "get_tag_sync_settings": lambda: get_tag_sync_settings(),
         "update_tag_sync_settings": lambda: update_tag_sync_settings(body),
         "import_configuration": lambda: import_configuration(body),
+        # Staging Accounts
+        "add_staging_account": lambda: handle_add_staging_account(body),
+        "remove_staging_account": lambda: handle_remove_staging_account(body),
     }
 
     if operation in operations:
@@ -1480,10 +1506,6 @@ def create_protection_group(body: Dict) -> Dict:
 def get_protection_groups(query_params: Dict = None) -> Dict:
     """List all Protection Groups with optional account filtering"""
     try:
-        # Auto-initialize default account if none exist
-        if target_accounts_table:
-            ensure_default_account()
-
         query_params = query_params or {}
         account_id = query_params.get("accountId")
 
@@ -3337,10 +3359,6 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
         status: Filter by last execution status
     """
     try:
-        # Auto-initialize default account if none exist
-        if target_accounts_table:
-            ensure_default_account()
-
         query_params = query_params or {}
 
         result = recovery_plans_table.scan()
@@ -5135,24 +5153,26 @@ def create_target_account(body: Dict) -> Dict:
                 f"Same account deployment detected for {account_id} - no cross-account role required"
             )
         else:
-            # Different account - cross-account role IS required
+            # Different account - construct role ARN if not provided
             if not role_arn:
-                return response(
-                    400,
-                    {
-                        "error": "CROSS_ACCOUNT_ROLE_REQUIRED",
-                        "message": f"This account ({account_id}) is different from where the solution is deployed ({current_account_id}). Please provide a cross-account IAM role ARN with DRS permissions.",
-                    },
+                # Import account utilities for standardized role naming
+                from shared.account_utils import construct_role_arn
+
+                role_arn = construct_role_arn(account_id)
+                print(
+                    f"Constructed standardized role ARN for {account_id}: {role_arn}"
                 )
-            # Validate role ARN format
-            if not role_arn.startswith("arn:aws:iam::"):
-                return response(
-                    400,
-                    {
-                        "error": "INVALID_ROLE_ARN",
-                        "message": "Cross-account role ARN must be a valid IAM role ARN (arn:aws:iam::account:role/role-name)",
-                    },
-                )
+            else:
+                # Validate provided role ARN format
+                if not role_arn.startswith("arn:aws:iam::"):
+                    return response(
+                        400,
+                        {
+                            "error": "INVALID_ROLE_ARN",
+                            "message": "Cross-account role ARN must be a valid IAM role ARN (arn:aws:iam::account:role/role-name)",
+                        },
+                    )
+                print(f"Using provided role ARN for {account_id}: {role_arn}")
 
         # If no name provided, try to get account name
         if not account_name:
@@ -5197,10 +5217,65 @@ def create_target_account(body: Dict) -> Dict:
             success_message += " and set as default account"
 
         print(
-            f"Created target account: {account_id} (isCurrentAccount: {is_current_account})"
+            f"Created target account: {account_id} "
+            f"(isCurrentAccount: {is_current_account})"
         )
 
-        return response(201, {**account_item, "message": success_message})
+        discovered_staging = []
+        if not is_current_account and role_arn:
+            try:
+                from shared.staging_account_discovery import (
+                    discover_staging_accounts_from_drs,
+                )
+
+                print(f"Discovering staging accounts for {account_id}...")
+                discovered_staging = discover_staging_accounts_from_drs(
+                    target_account_id=account_id,
+                    role_arn=role_arn,
+                    external_id=body.get("externalId"),
+                )
+
+                if discovered_staging:
+                    print(
+                        f"Found {len(discovered_staging)} staging "
+                        f"accounts, adding to target account"
+                    )
+
+                    account_item["stagingAccounts"] = [
+                        {
+                            "accountId": sa["accountId"],
+                            "accountName": sa["accountName"],
+                            "roleArn": sa["roleArn"],
+                            "addedAt": now,
+                            "addedBy": "auto-discovery",
+                            "discoveredFrom": sa["discoveredFrom"],
+                        }
+                        for sa in discovered_staging
+                    ]
+
+                    target_accounts_table.put_item(Item=account_item)
+
+                    success_message += (
+                        f" with {len(discovered_staging)} "
+                        f"staging account(s) auto-discovered"
+                    )
+                else:
+                    print("No staging accounts discovered")
+
+            except Exception as e:
+                print(f"Error during staging account discovery: {e}")
+
+        response_data = {
+            **account_item,
+            "message": success_message,
+        }
+
+        if discovered_staging:
+            response_data["discoveredStagingAccounts"] = [
+                sa["accountId"] for sa in discovered_staging
+            ]
+
+        return response(201, response_data)
 
     except Exception as e:
         print(f"Error creating target account: {e}")
@@ -5328,6 +5403,242 @@ def delete_target_account(account_id: str) -> Dict:
 
     except Exception as e:
         print(f"Error deleting target account: {e}")
+        return response(500, {"error": str(e)})
+
+
+# ============================================================================
+# Staging Account Management Functions
+# ============================================================================
+
+
+def handle_add_staging_account(body: Dict) -> Dict:
+    """
+    Add staging account to target account configuration.
+
+    Validates staging account structure, checks for duplicates, and updates
+    the Target Accounts table with the new staging account.
+
+    Input:
+    {
+        "targetAccountId": "111122223333",
+        "stagingAccount": {
+            "accountId": "444455556666",
+            "accountName": "STAGING_01",
+            "roleArn": "arn:aws:iam::444455556666:role/DRSOrchestrationRole-test",
+            "externalId": "drs-orchestration-test-444455556666"
+        }
+    }
+
+    Output:
+    {
+        "success": true,
+        "message": "Added staging account STAGING_01",
+        "stagingAccounts": [...]
+    }
+
+    Requirements: 1.6, 7.1
+    """
+    try:
+        # Import staging account models
+        from shared.staging_account_models import add_staging_account
+
+        if not body:
+            return response(
+                400,
+                {
+                    "error": "MISSING_BODY",
+                    "message": "Request body is required",
+                },
+            )
+
+        target_account_id = body.get("targetAccountId")
+        staging_account = body.get("stagingAccount")
+
+        # Validate required fields
+        if not target_account_id:
+            return response(
+                400,
+                {
+                    "error": "MISSING_FIELD",
+                    "message": "targetAccountId is required",
+                },
+            )
+
+        if not staging_account:
+            return response(
+                400,
+                {
+                    "error": "MISSING_FIELD",
+                    "message": "stagingAccount is required",
+                },
+            )
+
+        # Validate target account ID format
+        if not re.match(r"^\d{12}$", target_account_id):
+            return response(
+                400,
+                {
+                    "error": "INVALID_FORMAT",
+                    "message": "targetAccountId must be 12 digits",
+                },
+            )
+
+        # Add staging account using shared module
+        result = add_staging_account(
+            target_account_id, staging_account, added_by="user"
+        )
+
+        print(
+            f"Added staging account {staging_account.get('accountId')} "
+            f"to target account {target_account_id}"
+        )
+
+        return response(200, result)
+
+    except ValueError as e:
+        # Validation errors from staging_account_models
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            return response(
+                404,
+                {
+                    "error": "TARGET_ACCOUNT_NOT_FOUND",
+                    "message": error_msg,
+                },
+            )
+        elif "already exists" in error_msg.lower():
+            return response(
+                409,
+                {
+                    "error": "STAGING_ACCOUNT_EXISTS",
+                    "message": error_msg,
+                },
+            )
+        else:
+            return response(
+                400,
+                {
+                    "error": "VALIDATION_ERROR",
+                    "message": error_msg,
+                },
+            )
+
+    except Exception as e:
+        print(f"Error adding staging account: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": str(e)})
+
+
+def handle_remove_staging_account(body: Dict) -> Dict:
+    """
+    Remove staging account from target account configuration.
+
+    Input:
+    {
+        "targetAccountId": "111122223333",
+        "stagingAccountId": "444455556666"
+    }
+
+    Output:
+    {
+        "success": true,
+        "message": "Removed staging account 444455556666",
+        "stagingAccounts": [...]
+    }
+
+    Requirements: 2.2, 7.2
+    """
+    try:
+        # Import staging account models
+        from shared.staging_account_models import remove_staging_account
+
+        if not body:
+            return response(
+                400,
+                {
+                    "error": "MISSING_BODY",
+                    "message": "Request body is required",
+                },
+            )
+
+        target_account_id = body.get("targetAccountId")
+        staging_account_id = body.get("stagingAccountId")
+
+        # Validate required fields
+        if not target_account_id:
+            return response(
+                400,
+                {
+                    "error": "MISSING_FIELD",
+                    "message": "targetAccountId is required",
+                },
+            )
+
+        if not staging_account_id:
+            return response(
+                400,
+                {
+                    "error": "MISSING_FIELD",
+                    "message": "stagingAccountId is required",
+                },
+            )
+
+        # Validate account ID formats
+        if not re.match(r"^\d{12}$", target_account_id):
+            return response(
+                400,
+                {
+                    "error": "INVALID_FORMAT",
+                    "message": "targetAccountId must be 12 digits",
+                },
+            )
+
+        if not re.match(r"^\d{12}$", staging_account_id):
+            return response(
+                400,
+                {
+                    "error": "INVALID_FORMAT",
+                    "message": "stagingAccountId must be 12 digits",
+                },
+            )
+
+        # Remove staging account using shared module
+        result = remove_staging_account(target_account_id, staging_account_id)
+
+        print(
+            f"Removed staging account {staging_account_id} "
+            f"from target account {target_account_id}"
+        )
+
+        return response(200, result)
+
+    except ValueError as e:
+        # Validation errors from staging_account_models
+        error_msg = str(e)
+        if "not found" in error_msg.lower():
+            return response(
+                404,
+                {
+                    "error": "NOT_FOUND",
+                    "message": error_msg,
+                },
+            )
+        else:
+            return response(
+                400,
+                {
+                    "error": "VALIDATION_ERROR",
+                    "message": error_msg,
+                },
+            )
+
+    except Exception as e:
+        print(f"Error removing staging account: {e}")
+        import traceback
+
+        traceback.print_exc()
         return response(500, {"error": str(e)})
 
 

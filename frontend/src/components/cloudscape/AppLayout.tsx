@@ -48,9 +48,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { notifications } = useNotifications();
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, openSettingsModal, settingsModalVisible, settingsModalTab, closeSettingsModal } = useSettings();
   const [navigationOpen, setNavigationOpen] = useState(true);
-  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 
   // Toggle theme between light and dark
   const toggleTheme = () => {
@@ -128,7 +127,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               iconName: 'settings',
               ariaLabel: 'Settings',
               disableUtilityCollapse: false,
-              onClick: () => setSettingsModalVisible(true),
+              onClick: () => openSettingsModal(),
             },
             {
               type: 'menu-dropdown',
@@ -183,7 +182,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       {/* Settings Modal */}
       <SettingsModal
         visible={settingsModalVisible}
-        onDismiss={() => setSettingsModalVisible(false)}
+        onDismiss={closeSettingsModal}
+        initialTab={settingsModalTab || undefined}
       />
     </>
   );

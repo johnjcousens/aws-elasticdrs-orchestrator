@@ -585,8 +585,8 @@ wget -O ./aws-replication-installer-init.py https://aws-elastic-disaster-recover
 # Run installer
 sudo python3 aws-replication-installer-init.py \
   --region us-east-1 \
-  --aws-access-key-id AKIAIOSFODNN7EXAMPLE \
-  --aws-secret-access-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+  --aws-access-key-id AKIAIOSFODNN7EXAMPLE \  # pragma: allowlist secret
+  --aws-secret-access-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \  # pragma: allowlist secret
   --no-prompt
 ```
 
@@ -599,8 +599,8 @@ Invoke-WebRequest -Uri "https://aws-elastic-disaster-recovery-<region>.s3.<regio
 # Run installer
 .\AwsReplicationWindowsInstaller.exe `
   --region us-east-1 `
-  --aws-access-key-id AKIAIOSFODNN7EXAMPLE `
-  --aws-secret-access-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY `
+  --aws-access-key-id AKIAIOSFODNN7EXAMPLE `  # pragma: allowlist secret
+  --aws-secret-access-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY `  # pragma: allowlist secret
   --no-prompt
 ```
 

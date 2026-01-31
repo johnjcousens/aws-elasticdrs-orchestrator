@@ -27,10 +27,14 @@ Successfully deployed the per-server launch template customization feature to th
 ## Deployment Details
 
 ### Test Environment
-- **Stack ARN**: `arn:aws:cloudformation:us-east-1:777788889999:stack/aws-drs-orchestration-test/e4c0f210-fbc3-11f0-b7ee-0affff4e1ab5`
+- **Stack ARN**: `arn:aws:cloudformation:us-east-1:777788889999:stack/aws-drs-orchestration-test/e1e00cb0-fe49-11f0-a956-0ef4995d315b`
+- **Created**: January 31, 2026
+- **Deployment Bucket**: `s3://aws-drs-orchestration-test/`
 - **Frontend Bucket**: `s3://aws-drs-orchestration-fe-777788889999-test/`
-- **CloudFront Distribution**: `E1BBNSHA96QXQ4`
-- **Invalidation ID**: `I7Z0WPMNYBGDI3V0470QC1L1X8`
+- **CloudFront Distribution**: `E2O7E88PDE3KNX`
+- **CloudFront URL**: `https://d319nadlgk4oj.cloudfront.net`
+- **API Endpoint**: `https://mgqims9lj1.execute-api.us-east-1.amazonaws.com/test`
+- **API Gateway ID**: `mgqims9lj1`
 
 ### Files Modified
 1. `frontend/src/components/ProtectionGroupDialog.tsx`

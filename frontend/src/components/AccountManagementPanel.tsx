@@ -206,12 +206,21 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
         });
         toast.success('Target account updated successfully');
       } else {
-        await apiClient.createTargetAccount({
+        const result = await apiClient.createTargetAccount({
           accountId: accountData.accountId,
           accountName: accountData.accountName,
           roleArn: accountData.crossAccountRoleArn,
         });
-        toast.success('Target account added successfully');
+        
+        const discoveredCount = result.discoveredStagingAccounts?.length || 0;
+        if (discoveredCount > 0) {
+          toast.success(
+            `Target account added with ${discoveredCount} staging account(s) auto-discovered from DRS`,
+            { duration: 6000 }
+          );
+        } else {
+          toast.success('Target account added successfully');
+        }
       }
       
       await refreshAccounts();
