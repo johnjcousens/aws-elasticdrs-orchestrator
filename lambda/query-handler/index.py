@@ -569,10 +569,23 @@ def handle_direct_invocation(event, context):
 # ============================================================================
 
 
-def _count_drs_servers(regional_drs) -> Dict:
+def _count_drs_servers(regional_drs, account_id: str) -> Dict:
     """
     Count DRS source servers and replicating servers.
-    Shared helper function to eliminate duplication.
+
+    IMPORTANT: Distinguishes between:
+    - Replicating servers: Servers actively replicating TO this account (for 300 limit)
+    - Extended source servers: Servers from staging accounts (don't count toward 300 limit)
+    - Total source servers: All servers including extended (for 4,000 recovery limit)
+
+    Args:
+        regional_drs: DRS client for the region
+        account_id: AWS account ID to identify extended source servers
+
+    Returns:
+        Dict with:
+        - totalServers: All servers including extended (for recovery capacity)
+        - replicatingServers: Only servers replicating TO this account (for 300 limit)
     """
     total_servers = 0
     replicating_servers = 0
@@ -582,22 +595,30 @@ def _count_drs_servers(regional_drs) -> Dict:
     for page in paginator.paginate():
         for server in page.get("items", []):
             total_servers += 1
-            replication_state = server.get("dataReplicationInfo", {}).get(
-                "dataReplicationState", ""
-            )
-            if replication_state in [
-                "CONTINUOUS",
-                "INITIAL_SYNC",
-                "RESCAN",
-                "INITIATING",
-                "CREATING_SNAPSHOT",
-                "BACKLOG",
-            ]:
-                replicating_servers += 1
+
+            # Check if this is an extended source server from a staging account
+            # Extended source servers have ARN containing a different account ID
+            server_arn = server.get("arn", "")
+            is_extended = account_id not in server_arn if server_arn else False
+
+            # Only count replicating servers that are NOT extended source servers
+            if not is_extended:
+                replication_state = server.get("dataReplicationInfo", {}).get(
+                    "dataReplicationState", ""
+                )
+                if replication_state in [
+                    "CONTINUOUS",
+                    "INITIAL_SYNC",
+                    "RESCAN",
+                    "INITIATING",
+                    "CREATING_SNAPSHOT",
+                    "BACKLOG",
+                ]:
+                    replicating_servers += 1
 
     return {
-        "totalServers": total_servers,
-        "replicatingServers": replicating_servers,
+        "totalServers": total_servers,  # All servers (for 4,000 recovery limit)
+        "replicatingServers": replicating_servers,  # Only direct replicating (for 300 limit)
     }
 
 
@@ -1010,7 +1031,9 @@ def get_drs_regional_capacity(region: str) -> Dict:
     """
     try:
         regional_drs = boto3.client("drs", region_name=region)
-        counts = _count_drs_servers(regional_drs)
+        # Get current account ID for filtering extended source servers
+        account_id = get_current_account_id()
+        counts = _count_drs_servers(regional_drs, account_id)
 
         return {
             "region": region,
@@ -1193,7 +1216,13 @@ def get_drs_account_capacity_all_regions(
         """Query a single region and return results"""
         try:
             regional_drs = create_drs_client(region, account_context)
-            counts = _count_drs_servers(regional_drs)
+            # Get account ID from context or current account
+            account_id = (
+                account_context.get("accountId")
+                if account_context
+                else get_current_account_id()
+            )
+            counts = _count_drs_servers(regional_drs, account_id)
             return {
                 "success": True,
                 "region": region,
@@ -1741,7 +1770,11 @@ def get_drs_account_capacity(
                 account_context = {"accountId": account_id}
 
         regional_drs = create_drs_client(region, account_context)
-        counts = _count_drs_servers(regional_drs)
+        # Get account ID for filtering extended source servers
+        target_account_id = (
+            account_id if account_id else get_current_account_id()
+        )
+        counts = _count_drs_servers(regional_drs, target_account_id)
         total_servers = counts["totalServers"]
         replicating_servers = counts["replicatingServers"]
 
@@ -2679,7 +2712,7 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
             print(f"Checking DRS initialization in {region}")
 
             # Count servers using the helper function
-            server_counts = _count_drs_servers(drs_client)
+            server_counts = _count_drs_servers(drs_client, account_id)
 
             total_servers = server_counts["totalServers"]
             replicating_servers = server_counts["replicatingServers"]
@@ -2870,7 +2903,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
                     drs_client = boto3.client("drs", region_name=region)
 
                 # Count servers in this region
-                server_counts = _count_drs_servers(drs_client)
+                server_counts = _count_drs_servers(drs_client, account_id)
 
                 return {
                     "region": region,
