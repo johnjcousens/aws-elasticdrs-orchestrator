@@ -3509,19 +3509,21 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         total_replicating_all = sum(
             a.get("replicatingServers", 0) for a in account_results
         )
-        
+
         for account in account_results:
             replicating = account.get("replicatingServers", 0)
             account_type = account.get("accountType", "staging")
-            
+
             if account_type == "target":
                 # Target account: show combined capacity (target + staging)
                 max_replicating = 300
                 combined_replicating = total_replicating_all
-                
+
                 # Calculate status based on combined capacity
-                account["status"] = calculate_account_status(combined_replicating)
-                
+                account["status"] = calculate_account_status(
+                    combined_replicating
+                )
+
                 # Calculate percentage and available slots based on combined
                 account["maxReplicating"] = max_replicating
                 account["percentUsed"] = round(
@@ -3532,12 +3534,14 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                     ),
                     2,
                 )
-                account["availableSlots"] = max_replicating - combined_replicating
-                
+                account["availableSlots"] = (
+                    max_replicating - combined_replicating
+                )
+
                 # Generate warnings based on combined capacity
                 account_warnings = []
                 status = account["status"]
-                
+
                 if status == "INFO":
                     account_warnings.append(
                         f"Monitor capacity - at {combined_replicating} servers (67-75%)"
@@ -3554,15 +3558,19 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                     account_warnings.append(
                         f"Immediate action required - at {combined_replicating} servers (93-100%)"
                     )
-                
+
                 account["warnings"] = account_warnings
-                
+
             else:
                 # Staging account: part of target's capacity, no independent limit
-                account["status"] = "OK"  # Staging accounts don't have independent status
+                account["status"] = (
+                    "OK"  # Staging accounts don't have independent status
+                )
                 account["maxReplicating"] = None  # No independent limit
                 account["percentUsed"] = None  # Part of target's percentage
-                account["availableSlots"] = None  # Part of target's available slots
+                account["availableSlots"] = (
+                    None  # Part of target's available slots
+                )
                 account["warnings"] = []  # No independent warnings
 
         # Step 7: Calculate recovery capacity (target account only)
