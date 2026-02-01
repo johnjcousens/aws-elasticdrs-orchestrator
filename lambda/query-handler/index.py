@@ -597,9 +597,15 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
             total_servers += 1
 
             # Check if this is an extended source server from a staging account
-            # Extended source servers have ARN containing a different account ID
+            # Extended source servers have ARN with a different account ID
+            # ARN format: arn:aws:drs:region:account:source-server/id
             server_arn = server.get("arn", "")
-            is_extended = account_id not in server_arn if server_arn else False
+            is_extended = False
+            if server_arn:
+                arn_parts = server_arn.split(":")
+                if len(arn_parts) >= 5:
+                    server_account_id = arn_parts[4]
+                    is_extended = server_account_id != account_id
 
             # Only count replicating servers that are NOT extended source servers
             if not is_extended:
