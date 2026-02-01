@@ -3112,8 +3112,12 @@ def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
 
     total_servers = sum(a.get("totalServers", 0) for a in accessible_accounts)
 
-    # Calculate maximum capacity (300 per account)
-    max_replicating = len(accessible_accounts) * 300
+    # Calculate maximum capacity
+    # NOTE: For extended source servers, staging accounts do NOT add capacity.
+    # The target account has a fixed 300 server replication limit.
+    # Staging accounts provide infrastructure to distribute those 300 servers,
+    # but the limit remains 300 total (not 300 per account).
+    max_replicating = 300
 
     # Calculate percentage used
     percent_used = (
@@ -3126,7 +3130,8 @@ def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
     available_slots = max_replicating - total_replicating
 
     print(
-        f"Combined metrics: {total_replicating}/{max_replicating} ({percent_used:.1f}%)"
+        f"Combined metrics: {total_replicating}/{max_replicating} ({percent_used:.1f}%) "
+        f"across {len(accessible_accounts)} account(s)"
     )
 
     return {
@@ -3499,47 +3504,66 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
         # Step 6: Calculate per-account status and warnings
         # Add status, percentage, available slots, and warnings to each account
+        # NOTE: For extended source servers, staging accounts share the target's
+        # 300 server limit. They don't have independent capacity.
+        total_replicating_all = sum(
+            a.get("replicatingServers", 0) for a in account_results
+        )
+        
         for account in account_results:
             replicating = account.get("replicatingServers", 0)
-            max_replicating = 300
-
-            # Calculate status
-            account["status"] = calculate_account_status(replicating)
-
-            # Calculate percentage and available slots
-            account["maxReplicating"] = max_replicating
-            account["percentUsed"] = round(
-                (
-                    (replicating / max_replicating * 100)
-                    if max_replicating > 0
-                    else 0.0
-                ),
-                2,
-            )
-            account["availableSlots"] = max_replicating - replicating
-
-            # Generate per-account warnings
-            account_warnings = []
-            status = account["status"]
-
-            if status == "INFO":
-                account_warnings.append(
-                    f"Monitor capacity - at {replicating} servers (67-75%)"
+            account_type = account.get("accountType", "staging")
+            
+            if account_type == "target":
+                # Target account: show combined capacity (target + staging)
+                max_replicating = 300
+                combined_replicating = total_replicating_all
+                
+                # Calculate status based on combined capacity
+                account["status"] = calculate_account_status(combined_replicating)
+                
+                # Calculate percentage and available slots based on combined
+                account["maxReplicating"] = max_replicating
+                account["percentUsed"] = round(
+                    (
+                        (combined_replicating / max_replicating * 100)
+                        if max_replicating > 0
+                        else 0.0
+                    ),
+                    2,
                 )
-            elif status == "WARNING":
-                account_warnings.append(
-                    f"Plan to add staging account - at {replicating} servers (75-83%)"
-                )
-            elif status == "CRITICAL":
-                account_warnings.append(
-                    f"Add staging account immediately - at {replicating} servers (83-93%)"
-                )
-            elif status == "HYPER-CRITICAL":
-                account_warnings.append(
-                    f"Immediate action required - at {replicating} servers (93-100%)"
-                )
-
-            account["warnings"] = account_warnings
+                account["availableSlots"] = max_replicating - combined_replicating
+                
+                # Generate warnings based on combined capacity
+                account_warnings = []
+                status = account["status"]
+                
+                if status == "INFO":
+                    account_warnings.append(
+                        f"Monitor capacity - at {combined_replicating} servers (67-75%)"
+                    )
+                elif status == "WARNING":
+                    account_warnings.append(
+                        f"Plan to add staging account - at {combined_replicating} servers (75-83%)"
+                    )
+                elif status == "CRITICAL":
+                    account_warnings.append(
+                        f"Add staging account immediately - at {combined_replicating} servers (83-93%)"
+                    )
+                elif status == "HYPER-CRITICAL":
+                    account_warnings.append(
+                        f"Immediate action required - at {combined_replicating} servers (93-100%)"
+                    )
+                
+                account["warnings"] = account_warnings
+                
+            else:
+                # Staging account: part of target's capacity, no independent limit
+                account["status"] = "OK"  # Staging accounts don't have independent status
+                account["maxReplicating"] = None  # No independent limit
+                account["percentUsed"] = None  # Part of target's percentage
+                account["availableSlots"] = None  # Part of target's available slots
+                account["warnings"] = []  # No independent warnings
 
         # Step 7: Calculate recovery capacity (target account only)
         # Find target account in results
