@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import { CapacityDetailsModal } from "../CapacityDetailsModal";
@@ -185,7 +185,7 @@ describe("CapacityDetailsModal", () => {
       expect(screen.getByText(/22.3% used/i)).toBeInTheDocument();
     });
 
-    it("should display combined status", () => {
+    it("should display combined status", async () => {
       const capacityData = createMockCapacityData();
 
       render(
@@ -196,7 +196,10 @@ describe("CapacityDetailsModal", () => {
         />
       );
 
-      expect(screen.getByText("Combined Status")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText("Combined Status")).toBeInTheDocument();
+      });
+      
       const statusIndicators = screen.getAllByText("OK");
       expect(statusIndicators.length).toBeGreaterThan(0);
     });

@@ -608,6 +608,10 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
     - Extended source servers: Servers from staging accounts (don't count toward 300 limit)
     - Total source servers: All servers including extended (for 4,000 recovery limit)
 
+    Extended source servers are identified by checking stagingArea.stagingAccountID field.
+    If this field exists and differs from the target account_id, the server is extended
+    from a staging account and should NOT count toward the 300 replicating limit.
+
     Args:
         regional_drs: DRS client for the region
         account_id: AWS account ID to identify extended source servers
@@ -619,23 +623,41 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
     """
     total_servers = 0
     replicating_servers = 0
+    extended_count = 0
 
     paginator = regional_drs.get_paginator("describe_source_servers")
 
     for page in paginator.paginate():
         for server in page.get("items", []):
             total_servers += 1
+            server_id = server.get("sourceServerID", "unknown")
 
             # Check if this is an extended source server from a staging account
-            # Extended source servers have ARN with a different account ID
-            # ARN format: arn:aws:drs:region:account:source-server/id
-            server_arn = server.get("arn", "")
-            is_extended = False
-            if server_arn:
-                arn_parts = server_arn.split(":")
-                if len(arn_parts) >= 5:
-                    server_account_id = arn_parts[4]
-                    is_extended = server_account_id != account_id
+            # Extended source servers have stagingArea.stagingAccountID != target account
+            staging_area = server.get("stagingArea", {})
+            staging_account_id = staging_area.get("stagingAccountID", "")
+
+            # Debug: log staging area info for first few servers
+            if total_servers <= 3:
+                print(
+                    f"DEBUG Server {server_id}: "
+                    f"stagingArea={staging_area}, "
+                    f"stagingAccountID={staging_account_id}, "
+                    f"targetAccountID={account_id}"
+                )
+
+            is_extended = (
+                staging_account_id and staging_account_id != account_id
+            )
+
+            if is_extended:
+                extended_count += 1
+                print(
+                    f"Extended source server detected: "
+                    f"serverID={server_id}, "
+                    f"stagingAccountID={staging_account_id}, "
+                    f"targetAccountID={account_id}"
+                )
 
             # Only count replicating servers that are NOT extended source servers
             if not is_extended:
@@ -651,6 +673,12 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
                     "BACKLOG",
                 ]:
                     replicating_servers += 1
+
+    print(
+        f"Server count summary for account {account_id}: "
+        f"total={total_servers}, replicating={replicating_servers}, "
+        f"extended={extended_count}"
+    )
 
     return {
         "totalServers": total_servers,  # All servers (for 4,000 recovery limit)
@@ -3786,6 +3814,67 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
         recovery_capacity = calculate_recovery_capacity(target_replicating)
 
+        # Step 7.5: Get concurrent jobs and servers in jobs metrics
+        # Query DRS jobs in target account's primary region (us-west-2)
+        try:
+            # Get target account's primary region from regional breakdown
+            primary_region = "us-west-2"  # Default
+            if target_account_result and target_account_result.get(
+                "regionalBreakdown"
+            ):
+                # Use region with most servers
+                regional_breakdown = target_account_result.get(
+                    "regionalBreakdown", []
+                )
+                if regional_breakdown:
+                    primary_region = max(
+                        regional_breakdown,
+                        key=lambda r: r.get("replicatingServers", 0),
+                    ).get("region", "us-west-2")
+
+            # Create account context for target account
+            account_context = {
+                "accountId": target_account_id,
+                "assumeRoleName": target_account.get("assumeRoleName"),
+                "externalId": target_account.get("externalId"),
+            }
+
+            # Get concurrent jobs info
+            jobs_info = validate_concurrent_jobs(
+                primary_region, account_context
+            )
+
+            # Get servers in active jobs
+            servers_in_jobs = validate_servers_in_all_jobs(
+                primary_region, 0, account_context
+            )
+
+            concurrent_jobs_data = {
+                "current": jobs_info.get("currentJobs", 0),
+                "max": jobs_info.get("maxJobs", 20),
+                "available": jobs_info.get("availableSlots", 20),
+            }
+
+            servers_in_jobs_data = {
+                "current": servers_in_jobs.get("currentServersInJobs", 0),
+                "max": servers_in_jobs.get("maxServersInJobs", 500),
+                "available": servers_in_jobs.get("availableSlots", 500),
+            }
+
+        except Exception as e:
+            print(f"Warning: Could not fetch jobs metrics: {e}")
+            # Default to 0 if we can't fetch jobs data
+            concurrent_jobs_data = {
+                "current": 0,
+                "max": 20,
+                "available": 20,
+            }
+            servers_in_jobs_data = {
+                "current": 0,
+                "max": 500,
+                "available": 500,
+            }
+
         # Step 8: Generate combined warnings
         warnings = generate_warnings(account_results, combined_metrics)
 
@@ -3824,6 +3913,8 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             },
             "accounts": account_results,
             "recoveryCapacity": recovery_capacity,
+            "concurrentJobs": concurrent_jobs_data,
+            "serversInJobs": servers_in_jobs_data,
             "warnings": warnings,
         }
 

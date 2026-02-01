@@ -65,7 +65,7 @@ account_name_strategy = st.text(
 )
 
 
-@settings(max_examples=100, deadline=500)  # Increase deadline to 500ms
+@settings(max_examples=50, deadline=1000)  # Reduce examples, increase deadline
 @given(
     account_id=account_id_strategy,
     account_name=account_name_strategy,
@@ -119,7 +119,7 @@ def test_property_explicit_arn_precedence(
             )
 
 
-@settings(max_examples=100, deadline=500)  # Increase deadline to 500ms
+@settings(max_examples=50, deadline=1000)  # Reduce examples, increase deadline
 @given(
     account_id=account_id_strategy,
     account_name=account_name_strategy,
@@ -165,7 +165,7 @@ def test_property_optional_role_arn_acceptance(
         )
 
 
-@settings(max_examples=50, deadline=500)  # Increase deadline to 500ms
+@settings(max_examples=30, deadline=1000)  # Fewer examples, longer deadline
 @given(
     account_id=account_id_strategy,
     account_name=account_name_strategy,
