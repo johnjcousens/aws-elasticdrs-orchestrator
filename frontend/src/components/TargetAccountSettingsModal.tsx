@@ -88,7 +88,6 @@ export const TargetAccountSettingsModal: React.FC<
 > = ({ targetAccount, visible, onDismiss, onSave }) => {
   const [state, setState] = useState<TargetAccountSettingsModalState>({
     formData: { ...targetAccount },
-    showAddStaging: false,
     saving: false,
     error: null,
     removingAccount: null,
@@ -299,25 +298,11 @@ export const TargetAccountSettingsModal: React.FC<
         items={state.formData.stagingAccounts}
         empty={
           <Box textAlign="center" color="inherit">
-            <SpaceBetween size="m">
-              <b>No staging accounts</b>
-              <Button onClick={handleAddStagingClick}>
-                Add Staging Account
-              </Button>
-            </SpaceBetween>
+            <b>No staging accounts configured</b>
           </Box>
         }
         header={
-          <Header
-            actions={
-              <Button
-                onClick={handleAddStagingClick}
-                disabled={state.saving}
-              >
-                Add Staging Account
-              </Button>
-            }
-          >
+          <Header>
             Staging Accounts ({state.formData.stagingAccounts.length})
           </Header>
         }
