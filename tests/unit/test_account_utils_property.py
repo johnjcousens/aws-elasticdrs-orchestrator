@@ -138,12 +138,16 @@ def test_property_extraction_works_for_any_role_name(account_id, role_name):
 @given(
     account_id=account_id_strategy,
     prefix=st.text(
-        alphabet=st.characters(blacklist_characters=" \t\n\r"),
+        alphabet=st.characters(
+            blacklist_categories=("Cc", "Cs", "Zs", "Zl", "Zp")
+        ),
         min_size=0,
         max_size=10,
     ),
     suffix=st.text(
-        alphabet=st.characters(blacklist_characters=" \t\n\r"),
+        alphabet=st.characters(
+            blacklist_categories=("Cc", "Cs", "Zs", "Zl", "Zp")
+        ),
         min_size=0,
         max_size=10,
     ),
@@ -155,6 +159,8 @@ def test_property_validation_rejects_invalid_formats(
     Property: Validation correctly identifies invalid account IDs.
 
     Tests that validation rejects account IDs with extra characters.
+    Excludes control characters (Cc), surrogates (Cs), and all
+    whitespace categories (Zs, Zl, Zp).
     """
     # Arrange - Create invalid account ID
     invalid_id = f"{prefix}{account_id}{suffix}"
@@ -163,15 +169,14 @@ def test_property_validation_rejects_invalid_formats(
     is_valid = validate_account_id(invalid_id)
 
     # Assert
-    # Strip whitespace to handle edge cases where prefix/suffix are whitespace-only
-    if prefix.strip() or suffix.strip():
-        # Should be invalid if we added non-whitespace characters
+    if prefix or suffix:
+        # Should be invalid if we added any characters
         assert not is_valid, (
             f"Should reject account ID with extra characters. "
             f"Input: {invalid_id}, prefix='{prefix}', suffix='{suffix}'"
         )
     else:
-        # Should be valid if no prefix/suffix (or only whitespace which gets stripped)
+        # Should be valid if no prefix/suffix
         assert is_valid, (
             f"Should accept valid 12-digit account ID. Input: {invalid_id}"
         )

@@ -507,7 +507,9 @@ def handle_api_gateway_request(event, context):
             return response(400, {"error": "Invalid path format"})
 
     # Discover staging accounts endpoint
-    # /accounts/{targetAccountId}/staging-accounts/discover
+    # Supports both:
+    # - /accounts/targets/{id}/staging-accounts/discover
+    # - /accounts/{targetAccountId}/staging-accounts/discover
     elif (
         path.startswith("/accounts/")
         and path.endswith("/staging-accounts/discover")
@@ -515,7 +517,15 @@ def handle_api_gateway_request(event, context):
     ):
         # Extract target account ID from path
         path_parts = path.split("/")
-        if len(path_parts) >= 3:
+
+        # Handle /accounts/targets/{id}/staging-accounts/discover
+        if len(path_parts) >= 5 and path_parts[2] == "targets":
+            target_account_id = path_parts[3]
+            return handle_discover_staging_accounts(
+                {"targetAccountId": target_account_id}
+            )
+        # Handle /accounts/{id}/staging-accounts/discover
+        elif len(path_parts) >= 4:
             target_account_id = path_parts[2]
             return handle_discover_staging_accounts(
                 {"targetAccountId": target_account_id}
