@@ -32,6 +32,7 @@ import {
   Spinner,
   Alert,
 } from "@cloudscape-design/components";
+import { fetchAuthSession } from 'aws-amplify/auth';
 import type {
   TargetAccountSettingsModalProps,
   StagingAccount,
@@ -98,12 +99,20 @@ export const TargetAccountSettingsModal: React.FC<
     setError(null);
 
     try {
+      // Get API endpoint from AWS config
+      const apiEndpoint = window.AWS_CONFIG?.API?.REST?.DRSOrchestration?.endpoint || '';
+      
+      // Get auth token
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
       const response = await fetch(
-        `/api/accounts/targets/${targetAccount.accountId}/staging-accounts/discover`,
+        `${apiEndpoint}/accounts/targets/${targetAccount.accountId}/staging-accounts/discover`,
         {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` }),
           },
         }
       );
