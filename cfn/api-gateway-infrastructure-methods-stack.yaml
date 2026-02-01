@@ -102,6 +102,10 @@ Parameters:
     Type: String
     Description: Accounts Target Staging Accounts Resource ID from Resources Stack
 
+  AccountsTargetStagingAccountsDiscoverResourceId:
+    Type: String
+    Description: Accounts Target Staging Accounts Discover Resource ID from Resources Stack
+
   AccountsTargetStagingAccountResourceId:
     Type: String
     Description: Accounts Target Staging Account Resource ID from Resources Stack
@@ -1242,6 +1246,52 @@ Resources:
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref AccountsTargetCapacityResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /accounts/{targetAccountId}/staging-accounts/discover - Discover staging accounts
+  AccountsTargetStagingAccountsDiscoverGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AccountsTargetStagingAccountsDiscoverResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      RequestParameters:
+        method.request.path.id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  AccountsTargetStagingAccountsDiscoverOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AccountsTargetStagingAccountsDiscoverResourceId
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
