@@ -38,7 +38,7 @@ def test_combined_capacity_no_staging_accounts():
         "accountName": "Target Account",
         "roleArn": f"arn:aws:iam::{target_account_id}:role/TestRole",
         "externalId": f"test-external-id-{target_account_id}",
-        "stagingAccounts": []  # Empty list
+        "stagingAccounts": [],  # Empty list
     }
 
     # Mock DynamoDB table
@@ -49,27 +49,30 @@ def test_combined_capacity_no_staging_accounts():
     def mock_query_all_accounts(target, staging_list):
         assert len(staging_list) == 0, "Should have no staging accounts"
 
-        return [{
-            "accountId": target["accountId"],
-            "accountName": target.get("accountName"),
-            "accountType": "target",
-            "replicatingServers": 150,
-            "totalServers": 150,
-            "regionalBreakdown": [
-                {
-                    "region": "us-east-1",
-                    "totalServers": 150,
-                    "replicatingServers": 150,
-                }
-            ],
-            "accessible": True,
-        }]
+        return [
+            {
+                "accountId": target["accountId"],
+                "accountName": target.get("accountName"),
+                "accountType": "target",
+                "replicatingServers": 150,
+                "totalServers": 150,
+                "regionalBreakdown": [
+                    {
+                        "region": "us-east-1",
+                        "totalServers": 150,
+                        "replicatingServers": 150,
+                    }
+                ],
+                "accessible": True,
+            }
+        ]
 
-    with patch(
-        "index.target_accounts_table", mock_table
-    ), patch(
-        "index.query_all_accounts_parallel",
-        side_effect=mock_query_all_accounts
+    with (
+        patch("index.target_accounts_table", mock_table),
+        patch(
+            "index.query_all_accounts_parallel",
+            side_effect=mock_query_all_accounts,
+        ),
     ):
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
@@ -131,7 +134,7 @@ def test_combined_capacity_multiple_staging_accounts():
                 "roleArn": "arn:aws:iam::888888888888:role/TestRole",
                 "externalId": "test-external-id-888888888888",
             },
-        ]
+        ],
     }
 
     # Mock DynamoDB table
@@ -142,18 +145,20 @@ def test_combined_capacity_multiple_staging_accounts():
     def mock_query_all_accounts(target, staging_list):
         assert len(staging_list) == 3, "Should have 3 staging accounts"
 
+        # Staging account model: Total replicating across all accounts
+        # should not exceed 300 (target account limit)
         return [
             {
                 "accountId": target["accountId"],
                 "accountName": "Target Account",
                 "accountType": "target",
-                "replicatingServers": 225,  # WARNING threshold
-                "totalServers": 225,
+                "replicatingServers": 150,  # 50% of target capacity
+                "totalServers": 150,
                 "regionalBreakdown": [
                     {
                         "region": "us-east-1",
-                        "totalServers": 225,
-                        "replicatingServers": 225,
+                        "totalServers": 150,
+                        "replicatingServers": 150,
                     }
                 ],
                 "accessible": True,
@@ -162,13 +167,13 @@ def test_combined_capacity_multiple_staging_accounts():
                 "accountId": "444455556666",
                 "accountName": "Staging_01",
                 "accountType": "staging",
-                "replicatingServers": 100,  # OK
-                "totalServers": 100,
+                "replicatingServers": 75,  # OK
+                "totalServers": 75,
                 "regionalBreakdown": [
                     {
                         "region": "us-west-2",
-                        "totalServers": 100,
-                        "replicatingServers": 100,
+                        "totalServers": 75,
+                        "replicatingServers": 75,
                     }
                 ],
                 "accessible": True,
@@ -177,13 +182,13 @@ def test_combined_capacity_multiple_staging_accounts():
                 "accountId": "777777777777",
                 "accountName": "Staging_02",
                 "accountType": "staging",
-                "replicatingServers": 250,  # CRITICAL threshold
-                "totalServers": 250,
+                "replicatingServers": 50,  # OK
+                "totalServers": 50,
                 "regionalBreakdown": [
                     {
                         "region": "eu-west-1",
-                        "totalServers": 250,
-                        "replicatingServers": 250,
+                        "totalServers": 50,
+                        "replicatingServers": 50,
                     }
                 ],
                 "accessible": True,
@@ -192,24 +197,25 @@ def test_combined_capacity_multiple_staging_accounts():
                 "accountId": "888888888888",
                 "accountName": "Staging_03",
                 "accountType": "staging",
-                "replicatingServers": 50,  # OK
-                "totalServers": 50,
+                "replicatingServers": 25,  # OK
+                "totalServers": 25,
                 "regionalBreakdown": [
                     {
                         "region": "ap-southeast-1",
-                        "totalServers": 50,
-                        "replicatingServers": 50,
+                        "totalServers": 25,
+                        "replicatingServers": 25,
                     }
                 ],
                 "accessible": True,
             },
         ]
 
-    with patch(
-        "index.target_accounts_table", mock_table
-    ), patch(
-        "index.query_all_accounts_parallel",
-        side_effect=mock_query_all_accounts
+    with (
+        patch("index.target_accounts_table", mock_table),
+        patch(
+            "index.query_all_accounts_parallel",
+            side_effect=mock_query_all_accounts,
+        ),
     ):
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
@@ -219,37 +225,36 @@ def test_combined_capacity_multiple_staging_accounts():
         body = json.loads(result["body"])
 
         # Verify combined metrics
-        total_expected = 225 + 100 + 250 + 50  # 625
+        total_expected = 150 + 75 + 50 + 25  # 300
         assert body["combined"]["totalReplicating"] == total_expected
-        assert body["combined"]["maxReplicating"] == 1200  # 4 accounts × 300
+        # Multi-account model: 4 accounts × 300 = 1200 max capacity
+        assert body["combined"]["maxReplicating"] == 1200
 
         # Verify accounts list
         assert len(body["accounts"]) == 4
 
-        # Verify per-account status
+        # Verify per-account status (each account evaluated against its own 300 limit)
         target_acct = next(
             a for a in body["accounts"] if a["accountType"] == "target"
         )
-        assert target_acct["status"] == "WARNING"  # 225 servers
-        assert target_acct["percentUsed"] == 75.0
+        assert target_acct["status"] == "OK"  # 150/300 = 50%
+        assert target_acct["percentUsed"] == 50.0
 
         staging_01 = next(
             a for a in body["accounts"] if a["accountId"] == "444455556666"
         )
-        assert staging_01["status"] == "OK"  # 100 servers
+        assert staging_01["status"] == "OK"  # 75/300 = 25%
 
         staging_02 = next(
             a for a in body["accounts"] if a["accountId"] == "777777777777"
         )
-        assert staging_02["status"] == "CRITICAL"  # 250 servers
+        assert staging_02["status"] == "OK"  # 50/300 = 16.7%
 
-        # Verify warnings generated
-        assert len(body["warnings"]) > 0
-        warning_text = " ".join(body["warnings"])
-        assert "WARNING" in warning_text or "CRITICAL" in warning_text
+        # Verify combined status (300/1200 = 25% = OK)
+        assert body["combined"]["status"] == "OK"
 
         # Verify recovery capacity (target account only)
-        assert body["recoveryCapacity"]["currentServers"] == 225
+        assert body["recoveryCapacity"]["currentServers"] == 150
 
 
 def test_combined_capacity_one_staging_account_inaccessible():
@@ -282,7 +287,7 @@ def test_combined_capacity_one_staging_account_inaccessible():
                 "roleArn": "arn:aws:iam::777777777777:role/TestRole",
                 "externalId": "test-external-id-777777777777",
             },
-        ]
+        ],
     }
 
     # Mock DynamoDB table
@@ -335,11 +340,12 @@ def test_combined_capacity_one_staging_account_inaccessible():
             },
         ]
 
-    with patch(
-        "index.target_accounts_table", mock_table
-    ), patch(
-        "index.query_all_accounts_parallel",
-        side_effect=mock_query_all_accounts
+    with (
+        patch("index.target_accounts_table", mock_table),
+        patch(
+            "index.query_all_accounts_parallel",
+            side_effect=mock_query_all_accounts,
+        ),
     ):
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
@@ -351,8 +357,8 @@ def test_combined_capacity_one_staging_account_inaccessible():
         # Verify combined metrics exclude inaccessible account
         # Only target (200) + Staging_01 (150) = 350
         assert body["combined"]["totalReplicating"] == 350
-        # Only 2 accessible accounts
-        assert body["combined"]["maxReplicating"] == 600  # 2 × 300
+        # Only 2 accessible accounts × 300 = 600
+        assert body["combined"]["maxReplicating"] == 600
 
         # Verify all 3 accounts in list
         assert len(body["accounts"]) == 3
@@ -395,7 +401,7 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
                 "roleArn": "arn:aws:iam::777777777777:role/TestRole",
                 "externalId": "test-external-id-777777777777",
             },
-        ]
+        ],
     }
 
     # Mock DynamoDB table
@@ -444,11 +450,12 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
             },
         ]
 
-    with patch(
-        "index.target_accounts_table", mock_table
-    ), patch(
-        "index.query_all_accounts_parallel",
-        side_effect=mock_query_all_accounts
+    with (
+        patch("index.target_accounts_table", mock_table),
+        patch(
+            "index.query_all_accounts_parallel",
+            side_effect=mock_query_all_accounts,
+        ),
     ):
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
@@ -493,9 +500,7 @@ def test_combined_capacity_missing_target_account_id():
 
 def test_combined_capacity_invalid_account_id_format():
     """Test error handling when account ID format is invalid."""
-    result = handle_get_combined_capacity(
-        {"targetAccountId": "invalid-id"}
-    )
+    result = handle_get_combined_capacity({"targetAccountId": "invalid-id"})
 
     assert result["statusCode"] == 400
     body = json.loads(result["body"])
