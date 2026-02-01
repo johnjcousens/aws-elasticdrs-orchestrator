@@ -90,6 +90,45 @@ stateDiagram-v2
 
 The 300 replicating source servers limit is a **hard limit** that cannot be increased via Service Quotas. This is the most critical constraint for capacity planning:
 
+#### Understanding Replicating vs Source Servers
+
+**Critical Distinction**:
+- **Replicating servers**: Servers actively replicating data TO an AWS account (300 max per account)
+- **Source servers**: Total servers that can be RECOVERED FROM an account (4,000 max per account)
+
+**The Staging Account Pattern** (How to exceed 300 servers):
+
+```
+Example: 500 servers need DR protection
+
+┌──────────────────────┐         ┌──────────────────────┐
+│  Staging Account A   │         │  Staging Account B   │
+│  250 servers         │         │  250 servers         │
+│  replicating         │         │  replicating         │
+└──────────────────────┘         └──────────────────────┘
+         │                                  │
+         │ Extended as source servers       │
+         └──────────────┬───────────────────┘
+                        ▼
+              ┌──────────────────────┐
+              │   Target Account     │
+              │   500 source servers │
+              │   (250 + 250)        │
+              │   All can recover    │
+              │   into this account  │
+              └──────────────────────┘
+
+Result: All 500 servers visible in Target Account console
+        All 500 can recover into Target Account
+        No replication limit exceeded (250 < 300 per account)
+```
+
+This works because:
+- Each staging account stays under 300 replicating limit
+- Target account can have 4,000 source servers (includes extended servers)
+- All servers appear in Target Account DRS console
+- All servers can recover into Target Account
+
 #### Why Multi-Account Architecture
 
 | Factor | Single Account (at 300 limit) | Multi-Account (≤300 per account) |
@@ -108,10 +147,34 @@ The 300 replicating source servers limit is a **hard limit** that cannot be incr
 | **< 100 servers** | Single account | Simple management, low complexity |
 | **100-250 servers** | Single account (monitor capacity) | Acceptable with good monitoring |
 | **250-300 servers** | Plan for multi-account | Approaching hard limit |
-| **300+ servers** | **Multi-account required** | Hard limit of 300 replicating servers |
+| **300+ servers** | **Multi-account required** | Hard limit of 300 replicating servers per account |
+| **Up to 4,000 servers** | Multiple staging accounts + 1 target | Use staging account pattern (up to 13 staging accounts) |
 | **Multiple business units** | Multi-account | Clear ownership and billing |
 | **Multiple regions** | Multi-account per region | Simplified regional management |
 | **Compliance requirements** | Multi-account | Isolation for regulatory compliance |
+
+#### Capacity Planning Examples
+
+**Example 1: Single Account (Up to 300 servers)**
+```
+Replicating: 300 servers
+Source servers: 300 servers
+Recovery capacity: 300 servers
+```
+
+**Example 2: Two Staging Accounts (Up to 600 servers)**
+```
+Staging Account A: 300 replicating → extended to Target
+Staging Account B: 300 replicating → extended to Target
+Target Account: 600 source servers (all can recover)
+```
+
+**Example 3: Maximum Scale (Up to 4,000 servers)**
+```
+Staging Account 1-13: 300 replicating each → extended to Target
+Staging Account 14: 100 replicating → extended to Target
+Target Account: 4,000 source servers (maximum)
+```
 
 ## UI Design Rules and Restrictions
 
