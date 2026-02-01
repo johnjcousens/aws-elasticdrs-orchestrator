@@ -130,7 +130,7 @@ export const SystemStatusPage: React.FC = () => {
         header={
           <Header
             variant="h1"
-            description="Visual capacity monitoring with color-coded gauges"
+            description="Monitor disaster recovery capacity and active operations"
           >
             System Status
           </Header>
