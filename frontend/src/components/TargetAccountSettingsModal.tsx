@@ -2,21 +2,23 @@
  * TargetAccountSettingsModal Component
  *
  * Read-only modal dialog for viewing target account configuration and
- * connected staging accounts. Provides a simple view of account details
- * and staging account relationships.
+ * connected staging accounts. Automatically discovers staging accounts
+ * from DRS extended source servers.
  *
  * FEATURES:
  * - Display target account details (read-only)
+ * - Auto-discover staging accounts from DRS
  * - Show connected staging accounts in collapsible section
  * - Display staging account status and server counts
  *
  * REQUIREMENTS:
  * - View-only modal for target account information
+ * - Automatic staging account discovery
  * - Collapsible staging accounts list
  * - No editing or removal capabilities
  */
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   Box,
@@ -27,11 +29,14 @@ import {
   Header,
   StatusIndicator,
   ExpandableSection,
+  Spinner,
+  Alert,
 } from "@cloudscape-design/components";
 import type {
   TargetAccountSettingsModalProps,
   StagingAccount,
 } from "../types/staging-accounts";
+
 
 /**
  * Get status indicator type for staging account status
@@ -70,11 +75,62 @@ const getStatusLabel = (status?: "connected" | "error" | "validating"): string =
 /**
  * TargetAccountSettingsModal Component
  *
- * Read-only view of target account and connected staging accounts.
+ * Read-only view of target account and auto-discovered staging accounts.
  */
 export const TargetAccountSettingsModal: React.FC<
   TargetAccountSettingsModalProps
 > = ({ targetAccount, visible, onDismiss }) => {
+  const [discoveredStagingAccounts, setDiscoveredStagingAccounts] = useState<
+    StagingAccount[]
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Discover staging accounts when modal opens
+  useEffect(() => {
+    if (visible && targetAccount.accountId) {
+      discoverStagingAccounts();
+    }
+  }, [visible, targetAccount.accountId]);
+
+  const discoverStagingAccounts = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/accounts/${targetAccount.accountId}/staging-accounts/discover`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to discover staging accounts: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.stagingAccounts) {
+        setDiscoveredStagingAccounts(data.stagingAccounts);
+      }
+    } catch (err: any) {
+      console.error("Failed to discover staging accounts:", err);
+      setError(err.message || "Failed to discover staging accounts");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Use discovered staging accounts if available, otherwise use provided ones
+  const stagingAccountsToDisplay =
+    discoveredStagingAccounts.length > 0
+      ? discoveredStagingAccounts
+      : targetAccount.stagingAccounts;
+
   return (
     <Modal
       visible={visible}
@@ -128,17 +184,28 @@ export const TargetAccountSettingsModal: React.FC<
 
         {/* Connected Staging Accounts */}
         <ExpandableSection
-          headerText={`Connected Staging Accounts (${targetAccount.stagingAccounts.length})`}
+          headerText={`Connected Staging Accounts (${stagingAccountsToDisplay.length})`}
           variant="container"
-          defaultExpanded={targetAccount.stagingAccounts.length > 0}
+          defaultExpanded={stagingAccountsToDisplay.length > 0}
         >
-          {targetAccount.stagingAccounts.length === 0 ? (
+          {loading ? (
+            <Box textAlign="center" padding="l">
+              <Spinner size="large" />
+              <Box variant="p" padding={{ top: "s" }}>
+                Discovering staging accounts...
+              </Box>
+            </Box>
+          ) : error ? (
+            <Alert type="error" header="Discovery Failed">
+              {error}
+            </Alert>
+          ) : stagingAccountsToDisplay.length === 0 ? (
             <Box textAlign="center" color="inherit" padding="l">
-              No staging accounts connected
+              No staging accounts discovered
             </Box>
           ) : (
             <SpaceBetween size="m">
-              {targetAccount.stagingAccounts.map((stagingAccount) => (
+              {stagingAccountsToDisplay.map((stagingAccount) => (
                 <Container key={stagingAccount.accountId}>
                   <ColumnLayout columns={2} variant="text-grid">
                     <div>
@@ -158,8 +225,8 @@ export const TargetAccountSettingsModal: React.FC<
                     <div>
                       <Box variant="awsui-key-label">Servers</Box>
                       <div>
-                        {stagingAccount.replicatingCount || 0} replicating /{" "}
-                        {stagingAccount.serverCount || 0} total
+                        {(stagingAccount as any).replicatingCount || (stagingAccount as any).replicatingServers || 0} replicating /{" "}
+                        {(stagingAccount as any).serverCount || (stagingAccount as any).totalServers || 0} total
                       </div>
                     </div>
                   </ColumnLayout>
