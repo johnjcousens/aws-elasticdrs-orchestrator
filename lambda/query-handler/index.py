@@ -506,6 +506,23 @@ def handle_api_gateway_request(event, context):
         else:
             return response(400, {"error": "Invalid path format"})
 
+    # Discover staging accounts endpoint
+    # /accounts/{targetAccountId}/staging-accounts/discover
+    elif (
+        path.startswith("/accounts/")
+        and path.endswith("/staging-accounts/discover")
+        and method == "GET"
+    ):
+        # Extract target account ID from path
+        path_parts = path.split("/")
+        if len(path_parts) >= 3:
+            target_account_id = path_parts[2]
+            return handle_discover_staging_accounts(
+                {"targetAccountId": target_account_id}
+            )
+        else:
+            return response(400, {"error": "Invalid path format"})
+
     else:
         return response(
             404, {"error": "Not Found", "message": f"Path {path} not found"}
@@ -546,6 +563,9 @@ def handle_direct_invocation(event, context):
             "error": "User permissions not available in direct invocation mode"
         },
         "validate_staging_account": lambda: handle_validate_staging_account(
+            query_params
+        ),
+        "discover_staging_accounts": lambda: handle_discover_staging_accounts(
             query_params
         ),
         "get_combined_capacity": lambda: handle_get_combined_capacity(
@@ -3404,6 +3424,160 @@ def calculate_recovery_capacity(target_account_servers: int) -> Dict:
         "availableSlots": available_slots,
         "status": status,
     }
+
+
+def handle_discover_staging_accounts(query_params: Dict) -> Dict:
+    """
+    Discover staging accounts by querying DRS extended source servers.
+
+    This operation:
+    1. Queries DRS describe_source_servers in target account
+    2. Extracts unique staging account IDs from extended source server ARNs
+    3. For each staging account, queries its capacity
+    4. Returns list of discovered staging accounts with their details
+
+    Args:
+        query_params: Dict with:
+            - targetAccountId: Target account ID (12-digit string)
+
+    Returns:
+        Dict with discovered staging accounts:
+        {
+            "targetAccountId": str,
+            "stagingAccounts": [
+                {
+                    "accountId": str,
+                    "replicatingServers": int,
+                    "totalServers": int,
+                    "status": "discovered"
+                }
+            ]
+        }
+    """
+    try:
+        # Step 1: Validate required parameters
+        target_account_id = query_params.get("targetAccountId")
+
+        if not target_account_id:
+            return response(
+                400,
+                {"error": "Missing required field: targetAccountId"},
+            )
+
+        # Validate account ID format (12 digits)
+        if not target_account_id.isdigit() or len(target_account_id) != 12:
+            return response(
+                400,
+                {"error": f"Invalid account ID format: {target_account_id}"},
+            )
+
+        print(
+            f"Discovering staging accounts for target account {target_account_id}"
+        )
+
+        # Step 2: Get target account configuration for credentials
+        if not target_accounts_table:
+            return response(
+                500,
+                {"error": "Target accounts table not configured"},
+            )
+
+        account_result = target_accounts_table.get_item(
+            Key={"accountId": target_account_id}
+        )
+
+        if "Item" not in account_result:
+            return response(
+                404,
+                {"error": f"Target account {target_account_id} not found"},
+            )
+
+        target_account = account_result["Item"]
+
+        # Step 3: Query DRS in all regions to find extended source servers
+        discovered_staging_accounts = {}  # accountId -> server count
+
+        for region in DRS_REGIONS:
+            try:
+                # Get DRS client for this region
+                regional_drs = get_drs_client(
+                    region,
+                    target_account.get("roleArn"),
+                    target_account.get("externalId"),
+                )
+
+                # Query source servers
+                paginator = regional_drs.get_paginator(
+                    "describe_source_servers"
+                )
+
+                for page in paginator.paginate():
+                    for server in page.get("items", []):
+                        # Extract account ID from ARN
+                        # ARN format: arn:aws:drs:region:account:source-server/id
+                        server_arn = server.get("arn", "")
+                        if server_arn:
+                            arn_parts = server_arn.split(":")
+                            if len(arn_parts) >= 5:
+                                server_account_id = arn_parts[4]
+
+                                # If account ID differs from target, it's a staging account
+                                if server_account_id != target_account_id:
+                                    if (
+                                        server_account_id
+                                        not in discovered_staging_accounts
+                                    ):
+                                        discovered_staging_accounts[
+                                            server_account_id
+                                        ] = 0
+                                    discovered_staging_accounts[
+                                        server_account_id
+                                    ] += 1
+
+            except ClientError as e:
+                error_code = e.response["Error"]["Code"]
+                if error_code == "UninitializedAccountException":
+                    # DRS not initialized in this region - skip
+                    continue
+                else:
+                    print(f"Error querying DRS in {region}: {error_code}")
+                    continue
+            except Exception as e:
+                print(f"Unexpected error querying {region}: {e}")
+                continue
+
+        # Step 4: Build response with discovered staging accounts
+        staging_accounts_list = []
+        for account_id, server_count in discovered_staging_accounts.items():
+            staging_accounts_list.append(
+                {
+                    "accountId": account_id,
+                    "accountName": f"Staging Account {account_id[-4:]}",
+                    "replicatingServers": server_count,
+                    "totalServers": server_count,
+                    "status": "discovered",
+                }
+            )
+
+        print(f"Discovered {len(staging_accounts_list)} staging accounts")
+
+        return response(
+            200,
+            {
+                "targetAccountId": target_account_id,
+                "stagingAccounts": staging_accounts_list,
+            },
+        )
+
+    except Exception as e:
+        print(f"Error discovering staging accounts: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return response(
+            500,
+            {"error": f"Failed to discover staging accounts: {str(e)}"},
+        )
 
 
 def handle_get_combined_capacity(query_params: Dict) -> Dict:
