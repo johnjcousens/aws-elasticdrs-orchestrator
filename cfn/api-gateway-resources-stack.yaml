@@ -670,6 +670,13 @@ Resources:
       ParentId: !Ref AccountsTargetResource
       PathPart: staging-accounts
 
+  AccountsTargetStagingAccountsDiscoverResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsTargetStagingAccountsResource
+      PathPart: discover
+
   AccountsTargetStagingAccountResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -1209,6 +1216,12 @@ Outputs:
     Value: !Ref AccountsTargetStagingAccountsResource
     Export:
       Name: !Sub '${AWS::StackName}-AccountsTargetStagingAccountsResourceId'
+
+  AccountsTargetStagingAccountsDiscoverResourceId:
+    Description: 'Accounts Target Staging Accounts Discover Resource ID'
+    Value: !Ref AccountsTargetStagingAccountsDiscoverResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetStagingAccountsDiscoverResourceId'
 
   AccountsTargetStagingAccountResourceId:
     Description: 'Accounts Target Staging Account Resource ID'
