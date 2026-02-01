@@ -22,6 +22,8 @@ import { useAccount } from '../contexts/AccountContext';
 import { PermissionAwareButton } from './PermissionAware';
 import { DRSPermission } from '../types/permissions';
 import { TargetAccountSettingsModal } from './TargetAccountSettingsModal';
+import { getCombinedCapacity } from '../services/staging-accounts-api';
+import type { StagingAccount } from '../types/staging-accounts';
 
 export interface TargetAccount {
   accountId: string;
@@ -48,6 +50,8 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
   const [editingAccount, setEditingAccount] = useState<TargetAccount | null>(null);
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [settingsAccount, setSettingsAccount] = useState<TargetAccount | null>(null);
+  const [stagingAccountsForModal, setStagingAccountsForModal] = useState<StagingAccount[]>([]);
+  const [loadingStagingAccounts, setLoadingStagingAccounts] = useState(false);
   
   // Current account info for wizard
   const [currentAccount, setCurrentAccount] = useState<{
@@ -257,14 +261,40 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
     }
   };
 
-  const handleOpenSettings = (account: TargetAccount) => {
+  const handleOpenSettings = async (account: TargetAccount) => {
     setSettingsAccount(account);
     setSettingsModalVisible(true);
+    setLoadingStagingAccounts(true);
+    setStagingAccountsForModal([]);
+    
+    try {
+      // Fetch target account from DynamoDB (includes stagingAccounts)
+      const targetAccountData = await apiClient.getTargetAccount(account.accountId);
+      
+      // Convert to StagingAccount format for modal
+      const stagingAccounts: StagingAccount[] = (targetAccountData.stagingAccounts || []).map(sa => ({
+        accountId: sa.accountId,
+        accountName: sa.accountName,
+        roleArn: sa.roleArn,
+        externalId: sa.externalId,
+        status: 'connected' as const,
+        addedAt: sa.addedAt,
+        addedBy: sa.addedBy,
+      }));
+      
+      setStagingAccountsForModal(stagingAccounts);
+    } catch (err) {
+      console.error('Error fetching target account:', err);
+      setStagingAccountsForModal([]);
+    } finally {
+      setLoadingStagingAccounts(false);
+    }
   };
 
   const handleCloseSettings = () => {
     setSettingsModalVisible(false);
     setSettingsAccount(null);
+    setStagingAccountsForModal([]);
   };
 
   const handleSaveSettings = async (updatedAccount: any) => {
@@ -732,8 +762,8 @@ const AccountManagementPanel: React.FC<AccountManagementPanelProps> = ({
             accountId: settingsAccount.accountId,
             accountName: settingsAccount.accountName || '',
             roleArn: settingsAccount.crossAccountRoleArn || '',
-            externalId: '', // Will be fetched by the modal
-            stagingAccounts: [], // Will be fetched by the modal
+            externalId: '',
+            stagingAccounts: stagingAccountsForModal,
           }}
           visible={settingsModalVisible}
           onDismiss={handleCloseSettings}

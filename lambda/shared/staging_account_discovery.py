@@ -85,18 +85,47 @@ def discover_staging_accounts_from_drs(
                     and staging_account_id != target_account_id
                     and staging_account_id not in discovered_accounts
                 ):
-                    from .account_utils import construct_role_arn
+                    from .account_utils import (
+                        construct_role_arn,
+                        get_account_name,
+                    )
+
+                    # Try to get the real account name/alias
+                    account_name = None
+                    try:
+                        # Assume role into staging account to get its alias
+                        staging_role_arn = construct_role_arn(
+                            staging_account_id
+                        )
+                        staging_session = get_cross_account_session(
+                            role_arn=staging_role_arn,
+                            external_id=f"drs-orchestration-{staging_account_id}",
+                        )
+                        iam_client = staging_session.client("iam")
+                        aliases = iam_client.list_account_aliases()[
+                            "AccountAliases"
+                        ]
+                        if aliases:
+                            account_name = aliases[0]
+                    except Exception as e:
+                        print(
+                            f"Could not fetch account alias for {staging_account_id}: {e}"
+                        )
+
+                    # Fallback to placeholder if we couldn't get the real name
+                    if not account_name:
+                        account_name = f"Staging Account {staging_account_id}"
 
                     discovered_accounts[staging_account_id] = {
                         "accountId": staging_account_id,
-                        "accountName": f"Staging Account {staging_account_id}",
+                        "accountName": account_name,
                         "roleArn": construct_role_arn(staging_account_id),
                         "externalId": f"drs-orchestration-{staging_account_id}",
                         "discoveredFrom": region,
                     }
 
                     print(
-                        f"Discovered staging account {staging_account_id} "
+                        f"Discovered staging account {staging_account_id} ({account_name}) "
                         f"in region {region}"
                     )
 

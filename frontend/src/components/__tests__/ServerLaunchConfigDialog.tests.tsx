@@ -326,8 +326,11 @@ describe('ServerLaunchConfigDialog', () => {
       render(<ServerLaunchConfigDialog {...defaultProps} />);
       await waitForLoading();
       
-      const input = screen.getByPlaceholderText('IP address');
-      await user.type(input, '10.0.1.100');
+      const input = screen.getByPlaceholderText('IP address') as HTMLInputElement;
+      
+      // Use clear + type with delay: 0 for faster test execution
+      await user.clear(input);
+      await user.type(input, '10.0.1.100', { delay: 0 });
       
       expect(input).toHaveValue('10.0.1.100');
     });

@@ -310,120 +310,154 @@ export const SystemStatusPage: React.FC = () => {
                       variant="container"
                       defaultExpanded={false}
                     >
-                      <Table
-                        columnDefinitions={[
-                          {
-                            id: "accountName",
-                            header: "Account",
-                            cell: (item: AccountCapacity) => (
-                              <div>
-                                <div>
-                                  <strong>{item.accountName}</strong>
-                                </div>
-                                <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
-                                  {item.accountId}
-                                </div>
-                              </div>
-                            ),
-                            sortingField: "accountName",
-                          },
-                          {
-                            id: "accountType",
-                            header: "Type",
-                            cell: (item: AccountCapacity) => (
-                              <Box
-                                variant="span"
-                                color={
-                                  item.accountType === "target" ? "text-status-info" : undefined
-                                }
-                              >
-                                <span style={{ textTransform: "capitalize" }}>
-                                  {item.accountType}
-                                </span>
-                              </Box>
-                            ),
-                            sortingField: "accountType",
-                          },
-                          {
-                            id: "capacity",
-                            header: "Capacity",
-                            cell: (item: AccountCapacity) => (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <CapacityGauge
-                                  used={item.replicatingServers}
-                                  total={item.maxReplicating}
-                                  size="small"
-                                  showLabel={false}
-                                />
-                                <div>
-                                  <div>{item.percentUsed.toFixed(1)}%</div>
-                                  <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
-                                    {formatNumber(item.replicatingServers)} / {formatNumber(item.maxReplicating)}
+                      <SpaceBetween size="m">
+                        {/* Group accounts: target accounts first, then their staging accounts nested */}
+                        {(() => {
+                          const targetAccounts = capacityData.accounts.filter(
+                            (acc) => acc.accountType === "target"
+                          );
+                          const stagingAccounts = capacityData.accounts.filter(
+                            (acc) => acc.accountType === "staging"
+                          );
+
+                          return targetAccounts.map((targetAccount) => (
+                            <Container key={targetAccount.accountId}>
+                              <SpaceBetween size="m">
+                                {/* Target Account Row */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div>
+                                      <strong>{targetAccount.accountName}</strong>
+                                      <Box variant="span" color="text-status-info" margin={{ left: 'xs' }}>
+                                        (target)
+                                      </Box>
+                                    </div>
+                                    <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
+                                      {targetAccount.accountId}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <CapacityGauge
+                                        used={targetAccount.replicatingServers}
+                                        total={targetAccount.maxReplicating}
+                                        size="small"
+                                        showLabel={false}
+                                      />
+                                      <div>
+                                        <div>{targetAccount.percentUsed.toFixed(1)}%</div>
+                                        <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
+                                          {formatNumber(targetAccount.replicatingServers)} / {formatNumber(targetAccount.maxReplicating)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div><strong>{formatNumber(targetAccount.availableSlots)}</strong></div>
+                                      <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>slots</div>
+                                    </div>
+                                    <StatusIndicator type={getStatusType(targetAccount.status)}>
+                                      {targetAccount.status}
+                                    </StatusIndicator>
+                                    <div style={{ minWidth: '120px' }}>
+                                      {targetAccount.regionalBreakdown.map((region, idx) => (
+                                        <div
+                                          key={region.region}
+                                          style={{
+                                            fontSize: "0.875rem",
+                                            marginBottom:
+                                              idx < targetAccount.regionalBreakdown.length - 1
+                                                ? "4px"
+                                                : "0",
+                                          }}
+                                        >
+                                          <strong>{region.region}:</strong>{" "}
+                                          {formatNumber(region.replicatingServers)}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ),
-                            sortingField: "percentUsed",
-                          },
-                          {
-                            id: "availableSlots",
-                            header: "Available",
-                            cell: (item: AccountCapacity) => (
-                              <div>
-                                <div><strong>{formatNumber(item.availableSlots)}</strong></div>
-                                <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
-                                  slots
-                                </div>
-                              </div>
-                            ),
-                            sortingField: "availableSlots",
-                          },
-                          {
-                            id: "status",
-                            header: "Status",
-                            cell: (item: AccountCapacity) => (
-                              <StatusIndicator type={getStatusType(item.status)}>
-                                {item.status}
-                              </StatusIndicator>
-                            ),
-                            sortingField: "status",
-                          },
-                          {
-                            id: "regions",
-                            header: "Regions",
-                            cell: (item: AccountCapacity) => (
-                              <div>
-                                {item.regionalBreakdown.map((region, idx) => (
-                                  <div
-                                    key={region.region}
-                                    style={{
-                                      fontSize: "0.875rem",
-                                      marginBottom:
-                                        idx < item.regionalBreakdown.length - 1
-                                          ? "4px"
-                                          : "0",
-                                    }}
+
+                                {/* Staging Accounts (nested under target) */}
+                                {stagingAccounts.length > 0 && (
+                                  <ExpandableSection
+                                    headerText={`Connected Staging Accounts (${stagingAccounts.length})`}
+                                    variant="footer"
+                                    defaultExpanded={false}
                                   >
-                                    <strong>{region.region}:</strong>{" "}
-                                    {formatNumber(region.replicatingServers)}
-                                  </div>
-                                ))}
-                              </div>
-                            ),
-                          },
-                        ]}
-                        items={capacityData.accounts}
-                        sortingDisabled={false}
-                        variant="embedded"
-                        empty={
-                          <Box textAlign="center" color="inherit">
-                            <b>No accounts</b>
-                            <Box variant="p" color="inherit">
-                              No capacity data available
-                            </Box>
-                          </Box>
-                        }
-                      />
+                                    <SpaceBetween size="s">
+                                      {stagingAccounts.map((stagingAccount) => (
+                                        <div
+                                          key={stagingAccount.accountId}
+                                          style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            paddingLeft: '24px',
+                                            borderLeft: '2px solid #e9ebed',
+                                          }}
+                                        >
+                                          <div style={{ flex: 1 }}>
+                                            <div>
+                                              {stagingAccount.accountName}
+                                              <Box variant="span" color="text-body-secondary" margin={{ left: 'xs' }}>
+                                                (staging)
+                                              </Box>
+                                            </div>
+                                            <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
+                                              {stagingAccount.accountId}
+                                            </div>
+                                          </div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                              <CapacityGauge
+                                                used={stagingAccount.replicatingServers}
+                                                total={stagingAccount.maxReplicating}
+                                                size="small"
+                                                showLabel={false}
+                                              />
+                                              <div>
+                                                <div>{stagingAccount.percentUsed.toFixed(1)}%</div>
+                                                <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>
+                                                  {formatNumber(stagingAccount.replicatingServers)} / {formatNumber(stagingAccount.maxReplicating)}
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <div><strong>{formatNumber(stagingAccount.availableSlots)}</strong></div>
+                                              <div style={{ fontSize: "0.875rem", color: "#5f6b7a" }}>slots</div>
+                                            </div>
+                                            <StatusIndicator type={getStatusType(stagingAccount.status)}>
+                                              {stagingAccount.status}
+                                            </StatusIndicator>
+                                            <div style={{ minWidth: '120px' }}>
+                                              {stagingAccount.regionalBreakdown.map((region, idx) => (
+                                                <div
+                                                  key={region.region}
+                                                  style={{
+                                                    fontSize: "0.875rem",
+                                                    marginBottom:
+                                                      idx < stagingAccount.regionalBreakdown.length - 1
+                                                        ? "4px"
+                                                        : "0",
+                                                  }}
+                                                >
+                                                  <strong>{region.region}:</strong>{" "}
+                                                  {formatNumber(region.replicatingServers)}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </SpaceBetween>
+                                  </ExpandableSection>
+                                )}
+                              </SpaceBetween>
+                            </Container>
+                          ));
+                        })()}
+                      </SpaceBetween>
                     </ExpandableSection>
                   </SpaceBetween>
                 ) : (

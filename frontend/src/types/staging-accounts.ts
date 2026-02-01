@@ -241,6 +241,20 @@ export interface CombinedCapacityData {
   /** Recovery capacity metrics (target account only) */
   recoveryCapacity: RecoveryCapacity;
 
+  /** Concurrent jobs metrics */
+  concurrentJobs: {
+    current: number;
+    max: number;
+    available: number;
+  };
+
+  /** Servers in active jobs metrics */
+  serversInJobs: {
+    current: number;
+    max: number;
+    available: number;
+  };
+
   /** System-wide warnings and recommendations */
   warnings: string[];
 

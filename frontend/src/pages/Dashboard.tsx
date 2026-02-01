@@ -21,7 +21,6 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
-import { DRSQuotaStatusPanel } from '../components/DRSQuotaStatus';
 import { CompactCapacitySummary } from '../components/CompactCapacitySummary';
 import { getCombinedCapacity } from '../services/staging-accounts-api';
 import type { CombinedCapacityData } from '../types/staging-accounts';
@@ -74,9 +73,6 @@ export const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [drsQuotas, setDrsQuotas] = useState<DRSQuotaStatus | null>(null);
-  const [quotasLoading, setQuotasLoading] = useState(false);
-  const [quotasError, setQuotasError] = useState<string | null>(null);
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
   
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
@@ -113,22 +109,6 @@ export const Dashboard: React.FC = () => {
     }
   }, [getCurrentAccountId]);
 
-  const fetchDRSQuotas = useCallback(async (accountId: string) => {
-    setQuotasLoading(true);
-    setQuotasError(null);
-    try {
-      // Fetch account-wide capacity (backend aggregates all regions)
-      const quotas = await apiClient.getDRSQuotas(accountId);
-      setDrsQuotas(quotas);
-    } catch (err) {
-      console.error('Error fetching DRS quotas:', err);
-      setQuotasError('Unable to fetch DRS capacity');
-      setDrsQuotas(null);
-    } finally {
-      setQuotasLoading(false);
-    }
-  }, []);
-
   const fetchCapacityData = useCallback(async (accountId: string) => {
     setCapacityLoading(true);
     setCapacityError(null);
@@ -151,22 +131,19 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
-  // Fetch DRS quotas and capacity when account changes
+  // Fetch DRS capacity when account changes
   useEffect(() => {
     const accountId = getCurrentAccountId();
     if (accountId) {
-      fetchDRSQuotas(accountId);
       fetchCapacityData(accountId);
       const interval = setInterval(() => {
-        fetchDRSQuotas(accountId);
         fetchCapacityData(accountId);
       }, 30000);
       return () => clearInterval(interval);
     } else {
-      setDrsQuotas(null);
       setCapacityData(null);
     }
-  }, [selectedAccount, getCurrentAccountId, fetchDRSQuotas, fetchCapacityData]);
+  }, [selectedAccount, getCurrentAccountId, fetchCapacityData]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -341,7 +318,7 @@ export const Dashboard: React.FC = () => {
             <Container
               header={
                 <Header variant="h2">
-                  Combined Capacity Summary
+                  DRS Service Capacity
                 </Header>
               }
             >
@@ -430,28 +407,6 @@ export const Dashboard: React.FC = () => {
                 )}
               </Container>
             </ColumnLayout>
-
-            <Container
-              header={
-                <Header variant="h2">
-                  DRS Capacity per Account
-                </Header>
-              }
-            >
-              {quotasLoading ? (
-                <Box textAlign="center" padding="l">
-                  <Spinner /> Loading DRS capacity...
-                </Box>
-              ) : quotasError ? (
-                <StatusIndicator type="warning">{quotasError}</StatusIndicator>
-              ) : drsQuotas ? (
-                <DRSQuotaStatusPanel quotas={drsQuotas} />
-              ) : (
-                <Box textAlign="center" padding="l" color="text-body-secondary">
-                  No DRS capacity data available
-                </Box>
-              )}
-            </Container>
 
             <Container
               header={

@@ -881,6 +881,47 @@ class ApiClient {
   }
 
   /**
+   * Get a single target account with staging accounts
+   */
+  public async getTargetAccount(accountId: string): Promise<{
+    accountId: string;
+    accountName: string;
+    roleArn?: string;
+    externalId?: string;
+    stagingAccounts: Array<{
+      accountId: string;
+      accountName: string;
+      roleArn: string;
+      externalId: string;
+      addedAt?: string;
+      addedBy?: string;
+    }>;
+    status: string;
+    isCurrentAccount?: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+  }> {
+    return this.get<{
+      accountId: string;
+      accountName: string;
+      roleArn?: string;
+      externalId?: string;
+      stagingAccounts: Array<{
+        accountId: string;
+        accountName: string;
+        roleArn: string;
+        externalId: string;
+        addedAt?: string;
+        addedBy?: string;
+      }>;
+      status: string;
+      isCurrentAccount?: boolean;
+      createdAt?: string;
+      updatedAt?: string;
+    }>(`/accounts/targets/${accountId}`);
+  }
+
+  /**
    * Get current account information for setup wizard
    */
   public async getCurrentAccount(): Promise<{
