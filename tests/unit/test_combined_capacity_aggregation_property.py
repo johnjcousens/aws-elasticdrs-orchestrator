@@ -120,8 +120,8 @@ def test_property_combined_capacity_aggregation(account_results):
         f"got {result['totalServers']}"
     )
 
-    # Property 3: Max capacity = 300 (fixed target account limit in staging model)
-    expected_max_capacity = 300
+    # Property 3: Max capacity = num_accessible_accounts × 300
+    expected_max_capacity = len(accessible_accounts) * 300
     assert result["maxReplicating"] == expected_max_capacity, (
         f"Max capacity mismatch: expected {expected_max_capacity}, "
         f"got {result['maxReplicating']}"
@@ -195,8 +195,8 @@ def test_property_uniform_capacity_distribution(
 
     # Verify uniform distribution properties
     assert result["totalReplicating"] == num_accounts * servers_per_account
-    # Max capacity is fixed at 300 (target account limit)
-    assert result["maxReplicating"] == 300
+    # Max capacity = num_accounts × 300
+    assert result["maxReplicating"] == num_accounts * 300
     assert result["accessibleAccounts"] == num_accounts
 
 
@@ -223,8 +223,8 @@ def test_property_inaccessible_accounts_excluded(account_results):
 
     # Verify inaccessible accounts don't contribute to capacity
     if inaccessible:
-        # Max capacity is fixed at 300 (target account limit)
-        assert result["maxReplicating"] == 300
+        # Max capacity = num_accessible_accounts × 300
+        assert result["maxReplicating"] == len(accessible) * 300
 
         # Total accounts should include both accessible and inaccessible
         assert result["totalAccounts"] == len(accessible) + len(inaccessible)
@@ -244,11 +244,11 @@ def test_edge_case_no_accounts():
 
     assert result["totalReplicating"] == 0
     assert result["totalServers"] == 0
-    # With staging account model, max capacity is always 300 (target account limit)
-    assert result["maxReplicating"] == 300
+    # Multi-account model: 0 accounts × 300 = 0
+    assert result["maxReplicating"] == 0
     assert result["percentUsed"] == 0.0
-    # Available slots = 300 - 0 = 300
-    assert result["availableSlots"] == 300
+    # Available slots = 0 - 0 = 0
+    assert result["availableSlots"] == 0
     assert result["accessibleAccounts"] == 0
     assert result["totalAccounts"] == 0
 
@@ -272,8 +272,8 @@ def test_edge_case_all_accounts_inaccessible():
     result = calculate_combined_metrics(account_results)
 
     assert result["totalReplicating"] == 0
-    # With staging account model, max capacity is always 300 (target account limit)
-    assert result["maxReplicating"] == 300
+    # Multi-account model: 0 accessible accounts × 300 = 0
+    assert result["maxReplicating"] == 0
     assert result["percentUsed"] == 0.0
     assert result["accessibleAccounts"] == 0
     assert result["totalAccounts"] == 5
@@ -318,7 +318,6 @@ def test_edge_case_at_max_capacity():
     assert result["totalReplicating"] == 900
     # Max capacity = 3 accounts × 300 = 900
     assert result["maxReplicating"] == 900
-    assert result["maxReplicating"] == 300
     assert result["percentUsed"] == 100.0
     assert result["availableSlots"] == 0
 
@@ -356,49 +355,15 @@ def test_edge_case_mixed_accessibility():
         },
     ]
 
-
-def test_edge_case_mixed_accessibility():
-    """Edge case: Mix of accessible and inaccessible accounts."""
-    account_results = [
-        {
-            "accountId": "111111111111",
-            "accountName": "Target",
-            "accountType": "target",
-            "replicatingServers": 150,
-            "totalServers": 150,
-            "regionalBreakdown": [],
-            "accessible": True,
-        },
-        {
-            "accountId": "222222222222",
-            "accountName": "Staging_1",
-            "accountType": "staging",
-            "replicatingServers": 100,
-            "totalServers": 100,
-            "regionalBreakdown": [],
-            "accessible": True,
-        },
-        {
-            "accountId": "333333333333",
-            "accountName": "Staging_2",
-            "accountType": "staging",
-            "replicatingServers": 0,
-            "totalServers": 0,
-            "regionalBreakdown": [],
-            "accessible": False,
-            "error": "Access denied",
-        },
-    ]
-
     result = calculate_combined_metrics(account_results)
 
-    # Total replicating = 150 + 100 = 250
+    # Total replicating = 150 + 100 = 250 (only accessible accounts)
     assert result["totalReplicating"] == 250
-    # Max capacity = 300 (target account limit, not per-account)
-    assert result["maxReplicating"] == 300
-    # Percent used = 250/300 = 83.33%
-    assert result["percentUsed"] == pytest.approx(83.33, rel=0.01)
-    # Available = 300 - 250 = 50
-    assert result["availableSlots"] == 50
+    # Max capacity = 2 accessible accounts × 300 = 600
+    assert result["maxReplicating"] == 600
+    # Percent used = 250/600 = 41.67%
+    assert result["percentUsed"] == pytest.approx(41.67, rel=0.01)
+    # Available = 600 - 250 = 350
+    assert result["availableSlots"] == 350
     assert result["accessibleAccounts"] == 2
     assert result["totalAccounts"] == 3
