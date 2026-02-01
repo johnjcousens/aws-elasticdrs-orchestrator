@@ -99,7 +99,7 @@ export const TargetAccountSettingsModal: React.FC<
 
     try {
       const response = await fetch(
-        `/api/accounts/${targetAccount.accountId}/staging-accounts/discover`,
+        `/api/accounts/targets/${targetAccount.accountId}/staging-accounts/discover`,
         {
           method: 'GET',
           headers: {
