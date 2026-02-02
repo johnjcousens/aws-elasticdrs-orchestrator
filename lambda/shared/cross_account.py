@@ -145,7 +145,6 @@ DynamoDB resources initialized on first use to avoid boto3 errors during test co
 """
 
 import os
-import time
 from typing import Dict, Optional
 
 import boto3

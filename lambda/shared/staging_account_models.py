@@ -223,11 +223,11 @@ def validate_staging_account_structure(staging_account: Dict) -> Dict:
 
     # Check required fields (roleArn is now optional)
     required_fields = ["accountId", "accountName", "externalId"]
-    for field in required_fields:
-        if field not in staging_account:
-            errors.append(f"Missing required field: {field}")
-        elif not staging_account[field]:
-            errors.append(f"Field cannot be empty: {field}")
+    for req_field in required_fields:
+        if req_field not in staging_account:
+            errors.append(f"Missing required field: {req_field}")
+        elif not staging_account[req_field]:
+            errors.append(f"Field cannot be empty: {req_field}")
 
     # Validate account ID format (12 digits)
     account_id = staging_account.get("accountId", "")

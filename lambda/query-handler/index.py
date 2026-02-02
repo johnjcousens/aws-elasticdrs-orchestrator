@@ -321,12 +321,10 @@ from botocore.exceptions import ClientError
 from shared.account_utils import (
     get_account_name,
     get_target_accounts,
-    validate_target_account,
 )
 from shared.conflict_detection import query_drs_servers_by_tags
 from shared.cross_account import (
     create_drs_client,
-    get_cross_account_session,
     get_current_account_id,
 )
 from shared.drs_limits import (
@@ -3494,7 +3492,7 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
         for region in DRS_REGIONS:
             try:
                 # Get DRS client for this region
-                regional_drs = get_drs_client(
+                regional_drs = create_drs_client(
                     region,
                     target_account.get("roleArn"),
                     target_account.get("externalId"),
@@ -3711,7 +3709,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         # We must calculate status per-region and take the worst status
         for account in account_results:
             regional_breakdown = account.get("regionalBreakdown", [])
-            account_type = account.get("accountType", "staging")
+            account.get("accountType", "staging")
 
             # Calculate per-region status and find worst status
             worst_status = "OK"

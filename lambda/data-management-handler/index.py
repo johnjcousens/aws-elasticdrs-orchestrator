@@ -284,7 +284,7 @@ from typing import Dict, List, Optional, Any
 import uuid
 
 import boto3
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 # Import shared utilities
@@ -6892,7 +6892,6 @@ def _validate_and_resolve_server_configs(
     from shared.launch_config_validation import (
         validate_aws_approved_fields,
         validate_static_ip,
-        validate_no_duplicate_ips,
     )
 
     resolved_servers = []
@@ -7181,10 +7180,6 @@ def generate_manifest_validation_report(
 
     Validates: Requirements 10.2, 10.5
     """
-    from shared.launch_config_validation import (
-        validate_aws_approved_fields,
-        validate_static_ip,
-    )
 
     if not correlation_id:
         correlation_id = str(uuid.uuid4())
@@ -7353,10 +7348,6 @@ def _validate_protection_group_manifest(
     Returns:
         Dict with validation result for this protection group
     """
-    from shared.launch_config_validation import (
-        validate_aws_approved_fields,
-        validate_static_ip,
-    )
 
     validation = {
         "valid": True,
@@ -7457,8 +7448,6 @@ def _validate_server_config_manifest(
     from shared.launch_config_validation import (
         validate_aws_approved_fields,
         _validate_ip_format,
-        _validate_ip_in_cidr,
-        _validate_ip_not_reserved,
     )
 
     validation = {
