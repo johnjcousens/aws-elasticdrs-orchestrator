@@ -357,6 +357,107 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
         }
 
 
+def validate_max_servers_per_job(region: str) -> Dict:
+    """
+    Get the maximum server count in any single active DRS job.
+
+    Queries DRS DescribeJobs API for PENDING and STARTED jobs,
+    finds the job with the most servers, and returns metrics.
+
+    DRS LIMIT: Maximum 100 servers per job (hard limit)
+
+    WHY VALIDATE: Helps identify if any single job is approaching
+    the per-job limit, which could cause job failures.
+
+    USAGE:
+        result = validate_max_servers_per_job('us-east-1')
+        if result['maxServersInSingleJob'] > 90:
+            print(f"Warning: Job {result['jobId']} has "
+                  f"{result['maxServersInSingleJob']} servers")
+
+    Args:
+        region: AWS region to check (e.g., 'us-east-1')
+
+    Returns:
+        {
+            "maxServersInSingleJob": int,  # Largest job size
+            "maxAllowed": 100,             # Hard limit
+            "availableSlots": int,         # Remaining capacity
+            "jobId": str,                  # ID of largest job
+            "status": str,                 # "OK" or "WARNING"
+            "message": str                 # Human-readable status
+        }
+
+    SPECIAL CASES:
+        - No active jobs: Returns maxServersInSingleJob=0
+        - Uninitialized region: Returns maxServersInSingleJob=0
+        - API error: Returns maxServersInSingleJob=0 with warning
+    """
+    try:
+        regional_drs = boto3.client("drs", region_name=region)
+
+        # Get active jobs (PENDING or STARTED status)
+        max_servers = 0
+        max_job_id = None
+        paginator = regional_drs.get_paginator("describe_jobs")
+
+        for page in paginator.paginate():
+            for job in page.get("items", []):
+                if job.get("status") in ["PENDING", "STARTED"]:
+                    server_count = len(job.get("participatingServers", []))
+                    if server_count > max_servers:
+                        max_servers = server_count
+                        max_job_id = job.get("jobID")
+
+        available_slots = DRS_LIMITS["MAX_SERVERS_PER_JOB"] - max_servers
+        status = "OK" if max_servers < 90 else "WARNING"
+
+        return {
+            "maxServersInSingleJob": max_servers,
+            "maxAllowed": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+            "availableSlots": available_slots,
+            "jobId": max_job_id,
+            "status": status,
+            "message": (
+                f"Largest active job has {max_servers} servers"
+                if max_servers > 0
+                else "No active jobs"
+            ),
+        }
+
+    except Exception as e:
+        error_str = str(e)
+        print(f"Error checking max servers per job: {e}")
+
+        # Check for uninitialized region errors
+        if any(
+            x in error_str
+            for x in [
+                "UninitializedAccountException",
+                "UnrecognizedClientException",
+                "security token",
+            ]
+        ):
+            return {
+                "maxServersInSingleJob": 0,
+                "maxAllowed": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+                "availableSlots": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+                "jobId": None,
+                "status": "OK",
+                "message": "Region not initialized",
+            }
+
+        # Return safe defaults on error
+        return {
+            "maxServersInSingleJob": 0,
+            "maxAllowed": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+            "availableSlots": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+            "jobId": None,
+            "status": "OK",
+            "message": f"Could not fetch per-job metrics: {error_str}",
+        }
+
+
 def validate_server_replication_states(
     region: str, server_ids: List[str]
 ) -> Dict:
