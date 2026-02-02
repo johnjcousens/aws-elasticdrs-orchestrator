@@ -83,6 +83,7 @@ export const Dashboard: React.FC = () => {
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
   const [capacityError, setCapacityError] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<any[]>([]);
 
   // Open settings modal if no accounts configured
   useEffect(() => {
@@ -532,7 +533,7 @@ export const Dashboard: React.FC = () => {
                   {/* Per-Account Capacity Breakdown */}
                   {capacityData.accounts && capacityData.accounts.length > 0 && (
                     <Container
-                      header={<Header variant="h3">Per-Account Capacity Breakdown</Header>}
+                      header={<Header variant="h3">Target Account Capacity</Header>}
                     >
                       <Table
                         columnDefinitions={[
@@ -550,23 +551,6 @@ export const Dashboard: React.FC = () => {
                               </div>
                             ),
                             sortingField: 'accountName',
-                          },
-                          {
-                            id: 'accountType',
-                            header: 'Type',
-                            cell: (item) => (
-                              <Box
-                                variant="span"
-                                color={
-                                  item.accountType === 'target' ? 'text-status-info' : undefined
-                                }
-                              >
-                                <span style={{ textTransform: 'capitalize' }}>
-                                  {item.accountType}
-                                </span>
-                              </Box>
-                            ),
-                            sortingField: 'accountType',
                           },
                           {
                             id: 'replicatingServers',
@@ -628,7 +612,7 @@ export const Dashboard: React.FC = () => {
                             cell: (item) => (
                               <div>
                                 {item.regionalBreakdown && item.regionalBreakdown.length > 0 ? (
-                                  item.regionalBreakdown.map((region, idx) => (
+                                  item.regionalBreakdown.map((region: any, idx: number) => (
                                     <div
                                       key={region.region}
                                       style={{
@@ -665,9 +649,28 @@ export const Dashboard: React.FC = () => {
                             ),
                           },
                         ]}
-                        items={capacityData.accounts}
+                        items={capacityData.accounts.filter((acc) => acc.accountType === 'target')}
                         sortingDisabled={false}
                         variant="embedded"
+                        expandableRows={{
+                          getItemChildren: (item) => {
+                            // Return staging accounts for this target
+                            return capacityData.accounts.filter(
+                              (acc) => acc.accountType === 'staging'
+                            );
+                          },
+                          isItemExpandable: (item) => {
+                            // Target accounts are expandable if there are staging accounts
+                            return capacityData.accounts.some(
+                              (acc) => acc.accountType === 'staging'
+                            );
+                          },
+                          expandedItems: expandedItems,
+                          onExpandableItemToggle: (event) => {
+                            const items = event.detail.item ? [event.detail.item] : [];
+                            setExpandedItems(items);
+                          },
+                        }}
                         empty={
                           <Box textAlign="center" color="inherit">
                             <b>No accounts</b>
