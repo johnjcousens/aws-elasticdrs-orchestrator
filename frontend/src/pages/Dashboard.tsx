@@ -347,14 +347,7 @@ export const Dashboard: React.FC = () => {
 
             <Container
               header={
-                <Header
-                  variant="h2"
-                  description={
-                    capacityData
-                      ? `Last updated: ${new Date().toLocaleTimeString()}`
-                      : undefined
-                  }
-                >
+                <Header variant="h2">
                   DRS Service Capacity
                 </Header>
               }
