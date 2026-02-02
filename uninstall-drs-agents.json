@@ -1,0 +1,18 @@
+{
+  "commands": [
+    "Write-Host 'Stopping AWS Replication Agent service...' -ForegroundColor Yellow",
+    "Stop-Service -Name 'AWS Replication Agent' -Force -ErrorAction SilentlyContinue",
+    "Write-Host 'Uninstalling DRS Agent...' -ForegroundColor Yellow",
+    "$uninstallPath = 'C:\\Program Files (x86)\\AWS Replication Agent\\unins000.exe'",
+    "if (Test-Path $uninstallPath) {",
+    "  Start-Process -FilePath $uninstallPath -ArgumentList '/VERYSILENT','/NORESTART' -Wait",
+    "  Write-Host 'Agent uninstalled' -ForegroundColor Green",
+    "} else {",
+    "  Write-Host 'Uninstaller not found, removing manually...' -ForegroundColor Yellow",
+    "}",
+    "Write-Host 'Cleaning up agent files...' -ForegroundColor Yellow",
+    "Remove-Item -Path 'C:\\Program Files (x86)\\AWS Replication Agent' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Remove-Item -Path 'C:\\ProgramData\\Amazon\\DRS' -Recurse -Force -ErrorAction SilentlyContinue",
+    "Write-Host 'Cleanup complete' -ForegroundColor Green"
+  ]
+}
