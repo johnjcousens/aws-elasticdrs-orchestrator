@@ -39,7 +39,7 @@ def account_config_strategy():
     })
 
 
-@settings(max_examples=100)
+@settings(max_examples=100, deadline=1000)  # 1 second deadline for jobs metrics query
 @given(
     num_staging_accounts=st.integers(min_value=0, max_value=10),
     target_servers=st.integers(min_value=0, max_value=300),
