@@ -44,6 +44,11 @@ def aws_credentials(monkeypatch):
     monkeypatch.setenv("AWS_SECURITY_TOKEN", "testing")
     monkeypatch.setenv("AWS_SESSION_TOKEN", "testing")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+    # Set DynamoDB table names for tests
+    monkeypatch.setenv("TARGET_ACCOUNTS_TABLE", "test-target-accounts-table")
+    monkeypatch.setenv("STAGING_ACCOUNTS_TABLE", "test-staging-accounts-table")
+    monkeypatch.setenv("PROTECTION_GROUPS_TABLE", "test-protection-groups-table")
+    monkeypatch.setenv("RECOVERY_PLANS_TABLE", "test-recovery-plans-table")
 
 
 @pytest.fixture(scope="function", autouse=True)

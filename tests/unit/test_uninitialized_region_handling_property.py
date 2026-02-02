@@ -9,10 +9,15 @@ the query should continue successfully for other regions.
 **Validates: Requirements 9.4**
 """
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from botocore.exceptions import ClientError
+
+# Set environment variables BEFORE importing index
+os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
+os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
 
 # Clear any existing index module to avoid conflicts
 if "index" in sys.modules:
@@ -24,6 +29,7 @@ query_handler_dir = (
 )
 sys.path.insert(0, str(query_handler_dir))
 
+from moto import mock_aws
 from hypothesis import given, strategies as st, settings, assume
 import pytest
 
@@ -78,6 +84,7 @@ def region_initialization_strategy(draw):
 
 @settings(max_examples=100)
 @given(region_status=region_initialization_strategy())
+@mock_aws
 def test_property_uninitialized_region_handling(region_status):
     """
     Property 9: Uninitialized Region Handling
@@ -196,6 +203,7 @@ def test_property_uninitialized_region_handling(region_status):
     num_initialized=st.integers(min_value=0, max_value=10),
     num_uninitialized=st.integers(min_value=1, max_value=10),
 )
+@mock_aws
 def test_property_mixed_region_initialization(
     num_initialized, num_uninitialized
 ):
@@ -270,6 +278,7 @@ def test_property_mixed_region_initialization(
 
 @settings(max_examples=50)
 @given(num_regions=st.integers(min_value=1, max_value=15))
+@mock_aws
 def test_property_all_regions_uninitialized(num_regions):
     """
     Property: All regions uninitialized
@@ -330,6 +339,7 @@ def test_property_all_regions_uninitialized(num_regions):
 # ============================================================================
 
 
+@mock_aws
 def test_edge_case_single_region_uninitialized():
     """Edge case: Only one region, and it's uninitialized."""
     account_config = {
@@ -369,6 +379,7 @@ def test_edge_case_single_region_uninitialized():
     assert result["accessible"] is True
 
 
+@mock_aws
 def test_edge_case_alternating_initialization():
     """Edge case: Alternating initialized/uninitialized regions."""
     account_config = {
@@ -420,6 +431,7 @@ def test_edge_case_alternating_initialization():
     assert result["accessible"] is True
 
 
+@mock_aws
 def test_edge_case_uninitialized_with_error_message_variation():
     """Edge case: Different error message formats for uninitialized regions."""
     account_config = {

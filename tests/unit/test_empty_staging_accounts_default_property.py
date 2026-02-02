@@ -10,11 +10,21 @@ accounts rather than null or undefined.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from moto import mock_aws
 from hypothesis import given, settings, strategies as st
+
+# Set environment variables BEFORE importing index
+os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
+os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
+
+# Clear any existing index module to avoid conflicts
+if "index" in sys.modules:
+    del sys.modules["index"]
 
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
@@ -28,6 +38,7 @@ from index import handle_get_combined_capacity
     target_servers=st.integers(min_value=0, max_value=300),
     has_staging_accounts_attr=st.booleans(),
 )
+@mock_aws
 def test_property_13_empty_staging_accounts_default(
     target_servers, has_staging_accounts_attr
 ):
@@ -163,6 +174,7 @@ def test_property_13_empty_staging_accounts_default(
 @given(
     target_servers=st.integers(min_value=0, max_value=300),
 )
+@mock_aws
 def test_property_13_missing_staging_accounts_attribute(target_servers):
     """
     Specific test case: stagingAccounts attribute completely missing from

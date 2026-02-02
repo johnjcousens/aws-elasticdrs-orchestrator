@@ -10,15 +10,25 @@ partial results with error indicators for failed accounts.
 **Validates: Requirements 9.5**
 """
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from botocore.exceptions import ClientError
 
+# Set environment variables BEFORE importing index
+os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
+os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
+
+# Clear any existing index module to avoid conflicts
+if "index" in sys.modules:
+    del sys.modules["index"]
+
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
+from moto import mock_aws
 from hypothesis import given, strategies as st, settings, assume
 import pytest
 
@@ -96,6 +106,7 @@ def account_failure_scenario_strategy(draw):
 
 @settings(max_examples=100)
 @given(scenario=account_failure_scenario_strategy())
+@mock_aws
 def test_property_failed_account_resilience(scenario):
     """
     Property 10: Failed Account Resilience
@@ -197,6 +208,7 @@ def test_property_failed_account_resilience(scenario):
     num_staging=st.integers(min_value=2, max_value=10),
     num_failed=st.integers(min_value=1, max_value=5)
 )
+@mock_aws
 def test_property_partial_failure_continues_query(num_staging, num_failed):
     """
     Property: Partial failure continues query
@@ -276,6 +288,7 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
 
 @settings(max_examples=50)
 @given(num_staging=st.integers(min_value=1, max_value=10))
+@mock_aws
 def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
     """
     Property: All staging accounts fail, target succeeds
@@ -358,6 +371,7 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
 # ============================================================================
 
 
+@mock_aws
 def test_edge_case_target_fails_all_staging_succeed():
     """Edge case: Target account fails, all staging accounts succeed."""
     target_account = {
@@ -429,6 +443,7 @@ def test_edge_case_target_fails_all_staging_succeed():
         assert result["accessible"] is True
 
 
+@mock_aws
 def test_edge_case_different_error_types():
     """Edge case: Different types of errors for different accounts."""
     target_account = {
