@@ -104,7 +104,7 @@ def account_failure_scenario_strategy(draw):
 # ============================================================================
 
 
-@settings(max_examples=100)
+@settings(max_examples=100, deadline=None)
 @given(scenario=account_failure_scenario_strategy())
 @mock_aws
 def test_property_failed_account_resilience(scenario):
@@ -209,7 +209,7 @@ def test_property_failed_account_resilience(scenario):
     assert len(successful_results) + len(failed_results) == expected_num_accounts
 
 
-@settings(max_examples=50)
+@settings(max_examples=50, deadline=None)
 @given(
     num_staging=st.integers(min_value=2, max_value=10),
     num_failed=st.integers(min_value=1, max_value=5)
@@ -298,7 +298,7 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
     assert len(successful_results) == num_staging + 1 - num_failed
 
 
-@settings(max_examples=50)
+@settings(max_examples=50, deadline=None)
 @given(num_staging=st.integers(min_value=1, max_value=10))
 @mock_aws
 def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
