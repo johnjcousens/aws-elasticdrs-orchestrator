@@ -492,8 +492,11 @@ def handle_api_gateway_request(event, context):
             plan_id = path_parameters.get("id")
             if http_method == "POST":
                 return response(
-                    501, {
-                        "message": "Not yet implemented - check_existing_instances"}, )
+                    501,
+                    {
+                        "message": "Not yet implemented - check_existing_instances"
+                    },
+                )
 
         elif "/recovery-plans/" in path:
             plan_id = path_parameters.get("id")
@@ -815,7 +818,7 @@ def validate_server_replication_states(
 
         # Batch describe servers (max 200 per call)
         for i in range(0, len(server_ids), 200):
-            batch = server_ids[i: i + 200]
+            batch = server_ids[i : i + 200]
 
             response = regional_drs.describe_source_servers(
                 filters={"sourceServerIDs": batch}
@@ -837,17 +840,14 @@ def validate_server_replication_states(
                     unhealthy_servers.append(
                         {
                             "serverId": server_id,
-                            "hostname": server.get(
-                                "sourceProperties",
-                                {}) .get(
-                                "identificationHints",
-                                {}) .get(
-                                "hostname",
-                                "Unknown"),
+                            "hostname": server.get("sourceProperties", {})
+                            .get("identificationHints", {})
+                            .get("hostname", "Unknown"),
                             "replicationState": replication_state,
                             "lifecycleState": lifecycle_state,
                             "reason": f"Replication: {replication_state}, Lifecycle: {lifecycle_state}",
-                        })
+                        }
+                    )
                 else:
                     healthy_servers.append(server_id)
 
@@ -1153,7 +1153,8 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
 
                 except Exception as e:
                     print(
-                        f"Warning: Could not validate server count for wave '{wave_name}': {e}")
+                        f"Warning: Could not validate server count for wave '{wave_name}': {e}"
+                    )
                     # Continue validation - don't block on PG resolution errors
 
         return None  # No errors
@@ -1265,11 +1266,13 @@ def create_protection_group(body: Dict) -> Dict:
     try:
         # FORCE DEPLOYMENT: camelCase migration complete - v1.3.1-hotfix
         print(
-            "DEBUG: create_protection_group v1.3.1-hotfix - camelCase validation active")
+            "DEBUG: create_protection_group v1.3.1-hotfix - camelCase validation active"
+        )
         print(
             f"DEBUG: create_protection_group called with body keys: {
                 list(
-                    body.keys())}")
+                    body.keys())}"
+        )
         print(
             f"DEBUG: body content: {json.dumps(body, indent=2, default=str)}"
         )
@@ -1277,19 +1280,22 @@ def create_protection_group(body: Dict) -> Dict:
         # Debug: Check specific fields
         print(
             f"DEBUG: serverSelectionTags present: {
-                'serverSelectionTags' in body}")
+                'serverSelectionTags' in body}"
+        )
         print(f"DEBUG: sourceServerIds present: {'sourceServerIds' in body}")
         if "serverSelectionTags" in body:
             print(
                 f"DEBUG: serverSelectionTags value: {
-                    body['serverSelectionTags']}")
+                    body['serverSelectionTags']}"
+            )
         if "sourceServerIds" in body:
             print(f"DEBUG: sourceServerIds value: {body['sourceServerIds']}")
         if "launchConfig" in body:
             print(
                 f"DEBUG: launchConfig present with keys: {
                     list(
-                        body['launchConfig'].keys())}")
+                        body['launchConfig'].keys())}"
+            )
 
         # Validate required fields - FIXED: camelCase field validation
         if "groupName" not in body:
@@ -1357,17 +1363,22 @@ def create_protection_group(body: Dict) -> Dict:
 
         if not has_tags and not has_servers:
             return response(
-                400, {
-                    "error": "Either serverSelectionTags or sourceServerIds is required"}, )
+                400,
+                {
+                    "error": "Either serverSelectionTags or sourceServerIds is required"
+                },
+            )
 
         # Validate unique name (case-insensitive, global across all users)
         if not validate_unique_pg_name(name):
-            return response(409,
-                            {"error": "PG_NAME_EXISTS",
-                             "message": f'A Protection Group named "{name}" already exists',
-                             "existingName": name,
-                             },
-                            )
+            return response(
+                409,
+                {
+                    "error": "PG_NAME_EXISTS",
+                    "message": f'A Protection Group named "{name}" already exists',
+                    "existingName": name,
+                },
+            )
 
         # If using tags, check for tag conflicts with other PGs
         if has_tags:
@@ -1459,7 +1470,8 @@ def create_protection_group(body: Dict) -> Dict:
                         "serverCount": server_count,
                         "maxServers": 100,
                         "matchingServers": [
-                            s.get("sourceServerID") for s in resolved],
+                            s.get("sourceServerID") for s in resolved
+                        ],
                         "limit": "DRS Service Quota: Max 100 servers per job (not adjustable)",
                         "documentation": "https://docs.aws.amazon.com/general/latest/gr/drs.html",
                         "recommendation": "Refine your tag selection to match fewer servers or split into multiple Protection Groups",
@@ -1725,12 +1737,14 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
             # Validate name is not empty or whitespace-only
             if not name or not name.strip():
-                return response(400,
-                                {"error": "INVALID_NAME",
-                                 "message": "groupName cannot be empty or whitespace-only",
-                                 "field": "groupName",
-                                 },
-                                )
+                return response(
+                    400,
+                    {
+                        "error": "INVALID_NAME",
+                        "message": "groupName cannot be empty or whitespace-only",
+                        "field": "groupName",
+                    },
+                )
 
             # Validate name length (1-64 characters)
             if len(name.strip()) > 64:
@@ -1752,9 +1766,14 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             if body["groupName"] != existing_group.get("groupName"):
                 if not validate_unique_pg_name(body["groupName"], group_id):
                     return response(
-                        409, {
-                            "error": "PG_NAME_EXISTS", "message": f'A Protection Group named "{
-                                body["groupName"]}" already exists', "existingName": body["groupName"], }, )
+                        409,
+                        {
+                            "error": "PG_NAME_EXISTS",
+                            "message": f'A Protection Group named "{
+                                body["groupName"]}" already exists',
+                            "existingName": body["groupName"],
+                        },
+                    )
 
         # Validate tags if provided
         if "serverSelectionTags" in body:
@@ -2012,13 +2031,15 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                         for d in servers_apply_results.get("details", [])
                         if d.get("status") == "failed"
                     ]
-                    return response(400,
-                                    {"error": "Failed to apply per-server launch settings",
-                                     "code": "SERVERS_CONFIG_APPLY_FAILED",
-                                     "failedServers": failed_servers,
-                                     "applyResults": servers_apply_results,
-                                     },
-                                    )
+                    return response(
+                        400,
+                        {
+                            "error": "Failed to apply per-server launch settings",
+                            "code": "SERVERS_CONFIG_APPLY_FAILED",
+                            "failedServers": failed_servers,
+                            "applyResults": servers_apply_results,
+                        },
+                    )
 
             # Store servers array in DynamoDB
             update_expression += ", servers = :servers_array"
@@ -2110,9 +2131,15 @@ def delete_protection_group(group_id: str) -> Dict:
         if referencing_plans:
             plan_names = list(set([p["planName"] for p in referencing_plans]))
             return response(
-                409, {
-                    "error": "PG_IN_USE", "message": f"Cannot delete Protection Group - it is used in {
-                        len(plan_names)} Recovery Plan(s)", "plans": plan_names, "details": referencing_plans, }, )
+                409,
+                {
+                    "error": "PG_IN_USE",
+                    "message": f"Cannot delete Protection Group - it is used in {
+                        len(plan_names)} Recovery Plan(s)",
+                    "plans": plan_names,
+                    "details": referencing_plans,
+                },
+            )
 
         # Delete the group
         protection_groups_table.delete_item(Key={"groupId": group_id})
@@ -3452,7 +3479,8 @@ def create_recovery_plan(body: Dict) -> Dict:
                         )
                     except Exception as e:
                         print(
-                            f"Warning: Could not count servers for wave '{wave_name}': {e}")
+                            f"Warning: Could not count servers for wave '{wave_name}': {e}"
+                        )
 
             # Check 500 total servers limit
             if total_servers > 500:
@@ -3506,7 +3534,8 @@ def create_recovery_plan(body: Dict) -> Dict:
                                 "currentJobs": jobs_check["currentJobs"],
                                 "maxJobs": jobs_check["maxJobs"],
                                 "canExecuteNow": False,
-                            })
+                            }
+                        )
 
                     # Check for server conflicts
                     from shared.conflict_detection import (
@@ -3554,11 +3583,13 @@ def create_recovery_plan(body: Dict) -> Dict:
                                 "recommendation": "Wait for active operations to complete before executing this plan",
                                 "conflicts": conflict_summary,
                                 "canExecuteNow": False,
-                            })
+                            }
+                        )
 
                 except Exception as e:
                     print(
-                        f"Warning: Could not check concurrent jobs/conflicts: {e}")
+                        f"Warning: Could not check concurrent jobs/conflicts: {e}"
+                    )
 
             # Add warnings to response if any
             if warnings:
@@ -3662,7 +3693,8 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
             except Exception as e:
                 print(
                     f"Error querying execution history for plan {plan_id}: {
-                        str(e)}")
+                        str(e)}"
+                )
                 # Set null values on error
                 plan["lastExecutionStatus"] = None
                 plan["lastStartTime"] = None
@@ -3907,7 +3939,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 if not isinstance(server_ids, list):
                     print(
                         f"ERROR: Wave {idx} ServerIds is not a list: {
-                            type(server_ids)}")
+                            type(server_ids)}"
+                    )
                     return response(
                         400,
                         {
@@ -4002,7 +4035,8 @@ def delete_recovery_plan(plan_id: str) -> Dict:
             statuses = [e.get("status") for e in active_executions]
             print(
                 f"Cannot delete plan {plan_id}: {
-                    len(active_executions)} active execution(s)")
+                    len(active_executions)} active execution(s)"
+            )
             return response(
                 409,
                 {
@@ -4247,7 +4281,8 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
 
         print(
             f"Starting tag sync for account {account_id} ({
-                account_name or 'Unknown'})")
+                account_name or 'Unknown'})"
+        )
 
         for region in DRS_REGIONS:
             try:
@@ -4278,7 +4313,8 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
 
         print(
             f"Tag sync complete: {total_synced}/{total_servers} servers synced across {
-                len(regions_with_servers)} regions")
+                len(regions_with_servers)} regions"
+        )
 
         return response(200, summary)
 
@@ -4479,13 +4515,16 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                     "ResourceNotFoundException",
                 ]:
                     print(
-                        f"Cannot update launch config for server {source_server_id}: {error_code}")
+                        f"Cannot update launch config for server {source_server_id}: {error_code}"
+                    )
                 else:
                     print(
-                        f"DRS error updating launch config for {source_server_id}: {e}")
+                        f"DRS error updating launch config for {source_server_id}: {e}"
+                    )
             except Exception as e:
                 print(
-                    f"Unexpected error updating launch config for {source_server_id}: {e}")
+                    f"Unexpected error updating launch config for {source_server_id}: {e}"
+                )
 
             synced += 1
 
@@ -4495,7 +4534,8 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                 f"Failed to sync server {
                     server.get(
                         'sourceServerID',
-                        'unknown')}: {e}")
+                        'unknown')}: {e}"
+            )
 
     return {
         "total": len(source_servers),
@@ -4882,8 +4922,11 @@ def update_tag_sync_settings(body: Dict) -> Dict:
                 or interval_hours > 24
             ):
                 return response(
-                    400, {
-                        "error": "intervalHours must be a number between 1 and 24"}, )
+                    400,
+                    {
+                        "error": "intervalHours must be a number between 1 and 24"
+                    },
+                )
             interval_hours = int(interval_hours)
 
         # Get EventBridge client
@@ -4916,12 +4959,14 @@ def update_tag_sync_settings(body: Dict) -> Dict:
 
         # If rule doesn't exist and we're disabling, that's fine
         if not rule_exists and not enabled:
-            return response(200,
-                            {"message": "Tag sync is already disabled (rule does not exist)",
-                             "enabled": False,
-                             "intervalHours": interval_hours or 4,
-                             },
-                            )
+            return response(
+                200,
+                {
+                    "message": "Tag sync is already disabled (rule does not exist)",
+                    "enabled": False,
+                    "intervalHours": interval_hours or 4,
+                },
+            )
 
         # Update rule state
         if enabled:
@@ -5003,7 +5048,8 @@ def update_tag_sync_settings(body: Dict) -> Dict:
 
             except Exception as sync_error:
                 print(
-                    f"Warning: Failed to trigger async manual sync after settings update: {sync_error}")
+                    f"Warning: Failed to trigger async manual sync after settings update: {sync_error}"
+                )
                 # Don't fail the settings update if sync fails
                 sync_triggered = False
 
@@ -5247,7 +5293,8 @@ def apply_launch_config_to_servers(
                 if effective_config.get("targetInstanceTypeRightSizingMethod"):
                     config_details.append(
                         f"RightSize:{
-                            effective_config['targetInstanceTypeRightSizingMethod']}")
+                            effective_config['targetInstanceTypeRightSizingMethod']}"
+                    )
                 if effective_config.get("launchDisposition"):
                     config_details.append(
                         f"Launch:{effective_config['launchDisposition']}"
@@ -5395,7 +5442,8 @@ def create_target_account(body: Dict) -> Dict:
 
                 role_arn = construct_role_arn(account_id)
                 print(
-                    f"Constructed standardized role ARN for {account_id}: {role_arn}")
+                    f"Constructed standardized role ARN for {account_id}: {role_arn}"
+                )
             else:
                 # Validate provided role ARN format
                 if not role_arn.startswith("arn:aws:iam::"):
@@ -6381,7 +6429,8 @@ def export_configuration(query_params: Dict) -> Dict:
                         # reference)
                         orphaned_pg_ids.append(pg_id)
                         print(
-                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export")
+                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export"
+                        )
                 exported_waves.append(exported_wave)
 
             exported_rp = {
@@ -6394,7 +6443,8 @@ def export_configuration(query_params: Dict) -> Dict:
         if orphaned_pg_ids:
             print(
                 f"Export contains {
-                    len(orphaned_pg_ids)} orphaned PG references")
+                    len(orphaned_pg_ids)} orphaned PG references"
+            )
 
         # Build export payload
         export_data = {
@@ -8090,7 +8140,8 @@ def _process_protection_group_import(
                     except Exception as lc_err:
                         print(
                             f"Warning: Failed to apply launchConfig: {
-                                type(lc_err).__name__}")
+                                type(lc_err).__name__}"
+                        )
         except Exception as e:
             result["reason"] = "CREATE_ERROR"
             result["details"] = {"error": str(e)}
