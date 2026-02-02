@@ -261,7 +261,7 @@ def empty_bucket(bucket_name: str) -> int:
             if objects_to_delete:
                 batch_size = 1000
                 for i in range(0, len(objects_to_delete), batch_size):
-                    batch = objects_to_delete[i: i + batch_size]
+                    batch = objects_to_delete[i : i + batch_size]
 
                     print(
                         f"Frontend Deployer: Deleting batch of {len(batch)} "
