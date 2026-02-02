@@ -324,7 +324,11 @@ from shared.account_utils import (
     validate_target_account,
 )
 from shared.conflict_detection import query_drs_servers_by_tags
-from shared.cross_account import create_drs_client, get_current_account_id
+from shared.cross_account import (
+    create_drs_client,
+    get_cross_account_session,
+    get_current_account_id,
+)
 from shared.drs_limits import DRS_LIMITS
 from shared.drs_utils import map_replication_state_to_display
 from shared.response_utils import response
@@ -1675,6 +1679,116 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
             "warning": f"Could not verify servers in all jobs: {error_str}",
             "currentServersInJobs": None,
             "maxServers": DRS_LIMITS["MAX_SERVERS_IN_ALL_JOBS"],
+        }
+
+
+def validate_max_servers_per_job(
+    region: str, account_context: Optional[Dict] = None
+) -> Dict:
+    """
+    Check the maximum number of servers in any single active job.
+    DRS limit: 100 servers per recovery job.
+
+    Args:
+        region: AWS region to check
+        account_context: Optional cross-account context with accountId,
+                        assumeRoleName, externalId
+
+    Returns:
+        Dict with:
+        - maxServersInSingleJob: Highest server count in any active job
+        - maxAllowed: 100 (DRS limit)
+        - jobId: ID of job with most servers (if any)
+        - status: OK, WARNING, or CRITICAL
+        - message: Status message
+    """
+    try:
+        # Get DRS client (cross-account if needed)
+        if account_context and account_context.get("accountId"):
+            session = get_cross_account_session(
+                account_context["accountId"],
+                account_context.get("assumeRoleName"),
+                account_context.get("externalId"),
+            )
+            regional_drs = session.client("drs", region_name=region)
+        else:
+            regional_drs = boto3.client("drs", region_name=region)
+
+        # Find job with most servers
+        max_servers = 0
+        max_job_id = None
+        paginator = regional_drs.get_paginator("describe_jobs")
+
+        for page in paginator.paginate():
+            for job in page.get("items", []):
+                if job.get("status") in ["PENDING", "STARTED"]:
+                    server_count = len(job.get("participatingServers", []))
+                    if server_count > max_servers:
+                        max_servers = server_count
+                        max_job_id = job.get("jobID")
+
+        # Determine status
+        max_allowed = DRS_LIMITS["MAX_SERVERS_PER_JOB"]
+
+        if max_servers >= max_allowed:
+            status = "CRITICAL"
+            message = f"Job {max_job_id} has {max_servers} servers (at limit)"
+        elif max_servers >= max_allowed * 0.9:  # 90 servers
+            status = "WARNING"
+            message = (
+                f"Job {max_job_id} has {max_servers} servers (90% of limit)"
+            )
+        elif max_servers >= max_allowed * 0.8:  # 80 servers
+            status = "INFO"
+            message = (
+                f"Job {max_job_id} has {max_servers} servers (80% of limit)"
+            )
+        else:
+            status = "OK"
+            message = (
+                f"Largest job has {max_servers} servers"
+                if max_servers > 0
+                else "No active jobs"
+            )
+
+        return {
+            "maxServersInSingleJob": max_servers,
+            "maxAllowed": max_allowed,
+            "availableSlots": max_allowed - max_servers,
+            "jobId": max_job_id,
+            "status": status,
+            "message": message,
+        }
+
+    except Exception as e:
+        error_str = str(e)
+        print(f"Error checking max servers per job: {e}")
+
+        # Check for uninitialized region errors
+        if any(
+            x in error_str
+            for x in [
+                "UninitializedAccountException",
+                "UnrecognizedClientException",
+                "security token",
+            ]
+        ):
+            return {
+                "maxServersInSingleJob": 0,
+                "maxAllowed": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+                "availableSlots": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+                "status": "OK",
+                "message": "DRS not initialized in region",
+                "notInitialized": True,
+            }
+
+        return {
+            "maxServersInSingleJob": 0,
+            "maxAllowed": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+            "availableSlots": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
+            "status": "OK",
+            "message": f"Could not check per-job limits: {error_str}",
+            "warning": error_str,
         }
 
 
@@ -3839,15 +3953,14 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                 "externalId": target_account.get("externalId"),
             }
 
-            # Get concurrent jobs info
-            jobs_info = validate_concurrent_jobs(
-                primary_region, account_context
-            )
+            # Get concurrent jobs info (no account_context needed)
+            jobs_info = validate_concurrent_jobs(primary_region)
 
-            # Get servers in active jobs
-            servers_in_jobs = validate_servers_in_all_jobs(
-                primary_region, 0, account_context
-            )
+            # Get servers in active jobs (no account_context needed)
+            servers_in_jobs = validate_servers_in_all_jobs(primary_region, 0)
+
+            # Get max servers per job (no account_context needed)
+            max_per_job = validate_max_servers_per_job(primary_region)
 
             concurrent_jobs_data = {
                 "current": jobs_info.get("currentJobs", 0),
@@ -3859,6 +3972,15 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                 "current": servers_in_jobs.get("currentServersInJobs", 0),
                 "max": servers_in_jobs.get("maxServersInJobs", 500),
                 "available": servers_in_jobs.get("availableSlots", 500),
+            }
+
+            max_per_job_data = {
+                "current": max_per_job.get("maxServersInSingleJob", 0),
+                "max": max_per_job.get("maxAllowed", 100),
+                "available": max_per_job.get("availableSlots", 100),
+                "jobId": max_per_job.get("jobId"),
+                "status": max_per_job.get("status", "OK"),
+                "message": max_per_job.get("message", ""),
             }
 
         except Exception as e:
@@ -3873,6 +3995,13 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                 "current": 0,
                 "max": 500,
                 "available": 500,
+            }
+            max_per_job_data = {
+                "current": 0,
+                "max": 100,
+                "available": 100,
+                "status": "OK",
+                "message": "Could not fetch per-job metrics",
             }
 
         # Step 8: Generate combined warnings
@@ -3915,6 +4044,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             "recoveryCapacity": recovery_capacity,
             "concurrentJobs": concurrent_jobs_data,
             "serversInJobs": servers_in_jobs_data,
+            "maxServersPerJob": max_per_job_data,
             "warnings": warnings,
         }
 
