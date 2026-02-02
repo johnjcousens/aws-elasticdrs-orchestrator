@@ -13,17 +13,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add lambda paths for imports
-sys.path.insert(
-    0, str(Path(__file__).parent.parent.parent / "lambda" / "shared")
-)
-sys.path.insert(
-    0, str(Path(__file__).parent.parent.parent / "lambda" / "query-handler")
-)
-
 # Set environment variables before importing
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
 os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
+
+# Clear any existing index module to avoid conflicts
+if "index" in sys.modules:
+    del sys.modules["index"]
+
+# Add lambda paths for imports - query-handler FIRST
+query_handler_dir = (
+    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
+)
+shared_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
+
+sys.path.insert(0, str(query_handler_dir))
+sys.path.insert(1, str(shared_dir))
 
 from index import handle_get_combined_capacity, handle_validate_staging_account
 

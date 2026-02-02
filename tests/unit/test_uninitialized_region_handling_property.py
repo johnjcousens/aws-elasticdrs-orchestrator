@@ -14,9 +14,15 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from botocore.exceptions import ClientError
 
-# Add lambda directory to path
-lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
-sys.path.insert(0, str(lambda_dir))
+# Clear any existing index module to avoid conflicts
+if "index" in sys.modules:
+    del sys.modules["index"]
+
+# Add lambda directory to path - query-handler FIRST
+query_handler_dir = (
+    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
+)
+sys.path.insert(0, str(query_handler_dir))
 
 from hypothesis import given, strategies as st, settings, assume
 import pytest
