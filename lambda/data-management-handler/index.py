@@ -241,7 +241,7 @@ def test_create_protection_group():
     # Create mock tables
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     table = dynamodb.create_table(...)
-    
+
     # Test operation
     event = {
         "operation": "create_protection_group",
@@ -260,7 +260,7 @@ with patch('boto3.client') as mock_client:
     mock_drs.describe_source_servers.return_value = {
         "items": [{"sourceServerID": "s-123"}]
     }
-    
+
     result = resolve_protection_group_tags({"tags": {...}})
 ```
 
@@ -492,11 +492,8 @@ def handle_api_gateway_request(event, context):
             plan_id = path_parameters.get("id")
             if http_method == "POST":
                 return response(
-                    501,
-                    {
-                        "message": "Not yet implemented - check_existing_instances"
-                    },
-                )
+                    501, {
+                        "message": "Not yet implemented - check_existing_instances"}, )
 
         elif "/recovery-plans/" in path:
             plan_id = path_parameters.get("id")
@@ -550,10 +547,16 @@ def handle_api_gateway_request(event, context):
             # Staging accounts endpoints
             if "/staging-accounts" in path:
                 if path.endswith("/staging-accounts"):
-                    # POST /accounts/{id}/staging-accounts - Add staging account
+                    # POST /accounts/{id}/staging-accounts - Add staging
+                    # account
                     if http_method == "POST":
                         body["targetAccountId"] = account_id
                         return handle_add_staging_account(body)
+                elif path.endswith("/staging-accounts/sync"):
+                    # POST /accounts/{id}/staging-accounts/sync - Sync staging
+                    # accounts
+                    if http_method == "POST":
+                        return handle_sync_single_account(account_id)
                 else:
                     # DELETE /accounts/{id}/staging-accounts/{stagingId}
                     staging_id = path_parameters.get("stagingId")
@@ -812,7 +815,7 @@ def validate_server_replication_states(
 
         # Batch describe servers (max 200 per call)
         for i in range(0, len(server_ids), 200):
-            batch = server_ids[i : i + 200]
+            batch = server_ids[i: i + 200]
 
             response = regional_drs.describe_source_servers(
                 filters={"sourceServerIDs": batch}
@@ -834,14 +837,17 @@ def validate_server_replication_states(
                     unhealthy_servers.append(
                         {
                             "serverId": server_id,
-                            "hostname": server.get("sourceProperties", {})
-                            .get("identificationHints", {})
-                            .get("hostname", "Unknown"),
+                            "hostname": server.get(
+                                "sourceProperties",
+                                {}) .get(
+                                "identificationHints",
+                                {}) .get(
+                                "hostname",
+                                "Unknown"),
                             "replicationState": replication_state,
                             "lifecycleState": lifecycle_state,
                             "reason": f"Replication: {replication_state}, Lifecycle: {lifecycle_state}",
-                        }
-                    )
+                        })
                 else:
                     healthy_servers.append(server_id)
 
@@ -1099,7 +1105,8 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
             if "waveName" not in wave and "name" not in wave:
                 return "Wave missing required field: waveName or name"
 
-            # Accept either protectionGroupId (single) OR protectionGroupIds (multi)
+            # Accept either protectionGroupId (single) OR protectionGroupIds
+            # (multi)
             has_single_pg = "protectionGroupId" in wave
             has_multi_pg = "protectionGroupIds" in wave
 
@@ -1112,7 +1119,8 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
             )
             if pg_ids is not None:
                 if not isinstance(pg_ids, list):
-                    return f"protectionGroupIds must be an array, got {type(pg_ids)}"
+                    return f"protectionGroupIds must be an array, got {
+                        type(pg_ids)}"
                 if len(pg_ids) == 0:
                     return "protectionGroupIds array cannot be empty"
 
@@ -1145,8 +1153,7 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
 
                 except Exception as e:
                     print(
-                        f"Warning: Could not validate server count for wave '{wave_name}': {e}"
-                    )
+                        f"Warning: Could not validate server count for wave '{wave_name}': {e}")
                     # Continue validation - don't block on PG resolution errors
 
         return None  # No errors
@@ -1258,30 +1265,31 @@ def create_protection_group(body: Dict) -> Dict:
     try:
         # FORCE DEPLOYMENT: camelCase migration complete - v1.3.1-hotfix
         print(
-            f"DEBUG: create_protection_group v1.3.1-hotfix - camelCase validation active"
-        )
+            "DEBUG: create_protection_group v1.3.1-hotfix - camelCase validation active")
         print(
-            f"DEBUG: create_protection_group called with body keys: {list(body.keys())}"
-        )
+            f"DEBUG: create_protection_group called with body keys: {
+                list(
+                    body.keys())}")
         print(
             f"DEBUG: body content: {json.dumps(body, indent=2, default=str)}"
         )
 
         # Debug: Check specific fields
         print(
-            f"DEBUG: serverSelectionTags present: {'serverSelectionTags' in body}"
-        )
+            f"DEBUG: serverSelectionTags present: {
+                'serverSelectionTags' in body}")
         print(f"DEBUG: sourceServerIds present: {'sourceServerIds' in body}")
         if "serverSelectionTags" in body:
             print(
-                f"DEBUG: serverSelectionTags value: {body['serverSelectionTags']}"
-            )
+                f"DEBUG: serverSelectionTags value: {
+                    body['serverSelectionTags']}")
         if "sourceServerIds" in body:
             print(f"DEBUG: sourceServerIds value: {body['sourceServerIds']}")
         if "launchConfig" in body:
             print(
-                f"DEBUG: launchConfig present with keys: {list(body['launchConfig'].keys())}"
-            )
+                f"DEBUG: launchConfig present with keys: {
+                    list(
+                        body['launchConfig'].keys())}")
 
         # Validate required fields - FIXED: camelCase field validation
         if "groupName" not in body:
@@ -1349,22 +1357,17 @@ def create_protection_group(body: Dict) -> Dict:
 
         if not has_tags and not has_servers:
             return response(
-                400,
-                {
-                    "error": "Either serverSelectionTags or sourceServerIds is required"
-                },
-            )
+                400, {
+                    "error": "Either serverSelectionTags or sourceServerIds is required"}, )
 
         # Validate unique name (case-insensitive, global across all users)
         if not validate_unique_pg_name(name):
-            return response(
-                409,
-                {
-                    "error": "PG_NAME_EXISTS",
-                    "message": f'A Protection Group named "{name}" already exists',
-                    "existingName": name,
-                },
-            )
+            return response(409,
+                            {"error": "PG_NAME_EXISTS",
+                             "message": f'A Protection Group named "{name}" already exists',
+                             "existingName": name,
+                             },
+                            )
 
         # If using tags, check for tag conflicts with other PGs
         if has_tags:
@@ -1381,7 +1384,8 @@ def create_protection_group(body: Dict) -> Dict:
                     },
                 )
 
-        # If using explicit server IDs, validate they exist and aren't assigned elsewhere
+        # If using explicit server IDs, validate they exist and aren't assigned
+        # elsewhere
         if has_servers:
             # Validate servers exist in DRS
             regional_drs = boto3.client("drs", region_name=region)
@@ -1455,8 +1459,7 @@ def create_protection_group(body: Dict) -> Dict:
                         "serverCount": server_count,
                         "maxServers": 100,
                         "matchingServers": [
-                            s.get("sourceServerID") for s in resolved
-                        ],
+                            s.get("sourceServerID") for s in resolved],
                         "limit": "DRS Service Quota: Max 100 servers per job (not adjustable)",
                         "documentation": "https://docs.aws.amazon.com/general/latest/gr/drs.html",
                         "recommendation": "Refine your tag selection to match fewer servers or split into multiple Protection Groups",
@@ -1576,7 +1579,8 @@ def create_protection_group(body: Dict) -> Dict:
         # Store in DynamoDB
         protection_groups_table.put_item(Item=item)
 
-        # Return raw camelCase database fields directly - no transformation needed
+        # Return raw camelCase database fields directly - no transformation
+        # needed
         item["protectionGroupId"] = item[
             "groupId"
         ]  # Only add this alias for compatibility
@@ -1610,13 +1614,15 @@ def get_protection_groups(query_params: Dict = None) -> Dict:
         if account_id:
             filtered_groups = []
             for group in groups:
-                # Only include groups that explicitly match the requested account
+                # Only include groups that explicitly match the requested
+                # account
                 group_account = group.get("accountId")
                 if group_account == account_id:
                     filtered_groups.append(group)
             groups = filtered_groups
 
-        # Return raw camelCase database fields directly - no transformation needed
+        # Return raw camelCase database fields directly - no transformation
+        # needed
         for group in groups:
             group["protectionGroupId"] = group[
                 "groupId"
@@ -1638,7 +1644,8 @@ def get_protection_group(group_id: str) -> Dict:
 
         group = result["Item"]
 
-        # Return raw camelCase database fields directly - no transformation needed
+        # Return raw camelCase database fields directly - no transformation
+        # needed
         group["protectionGroupId"] = group[
             "groupId"
         ]  # Add alias for compatibility
@@ -1680,7 +1687,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
 
         # BLOCK: Cannot update protection group if it's part of a RUNNING execution
-        # Note: PAUSED executions allow edits - only block when actively running
+        # Note: PAUSED executions allow edits - only block when actively
+        # running
         active_exec_info = get_active_execution_for_protection_group(group_id)
         if active_exec_info:
             exec_status = active_exec_info.get("status", "").upper()
@@ -1700,7 +1708,7 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                     409,
                     {
                         "error": "PG_IN_ACTIVE_EXECUTION",
-                        "message": f"Cannot modify Protection Group while it is part of a running execution",
+                        "message": "Cannot modify Protection Group while it is part of a running execution",
                         "activeExecution": active_exec_info,
                     },
                 )
@@ -1717,14 +1725,12 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
 
             # Validate name is not empty or whitespace-only
             if not name or not name.strip():
-                return response(
-                    400,
-                    {
-                        "error": "INVALID_NAME",
-                        "message": "groupName cannot be empty or whitespace-only",
-                        "field": "groupName",
-                    },
-                )
+                return response(400,
+                                {"error": "INVALID_NAME",
+                                 "message": "groupName cannot be empty or whitespace-only",
+                                 "field": "groupName",
+                                 },
+                                )
 
             # Validate name length (1-64 characters)
             if len(name.strip()) > 64:
@@ -1746,13 +1752,9 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             if body["groupName"] != existing_group.get("groupName"):
                 if not validate_unique_pg_name(body["groupName"], group_id):
                     return response(
-                        409,
-                        {
-                            "error": "PG_NAME_EXISTS",
-                            "message": f'A Protection Group named "{body["groupName"]}" already exists',
-                            "existingName": body["groupName"],
-                        },
-                    )
+                        409, {
+                            "error": "PG_NAME_EXISTS", "message": f'A Protection Group named "{
+                                body["groupName"]}" already exists', "existingName": body["groupName"], }, )
 
         # Validate tags if provided
         if "serverSelectionTags" in body:
@@ -1814,7 +1816,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
 
         # Build update expression with version increment (optimistic locking)
-        # Use v1.3.0 working pattern: simple string concatenation with camelCase fields
+        # Use v1.3.0 working pattern: simple string concatenation with
+        # camelCase fields
         new_version = int(current_version) + 1
         update_expression = (
             "SET lastModifiedDate = :timestamp, version = :new_version"
@@ -1839,7 +1842,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
             )
 
         # MUTUALLY EXCLUSIVE: Tags OR Servers, not both
-        # When one is set, clear the other AND remove old PascalCase fields if they exist
+        # When one is set, clear the other AND remove old PascalCase fields if
+        # they exist
 
         if "serverSelectionTags" in body:
             update_expression += ", serverSelectionTags = :tags"
@@ -1990,7 +1994,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                 )
                 pg_id = group_id
 
-                # Apply launch configs to AWS (uses config_merge to get effective configs)
+                # Apply launch configs to AWS (uses config_merge to get
+                # effective configs)
                 servers_apply_results = apply_launch_config_to_servers(
                     server_ids,
                     updated_pg.get("launchConfig", {}),
@@ -2007,15 +2012,13 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
                         for d in servers_apply_results.get("details", [])
                         if d.get("status") == "failed"
                     ]
-                    return response(
-                        400,
-                        {
-                            "error": "Failed to apply per-server launch settings",
-                            "code": "SERVERS_CONFIG_APPLY_FAILED",
-                            "failedServers": failed_servers,
-                            "applyResults": servers_apply_results,
-                        },
-                    )
+                    return response(400,
+                                    {"error": "Failed to apply per-server launch settings",
+                                     "code": "SERVERS_CONFIG_APPLY_FAILED",
+                                     "failedServers": failed_servers,
+                                     "applyResults": servers_apply_results,
+                                     },
+                                    )
 
             # Store servers array in DynamoDB
             update_expression += ", servers = :servers_array"
@@ -2029,7 +2032,8 @@ def update_protection_group(group_id: str, body: Dict) -> Dict:
         update_args = {
             "Key": {"groupId": group_id},
             "UpdateExpression": update_expression,
-            "ConditionExpression": "version = :current_version OR attribute_not_exists(version)",  # FIXED: camelCase
+            # FIXED: camelCase
+            "ConditionExpression": "version = :current_version OR attribute_not_exists(version)",
             "ExpressionAttributeValues": expression_values,
             "ReturnValues": "ALL_NEW",
         }
@@ -2106,14 +2110,9 @@ def delete_protection_group(group_id: str) -> Dict:
         if referencing_plans:
             plan_names = list(set([p["planName"] for p in referencing_plans]))
             return response(
-                409,
-                {
-                    "error": "PG_IN_USE",
-                    "message": f"Cannot delete Protection Group - it is used in {len(plan_names)} Recovery Plan(s)",
-                    "plans": plan_names,
-                    "details": referencing_plans,
-                },
-            )
+                409, {
+                    "error": "PG_IN_USE", "message": f"Cannot delete Protection Group - it is used in {
+                        len(plan_names)} Recovery Plan(s)", "plans": plan_names, "details": referencing_plans, }, )
 
         # Delete the group
         protection_groups_table.delete_item(Key={"groupId": group_id})
@@ -3255,7 +3254,7 @@ def bulk_update_server_launch_config(group_id: str, body: Dict) -> Dict:
 
         if applied_server_ids:
             try:
-                apply_result = apply_launch_config_to_servers(
+                apply_launch_config_to_servers(
                     server_ids=applied_server_ids,
                     launch_config=protection_group.get("launchConfig", {}),
                     region=region,
@@ -3310,7 +3309,8 @@ def create_recovery_plan(body: Dict) -> Dict:
     Validates wave sizes against DRS limits and stores plan in DynamoDB.
     """
     try:
-        # Validate required fields - accept both frontend (name) and legacy (PlanName) formats
+        # Validate required fields - accept both frontend (name) and legacy
+        # (PlanName) formats
         plan_name = body.get("name") or body.get("planName")
         if not plan_name:
             return response(
@@ -3421,7 +3421,8 @@ def create_recovery_plan(body: Dict) -> Dict:
             if validation_error:
                 return response(400, {"error": validation_error})
 
-            # QUOTA VALIDATION: Check total servers across all waves doesn't exceed 500
+            # QUOTA VALIDATION: Check total servers across all waves doesn't
+            # exceed 500
             from shared.conflict_detection import (
                 resolve_pg_servers_for_conflict_check,
             )
@@ -3451,8 +3452,7 @@ def create_recovery_plan(body: Dict) -> Dict:
                         )
                     except Exception as e:
                         print(
-                            f"Warning: Could not count servers for wave '{wave_name}': {e}"
-                        )
+                            f"Warning: Could not count servers for wave '{wave_name}': {e}")
 
             # Check 500 total servers limit
             if total_servers > 500:
@@ -3500,13 +3500,13 @@ def create_recovery_plan(body: Dict) -> Dict:
                             {
                                 "type": "CONCURRENT_JOBS_AT_LIMIT",
                                 "severity": "warning",
-                                "message": f"Region {region} currently has {jobs_check['currentJobs']}/20 concurrent jobs active",
+                                "message": f"Region {region} currently has {
+                                    jobs_check['currentJobs']}/20 concurrent jobs active",
                                 "recommendation": "Wait for active jobs to complete before executing this plan",
                                 "currentJobs": jobs_check["currentJobs"],
                                 "maxJobs": jobs_check["maxJobs"],
                                 "canExecuteNow": False,
-                            }
-                        )
+                            })
 
                     # Check for server conflicts
                     from shared.conflict_detection import (
@@ -3554,13 +3554,11 @@ def create_recovery_plan(body: Dict) -> Dict:
                                 "recommendation": "Wait for active operations to complete before executing this plan",
                                 "conflicts": conflict_summary,
                                 "canExecuteNow": False,
-                            }
-                        )
+                            })
 
                 except Exception as e:
                     print(
-                        f"Warning: Could not check concurrent jobs/conflicts: {e}"
-                    )
+                        f"Warning: Could not check concurrent jobs/conflicts: {e}")
 
             # Add warnings to response if any
             if warnings:
@@ -3621,14 +3619,16 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
             except Exception as e:
                 print(f"Error loading PG tags for filter: {e}")
 
-        # Get conflict info for all plans (for graying out Drill/Recovery buttons)
+        # Get conflict info for all plans (for graying out Drill/Recovery
+        # buttons)
         plans_with_conflicts = get_plans_with_conflicts()
 
         # Enrich each plan with latest execution data and conflict info
         for plan in plans:
             plan_id = plan.get("planId")
 
-            # Add conflict info if this plan has conflicts with other active executions
+            # Add conflict info if this plan has conflicts with other active
+            # executions
             if plan_id in plans_with_conflicts:
                 conflict_info = plans_with_conflicts[plan_id]
                 plan["hasServerConflict"] = True
@@ -3661,8 +3661,8 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
 
             except Exception as e:
                 print(
-                    f"Error querying execution history for plan {plan_id}: {str(e)}"
-                )
+                    f"Error querying execution history for plan {plan_id}: {
+                        str(e)}")
                 # Set null values on error
                 plan["lastExecutionStatus"] = None
                 plan["lastStartTime"] = None
@@ -3729,7 +3729,8 @@ def get_recovery_plans(query_params: Dict = None) -> Dict:
                 if status_filter != last_status:
                     continue
 
-            # Tag filter - check if any protection group in plan has matching tag
+            # Tag filter - check if any protection group in plan has matching
+            # tag
             if tag_key:
                 plan_waves = plan.get("waves", [])
                 has_matching_tag = False
@@ -3822,7 +3823,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 },
             )
 
-        # Validate name if provided - accept both frontend (name) and legacy (PlanName) formats
+        # Validate name if provided - accept both frontend (name) and legacy
+        # (PlanName) formats
         plan_name = body.get("name") or body.get("planName")
         if plan_name is not None:
             # Validate name is not empty or whitespace-only
@@ -3904,8 +3906,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
                 server_ids = wave.get("serverIds", [])
                 if not isinstance(server_ids, list):
                     print(
-                        f"ERROR: Wave {idx} ServerIds is not a list: {type(server_ids)}"
-                    )
+                        f"ERROR: Wave {idx} ServerIds is not a list: {
+                            type(server_ids)}")
                     return response(
                         400,
                         {
@@ -3939,7 +3941,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         for field in updatable_fields:
             if field in body:
                 if field == "description":
-                    # FIXED: Use camelCase 'description' not PascalCase 'Description'
+                    # FIXED: Use camelCase 'description' not PascalCase
+                    # 'Description'
                     update_expression += ", description = :desc"
                     expression_values[":desc"] = body["description"]
                 elif field == "planName":
@@ -3954,7 +3957,8 @@ def update_recovery_plan(plan_id: str, body: Dict) -> Dict:
         update_args = {
             "Key": {"planId": plan_id},
             "UpdateExpression": update_expression,
-            "ConditionExpression": "version = :current_version OR attribute_not_exists(version)",  # FIXED: camelCase
+            # FIXED: camelCase
+            "ConditionExpression": "version = :current_version OR attribute_not_exists(version)",
             "ExpressionAttributeValues": expression_values,
             "ReturnValues": "ALL_NEW",
         }
@@ -3997,13 +4001,14 @@ def delete_recovery_plan(plan_id: str) -> Dict:
             exec_ids = [e.get("executionId") for e in active_executions]
             statuses = [e.get("status") for e in active_executions]
             print(
-                f"Cannot delete plan {plan_id}: {len(active_executions)} active execution(s)"
-            )
+                f"Cannot delete plan {plan_id}: {
+                    len(active_executions)} active execution(s)")
             return response(
                 409,
                 {
                     "error": "PLAN_HAS_ACTIVE_EXECUTION",
-                    "message": f"Cannot delete Recovery Plan while {len(active_executions)} execution(s) are in progress",
+                    "message": f"Cannot delete Recovery Plan while {
+                        len(active_executions)} execution(s) are in progress",
                     "activeExecutions": exec_ids,
                     "activeStatuses": statuses,
                     "planId": plan_id,
@@ -4046,20 +4051,20 @@ def delete_recovery_plan(plan_id: str) -> Dict:
 def handle_drs_tag_sync(body: Dict = None) -> Dict:
     """
     Sync EC2 instance tags to DRS source servers across all DRS-enabled regions.
-    
+
     Synchronizes tags from source EC2 instances to their corresponding DRS source servers,
     enabling consistent tagging across disaster recovery infrastructure. Automatically
     enables copyTags in DRS launch configuration to preserve tags during recovery.
-    
+
     ## Use Cases
-    
+
     ### 1. Maintain Tag Consistency
     Ensures DR servers have same tags as source servers for:
     - Cost allocation tracking
     - Compliance reporting
     - Resource organization
     - Automated discovery
-    
+
     ### 2. Enable Tag-Based Protection Groups
     Synced tags allow Protection Groups to use tag-based server selection:
     ```python
@@ -4071,7 +4076,7 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         }
     }
     ```
-    
+
     ### 3. Scheduled Synchronization
     Can be triggered by EventBridge for periodic sync:
     ```json
@@ -4081,16 +4086,16 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
       "operation": "handle_drs_tag_sync"
     }
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X POST https://api.example.com/drs/tag-sync \
       -H "Authorization: Bearer $TOKEN" \
       -d '{"accountId": "123456789012"}'
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -4101,7 +4106,7 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         })
     )
     ```
-    
+
     ### EventBridge Scheduled Trigger
     ```json
     {
@@ -4112,9 +4117,9 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
       }
     }
     ```
-    
+
     ## Behavior
-    
+
     ### Tag Synchronization Process
     1. Query all DRS source servers across all DRS-enabled regions
     2. For each server, retrieve source EC2 instance ID
@@ -4122,31 +4127,31 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
     4. Filter out AWS-managed tags (aws:*)
     5. Apply tags to DRS source server ARN
     6. Enable copyTags in DRS launch configuration
-    
+
     ### Region Handling
     - Processes all 15 DRS-enabled regions concurrently
     - Skips regions with no DRS servers (no error)
     - Continues on region failures (logs error, processes remaining regions)
     - Handles cross-region scenarios (EC2 in us-east-1, DRS in us-west-2)
-    
+
     ### Server Filtering
     - Skips servers without EC2 instance ID
     - Skips DISCONNECTED servers (no active replication)
     - Skips deleted/inaccessible EC2 instances
     - Skips servers with no tags
-    
+
     ### Error Handling
     - Non-blocking: Region failures don't stop entire sync
     - Graceful degradation: Server failures don't stop region sync
     - Detailed logging: All errors logged with context
-    
+
     ## Args
-    
+
     body: Optional request body with:
         - accountId (str): AWS account ID to sync (default: current account)
-    
+
     ## Returns
-    
+
     Dict with sync results:
         - accountId: Account ID synced
         - accountName: Account name
@@ -4156,9 +4161,9 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         - total_synced: Servers successfully synced
         - total_failed: Servers that failed to sync
         - regions: List of region names with servers
-    
+
     ## Example Response
-    
+
     ```json
     {
       "accountId": "123456789012",
@@ -4171,46 +4176,46 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
       "regions": ["us-east-1", "us-west-2", "eu-west-1"]
     }
     ```
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small deployment (< 50 servers): 10-30 seconds
     - Medium deployment (50-200 servers): 30-90 seconds
     - Large deployment (200-500 servers): 90-180 seconds
-    
+
     ### API Calls
     - DRS DescribeSourceServers: 1 per region (paginated)
     - EC2 DescribeInstances: 1 per server
     - DRS TagResource: 1 per server
     - DRS UpdateLaunchConfiguration: 1 per server
-    
+
     ### Throttling Considerations
     - DRS API: 10 TPS per region
     - EC2 API: 100 TPS per region
     - Automatic retry with exponential backoff
-    
+
     ## Limitations
-    
+
     ### Current Account Only
     Multi-account support planned but not implemented. Returns 400 error if
     accountId differs from current account.
-    
+
     ### Synchronous Execution
     Runs synchronously - may timeout for very large deployments (500+ servers).
     Consider async execution via Step Functions for large-scale operations.
-    
+
     ### Tag Limits
     - DRS supports 50 tags per resource
     - Tag key max length: 128 characters
     - Tag value max length: 256 characters
-    
+
     ## Related Functions
-    
+
     - `sync_tags_in_region()`: Single-region tag sync implementation
     - `get_tag_sync_settings()`: Get tag sync configuration
     - `update_tag_sync_settings()`: Update tag sync configuration
-    
+
     Runs synchronously - syncs tags from EC2 instances to their DRS source servers.
     Supports account-based operations for future multi-account support.
     """
@@ -4241,8 +4246,8 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         regions_with_servers = []
 
         print(
-            f"Starting tag sync for account {account_id} ({account_name or 'Unknown'})"
-        )
+            f"Starting tag sync for account {account_id} ({
+                account_name or 'Unknown'})")
 
         for region in DRS_REGIONS:
             try:
@@ -4272,8 +4277,8 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
         }
 
         print(
-            f"Tag sync complete: {total_synced}/{total_servers} servers synced across {len(regions_with_servers)} regions"
-        )
+            f"Tag sync complete: {total_synced}/{total_servers} servers synced across {
+                len(regions_with_servers)} regions")
 
         return response(200, summary)
 
@@ -4449,7 +4454,8 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                     if not tag["Key"].startswith("aws:")
                 }
             except Exception as e:
-                # Skip instances that cannot be described (permissions, deleted, etc.)
+                # Skip instances that cannot be described (permissions,
+                # deleted, etc.)
                 print(
                     f"Warning: Could not describe instance {instance_id}: {e}"
                 )
@@ -4473,24 +4479,23 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
                     "ResourceNotFoundException",
                 ]:
                     print(
-                        f"Cannot update launch config for server {source_server_id}: {error_code}"
-                    )
+                        f"Cannot update launch config for server {source_server_id}: {error_code}")
                 else:
                     print(
-                        f"DRS error updating launch config for {source_server_id}: {e}"
-                    )
+                        f"DRS error updating launch config for {source_server_id}: {e}")
             except Exception as e:
                 print(
-                    f"Unexpected error updating launch config for {source_server_id}: {e}"
-                )
+                    f"Unexpected error updating launch config for {source_server_id}: {e}")
 
             synced += 1
 
         except Exception as e:
             failed += 1
             print(
-                f"Failed to sync server {server.get('sourceServerID', 'unknown')}: {e}"
-            )
+                f"Failed to sync server {
+                    server.get(
+                        'sourceServerID',
+                        'unknown')}: {e}")
 
     return {
         "total": len(source_servers),
@@ -4503,41 +4508,41 @@ def sync_tags_in_region(drs_region: str, account_id: str = None) -> dict:
 def get_tag_sync_settings() -> Dict:
     """
     Get current tag sync configuration from EventBridge scheduled rule.
-    
+
     Retrieves the configuration for automated tag synchronization, including whether
     it's enabled and the sync interval. Tag sync is implemented as an EventBridge
     scheduled rule that triggers the data-management-handler Lambda function.
-    
+
     ## Use Cases
-    
+
     ### 1. Check Current Configuration
     ```bash
     curl -X GET https://api.example.com/drs/tag-sync/settings \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### 2. Verify Sync Schedule
     ```python
     settings = get_tag_sync_settings()
     if settings["enabled"]:
         print(f"Tag sync runs every {settings['intervalHours']} hours")
     ```
-    
+
     ### 3. Troubleshoot Sync Issues
     ```python
     settings = get_tag_sync_settings()
     if not settings["enabled"]:
         print("Tag sync is disabled - enable it to start automatic sync")
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X GET https://api.example.com/drs/tag-sync/settings \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -4547,9 +4552,9 @@ def get_tag_sync_settings() -> Dict:
         })
     )
     ```
-    
+
     ## Behavior
-    
+
     ### EventBridge Rule Lookup
     1. Constructs rule name from environment variables:
        - Pattern: `{PROJECT_NAME}-tag-sync-schedule-{ENVIRONMENT}`
@@ -4557,15 +4562,15 @@ def get_tag_sync_settings() -> Dict:
     2. Queries EventBridge for rule details
     3. Parses schedule expression to extract interval
     4. Returns configuration with enabled state
-    
+
     ### Default Behavior
     If EventBridge rule doesn't exist:
     - Returns default settings (disabled, 4-hour interval)
     - Does not create the rule automatically
     - Includes message indicating rule not found
-    
+
     ## Returns
-    
+
     Dict with tag sync configuration:
         - enabled: Whether tag sync is enabled (bool)
         - intervalHours: Sync interval in hours (int)
@@ -4573,9 +4578,9 @@ def get_tag_sync_settings() -> Dict:
         - ruleName: EventBridge rule name (str)
         - lastModified: Last modification timestamp (ISO 8601 string)
         - message: Optional message if rule not found
-    
+
     ## Example Response
-    
+
     ```json
     {
       "enabled": true,
@@ -4585,9 +4590,9 @@ def get_tag_sync_settings() -> Dict:
       "lastModified": "2026-01-25T10:30:00Z"
     }
     ```
-    
+
     ## Error Handling
-    
+
     ### Rule Not Found (200 OK)
     Returns default settings with message:
     ```json
@@ -4600,7 +4605,7 @@ def get_tag_sync_settings() -> Dict:
       "message": "Tag sync rule not found - using defaults"
     }
     ```
-    
+
     ### Access Denied (500 Error)
     Returns error if insufficient EventBridge permissions:
     ```json
@@ -4608,13 +4613,13 @@ def get_tag_sync_settings() -> Dict:
       "error": "Failed to get tag sync settings: AccessDeniedException"
     }
     ```
-    
+
     ## Related Functions
-    
+
     - `update_tag_sync_settings()`: Update tag sync configuration
     - `handle_drs_tag_sync()`: Execute tag sync operation
     - `sync_tags_in_region()`: Regional tag sync implementation
-    
+
     Get current tag sync configuration settings
     """
     try:
@@ -4679,36 +4684,36 @@ def get_tag_sync_settings() -> Dict:
 def update_tag_sync_settings(body: Dict) -> Dict:
     """
     Update tag sync configuration in EventBridge scheduled rule.
-    
+
     Modifies the automated tag synchronization configuration, including enabling/disabling
     the sync and changing the sync interval. When enabled, automatically triggers an
     immediate manual sync to apply changes right away.
-    
+
     ## Use Cases
-    
+
     ### 1. Enable Tag Sync
     ```bash
     curl -X PUT https://api.example.com/drs/tag-sync/settings \
       -H "Authorization: Bearer $TOKEN" \
       -d '{"enabled": true, "intervalHours": 4}'
     ```
-    
+
     ### 2. Disable Tag Sync
     ```bash
     curl -X PUT https://api.example.com/drs/tag-sync/settings \
       -H "Authorization: Bearer $TOKEN" \
       -d '{"enabled": false}'
     ```
-    
+
     ### 3. Change Sync Interval
     ```bash
     curl -X PUT https://api.example.com/drs/tag-sync/settings \
       -H "Authorization: Bearer $TOKEN" \
       -d '{"enabled": true, "intervalHours": 2}'
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X PUT https://api.example.com/drs/tag-sync/settings \
@@ -4716,7 +4721,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
       -H "Content-Type: application/json" \
       -d '{"enabled": true, "intervalHours": 4}'
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -4730,9 +4735,9 @@ def update_tag_sync_settings(body: Dict) -> Dict:
         })
     )
     ```
-    
+
     ## Behavior
-    
+
     ### Update Process
     1. Validates request body (enabled required, intervalHours optional)
     2. Checks if EventBridge rule exists
@@ -4740,25 +4745,25 @@ def update_tag_sync_settings(body: Dict) -> Dict:
     4. Updates schedule expression if intervalHours provided
     5. Triggers immediate manual sync if enabled (async)
     6. Returns updated configuration
-    
+
     ### Immediate Sync Trigger
     When tag sync is enabled or settings changed:
     - Triggers async manual sync (doesn't wait for completion)
     - Ensures tags are synced immediately after configuration change
     - Sync runs in background (doesn't block settings update)
-    
+
     ### Rule Creation
     Does NOT create EventBridge rule if it doesn't exist. Rule must be created
     during CloudFormation deployment with EnableTagSync=true parameter.
-    
+
     ## Args
-    
+
     body: Request body with:
         - enabled (bool, required): Enable or disable tag sync
         - intervalHours (int, optional): Sync interval (1-24 hours)
-    
+
     ## Returns
-    
+
     Dict with updated configuration:
         - message: Success message
         - enabled: Whether tag sync is enabled (bool)
@@ -4768,9 +4773,9 @@ def update_tag_sync_settings(body: Dict) -> Dict:
         - lastModified: Last modification timestamp (ISO 8601 string)
         - syncTriggered: Whether immediate sync was triggered (bool)
         - syncResult: Result of immediate sync trigger (dict or null)
-    
+
     ## Example Response
-    
+
     ```json
     {
       "message": "Tag sync settings updated successfully",
@@ -4785,16 +4790,16 @@ def update_tag_sync_settings(body: Dict) -> Dict:
       }
     }
     ```
-    
+
     ## Error Handling
-    
+
     ### Invalid Request (400 Bad Request)
     ```json
     {
       "error": "enabled field is required"
     }
     ```
-    
+
     ### Rule Not Found (400 Bad Request)
     ```json
     {
@@ -4802,52 +4807,52 @@ def update_tag_sync_settings(body: Dict) -> Dict:
       "code": "RULE_NOT_FOUND"
     }
     ```
-    
+
     ### Invalid Interval (400 Bad Request)
     ```json
     {
       "error": "intervalHours must be a number between 1 and 24"
     }
     ```
-    
+
     ### Access Denied (500 Error)
     ```json
     {
       "error": "Failed to update tag sync settings: AccessDeniedException"
     }
     ```
-    
+
     ## Validation Rules
-    
+
     ### enabled Field
     - Required: Yes
     - Type: Boolean
     - Values: true or false
-    
+
     ### intervalHours Field
     - Required: No (optional)
     - Type: Integer
     - Range: 1-24 hours
     - Default: Current schedule (if not provided)
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Settings update: < 1 second
     - Immediate sync trigger: Async (doesn't block)
-    
+
     ### API Calls
     - EventBridge DescribeRule: 1 call
     - EventBridge EnableRule or DisableRule: 1 call
     - EventBridge PutRule: 1 call (if interval changed)
     - Lambda Invoke: 1 call (if enabled, async)
-    
+
     ## Related Functions
-    
+
     - `get_tag_sync_settings()`: Get current tag sync configuration
     - `handle_drs_tag_sync()`: Execute tag sync operation
     - `sync_tags_in_region()`: Regional tag sync implementation
-    
+
     Update tag sync configuration settings
     """
     try:
@@ -4877,11 +4882,8 @@ def update_tag_sync_settings(body: Dict) -> Dict:
                 or interval_hours > 24
             ):
                 return response(
-                    400,
-                    {
-                        "error": "intervalHours must be a number between 1 and 24"
-                    },
-                )
+                    400, {
+                        "error": "intervalHours must be a number between 1 and 24"}, )
             interval_hours = int(interval_hours)
 
         # Get EventBridge client
@@ -4914,14 +4916,12 @@ def update_tag_sync_settings(body: Dict) -> Dict:
 
         # If rule doesn't exist and we're disabling, that's fine
         if not rule_exists and not enabled:
-            return response(
-                200,
-                {
-                    "message": "Tag sync is already disabled (rule does not exist)",
-                    "enabled": False,
-                    "intervalHours": interval_hours or 4,
-                },
-            )
+            return response(200,
+                            {"message": "Tag sync is already disabled (rule does not exist)",
+                             "enabled": False,
+                             "intervalHours": interval_hours or 4,
+                             },
+                            )
 
         # Update rule state
         if enabled:
@@ -4930,7 +4930,8 @@ def update_tag_sync_settings(body: Dict) -> Dict:
 
             # Update schedule if interval_hours provided
             if interval_hours is not None:
-                # Use correct singular/plural form for EventBridge schedule expression
+                # Use correct singular/plural form for EventBridge schedule
+                # expression
                 time_unit = "hour" if interval_hours == 1 else "hours"
                 new_schedule = f"rate({interval_hours} {time_unit})"
                 events_client.put_rule(
@@ -4965,7 +4966,8 @@ def update_tag_sync_settings(body: Dict) -> Dict:
                     "Settings updated - triggering immediate manual tag sync asynchronously"
                 )
 
-                # Trigger async manual sync by invoking this same Lambda function
+                # Trigger async manual sync by invoking this same Lambda
+                # function
                 lambda_client = boto3.client("lambda")
                 function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "")
 
@@ -5001,13 +5003,12 @@ def update_tag_sync_settings(body: Dict) -> Dict:
 
             except Exception as sync_error:
                 print(
-                    f"Warning: Failed to trigger async manual sync after settings update: {sync_error}"
-                )
+                    f"Warning: Failed to trigger async manual sync after settings update: {sync_error}")
                 # Don't fail the settings update if sync fails
                 sync_triggered = False
 
         result = {
-            "message": f"Tag sync settings updated successfully",
+            "message": "Tag sync settings updated successfully",
             "enabled": updated_rule.get("State") == "ENABLED",
             "intervalHours": interval_hours,
             "scheduleExpression": updated_rule.get("ScheduleExpression"),
@@ -5176,10 +5177,12 @@ def apply_launch_config_to_servers(
 
             # IMPORTANT: Update DRS launch configuration FIRST
             # DRS update_launch_configuration creates a new EC2 launch template version,
-            # so we must call it before our EC2 template updates to avoid being overwritten
+            # so we must call it before our EC2 template updates to avoid being
+            # overwritten
             drs_update = {"sourceServerID": server_id}
 
-            # If static IP is specified, disable copyPrivateIp to prevent DRS from overriding it
+            # If static IP is specified, disable copyPrivateIp to prevent DRS
+            # from overriding it
             if effective_config.get("staticPrivateIp"):
                 drs_update["copyPrivateIp"] = False
             elif "copyPrivateIp" in effective_config:
@@ -5243,8 +5246,8 @@ def apply_launch_config_to_servers(
                     config_details.append("CopyTags")
                 if effective_config.get("targetInstanceTypeRightSizingMethod"):
                     config_details.append(
-                        f"RightSize:{effective_config['targetInstanceTypeRightSizingMethod']}"
-                    )
+                        f"RightSize:{
+                            effective_config['targetInstanceTypeRightSizingMethod']}")
                 if effective_config.get("launchDisposition"):
                     config_details.append(
                         f"Launch:{effective_config['launchDisposition']}"
@@ -5392,8 +5395,7 @@ def create_target_account(body: Dict) -> Dict:
 
                 role_arn = construct_role_arn(account_id)
                 print(
-                    f"Constructed standardized role ARN for {account_id}: {role_arn}"
-                )
+                    f"Constructed standardized role ARN for {account_id}: {role_arn}")
             else:
                 # Validate provided role ARN format
                 if not role_arn.startswith("arn:aws:iam::"):
@@ -5875,6 +5877,153 @@ def handle_remove_staging_account(body: Dict) -> Dict:
         return response(500, {"error": str(e)})
 
 
+def handle_sync_single_account(target_account_id: str) -> Dict:
+    """
+    Sync staging accounts for a single target account (on-demand).
+
+    This is the same operation that runs automatically every 5 minutes via EventBridge,
+    but triggered on-demand by the user clicking the refresh button in the dashboard.
+
+    Workflow:
+    1. Get target account from DynamoDB
+    2. Discover staging accounts from DRS extended source servers
+    3. Compare with current staging accounts
+    4. Update DynamoDB if changes detected
+    5. Return sync result
+
+    Input:
+    - target_account_id: Target account ID (from path parameter)
+
+    Output:
+    {
+        "success": true,
+        "message": "Staging accounts synced successfully",
+        "targetAccountId": "111122223333",
+        "stagingAccounts": [...],
+        "changes": {
+            "added": ["777788889999"],
+            "removed": ["444455556666"]
+        }
+    }
+
+    Requirements: 7.3
+    """
+    try:
+        from shared.staging_account_discovery import (
+            discover_staging_accounts_from_drs,
+        )
+        from shared.staging_account_models import update_staging_accounts
+
+        # Validate account ID format
+        if not re.match(r"^\d{12}$", target_account_id):
+            return response(
+                400,
+                {
+                    "error": "INVALID_FORMAT",
+                    "message": "targetAccountId must be 12 digits",
+                },
+            )
+
+        # Get target account from DynamoDB
+        account_response = target_accounts_table.get_item(
+            Key={"accountId": target_account_id}
+        )
+
+        if "Item" not in account_response:
+            return response(
+                404,
+                {
+                    "error": "TARGET_ACCOUNT_NOT_FOUND",
+                    "message": f"Target account {target_account_id} not found",
+                },
+            )
+
+        account = account_response["Item"]
+        is_current = account.get("isCurrentAccount", False)
+
+        # Skip current account (no staging accounts)
+        if is_current:
+            return response(
+                200,
+                {
+                    "success": True,
+                    "message": "Current account has no staging accounts",
+                    "targetAccountId": target_account_id,
+                    "stagingAccounts": [],
+                },
+            )
+
+        # Get role ARN and external ID
+        role_arn = account.get("roleArn")
+        external_id = account.get("externalId")
+
+        if not role_arn:
+            return response(
+                400,
+                {
+                    "error": "NO_ROLE_ARN",
+                    "message": f"No role ARN configured for account {target_account_id}",
+                },
+            )
+
+        # Discover staging accounts from DRS
+        print(f"Discovering staging accounts for {target_account_id}...")
+        discovered = discover_staging_accounts_from_drs(
+            target_account_id=target_account_id,
+            role_arn=role_arn,
+            external_id=external_id,
+        )
+
+        # Get current staging accounts from DynamoDB
+        current_staging = account.get("stagingAccounts", [])
+        current_ids = {sa.get("accountId") for sa in current_staging}
+        discovered_ids = {sa.get("accountId") for sa in discovered}
+
+        # Check if update needed
+        if current_ids == discovered_ids:
+            print(f"No changes for account {target_account_id}")
+            return response(
+                200,
+                {
+                    "success": True,
+                    "message": "Staging accounts already up-to-date",
+                    "targetAccountId": target_account_id,
+                    "stagingAccounts": current_staging,
+                },
+            )
+
+        # Update staging accounts
+        added = discovered_ids - current_ids
+        removed = current_ids - discovered_ids
+
+        print(
+            f"Updating account {target_account_id}: +{len(added)} -{len(removed)}"
+        )
+
+        result = update_staging_accounts(target_account_id, discovered)
+
+        return response(
+            200,
+            {
+                "success": True,
+                "message": f"Staging accounts synced: +{len(added)} added, -{len(removed)} removed",
+                "targetAccountId": target_account_id,
+                "stagingAccounts": result.get("stagingAccounts", []),
+                "changes": {
+                    "added": list(added),
+                    "removed": list(removed),
+                },
+            },
+        )
+
+    except Exception as e:
+        print(f"Error syncing staging accounts for {target_account_id}: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return response(500, {"error": str(e)})
+
+
 # ============================================================================
 # Configuration Import/Export Functions
 # ============================================================================
@@ -5887,32 +6036,32 @@ SUPPORTED_SCHEMA_VERSIONS = ["1.0", "1.1"]
 def export_configuration(query_params: Dict) -> Dict:
     """
     Export all Protection Groups and Recovery Plans to JSON format.
-    
+
     Creates portable JSON backup of entire DR orchestration configuration including
     Protection Groups, Recovery Plans, and metadata. Resolves Protection Group IDs
     to names for portability across environments. Supports backup, migration, and
     disaster recovery of DR configuration itself.
-    
+
     ## Use Cases
-    
+
     ### 1. Configuration Backup
     ```bash
     curl -X GET https://api.example.com/configuration/export \
       -H "Authorization: Bearer $TOKEN" \
       > dr-config-backup-2026-01-25.json
     ```
-    
+
     ### 2. Environment Migration
     ```bash
     # Export from dev
     curl -X GET https://api-dev.example.com/configuration/export \
       > dev-config.json
-    
+
     # Import to prod (after review)
     curl -X POST https://api-prod.example.com/configuration/import \
       -d @dev-config.json
     ```
-    
+
     ### 3. Disaster Recovery of DR Config
     ```python
     # Regular automated backup
@@ -5923,15 +6072,15 @@ def export_configuration(query_params: Dict) -> Dict:
         Body=json.dumps(config)
     )
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X GET https://api.example.com/configuration/export \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -5941,9 +6090,9 @@ def export_configuration(query_params: Dict) -> Dict:
         })
     )
     ```
-    
+
     ## Behavior
-    
+
     ### Export Process
     1. Scan all Protection Groups from DynamoDB
     2. Scan all Recovery Plans from DynamoDB
@@ -5952,7 +6101,7 @@ def export_configuration(query_params: Dict) -> Dict:
     5. Transform Recovery Plans (resolve PG IDs to names)
     6. Add metadata (schema version, timestamp, source region)
     7. Return complete configuration as JSON
-    
+
     ### Protection Group Transformation
     - Removes internal fields (groupId, createdTime, updatedTime)
     - Preserves: groupName, description, region, accountId, owner
@@ -5965,28 +6114,28 @@ def export_configuration(query_params: Dict) -> Dict:
       - tags: Server tags (optional)
       - useGroupDefaults: Whether server uses group defaults
       - launchTemplate: Per-server launch template overrides
-    
+
     ### Recovery Plan Transformation
     - Resolves protectionGroupId → protectionGroupName in waves
     - Removes protectionGroupId (uses name for portability)
     - Preserves: planName, description, waves
     - Warns about orphaned PG references
-    
+
     ### Portability Features
     - Uses names instead of IDs for cross-environment compatibility
     - Includes schema version for compatibility checking
     - Includes source region for reference
     - Timestamp for backup tracking
-    
+
     ## Returns
-    
+
     Dict with complete configuration:
         - metadata: Export metadata (schemaVersion, exportedAt, sourceRegion)
         - protectionGroups: List of Protection Groups
         - recoveryPlans: List of Recovery Plans
-    
+
     ## Example Response
-    
+
     ```json
     {
       "metadata": {
@@ -6061,27 +6210,27 @@ def export_configuration(query_params: Dict) -> Dict:
       ]
     }
     ```
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small deployment (< 10 PGs, < 5 RPs): 1-3 seconds
     - Medium deployment (10-50 PGs, 5-20 RPs): 3-10 seconds
     - Large deployment (50+ PGs, 20+ RPs): 10-30 seconds
-    
+
     ### API Calls
     - DynamoDB Scan: 1 for Protection Groups (paginated)
     - DynamoDB Scan: 1 for Recovery Plans (paginated)
-    
+
     ## Error Handling
-    
+
     ### Orphaned Protection Group References
     If Recovery Plan references non-existent Protection Group:
     - Logs warning with PG ID
     - Keeps PG ID in export (instead of name)
     - Continues export (non-blocking)
     - Includes orphaned count in logs
-    
+
     ### Export Failure (500)
     ```json
     {
@@ -6089,31 +6238,31 @@ def export_configuration(query_params: Dict) -> Dict:
       "details": "DynamoDB scan failed: ..."
     }
     ```
-    
+
     ## Schema Version
-    
+
     Current: `1.1`
-    
+
     Schema includes:
     - Protection Group structure
     - Recovery Plan structure
     - Wave structure with PG name references
     - Per-server launch template configurations (v1.1+)
-    
+
     ### Schema v1.1 Changes
     - Added `servers` array to Protection Groups
-    - Added metadata counts: protectionGroupCount, recoveryPlanCount, 
+    - Added metadata counts: protectionGroupCount, recoveryPlanCount,
       serverCount, serversWithCustomConfig, orphanedReferences
     - Per-server fields: sourceServerId, instanceId, instanceName, tags,
       useGroupDefaults, launchTemplate
     - Backward compatible with v1.0 (servers array is optional)
-    
+
     ## Related Functions
-    
+
     - `import_configuration()`: Import configuration from JSON
     - `get_protection_groups()`: Get Protection Groups
     - `get_recovery_plans()`: Get Recovery Plans
-    
+
     Export all Protection Groups and Recovery Plans to JSON format.
 
     Returns complete configuration with metadata for backup/migration.
@@ -6228,11 +6377,11 @@ def export_configuration(query_params: Dict) -> Dict:
                         # Remove ID - use name only for portability
                         exported_wave.pop("protectionGroupId", None)
                     else:
-                        # Keep ID if name can't be resolved (orphaned reference)
+                        # Keep ID if name can't be resolved (orphaned
+                        # reference)
                         orphaned_pg_ids.append(pg_id)
                         print(
-                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export"
-                        )
+                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export")
                 exported_waves.append(exported_wave)
 
             exported_rp = {
@@ -6244,8 +6393,8 @@ def export_configuration(query_params: Dict) -> Dict:
 
         if orphaned_pg_ids:
             print(
-                f"Export contains {len(orphaned_pg_ids)} orphaned PG references"
-            )
+                f"Export contains {
+                    len(orphaned_pg_ids)} orphaned PG references")
 
         # Build export payload
         export_data = {
@@ -6282,17 +6431,17 @@ def export_configuration(query_params: Dict) -> Dict:
 def import_configuration(body: Dict) -> Dict:
     """
     Import Protection Groups and Recovery Plans from JSON configuration.
-    
+
     ## Purpose
-    
+
     Restores DR configuration from exported JSON, enabling:
     - Disaster recovery of orchestration configuration
     - Migration between environments (dev → test → prod)
     - Configuration version control and rollback
     - Multi-region deployment synchronization
-    
+
     ## Use Cases
-    
+
     ### Disaster Recovery
     Restore orchestration configuration after control plane failure:
     ```bash
@@ -6300,33 +6449,33 @@ def import_configuration(body: Dict) -> Dict:
     aws lambda invoke --function-name data-management-handler \
       --payload '{"action":"export_configuration"}' \
       response.json
-    
+
     # After disaster, restore configuration
     aws lambda invoke --function-name data-management-handler \
       --payload file://backup-config.json \
       response.json
     ```
-    
+
     ### Environment Migration
     Promote configuration from dev to production:
     ```bash
     # Export from dev
     curl -X POST https://api-dev.example.com/configuration/export \
       -H "Authorization: Bearer $TOKEN" > dev-config.json
-    
+
     # Import to prod (with dry run first)
     curl -X POST https://api-prod.example.com/configuration/import \
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json" \
-      -d '{"dryRun": true, "config": '$(cat dev-config.json)'}' 
-    
+      -d '{"dryRun": true, "config": '$(cat dev-config.json)'}'
+
     # Apply if validation passes
     curl -X POST https://api-prod.example.com/configuration/import \
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json" \
       -d @dev-config.json
     ```
-    
+
     ### Configuration Rollback
     Revert to previous configuration version:
     ```bash
@@ -6335,14 +6484,14 @@ def import_configuration(body: Dict) -> Dict:
       --payload file://config-backup-2026-01-20.json \
       response.json
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway
     - **Endpoint**: `POST /configuration/import`
     - **Method**: `import_configuration`
     - **Auth**: Cognito User Pool (admin role required)
-    
+
     ### Direct Lambda Invocation
     ```bash
     aws lambda invoke \
@@ -6362,7 +6511,7 @@ def import_configuration(body: Dict) -> Dict:
       }' \
       response.json
     ```
-    
+
     ### EventBridge Integration
     Automated configuration sync across regions:
     ```json
@@ -6375,19 +6524,19 @@ def import_configuration(body: Dict) -> Dict:
       }
     }
     ```
-    
+
     ## Behavior
-    
+
     ### Non-Destructive Import
     Import is **additive-only** and never modifies or deletes existing resources:
-    
+
     1. **Conflict Detection**: Checks for name collisions with existing resources
     2. **Skip Existing**: Resources with matching names are skipped (not updated)
     3. **Create New**: Only creates resources that don't exist
     4. **Preserve State**: Never modifies existing Protection Groups or Recovery Plans
-    
+
     ### Validation Steps
-    
+
     1. **Schema Version Check**: Validates `schemaVersion` matches supported versions
     2. **Protection Group Validation**:
        - Name uniqueness (case-insensitive)
@@ -6398,28 +6547,28 @@ def import_configuration(body: Dict) -> Dict:
        - Name uniqueness (case-insensitive)
        - Protection Group references exist
        - Wave number uniqueness within plan
-    
+
     ### Dependency Resolution
-    
+
     Protection Groups are imported before Recovery Plans to satisfy dependencies:
-    
+
     ```
     Import Order:
     1. Protection Groups → DynamoDB
     2. Build PG name→ID mapping
     3. Recovery Plans → Resolve PG names to IDs → DynamoDB
     ```
-    
+
     ### Dry Run Mode
-    
+
     Set `dryRun: true` to validate without creating resources:
     - Performs all validation checks
     - Simulates import process
     - Returns detailed results without database writes
     - Use before production imports to verify configuration
-    
+
     ## Request Format
-    
+
     ### Standard Format
     ```json
     {
@@ -6462,7 +6611,7 @@ def import_configuration(body: Dict) -> Dict:
       }
     }
     ```
-    
+
     ### Direct Format (config at root)
     ```json
     {
@@ -6472,9 +6621,9 @@ def import_configuration(body: Dict) -> Dict:
       "recoveryPlans": [...]
     }
     ```
-    
+
     ## Response Format
-    
+
     ### Success (200)
     ```json
     {
@@ -6515,7 +6664,7 @@ def import_configuration(body: Dict) -> Dict:
       "failed": []
     }
     ```
-    
+
     ### Validation Failure (400)
     ```json
     {
@@ -6523,7 +6672,7 @@ def import_configuration(body: Dict) -> Dict:
       "supportedVersions": ["1.0"]
     }
     ```
-    
+
     ### Import Failure (500)
     ```json
     {
@@ -6531,28 +6680,28 @@ def import_configuration(body: Dict) -> Dict:
       "details": "DynamoDB PutItem failed: ..."
     }
     ```
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small import (< 10 PGs, < 5 RPs): 2-5 seconds
     - Medium import (10-50 PGs, 5-20 RPs): 5-15 seconds
     - Large import (50+ PGs, 20+ RPs): 15-45 seconds
     - Dry run: 50% faster (no database writes)
-    
+
     ### API Calls
     - DynamoDB Scan: 2 (Protection Groups, Recovery Plans)
     - DynamoDB Query: 8 (active executions by status)
     - DynamoDB PutItem: 1 per created resource
     - DRS DescribeSourceServers: 1 per Protection Group (server validation)
-    
+
     ### Throttling
     - DynamoDB: 1000 WCU per table (burst to 3000)
     - DRS API: 10 TPS (shared across all DRS operations)
     - Batch imports: Use exponential backoff for retries
-    
+
     ## Error Handling
-    
+
     ### Schema Version Mismatch (400)
     ```json
     {
@@ -6561,7 +6710,7 @@ def import_configuration(body: Dict) -> Dict:
     }
     ```
     **Resolution**: Export configuration again with current version
-    
+
     ### Protection Group Name Conflict (200 with skip)
     ```json
     {
@@ -6573,7 +6722,7 @@ def import_configuration(body: Dict) -> Dict:
     }
     ```
     **Resolution**: Rename conflicting resource or delete existing resource
-    
+
     ### Server Not Found (200 with failure)
     ```json
     {
@@ -6585,7 +6734,7 @@ def import_configuration(body: Dict) -> Dict:
     }
     ```
     **Resolution**: Verify server IDs exist in target region
-    
+
     ### Server In Active Execution (200 with failure)
     ```json
     {
@@ -6597,7 +6746,7 @@ def import_configuration(body: Dict) -> Dict:
     }
     ```
     **Resolution**: Wait for execution to complete or cancel execution
-    
+
     ### Recovery Plan Missing Protection Group (200 with failure)
     ```json
     {
@@ -6609,27 +6758,27 @@ def import_configuration(body: Dict) -> Dict:
     }
     ```
     **Resolution**: Import Protection Group first or fix reference
-    
+
     ## Schema Version
-    
+
     Current: `1.0`
-    
+
     Supported versions: `["1.0"]`
-    
+
     Schema includes:
     - Protection Group structure with server selection
     - Recovery Plan structure with wave dependencies
     - Launch configuration settings
     - Metadata for tracking and validation
-    
+
     ## Related Functions
-    
+
     - `export_configuration()`: Export configuration to JSON
     - `create_protection_group()`: Create individual Protection Group
     - `create_recovery_plan()`: Create individual Recovery Plan
     - `get_protection_groups()`: List Protection Groups
     - `get_recovery_plans()`: List Recovery Plans
-    
+
     Non-destructive, additive-only operation:
     - Skips resources that already exist (by name)
     - Validates server existence and conflicts
@@ -6692,7 +6841,8 @@ def import_configuration(body: Dict) -> Dict:
             "failed": [],
         }
 
-        # Track which PGs were successfully created/exist for RP dependency resolution
+        # Track which PGs were successfully created/exist for RP dependency
+        # resolution
         available_pg_names = set(existing_pgs.keys())
         failed_pg_names = set()
 
@@ -7886,7 +8036,8 @@ def _process_protection_group_import(
                 if source_server_ids:
                     server_ids_to_apply = source_server_ids
                 elif server_selection_tags:
-                    # Extract account context from protection group data if available
+                    # Extract account context from protection group data if
+                    # available
                     account_context = None
                     if pg.get("accountId"):
                         account_context = {
@@ -7904,7 +8055,8 @@ def _process_protection_group_import(
 
                 if server_ids_to_apply:
                     try:
-                        # NEW: Build full protection group dict for per-server config
+                        # NEW: Build full protection group dict for per-server
+                        # config
                         full_pg = {
                             "groupId": group_id,
                             "groupName": pg_name,
@@ -7920,7 +8072,8 @@ def _process_protection_group_import(
                             protection_group_id=group_id,
                             protection_group_name=pg_name,
                         )
-                        # Extract counts safely without referencing sensitive object methods
+                        # Extract counts safely without referencing sensitive
+                        # object methods
                         applied_count = 0
                         failed_count = 0
                         if apply_results and "applied" in apply_results:
@@ -7932,11 +8085,12 @@ def _process_protection_group_import(
                             "launchConfigApplied"
                         ] = applied_count
                         result["details"]["launchConfigFailed"] = failed_count
-                        # launchConfig applied successfully - no logging to prevent sensitive data exposure
+                        # launchConfig applied successfully - no logging to
+                        # prevent sensitive data exposure
                     except Exception as lc_err:
                         print(
-                            f"Warning: Failed to apply launchConfig: {type(lc_err).__name__}"
-                        )
+                            f"Warning: Failed to apply launchConfig: {
+                                type(lc_err).__name__}")
         except Exception as e:
             result["reason"] = "CREATE_ERROR"
             result["details"] = {"error": str(e)}

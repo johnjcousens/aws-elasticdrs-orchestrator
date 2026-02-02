@@ -80,6 +80,7 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   const [tagSyncLoading, setTagSyncLoading] = useState(false);
+  const [stagingSyncLoading, setStagingSyncLoading] = useState(false);
   
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
@@ -196,6 +197,46 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    const accountId = getCurrentAccountId();
+    
+    // Refresh executions
+    fetchExecutions();
+    
+    // Refresh capacity data
+    if (accountId) {
+      fetchCapacityData(accountId, true); // Force cache bust
+    }
+    
+    // Sync staging accounts in background
+    if (accountId) {
+      setStagingSyncLoading(true);
+      try {
+        const result = await apiClient.syncStagingAccountsForAccount(accountId);
+        
+        // Show toast if changes were detected
+        if (result.changes && (result.changes.added.length > 0 || result.changes.removed.length > 0)) {
+          const addedMsg = result.changes.added.length > 0 
+            ? `Added: ${result.changes.added.join(', ')}` 
+            : '';
+          const removedMsg = result.changes.removed.length > 0 
+            ? `Removed: ${result.changes.removed.join(', ')}` 
+            : '';
+          const changeMsg = [addedMsg, removedMsg].filter(Boolean).join('. ');
+          toast.success(`Staging accounts updated. ${changeMsg}`);
+          
+          // Refresh capacity data again to show updated staging accounts
+          fetchCapacityData(accountId, true);
+        }
+      } catch (err) {
+        console.error('Error syncing staging accounts:', err);
+        // Don't show error toast - this is a background operation
+      } finally {
+        setStagingSyncLoading(false);
+      }
+    }
+  };
+
 
 
   // Calculate status counts
@@ -274,14 +315,8 @@ export const Dashboard: React.FC = () => {
               <SpaceBetween direction="horizontal" size="xs">
                 <Button
                   iconName="refresh"
-                  onClick={() => {
-                    fetchExecutions();
-                    const accountId = getCurrentAccountId();
-                    if (accountId) {
-                      fetchCapacityData(accountId);
-                    }
-                  }}
-                  loading={loading || capacityLoading}
+                  onClick={handleRefresh}
+                  loading={loading || capacityLoading || stagingSyncLoading}
                 >
                   Refresh
                 </Button>

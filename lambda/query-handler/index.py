@@ -268,12 +268,12 @@ with patch('boto3.client') as mock_client:
     mock_drs.describe_source_servers.return_value = {
         "items": [{"sourceServerID": "s-123"}]
     }
-    
+
     result = lambda_handler({
         "operation": "get_drs_source_servers",
         "queryParams": {"region": "us-east-1"}
     }, None)
-    
+
     assert result["statusCode"] == 200
 ```
 
@@ -286,11 +286,11 @@ def test_export_configuration():
     # Create mock tables
     dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
     table = dynamodb.create_table(...)
-    
+
     result = lambda_handler({
         "operation": "export_configuration"
     }, None)
-    
+
     assert "protectionGroups" in json.loads(result["body"])
 ```
 
@@ -641,7 +641,8 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
             server_id = server.get("sourceServerID", "unknown")
 
             # Check if this is an extended source server from a staging account
-            # Extended source servers have stagingArea.stagingAccountID != target account
+            # Extended source servers have stagingArea.stagingAccountID !=
+            # target account
             staging_area = server.get("stagingArea", {})
             staging_account_id = staging_area.get("stagingAccountID", "")
 
@@ -667,7 +668,8 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
                     f"targetAccountID={account_id}"
                 )
 
-            # Only count replicating servers that are NOT extended source servers
+            # Only count replicating servers that are NOT extended source
+            # servers
             if not is_extended:
                 replication_state = server.get("dataReplicationInfo", {}).get(
                     "dataReplicationState", ""
@@ -689,8 +691,10 @@ def _count_drs_servers(regional_drs, account_id: str) -> Dict:
     )
 
     return {
-        "totalServers": total_servers,  # All servers (for 4,000 recovery limit)
-        "replicatingServers": replicating_servers,  # Only direct replicating (for 300 limit)
+        # All servers (for 4,000 recovery limit)
+        "totalServers": total_servers,
+        # Only direct replicating (for 300 limit)
+        "replicatingServers": replicating_servers,
     }
 
 
@@ -816,12 +820,14 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     if "Item" in account_result:
                         account = account_result["Item"]
 
-                        # Extract role name from roleArn if assumeRoleName not present
+                        # Extract role name from roleArn if assumeRoleName not
+                        # present
                         assume_role_name = account.get("assumeRoleName")
                         if not assume_role_name:
                             role_arn = account.get("roleArn")
                             if role_arn:
-                                # Extract role name from ARN: arn:aws:iam::123456789012:role/RoleName
+                                # Extract role name from ARN:
+                                # arn:aws:iam::123456789012:role/RoleName
                                 assume_role_name = role_arn.split("/")[-1]
 
                         # Get External ID if present
@@ -834,13 +840,12 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                             "isCurrentAccount": False,
                         }
                         print(
-                            f"Found target account {account_id} with role {assume_role_name}"
-                        )
+                            f"Found target account {account_id} with role {assume_role_name}")
                     else:
                         print(
-                            f"WARNING: Account {account_id} not found in target accounts table"
-                        )
-                        # Still try with just accountId (will use current account)
+                            f"WARNING: Account {account_id} not found in target accounts table")
+                        # Still try with just accountId (will use current
+                        # account)
                         account_context = {"accountId": account_id}
                 except Exception as e:
                     print(f"Error looking up target account: {e}")
@@ -933,8 +938,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     pg_account = pg.get("accountId")
 
                     print(
-                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}"
-                    )
+                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}")
 
                     # Skip if this is the current PG being edited
                     if current_pg_id and pg_id == current_pg_id:
@@ -943,21 +947,21 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
 
                     # Only check PGs in the same region
                     if pg_region != region:
-                        print(f"DEBUG: Skipping PG in different region")
+                        print("DEBUG: Skipping PG in different region")
                         continue
 
-                    # Only check PGs in the same account (if account filtering is enabled)
+                    # Only check PGs in the same account (if account filtering
+                    # is enabled)
                     if account_id and pg_account != account_id:
                         print(
-                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})"
-                        )
+                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})")
                         continue
 
                     # Check manual server selection (sourceServerIds)
                     server_ids = pg.get("sourceServerIds", [])
                     print(
-                        f"DEBUG: PG '{pg_name}' has {len(server_ids)} manual serverIds"
-                    )
+                        f"DEBUG: PG '{pg_name}' has {
+                            len(server_ids)} manual serverIds")
                     for server_id in server_ids:
                         server_assignments[server_id] = {
                             "protectionGroupId": pg_id,
@@ -967,8 +971,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     # Check tag-based selection (serverSelectionTags)
                     selection_tags = pg.get("serverSelectionTags", {})
                     print(
-                        f"DEBUG: PG '{pg_name}' selection_tags={selection_tags}"
-                    )
+                        f"DEBUG: PG '{pg_name}' selection_tags={selection_tags}")
 
                     if selection_tags:
                         matched = 0
@@ -986,8 +989,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                             if matches_all_tags:
                                 matched += 1
                                 print(
-                                    f"DEBUG: Server {server_id} matches PG '{pg_name}'"
-                                )
+                                    f"DEBUG: Server {server_id} matches PG '{pg_name}'")
                                 server_assignments[server_id] = {
                                     "protectionGroupId": pg_id,
                                     "protectionGroupName": pg_name,
@@ -1421,13 +1423,19 @@ def get_drs_account_capacity_all_regions(
 
     # Build status message
     if worst_status == "CRITICAL":
-        message = f"CRITICAL: {len(critical_regions)} region(s) at 300-server limit: {', '.join(critical_regions)}"
+        message = f"CRITICAL: {
+            len(critical_regions)} region(s) at 300-server limit: {
+            ', '.join(critical_regions)}"
     elif worst_status == "WARNING":
-        message = f"WARNING: {len(warning_regions)} region(s) approaching limit: {', '.join(warning_regions)}"
+        message = f"WARNING: {
+            len(warning_regions)} region(s) approaching limit: {
+            ', '.join(warning_regions)}"
     elif worst_status == "INFO":
-        message = f"INFO: Some regions above 80% capacity ({replicating_servers} total servers across {len(regional_breakdown)} regions)"
+        message = f"INFO: Some regions above 80% capacity ({replicating_servers} total servers across {
+            len(regional_breakdown)} regions)"
     else:
-        message = f"Capacity OK: {replicating_servers} total servers across {len(regional_breakdown)} regions (each region has 300-server limit)"
+        message = f"Capacity OK: {replicating_servers} total servers across {
+            len(regional_breakdown)} regions (each region has 300-server limit)"
 
     # Add warning if some regions failed
     if failed_regions:
@@ -1461,19 +1469,19 @@ def get_drs_account_capacity_all_regions_response(
 ) -> Dict:
     """
     API Gateway wrapper for account-wide DRS capacity query.
-    
+
     Returns account-wide DRS capacity in the format expected by the frontend,
     including capacity metrics, concurrent jobs info, and servers in jobs count.
     Combines data from multiple sources into a unified response.
-    
+
     ## Use Cases
-    
+
     ### 1. Frontend Dashboard
     ```bash
     curl -X GET https://api.example.com/drs/capacity \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### 2. Capacity Monitoring
     ```python
     response = get_drs_account_capacity_all_regions_response()
@@ -1481,15 +1489,15 @@ def get_drs_account_capacity_all_regions_response(
     if capacity['status'] == 'CRITICAL':
         send_alert("DRS at capacity limit")
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X GET https://api.example.com/drs/capacity \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -1499,28 +1507,28 @@ def get_drs_account_capacity_all_regions_response(
         })
     )
     ```
-    
+
     ## Behavior
-    
+
     ### Data Aggregation
     1. Gets account ID and name
     2. Queries account-wide DRS capacity across all regions
     3. Queries concurrent jobs info (from us-east-1 by default)
     4. Queries servers in active jobs (from us-east-1 by default)
     5. Combines all data into unified response
-    
+
     ### Regional vs Account-Wide Data
     - Capacity: Account-wide across all 15 regions
     - Concurrent jobs: Regional (us-east-1 by default)
     - Servers in jobs: Regional (us-east-1 by default)
-    
+
     ## Args
-    
+
     account_context: Optional cross-account context with:
         - accountId: AWS account ID to query
-    
+
     ## Returns
-    
+
     Dict with comprehensive capacity data:
         - accountId: AWS account ID
         - accountName: Account name
@@ -1529,9 +1537,9 @@ def get_drs_account_capacity_all_regions_response(
         - capacity: Account-wide capacity metrics (dict)
         - concurrentJobs: Current/max concurrent jobs (dict)
         - serversInJobs: Current/max servers in jobs (dict)
-    
+
     ## Example Response
-    
+
     ```json
     {
       "accountId": "123456789012",
@@ -1563,25 +1571,25 @@ def get_drs_account_capacity_all_regions_response(
       }
     }
     ```
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small deployment: 2-5 seconds
     - Medium deployment: 5-10 seconds
     - Large deployment: 10-15 seconds
-    
+
     ### API Calls
     - DRS DescribeSourceServers: 1 per region (15 total)
     - DRS DescribeJobs: 1 call (us-east-1)
     - Total: ~16 API calls
-    
+
     ## Related Functions
-    
+
     - `get_drs_account_capacity_all_regions()`: Core capacity aggregation
     - `validate_concurrent_jobs()`: Concurrent jobs validation
     - `validate_servers_in_all_jobs()`: Servers in jobs validation
-    
+
     API Gateway wrapper for get_drs_account_capacity_all_regions.
     Returns account-wide DRS capacity in the format expected by the frontend.
     Matches the exact response structure from the old API Handler.
@@ -1599,7 +1607,8 @@ def get_drs_account_capacity_all_regions_response(
         # Get account-wide capacity
         capacity = get_drs_account_capacity_all_regions(account_context)
 
-        # Use us-east-1 as default region for jobs info (matches old API Handler)
+        # Use us-east-1 as default region for jobs info (matches old API
+        # Handler)
         region = os.environ.get("AWS_REGION", "us-east-1")
 
         # Get concurrent jobs info (regional)
@@ -1608,7 +1617,8 @@ def get_drs_account_capacity_all_regions_response(
         # Get servers in active jobs (regional)
         servers_in_jobs = validate_servers_in_all_jobs(region, 0)
 
-        # Return in the exact format expected by frontend (matching old API Handler)
+        # Return in the exact format expected by frontend (matching old API
+        # Handler)
         return response(
             200,
             {
@@ -1638,25 +1648,25 @@ def get_drs_account_capacity(
 ) -> Dict:
     """
     Get DRS account capacity metrics for a specific region with API Gateway wrapper.
-    
+
     Returns capacity info including replicating server count compared against the
     300-server hard limit. Provides detailed status messages for capacity planning.
-    
+
     ## Use Cases
-    
+
     ### 1. Regional Capacity Check
     ```bash
     curl -X GET https://api.example.com/drs/capacity/us-east-1 \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### 2. Pre-Launch Validation
     ```python
     capacity = get_drs_account_capacity("us-east-1")
     if capacity['availableReplicatingSlots'] < 10:
         print("Warning: Low capacity in region")
     ```
-    
+
     ### 3. Cross-Account Capacity Query
     ```python
     capacity = get_drs_account_capacity(
@@ -1664,15 +1674,15 @@ def get_drs_account_capacity(
         account_id="123456789012"
     )
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X GET https://api.example.com/drs/capacity/us-east-1 \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -1683,36 +1693,36 @@ def get_drs_account_capacity(
         })
     )
     ```
-    
+
     ## Behavior
-    
+
     ### Capacity Calculation
     1. Queries all DRS source servers in region
     2. Counts total servers and replicating servers
     3. Compares against 300-server hard limit
     4. Determines capacity status
     5. Returns metrics with status message
-    
+
     ### Status Determination
     - CRITICAL: >= 300 replicating servers (at hard limit)
     - WARNING: >= 270 replicating servers (90% of limit)
     - INFO: >= 240 replicating servers (80% of limit)
     - OK: < 240 replicating servers
     - NOT_INITIALIZED: DRS not initialized in region
-    
+
     ### Cross-Account Support
     If account_id provided and differs from current account:
     - Assumes cross-account role
     - Queries DRS in target account
     - Returns capacity for target account
-    
+
     ## Args
-    
+
     region: AWS region to check capacity
     account_id: Optional account ID for cross-account queries
-    
+
     ## Returns
-    
+
     Dict with regional capacity (200 OK):
         - totalSourceServers: Total DRS servers in region
         - replicatingServers: Servers actively replicating
@@ -1721,9 +1731,9 @@ def get_drs_account_capacity(
         - availableReplicatingSlots: Remaining capacity
         - status: Capacity status
         - message: Human-readable status message
-    
+
     ## Example Response
-    
+
     ```json
     {
       "totalSourceServers": 125,
@@ -1735,9 +1745,9 @@ def get_drs_account_capacity(
       "message": "Capacity OK: 120/300 replicating servers in us-east-1"
     }
     ```
-    
+
     ## Error Handling
-    
+
     ### DRS Not Initialized (200 OK)
     ```json
     {
@@ -1750,7 +1760,7 @@ def get_drs_account_capacity(
       "message": "DRS not initialized in us-east-1. Initialize DRS in the AWS Console to use this region."
     }
     ```
-    
+
     ### Access Denied (403 Forbidden)
     ```json
     {
@@ -1760,23 +1770,23 @@ def get_drs_account_capacity(
       "message": "Access denied to DRS in us-east-1. Check IAM permissions."
     }
     ```
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small region (< 50 servers): 1-2 seconds
     - Medium region (50-200 servers): 2-5 seconds
     - Large region (200+ servers): 5-10 seconds
-    
+
     ### API Calls
     - DRS DescribeSourceServers: 1 call (paginated)
-    
+
     ## Related Functions
-    
+
     - `get_drs_account_capacity_all_regions()`: Account-wide capacity
     - `get_drs_regional_capacity()`: Regional capacity without wrapper
     - `validate_concurrent_jobs()`: Concurrent jobs validation
-    
+
     Get current DRS account capacity metrics for a specific region.
     Returns capacity info including replicating server count vs 300 hard limit.
     """
@@ -1800,20 +1810,24 @@ def get_drs_account_capacity(
         # Determine capacity status
         if replicating_servers >= DRS_LIMITS["MAX_REPLICATING_SERVERS"]:
             status = "CRITICAL"
-            message = f"Account at hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Account at hard limit: {replicating_servers}/{
+                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
         elif (
             replicating_servers >= DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
         ):
             status = "WARNING"
-            message = f"Approaching hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Approaching hard limit: {replicating_servers}/{
+                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
         elif (
             replicating_servers >= DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
         ):
             status = "INFO"
-            message = f"Monitor capacity: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Monitor capacity: {replicating_servers}/{
+                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
         else:
             status = "OK"
-            message = f"Capacity OK: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Capacity OK: {replicating_servers}/{
+                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
 
         return response(
             200,
@@ -1840,13 +1854,9 @@ def get_drs_account_capacity(
                 {
                     "totalSourceServers": 0,
                     "replicatingServers": 0,
-                    "maxReplicatingServers": DRS_LIMITS[
-                        "MAX_REPLICATING_SERVERS"
-                    ],
+                    "maxReplicatingServers": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
                     "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],
-                    "availableReplicatingSlots": DRS_LIMITS[
-                        "MAX_REPLICATING_SERVERS"
-                    ],
+                    "availableReplicatingSlots": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
                     "status": "NOT_INITIALIZED",
                     "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",
                 },
@@ -1869,13 +1879,9 @@ def get_drs_account_capacity(
                 {
                     "totalSourceServers": 0,
                     "replicatingServers": 0,
-                    "maxReplicatingServers": DRS_LIMITS[
-                        "MAX_REPLICATING_SERVERS"
-                    ],
+                    "maxReplicatingServers": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
                     "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],
-                    "availableReplicatingSlots": DRS_LIMITS[
-                        "MAX_REPLICATING_SERVERS"
-                    ],
+                    "availableReplicatingSlots": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
                     "status": "NOT_INITIALIZED",
                     "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",
                 },
@@ -2047,18 +2053,16 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
                 vcpus = it["VCpuInfo"]["DefaultVCpus"]
                 mem_gb = round(it["MemoryInfo"]["SizeInMiB"] / 1024)
 
-                # Skip bare metal instances as they're typically not used for DRS recovery
+                # Skip bare metal instances as they're typically not used for
+                # DRS recovery
                 if ".metal" in instance_type:
                     continue
 
-                types.append(
-                    {
-                        "value": instance_type,
-                        "label": f"{instance_type} ({vcpus} vCPU, {mem_gb} GB)",
-                        "vcpus": vcpus,
-                        "memoryGb": mem_gb,
-                    }
-                )
+                types.append({"value": instance_type,
+                              "label": f"{instance_type} ({vcpus} vCPU, {mem_gb} GB)",
+                              "vcpus": vcpus,
+                              "memoryGb": mem_gb,
+                              })
 
         # Sort by family then by vcpus for better organization
         types.sort(key=lambda x: (x["value"].split(".")[0], x["vcpus"]))
@@ -2215,11 +2219,11 @@ def export_configuration(query_params: Dict) -> Dict:
                         # Remove ID - use name only for portability
                         exported_wave.pop("protectionGroupId", None)
                     else:
-                        # Keep ID if name can't be resolved (orphaned reference)
+                        # Keep ID if name can't be resolved (orphaned
+                        # reference)
                         orphaned_pg_ids.append(pg_id)
                         print(
-                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export"
-                        )
+                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export")
                 exported_waves.append(exported_wave)
 
             exported_rp = {
@@ -2231,8 +2235,8 @@ def export_configuration(query_params: Dict) -> Dict:
 
         if orphaned_pg_ids:
             print(
-                f"Export contains {len(orphaned_pg_ids)} orphaned PG references"
-            )
+                f"Export contains {
+                    len(orphaned_pg_ids)} orphaned PG references")
 
         # Build export payload with schema v1.1 metadata
         export_data = {
@@ -2699,14 +2703,12 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
                     },
                 )
             elif error_code == "InvalidClientTokenId":
-                return response(
-                    200,
-                    {
-                        "valid": False,
-                        "roleAccessible": False,
-                        "error": "Invalid credentials. Verify role ARN is correct.",
-                    },
-                )
+                return response(200,
+                                {"valid": False,
+                                 "roleAccessible": False,
+                                 "error": "Invalid credentials. Verify role ARN is correct.",
+                                 },
+                                )
             else:
                 return response(
                     200,
@@ -2743,7 +2745,8 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
             # Calculate projected combined capacity
             # Note: This is a simplified calculation. In production, you'd query
             # the target account's current capacity and add this staging account's capacity.
-            # For validation purposes, we just return the staging account's current count.
+            # For validation purposes, we just return the staging account's
+            # current count.
             total_after = replicating_servers  # Simplified - would add target account count
 
             return response(
@@ -2857,8 +2860,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
 
         role_arn = construct_role_arn(account_id)
         print(
-            f"Constructed standardized role ARN for account {account_id}: {role_arn}"
-        )
+            f"Constructed standardized role ARN for account {account_id}: {role_arn}")
     elif role_arn:
         print(f"Using provided role ARN for account {account_id}: {role_arn}")
 
@@ -2887,8 +2889,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
                 error_message = e.response["Error"]["Message"]
 
                 print(
-                    f"Failed to assume role in account {account_id}: {error_code} - {error_message}"
-                )
+                    f"Failed to assume role in account {account_id}: {error_code} - {error_message}")
 
                 return {
                     "accountId": account_id,
@@ -2941,8 +2942,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
                     or "not initialized" in error_message.lower()
                 ):
                     print(
-                        f"DRS not initialized in {region} for account {account_id} - treating as zero servers"
-                    )
+                        f"DRS not initialized in {region} for account {account_id} - treating as zero servers")
                     return {
                         "region": region,
                         "totalServers": 0,
@@ -2951,8 +2951,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
                     }
                 else:
                     print(
-                        f"Error querying {region} for account {account_id}: {error_code} - {error_message}"
-                    )
+                        f"Error querying {region} for account {account_id}: {error_code} - {error_message}")
                     return {
                         "region": region,
                         "totalServers": 0,
@@ -2962,8 +2961,7 @@ def query_account_capacity(account_config: Dict) -> Dict:
 
             except Exception as e:
                 print(
-                    f"Unexpected error querying {region} for account {account_id}: {e}"
-                )
+                    f"Unexpected error querying {region} for account {account_id}: {e}")
                 return {
                     "region": region,
                     "totalServers": 0,
@@ -3062,8 +3060,9 @@ def query_all_accounts_parallel(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     print(
-        f"Querying capacity for {len(staging_accounts) + 1} accounts in parallel"
-    )
+        f"Querying capacity for {
+            len(staging_accounts) +
+            1} accounts in parallel")
 
     # Prepare account configurations
     all_accounts = []
@@ -3465,8 +3464,7 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
             )
 
         print(
-            f"Discovering staging accounts for target account {target_account_id}"
-        )
+            f"Discovering staging accounts for target account {target_account_id}")
 
         # Step 2: Get target account configuration for credentials
         if not target_accounts_table:
@@ -3507,14 +3505,16 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
                 for page in paginator.paginate():
                     for server in page.get("items", []):
                         # Extract account ID from ARN
-                        # ARN format: arn:aws:drs:region:account:source-server/id
+                        # ARN format:
+                        # arn:aws:drs:region:account:source-server/id
                         server_arn = server.get("arn", "")
                         if server_arn:
                             arn_parts = server_arn.split(":")
                             if len(arn_parts) >= 5:
                                 server_account_id = arn_parts[4]
 
-                                # If account ID differs from target, it's a staging account
+                                # If account ID differs from target, it's a
+                                # staging account
                                 if server_account_id != target_account_id:
                                     if (
                                         server_account_id
@@ -3576,10 +3576,10 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
 def handle_sync_staging_accounts() -> Dict:
     """
     Scheduled sync of staging accounts for all target accounts.
-    
+
     Called by EventBridge every 15 minutes to automatically discover and update
     staging accounts from DRS extended source servers.
-    
+
     Workflow:
     1. Get all target accounts from DynamoDB
     2. For each target account:
@@ -3587,7 +3587,7 @@ def handle_sync_staging_accounts() -> Dict:
        - Compare with current staging accounts
        - Update if changes detected
     3. Return sync summary
-    
+
     Returns:
         Dict with sync results:
         {
@@ -3601,11 +3601,13 @@ def handle_sync_staging_accounts() -> Dict:
         }
     """
     from datetime import datetime, timezone
-    from shared.staging_account_discovery import discover_staging_accounts_from_drs
+    from shared.staging_account_discovery import (
+        discover_staging_accounts_from_drs,
+    )
     from shared.staging_account_models import update_staging_accounts
-    
+
     print("Starting staging account sync...")
-    
+
     sync_results = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "totalAccounts": 0,
@@ -3613,127 +3615,139 @@ def handle_sync_staging_accounts() -> Dict:
         "accountsUpdated": 0,
         "accountsSkipped": 0,
         "accountsFailed": 0,
-        "details": []
+        "details": [],
     }
-    
+
     try:
         # Get all target accounts
         target_accounts_response = target_accounts_table.scan()
         target_accounts = target_accounts_response.get("Items", [])
-        
+
         # Handle pagination
         while "LastEvaluatedKey" in target_accounts_response:
             target_accounts_response = target_accounts_table.scan(
                 ExclusiveStartKey=target_accounts_response["LastEvaluatedKey"]
             )
             target_accounts.extend(target_accounts_response.get("Items", []))
-        
+
         sync_results["totalAccounts"] = len(target_accounts)
         print(f"Found {len(target_accounts)} target accounts to sync")
-        
+
         for account in target_accounts:
             account_id = account.get("accountId")
             account_name = account.get("accountName", "Unknown")
             is_current = account.get("isCurrentAccount", False)
-            
+
             print(f"\nProcessing account {account_id} ({account_name})...")
-            
+
             try:
                 # Skip current account (no staging accounts)
                 if is_current:
                     print(f"Skipping current account {account_id}")
                     sync_results["accountsSkipped"] += 1
-                    sync_results["details"].append({
-                        "accountId": account_id,
-                        "accountName": account_name,
-                        "status": "skipped",
-                        "reason": "Current account - no staging accounts"
-                    })
+                    sync_results["details"].append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "status": "skipped",
+                            "reason": "Current account - no staging accounts",
+                        }
+                    )
                     continue
-                
+
                 # Get role ARN and external ID
                 role_arn = account.get("roleArn")
                 external_id = account.get("externalId")
-                
+
                 if not role_arn:
                     print(f"No role ARN for account {account_id}, skipping")
                     sync_results["accountsSkipped"] += 1
-                    sync_results["details"].append({
-                        "accountId": account_id,
-                        "accountName": account_name,
-                        "status": "skipped",
-                        "reason": "No role ARN configured"
-                    })
+                    sync_results["details"].append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "status": "skipped",
+                            "reason": "No role ARN configured",
+                        }
+                    )
                     continue
-                
+
                 # Discover staging accounts from DRS
                 discovered = discover_staging_accounts_from_drs(
                     target_account_id=account_id,
                     role_arn=role_arn,
-                    external_id=external_id
+                    external_id=external_id,
                 )
-                
+
                 # Get current staging accounts from DynamoDB
                 current_staging = account.get("stagingAccounts", [])
                 current_ids = {sa.get("accountId") for sa in current_staging}
                 discovered_ids = {sa.get("accountId") for sa in discovered}
-                
+
                 # Check if update needed
                 if current_ids == discovered_ids:
                     print(f"No changes for account {account_id}")
                     sync_results["accountsSkipped"] += 1
-                    sync_results["details"].append({
-                        "accountId": account_id,
-                        "accountName": account_name,
-                        "status": "unchanged",
-                        "stagingAccountCount": len(current_ids)
-                    })
+                    sync_results["details"].append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "status": "unchanged",
+                            "stagingAccountCount": len(current_ids),
+                        }
+                    )
                 else:
                     # Update staging accounts
                     added = discovered_ids - current_ids
                     removed = current_ids - discovered_ids
-                    
-                    print(f"Updating account {account_id}: +{len(added)} -{len(removed)}")
-                    
+
+                    print(
+                        f"Updating account {account_id}: +{len(added)} -{len(removed)}"
+                    )
+
                     update_staging_accounts(account_id, discovered)
-                    
+
                     sync_results["accountsUpdated"] += 1
-                    sync_results["details"].append({
-                        "accountId": account_id,
-                        "accountName": account_name,
-                        "status": "updated",
-                        "added": list(added),
-                        "removed": list(removed),
-                        "totalStaging": len(discovered_ids)
-                    })
-                
+                    sync_results["details"].append(
+                        {
+                            "accountId": account_id,
+                            "accountName": account_name,
+                            "status": "updated",
+                            "added": list(added),
+                            "removed": list(removed),
+                            "totalStaging": len(discovered_ids),
+                        }
+                    )
+
                 sync_results["accountsProcessed"] += 1
-                
+
             except Exception as e:
                 print(f"Error processing account {account_id}: {e}")
                 sync_results["accountsFailed"] += 1
-                sync_results["details"].append({
-                    "accountId": account_id,
-                    "accountName": account_name,
-                    "status": "failed",
-                    "error": str(e)
-                })
-        
-        print(f"\nSync complete: {sync_results['accountsUpdated']} updated, "
-              f"{sync_results['accountsSkipped']} skipped, "
-              f"{sync_results['accountsFailed']} failed")
-        
+                sync_results["details"].append(
+                    {
+                        "accountId": account_id,
+                        "accountName": account_name,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
+
+        print(
+            f"\nSync complete: {sync_results['accountsUpdated']} updated, "
+            f"{sync_results['accountsSkipped']} skipped, "
+            f"{sync_results['accountsFailed']} failed"
+        )
+
         return response(200, sync_results)
-        
+
     except Exception as e:
         print(f"Fatal error in staging account sync: {e}")
         import traceback
+
         traceback.print_exc()
-        
-        return response(500, {
-            "error": str(e),
-            "syncResults": sync_results
-        })
+
+        return response(500, {"error": str(e), "syncResults": sync_results})
 
 
 def handle_get_combined_capacity(query_params: Dict) -> Dict:
@@ -3803,15 +3817,11 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         # Validate account ID format (12 digits)
         if not target_account_id.isdigit() or len(target_account_id) != 12:
             return response(
-                400,
-                {
-                    "error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."
-                },
-            )
+                400, {
+                    "error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."}, )
 
         print(
-            f"Querying combined capacity for target account {target_account_id}"
-        )
+            f"Querying combined capacity for target account {target_account_id}")
 
         # Step 2: Retrieve target account configuration from DynamoDB
         if not target_accounts_table:
@@ -3826,13 +3836,11 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             )
 
             if "Item" not in account_result:
-                return response(
-                    404,
-                    {
-                        "error": "TARGET_ACCOUNT_NOT_FOUND",
-                        "message": f"Target account {target_account_id} not found",
-                    },
-                )
+                return response(404,
+                                {"error": "TARGET_ACCOUNT_NOT_FOUND",
+                                 "message": f"Target account {target_account_id} not found",
+                                 },
+                                )
 
             target_account = account_result["Item"]
             print(f"Found target account: {target_account.get('accountName')}")
@@ -3851,12 +3859,13 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             )
 
         # Step 3: Extract staging accounts list (default to empty list if not present)
-        # Requirement 8.5: When stagingAccounts attribute does not exist, treat as empty list
+        # Requirement 8.5: When stagingAccounts attribute does not exist, treat
+        # as empty list
         staging_accounts = target_account.get("stagingAccounts", [])
 
         print(
-            f"Found {len(staging_accounts)} staging accounts for target {target_account_id}"
-        )
+            f"Found {
+                len(staging_accounts)} staging accounts for target {target_account_id}")
 
         # Step 4: Query all accounts in parallel (target + staging)
         account_results = query_all_accounts_parallel(
@@ -3943,20 +3952,16 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
             if worst_status == "INFO":
                 account_warnings.append(
-                    f"Monitor capacity in {worst_region} - at {worst_region_count} servers (67-75%)"
-                )
+                    f"Monitor capacity in {worst_region} - at {worst_region_count} servers (67-75%)")
             elif worst_status == "WARNING":
                 account_warnings.append(
-                    f"Plan capacity in {worst_region} - at {worst_region_count} servers (75-83%)"
-                )
+                    f"Plan capacity in {worst_region} - at {worst_region_count} servers (75-83%)")
             elif worst_status == "CRITICAL":
                 account_warnings.append(
-                    f"Add capacity immediately in {worst_region} - at {worst_region_count} servers (83-93%)"
-                )
+                    f"Add capacity immediately in {worst_region} - at {worst_region_count} servers (83-93%)")
             elif worst_status == "HYPER-CRITICAL":
                 account_warnings.append(
-                    f"Immediate action required in {worst_region} - at {worst_region_count} servers (93-100%)"
-                )
+                    f"Immediate action required in {worst_region} - at {worst_region_count} servers (93-100%)")
 
             account["warnings"] = account_warnings
 

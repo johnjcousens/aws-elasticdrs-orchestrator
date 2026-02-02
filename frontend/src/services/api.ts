@@ -1050,6 +1050,34 @@ class ApiClient {
     return this.get(`/accounts/targets/${targetAccountId}/staging-accounts/discover`);
   }
 
+  /**
+   * Trigger immediate staging account sync for a specific target account
+   * 
+   * Calls the backend to discover staging accounts from DRS and update DynamoDB.
+   * This is the same operation that runs automatically every 5 minutes, but
+   * triggered on-demand by the user clicking the refresh button.
+   * 
+   * @param targetAccountId - Target account ID to sync staging accounts for
+   * @returns Sync result with updated staging accounts
+   */
+  public async syncStagingAccountsForAccount(targetAccountId: string): Promise<{
+    success: boolean;
+    message: string;
+    targetAccountId: string;
+    stagingAccounts: Array<{
+      accountId: string;
+      accountName: string;
+      roleArn: string;
+      externalId: string;
+    }>;
+    changes?: {
+      added: string[];
+      removed: string[];
+    };
+  }> {
+    return this.post(`/accounts/targets/${targetAccountId}/staging-accounts/sync`, {});
+  }
+
   // ============================================================================
   // Per-Server Launch Configuration API
   // ============================================================================
