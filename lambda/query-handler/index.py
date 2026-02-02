@@ -403,7 +403,7 @@ def lambda_handler(event, context):
         else:
             return {
                 "error": "Invalid invocation format",
-                "message": "Event must contain either 'requestContext' (API Gateway) or 'operation' (direct invocation)",
+                "message": "Event must contain either 'requestContext' (API Gateway) or 'operation' (direct invocation)",  # noqa: E501
             }
     except Exception as e:
         print(f"Error in lambda_handler: {e}")
@@ -822,7 +822,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                 400,
                 {
                     "error": "DRS_NOT_INITIALIZED",
-                    "message": f"AWS Elastic Disaster Recovery (DRS) is not initialized in {region}. Go to the DRS Console in {region} and complete the initialization wizard before creating Protection Groups.",
+                    "message": f"AWS Elastic Disaster Recovery (DRS) is not initialized in {region}. Go to the DRS Console in {region} and complete the initialization wizard before creating Protection Groups.",  # noqa: E501
                     "region": region,
                     "initialized": False,
                 },
@@ -840,7 +840,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     400,
                     {
                         "error": "DRS_NOT_INITIALIZED",
-                        "message": f"AWS Elastic Disaster Recovery (DRS) is not initialized in {region}. Go to the DRS Console in {region} and complete the initialization wizard before creating Protection Groups.",
+                        "message": f"AWS Elastic Disaster Recovery (DRS) is not initialized in {region}. Go to the DRS Console in {region} and complete the initialization wizard before creating Protection Groups.",  # noqa: E501
                         "region": region,
                         "initialized": False,
                     },
@@ -853,7 +853,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     400,
                     {
                         "error": "REGION_NOT_ENABLED",
-                        "message": f"Region {region} is not enabled in your AWS account. This is an opt-in region that requires explicit enablement. Go to AWS Account Settings to enable this region, then initialize DRS.",
+                        "message": f"Region {region} is not enabled in your AWS account. This is an opt-in region that requires explicit enablement. Go to AWS Account Settings to enable this region, then initialize DRS.",  # noqa: E501
                         "region": region,
                         "initialized": False,
                     },
@@ -885,7 +885,7 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     pg_account = pg.get("accountId")
 
                     print(
-                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}"
+                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}"  # noqa: E501
                     )
 
                     # Skip if this is the current PG being edited
@@ -902,15 +902,14 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     # is enabled)
                     if account_id and pg_account != account_id:
                         print(
-                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})"
+                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})"  # noqa: E501
                         )
                         continue
 
                     # Check manual server selection (sourceServerIds)
                     server_ids = pg.get("sourceServerIds", [])
                     print(
-                        f"DEBUG: PG '{pg_name}' has {
-                            len(server_ids)} manual serverIds"
+                        f"DEBUG: PG '{pg_name}' has {len(server_ids)} manual serverIds"  # noqa: E501
                     )
                     for server_id in server_ids:
                         server_assignments[server_id] = {
@@ -1729,20 +1728,16 @@ def get_drs_account_capacity(region: str, account_id: Optional[str] = None) -> D
         # Determine capacity status
         if replicating_servers >= DRS_LIMITS["MAX_REPLICATING_SERVERS"]:
             status = "CRITICAL"
-            message = f"Account at hard limit: {replicating_servers}/{
-                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Account at hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"  # noqa: E501
         elif replicating_servers >= DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]:
             status = "WARNING"
-            message = f"Approaching hard limit: {replicating_servers}/{
-                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Approaching hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"  # noqa: E501
         elif replicating_servers >= DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]:
             status = "INFO"
-            message = f"Monitor capacity: {replicating_servers}/{
-                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Monitor capacity: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"  # noqa: E501
         else:
             status = "OK"
-            message = f"Capacity OK: {replicating_servers}/{
-                DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"
+            message = f"Capacity OK: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers in {region}"  # noqa: E501
 
         return response(
             200,
@@ -1772,7 +1767,7 @@ def get_drs_account_capacity(region: str, account_id: Optional[str] = None) -> D
                     "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],
                     "availableReplicatingSlots": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
                     "status": "NOT_INITIALIZED",
-                    "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",
+                    "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",  # noqa: E501
                 },
             )
         raise
@@ -1797,7 +1792,7 @@ def get_drs_account_capacity(region: str, account_id: Optional[str] = None) -> D
                     "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],
                     "availableReplicatingSlots": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
                     "status": "NOT_INITIALIZED",
-                    "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",
+                    "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",  # noqa: E501
                 },
             )
         elif "AccessDeniedException" in error_str or "not authorized" in error_str.lower():
@@ -1807,7 +1802,7 @@ def get_drs_account_capacity(region: str, account_id: Optional[str] = None) -> D
                     "totalSourceServers": None,
                     "replicatingServers": None,
                     "status": "ACCESS_DENIED",
-                    "message": f"Access denied to DRS in {region}. Check IAM permissions.",
+                    "message": f"Access denied to DRS in {region}. Check IAM permissions.",  # noqa: E501
                 },
             )
 
@@ -2576,7 +2571,7 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
                     {
                         "valid": False,
                         "roleAccessible": False,
-                        "error": "Unable to assume role: Access Denied. Verify role trust policy includes this account and external ID is correct.",
+                        "error": "Unable to assume role: Access Denied. Verify role trust policy includes this account and external ID is correct.",  # noqa: E501
                     },
                 )
             elif error_code == "InvalidClientTokenId":
@@ -2656,7 +2651,7 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
                         "valid": False,
                         "roleAccessible": True,
                         "drsInitialized": False,
-                        "error": f"DRS is not initialized in region {region}. Initialize DRS in the staging account before adding it.",
+                        "error": f"DRS is not initialized in region {region}. Initialize DRS in the staging account before adding it.",  # noqa: E501
                     },
                 )
             else:

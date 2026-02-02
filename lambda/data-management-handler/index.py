@@ -386,7 +386,7 @@ def lambda_handler(event, context):
                 400,
                 {
                     "error": "INVALID_INVOCATION",
-                    "message": "Event must contain either 'requestContext' (API Gateway) or 'operation' (direct invocation)",
+                    "message": "Event must contain either 'requestContext' (API Gateway) or 'operation' (direct invocation)",  # noqa: E501
                 },
             )
 
@@ -1081,7 +1081,7 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
 
                     # Check 100 servers per job limit
                     if server_count > 100:
-                        return f"QUOTA_EXCEEDED: Wave '{wave_name}' contains {server_count} servers (max 100 per job). DRS Service Quota: Max 100 servers per job (not adjustable). Split this wave into multiple waves or reduce Protection Group size."
+                        return f"QUOTA_EXCEEDED: Wave '{wave_name}' contains {server_count} servers (max 100 per job). DRS Service Quota: Max 100 servers per job (not adjustable). Split this wave into multiple waves or reduce Protection Group size."  # noqa: E501
 
                 except Exception as e:
                     print(f"Warning: Could not validate server count for wave '{wave_name}': {e}")
@@ -1382,7 +1382,7 @@ def create_protection_group(body: Dict) -> Dict:
                         "matchingServers": [s.get("sourceServerID") for s in resolved],
                         "limit": "DRS Service Quota: Max 100 servers per job (not adjustable)",
                         "documentation": "https://docs.aws.amazon.com/general/latest/gr/drs.html",
-                        "recommendation": "Refine your tag selection to match fewer servers or split into multiple Protection Groups",
+                        "recommendation": "Refine your tag selection to match fewer servers or split into multiple Protection Groups",  # noqa: E501
                     },
                 )
 
@@ -3292,7 +3292,7 @@ def create_recovery_plan(body: Dict) -> Dict:
                         "waveBreakdown": wave_server_counts,
                         "limit": "DRS Service Quota: Max 500 servers across all concurrent jobs (not adjustable)",
                         "documentation": "https://docs.aws.amazon.com/general/latest/gr/drs.html",
-                        "recommendation": "Split this Recovery Plan into multiple plans or reduce the number of servers per wave",
+                        "recommendation": "Split this Recovery Plan into multiple plans or reduce the number of servers per wave",  # noqa: E501
                     },
                 )
 
@@ -4033,7 +4033,7 @@ def handle_drs_tag_sync(body: Dict = None) -> Dict:
                 400,
                 {
                     "error": "INVALID_ACCOUNT",
-                    "message": f"Cannot sync tags for account {target_account_id}. Only current account {current_account_id} is supported.",
+                    "message": f"Cannot sync tags for account {target_account_id}. Only current account {current_account_id} is supported.",  # noqa: E501
                 },
             )
 
@@ -4594,7 +4594,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
     ### Rule Not Found (400 Bad Request)
     ```json
     {
-      "error": "Tag sync rule not found. Please redeploy the CloudFormation stack with EnableTagSync=true to create the rule.",
+      "error": "Tag sync rule not found. Please redeploy the CloudFormation stack with EnableTagSync=true to create the rule.",  # noqa: E501
       "code": "RULE_NOT_FOUND"
     }
     ```
@@ -4699,7 +4699,7 @@ def update_tag_sync_settings(body: Dict) -> Dict:
             return response(
                 400,
                 {
-                    "error": "Tag sync rule not found. Please redeploy the CloudFormation stack with EnableTagSync=true to create the rule.",
+                    "error": "Tag sync rule not found. Please redeploy the CloudFormation stack with EnableTagSync=true to create the rule.",  # noqa: E501
                     "code": "RULE_NOT_FOUND",
                 },
             )
@@ -5127,7 +5127,7 @@ def create_target_account(body: Dict) -> Dict:
                     400,
                     {
                         "error": "SAME_ACCOUNT_NO_ROLE_NEEDED",
-                        "message": "Cross-account role is not needed when adding the same account where this solution is deployed. Please leave the role field empty.",
+                        "message": "Cross-account role is not needed when adding the same account where this solution is deployed. Please leave the role field empty.",  # noqa: E501
                     },
                 )
             print(
@@ -5148,7 +5148,7 @@ def create_target_account(body: Dict) -> Dict:
                         400,
                         {
                             "error": "INVALID_ROLE_ARN",
-                            "message": "Cross-account role ARN must be a valid IAM role ARN (arn:aws:iam::account:role/role-name)",
+                            "message": "Cross-account role ARN must be a valid IAM role ARN (arn:aws:iam::account:role/role-name)",  # noqa: E501
                         },
                     )
                 print(f"Using provided role ARN for {account_id}: {role_arn}")

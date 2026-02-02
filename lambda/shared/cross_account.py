@@ -19,7 +19,7 @@ from shared.cross_account import determine_target_account_context, create_drs_cl
 
 # Determine which account contains the DRS servers
 account_context = determine_target_account_context(recovery_plan)
-# Returns: {"accountId": "123456789012", "assumeRoleName": "DRSOrchestrationCrossAccountRole", "isCurrentAccount": False}
+# Returns: {"accountId": "123456789012", "assumeRoleName": "DRSOrchestrationCrossAccountRole", "isCurrentAccount": False}  # noqa: E501
 
 # Create DRS client for target account
 drs_client = create_drs_client(region="us-east-1", account_context=account_context)

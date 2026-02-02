@@ -1024,10 +1024,10 @@ def can_terminate_instances(user: Dict) -> bool:
 def get_role_description(role: DRSRole) -> str:
     """Get human-readable description for a DRS orchestration role"""
     descriptions = {
-        DRSRole.DRS_ORCHESTRATION_ADMIN: "Full administrative access to all DRS orchestration functions including account management",
-        DRSRole.DRS_RECOVERY_MANAGER: "Can execute and manage all recovery operations, register accounts, and manage infrastructure",
-        DRSRole.DRS_PLAN_MANAGER: "Can create, modify, and delete recovery plans and protection groups, execute recovery operations",
-        DRSRole.DRS_OPERATOR: "Can execute recovery operations and modify existing plans but cannot create/delete or terminate instances",
-        DRSRole.DRS_READ_ONLY: "View-only access to all DRS configuration, executions, and status for monitoring and compliance",
+        DRSRole.DRS_ORCHESTRATION_ADMIN: "Full administrative access to all DRS orchestration functions including account management",  # noqa: E501
+        DRSRole.DRS_RECOVERY_MANAGER: "Can execute and manage all recovery operations, register accounts, and manage infrastructure",  # noqa: E501
+        DRSRole.DRS_PLAN_MANAGER: "Can create, modify, and delete recovery plans and protection groups, execute recovery operations",  # noqa: E501
+        DRSRole.DRS_OPERATOR: "Can execute recovery operations and modify existing plans but cannot create/delete or terminate instances",  # noqa: E501
+        DRSRole.DRS_READ_ONLY: "View-only access to all DRS configuration, executions, and status for monitoring and compliance",  # noqa: E501
     }
     return descriptions.get(role, "Unknown role")

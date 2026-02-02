@@ -770,7 +770,7 @@ def check_server_conflicts(plan: Dict, account_context: Optional[Dict] = None) -
                             "region": region,
                             "currentJobs": concurrent_jobs_check["currentJobs"],
                             "maxJobs": concurrent_jobs_check["maxJobs"],
-                            "message": f"Cannot start new job - {concurrent_jobs_check['currentJobs']}/20 concurrent jobs active",
+                            "message": f"Cannot start new job - {concurrent_jobs_check['currentJobs']}/20 concurrent jobs active",  # noqa: E501
                             "conflictSource": "quota_violation",
                         }
                     )
@@ -1027,9 +1027,9 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
         if all_conflicting:
             # Build reason message
             if conflicting_servers and drs_conflicting_servers:
-                reason = f"{len(set(conflicting_servers))} server(s) in execution, {len(set(drs_conflicting_servers))} in DRS jobs"
+                reason = f"{len(set(conflicting_servers))} server(s) in execution, {len(set(drs_conflicting_servers))} in DRS jobs"  # noqa: E501
             elif drs_conflicting_servers:
-                reason = f"{len(set(drs_conflicting_servers))} server(s) being processed by DRS job {drs_conflicting_job_id}"
+                reason = f"{len(set(drs_conflicting_servers))} server(s) being processed by DRS job {drs_conflicting_job_id}"  # noqa: E501
             else:
                 reason = f"{len(set(conflicting_servers))} server(s) in use by another execution"
 

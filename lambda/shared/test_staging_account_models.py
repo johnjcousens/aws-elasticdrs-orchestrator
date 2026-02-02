@@ -19,7 +19,7 @@ from botocore.exceptions import ClientError
 # Add lambda/shared to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from staging_account_models import (
+from staging_account_models import (  # noqa: E402
     StagingAccount,
     TargetAccount,
     validate_staging_account_structure,

@@ -454,7 +454,7 @@ def begin_wave_plan(event: Dict) -> Dict:
     if len(waves) > 0:
         start_wave_recovery(state, 0)
         print(
-            f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}"
+            f"DEBUG: After start_wave_recovery - job_id={state.get('job_id')}, region={state.get('region')}, server_ids={state.get('server_ids')}"  # noqa: E501
         )
     else:
         print("No waves to execute")
@@ -462,7 +462,7 @@ def begin_wave_plan(event: Dict) -> Dict:
         state["status"] = "completed"
 
     print(
-        f"DEBUG: Returning state with job_id={state.get('job_id')}, wave_completed={state.get('wave_completed')}, status={state.get('status')}"
+        f"DEBUG: Returning state with job_id={state.get('job_id')}, wave_completed={state.get('wave_completed')}, status={state.get('status')}"  # noqa: E501
     )
     return state
 
@@ -646,7 +646,7 @@ def query_drs_servers_by_tags(  # noqa: C901
                 if not found_match:
                     matches_all = False
                     print(
-                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"
+                        f"Server {server_id} missing tag {tag_key}={tag_value}. Available DRS tags: {list(drs_tags.keys())}"  # noqa: E501
                     )
                     break
 
@@ -820,7 +820,7 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         try:
             get_execution_history_table().update_item(
                 Key={"executionId": execution_id, "planId": state["plan_id"]},
-                UpdateExpression=f"SET waves[{wave_number}] = :wave, drsJobId = :job_id, drsRegion = :region, #status = :status",
+                UpdateExpression=f"SET waves[{wave_number}] = :wave, drsJobId = :job_id, drsRegion = :region, #status = :status",  # noqa: E501
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":wave": wave_result,
@@ -1030,7 +1030,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
         total_servers = len(participating_servers)
         print(
-            f"Progress: {launched_count}/{total_servers} launched, {failed_count} failed, {launching_count} launching, {converting_count} converting"
+            f"Progress: {launched_count}/{total_servers} launched, {failed_count} failed, {launching_count} launching, {converting_count} converting"  # noqa: E501
         )
 
         # Get job events to determine current phase

@@ -237,7 +237,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 400,
                 {
                     "error": "PLAN_HAS_NO_WAVES",
-                    "message": f'Recovery Plan "{plan.get("planName", plan_id)}" has no waves configured - add at least one wave before executing',
+                    "message": f'Recovery Plan "{plan.get("planName", plan_id)}" has no waves configured - add at least one wave before executing',  # noqa: E501
                     "planId": plan_id,
                     "planName": plan.get("planName"),
                 },
@@ -289,7 +289,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             elif execution_conflicts and not drs_job_conflicts:
                 message = f"{len(execution_conflicts)} server(s) are already in active executions"
             else:
-                message = f"{len(server_conflicts)} server(s) are in use (executions: {len(execution_conflicts)}, DRS jobs: {len(drs_job_conflicts)})"
+                message = f"{len(server_conflicts)} server(s) are in use (executions: {len(execution_conflicts)}, DRS jobs: {len(drs_job_conflicts)})"  # noqa: E501
 
             return response(
                 409,
@@ -347,7 +347,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 409,
                 {
                     "error": "PLAN_EXECUTION_CONFLICT",
-                    "message": "Another execution of this Recovery Plan is currently starting. Please wait and try again.",
+                    "message": "Another execution of this Recovery Plan is currently starting. Please wait and try again.",  # noqa: E501
                     "planId": plan_id,
                 },
             )
@@ -376,7 +376,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                 400,
                 {
                     "error": "WAVE_SIZE_LIMIT_EXCEEDED",
-                    "message": f'{len(wave_size_errors)} wave(s) exceed the DRS limit of {DRS_LIMITS["MAX_SERVERS_PER_JOB"]} servers per job',
+                    "message": f'{len(wave_size_errors)} wave(s) exceed the DRS limit of {DRS_LIMITS["MAX_SERVERS_PER_JOB"]} servers per job',  # noqa: E501
                     "errors": wave_size_errors,
                     "limit": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
                 },
@@ -597,7 +597,7 @@ def execute_with_step_functions(
             },
         )
 
-        print(f"✅ Step Functions execution initiated successfully")
+        print("✅ Step Functions execution initiated successfully")
 
     except Exception as e:
         print(f"❌ Error starting Step Functions execution: {e}")
@@ -724,7 +724,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                     source_server_id = ri.get("sourceServerID")
                     ec2_state = ri.get("ec2InstanceState")
                     print(
-                        f"Recovery instance: source={source_server_id}, state={ec2_state}, in_list={source_server_id in all_server_ids}"
+                        f"Recovery instance: source={source_server_id}, state={ec2_state}, in_list={source_server_id in all_server_ids}"  # noqa: E501
                     )
                     if source_server_id in all_server_ids:
                         ec2_instance_id = ri.get("ec2InstanceID")
@@ -1227,7 +1227,7 @@ def start_drs_recovery_for_wave(
         print(f"[DRS API] Built sourceServers array for {len(server_ids)} servers")
 
         # Start recovery for ALL servers in ONE API call WITHOUT TAGS
-        print(f"[DRS API] Calling start_recovery() WITHOUT tags (reference implementation pattern)")
+        print("[DRS API] Calling start_recovery() WITHOUT tags (reference implementation pattern)")
         print(f"[DRS API]   sourceServers: {len(source_servers)} servers")
         print(f"[DRS API]   isDrill: {is_drill}")
 
@@ -1249,7 +1249,7 @@ def start_drs_recovery_for_wave(
         job_status = job.get("status", "UNKNOWN")
         job_type = job.get("type", "UNKNOWN")
 
-        print(f"[DRS API] ✅ Job created successfully")
+        print("[DRS API] ✅ Job created successfully")
         print(f"[DRS API]   Job ID: {job_id}")
         print(f"[DRS API]   Status: {job_status}")
         print(f"[DRS API]   Type: {job_type}")
@@ -1280,7 +1280,7 @@ def start_drs_recovery_for_wave(
         error_msg = str(e)
         error_type = type(e).__name__
 
-        print(f"[DRS API] ❌ Failed to start recovery for wave")
+        print("[DRS API] ❌ Failed to start recovery for wave")
         print(f"[DRS API]   Error Type: {error_type}")
         print(f"[DRS API]   Error Message: {error_msg}")
         print(f"[DRS API]   Region: {region}")
@@ -1562,7 +1562,7 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
             )
 
             if has_completed_waves:
-                print(f"DEBUG: Enriching completed waves with recovery instance data")
+                print("DEBUG: Enriching completed waves with recovery instance data")
                 execution = reconcile_wave_status_with_drs(execution)
         except Exception as enrich_error:
             print(f"Error enriching completed waves: {enrich_error}")
@@ -1732,7 +1732,7 @@ def cancel_execution(execution_id: str, body: Dict) -> Dict:
         )
 
         print(
-            f"Cancel execution {execution_id}: completed={completed_waves}, in_progress={in_progress_waves}, cancelled={cancelled_waves}"
+            f"Cancel execution {execution_id}: completed={completed_waves}, in_progress={in_progress_waves}, cancelled={cancelled_waves}"  # noqa: E501
         )
 
         return response(
@@ -1816,7 +1816,7 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
                 400,
                 {
                     "error": "SINGLE_WAVE_NOT_PAUSABLE",
-                    "message": "Cannot pause single-wave execution - pause is only available for multi-wave recovery plans",
+                    "message": "Cannot pause single-wave execution - pause is only available for multi-wave recovery plans",  # noqa: E501
                     "executionId": execution_id,
                     "waveCount": 1,
                     "reason": "Pause is only available for multi-wave recovery plans",
@@ -1904,40 +1904,40 @@ def pause_execution(execution_id: str, body: Dict) -> Dict:
 def handle_operation(event: Dict, context) -> Dict:
     """
     Route operation-based Lambda invocations to lifecycle handlers.
-    
+
     DIRECT INVOCATION EXAMPLES:
-    
+
     1. Find active executions (EventBridge trigger):
        aws lambda invoke --function-name execution-handler \\
          --payload '{"operation": "find"}' response.json
-    
+
     2. Poll specific execution:
        aws lambda invoke --function-name execution-handler \\
          --payload '{"operation": "poll", "executionId": "uuid", "planId": "uuid"}' \\
          response.json
-    
+
     3. Finalize execution (Step Functions only):
        aws lambda invoke --function-name execution-handler \\
          --payload '{"operation": "finalize", "executionId": "uuid", "planId": "uuid"}' \\
          response.json
-    
+
     4. Pause execution:
        aws lambda invoke --function-name execution-handler \\
          --payload '{"operation": "pause", "executionId": "uuid", "reason": "Manual approval"}' \\
          response.json
-    
+
     5. Resume execution:
        aws lambda invoke --function-name execution-handler \\
          --payload '{"operation": "resume", "executionId": "uuid"}' \\
          response.json
-    
+
     OPERATION BEHAVIORS:
     - find: Queries DynamoDB, self-invokes poll for each active execution
     - poll: Updates wave status, enriches server data, NEVER finalizes
     - finalize: Marks execution COMPLETED (idempotent, requires all waves complete)
     - pause: Changes execution status to PAUSED
     - resume: Changes execution status to POLLING and resumes Step Functions
-    
+
     RETURNS:
         Dict with statusCode and operation-specific response data
     """
@@ -1973,17 +1973,17 @@ def handle_operation(event: Dict, context) -> Dict:
 def handle_find_operation(event: Dict, context) -> Dict:
     """
     Find active executions and trigger polling for each.
-    
+
     TRIGGER: EventBridge rule (30s schedule) OR direct invocation
-    
+
     BEHAVIOR:
     1. Query DynamoDB StatusIndex for POLLING and CANCELLING executions
     2. Self-invoke with operation="poll" for each execution found
     3. Return summary of polling results
-    
+
     WHY SELF-INVOKE: Allows parallel polling of multiple executions
     without blocking EventBridge trigger or exceeding Lambda timeout.
-    
+
     DIRECT INVOCATION:
         aws lambda invoke --function-name execution-handler \\
           --payload '{"operation": "find"}' response.json
@@ -2062,29 +2062,29 @@ def handle_find_operation(event: Dict, context) -> Dict:
 def handle_poll_operation(event: Dict, context) -> Dict:
     """
     Poll DRS job status and enrich server data with EC2 details.
-    
+
     TRIGGER: Self-invoked by handle_find_operation OR direct invocation
-    
+
     CRITICAL BEHAVIOR:
     - Updates wave status in DynamoDB (serverStatuses, lastPolledTime)
     - Enriches server data with DRS + EC2 instance details
     - NEVER changes execution status (Step Functions controls lifecycle)
     - NEVER calls finalize_execution() (prevents premature completion)
-    
+
     WHY NO FINALIZATION: Multi-wave executions have waves created sequentially
     by Step Functions. Poller only sees current wave, not future waves.
     Only Step Functions knows when ALL waves complete.
-    
+
     DATA ENRICHMENT:
     - DRS API: sourceServerId, launchStatus, recoveryInstanceId
     - EC2 API: instanceId, privateIp, hostname, instanceType
     - Normalized to camelCase via shared.drs_utils
-    
+
     DIRECT INVOCATION:
         aws lambda invoke --function-name execution-handler \\
           --payload '{"operation": "poll", "executionId": "uuid", "planId": "uuid"}' \\
           response.json
-    
+
     RETURNS:
         {
             "statusCode": 200,
@@ -2264,7 +2264,7 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str) -> Dict:
             enriched_servers = enrich_server_data(participating_servers, drs_client, ec2_client)
             print(f"DEBUG: Enriched {len(enriched_servers)} servers")
             print(
-                f"DEBUG: First enriched server: {json.dumps(enriched_servers[0] if enriched_servers else {}, cls=DecimalEncoder)}"
+                f"DEBUG: First enriched server: {json.dumps(enriched_servers[0] if enriched_servers else {}, cls=DecimalEncoder)}"  # noqa: E501
             )
             wave["serverStatuses"] = enriched_servers
 
@@ -2280,27 +2280,27 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str) -> Dict:
 def handle_finalize_operation(event: Dict, context) -> Dict:
     """
     Mark execution as COMPLETED after all waves finish.
-    
+
     TRIGGER: Step Functions ONLY (after verifying all waves complete)
-    
+
     CRITICAL BEHAVIOR:
     - Validates all waves have status=COMPLETED
     - Uses conditional write (prevents race conditions)
     - Idempotent (safe to call multiple times)
     - Updates: status=COMPLETED, completedTime=now()
-    
+
     WHY STEP FUNCTIONS ONLY: Step Functions maintains authoritative list
     of all waves (including future waves not yet created in DynamoDB).
     Only Step Functions knows when execution is truly complete.
-    
+
     IDEMPOTENCY: Returns success if already COMPLETED/FAILED/TERMINATED.
     Uses DynamoDB conditional expression to prevent concurrent updates.
-    
+
     DIRECT INVOCATION (testing only):
         aws lambda invoke --function-name execution-handler \\
           --payload '{"operation": "finalize", "executionId": "uuid", "planId": "uuid"}' \\
           response.json
-    
+
     RETURNS:
         {
             "statusCode": 200,
@@ -2414,19 +2414,19 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
 def handle_pause_operation(event: Dict, context) -> Dict:
     """
     Pause execution via operation-based invocation.
-    
+
     TRIGGER: Direct invocation or Step Functions
-    
+
     BEHAVIOR:
     - Changes execution status to PAUSED
     - Records pause reason and timestamp
     - Execution remains paused until resume operation called
-    
+
     DIRECT INVOCATION:
         aws lambda invoke --function-name execution-handler \\
           --payload '{"operation": "pause", "executionId": "uuid", "reason": "Manual approval"}' \\
           response.json
-    
+
     RETURNS:
         {
             "statusCode": 200,
@@ -2464,19 +2464,19 @@ def handle_pause_operation(event: Dict, context) -> Dict:
 def handle_resume_operation(event: Dict, context) -> Dict:
     """
     Resume paused execution via operation-based invocation.
-    
+
     TRIGGER: Direct invocation or Step Functions
-    
+
     BEHAVIOR:
     - Changes execution status from PAUSED to POLLING
     - Resumes Step Functions execution if taskToken provided
     - Execution continues with next wave
-    
+
     DIRECT INVOCATION:
         aws lambda invoke --function-name execution-handler \\
           --payload '{"operation": "resume", "executionId": "uuid"}' \\
           response.json
-    
+
     RETURNS:
         {
             "statusCode": 200,
@@ -2730,7 +2730,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
         # REAL-TIME DATA: Get current status from Step Functions if still running
         if execution.get("status") == "RUNNING" and execution.get("stateMachineArn"):
             try:
-                print(f"Getting real-time Step Functions status for execution")
+                print("Getting real-time Step Functions status for execution")
                 sf_response = stepfunctions.describe_execution(
                     executionArn=execution.get("stateMachineArn")
                 )
@@ -2743,7 +2743,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
                     "TIMED_OUT",
                     "ABORTED",
                 ]:
-                    print(f"Step Functions shows completion, updating DynamoDB")
+                    print("Step Functions shows completion, updating DynamoDB")
                     execution_history_table.update_item(
                         Key={
                             "executionId": execution_id,
@@ -2763,14 +2763,14 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
 
         # REAL-TIME WAVE STATUS: Reconcile wave status with actual DRS job results
         try:
-            print(f"Reconciling wave status with real-time DRS data")
+            print("Reconciling wave status with real-time DRS data")
             execution = reconcile_wave_status_with_drs(execution)
         except Exception as reconcile_error:
             print(f"Error reconciling wave status: {reconcile_error}")
 
         # REAL-TIME SERVER DETAILS: Enrich with current server and recovery instance details
         try:
-            print(f"Enriching with real-time server details")
+            print("Enriching with real-time server details")
             execution = enrich_execution_with_server_details(execution)
         except Exception as e:
             print(f"Error enriching execution with server details: {str(e)}")
@@ -3086,7 +3086,7 @@ def get_recovery_instances(execution_id: str) -> Dict:
 
         print(f"Processing {len(waves)} waves for execution {execution_id}")
         print(
-            f"DEBUG: Waves data structure: {[{k: v for k, v in w.items() if k in ['waveNumber', 'waveName', 'status', 'jobId', 'region']} for w in waves]}"
+            f"DEBUG: Waves data structure: {[{k: v for k, v in w.items() if k in ['waveNumber', 'waveName', 'status', 'jobId', 'region']} for w in waves]}"  # noqa: E501
         )
 
         # First pass: collect source server IDs and try to get from DRS jobs
@@ -3252,42 +3252,42 @@ def get_recovery_instances(execution_id: str) -> Dict:
 def terminate_recovery_instances(execution_id: str) -> Dict:
     """
     Terminate all recovery instances from a DR execution.
-    
+
     Discovers and terminates all EC2 instances launched during a DR execution,
     including cross-account scenarios. Queries DRS jobs and recovery instances
     to find all launched instances, then terminates them to clean up after
     DR testing or failed recovery operations.
-    
+
     ## Use Cases
-    
+
     ### 1. Cleanup After DR Test
     ```bash
     curl -X POST https://api.example.com/executions/{executionId}/terminate \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### 2. Cleanup Failed Recovery
     ```python
     # Terminate instances from failed execution
     result = terminate_recovery_instances("exec-123")
     print(f"Terminated {result['summary']['terminated']} instances")
     ```
-    
+
     ### 3. Cross-Account Cleanup
     ```python
     # Automatically uses same account context as original execution
     result = terminate_recovery_instances("exec-456")
     # Terminates instances in target account
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X POST https://api.example.com/executions/{executionId}/terminate \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -3298,9 +3298,9 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         })
     )
     ```
-    
+
     ## Behavior
-    
+
     ### Instance Discovery Process
     1. Query execution record from DynamoDB
     2. Extract DRS job IDs from all waves
@@ -3308,7 +3308,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
     4. Query DRS DescribeRecoveryInstances for EC2 instance IDs
     5. Fallback: Query by source server IDs if job data incomplete
     6. Collect all unique EC2 instance IDs by region
-    
+
     ### Termination Process
     1. Group instances by region
     2. For each region:
@@ -3316,13 +3316,13 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
        - Terminate EC2 instances
        - Track success/failure per instance
     3. Return summary with terminated/failed counts
-    
+
     ### Cross-Account Support
     - Retrieves Recovery Plan to determine target account
     - Uses same account context as original execution
     - Assumes cross-account role if needed
     - Falls back to current account if plan not found
-    
+
     ### Wave Status Filtering
     Only processes waves with these statuses:
     - COMPLETED: Wave finished successfully
@@ -3331,24 +3331,24 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
     - STARTED: Recovery in progress
     - IN_PROGRESS: Recovery in progress
     - RUNNING: Recovery in progress
-    
+
     Skips waves that never launched (PENDING, FAILED without launch).
-    
+
     ## Args
-    
+
     execution_id: Execution ID to terminate instances for
-    
+
     ## Returns
-    
+
     Dict with termination results:
         - executionId: Execution ID
         - summary: Counts (total, terminated, failed, skipped)
         - instances: List of instance details with termination status
         - regions: List of regions processed
         - errors: List of errors encountered
-    
+
     ## Example Response
-    
+
     ```json
     {
       "executionId": "exec-123",
@@ -3379,9 +3379,9 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
       "errors": []
     }
     ```
-    
+
     ## Error Handling
-    
+
     ### Execution Not Found (404)
     ```json
     {
@@ -3390,7 +3390,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
       "executionId": "exec-123"
     }
     ```
-    
+
     ### No Waves (400)
     ```json
     {
@@ -3398,43 +3398,43 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
       "reason": "This execution has no wave data"
     }
     ```
-    
+
     ### Partial Failures
     - Non-blocking: Instance failures don't stop termination
     - Continues processing remaining instances
     - Returns detailed error for each failed instance
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small execution (< 20 instances): 10-30 seconds
     - Medium execution (20-100 instances): 30-90 seconds
     - Large execution (100+ instances): 90-180 seconds
-    
+
     ### API Calls
     - DynamoDB GetItem: 1 call (execution record)
     - DynamoDB GetItem: 1 call (recovery plan, if exists)
     - DRS DescribeJobs: 1 per wave with job ID
     - DRS DescribeRecoveryInstances: 1 per server
     - EC2 TerminateInstances: 1 per region (batch)
-    
+
     ## Limitations
-    
+
     ### Instance Discovery
     - Requires DRS job data in execution record
     - May miss instances if job data incomplete
     - Fallback to source server ID query helps
-    
+
     ### Termination Scope
     - Only terminates instances from this execution
     - Does not affect source instances
     - Does not remove DRS replication
-    
+
     ## Related Functions
-    
+
     - `get_execution_history()`: Get execution history for cleanup
     - `finalize_execution()`: Mark execution complete after cleanup
-    
+
     Terminate all recovery instances from an execution.
 
     This will:
@@ -3588,7 +3588,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                             instances_by_region[region].append(ec2_instance_id)
                                 except Exception as ri_err:
                                     print(
-                                        f"Could not get EC2 instance for recovery instance {recovery_instance_id}: {ri_err}"
+                                        f"Could not get EC2 instance for recovery instance {recovery_instance_id}: {ri_err}"  # noqa: E501
                                     )
 
                 except Exception as drs_err:
@@ -3597,7 +3597,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         # Alternative approach: Query describe_recovery_instances by source server IDs
         # This works even when job's participatingServers doesn't have recoveryInstanceID
         if not instances_to_terminate and source_server_ids_by_region:
-            print(f"Trying alternative approach: query recovery instances by source server IDs")
+            print("Trying alternative approach: query recovery instances by source server IDs")
 
             for region, source_ids in source_server_ids_by_region.items():
                 print(
@@ -3621,7 +3621,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                         source_server_id = ri.get("sourceServerID", "unknown")
 
                         print(
-                            f"Recovery instance: ec2={ec2_instance_id}, ri={recovery_instance_id}, source={source_server_id}"
+                            f"Recovery instance: ec2={ec2_instance_id}, ri={recovery_instance_id}, source={source_server_id}"  # noqa: E501
                         )
 
                         if ec2_instance_id and ec2_instance_id.startswith("i-"):
@@ -3712,7 +3712,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                 {
                     "executionId": execution_id,
                     "message": "No recovery instances to terminate",
-                    "reason": "This execution has no recovery instances to terminate. Instances may not have been launched yet, may have already been terminated, or the execution was cancelled before launch.",
+                    "reason": "This execution has no recovery instances to terminate. Instances may not have been launched yet, may have already been terminated, or the execution was cancelled before launch.",  # noqa: E501
                     "terminated": [],
                     "failed": [],
                     "jobs": [],
@@ -3753,7 +3753,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                 drs_client = create_drs_client(region, account_context)
 
                 print(
-                    f"Calling DRS TerminateRecoveryInstances for {len(recovery_instance_ids)} instances in {region}: {recovery_instance_ids}"
+                    f"Calling DRS TerminateRecoveryInstances for {len(recovery_instance_ids)} instances in {region}: {recovery_instance_ids}"  # noqa: E501
                 )
 
                 # Call DRS TerminateRecoveryInstances API
@@ -3822,7 +3822,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                 f"Updating execution {execution_id} with PlanId {plan_id} - storing termination jobs"
             )
 
-            update_response = execution_history_table.update_item(
+            update_response = execution_history_table.update_item(  # noqa: F841
                 Key={"executionId": execution_id, "planId": plan_id},
                 UpdateExpression="SET terminateJobs = :jobs, terminationInitiatedAt = :timestamp",
                 ExpressionAttributeValues={
@@ -4039,14 +4039,14 @@ def get_termination_job_status(execution_id: str, job_ids_str: str, region: str)
                     # Only update if not already set
                     if not execution.get("instancesTerminated"):
                         print(
-                            f"All termination jobs completed - setting instancesTerminated=True for execution {execution_id}"
+                            f"All termination jobs completed - setting instancesTerminated=True for execution {execution_id}"  # noqa: E501
                         )
                         execution_history_table.update_item(
                             Key={
                                 "executionId": execution_id,
                                 "planId": plan_id,
                             },
-                            UpdateExpression="SET instancesTerminated = :terminated, instancesTerminatedAt = :timestamp",
+                            UpdateExpression="SET instancesTerminated = :terminated, instancesTerminatedAt = :timestamp",  # noqa: E501
                             ExpressionAttributeValues={
                                 ":terminated": True,
                                 ":timestamp": int(time.time()),
@@ -4180,7 +4180,7 @@ def apply_launch_config_to_servers(
 ) -> Dict:
     """
     Apply launch configuration to all servers' EC2 launch templates and DRS settings.
-    
+
     Updates both DRS launch configuration and EC2 launch template for each server
     when Protection Group is saved. Ensures recovery instances launch with correct
     network, security, and instance settings.
@@ -4188,9 +4188,9 @@ def apply_launch_config_to_servers(
     Supports per-server configuration overrides via protection_group parameter.
     When protection_group is provided, merges group defaults with server-specific
     overrides using get_effective_launch_config().
-    
+
     ## Use Cases
-    
+
     ### 1. Protection Group Configuration
     ```python
     result = apply_launch_config_to_servers(
@@ -4207,7 +4207,7 @@ def apply_launch_config_to_servers(
     )
     # Returns: {"applied": 2, "skipped": 0, "failed": 0, "details": [...]}
     ```
-    
+
     ### 2. Bulk Server Configuration
     ```python
     # Apply same config to all servers in wave
@@ -4217,9 +4217,9 @@ def apply_launch_config_to_servers(
         region="us-east-1"
     )
     ```
-    
+
     ## Integration Points
-    
+
     ### Protection Group Save
     Called automatically when Protection Group is saved via API:
     ```bash
@@ -4232,27 +4232,27 @@ def apply_launch_config_to_servers(
         }
       }'
     ```
-    
+
     ## Behavior
-    
+
     ### Two-Phase Update Process
     1. **DRS Launch Configuration Update** (FIRST):
        - Updates copyPrivateIp, copyTags, licensing
        - Updates targetInstanceTypeRightSizingMethod
        - Updates launchDisposition
        - DRS creates new EC2 launch template version
-    
+
     2. **EC2 Launch Template Update** (SECOND):
        - Updates instance type, subnet, security groups
        - Updates IAM instance profile
        - Adds static private IP if configured
        - Sets version description with tracking info
        - Sets new version as default
-    
+
     ### Update Order Critical
     DRS update MUST happen first because DRS creates new EC2 template versions.
     If EC2 update happens first, DRS will overwrite it.
-    
+
     ### Launch Config Fields
     - subnetId: Target subnet for recovery instances
     - securityGroupIds: Security groups for recovery instances
@@ -4264,33 +4264,33 @@ def apply_launch_config_to_servers(
     - licensing: License configuration (DRS setting)
     - targetInstanceTypeRightSizingMethod: Right-sizing method (DRS setting)
     - launchDisposition: Launch state STARTED/STOPPED (DRS setting)
-    
+
     ### Version Description Tracking
     EC2 template version description includes:
     - Timestamp (UTC)
     - Protection Group name and ID
     - Configuration details (instance type, subnet, security groups, static IP, etc.)
     - Truncated to 255 characters (EC2 limit)
-    
+
     ## Args
-    
+
     server_ids: List of DRS source server IDs
     launch_config: Launch configuration settings (dict)
     region: AWS region
     protection_group: Optional full PG dict with servers array for per-server configs
     protection_group_id: Optional PG ID for version tracking
     protection_group_name: Optional PG name for version tracking
-    
+
     ## Returns
-    
+
     Dict with application results:
         - applied: Count of servers successfully updated
         - skipped: Count of servers skipped (no template)
         - failed: Count of servers that failed
         - details: List of per-server results with status
-    
+
     ## Example Response
-    
+
     ```json
     {
       "applied": 48,
@@ -4310,39 +4310,39 @@ def apply_launch_config_to_servers(
       ]
     }
     ```
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small group (< 10 servers): 5-15 seconds
     - Medium group (10-50 servers): 15-60 seconds
     - Large group (50+ servers): 60-180 seconds
-    
+
     ### API Calls Per Server
     - DRS GetLaunchConfiguration: 1 call
     - DRS UpdateLaunchConfiguration: 1 call (if DRS settings changed)
     - EC2 CreateLaunchTemplateVersion: 1 call (if EC2 settings changed)
     - EC2 ModifyLaunchTemplate: 1 call (set default version)
     - Total: 2-4 calls per server
-    
+
     ## Error Handling
-    
+
     ### Per-Server Errors
     - Non-blocking: Server failures don't stop processing
     - Detailed logging: All errors logged with server context
     - Status tracking: Each server result tracked in details array
-    
+
     ### Skipped Servers
     Servers without EC2 launch template are skipped (not failed):
     - Common for newly added servers
     - Template created during first recovery
     - Logged as "skipped" not "failed"
-    
+
     ## Related Functions
-    
+
     - `get_server_launch_configurations()`: Retrieve current configs
     - `start_drs_recovery_for_wave()`: Launch recovery with configs
-    
+
     Apply launchConfig to all servers' EC2 launch templates and DRS settings.
 
     Called immediately when Protection Group is saved.
@@ -4521,7 +4521,7 @@ def delete_completed_executions() -> Dict:
             "TIMEOUT",
         ]
         # Active states to preserve (never delete)
-        active_states = [
+        active_states = [  # noqa: F841
             "PENDING",
             "POLLING",
             "INITIATED",
@@ -4575,7 +4575,7 @@ def delete_completed_executions() -> Dict:
                                 if job_status in ["PENDING", "STARTED"]:
                                     has_active_job = True
                                     print(
-                                        f"Execution {ex.get('executionId')} has active DRS job {job_id} (status: {job_status})"
+                                        f"Execution {ex.get('executionId')} has active DRS job {job_id} (status: {job_status})"  # noqa: E501
                                     )
                                     break
                         except Exception as e:
@@ -4593,7 +4593,7 @@ def delete_completed_executions() -> Dict:
 
         if skipped_with_active_jobs:
             print(
-                f"Skipping {len(skipped_with_active_jobs)} cancelled executions with active DRS jobs: {skipped_with_active_jobs}"
+                f"Skipping {len(skipped_with_active_jobs)} cancelled executions with active DRS jobs: {skipped_with_active_jobs}"  # noqa: E501
             )
 
         print(f"Found {len(safe_to_delete)} executions safe to delete")
@@ -4646,7 +4646,7 @@ def delete_completed_executions() -> Dict:
                 result["warning"] = f"{len(failed_deletes)} execution(s) failed to delete"
 
         print(
-            f"Bulk delete completed: {deleted_count} deleted, {len(skipped_with_active_jobs)} skipped (active jobs), {len(failed_deletes)} failed"
+            f"Bulk delete completed: {deleted_count} deleted, {len(skipped_with_active_jobs)} skipped (active jobs), {len(failed_deletes)} failed"  # noqa: E501
         )
         return response(200, result)
 
@@ -4692,7 +4692,7 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
             )
 
         # Define terminal states that are safe to delete
-        terminal_states = [
+        terminal_states = [  # noqa: F841
             "COMPLETED",
             "PARTIAL",
             "FAILED",
@@ -4766,7 +4766,7 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
                                     if job_status in ["PENDING", "STARTED"]:
                                         has_active_job = True
                                         print(
-                                            f"Execution {execution_id} has active DRS job {job_id} (status: {job_status})"
+                                            f"Execution {execution_id} has active DRS job {job_id} (status: {job_status})"  # noqa: E501
                                         )
                                         break
                             except Exception as e:
@@ -4831,7 +4831,7 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
                 result["warning"] = f"{len(failed_deletes)} execution(s) failed to delete"
 
         print(
-            f"Selective delete completed: {deleted_count} deleted, {len(active_executions_skipped)} skipped (active), {len(failed_deletes)} failed, {len(not_found)} not found"
+            f"Selective delete completed: {deleted_count} deleted, {len(active_executions_skipped)} skipped (active), {len(failed_deletes)} failed, {len(not_found)} not found"  # noqa: E501
         )
         return response(200, result)
 
@@ -4895,41 +4895,41 @@ def get_execution_status(execution_id: str) -> Dict:
 def get_execution_history(plan_id: str) -> Dict:
     """
     Get execution history for a Recovery Plan.
-    
+
     Queries all executions for a specific Recovery Plan, sorted by start time
     descending (most recent first). Provides complete execution history for
     audit, troubleshooting, and reporting purposes.
-    
+
     ## Use Cases
-    
+
     ### 1. View Plan Execution History
     ```bash
     curl -X GET https://api.example.com/plans/{planId}/executions \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### 2. Audit Trail
     ```python
     history = get_execution_history("plan-123")
     for execution in history['executions']:
         print(f"{execution['startTime']}: {execution['status']}")
     ```
-    
+
     ### 3. Troubleshooting
     ```python
     # Find recent failures
     history = get_execution_history("plan-123")
     failed = [e for e in history['executions'] if e['status'] == 'FAILED']
     ```
-    
+
     ## Integration Points
-    
+
     ### API Gateway Invocation
     ```bash
     curl -X GET https://api.example.com/plans/{planId}/executions \
       -H "Authorization: Bearer $TOKEN"
     ```
-    
+
     ### Direct Lambda Invocation
     ```python
     lambda_client.invoke(
@@ -4940,15 +4940,15 @@ def get_execution_history(plan_id: str) -> Dict:
         })
     )
     ```
-    
+
     ## Behavior
-    
+
     ### Query Process
     1. Query DynamoDB execution table using planIdIndex
     2. Sort by startTime descending (most recent first)
     3. Return all executions for the plan
     4. Include complete execution details
-    
+
     ### Execution Data Included
     - executionId: Unique execution identifier
     - planId: Recovery Plan ID
@@ -4959,19 +4959,19 @@ def get_execution_history(plan_id: str) -> Dict:
     - waves: List of waves with status
     - totalWaves: Total wave count
     - completedWaves: Completed wave count
-    
+
     ## Args
-    
+
     plan_id: Recovery Plan ID to get history for
-    
+
     ## Returns
-    
+
     Dict with execution history:
         - executions: List of executions (sorted by startTime desc)
         - count: Total execution count
-    
+
     ## Example Response
-    
+
     ```json
     {
       "executions": [
@@ -5005,39 +5005,39 @@ def get_execution_history(plan_id: str) -> Dict:
       "count": 2
     }
     ```
-    
+
     ## Performance
-    
+
     ### Execution Time
     - Small history (< 10 executions): < 1 second
     - Medium history (10-100 executions): 1-3 seconds
     - Large history (100+ executions): 3-10 seconds
-    
+
     ### API Calls
     - DynamoDB Query: 1 call (using planIdIndex, paginated)
-    
+
     ## Error Handling
-    
+
     ### Query Failure (500)
     ```json
     {
       "error": "DynamoDB query failed: ..."
     }
     ```
-    
+
     ## Sorting
-    
+
     Results sorted by startTime descending:
     - Most recent executions first
     - Oldest executions last
     - Useful for viewing recent activity
-    
+
     ## Related Functions
-    
+
     - `get_execution()`: Get single execution details
     - `list_executions()`: List all executions (not filtered by plan)
     - `terminate_recovery_instances()`: Cleanup execution instances
-    
+
     Get execution history for a Recovery Plan
     """
     try:
@@ -5154,7 +5154,7 @@ def get_server_details_map(server_ids: List[str], region: str = "us-east-1") -> 
                 # PERFORMANCE: Batch EC2 describe calls (max 1000 instances per call)
                 batch_size = 200  # Conservative batch size
                 for i in range(0, len(source_instance_ids), batch_size):
-                    batch_ids = source_instance_ids[i : i + batch_size]
+                    batch_ids = source_instance_ids[i: i + batch_size]
 
                     try:
                         ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
@@ -5264,7 +5264,7 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                 # PERFORMANCE: Batch EC2 calls for better efficiency
                 batch_size = 100  # EC2 describe_instances supports up to 1000
                 for i in range(0, len(instance_ids), batch_size):
-                    batch_ids = instance_ids[i : i + batch_size]
+                    batch_ids = instance_ids[i: i + batch_size]
 
                     try:
                         ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
@@ -5473,7 +5473,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 ]
                                 if wave_status != "FAILED":
                                     print(
-                                        f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED - servers failed: {failed_servers}"
+                                        f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED - servers failed: {failed_servers}"  # noqa: E501
                                     )
                                 wave["status"] = "FAILED"
                                 wave["statusMessage"] = (
@@ -5498,7 +5498,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 "POLLING",
                             ]:
                                 print(
-                                    f"DEBUG: Wave {wave_name} updated from {wave_status} to IN_PROGRESS (DRS job active)"
+                                    f"DEBUG: Wave {wave_name} updated from {wave_status} to IN_PROGRESS (DRS job active)"  # noqa: E501
                                 )
                                 wave["status"] = "IN_PROGRESS"
 
@@ -5521,7 +5521,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         # CRITICAL FIX: Map participatingServers to servers field for frontend
                         # Frontend expects wave.servers or wave.serverExecutions for expandable server details
                         print(
-                            f"DEBUG: Mapping {len(participating_servers)} participatingServers to wave.servers for {wave_name}"
+                            f"DEBUG: Mapping {len(participating_servers)} participatingServers to wave.servers for {wave_name}"  # noqa: E501
                         )
                         wave["servers"] = []
                         source_server_ids = []
@@ -5544,7 +5544,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 "launchTime": server.get("launchTime", ""),
                             }
                             print(
-                                f"DEBUG: Server {server_data['sourceServerId']}: recoveryInstanceID={server_data['recoveredInstanceId']}, launchStatus={server_data['launchStatus']}"
+                                f"DEBUG: Server {server_data['sourceServerId']}: recoveryInstanceID={server_data['recoveredInstanceId']}, launchStatus={server_data['launchStatus']}"  # noqa: E501
                             )
                             wave["servers"].append(server_data)
 
@@ -5552,12 +5552,12 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         # DRS clears recoveryInstanceID from participatingServers after job completes
                         # We need to query describe_recovery_instances to get the actual recovery instance details
                         print(
-                            f"DEBUG: Checking if should query recovery instances: source_server_ids={len(source_server_ids)}, drs_status={drs_status}"
+                            f"DEBUG: Checking if should query recovery instances: source_server_ids={len(source_server_ids)}, drs_status={drs_status}"  # noqa: E501
                         )
                         if source_server_ids and drs_status == "COMPLETED":
                             try:
                                 print(
-                                    f"DEBUG: Querying recovery instances for {len(source_server_ids)} source servers in {region}"
+                                    f"DEBUG: Querying recovery instances for {len(source_server_ids)} source servers in {region}"  # noqa: E501
                                 )
                                 ri_response = drs_client.describe_recovery_instances(
                                     filters={"sourceServerIDs": source_server_ids}
@@ -5636,7 +5636,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                                 ),
                                             )
                                             print(
-                                                f"DEBUG: Enriched {source_server_id}: instanceId={server['instanceId']}, type={server['instanceType']}, ip={server['privateIp']}"
+                                                f"DEBUG: Enriched {source_server_id}: instanceId={server['instanceId']}, type={server['instanceType']}, ip={server['privateIp']}"  # noqa: E501
                                             )
                                             break
                             except Exception as ri_error:
