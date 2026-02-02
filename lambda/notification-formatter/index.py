@@ -323,7 +323,7 @@ The execution is waiting for approval to continue. Use the DRS Orchestration con
 """
 
     # Add console link
-    console_url = f"https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks"
+    console_url = "https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks"
     message += f"""
 ---
 AWS DRS Orchestration Console: {console_url}

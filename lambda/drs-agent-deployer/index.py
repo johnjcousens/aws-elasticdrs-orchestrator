@@ -442,7 +442,7 @@ class DRSAgentDeployer:
                 }
 
             # Check DRS source servers in staging account
-            print(f"\nVerifying DRS registration in staging account...")
+            print("\nVerifying DRS registration in staging account...")
             time.sleep(30)  # Wait for DRS registration
             source_servers = self._get_source_servers()
 

@@ -119,7 +119,7 @@ user_data = {
 }
 
 masked = mask_sensitive_data(user_data)
-# Result: {"username": "jdoe", "password": "secr********", "api_token": "abc1********", "email": "jdoe@example.com"}  # pragma: allowlist secret
+# Result: {"username": "jdoe", "password": "secr********", "api_token": "abc1********", "email": "jdoe@example.com"}  # pragma: allowlist secret  # noqa: E501
 
 logger.info(f"User data: {json.dumps(masked)}")
 ```
@@ -748,7 +748,7 @@ def create_security_headers() -> Dict[str, str]:
         "X-Frame-Options": "DENY",
         "X-XSS-Protection": "1; mode=block",
         "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",  # noqa: E501
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
     }

@@ -138,7 +138,7 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
                     "waveIndex": idx,
                     "serverCount": server_count,
                     "limit": DRS_LIMITS["MAX_SERVERS_PER_JOB"],
-                    "message": f"Wave '{wave.get('waveName', f'Wave {idx}')}' has {server_count} servers, exceeds limit of {DRS_LIMITS['MAX_SERVERS_PER_JOB']}",
+                    "message": f"Wave '{wave.get('waveName', f'Wave {idx}')}' has {server_count} servers, exceeds limit of {DRS_LIMITS['MAX_SERVERS_PER_JOB']}",  # noqa: E501
                 }
             )
 

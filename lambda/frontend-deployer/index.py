@@ -132,12 +132,12 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
         # Default to NOT emptying unless we're certain
         if error_code == "ValidationError" and "does not exist" in str(e):
             print(
-                f"Frontend Deployer DELETE: Stack does not exist - "
-                f"skipping cleanup for safety (stack may have been deleted "
-                f"already or wrong stack ID)"
+                "Frontend Deployer DELETE: Stack does not exist - "
+                "skipping cleanup for safety (stack may have been deleted "
+                "already or wrong stack ID)"
             )
             logger.warning(
-                f"Frontend Deployer DELETE: Stack does not exist - " f"skipping cleanup for safety"
+                "Frontend Deployer DELETE: Stack does not exist - " "skipping cleanup for safety"
             )
             log_security_event(
                 "stack_not_found_skip_cleanup",
@@ -261,7 +261,7 @@ def empty_bucket(bucket_name: str) -> int:
             if objects_to_delete:
                 batch_size = 1000
                 for i in range(0, len(objects_to_delete), batch_size):
-                    batch = objects_to_delete[i : i + batch_size]
+                    batch = objects_to_delete[i: i + batch_size]
 
                     print(
                         f"Frontend Deployer: Deleting batch of {len(batch)} "
