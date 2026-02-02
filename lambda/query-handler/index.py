@@ -3953,14 +3953,48 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                 "externalId": target_account.get("externalId"),
             }
 
-            # Get concurrent jobs info (no account_context needed)
-            jobs_info = validate_concurrent_jobs(primary_region)
+            # Create DRS client with assumed role credentials
+            drs_client = None
+            role_arn = target_account.get("roleArn")
+            external_id = target_account.get("externalId")
 
-            # Get servers in active jobs (no account_context needed)
-            servers_in_jobs = validate_servers_in_all_jobs(primary_region, 0)
+            if role_arn and external_id:
+                try:
+                    sts_client = boto3.client("sts")
+                    assumed_role = sts_client.assume_role(
+                        RoleArn=role_arn,
+                        RoleSessionName="drs-orchestration-jobs-query",
+                        ExternalId=external_id,
+                        DurationSeconds=900,
+                    )
+                    credentials = assumed_role["Credentials"]
 
-            # Get max servers per job (no account_context needed)
-            max_per_job = validate_max_servers_per_job(primary_region)
+                    # Create DRS client with assumed role credentials
+                    drs_client = boto3.client(
+                        "drs",
+                        region_name=primary_region,
+                        aws_access_key_id=credentials["AccessKeyId"],
+                        aws_secret_access_key=credentials["SecretAccessKey"],
+                        aws_session_token=credentials["SessionToken"],
+                    )
+                except Exception as e:
+                    print(
+                        f"Warning: Could not assume role for jobs query: {e}"
+                    )
+                    drs_client = None
+
+            # Get concurrent jobs info (pass DRS client)
+            jobs_info = validate_concurrent_jobs(primary_region, drs_client)
+
+            # Get servers in active jobs (pass DRS client)
+            servers_in_jobs = validate_servers_in_all_jobs(
+                primary_region, 0, drs_client
+            )
+
+            # Get max servers per job (pass DRS client)
+            max_per_job = validate_max_servers_per_job(
+                primary_region, drs_client
+            )
 
             concurrent_jobs_data = {
                 "current": jobs_info.get("currentJobs", 0),
