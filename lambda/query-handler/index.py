@@ -3935,6 +3935,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
         # Step 7.5: Get concurrent jobs and servers in jobs metrics
         # Query DRS jobs in target account's primary region (us-west-2)
+        print("Starting jobs metrics query (Step 7.5)")
         try:
             # Get target account's primary region from regional breakdown
             primary_region = "us-west-2"  # Default
@@ -3951,20 +3952,19 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                         key=lambda r: r.get("replicatingServers", 0),
                     ).get("region", "us-west-2")
 
-            # Create account context for target account
-            account_context = {
-                "accountId": target_account_id,
-                "assumeRoleName": target_account.get("assumeRoleName"),
-                "externalId": target_account.get("externalId"),
-            }
+            print(f"Using primary region: {primary_region}")
 
             # Create DRS client with assumed role credentials
             drs_client = None
             role_arn = target_account.get("roleArn")
             external_id = target_account.get("externalId")
 
+            print(f"Target account roleArn: {role_arn}")
+            print(f"Target account externalId: {external_id}")
+
             if role_arn and external_id:
                 try:
+                    print("Assuming role for jobs query...")
                     sts_client = boto3.client("sts")
                     assumed_role = sts_client.assume_role(
                         RoleArn=role_arn,
@@ -3982,6 +3982,7 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                         aws_secret_access_key=credentials["SecretAccessKey"],
                         aws_session_token=credentials["SessionToken"],
                     )
+                    print("Successfully created DRS client with assumed role")
                 except Exception as e:
                     print(
                         f"Warning: Could not assume role for jobs query: {e}"
@@ -3989,18 +3990,25 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                     drs_client = None
 
             # Get concurrent jobs info (pass DRS client)
+            print("Calling validate_concurrent_jobs...")
             jobs_info = validate_concurrent_jobs(primary_region, drs_client)
+            print(f"Jobs info: {jobs_info}")
 
             # Get servers in active jobs (pass DRS client)
+            print("Calling validate_servers_in_all_jobs...")
             servers_in_jobs = validate_servers_in_all_jobs(
                 primary_region, 0, drs_client
             )
+            print(f"Servers in jobs: {servers_in_jobs}")
 
             # Get max servers per job (pass DRS client)
+            print("Calling validate_max_servers_per_job...")
             max_per_job = validate_max_servers_per_job(
                 primary_region, drs_client
             )
+            print(f"Max per job: {max_per_job}")
 
+            print("Building jobs metrics response data...")
             concurrent_jobs_data = {
                 "current": jobs_info.get("currentJobs", 0),
                 "max": jobs_info.get("maxJobs", 20),
@@ -4022,8 +4030,13 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
                 "message": max_per_job.get("message", ""),
             }
 
+            print("Jobs metrics collected successfully")
+
         except Exception as e:
             print(f"Warning: Could not fetch jobs metrics: {e}")
+            import traceback
+
+            traceback.print_exc()
             # Default to 0 if we can't fetch jobs data
             concurrent_jobs_data = {
                 "current": 0,
