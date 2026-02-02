@@ -14,6 +14,7 @@ import {
   Link,
   Spinner,
   StatusIndicator,
+  ExpandableSection,
 } from '@cloudscape-design/components';
 import type { CombinedCapacityData } from '../types/staging-accounts';
 
@@ -93,67 +94,121 @@ export const CompactCapacitySummary: React.FC<CompactCapacitySummaryProps> = ({
     <SpaceBetween size="l">
       <ColumnLayout columns={2} variant="text-grid">
         <Box>
-          <Box variant="awsui-key-label" margin={{ bottom: 'xs' }}>
-            Replicating Servers (Active Replication)
-          </Box>
-          <ProgressBar
-            value={replicatingPct}
-            additionalInfo={`${combined.availableSlots} slots available`}
-            description={`${combined.totalReplicating} / ${combined.maxReplicating}`}
-            status={replicatingStatus}
-          />
+          <ExpandableSection 
+            headerText="Replicating Servers (Active Replication)" 
+            variant="footer"
+            defaultExpanded={false}
+          >
+            <SpaceBetween size="s">
+              <ProgressBar
+                value={replicatingPct}
+                additionalInfo={`${combined.availableSlots} slots available`}
+                description={`${combined.totalReplicating} / ${combined.maxReplicating}`}
+                status={replicatingStatus}
+              />
+              <Box variant="p" color="text-body-secondary" fontSize="body-s">
+                Tracks how many source servers are actively replicating data to AWS. 
+                Each AWS account has a limit of 300 replicating servers **per region** (not total across all regions). 
+                For example: 200 servers in us-east-1 + 200 servers in us-west-2 = 400 total, but that's OK because each region is under its 300 limit.
+                This is the foundation of your DR protection - servers must be replicating before they can be recovered.
+              </Box>
+            </SpaceBetween>
+          </ExpandableSection>
         </Box>
 
         <Box>
-          <Box variant="awsui-key-label" margin={{ bottom: 'xs' }}>
-            Recovery Capacity (Total Source Servers)
-          </Box>
-          <ProgressBar
-            value={recoveryPct}
-            additionalInfo={`${recoveryCapacity.availableSlots} slots available`}
-            description={`${recoveryCapacity.currentServers} / ${recoveryCapacity.maxRecoveryInstances}`}
-            status={recoveryStatus}
-          />
+          <ExpandableSection 
+            headerText="Recovery Capacity (Total Source Servers)" 
+            variant="footer"
+            defaultExpanded={false}
+          >
+            <SpaceBetween size="s">
+              <ProgressBar
+                value={recoveryPct}
+                additionalInfo={`${recoveryCapacity.availableSlots} slots available`}
+                description={`${recoveryCapacity.currentServers} / ${recoveryCapacity.maxRecoveryInstances}`}
+                status={recoveryStatus}
+              />
+              <Box variant="p" color="text-body-secondary" fontSize="body-s">
+                The total number of source servers you can protect with DRS, including both 
+                actively replicating servers and extended source servers (servers that have been disconnected but still consume capacity). 
+                AWS allows up to 4,000 total source servers per account (adjustable via AWS Support). This is your maximum DR footprint - you cannot add more servers 
+                once this limit is reached without removing existing ones or requesting a quota increase.
+              </Box>
+            </SpaceBetween>
+          </ExpandableSection>
         </Box>
 
         <Box>
-          <Box variant="awsui-key-label" margin={{ bottom: 'xs' }}>
-            Concurrent Recovery Jobs
-          </Box>
-          <ProgressBar
-            value={jobsPct}
-            additionalInfo={`${jobsMax - jobsCurrent} jobs available`}
-            description={`${jobsCurrent} / ${jobsMax}`}
-            status={jobsStatus}
-          />
+          <ExpandableSection 
+            headerText="Concurrent Recovery Jobs" 
+            variant="footer"
+            defaultExpanded={false}
+          >
+            <SpaceBetween size="s">
+              <ProgressBar
+                value={jobsPct}
+                additionalInfo={`${jobsMax - jobsCurrent} jobs available`}
+                description={`${jobsCurrent} / ${jobsMax}`}
+                status={jobsStatus}
+              />
+              <Box variant="p" color="text-body-secondary" fontSize="body-s">
+                Limits how many recovery operations can run simultaneously per account. AWS DRS allows 
+                20 concurrent recovery jobs per account. Each Recovery Plan execution creates one job. If you try to start a 21st job 
+                while 20 are running, AWS will reject it. The orchestrator checks this limit before starting executions to prevent failures.
+              </Box>
+            </SpaceBetween>
+          </ExpandableSection>
         </Box>
 
         <Box>
-          <Box variant="awsui-key-label" margin={{ bottom: 'xs' }}>
-            Servers in Active Jobs
-          </Box>
-          <ProgressBar
-            value={serversInJobsPct}
-            additionalInfo={`${serversMax - serversCurrent} slots available`}
-            description={`${serversCurrent} / ${serversMax}`}
-            status={serversInJobsStatus}
-          />
+          <ExpandableSection 
+            headerText="Servers in Active Jobs" 
+            variant="footer"
+            defaultExpanded={false}
+          >
+            <SpaceBetween size="s">
+              <ProgressBar
+                value={serversInJobsPct}
+                additionalInfo={`${serversMax - serversCurrent} slots available`}
+                description={`${serversCurrent} / ${serversMax}`}
+                status={serversInJobsStatus}
+              />
+              <Box variant="p" color="text-body-secondary" fontSize="body-s">
+                Tracks the total number of source servers being recovered across ALL concurrent jobs per account. 
+                AWS limits this to 500 servers maximum. Even if you're under the 20 job limit, you cannot exceed 500 total servers 
+                across all jobs. Example: 10 jobs with 50 servers each = 500 servers (limit reached). This is the aggregate capacity constraint 
+                for recovery operations.
+              </Box>
+            </SpaceBetween>
+          </ExpandableSection>
         </Box>
 
         <Box>
-          <Box variant="awsui-key-label" margin={{ bottom: 'xs' }}>
-            Max Servers Per Job
-          </Box>
-          <ProgressBar
-            value={maxPerJobPct}
-            additionalInfo={
-              maxPerJobCurrent > 0
-                ? `Largest job: ${maxPerJobCurrent} servers`
-                : 'No active jobs'
-            }
-            description={`${maxPerJobCurrent} / ${maxPerJobMax}`}
-            status={maxPerJobStatus}
-          />
+          <ExpandableSection 
+            headerText="Max Servers Per Job" 
+            variant="footer"
+            defaultExpanded={false}
+          >
+            <SpaceBetween size="s">
+              <ProgressBar
+                value={maxPerJobPct}
+                additionalInfo={
+                  maxPerJobCurrent > 0
+                    ? `Largest job: ${maxPerJobCurrent} servers`
+                    : 'No active jobs'
+                }
+                description={`${maxPerJobCurrent} / ${maxPerJobMax}`}
+                status={maxPerJobStatus}
+              />
+              <Box variant="p" color="text-body-secondary" fontSize="body-s">
+                Shows the largest single recovery job currently running. AWS limits each individual 
+                recovery job to 100 servers maximum. If your Recovery Plan has more than 100 servers, the orchestrator automatically splits 
+                it into waves (e.g., 150 servers = Wave 1: 100 servers, Wave 2: 50 servers). This gauge helps you monitor the size of your 
+                largest active recovery operation.
+              </Box>
+            </SpaceBetween>
+          </ExpandableSection>
         </Box>
       </ColumnLayout>
 

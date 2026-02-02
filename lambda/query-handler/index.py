@@ -1202,10 +1202,14 @@ def get_drs_account_capacity_all_regions(
     5. Determines account-wide capacity status
 
     ### Capacity Status Determination
-    - CRITICAL: >= 300 replicating servers (at hard limit)
-    - WARNING: >= 270 replicating servers (90% of limit)
-    - INFO: >= 240 replicating servers (80% of limit)
-    - OK: < 240 replicating servers
+    - CRITICAL: Any region >= 300 replicating servers (at hard limit)
+    - WARNING: Any region >= 270 replicating servers (90% of limit)
+    - INFO: Any region >= 240 replicating servers (80% of limit)
+    - OK: All regions < 240 replicating servers
+
+    **Important**: Each region has its own 300-server quota. An account with
+    200 servers in us-east-1 and 200 servers in us-west-2 is OK (400 total,
+    but each region is under its 300 limit).
 
     ### Error Handling
     - Non-blocking: Region failures don't stop aggregation
@@ -1222,31 +1226,50 @@ def get_drs_account_capacity_all_regions(
     Dict with account-wide capacity:
         - totalSourceServers: Total DRS servers across all regions
         - replicatingServers: Total replicating servers across all regions
-        - maxReplicatingServers: Hard limit (300)
-        - maxSourceServers: Soft limit (1000)
-        - availableReplicatingSlots: Remaining capacity
-        - status: Capacity status (OK/INFO/WARNING/CRITICAL)
+        - maxReplicatingServers: Per-region hard limit (300)
+        - maxSourceServers: Per-region soft limit (4000)
+        - availableReplicatingSlots: Total available slots across all active regions
+        - status: Overall status (worst region status)
         - message: Human-readable status message
-        - regionalBreakdown: List of regions with servers
+        - regionalBreakdown: List of regions with per-region capacity details
         - failedRegions: List of regions that failed to query
+        - activeRegions: Number of regions with servers
+        - totalRegionalCapacity: Total capacity across all active regions (activeRegions × 300)
 
     ## Example Response
 
     ```json
     {
       "totalSourceServers": 325,
-      "replicatingServers": 285,
+      "replicating Servers": 400,
       "maxReplicatingServers": 300,
-      "maxSourceServers": 1000,
-      "availableReplicatingSlots": 15,
-      "status": "WARNING",
-      "message": "Approaching hard limit: 285/300 replicating servers across all regions",
+      "maxSourceServers": 4000,
+      "availableReplicatingSlots": 500,
+      "status": "OK",
+      "message": "Capacity OK: 400 total servers across 2 regions (each region has 300-server limit)",
       "regionalBreakdown": [
-        {"region": "us-east-1", "totalServers": 125, "replicatingServers": 120},
-        {"region": "us-west-2", "totalServers": 100, "replicatingServers": 95},
-        {"region": "eu-west-1", "totalServers": 100, "replicatingServers": 70}
+        {
+          "region": "us-east-1",
+          "totalServers": 125,
+          "replicatingServers": 200,
+          "maxReplicating": 300,
+          "availableSlots": 100,
+          "percentUsed": 66.7,
+          "status": "OK"
+        },
+        {
+          "region": "us-west-2",
+          "totalServers": 200,
+          "replicatingServers": 200,
+          "maxReplicating": 300,
+          "availableSlots": 100,
+          "percentUsed": 66.7,
+          "status": "OK"
+        }
       ],
-      "failedRegions": []
+      "failedRegions": [],
+      "activeRegions": 2,
+      "totalRegionalCapacity": 600
     }
     ```
 
@@ -1333,11 +1356,38 @@ def get_drs_account_capacity_all_regions(
 
             if result["success"]:
                 if result["totalServers"] > 0:
+                    # Calculate per-region status (each region has 300 limit)
+                    region_replicating = result["replicatingServers"]
+                    region_max = DRS_LIMITS["MAX_REPLICATING_SERVERS"]
+
+                    if region_replicating >= region_max:
+                        region_status = "CRITICAL"
+                    elif (
+                        region_replicating
+                        >= DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]
+                    ):
+                        region_status = "WARNING"
+                    elif (
+                        region_replicating
+                        >= DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]
+                    ):
+                        region_status = "INFO"
+                    else:
+                        region_status = "OK"
+
                     regional_breakdown.append(
                         {
                             "region": result["region"],
                             "totalServers": result["totalServers"],
-                            "replicatingServers": result["replicatingServers"],
+                            "replicatingServers": region_replicating,
+                            "maxReplicating": region_max,
+                            "availableSlots": max(
+                                0, region_max - region_replicating
+                            ),
+                            "percentUsed": round(
+                                (region_replicating / region_max) * 100, 1
+                            ),
+                            "status": region_status,
                         }
                     )
 
@@ -1346,36 +1396,64 @@ def get_drs_account_capacity_all_regions(
             else:
                 failed_regions.append(result["region"])
 
-    # Determine capacity status based on account-wide limits
-    if replicating_servers >= DRS_LIMITS["MAX_REPLICATING_SERVERS"]:
-        status = "CRITICAL"
-        message = f"Account at hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers across all regions"
-    elif replicating_servers >= DRS_LIMITS["CRITICAL_REPLICATING_THRESHOLD"]:
-        status = "WARNING"
-        message = f"Approaching hard limit: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers across all regions"
-    elif replicating_servers >= DRS_LIMITS["WARNING_REPLICATING_THRESHOLD"]:
-        status = "INFO"
-        message = f"Monitor capacity: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers across all regions"
+    # Determine overall status based on worst region status
+    # Each region has its own 300-server quota, so we check per-region
+    worst_status = "OK"
+    critical_regions = []
+    warning_regions = []
+
+    for region_data in regional_breakdown:
+        region_status = region_data["status"]
+        if region_status == "CRITICAL":
+            worst_status = "CRITICAL"
+            critical_regions.append(
+                f"{region_data['region']} ({region_data['replicatingServers']}/300)"
+            )
+        elif region_status == "WARNING" and worst_status != "CRITICAL":
+            worst_status = "WARNING"
+            warning_regions.append(
+                f"{region_data['region']} ({region_data['replicatingServers']}/300)"
+            )
+        elif region_status == "INFO" and worst_status not in [
+            "CRITICAL",
+            "WARNING",
+        ]:
+            worst_status = "INFO"
+
+    # Build status message
+    if worst_status == "CRITICAL":
+        message = f"CRITICAL: {len(critical_regions)} region(s) at 300-server limit: {', '.join(critical_regions)}"
+    elif worst_status == "WARNING":
+        message = f"WARNING: {len(warning_regions)} region(s) approaching limit: {', '.join(warning_regions)}"
+    elif worst_status == "INFO":
+        message = f"INFO: Some regions above 80% capacity ({replicating_servers} total servers across {len(regional_breakdown)} regions)"
     else:
-        status = "OK"
-        message = f"Capacity OK: {replicating_servers}/{DRS_LIMITS['MAX_REPLICATING_SERVERS']} replicating servers across all regions"
+        message = f"Capacity OK: {replicating_servers} total servers across {len(regional_breakdown)} regions (each region has 300-server limit)"
 
     # Add warning if some regions failed
     if failed_regions:
-        message += f" (Warning: {len(failed_regions)} regions failed to query)"
+        message += f" | Warning: {len(failed_regions)} regions failed to query"
+
+    # Calculate total available slots across all active regions
+    total_available_slots = sum(
+        r["availableSlots"] for r in regional_breakdown
+    )
 
     return {
         "totalSourceServers": total_servers,
         "replicatingServers": replicating_servers,
-        "maxReplicatingServers": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
-        "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],
-        "availableReplicatingSlots": max(
-            0, DRS_LIMITS["MAX_REPLICATING_SERVERS"] - replicating_servers
-        ),
-        "status": status,
+        "maxReplicatingServers": DRS_LIMITS[
+            "MAX_REPLICATING_SERVERS"
+        ],  # Per region
+        "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],  # Per region
+        "availableReplicatingSlots": total_available_slots,  # Sum across all regions
+        "status": worst_status,
         "message": message,
         "regionalBreakdown": regional_breakdown,
         "failedRegions": failed_regions,
+        "activeRegions": len(regional_breakdown),
+        "totalRegionalCapacity": len(regional_breakdown)
+        * DRS_LIMITS["MAX_REPLICATING_SERVERS"],
     }
 
 
@@ -3629,49 +3707,93 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         combined_metrics = calculate_combined_metrics(account_results)
 
         # Step 6: Calculate per-account status and warnings
-        # Add status, percentage, available slots, and warnings to each account
-        # Each account has its own 300 server replication limit
+        # CRITICAL: Each region has its own 300 server limit, not the account total
+        # We must calculate status per-region and take the worst status
         for account in account_results:
-            replicating = account.get("replicatingServers", 0)
+            regional_breakdown = account.get("regionalBreakdown", [])
             account_type = account.get("accountType", "staging")
 
-            # Each account (target or staging) has 300 server limit
-            max_replicating = 300
+            # Calculate per-region status and find worst status
+            worst_status = "OK"
+            worst_region = None
+            worst_region_count = 0
+            active_regions = 0
+            total_regional_capacity = 0
 
-            # Calculate status based on account's own replicating count
-            account["status"] = calculate_account_status(replicating)
+            for region_data in regional_breakdown:
+                region = region_data.get("region")
+                replicating = region_data.get("replicatingServers", 0)
 
-            # Calculate percentage and available slots for this account
-            account["maxReplicating"] = max_replicating
-            account["percentUsed"] = round(
-                (
-                    (replicating / max_replicating * 100)
-                    if max_replicating > 0
-                    else 0.0
-                ),
-                2,
-            )
-            account["availableSlots"] = max_replicating - replicating
+                if replicating > 0:
+                    active_regions += 1
+                    total_regional_capacity += 300  # Each region has 300 limit
 
-            # Generate warnings based on account's own capacity
+                # Calculate status for this region
+                region_status = calculate_account_status(replicating)
+                region_data["status"] = region_status
+                region_data["maxReplicating"] = 300
+                region_data["percentUsed"] = round(
+                    (replicating / 300 * 100), 2
+                )
+                region_data["availableSlots"] = 300 - replicating
+
+                # Track worst status across all regions
+                status_priority = {
+                    "OK": 0,
+                    "INFO": 1,
+                    "WARNING": 2,
+                    "CRITICAL": 3,
+                    "HYPER-CRITICAL": 4,
+                }
+
+                if status_priority.get(region_status, 0) > status_priority.get(
+                    worst_status, 0
+                ):
+                    worst_status = region_status
+                    worst_region = region
+                    worst_region_count = replicating
+
+            # Set account-level status to worst region status
+            account["status"] = worst_status
+            account["activeRegions"] = active_regions
+            account["totalRegionalCapacity"] = total_regional_capacity
+
+            # For backward compatibility, keep total counts
+            total_replicating = account.get("replicatingServers", 0)
+
+            # If no active regions, default to single region capacity
+            if active_regions == 0:
+                account["maxReplicating"] = 300
+                account["percentUsed"] = 0.0
+                account["availableSlots"] = 300
+            else:
+                account["maxReplicating"] = total_regional_capacity
+                account["percentUsed"] = round(
+                    (total_replicating / total_regional_capacity * 100),
+                    2,
+                )
+                account["availableSlots"] = (
+                    total_regional_capacity - total_replicating
+                )
+
+            # Generate warnings based on worst region's status
             account_warnings = []
-            status = account["status"]
 
-            if status == "INFO":
+            if worst_status == "INFO":
                 account_warnings.append(
-                    f"Monitor capacity - at {replicating} servers (67-75%)"
+                    f"Monitor capacity in {worst_region} - at {worst_region_count} servers (67-75%)"
                 )
-            elif status == "WARNING":
+            elif worst_status == "WARNING":
                 account_warnings.append(
-                    f"Plan capacity - at {replicating} servers (75-83%)"
+                    f"Plan capacity in {worst_region} - at {worst_region_count} servers (75-83%)"
                 )
-            elif status == "CRITICAL":
+            elif worst_status == "CRITICAL":
                 account_warnings.append(
-                    f"Add capacity immediately - at {replicating} servers (83-93%)"
+                    f"Add capacity immediately in {worst_region} - at {worst_region_count} servers (83-93%)"
                 )
-            elif status == "HYPER-CRITICAL":
+            elif worst_status == "HYPER-CRITICAL":
                 account_warnings.append(
-                    f"Immediate action required - at {replicating} servers (93-100%)"
+                    f"Immediate action required in {worst_region} - at {worst_region_count} servers (93-100%)"
                 )
 
             account["warnings"] = account_warnings

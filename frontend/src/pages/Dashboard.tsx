@@ -16,16 +16,18 @@ import {
   Spinner,
   PieChart,
   Button,
+  Alert,
 } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
-import { CompactCapacitySummary } from '../components/CompactCapacitySummary';
+import { CapacityGauge } from '../components/CapacityGauge';
 import { getCombinedCapacity } from '../services/staging-accounts-api';
 import type { CombinedCapacityData } from '../types/staging-accounts';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { useAccount } from '../contexts/AccountContext';
+import { useSettings } from '../contexts/SettingsContext';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
 import type { DRSQuotaStatus } from '../services/drsQuotaService';
@@ -68,6 +70,7 @@ const STATUS_LABELS: Record<string, string> = {
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { selectedAccount, getCurrentAccountId, getCurrentAccountName, availableAccounts, accountsLoading } = useAccount();
+  const { openSettingsModal } = useSettings();
   
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,11 +82,12 @@ export const Dashboard: React.FC = () => {
   const [capacityLoading, setCapacityLoading] = useState(false);
   const [capacityError, setCapacityError] = useState<string | null>(null);
 
+  // Open settings modal if no accounts configured
   useEffect(() => {
     if (!accountsLoading && availableAccounts.length === 0) {
-      navigate('/getting-started');
+      openSettingsModal('accounts');
     }
-  }, [accountsLoading, availableAccounts, navigate]);
+  }, [accountsLoading, availableAccounts, openSettingsModal]);
 
   const fetchExecutions = useCallback(async () => {
     const accountId = getCurrentAccountId();
@@ -93,6 +97,10 @@ export const Dashboard: React.FC = () => {
     }
 
     try {
+      // Only show loading spinner on initial load (when no data exists)
+      if (executions.length === 0) {
+        setLoading(true);
+      }
       // Pass accountId to API call for multi-account support
       const response = await apiClient.listExecutions({ 
         limit: 100,
@@ -107,10 +115,13 @@ export const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [getCurrentAccountId]);
+  }, [getCurrentAccountId, executions.length]);
 
   const fetchCapacityData = useCallback(async (accountId: string) => {
-    setCapacityLoading(true);
+    // Only show loading spinner on initial load (when no data exists)
+    if (!capacityData) {
+      setCapacityLoading(true);
+    }
     setCapacityError(null);
     try {
       const data = await getCombinedCapacity(accountId, false); // Don't need regional breakdown for summary
@@ -122,7 +133,7 @@ export const Dashboard: React.FC = () => {
     } finally {
       setCapacityLoading(false);
     }
-  }, []);
+  }, [capacityData]);
 
   // Fetch executions when account changes
   useEffect(() => {
@@ -241,14 +252,29 @@ export const Dashboard: React.FC = () => {
             variant="h1"
             description="Real-time execution status and system metrics"
             actions={
-              <Button
-                onClick={handleTagSync}
-                loading={tagSyncLoading}
-                disabled={!selectedAccount}
-                iconName="refresh"
-              >
-                Sync Tags
-              </Button>
+              <SpaceBetween direction="horizontal" size="xs">
+                <Button
+                  iconName="refresh"
+                  onClick={() => {
+                    fetchExecutions();
+                    const accountId = getCurrentAccountId();
+                    if (accountId) {
+                      fetchCapacityData(accountId);
+                    }
+                  }}
+                  loading={loading || capacityLoading}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  onClick={handleTagSync}
+                  loading={tagSyncLoading}
+                  disabled={!selectedAccount}
+                  iconName="upload"
+                >
+                  Sync Tags
+                </Button>
+              </SpaceBetween>
             }
           >
             Dashboard
@@ -317,17 +343,204 @@ export const Dashboard: React.FC = () => {
 
             <Container
               header={
-                <Header variant="h2">
+                <Header
+                  variant="h2"
+                  actions={
+                    <Button
+                      iconName="refresh"
+                      onClick={() => fetchCapacityData(getCurrentAccountId()!)}
+                      loading={capacityLoading}
+                    >
+                      Refresh Capacity
+                    </Button>
+                  }
+                  description={
+                    capacityData
+                      ? `Last updated: ${new Date().toLocaleTimeString()}`
+                      : undefined
+                  }
+                >
                   DRS Service Capacity
                 </Header>
               }
             >
-              <CompactCapacitySummary
-                data={capacityData}
-                loading={capacityLoading}
-                error={capacityError}
-                onViewDetails={() => navigate('/system-status')}
-              />
+              {capacityLoading && !capacityData ? (
+                <Box textAlign="center" padding="l">
+                  <Spinner size="large" />
+                </Box>
+              ) : capacityError ? (
+                <StatusIndicator type="error">{capacityError}</StatusIndicator>
+              ) : capacityData ? (
+                <SpaceBetween size="l">
+                  {/* Warnings */}
+                  {capacityData.warnings.length > 0 && (
+                    <SpaceBetween size="s">
+                      {capacityData.warnings.map((warning, index) => (
+                        <Alert
+                          key={index}
+                          type={
+                            capacityData.combined.status === 'OK'
+                              ? 'info'
+                              : capacityData.combined.status === 'INFO'
+                                ? 'info'
+                                : capacityData.combined.status === 'WARNING'
+                                  ? 'warning'
+                                  : 'error'
+                          }
+                        >
+                          {warning}
+                        </Alert>
+                      ))}
+                    </SpaceBetween>
+                  )}
+
+                  {/* Visual Capacity Gauges */}
+                  <SpaceBetween size="l">
+                    <ColumnLayout columns={3} variant="text-grid">
+                      <div>
+                        <Box variant="h3" padding={{ bottom: 's' }}>
+                          Replication Capacity
+                        </Box>
+                        <CapacityGauge
+                          used={capacityData.combined.totalReplicating}
+                          total={capacityData.combined.maxReplicating}
+                          size="medium"
+                          label={`${capacityData.combined.totalReplicating.toLocaleString()} / ${capacityData.combined.maxReplicating.toLocaleString()} servers`}
+                        />
+                        <Box textAlign="center" padding={{ top: 's' }}>
+                          <StatusIndicator
+                            type={
+                              capacityData.combined.status === 'OK'
+                                ? 'success'
+                                : capacityData.combined.status === 'INFO'
+                                  ? 'info'
+                                  : capacityData.combined.status === 'WARNING'
+                                    ? 'warning'
+                                    : 'error'
+                            }
+                          >
+                            {capacityData.combined.status}
+                          </StatusIndicator>
+                        </Box>
+                      </div>
+
+                      <div>
+                        <Box variant="h3" padding={{ bottom: 's' }}>
+                          Recovery Capacity
+                        </Box>
+                        <CapacityGauge
+                          used={capacityData.recoveryCapacity.currentServers}
+                          total={capacityData.recoveryCapacity.maxRecoveryInstances}
+                          size="medium"
+                          label={`${capacityData.recoveryCapacity.currentServers.toLocaleString()} / ${capacityData.recoveryCapacity.maxRecoveryInstances.toLocaleString()} instances`}
+                        />
+                        <Box textAlign="center" padding={{ top: 's' }}>
+                          <StatusIndicator
+                            type={
+                              capacityData.recoveryCapacity.status === 'OK'
+                                ? 'success'
+                                : capacityData.recoveryCapacity.status === 'WARNING'
+                                  ? 'warning'
+                                  : 'error'
+                            }
+                          >
+                            {capacityData.recoveryCapacity.status}
+                          </StatusIndicator>
+                        </Box>
+                      </div>
+
+                      <div>
+                        <Box variant="h3" padding={{ bottom: 's' }}>
+                          Available Slots
+                        </Box>
+                        <Box textAlign="center" padding={{ top: 'xl', bottom: 'xl' }}>
+                          <Box variant="awsui-value-large" color="text-status-success">
+                            {capacityData.combined.availableSlots.toLocaleString()}
+                          </Box>
+                          <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
+                            slots available
+                          </Box>
+                        </Box>
+                        <Box textAlign="center" padding={{ top: 's' }}>
+                          <Box variant="small" color="text-body-secondary">
+                            {capacityData.accounts.length} account{capacityData.accounts.length !== 1 ? 's' : ''} monitored
+                          </Box>
+                        </Box>
+                      </div>
+                    </ColumnLayout>
+
+                    {/* DRS Service Limits */}
+                    <ColumnLayout columns={3} variant="text-grid">
+                      <div>
+                        <Box variant="h3" padding={{ bottom: 's' }}>
+                          Concurrent Recovery Jobs
+                        </Box>
+                        <CapacityGauge
+                          used={capacityData.concurrentJobs?.current ?? 0}
+                          total={capacityData.concurrentJobs?.max ?? 20}
+                          size="medium"
+                          label={`${(capacityData.concurrentJobs?.current ?? 0).toLocaleString()} / ${(capacityData.concurrentJobs?.max ?? 20).toLocaleString()} jobs`}
+                        />
+                        <Box textAlign="center" padding={{ top: 's' }}>
+                          <Box variant="small" color="text-body-secondary">
+                            {((capacityData.concurrentJobs?.max ?? 20) - (capacityData.concurrentJobs?.current ?? 0)).toLocaleString()} jobs available
+                          </Box>
+                        </Box>
+                      </div>
+
+                      <div>
+                        <Box variant="h3" padding={{ bottom: 's' }}>
+                          Servers in Active Jobs
+                        </Box>
+                        <CapacityGauge
+                          used={capacityData.serversInJobs?.current ?? 0}
+                          total={capacityData.serversInJobs?.max ?? 500}
+                          size="medium"
+                          label={`${(capacityData.serversInJobs?.current ?? 0).toLocaleString()} / ${(capacityData.serversInJobs?.max ?? 500).toLocaleString()} servers`}
+                        />
+                        <Box textAlign="center" padding={{ top: 's' }}>
+                          <Box variant="small" color="text-body-secondary">
+                            {((capacityData.serversInJobs?.max ?? 500) - (capacityData.serversInJobs?.current ?? 0)).toLocaleString()} slots available
+                          </Box>
+                        </Box>
+                      </div>
+
+                      <div>
+                        <Box variant="h3" padding={{ bottom: 's' }}>
+                          Max Servers Per Job
+                        </Box>
+                        {capacityData.maxServersPerJob ? (
+                          <>
+                            <CapacityGauge
+                              used={capacityData.maxServersPerJob.current ?? 0}
+                              total={capacityData.maxServersPerJob.max ?? 100}
+                              size="medium"
+                              label={`${(capacityData.maxServersPerJob.current ?? 0).toLocaleString()} / ${(capacityData.maxServersPerJob.max ?? 100).toLocaleString()} servers`}
+                            />
+                            <Box textAlign="center" padding={{ top: 's' }}>
+                              <Box variant="small" color="text-body-secondary">
+                                {capacityData.maxServersPerJob.current > 0
+                                  ? `Largest job: ${capacityData.maxServersPerJob.current.toLocaleString()} servers`
+                                  : 'No active jobs'}
+                              </Box>
+                            </Box>
+                          </>
+                        ) : (
+                          <Box textAlign="center" padding={{ top: 'xl', bottom: 'xl' }}>
+                            <Box variant="small" color="text-status-error">
+                              Data not available
+                            </Box>
+                          </Box>
+                        )}
+                      </div>
+                    </ColumnLayout>
+                  </SpaceBetween>
+                </SpaceBetween>
+              ) : (
+                <Box textAlign="center" padding="l" color="text-body-secondary">
+                  Select a target account to view capacity
+                </Box>
+              )}
             </Container>
 
             <ColumnLayout columns={2}>
