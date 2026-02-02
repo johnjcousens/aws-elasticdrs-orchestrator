@@ -8,11 +8,21 @@ and edge cases.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from moto import mock_aws
+
+# Set environment variables BEFORE importing index
+os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
+os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
+
+# Clear any existing index module to avoid conflicts
+if "index" in sys.modules:
+    del sys.modules["index"]
 
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
@@ -21,6 +31,7 @@ sys.path.insert(0, str(lambda_dir))
 from index import handle_get_combined_capacity
 
 
+@mock_aws
 def test_combined_capacity_no_staging_accounts():
     """
     Test query with no staging accounts (target account only).
@@ -98,6 +109,7 @@ def test_combined_capacity_no_staging_accounts():
         assert body["recoveryCapacity"]["status"] == "OK"
 
 
+@mock_aws
 def test_combined_capacity_multiple_staging_accounts():
     """
     Test query with multiple staging accounts.
@@ -257,6 +269,7 @@ def test_combined_capacity_multiple_staging_accounts():
         assert body["recoveryCapacity"]["currentServers"] == 150
 
 
+@mock_aws
 def test_combined_capacity_one_staging_account_inaccessible():
     """
     Test query with one staging account inaccessible.
@@ -371,6 +384,7 @@ def test_combined_capacity_one_staging_account_inaccessible():
         assert "error" in staging_02
 
 
+@mock_aws
 def test_combined_capacity_all_staging_accounts_inaccessible():
     """
     Test query with all staging accounts inaccessible.
@@ -488,6 +502,7 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
             assert "error" in staging
 
 
+@mock_aws
 def test_combined_capacity_missing_target_account_id():
     """Test error handling when targetAccountId is missing."""
     result = handle_get_combined_capacity({})
@@ -498,6 +513,7 @@ def test_combined_capacity_missing_target_account_id():
     assert "targetAccountId" in body["error"]
 
 
+@mock_aws
 def test_combined_capacity_invalid_account_id_format():
     """Test error handling when account ID format is invalid."""
     result = handle_get_combined_capacity({"targetAccountId": "invalid-id"})
@@ -508,6 +524,7 @@ def test_combined_capacity_invalid_account_id_format():
     assert "Invalid account ID format" in body["error"]
 
 
+@mock_aws
 def test_combined_capacity_target_account_not_found():
     """Test error handling when target account doesn't exist in DynamoDB."""
     target_account_id = "999999999999"

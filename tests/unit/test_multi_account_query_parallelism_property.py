@@ -10,15 +10,25 @@ all DRS-enabled regions.
 **Validates: Requirements 9.1, 9.3**
 """
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from concurrent.futures import Future
 
+# Set environment variables BEFORE importing index
+os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
+os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
+
+# Clear any existing index module to avoid conflicts
+if "index" in sys.modules:
+    del sys.modules["index"]
+
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
+from moto import mock_aws
 from hypothesis import given, strategies as st, settings
 import pytest
 
@@ -99,6 +109,7 @@ def multi_account_config_strategy(draw):
 
 @settings(max_examples=50)
 @given(config=multi_account_config_strategy())
+@mock_aws
 def test_property_multi_account_query_parallelism(config):
     """
     Property 8: Multi-Account Query Parallelism
@@ -191,6 +202,7 @@ def test_property_multi_account_query_parallelism(config):
     num_staging=st.integers(min_value=0, max_value=15),
     num_regions=st.integers(min_value=1, max_value=20)
 )
+@mock_aws
 def test_property_concurrent_region_queries_per_account(
     num_staging, num_regions
 ):
@@ -262,6 +274,7 @@ def test_property_concurrent_region_queries_per_account(
 
 @settings(max_examples=50)
 @given(config=multi_account_config_strategy())
+@mock_aws
 def test_property_parallel_execution_not_sequential(config):
     """
     Property: Queries should execute in parallel, not sequentially
@@ -312,6 +325,7 @@ def test_property_parallel_execution_not_sequential(config):
 # ============================================================================
 
 
+@mock_aws
 def test_edge_case_no_staging_accounts():
     """Edge case: Only target account, no staging accounts."""
     target_account = {
@@ -349,6 +363,7 @@ def test_edge_case_no_staging_accounts():
         assert len(results) == 1
 
 
+@mock_aws
 def test_edge_case_many_staging_accounts():
     """Edge case: Target account with many staging accounts (20)."""
     target_account = {
@@ -393,6 +408,7 @@ def test_edge_case_many_staging_accounts():
         assert len(results) == 21
 
 
+@mock_aws
 def test_edge_case_query_failure_continues():
     """Edge case: One account query fails, others continue."""
     target_account = {

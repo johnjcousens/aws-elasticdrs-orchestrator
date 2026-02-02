@@ -12,17 +12,22 @@ breakdown.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import importlib
 
 from hypothesis import given, settings, strategies as st
+from moto import mock_aws
+
+# Set environment variables BEFORE importing index
+os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
+os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
 
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
-
-from index import handle_get_combined_capacity
 
 
 # Strategy for generating account configurations
@@ -39,7 +44,8 @@ def account_config_strategy():
     })
 
 
-@settings(max_examples=100, deadline=1000)  # 1 second deadline for jobs metrics query
+@mock_aws
+@settings(max_examples=100, deadline=2000)  # 2 second deadline
 @given(
     num_staging_accounts=st.integers(min_value=0, max_value=10),
     target_servers=st.integers(min_value=0, max_value=300),
@@ -60,6 +66,34 @@ def test_property_12_account_breakdown_completeness(
 
     **Validates: Requirements 5.1, 5.2, 5.7**
     """
+    # Import boto3 and index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Try to delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    
     # Ensure staging_servers list matches num_staging_accounts
     staging_servers = staging_servers[:num_staging_accounts]
     while len(staging_servers) < num_staging_accounts:
@@ -87,9 +121,8 @@ def test_property_12_account_breakdown_completeness(
             "externalId": f"test-external-id-{staging_id}",
         })
 
-    # Mock DynamoDB table
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {"Item": target_account}
+    # Put the target account in the table
+    table.put_item(Item=target_account)
 
     # Mock query_all_accounts_parallel to return predictable results
     def mock_query_all_accounts(target, staging_list):
@@ -133,18 +166,17 @@ def test_property_12_account_breakdown_completeness(
 
         return results
 
-    with patch(
-        "index.target_accounts_table", mock_table
-    ), patch(
-        "index.query_all_accounts_parallel",
-        side_effect=mock_query_all_accounts
-    ):
+    # Patch the query function and table to use mocked versions
+    with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
+         patch.object(index, "target_accounts_table", table):
         # Call handle_get_combined_capacity
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
         )
 
         # Parse response
+        if result["statusCode"] != 200:
+            print(f"ERROR: Status {result['statusCode']}, Body: {result.get('body')}")
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
 
@@ -173,7 +205,6 @@ def test_property_12_account_breakdown_completeness(
             f"Expected {num_staging_accounts} staging accounts, "
             f"got {len(staging_accounts_result)}"
         )
-
         # Property: Each account must have all required fields
         required_fields = [
             "accountId",
