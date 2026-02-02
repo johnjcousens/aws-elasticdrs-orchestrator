@@ -29,7 +29,7 @@ export const useStagingAccountRefresh = (callbacks?: StagingAccountRefreshCallba
     
     try {
       // 1. Refresh account list (with cache bust to get fresh staging accounts)
-      await refreshAccounts(true);
+      await refreshAccounts();
       
       // 2. Refresh capacity data if callback provided
       if (callbacks?.onRefreshCapacity) {

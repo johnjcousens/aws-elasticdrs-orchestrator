@@ -31,6 +31,7 @@ import {
   StatusIndicator,
   ExpandableSection,
   Spinner,
+  Alert,
 } from "@cloudscape-design/components";
 import apiClient from "../services/api";
 import type {
@@ -47,7 +48,7 @@ import type {
 export const TargetAccountSettingsModal: React.FC<
   TargetAccountSettingsModalProps
 > = ({ targetAccount, visible, onDismiss }) => {
-  const [freshAccountData, setFreshAccountData] = useState<typeof targetAccount | null>(null);
+  const [freshAccountData, setFreshAccountData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -165,7 +166,7 @@ export const TargetAccountSettingsModal: React.FC<
             </Box>
           ) : (
             <SpaceBetween size="m">
-              {stagingAccounts.map((stagingAccount) => (
+              {stagingAccounts.map((stagingAccount: any) => (
                 <Box key={stagingAccount.accountId} padding="s">
                   <strong>{stagingAccount.accountName}</strong> ({stagingAccount.accountId})
                 </Box>
