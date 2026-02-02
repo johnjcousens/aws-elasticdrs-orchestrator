@@ -270,13 +270,11 @@ logger = logging.getLogger(__name__)
 class SecurityError(Exception):
     """Custom exception for security-related errors"""
 
-    pass
 
 
 class InputValidationError(SecurityError):
     """Exception raised for input validation failures"""
 
-    pass
 
 
 def sanitize_string(input_str: str, max_length: int = 255) -> str:

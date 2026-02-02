@@ -5,7 +5,7 @@ Automatically discovers staging accounts configured in DRS for a target account.
 """
 
 import boto3
-from typing import Dict, List, Set
+from typing import Dict, List
 from botocore.exceptions import ClientError
 from .cross_account import get_cross_account_session
 
@@ -87,7 +87,6 @@ def discover_staging_accounts_from_drs(
                 ):
                     from .account_utils import (
                         construct_role_arn,
-                        get_account_name,
                     )
 
                     # Try to get the real account name/alias

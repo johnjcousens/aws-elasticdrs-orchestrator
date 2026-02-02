@@ -47,7 +47,6 @@ import json
 import os
 import time
 import uuid
-from decimal import Decimal
 from typing import Dict, List
 
 import boto3
@@ -6267,7 +6266,6 @@ def recalculate_execution_status(execution: Dict) -> Dict:
         "RUNNING",
         "CONVERTING",
     ]
-    terminal_statuses = ["COMPLETED", "FAILED", "CANCELLED"]
 
     active_waves = []
     completed_waves = []
