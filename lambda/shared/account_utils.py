@@ -100,9 +100,7 @@ def construct_role_arn(account_id: str) -> str:
         ValueError: Invalid account ID: 12345. Must be exactly 12 digits.
     """
     if not validate_account_id(account_id):
-        raise ValueError(
-            f"Invalid account ID: {account_id}. Must be exactly 12 digits."
-        )
+        raise ValueError(f"Invalid account ID: {account_id}. Must be exactly 12 digits.")
 
     return f"arn:aws:iam::{account_id}:role/{STANDARD_ROLE_NAME}"
 
@@ -293,9 +291,7 @@ def get_target_accounts() -> Dict:
     try:
         target_accounts_table = _get_target_accounts_table()
         if not target_accounts_table:
-            return response(
-                500, {"error": "Target accounts table not configured"}
-            )
+            return response(500, {"error": "Target accounts table not configured"})
 
         # Get current account info
         current_account_id = get_current_account_id()
@@ -311,9 +307,7 @@ def get_target_accounts() -> Dict:
 
         # Handle pagination
         while "LastEvaluatedKey" in result:
-            result = target_accounts_table.scan(
-                ExclusiveStartKey=result["LastEvaluatedKey"]
-            )
+            result = target_accounts_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
             accounts.extend(result.get("Items", []))
 
         return response(200, accounts)
@@ -364,9 +358,7 @@ def validate_target_account(account_id: str) -> Dict:
     try:
         target_accounts_table = _get_target_accounts_table()
         if not target_accounts_table:
-            return response(
-                500, {"error": "Target accounts table not configured"}
-            )
+            return response(500, {"error": "Target accounts table not configured"})
 
         current_account_id = get_current_account_id()
 
@@ -452,14 +444,10 @@ def validate_target_account(account_id: str) -> Dict:
             target_accounts_table.update_item(
                 Key={"accountId": account_id},
                 UpdateExpression="SET lastValidated = :lastValidated",
-                ExpressionAttributeValues={
-                    ":lastValidated": validation_results["lastValidated"]
-                },
+                ExpressionAttributeValues={":lastValidated": validation_results["lastValidated"]},
             )
         except Exception as update_error:
-            print(
-                f"Warning: Could not update lastValidated timestamp: {update_error}"
-            )
+            print(f"Warning: Could not update lastValidated timestamp: {update_error}")
 
         return response(200, validation_results)
 

@@ -53,17 +53,11 @@ EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 
 # DynamoDB tables
 protection_groups_table = (
-    dynamodb.Table(PROTECTION_GROUPS_TABLE)
-    if PROTECTION_GROUPS_TABLE
-    else None
+    dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
 )
-recovery_plans_table = (
-    dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-)
+recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
 execution_history_table = (
-    dynamodb.Table(EXECUTION_HISTORY_TABLE)
-    if EXECUTION_HISTORY_TABLE
-    else None
+    dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
 )
 
 # Execution statuses indicating active DR operations in progress
@@ -101,17 +95,11 @@ def get_all_active_executions() -> List[Dict]:
                     "ValidationException",
                     "ResourceNotFoundException",
                 ]:
-                    print(
-                        f"StatusIndex GSI not available for status {status}: {error_code}"
-                    )
+                    print(f"StatusIndex GSI not available for status {status}: {error_code}")
                 else:
-                    print(
-                        f"DynamoDB error querying StatusIndex for {status}: {e}"
-                    )
+                    print(f"DynamoDB error querying StatusIndex for {status}: {e}")
             except Exception as e:
-                print(
-                    f"Unexpected error querying StatusIndex for {status}: {e}"
-                )
+                print(f"Unexpected error querying StatusIndex for {status}: {e}")
 
         # If no results from GSI, fallback to scan
         if not active_executions:
@@ -168,9 +156,7 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
 
             # Filter by active statuses
             active_executions = [
-                e
-                for e in executions
-                if e.get("status", "").upper() in ACTIVE_EXECUTION_STATUSES
+                e for e in executions if e.get("status", "").upper() in ACTIVE_EXECUTION_STATUSES
             ]
 
             return active_executions
@@ -181,9 +167,7 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
                 "ValidationException",
                 "ResourceNotFoundException",
             ]:
-                print(
-                    f"PlanIdIndex GSI not available: {error_code}, falling back to scan"
-                )
+                print(f"PlanIdIndex GSI not available: {error_code}, falling back to scan")
                 # Fallback to scan
                 result = execution_history_table.scan()
                 all_executions = result.get("Items", [])
@@ -193,8 +177,7 @@ def get_active_executions_for_plan(plan_id: str) -> List[Dict]:
                     e
                     for e in all_executions
                     if e.get("planId") == plan_id
-                    and e.get("status", "").upper()
-                    in ACTIVE_EXECUTION_STATUSES
+                    and e.get("status", "").upper() in ACTIVE_EXECUTION_STATUSES
                 ]
 
                 return active_executions
@@ -319,14 +302,8 @@ def resolve_pg_servers_for_conflict_check(
 
         if selection_tags:
             # Resolve servers by tags
-            resolved = query_drs_servers_by_tags(
-                region, selection_tags, account_context
-            )
-            server_ids = [
-                s.get("sourceServerID")
-                for s in resolved
-                if s.get("sourceServerID")
-            ]
+            resolved = query_drs_servers_by_tags(region, selection_tags, account_context)
+            server_ids = [s.get("sourceServerID") for s in resolved if s.get("sourceServerID")]
         elif source_server_ids:
             # Use explicit server IDs
             server_ids = source_server_ids
@@ -372,18 +349,14 @@ def get_servers_in_active_drs_jobs(
         jobs_response = drs_client.describe_jobs(maxResults=100)
 
         jobs_found = jobs_response.get("items", [])
-        print(
-            f"[DRS Job Check] Found {len(jobs_found)} total jobs in {region}"
-        )
+        print(f"[DRS Job Check] Found {len(jobs_found)} total jobs in {region}")
 
         for job in jobs_found:
             job_id = job.get("jobID")
             job_status = job.get("status", "")
             job_type = job.get("type", "")
 
-            print(
-                f"[DRS Job Check] Job {job_id}: type={job_type}, status={job_status}"
-            )
+            print(f"[DRS Job Check] Job {job_id}: type={job_type}, status={job_status}")
 
             # Only check active LAUNCH jobs (not TERMINATE, CREATE_CONVERTED_SNAPSHOT, etc.)
             if job_type == "LAUNCH" and job_status in DRS_ACTIVE_JOB_STATUSES:
@@ -395,13 +368,9 @@ def get_servers_in_active_drs_jobs(
                             "jobId": job_id,
                             "jobStatus": job_status,
                             "jobType": job_type,
-                            "launchStatus": server.get(
-                                "launchStatus", "UNKNOWN"
-                            ),
+                            "launchStatus": server.get("launchStatus", "UNKNOWN"),
                         }
-                        print(
-                            f"[DRS Job Check] Server {server_id} in active job {job_id}"
-                        )
+                        print(f"[DRS Job Check] Server {server_id} in active job {job_id}")
 
         print(
             f"[DRS Job Check] Found {len(servers_in_drs_jobs)} servers in active DRS jobs in {region}"
@@ -466,9 +435,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
         # For ALL active executions, resolve servers from the recovery plan's protection groups
         if plan_id not in plan_cache:
             try:
-                plan_result = recovery_plans_table.get_item(
-                    Key={"planId": plan_id}
-                )
+                plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
                 plan_cache[plan_id] = plan_result.get("Item", {})
             except Exception as e:
                 print(f"Error fetching plan {plan_id}: {e}")
@@ -482,9 +449,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
             current_wave = int(current_wave)
 
         # Get execution waves to check their status
-        execution_waves = {
-            w.get("waveNumber"): w for w in execution.get("waves", [])
-        }
+        execution_waves = {w.get("waveNumber"): w for w in execution.get("waves", [])}
 
         # Only consider waves that are not CANCELLED
         for idx, wave in enumerate(plan.get("waves", []), start=1):
@@ -499,15 +464,12 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
 
             # Get Protection Group ID for this wave
             pg_id = (
-                wave.get("protectionGroupId")
-                or (wave.get("protectionGroupIds", []) or [None])[0]
+                wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
             )
 
             if pg_id:
                 # Resolve servers from Protection Group (handles both tags and explicit IDs)
-                server_ids = resolve_pg_servers_for_conflict_check(
-                    pg_id, pg_cache
-                )
+                server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
                 for server_id in server_ids:
                     # Only add if not already tracked (ServerStatuses takes precedence)
                     if server_id not in servers_in_use:
@@ -516,9 +478,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
                             "planId": plan_id,
                             "waveName": wave_name,
                             "waveStatus": (
-                                exec_wave.get("status", "PENDING")
-                                if exec_wave
-                                else "PENDING"
+                                exec_wave.get("status", "PENDING") if exec_wave else "PENDING"
                             ),
                             "executionStatus": exec_status,
                         }
@@ -526,9 +486,7 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
     return servers_in_use
 
 
-def check_concurrent_jobs_limit(
-    region: str, account_context: Optional[Dict] = None
-) -> Dict:
+def check_concurrent_jobs_limit(region: str, account_context: Optional[Dict] = None) -> Dict:
     """
     Check if starting a new job would exceed 20 concurrent jobs limit.
 
@@ -551,9 +509,7 @@ def check_concurrent_jobs_limit(
         jobs_response = drs_client.describe_jobs(maxResults=100)
 
         active_jobs = [
-            j
-            for j in jobs_response.get("items", [])
-            if j.get("status") in DRS_ACTIVE_JOB_STATUSES
+            j for j in jobs_response.get("items", []) if j.get("status") in DRS_ACTIVE_JOB_STATUSES
         ]
 
         current_count = len(active_jobs)
@@ -600,10 +556,7 @@ def validate_wave_server_count(
         - message: Validation message
     """
     try:
-        pg_id = (
-            wave.get("protectionGroupId")
-            or (wave.get("protectionGroupIds", []) or [None])[0]
-        )
+        pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
 
         if not pg_id:
             return {
@@ -613,9 +566,7 @@ def validate_wave_server_count(
                 "message": "No Protection Group specified",
             }
 
-        server_ids = resolve_pg_servers_for_conflict_check(
-            pg_id, pg_cache, account_context
-        )
+        server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache, account_context)
         server_count = len(server_ids)
         max_servers = 100
 
@@ -666,9 +617,7 @@ def check_total_servers_in_jobs_limit(
         - availableSlots: Remaining capacity
     """
     try:
-        servers_in_jobs = get_servers_in_active_drs_jobs(
-            region, account_context
-        )
+        servers_in_jobs = get_servers_in_active_drs_jobs(region, account_context)
         current_total = len(servers_in_jobs)
         total_after = current_total + new_server_count
         max_servers = 500
@@ -696,9 +645,7 @@ def check_total_servers_in_jobs_limit(
         }
 
 
-def check_server_conflicts(
-    plan: Dict, account_context: Optional[Dict] = None
-) -> List[Dict]:
+def check_server_conflicts(plan: Dict, account_context: Optional[Dict] = None) -> List[Dict]:
     """
     Validate no servers in Recovery Plan are in active executions or DRS jobs.
     Also validates DRS job-level quotas (20 concurrent, 100 per job, 500 total).
@@ -756,15 +703,11 @@ def check_server_conflicts(
             }
         ]
     """
-    print(
-        f"[Conflict Check] Starting conflict check for plan {plan.get('planId')}"
-    )
+    print(f"[Conflict Check] Starting conflict check for plan {plan.get('planId')}")
     print(f"[Conflict Check] Account context: {account_context}")
 
     servers_in_use = get_servers_in_active_executions()
-    print(
-        f"[Conflict Check] Servers in active executions: {list(servers_in_use.keys())}"
-    )
+    print(f"[Conflict Check] Servers in active executions: {list(servers_in_use.keys())}")
 
     conflicts = []
     pg_cache = {}
@@ -779,19 +722,14 @@ def check_server_conflicts(
         wave_name = wave.get("waveName", "Unknown")
 
         # Get Protection Group ID for this wave
-        pg_id = (
-            wave.get("protectionGroupId")
-            or (wave.get("protectionGroupIds", []) or [None])[0]
-        )
+        pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
         print(f"[Conflict Check] Wave '{wave_name}' has PG: {pg_id}")
 
         if pg_id:
             # Get PG to find region
             pg_metadata = {}
             try:
-                pg_result = protection_groups_table.get_item(
-                    Key={"groupId": pg_id}
-                )
+                pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
                 pg_metadata = pg_result.get("Item", {})
             except Exception as e:
                 print(f"[Conflict Check] Error fetching PG {pg_id}: {e}")
@@ -800,13 +738,9 @@ def check_server_conflicts(
             print(f"[Conflict Check] PG {pg_id} is in region {region}")
 
             # QUOTA CHECK 1: Validate wave doesn't exceed 100 servers per job
-            wave_validation = validate_wave_server_count(
-                wave, pg_cache, account_context
-            )
+            wave_validation = validate_wave_server_count(wave, pg_cache, account_context)
             if not wave_validation["valid"]:
-                print(
-                    f"[Conflict Check] Wave '{wave_name}' exceeds 100 servers per job limit"
-                )
+                print(f"[Conflict Check] Wave '{wave_name}' exceeds 100 servers per job limit")
                 quota_violations.append(
                     {
                         "quotaType": "servers_per_job",
@@ -827,20 +761,14 @@ def check_server_conflicts(
                 print(f"[Conflict Check] Checking DRS jobs in region {region}")
 
                 # QUOTA CHECK 2: Check concurrent jobs limit (20 max)
-                concurrent_jobs_check = check_concurrent_jobs_limit(
-                    region, account_context
-                )
+                concurrent_jobs_check = check_concurrent_jobs_limit(region, account_context)
                 if not concurrent_jobs_check["canStartJob"]:
-                    print(
-                        f"[Conflict Check] Region {region} at concurrent jobs limit"
-                    )
+                    print(f"[Conflict Check] Region {region} at concurrent jobs limit")
                     quota_violations.append(
                         {
                             "quotaType": "concurrent_jobs",
                             "region": region,
-                            "currentJobs": concurrent_jobs_check[
-                                "currentJobs"
-                            ],
+                            "currentJobs": concurrent_jobs_check["currentJobs"],
                             "maxJobs": concurrent_jobs_check["maxJobs"],
                             "message": f"Cannot start new job - {concurrent_jobs_check['currentJobs']}/20 concurrent jobs active",
                             "conflictSource": "quota_violation",
@@ -855,9 +783,7 @@ def check_server_conflicts(
                 )
 
             # Resolve servers from Protection Group tags
-            server_ids = resolve_pg_servers_for_conflict_check(
-                pg_id, pg_cache, account_context
-            )
+            server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache, account_context)
             print(
                 f"[Conflict Check] Resolved {len(server_ids)} servers from PG {pg_id}: {server_ids}"
             )
@@ -866,23 +792,15 @@ def check_server_conflicts(
                 # Check DynamoDB execution conflicts
                 if server_id in servers_in_use:
                     conflict_info = servers_in_use[server_id]
-                    print(
-                        f"[Conflict Check] Server {server_id} has execution conflict"
-                    )
+                    print(f"[Conflict Check] Server {server_id} has execution conflict")
                     conflicts.append(
                         {
                             "serverId": server_id,
                             "waveName": wave_name,
-                            "conflictingExecutionId": conflict_info[
-                                "executionId"
-                            ],
+                            "conflictingExecutionId": conflict_info["executionId"],
                             "conflictingPlanId": conflict_info["planId"],
-                            "conflictingWaveName": conflict_info.get(
-                                "waveName"
-                            ),
-                            "conflictingStatus": conflict_info.get(
-                                "executionStatus"
-                            ),
+                            "conflictingWaveName": conflict_info.get("waveName"),
+                            "conflictingStatus": conflict_info.get("executionStatus"),
                             "conflictSource": "execution",
                         }
                     )
@@ -898,9 +816,7 @@ def check_server_conflicts(
                             "waveName": wave_name,
                             "conflictingJobId": drs_info["jobId"],
                             "conflictingJobStatus": drs_info["jobStatus"],
-                            "conflictingLaunchStatus": drs_info.get(
-                                "launchStatus"
-                            ),
+                            "conflictingLaunchStatus": drs_info.get("launchStatus"),
                             "conflictSource": "drs_job",
                         }
                     )
@@ -912,9 +828,7 @@ def check_server_conflicts(
             region, total_plan_servers, account_context
         )
         if not total_servers_check["valid"]:
-            print(
-                f"[Conflict Check] Region {region} would exceed 500 total servers in jobs"
-            )
+            print(f"[Conflict Check] Region {region} would exceed 500 total servers in jobs")
             quota_violations.append(
                 {
                     "quotaType": "total_servers_in_jobs",
@@ -969,9 +883,7 @@ def check_server_conflicts_for_create(server_ids: List[str]) -> List[Dict]:
     return conflicts
 
 
-def check_server_conflicts_for_update(
-    server_ids: List[str], current_pg_id: str
-) -> List[Dict]:
+def check_server_conflicts_for_update(server_ids: List[str], current_pg_id: str) -> List[Dict]:
     """Check if any servers are already assigned to other Protection Groups (excluding current)"""
     conflicts = []
 
@@ -1035,9 +947,7 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
 
         # Handle pagination
         while "LastEvaluatedKey" in result:
-            result = recovery_plans_table.scan(
-                ExclusiveStartKey=result["LastEvaluatedKey"]
-            )
+            result = recovery_plans_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
             all_plans.extend(result.get("Items", []))
     except Exception as e:
         print(f"Error fetching plans for conflict check: {e}")
@@ -1058,15 +968,12 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
         for wave in plan.get("waves", []):
             # Get Protection Group ID for this wave
             pg_id = (
-                wave.get("protectionGroupId")
-                or (wave.get("protectionGroupIds", []) or [None])[0]
+                wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
             )
 
             if pg_id:
                 # Resolve servers from Protection Group tags
-                server_ids = resolve_pg_servers_for_conflict_check(
-                    pg_id, pg_cache
-                )
+                server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
 
                 for server_id in server_ids:
                     if server_id in servers_in_use:
@@ -1075,13 +982,9 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
                         # A plan's own active execution is NOT a conflict - it just means the plan is running
                         if conflict_info["planId"] != plan_id:
                             conflicting_servers.append(server_id)
-                            conflicting_execution_id = conflict_info[
-                                "executionId"
-                            ]
+                            conflicting_execution_id = conflict_info["executionId"]
                             conflicting_plan_id = conflict_info["planId"]
-                            conflicting_status = conflict_info.get(
-                                "executionStatus"
-                            )
+                            conflicting_status = conflict_info.get("executionStatus")
 
         # Also check DRS jobs for this plan's regions
         drs_conflicting_servers = []
@@ -1090,16 +993,13 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
 
         for wave in plan.get("waves", []):
             pg_id = (
-                wave.get("protectionGroupId")
-                or (wave.get("protectionGroupIds", []) or [None])[0]
+                wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
             )
             if pg_id:
                 # Get PG metadata (region) - use separate cache since pg_cache stores server IDs
                 if pg_id not in pg_metadata_cache:
                     try:
-                        pg_result = protection_groups_table.get_item(
-                            Key={"groupId": pg_id}
-                        )
+                        pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
                         pg_metadata_cache[pg_id] = pg_result.get("Item", {})
                     except Exception:
                         pg_metadata_cache[pg_id] = {}
@@ -1109,13 +1009,9 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
 
                 # Lazy load DRS jobs per region
                 if region not in drs_servers_by_region:
-                    drs_servers_by_region[region] = (
-                        get_servers_in_active_drs_jobs(region)
-                    )
+                    drs_servers_by_region[region] = get_servers_in_active_drs_jobs(region)
 
-                server_ids = resolve_pg_servers_for_conflict_check(
-                    pg_id, pg_cache
-                )
+                server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
                 for server_id in server_ids:
                     # Skip if already in execution conflict
                     if (
@@ -1126,9 +1022,7 @@ def get_plans_with_conflicts() -> Dict[str, Dict]:  # noqa: C901
                         drs_conflicting_servers.append(server_id)
                         drs_conflicting_job_id = drs_info["jobId"]
 
-        all_conflicting = list(
-            set(conflicting_servers + drs_conflicting_servers)
-        )
+        all_conflicting = list(set(conflicting_servers + drs_conflicting_servers))
 
         if all_conflicting:
             # Build reason message

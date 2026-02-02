@@ -215,9 +215,7 @@ Execution Details:
 The disaster recovery execution has been initiated. You will receive updates as each wave progresses.
 """
 
-        sns.publish(
-            TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message
-        )
+        sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
         print(f"✅ Sent execution started notification for {execution_id}")
     except Exception as e:
         print(f"Warning: Failed to send execution started notification: {e}")
@@ -269,9 +267,7 @@ Execution Details:
 All recovery waves have been successfully executed. Please verify the recovered infrastructure.
 """
 
-        sns.publish(
-            TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message
-        )
+        sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
         print(f"✅ Sent execution completed notification for {execution_id}")
     except Exception as e:
         print(f"Warning: Failed to send execution completed notification: {e}")
@@ -309,11 +305,7 @@ def send_execution_failed(
 
     try:
         subject = f"❌ DRS Execution Failed - {plan_name}"
-        wave_info = (
-            f"Wave {failed_wave}"
-            if failed_wave is not None
-            else "Unknown wave"
-        )
+        wave_info = f"Wave {failed_wave}" if failed_wave is not None else "Unknown wave"
         message = f"""
 ❌ AWS DRS Orchestration Execution Failed
 
@@ -327,9 +319,7 @@ Execution Details:
 Please review the execution logs and take appropriate action to resolve the issue.
 """
 
-        sns.publish(
-            TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message
-        )
+        sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
         print(f"✅ Sent execution failed notification for {execution_id}")
     except Exception as e:
         print(f"Warning: Failed to send execution failed notification: {e}")
@@ -376,9 +366,7 @@ Execution Details:
 The execution is waiting for manual approval to continue. Use the DRS Orchestration console to resume.
 """
 
-        sns.publish(
-            TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message
-        )
+        sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
         print(f"✅ Sent execution paused notification for {execution_id}")
     except Exception as e:
         print(f"Warning: Failed to send execution paused notification: {e}")
@@ -432,9 +420,7 @@ Execution Details:
 Wave {wave_number} has completed successfully. All servers are launched.
 """
 
-        sns.publish(
-            TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message
-        )
+        sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
         print(f"✅ Sent wave completed notification for wave {wave_number}")
     except Exception as e:
         print(f"Warning: Failed to send wave completed notification: {e}")
@@ -489,9 +475,7 @@ Wave {wave_number} has failed. {failed_servers} server(s) failed to launch.
 Please review the DRS console for detailed error information.
 """
 
-        sns.publish(
-            TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message
-        )
+        sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
         print(f"✅ Sent wave failed notification for wave {wave_number}")
     except Exception as e:
         print(f"Warning: Failed to send wave failed notification: {e}")

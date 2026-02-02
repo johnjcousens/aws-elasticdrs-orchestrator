@@ -97,9 +97,7 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
 
         # Log stack status when making cleanup decisions (Requirement 8.2)
         print(f"Frontend Deployer DELETE: Stack status is '{stack_status}'")
-        logger.info(
-            f"Frontend Deployer DELETE: Stack status is '{stack_status}'"
-        )
+        logger.info(f"Frontend Deployer DELETE: Stack status is '{stack_status}'")
         log_security_event(
             "stack_status_checked",
             {
@@ -139,8 +137,7 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
                 f"already or wrong stack ID)"
             )
             logger.warning(
-                f"Frontend Deployer DELETE: Stack does not exist - "
-                f"skipping cleanup for safety"
+                f"Frontend Deployer DELETE: Stack does not exist - " f"skipping cleanup for safety"
             )
             log_security_event(
                 "stack_not_found_skip_cleanup",
@@ -159,9 +156,7 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
             f"Frontend Deployer DELETE: Could not check stack status: {e} - "
             f"skipping cleanup to be safe"
         )
-        logger.error(
-            f"Frontend Deployer DELETE: Could not check stack status: {e}"
-        )
+        logger.error(f"Frontend Deployer DELETE: Could not check stack status: {e}")
         logger.error(f"Frontend Deployer DELETE Stack trace: {stack_trace}")
         log_security_event(
             "stack_status_check_failed",
@@ -182,9 +177,7 @@ def should_empty_bucket(stack_id: str, bucket_name: str) -> tuple:
             f"Frontend Deployer DELETE: Could not check stack status: {e} - "
             f"skipping cleanup to be safe"
         )
-        logger.error(
-            f"Frontend Deployer DELETE: Could not check stack status: {e}"
-        )
+        logger.error(f"Frontend Deployer DELETE: Could not check stack status: {e}")
         logger.error(f"Frontend Deployer DELETE Stack trace: {stack_trace}")
         log_security_event(
             "stack_status_check_failed",
@@ -218,12 +211,9 @@ def empty_bucket(bucket_name: str) -> int:
         except ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 print(
-                    f"Frontend Deployer: Bucket {bucket_name} does not exist "
-                    f"- nothing to clean"
+                    f"Frontend Deployer: Bucket {bucket_name} does not exist " f"- nothing to clean"
                 )
-                logger.info(
-                    f"Bucket {bucket_name} does not exist - nothing to clean"
-                )
+                logger.info(f"Bucket {bucket_name} does not exist - nothing to clean")
                 log_security_event(
                     "bucket_not_found",
                     {"bucket_name": bucket_name},
@@ -277,10 +267,7 @@ def empty_bucket(bucket_name: str) -> int:
                         f"Frontend Deployer: Deleting batch of {len(batch)} "
                         f"objects from {bucket_name}"
                     )
-                    logger.info(
-                        f"Deleting batch of {len(batch)} objects from "
-                        f"{bucket_name}"
-                    )
+                    logger.info(f"Deleting batch of {len(batch)} objects from " f"{bucket_name}")
 
                     response = s3.delete_objects(
                         Bucket=bucket_name,
@@ -306,9 +293,7 @@ def empty_bucket(bucket_name: str) -> int:
 
         # Verify bucket is empty by checking both regular objects and versions
         response = s3.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
-        versions_response = s3.list_object_versions(
-            Bucket=bucket_name, MaxKeys=1
-        )
+        versions_response = s3.list_object_versions(Bucket=bucket_name, MaxKeys=1)
 
         has_objects = "Contents" in response
         has_versions = "Versions" in versions_response
@@ -320,10 +305,7 @@ def empty_bucket(bucket_name: str) -> int:
                 f"objects={has_objects}, versions={has_versions}, "
                 f"markers={has_markers}"
             )
-            print(
-                f"Frontend Deployer: ⚠️ Bucket {bucket_name} still has "
-                f"content after cleanup"
-            )
+            print(f"Frontend Deployer: ⚠️ Bucket {bucket_name} still has " f"content after cleanup")
         else:
             print(f"Frontend Deployer: Bucket {bucket_name} is now empty")
             logger.info(f"Bucket {bucket_name} is now empty")
@@ -333,13 +315,8 @@ def empty_bucket(bucket_name: str) -> int:
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         if error_code == "NoSuchBucket":
-            print(
-                f"Frontend Deployer: Bucket {bucket_name} does not exist - "
-                f"nothing to clean"
-            )
-            logger.info(
-                f"Bucket {bucket_name} does not exist - nothing to clean"
-            )
+            print(f"Frontend Deployer: Bucket {bucket_name} does not exist - " f"nothing to clean")
+            logger.info(f"Bucket {bucket_name} does not exist - nothing to clean")
             return 0
         else:
             # Log full stack trace on errors (Requirement 8.5)
@@ -385,9 +362,7 @@ def use_prebuilt_dist(frontend_dir):
         raise FileNotFoundError(error_msg)
 
     # Count files in dist
-    file_count = sum(
-        1 for root, dirs, files in os.walk(dist_dir) for f in files
-    )
+    file_count = sum(1 for root, dirs, files in os.walk(dist_dir) for f in files)
     print(f"Found pre-built dist directory with {file_count} files")
 
     return dist_dir
@@ -406,23 +381,15 @@ def inject_aws_config_into_dist(dist_dir, properties):
     region = sanitize_string_input(
         properties.get("region", os.environ.get("AWS_REGION", "us-west-2"))
     )
-    log_security_event(
-        "injecting_aws_config", {"dist_dir": dist_dir, "region": region}
-    )
+    log_security_event("injecting_aws_config", {"dist_dir": dist_dir, "region": region})
 
     # Create configuration object with sanitized values
     config_obj = {
         "region": region,
         "userPoolId": sanitize_string_input(properties.get("UserPoolId", "")),
-        "userPoolClientId": sanitize_string_input(
-            properties.get("UserPoolClientId", "")
-        ),
-        "identityPoolId": sanitize_string_input(
-            properties.get("IdentityPoolId", "")
-        ),
-        "apiEndpoint": sanitize_string_input(
-            properties.get("ApiEndpoint", "")
-        ),
+        "userPoolClientId": sanitize_string_input(properties.get("UserPoolClientId", "")),
+        "identityPoolId": sanitize_string_input(properties.get("IdentityPoolId", "")),
+        "apiEndpoint": sanitize_string_input(properties.get("ApiEndpoint", "")),
     }
 
     # 1. Create aws-config.json at ROOT level (for fetch() in index.html)
@@ -470,9 +437,7 @@ window.AWS_CONFIG = {{
     with open(config_js_path, "w") as f:
         f.write(config_js_content)
 
-    print(
-        "✅ Generated aws-config.js in dist/assets/ (backwards compatibility)"
-    )
+    print("✅ Generated aws-config.js in dist/assets/ (backwards compatibility)")
 
     # 3. Inject script tag into index.html to load aws-config.js before React
     index_html_path = os.path.join(dist_dir, "index.html")
@@ -491,25 +456,14 @@ window.AWS_CONFIG = {{
         if match:
             # Insert config script before first script tag
             insert_pos = match.start()
-            config_script = (
-                '    <script src="/assets/aws-config.js"></script>\n    '
-            )
-            html_content = (
-                html_content[:insert_pos]
-                + config_script
-                + html_content[insert_pos:]
-            )
+            config_script = '    <script src="/assets/aws-config.js"></script>\n    '
+            html_content = html_content[:insert_pos] + config_script + html_content[insert_pos:]
             print("✅ Injected aws-config.js script tag BEFORE React bundle")
         else:
             # Fallback: insert before </head> if no script tags found
-            script_tag = (
-                '    <script src="/assets/aws-config.js"></script>\n  </head>'
-            )
+            script_tag = '    <script src="/assets/aws-config.js"></script>\n  </head>'
             html_content = html_content.replace("</head>", script_tag)
-            print(
-                "✅ Injected aws-config.js script tag before </head> "
-                "(no script tags found)"
-            )
+            print("✅ Injected aws-config.js script tag before </head> " "(no script tags found)")
 
         with open(index_html_path, "w") as f:
             f.write(html_content)
@@ -601,9 +555,7 @@ def create_or_update(event, context):
     # Security validation for CloudFormation inputs
     bucket_name = sanitize_string_input(properties["BucketName"])
     distribution_id = sanitize_string_input(properties["DistributionId"])
-    frontend_version = sanitize_string_input(
-        properties.get("FrontendBuildVersion", "v1")
-    )
+    frontend_version = sanitize_string_input(properties.get("FrontendBuildVersion", "v1"))
 
     # Stable PhysicalResourceId prevents CloudFormation replacement behavior
     # CRITICAL: This ID must be deterministic and based ONLY on the bucket name
@@ -631,20 +583,14 @@ def create_or_update(event, context):
         # Get frontend source from Lambda package
         lambda_frontend_path = "/var/task/frontend"
         if not os.path.exists(lambda_frontend_path):
-            error_msg = (
-                f"Frontend source not found in Lambda package at "
-                f"{lambda_frontend_path}"
-            )
+            error_msg = f"Frontend source not found in Lambda package at " f"{lambda_frontend_path}"
             log_security_event(
                 "frontend_source_not_found",
                 {"path": lambda_frontend_path, "error": error_msg},
             )
             raise FileNotFoundError(error_msg)
 
-        print(
-            f"Found frontend source in Lambda package at "
-            f"{lambda_frontend_path}"
-        )
+        print(f"Found frontend source in Lambda package at " f"{lambda_frontend_path}")
 
         # Use pre-built dist/ folder (no npm build required)
         dist_dir = use_prebuilt_dist(lambda_frontend_path)
@@ -681,14 +627,8 @@ def create_or_update(event, context):
 
         # Log CloudFront invalidation ID on successful cache invalidation
         # (Requirement 8.4)
-        print(
-            f"Frontend Deployer: CloudFront invalidation created: "
-            f"{invalidation_id}"
-        )
-        logger.info(
-            f"Frontend Deployer: CloudFront invalidation created: "
-            f"{invalidation_id}"
-        )
+        print(f"Frontend Deployer: CloudFront invalidation created: " f"{invalidation_id}")
+        logger.info(f"Frontend Deployer: CloudFront invalidation created: " f"{invalidation_id}")
         log_security_event(
             "cloudfront_invalidation_created",
             {
@@ -700,18 +640,12 @@ def create_or_update(event, context):
 
         # Log number of files deployed on successful deployment
         # (Requirement 8.3)
-        print(
-            f"Frontend Deployer: ✅ Deployed {len(uploaded_files)} files to "
-            f"{bucket_name}"
-        )
+        print(f"Frontend Deployer: ✅ Deployed {len(uploaded_files)} files to " f"{bucket_name}")
         logger.info(
-            f"Frontend Deployer: ✅ Deployed {len(uploaded_files)} "
-            f"files to {bucket_name}"
+            f"Frontend Deployer: ✅ Deployed {len(uploaded_files)} " f"files to {bucket_name}"
         )
 
-        print(
-            f"🎉 Frontend deployment complete! (version: {frontend_version})"
-        )
+        print(f"🎉 Frontend deployment complete! (version: {frontend_version})")
 
         log_security_event(
             "frontend_deployment_completed",
@@ -788,20 +722,12 @@ def delete(event, context):
     bucket_name = properties["BucketName"]
     stack_id = event.get("StackId", "")
 
-    print(
-        f"Frontend Deployer DELETE: Received delete event for bucket "
-        f"{bucket_name}"
-    )
-    logger.info(
-        f"Frontend Deployer DELETE: Received delete event for bucket "
-        f"{bucket_name}"
-    )
+    print(f"Frontend Deployer DELETE: Received delete event for bucket " f"{bucket_name}")
+    logger.info(f"Frontend Deployer DELETE: Received delete event for bucket " f"{bucket_name}")
 
     # Check stack status - only empty bucket during actual stack deletion
     # Skip cleanup for all other scenarios (UPDATE operations, rollbacks, etc.)
-    should_empty, reason, stack_status = should_empty_bucket(
-        stack_id, bucket_name
-    )
+    should_empty, reason, stack_status = should_empty_bucket(stack_id, bucket_name)
 
     if not should_empty:
         cleanup_decision = f"skip_{reason}"
@@ -842,14 +768,8 @@ def delete(event, context):
         },
     )
 
-    print(
-        f"Frontend Deployer DELETE: Emptying bucket {bucket_name} "
-        f"before deletion..."
-    )
-    logger.info(
-        f"Frontend Deployer DELETE: Emptying bucket {bucket_name} "
-        f"before deletion..."
-    )
+    print(f"Frontend Deployer DELETE: Emptying bucket {bucket_name} " f"before deletion...")
+    logger.info(f"Frontend Deployer DELETE: Emptying bucket {bucket_name} " f"before deletion...")
 
     try:
         delete_count = empty_bucket(bucket_name)
@@ -888,13 +808,9 @@ def delete(event, context):
         )
 
         # Don't raise - allow stack deletion to continue even if cleanup fails
-        print(
-            "Frontend Deployer DELETE: ⚠️ Continuing with stack deletion "
-            "despite cleanup error"
-        )
+        print("Frontend Deployer DELETE: ⚠️ Continuing with stack deletion " "despite cleanup error")
         logger.warning(
-            "Frontend Deployer DELETE: Continuing with stack deletion "
-            "despite cleanup error"
+            "Frontend Deployer DELETE: Continuing with stack deletion " "despite cleanup error"
         )
         return None
 
@@ -904,9 +820,7 @@ def lambda_handler(event, context):
     # Log CloudFormation event type at start of each invocation
     # (Requirement 8.1)
     request_type = event.get("RequestType", "Unknown")
-    bucket_name = event.get("ResourceProperties", {}).get(
-        "BucketName", "unknown"
-    )
+    bucket_name = event.get("ResourceProperties", {}).get("BucketName", "unknown")
 
     print(f"Frontend Deployer: Received {request_type} event")
     logger.info(f"Frontend Deployer: Received {request_type} event")

@@ -439,19 +439,11 @@ ENDPOINT_PERMISSIONS = {
     # Protection Groups - All operations require permissions
     ("GET", "/protection-groups"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("POST", "/protection-groups"): [DRSPermission.CREATE_PROTECTION_GROUPS],
-    ("POST", "/protection-groups/resolve"): [
-        DRSPermission.VIEW_PROTECTION_GROUPS
-    ],
+    ("POST", "/protection-groups/resolve"): [DRSPermission.VIEW_PROTECTION_GROUPS],
     ("GET", "/protection-groups/{id}"): [DRSPermission.VIEW_PROTECTION_GROUPS],
-    ("PUT", "/protection-groups/{id}"): [
-        DRSPermission.MODIFY_PROTECTION_GROUPS
-    ],
-    ("DELETE", "/protection-groups/{id}"): [
-        DRSPermission.DELETE_PROTECTION_GROUPS
-    ],
-    ("POST", "/protection-groups/{id}"): [
-        DRSPermission.MODIFY_PROTECTION_GROUPS
-    ],
+    ("PUT", "/protection-groups/{id}"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
+    ("DELETE", "/protection-groups/{id}"): [DRSPermission.DELETE_PROTECTION_GROUPS],
+    ("POST", "/protection-groups/{id}"): [DRSPermission.MODIFY_PROTECTION_GROUPS],
     # Recovery Plans - All operations require permissions
     ("GET", "/recovery-plans"): [DRSPermission.VIEW_RECOVERY_PLANS],
     ("POST", "/recovery-plans"): [DRSPermission.CREATE_RECOVERY_PLANS],
@@ -459,34 +451,20 @@ ENDPOINT_PERMISSIONS = {
     ("PUT", "/recovery-plans/{id}"): [DRSPermission.MODIFY_RECOVERY_PLANS],
     ("DELETE", "/recovery-plans/{id}"): [DRSPermission.DELETE_RECOVERY_PLANS],
     ("POST", "/recovery-plans/{id}/execute"): [DRSPermission.START_RECOVERY],
-    ("GET", "/recovery-plans/{id}/check-existing-instances"): [
-        DRSPermission.VIEW_RECOVERY_PLANS
-    ],
+    ("GET", "/recovery-plans/{id}/check-existing-instances"): [DRSPermission.VIEW_RECOVERY_PLANS],
     # Executions - All operations require permissions
     ("GET", "/executions"): [DRSPermission.VIEW_EXECUTIONS],
     ("POST", "/executions"): [DRSPermission.START_RECOVERY],
     ("DELETE", "/executions"): [DRSPermission.STOP_RECOVERY],
     ("POST", "/executions/delete"): [DRSPermission.STOP_RECOVERY],
     ("GET", "/executions/{executionId}"): [DRSPermission.VIEW_EXECUTIONS],
-    ("POST", "/executions/{executionId}/cancel"): [
-        DRSPermission.STOP_RECOVERY
-    ],
+    ("POST", "/executions/{executionId}/cancel"): [DRSPermission.STOP_RECOVERY],
     ("POST", "/executions/{executionId}/pause"): [DRSPermission.STOP_RECOVERY],
-    ("POST", "/executions/{executionId}/resume"): [
-        DRSPermission.START_RECOVERY
-    ],
-    ("POST", "/executions/{executionId}/terminate-instances"): [
-        DRSPermission.TERMINATE_INSTANCES
-    ],
-    ("GET", "/executions/{executionId}/job-logs"): [
-        DRSPermission.VIEW_EXECUTIONS
-    ],
-    ("GET", "/executions/{executionId}/termination-status"): [
-        DRSPermission.VIEW_EXECUTIONS
-    ],
-    ("GET", "/executions/{executionId}/recovery-instances"): [
-        DRSPermission.VIEW_EXECUTIONS
-    ],
+    ("POST", "/executions/{executionId}/resume"): [DRSPermission.START_RECOVERY],
+    ("POST", "/executions/{executionId}/terminate-instances"): [DRSPermission.TERMINATE_INSTANCES],
+    ("GET", "/executions/{executionId}/job-logs"): [DRSPermission.VIEW_EXECUTIONS],
+    ("GET", "/executions/{executionId}/termination-status"): [DRSPermission.VIEW_EXECUTIONS],
+    ("GET", "/executions/{executionId}/recovery-instances"): [DRSPermission.VIEW_EXECUTIONS],
     # Account Management - All operations require permissions
     ("GET", "/accounts/targets"): [DRSPermission.VIEW_ACCOUNTS],
     ("POST", "/accounts/targets"): [DRSPermission.REGISTER_ACCOUNTS],
@@ -563,11 +541,7 @@ def get_user_from_event(event: Dict) -> Dict:
             groups = [group.strip() for group in groups_claim]
         elif isinstance(groups_claim, str):
             # String - could be single group or comma-separated
-            groups = (
-                [group.strip() for group in groups_claim.split(",")]
-                if groups_claim
-                else []
-            )
+            groups = [group.strip() for group in groups_claim.split(",")] if groups_claim else []
         else:
             groups = []
 
@@ -626,9 +600,7 @@ def get_user_roles(user: Dict) -> List[DRSRole]:
         print(f"🔍 Processing group: '{group}' (length: {len(group)})")
         if group in group_to_role_mapping:
             roles.append(group_to_role_mapping[group])
-            print(
-                f"✅ Mapped group '{group}' to role: {group_to_role_mapping[group].value}"
-            )
+            print(f"✅ Mapped group '{group}' to role: {group_to_role_mapping[group].value}")
         else:
             print(f"⚠️ Unknown group: '{group}'")
 
@@ -653,9 +625,7 @@ def has_permission(user: Dict, required_permission: DRSPermission) -> bool:
     return required_permission in user_permissions
 
 
-def has_any_permission(
-    user: Dict, required_permissions: List[DRSPermission]
-) -> bool:
+def has_any_permission(user: Dict, required_permissions: List[DRSPermission]) -> bool:
     """Check if user has any of the required permissions"""
     user_permissions = get_user_permissions(user)
     return any(perm in user_permissions for perm in required_permissions)
@@ -755,9 +725,7 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
             # Keep as-is (could be a static segment we don't know about)
             normalized_segments.append(segment)
 
-    normalized_path = (
-        "/" + "/".join(normalized_segments) if normalized_segments else "/"
-    )
+    normalized_path = "/" + "/".join(normalized_segments) if normalized_segments else "/"
 
     # Try normalized path
     endpoint_key = (method, normalized_path)
@@ -767,25 +735,17 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
     # Handle specific execution action patterns
     if "/executions/" in path:
         if path.endswith("/cancel"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/cancel"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/cancel"), [])
         elif path.endswith("/pause"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/pause"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/pause"), [])
         elif path.endswith("/resume"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/resume"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/resume"), [])
         elif path.endswith("/terminate-instances"):
             return ENDPOINT_PERMISSIONS.get(
                 (method, "/executions/{executionId}/terminate-instances"), []
             )
         elif path.endswith("/job-logs"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}/job-logs"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}/job-logs"), [])
         elif path.endswith("/termination-status"):
             return ENDPOINT_PERMISSIONS.get(
                 (method, "/executions/{executionId}/termination-status"), []
@@ -796,26 +756,18 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
             )
         # Single execution by ID
         elif path.count("/") == 2:
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/executions/{executionId}"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/executions/{executionId}"), [])
 
     # Handle protection groups with ID
     if "/protection-groups/" in path:
         if path.endswith("/resolve"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/protection-groups/resolve"), []
-            )
-        return ENDPOINT_PERMISSIONS.get(
-            (method, "/protection-groups/{id}"), []
-        )
+            return ENDPOINT_PERMISSIONS.get((method, "/protection-groups/resolve"), [])
+        return ENDPOINT_PERMISSIONS.get((method, "/protection-groups/{id}"), [])
 
     # Handle recovery plans with ID
     if "/recovery-plans/" in path:
         if path.endswith("/execute"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/recovery-plans/{id}/execute"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/recovery-plans/{id}/execute"), [])
         if path.endswith("/check-existing-instances"):
             return ENDPOINT_PERMISSIONS.get(
                 (method, "/recovery-plans/{id}/check-existing-instances"), []
@@ -825,9 +777,7 @@ def get_endpoint_permissions(method: str, path: str) -> List[DRSPermission]:
     # Handle accounts/targets with ID
     if "/accounts/targets/" in path:
         if path.endswith("/validate"):
-            return ENDPOINT_PERMISSIONS.get(
-                (method, "/accounts/targets/{id}/validate"), []
-            )
+            return ENDPOINT_PERMISSIONS.get((method, "/accounts/targets/{id}/validate"), [])
         return ENDPOINT_PERMISSIONS.get((method, "/accounts/targets/{id}"), [])
 
     # No permissions found - return empty list
@@ -867,9 +817,7 @@ def check_authorization(event: Dict) -> Dict:
 
         # TIGHT SECURITY: All endpoints must have explicit permissions defined
         if not required_permissions:
-            print(
-                f"❌ No permissions defined for {method} {path} - denying access"
-            )
+            print(f"❌ No permissions defined for {method} {path} - denying access")
             return {
                 "authorized": False,
                 "user": user,
@@ -889,9 +837,7 @@ def check_authorization(event: Dict) -> Dict:
                 "authorized": False,
                 "user": user,
                 "reason": f"Missing required permissions: {[p.value for p in required_permissions]}",
-                "user_permissions": [
-                    p.value for p in get_user_permissions(user)
-                ],
+                "user_permissions": [p.value for p in get_user_permissions(user)],
                 "user_roles": [r.value for r in get_user_roles(user)],
             }
 
@@ -964,9 +910,7 @@ def require_any_permission(required_permissions: List[DRSPermission]):
                         {
                             "error": "Forbidden",
                             "message": auth_result["reason"],
-                            "required_permissions": [
-                                p.value for p in required_permissions
-                            ],
+                            "required_permissions": [p.value for p in required_permissions],
                         }
                     ),
                 }

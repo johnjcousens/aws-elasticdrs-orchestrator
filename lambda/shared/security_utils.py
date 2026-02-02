@@ -293,19 +293,13 @@ def sanitize_string(input_str: str, max_length: int = 255) -> str:
         raise InputValidationError("Input must be a string")
 
     if len(input_str) > max_length:
-        raise InputValidationError(
-            f"Input exceeds maximum length of {max_length}"
-        )
+        raise InputValidationError(f"Input exceeds maximum length of {max_length}")
 
     # PERFORMANCE: Skip sanitization for safe strings (alphanumeric + common safe chars)
     # But always check for control characters first
     if (
         len(input_str) < 1000
-        and input_str.replace("-", "")
-        .replace("_", "")
-        .replace(".", "")
-        .replace(":", "")
-        .isalnum()
+        and input_str.replace("-", "").replace("_", "").replace(".", "").replace(":", "").isalnum()
     ):
         # Even for "safe" strings, remove control characters
         sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", input_str.strip())
@@ -400,9 +394,7 @@ def validate_email(email: str) -> bool:
     return bool(re.match(pattern, email))
 
 
-def validate_json_input(
-    json_str: str, max_size: int = 1024 * 1024
-) -> Dict[str, Any]:
+def validate_json_input(json_str: str, max_size: int = 1024 * 1024) -> Dict[str, Any]:
     """
     Validate and parse JSON input safely
 
@@ -420,9 +412,7 @@ def validate_json_input(
         raise InputValidationError("Input must be a string")
 
     if len(json_str.encode("utf-8")) > max_size:
-        raise InputValidationError(
-            f"JSON input exceeds maximum size of {max_size} bytes"
-        )
+        raise InputValidationError(f"JSON input exceeds maximum size of {max_size} bytes")
 
     try:
         parsed_json = json.loads(json_str)
@@ -522,9 +512,7 @@ def sanitize_dynamodb_input(data: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(value, str):
             # PERFORMANCE: Limit string sanitization for large values
             if len(value) > 1000:
-                sanitized[sanitized_key] = (
-                    value  # Skip sanitization for large strings
-                )
+                sanitized[sanitized_key] = value  # Skip sanitization for large strings
             else:
                 sanitized[sanitized_key] = sanitize_string(value, 4096)
         elif isinstance(value, (int, float, bool)):
@@ -599,9 +587,7 @@ def validate_api_gateway_event(event: Dict[str, Any]) -> Dict[str, Any]:
         "PATCH",
     ]
     if event["httpMethod"] not in valid_methods:
-        raise InputValidationError(
-            f"Invalid HTTP method: {event['httpMethod']}"
-        )
+        raise InputValidationError(f"Invalid HTTP method: {event['httpMethod']}")
 
     # Validate path
     path = event["path"]
@@ -618,9 +604,7 @@ def validate_api_gateway_event(event: Dict[str, Any]) -> Dict[str, Any]:
         for key, value in query_params.items():
             if isinstance(value, str):
                 # Allow longer values for query parameters like account IDs
-                sanitized_query_params[sanitize_string(key, 100)] = (
-                    sanitize_string(value, 2048)
-                )
+                sanitized_query_params[sanitize_string(key, 100)] = sanitize_string(value, 2048)
     else:
         sanitized_query_params = {}
 
@@ -655,9 +639,7 @@ def validate_api_gateway_event(event: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def log_security_event(
-    event_type: str, details: Dict[str, Any], severity: str = "INFO"
-):
+def log_security_event(event_type: str, details: Dict[str, Any], severity: str = "INFO"):
     """
     Log security events for monitoring and alerting
 
@@ -682,9 +664,7 @@ def log_security_event(
         logger.info(json.dumps(security_log))
 
 
-def check_rate_limit(
-    user_id: str, action: str, limit: int = 100, window: int = 3600
-) -> bool:
+def check_rate_limit(user_id: str, action: str, limit: int = 100, window: int = 3600) -> bool:
     """
     Simple rate limiting check (would need Redis/DynamoDB in production)
 
@@ -743,10 +723,7 @@ def mask_sensitive_data(data: Dict[str, Any]) -> Dict[str, Any]:
         key_lower = key.lower()
 
         # Check if field contains sensitive data
-        is_sensitive = any(
-            sensitive_field in key_lower
-            for sensitive_field in sensitive_fields
-        )
+        is_sensitive = any(sensitive_field in key_lower for sensitive_field in sensitive_fields)
 
         if is_sensitive and isinstance(value, str) and len(value) > 4:
             # Mask all but first 4 characters
@@ -814,9 +791,7 @@ def safe_aws_client_call(client_method, **kwargs):
         return response
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
-        error_message = e.response.get("Error", {}).get(
-            "Message", "Unknown error"
-        )
+        error_message = e.response.get("Error", {}).get("Message", "Unknown error")
 
         # Log security-relevant errors
         if error_code in [
@@ -844,9 +819,7 @@ def safe_aws_client_call(client_method, **kwargs):
         raise
 
 
-def create_response_with_security_headers(
-    status_code: int, body: Dict[str, Any]
-) -> Dict[str, Any]:
+def create_response_with_security_headers(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
     """
     Create HTTP response with security headers
 
@@ -967,16 +940,12 @@ def validate_dynamodb_input(field_name: str, value: str) -> bool:
 
     max_length = max_lengths.get(field_name, 255)
     if len(value) > max_length:
-        raise InputValidationError(
-            f"{field_name} exceeds maximum length of {max_length}"
-        )
+        raise InputValidationError(f"{field_name} exceeds maximum length of {max_length}")
 
     # Validate specific field formats
     if field_name == "executionId":
         # Execution IDs should be UUIDs or similar format
-        if not validate_uuid(value) and not re.match(
-            r"^[a-zA-Z0-9\-_]+$", value
-        ):
+        if not validate_uuid(value) and not re.match(r"^[a-zA-Z0-9\-_]+$", value):
             raise InputValidationError(f"Invalid {field_name} format: {value}")
 
     elif field_name == "region":
