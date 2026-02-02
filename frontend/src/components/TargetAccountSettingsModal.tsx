@@ -10,6 +10,7 @@
  * - Auto-discover staging accounts from DRS
  * - Show connected staging accounts in collapsible section
  * - Display staging account status and server counts
+ * - Auto-refresh when modal opens to show latest data
  *
  * REQUIREMENTS:
  * - View-only modal for target account information
@@ -18,7 +19,7 @@
  * - No editing or removal capabilities
  */
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   Box,
@@ -31,6 +32,7 @@ import {
   ExpandableSection,
   Spinner,
 } from "@cloudscape-design/components";
+import apiClient from "../services/api";
 import type {
   TargetAccountSettingsModalProps,
 } from "../types/staging-accounts";
@@ -40,13 +42,43 @@ import type {
  * TargetAccountSettingsModal Component
  *
  * Read-only view of target account and connected staging accounts.
+ * Fetches fresh data when modal opens to ensure accuracy.
  */
 export const TargetAccountSettingsModal: React.FC<
   TargetAccountSettingsModalProps
 > = ({ targetAccount, visible, onDismiss }) => {
-  // Get staging accounts from target account's staging accounts list
-  const stagingAccounts = targetAccount.stagingAccounts || [];
-  const isLoading = stagingAccounts.length === 0 && visible;
+  const [freshAccountData, setFreshAccountData] = useState<typeof targetAccount | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch fresh account data when modal opens
+  useEffect(() => {
+    if (visible && targetAccount.accountId) {
+      setLoading(true);
+      setError(null);
+      
+      apiClient.getTargetAccount(targetAccount.accountId)
+        .then((data) => {
+          setFreshAccountData(data);
+        })
+        .catch((err) => {
+          console.error('Error fetching fresh account data:', err);
+          setError('Failed to load latest account data');
+          // Fall back to prop data
+          setFreshAccountData(targetAccount);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [visible, targetAccount.accountId]);
+
+  // Use fresh data if available, otherwise fall back to prop
+  const displayAccount = freshAccountData || targetAccount;
+  
+  // Get staging accounts from account data
+  const stagingAccounts = displayAccount.stagingAccounts || [];
+  const isLoadingData = loading && !freshAccountData;
 
   return (
     <Modal
@@ -63,40 +95,55 @@ export const TargetAccountSettingsModal: React.FC<
       }
     >
       <SpaceBetween size="l">
+        {error && (
+          <Alert type="error" dismissible onDismiss={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
         {/* Target Account Information */}
         <Container header={<Header variant="h3">Account Information</Header>}>
-          <ColumnLayout columns={2} variant="text-grid">
-            <div>
-              <Box variant="awsui-key-label">Account ID</Box>
-              <div>{targetAccount.accountId}</div>
-            </div>
-            <div>
-              <Box variant="awsui-key-label">Account Name</Box>
-              <div>{targetAccount.accountName || "—"}</div>
-            </div>
-            {targetAccount.roleArn && (
+          {isLoadingData ? (
+            <Box textAlign="center" padding="l">
+              <Spinner size="large" />
+              <Box variant="p" color="text-body-secondary" padding={{ top: "s" }}>
+                Loading account details...
+              </Box>
+            </Box>
+          ) : (
+            <ColumnLayout columns={2} variant="text-grid">
               <div>
-                <Box variant="awsui-key-label">Role ARN</Box>
-                <div>{targetAccount.roleArn}</div>
+                <Box variant="awsui-key-label">Account ID</Box>
+                <div>{displayAccount.accountId}</div>
               </div>
-            )}
-            {targetAccount.externalId && (
               <div>
-                <Box variant="awsui-key-label">External ID</Box>
-                <div>{targetAccount.externalId}</div>
+                <Box variant="awsui-key-label">Account Name</Box>
+                <div>{displayAccount.accountName || "—"}</div>
               </div>
-            )}
-            {targetAccount.status && (
-              <div>
-                <Box variant="awsui-key-label">Status</Box>
-                <StatusIndicator
-                  type={targetAccount.status === "active" ? "success" : "info"}
-                >
-                  {targetAccount.status.toUpperCase()}
-                </StatusIndicator>
-              </div>
-            )}
-          </ColumnLayout>
+              {displayAccount.roleArn && (
+                <div>
+                  <Box variant="awsui-key-label">Role ARN</Box>
+                  <div>{displayAccount.roleArn}</div>
+                </div>
+              )}
+              {displayAccount.externalId && (
+                <div>
+                  <Box variant="awsui-key-label">External ID</Box>
+                  <div>{displayAccount.externalId}</div>
+                </div>
+              )}
+              {displayAccount.status && (
+                <div>
+                  <Box variant="awsui-key-label">Status</Box>
+                  <StatusIndicator
+                    type={displayAccount.status === "active" ? "success" : "info"}
+                  >
+                    {displayAccount.status.toUpperCase()}
+                  </StatusIndicator>
+                </div>
+              )}
+            </ColumnLayout>
+          )}
         </Container>
 
         {/* Connected Staging Accounts */}
@@ -105,7 +152,7 @@ export const TargetAccountSettingsModal: React.FC<
           variant="container"
           defaultExpanded={stagingAccounts.length > 0}
         >
-          {isLoading ? (
+          {isLoadingData ? (
             <Box textAlign="center" padding="l">
               <Spinner size="large" />
               <Box variant="p" color="text-body-secondary" padding={{ top: "s" }}>

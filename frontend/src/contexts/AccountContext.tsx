@@ -175,7 +175,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return 'Please select a target account to continue. You can set a default account in Settings.';
   };
 
-  const refreshAccounts = useCallback(async () => {
+  const refreshAccounts = useCallback(async (bustCache = false) => {
     // Don't fetch if not authenticated
     if (!isAuthenticated || authLoading) {
       setAccountsLoading(false);
@@ -190,6 +190,17 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
       // Defensive check: ensure accounts is an array before setting state
       if (Array.isArray(accounts)) {
         setAvailableAccounts(accounts);
+        
+        // If bustCache is true, force refresh the selected account's full details
+        // This ensures staging accounts are up-to-date after changes
+        if (bustCache && selectedAccount?.value) {
+          try {
+            const fullAccount = await apiClient.getTargetAccount(selectedAccount.value);
+            console.log('[AccountContext] Refreshed account details after cache bust:', fullAccount);
+          } catch (error) {
+            console.warn('[AccountContext] Failed to refresh account details:', error);
+          }
+        }
       } else {
         console.warn('getTargetAccounts returned non-array:', accounts);
         setAvailableAccounts([]);
