@@ -638,8 +638,11 @@ export const Dashboard: React.FC = () => {
                           },
                           expandedItems: expandedItems,
                           onExpandableItemToggle: (event) => {
-                            const items = event.detail.item ? [event.detail.item] : [];
-                            setExpandedItems(items);
+                            const item = event.detail.item;
+                            const isCurrentlyExpanded = expandedItems.some(
+                              (expandedItem) => expandedItem.accountId === item.accountId
+                            );
+                            setExpandedItems(isCurrentlyExpanded ? [] : [item]);
                           },
                         }}
                         empty={
@@ -778,8 +781,11 @@ export const Dashboard: React.FC = () => {
                                     },
                                     expandedItems: expandedStagingItems,
                                     onExpandableItemToggle: (event) => {
-                                      const items = event.detail.item ? [event.detail.item] : [];
-                                      setExpandedStagingItems(items);
+                                      const item = event.detail.item;
+                                      const isCurrentlyExpanded = expandedStagingItems.some(
+                                        (expandedItem) => expandedItem.accountId === item.accountId
+                                      );
+                                      setExpandedStagingItems(isCurrentlyExpanded ? [] : [item]);
                                     },
                                   }}
                                   empty={
