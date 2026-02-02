@@ -1061,7 +1061,11 @@ def check_tag_conflicts_for_update(
 
 
 def validate_waves(waves: List[Dict]) -> Optional[str]:
-    """Validate wave configuration - supports both single and multi-PG formats"""
+    """Validate wave configuration - supports both single and multi-PG formats
+
+    Includes DRS quota validation:
+    - Max 100 servers per wave (DRS job limit)
+    """
     try:
         if not waves:
             return "Waves array cannot be empty"
@@ -1111,6 +1115,39 @@ def validate_waves(waves: List[Dict]) -> Optional[str]:
                     return f"protectionGroupIds must be an array, got {type(pg_ids)}"
                 if len(pg_ids) == 0:
                     return "protectionGroupIds array cannot be empty"
+
+        # QUOTA VALIDATION: Check each wave doesn't exceed 100 servers per job
+        from shared.conflict_detection import (
+            resolve_pg_servers_for_conflict_check,
+        )
+
+        pg_cache = {}
+        for wave in waves:
+            wave_name = wave.get("waveName") or wave.get(
+                "name", f"Wave {wave.get('waveNumber', '?')}"
+            )
+            pg_id = (
+                wave.get("protectionGroupId")
+                or (wave.get("protectionGroupIds", []) or [None])[0]
+            )
+
+            if pg_id:
+                try:
+                    # Resolve servers from Protection Group
+                    server_ids = resolve_pg_servers_for_conflict_check(
+                        pg_id, pg_cache
+                    )
+                    server_count = len(server_ids)
+
+                    # Check 100 servers per job limit
+                    if server_count > 100:
+                        return f"QUOTA_EXCEEDED: Wave '{wave_name}' contains {server_count} servers (max 100 per job). DRS Service Quota: Max 100 servers per job (not adjustable). Split this wave into multiple waves or reduce Protection Group size."
+
+                except Exception as e:
+                    print(
+                        f"Warning: Could not validate server count for wave '{wave_name}': {e}"
+                    )
+                    # Continue validation - don't block on PG resolution errors
 
         return None  # No errors
 
@@ -1373,6 +1410,56 @@ def create_protection_group(body: Dict) -> Dict:
                         "error": "SERVER_CONFLICT",
                         "message": "One or more servers are already assigned to another Protection Group",
                         "conflicts": conflicts,
+                    },
+                )
+
+            # QUOTA VALIDATION: Check 100 servers per job limit
+            if len(source_server_ids) > 100:
+                return response(
+                    400,
+                    {
+                        "error": "QUOTA_EXCEEDED",
+                        "quotaType": "servers_per_job",
+                        "message": "Protection Group cannot contain more than 100 servers",
+                        "serverCount": len(source_server_ids),
+                        "maxServers": 100,
+                        "limit": "DRS Service Quota: Max 100 servers per job (not adjustable)",
+                        "documentation": "https://docs.aws.amazon.com/general/latest/gr/drs.html",
+                    },
+                )
+
+        # QUOTA VALIDATION: For tag-based selection, resolve and count servers
+        if has_tags:
+            # Create account context for cross-account access
+            account_context = None
+            if body.get("accountId"):
+                account_context = {
+                    "accountId": body.get("accountId"),
+                    "assumeRoleName": body.get("assumeRoleName"),
+                }
+
+            # Resolve servers matching tags
+            resolved = query_drs_servers_by_tags(
+                region, selection_tags, account_context
+            )
+            server_count = len(resolved)
+
+            # Check 100 servers per job limit
+            if server_count > 100:
+                return response(
+                    400,
+                    {
+                        "error": "QUOTA_EXCEEDED",
+                        "quotaType": "servers_per_job",
+                        "message": f"Tag selection matches {server_count} servers (max 100 per job)",
+                        "serverCount": server_count,
+                        "maxServers": 100,
+                        "matchingServers": [
+                            s.get("sourceServerID") for s in resolved
+                        ],
+                        "limit": "DRS Service Quota: Max 100 servers per job (not adjustable)",
+                        "documentation": "https://docs.aws.amazon.com/general/latest/gr/drs.html",
+                        "recommendation": "Refine your tag selection to match fewer servers or split into multiple Protection Groups",
                     },
                 )
 
@@ -3333,6 +3420,151 @@ def create_recovery_plan(body: Dict) -> Dict:
             validation_error = validate_waves(camelcase_waves)
             if validation_error:
                 return response(400, {"error": validation_error})
+
+            # QUOTA VALIDATION: Check total servers across all waves doesn't exceed 500
+            from shared.conflict_detection import (
+                resolve_pg_servers_for_conflict_check,
+            )
+
+            pg_cache = {}
+            total_servers = 0
+            wave_server_counts = []
+
+            for wave in camelcase_waves:
+                wave_name = wave.get(
+                    "waveName", f"Wave {wave.get('waveNumber', '?')}"
+                )
+                pg_id = (
+                    wave.get("protectionGroupId")
+                    or (wave.get("protectionGroupIds", []) or [None])[0]
+                )
+
+                if pg_id:
+                    try:
+                        server_ids = resolve_pg_servers_for_conflict_check(
+                            pg_id, pg_cache
+                        )
+                        wave_count = len(server_ids)
+                        total_servers += wave_count
+                        wave_server_counts.append(
+                            {"waveName": wave_name, "serverCount": wave_count}
+                        )
+                    except Exception as e:
+                        print(
+                            f"Warning: Could not count servers for wave '{wave_name}': {e}"
+                        )
+
+            # Check 500 total servers limit
+            if total_servers > 500:
+                return response(
+                    400,
+                    {
+                        "error": "QUOTA_EXCEEDED",
+                        "quotaType": "total_servers_in_jobs",
+                        "message": f"Recovery Plan would launch {total_servers} servers (max 500 across all jobs)",
+                        "totalServers": total_servers,
+                        "maxServers": 500,
+                        "waveBreakdown": wave_server_counts,
+                        "limit": "DRS Service Quota: Max 500 servers across all concurrent jobs (not adjustable)",
+                        "documentation": "https://docs.aws.amazon.com/general/latest/gr/drs.html",
+                        "recommendation": "Split this Recovery Plan into multiple plans or reduce the number of servers per wave",
+                    },
+                )
+
+            # OPTIONAL WARNING: Check concurrent jobs limit and server conflicts
+            # Get region from first wave's Protection Group
+            first_wave = camelcase_waves[0] if camelcase_waves else {}
+            pg_id = (
+                first_wave.get("protectionGroupId")
+                or (first_wave.get("protectionGroupIds", []) or [None])[0]
+            )
+
+            warnings = []
+
+            if pg_id:
+                try:
+                    pg_result = protection_groups_table.get_item(
+                        Key={"groupId": pg_id}
+                    )
+                    pg = pg_result.get("Item", {})
+                    region = pg.get("region", "us-east-1")
+
+                    # Check concurrent jobs limit
+                    from shared.conflict_detection import (
+                        check_concurrent_jobs_limit,
+                    )
+
+                    jobs_check = check_concurrent_jobs_limit(region)
+                    if not jobs_check["canStartJob"]:
+                        warnings.append(
+                            {
+                                "type": "CONCURRENT_JOBS_AT_LIMIT",
+                                "severity": "warning",
+                                "message": f"Region {region} currently has {jobs_check['currentJobs']}/20 concurrent jobs active",
+                                "recommendation": "Wait for active jobs to complete before executing this plan",
+                                "currentJobs": jobs_check["currentJobs"],
+                                "maxJobs": jobs_check["maxJobs"],
+                                "canExecuteNow": False,
+                            }
+                        )
+
+                    # Check for server conflicts
+                    from shared.conflict_detection import (
+                        check_server_conflicts,
+                    )
+
+                    conflict_check_plan = {
+                        "planId": plan_id,
+                        "planName": plan_name,
+                        "waves": camelcase_waves,
+                    }
+
+                    conflicts = check_server_conflicts(conflict_check_plan)
+                    if conflicts:
+                        conflict_summary = {
+                            "execution_conflicts": len(
+                                [
+                                    c
+                                    for c in conflicts
+                                    if c.get("conflictSource") == "execution"
+                                ]
+                            ),
+                            "drs_job_conflicts": len(
+                                [
+                                    c
+                                    for c in conflicts
+                                    if c.get("conflictSource") == "drs_job"
+                                ]
+                            ),
+                            "quota_violations": len(
+                                [
+                                    c
+                                    for c in conflicts
+                                    if c.get("conflictSource")
+                                    == "quota_violation"
+                                ]
+                            ),
+                        }
+
+                        warnings.append(
+                            {
+                                "type": "SERVER_CONFLICTS_DETECTED",
+                                "severity": "warning",
+                                "message": "Some servers are currently in use by other operations",
+                                "recommendation": "Wait for active operations to complete before executing this plan",
+                                "conflicts": conflict_summary,
+                                "canExecuteNow": False,
+                            }
+                        )
+
+                except Exception as e:
+                    print(
+                        f"Warning: Could not check concurrent jobs/conflicts: {e}"
+                    )
+
+            # Add warnings to response if any
+            if warnings:
+                item["warnings"] = warnings
 
         # Store in DynamoDB
         recovery_plans_table.put_item(Item=item)

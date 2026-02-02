@@ -61,7 +61,7 @@ export const CompactCapacitySummary: React.FC<CompactCapacitySummaryProps> = ({
     );
   }
 
-  const { combined, recoveryCapacity, concurrentJobs, serversInJobs } = data;
+  const { combined, recoveryCapacity, concurrentJobs, serversInJobs, maxServersPerJob } = data;
 
   // Replicating servers capacity (300 per account)
   const replicatingPct = (combined.totalReplicating / combined.maxReplicating) * 100;
@@ -82,6 +82,12 @@ export const CompactCapacitySummary: React.FC<CompactCapacitySummaryProps> = ({
   const serversMax = serversInJobs?.max ?? 500;
   const serversInJobsPct = (serversCurrent / serversMax) * 100;
   const serversInJobsStatus = getProgressStatus(serversCurrent, serversMax);
+
+  // Max servers per job (from backend data)
+  const maxPerJobCurrent = maxServersPerJob?.current ?? 0;
+  const maxPerJobMax = maxServersPerJob?.max ?? 100;
+  const maxPerJobPct = (maxPerJobCurrent / maxPerJobMax) * 100;
+  const maxPerJobStatus = getProgressStatus(maxPerJobCurrent, maxPerJobMax);
 
   return (
     <SpaceBetween size="l">
@@ -131,6 +137,22 @@ export const CompactCapacitySummary: React.FC<CompactCapacitySummaryProps> = ({
             additionalInfo={`${serversMax - serversCurrent} slots available`}
             description={`${serversCurrent} / ${serversMax}`}
             status={serversInJobsStatus}
+          />
+        </Box>
+
+        <Box>
+          <Box variant="awsui-key-label" margin={{ bottom: 'xs' }}>
+            Max Servers Per Job
+          </Box>
+          <ProgressBar
+            value={maxPerJobPct}
+            additionalInfo={
+              maxPerJobCurrent > 0
+                ? `Largest job: ${maxPerJobCurrent} servers`
+                : 'No active jobs'
+            }
+            description={`${maxPerJobCurrent} / ${maxPerJobMax}`}
+            status={maxPerJobStatus}
           />
         </Box>
       </ColumnLayout>

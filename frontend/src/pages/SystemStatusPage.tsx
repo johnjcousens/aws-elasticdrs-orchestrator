@@ -20,7 +20,6 @@ import {
   Link,
   ColumnLayout,
   ExpandableSection,
-  Table,
   Button,
   Toggle,
 } from '@cloudscape-design/components';
@@ -33,7 +32,7 @@ import { useAccount } from '../contexts/AccountContext';
 import { getCombinedCapacity } from '../services/staging-accounts-api';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
-import type { CombinedCapacityData, AccountCapacity, CapacityStatus } from '../types/staging-accounts';
+import type { CombinedCapacityData, CapacityStatus } from '../types/staging-accounts';
 
 const getStatusType = (
   status: CapacityStatus
@@ -57,7 +56,7 @@ const formatNumber = (num: number): string => num.toLocaleString();
 
 export const SystemStatusPage: React.FC = () => {
   const navigate = useNavigate();
-  const { selectedAccount, getCurrentAccountId } = useAccount();
+  const { getCurrentAccountId } = useAccount();
   
   const [executions, setExecutions] = useState<ExecutionListItem[]>([]);
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
@@ -99,6 +98,8 @@ export const SystemStatusPage: React.FC = () => {
     try {
       setCapacityLoading(true);
       const data = await getCombinedCapacity(accountId, true);
+      console.log('Capacity data received:', data);
+      console.log('maxServersPerJob field:', data.maxServersPerJob);
       setCapacityData(data);
       setLastRefresh(new Date());
     } catch (err) {
@@ -249,60 +250,128 @@ export const SystemStatusPage: React.FC = () => {
                     )}
 
                     {/* Visual Capacity Gauges */}
-                    <ColumnLayout columns={3} variant="text-grid">
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Replication Capacity
-                        </Box>
-                        <CapacityGauge
-                          used={capacityData.combined.totalReplicating}
-                          total={capacityData.combined.maxReplicating}
-                          size="medium"
-                          label={`${formatNumber(capacityData.combined.totalReplicating)} / ${formatNumber(capacityData.combined.maxReplicating)} servers`}
-                        />
-                        <Box textAlign="center" padding={{ top: 's' }}>
-                          <StatusIndicator type={getStatusType(capacityData.combined.status)}>
-                            {capacityData.combined.status}
-                          </StatusIndicator>
-                        </Box>
-                      </div>
+                    <SpaceBetween size="l">
+                      <ColumnLayout columns={3} variant="text-grid">
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 's' }}>
+                            Replication Capacity
+                          </Box>
+                          <CapacityGauge
+                            used={capacityData.combined.totalReplicating}
+                            total={capacityData.combined.maxReplicating}
+                            size="medium"
+                            label={`${formatNumber(capacityData.combined.totalReplicating)} / ${formatNumber(capacityData.combined.maxReplicating)} servers`}
+                          />
+                          <Box textAlign="center" padding={{ top: 's' }}>
+                            <StatusIndicator type={getStatusType(capacityData.combined.status)}>
+                              {capacityData.combined.status}
+                            </StatusIndicator>
+                          </Box>
+                        </div>
 
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Recovery Capacity
-                        </Box>
-                        <CapacityGauge
-                          used={capacityData.recoveryCapacity.currentServers}
-                          total={capacityData.recoveryCapacity.maxRecoveryInstances}
-                          size="medium"
-                          label={`${formatNumber(capacityData.recoveryCapacity.currentServers)} / ${formatNumber(capacityData.recoveryCapacity.maxRecoveryInstances)} instances`}
-                        />
-                        <Box textAlign="center" padding={{ top: 's' }}>
-                          <StatusIndicator type={getStatusType(capacityData.recoveryCapacity.status as CapacityStatus)}>
-                            {capacityData.recoveryCapacity.status}
-                          </StatusIndicator>
-                        </Box>
-                      </div>
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 's' }}>
+                            Recovery Capacity
+                          </Box>
+                          <CapacityGauge
+                            used={capacityData.recoveryCapacity.currentServers}
+                            total={capacityData.recoveryCapacity.maxRecoveryInstances}
+                            size="medium"
+                            label={`${formatNumber(capacityData.recoveryCapacity.currentServers)} / ${formatNumber(capacityData.recoveryCapacity.maxRecoveryInstances)} instances`}
+                          />
+                          <Box textAlign="center" padding={{ top: 's' }}>
+                            <StatusIndicator type={getStatusType(capacityData.recoveryCapacity.status as CapacityStatus)}>
+                              {capacityData.recoveryCapacity.status}
+                            </StatusIndicator>
+                          </Box>
+                        </div>
 
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Available Slots
-                        </Box>
-                        <Box textAlign="center" padding={{ top: 'xl', bottom: 'xl' }}>
-                          <Box variant="awsui-value-large" color="text-status-success">
-                            {formatNumber(capacityData.combined.availableSlots)}
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 's' }}>
+                            Available Slots
                           </Box>
-                          <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
-                            slots available
+                          <Box textAlign="center" padding={{ top: 'xl', bottom: 'xl' }}>
+                            <Box variant="awsui-value-large" color="text-status-success">
+                              {formatNumber(capacityData.combined.availableSlots)}
+                            </Box>
+                            <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
+                              slots available
+                            </Box>
                           </Box>
-                        </Box>
-                        <Box textAlign="center" padding={{ top: 's' }}>
-                          <Box variant="small" color="text-body-secondary">
-                            {capacityData.accounts.length} account{capacityData.accounts.length !== 1 ? 's' : ''} monitored
+                          <Box textAlign="center" padding={{ top: 's' }}>
+                            <Box variant="small" color="text-body-secondary">
+                              {capacityData.accounts.length} account{capacityData.accounts.length !== 1 ? 's' : ''} monitored
+                            </Box>
                           </Box>
-                        </Box>
-                      </div>
-                    </ColumnLayout>
+                        </div>
+                      </ColumnLayout>
+
+                      {/* DRS Service Limits */}
+                      <ColumnLayout columns={3} variant="text-grid">
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 's' }}>
+                            Concurrent Recovery Jobs
+                          </Box>
+                          <CapacityGauge
+                            used={capacityData.concurrentJobs?.current ?? 0}
+                            total={capacityData.concurrentJobs?.max ?? 20}
+                            size="medium"
+                            label={`${formatNumber(capacityData.concurrentJobs?.current ?? 0)} / ${formatNumber(capacityData.concurrentJobs?.max ?? 20)} jobs`}
+                          />
+                          <Box textAlign="center" padding={{ top: 's' }}>
+                            <Box variant="small" color="text-body-secondary">
+                              {formatNumber((capacityData.concurrentJobs?.max ?? 20) - (capacityData.concurrentJobs?.current ?? 0))} jobs available
+                            </Box>
+                          </Box>
+                        </div>
+
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 's' }}>
+                            Servers in Active Jobs
+                          </Box>
+                          <CapacityGauge
+                            used={capacityData.serversInJobs?.current ?? 0}
+                            total={capacityData.serversInJobs?.max ?? 500}
+                            size="medium"
+                            label={`${formatNumber(capacityData.serversInJobs?.current ?? 0)} / ${formatNumber(capacityData.serversInJobs?.max ?? 500)} servers`}
+                          />
+                          <Box textAlign="center" padding={{ top: 's' }}>
+                            <Box variant="small" color="text-body-secondary">
+                              {formatNumber((capacityData.serversInJobs?.max ?? 500) - (capacityData.serversInJobs?.current ?? 0))} slots available
+                            </Box>
+                          </Box>
+                        </div>
+
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 's' }}>
+                            Max Servers Per Job
+                          </Box>
+                          {capacityData.maxServersPerJob ? (
+                            <>
+                              <CapacityGauge
+                                used={capacityData.maxServersPerJob.current ?? 0}
+                                total={capacityData.maxServersPerJob.max ?? 100}
+                                size="medium"
+                                label={`${formatNumber(capacityData.maxServersPerJob.current ?? 0)} / ${formatNumber(capacityData.maxServersPerJob.max ?? 100)} servers`}
+                              />
+                              <Box textAlign="center" padding={{ top: 's' }}>
+                                <Box variant="small" color="text-body-secondary">
+                                  {capacityData.maxServersPerJob.current > 0
+                                    ? `Largest job: ${formatNumber(capacityData.maxServersPerJob.current)} servers`
+                                    : 'No active jobs'}
+                                </Box>
+                              </Box>
+                            </>
+                          ) : (
+                            <Box textAlign="center" padding={{ top: 'xl', bottom: 'xl' }}>
+                              <Box variant="small" color="text-status-error">
+                                Data not available
+                              </Box>
+                            </Box>
+                          )}
+                        </div>
+                      </ColumnLayout>
+                    </SpaceBetween>
 
                     {/* Collapsible Per-Account Breakdown */}
                     <ExpandableSection

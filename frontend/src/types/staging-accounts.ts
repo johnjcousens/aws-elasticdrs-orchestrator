@@ -255,6 +255,16 @@ export interface CombinedCapacityData {
     available: number;
   };
 
+  /** Max servers per job metrics */
+  maxServersPerJob: {
+    current: number;
+    max: number;
+    available: number;
+    jobId?: string;
+    status: string;
+    message: string;
+  };
+
   /** System-wide warnings and recommendations */
   warnings: string[];
 
