@@ -684,19 +684,13 @@ export const Dashboard: React.FC = () => {
                                             }
                                             variant="standalone"
                                           />
-                                          <StatusIndicator
-                                            type={
-                                              region.status === 'OK'
-                                                ? 'success'
-                                                : region.status === 'INFO'
-                                                  ? 'info'
-                                                  : region.status === 'WARNING'
-                                                    ? 'warning'
-                                                    : 'error'
-                                            }
-                                          >
-                                            {region.status || 'OK'}
-                                          </StatusIndicator>
+                                          <Box variant="small" color="text-body-secondary">
+                                            {(region.percentUsed || 0) < 67
+                                              ? 'Healthy'
+                                              : (region.percentUsed || 0) < 83
+                                                ? 'Moderate'
+                                                : 'High usage'}
+                                          </Box>
                                         </SpaceBetween>
                                       </Container>
                                     ))}
