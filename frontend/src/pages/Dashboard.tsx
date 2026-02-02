@@ -30,6 +30,7 @@ import type { CombinedCapacityData } from '../types/staging-accounts';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { useAccount } from '../contexts/AccountContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { useStagingAccountRefresh } from '../hooks/useStagingAccountRefresh';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
 import type { DRSQuotaStatus } from '../services/drsQuotaService';
@@ -86,6 +87,18 @@ export const Dashboard: React.FC = () => {
   const [expandedItems, setExpandedItems] = useState<any[]>([]);
   const [expandedStagingItems, setExpandedStagingItems] = useState<any[]>([]);
 
+  // Refresh capacity data callback for staging account changes
+  const refreshCapacityData = useCallback(() => {
+    const accountId = getCurrentAccountId();
+    if (accountId) {
+      fetchCapacityData(accountId, true); // Force cache bust
+    }
+  }, [getCurrentAccountId]);
+
+  // Setup staging account refresh coordination
+  useStagingAccountRefresh({
+    onRefreshCapacity: refreshCapacityData,
+  });
   // Open settings modal if no accounts configured
   useEffect(() => {
     if (!accountsLoading && availableAccounts.length === 0) {
@@ -121,13 +134,15 @@ export const Dashboard: React.FC = () => {
     }
   }, [getCurrentAccountId, executions.length]);
 
-  const fetchCapacityData = useCallback(async (accountId: string) => {
-    // Only show loading spinner on initial load (when no data exists)
-    if (!capacityData) {
+  const fetchCapacityData = useCallback(async (accountId: string, bustCache = false) => {
+    // Only show loading spinner on initial load (when no data exists) or when busting cache
+    if (!capacityData || bustCache) {
       setCapacityLoading(true);
     }
     setCapacityError(null);
     try {
+      // Add timestamp to bust browser cache when explicitly requested
+      const timestamp = bustCache ? `?_t=${Date.now()}` : '';
       const data = await getCombinedCapacity(accountId, false); // Don't need regional breakdown for summary
       setCapacityData(data);
     } catch (err) {
