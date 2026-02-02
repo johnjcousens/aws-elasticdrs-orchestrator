@@ -609,44 +609,18 @@ export const Dashboard: React.FC = () => {
                           {
                             id: 'regions',
                             header: 'Regions',
-                            cell: (item) => (
-                              <div>
-                                {item.regionalBreakdown && item.regionalBreakdown.length > 0 ? (
-                                  item.regionalBreakdown.map((region: any, idx: number) => (
-                                    <div
-                                      key={region.region}
-                                      style={{
-                                        fontSize: '0.875rem',
-                                        marginBottom:
-                                          idx < item.regionalBreakdown.length - 1 ? '4px' : '0',
-                                      }}
-                                    >
-                                      <strong>{region.region}:</strong>{' '}
-                                      {region.replicatingServers.toLocaleString()} servers
-                                      {region.status && region.status !== 'OK' && (
-                                        <span style={{ marginLeft: '8px' }}>
-                                          <StatusIndicator
-                                            type={
-                                              region.status === 'INFO'
-                                                ? 'info'
-                                                : region.status === 'WARNING'
-                                                  ? 'warning'
-                                                  : 'error'
-                                            }
-                                          >
-                                            {region.status}
-                                          </StatusIndicator>
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))
-                                ) : (
-                                  <Box variant="small" color="text-body-secondary">
-                                    No regional data
-                                  </Box>
-                                )}
-                              </div>
-                            ),
+                            cell: (item) => {
+                              const activeRegions = item.regionalBreakdown?.filter(
+                                (r: any) => r.replicatingServers > 0
+                              ) || [];
+                              return (
+                                <Box variant="span" color="text-body-secondary">
+                                  {activeRegions.length > 0
+                                    ? `${activeRegions.length} active region${activeRegions.length !== 1 ? 's' : ''}`
+                                    : 'No active regions'}
+                                </Box>
+                              );
+                            },
                           },
                         ]}
                         items={capacityData.accounts.filter((acc) => acc.accountType === 'target')}
@@ -654,16 +628,12 @@ export const Dashboard: React.FC = () => {
                         variant="embedded"
                         expandableRows={{
                           getItemChildren: (item) => {
-                            // Return staging accounts for this target
-                            return capacityData.accounts.filter(
-                              (acc) => acc.accountType === 'staging'
-                            );
+                            // Return empty array - we'll show custom content instead
+                            return [];
                           },
                           isItemExpandable: (item) => {
-                            // Target accounts are expandable if there are staging accounts
-                            return capacityData.accounts.some(
-                              (acc) => acc.accountType === 'staging'
-                            );
+                            // Always expandable to show regional breakdown
+                            return true;
                           },
                           expandedItems: expandedItems,
                           onExpandableItemToggle: (event) => {
@@ -680,6 +650,124 @@ export const Dashboard: React.FC = () => {
                           </Box>
                         }
                       />
+
+                      {/* Expanded Content: Regional Breakdown & Staging Accounts */}
+                      {expandedItems.length > 0 && expandedItems.map((expandedItem) => (
+                        <Container key={expandedItem.accountId}>
+                          <SpaceBetween size="m">
+                            {/* Regional Breakdown */}
+                            {expandedItem.regionalBreakdown && expandedItem.regionalBreakdown.length > 0 && (
+                              <div>
+                                <Box variant="h4" padding={{ bottom: 's' }}>
+                                  Regional Breakdown
+                                </Box>
+                                <ColumnLayout columns={3} variant="text-grid">
+                                  {expandedItem.regionalBreakdown
+                                    .filter((region: any) => region.replicatingServers > 0)
+                                    .map((region: any) => (
+                                      <Container key={region.region}>
+                                        <SpaceBetween size="xs">
+                                          <Box>
+                                            <strong>{region.region}</strong>
+                                          </Box>
+                                          <Box variant="small">
+                                            {region.replicatingServers.toLocaleString()} / {region.maxReplicating?.toLocaleString() || '300'} servers
+                                          </Box>
+                                          <ProgressBar
+                                            value={region.percentUsed || 0}
+                                            status={
+                                              (region.percentUsed || 0) < 67
+                                                ? 'success'
+                                                : (region.percentUsed || 0) < 83
+                                                  ? 'in-progress'
+                                                  : 'error'
+                                            }
+                                            variant="standalone"
+                                          />
+                                          <StatusIndicator
+                                            type={
+                                              region.status === 'OK'
+                                                ? 'success'
+                                                : region.status === 'INFO'
+                                                  ? 'info'
+                                                  : region.status === 'WARNING'
+                                                    ? 'warning'
+                                                    : 'error'
+                                            }
+                                          >
+                                            {region.status || 'OK'}
+                                          </StatusIndicator>
+                                        </SpaceBetween>
+                                      </Container>
+                                    ))}
+                                </ColumnLayout>
+                              </div>
+                            )}
+
+                            {/* Staging Accounts */}
+                            {capacityData.accounts.filter((acc) => acc.accountType === 'staging').length > 0 && (
+                              <div>
+                                <Box variant="h4" padding={{ bottom: 's' }}>
+                                  Staging Accounts
+                                </Box>
+                                <Table
+                                  columnDefinitions={[
+                                    {
+                                      id: 'accountName',
+                                      header: 'Account',
+                                      cell: (item) => (
+                                        <div>
+                                          <div><strong>{item.accountName}</strong></div>
+                                          <div style={{ fontSize: '0.875rem', color: '#5f6b7a' }}>
+                                            {item.accountId}
+                                          </div>
+                                        </div>
+                                      ),
+                                    },
+                                    {
+                                      id: 'replicatingServers',
+                                      header: 'Servers',
+                                      cell: (item) =>
+                                        `${item.replicatingServers.toLocaleString()} / ${item.maxReplicating.toLocaleString()}`,
+                                    },
+                                    {
+                                      id: 'percentUsed',
+                                      header: '% Used',
+                                      cell: (item) => `${item.percentUsed.toFixed(1)}%`,
+                                    },
+                                    {
+                                      id: 'status',
+                                      header: 'Status',
+                                      cell: (item) => (
+                                        <StatusIndicator
+                                          type={
+                                            item.status === 'OK'
+                                              ? 'success'
+                                              : item.status === 'INFO'
+                                                ? 'info'
+                                                : item.status === 'WARNING'
+                                                  ? 'warning'
+                                                  : 'error'
+                                          }
+                                        >
+                                          {item.status}
+                                        </StatusIndicator>
+                                      ),
+                                    },
+                                  ]}
+                                  items={capacityData.accounts.filter((acc) => acc.accountType === 'staging')}
+                                  variant="embedded"
+                                  empty={
+                                    <Box textAlign="center" color="inherit">
+                                      No staging accounts
+                                    </Box>
+                                  }
+                                />
+                              </div>
+                            )}
+                          </SpaceBetween>
+                        </Container>
+                      ))}
 
                       {/* Account-specific warnings */}
                       {capacityData.accounts.some((acc) => acc.warnings && acc.warnings.length > 0) && (
