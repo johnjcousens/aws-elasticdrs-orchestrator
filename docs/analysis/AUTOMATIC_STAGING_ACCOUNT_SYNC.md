@@ -12,12 +12,12 @@ The root cause: **Staging accounts are discovered once during target account cre
 
 ## Solution: Automatic Background Sync
 
-Implemented a scheduled Lambda operation that runs every 15 minutes to automatically discover and sync staging accounts for all target accounts.
+Implemented a scheduled Lambda operation that runs every 5 minutes to automatically discover and sync staging accounts for all target accounts.
 
 ### Architecture
 
 ```
-EventBridge Schedule (rate(15 minutes))
+EventBridge Schedule (rate(5 minutes))
     ↓
 Query Handler Lambda (operation: sync_staging_accounts)
     ↓
@@ -30,7 +30,7 @@ For each target account:
 ### Implementation Details
 
 **1. EventBridge Schedule Rule**
-- Schedule: `rate(15 minutes)`
+- Schedule: `rate(5 minutes)`
 - Target: Query Handler Lambda
 - Payload: `{"operation": "sync_staging_accounts"}`
 - Can be disabled via `EnableStagingAccountSync` parameter
@@ -121,7 +121,7 @@ EnableStagingAccountSync:
 ## Benefits
 
 1. **Zero User Burden** - Completely automatic, no manual refresh needed
-2. **Always Up-to-Date** - Staging accounts sync every 15 minutes
+2. **Always Up-to-Date** - Staging accounts sync every 5 minutes
 3. **Transparent** - Users see current state without knowing sync is happening
 4. **Efficient** - Only updates when changes detected
 5. **Resilient** - Continues syncing even if individual accounts fail
@@ -139,7 +139,7 @@ This will:
 1. Update query-handler Lambda with sync operation
 2. Create EventBridge schedule rule
 3. Wire up Lambda permissions
-4. Start automatic sync every 15 minutes
+4. Start automatic sync every 5 minutes
 
 ## Monitoring
 
@@ -206,7 +206,7 @@ cat response.json | jq .
 
 **Test Scenario:**
 1. Add extended source servers in DRS with new staging account
-2. Wait up to 15 minutes for automatic sync
+2. Wait up to 5 minutes for automatic sync
 3. Check DynamoDB - new staging account should appear
 4. Check dashboard - should show new staging account
 5. Check CloudWatch logs - should show sync operation with "updated" status

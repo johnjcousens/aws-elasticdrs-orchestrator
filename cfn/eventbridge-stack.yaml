@@ -204,8 +204,8 @@ Resources:
     Condition: EnableStagingAccountSyncCondition
     Properties:
       Name: !Sub '${ProjectName}-staging-account-sync-${Environment}'
-      Description: 'Automatic staging account discovery and sync every 15 minutes'
-      ScheduleExpression: 'rate(15 minutes)'
+      Description: 'Automatic staging account discovery and sync every 5 minutes'
+      ScheduleExpression: 'rate(5 minutes)'
       State: ENABLED
       Targets:
         - Id: StagingAccountSyncTarget
@@ -261,4 +261,4 @@ Outputs:
   StagingAccountSyncScheduleExpression:
     Condition: EnableStagingAccountSyncCondition
     Description: Schedule expression for staging account sync
-    Value: 'rate(15 minutes)'
+    Value: 'rate(5 minutes)'
