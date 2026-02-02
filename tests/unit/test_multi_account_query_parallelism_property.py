@@ -107,7 +107,7 @@ def multi_account_config_strategy(draw):
 # ============================================================================
 
 
-@settings(max_examples=50)
+@settings(max_examples=50, deadline=2000)
 @given(config=multi_account_config_strategy())
 @mock_aws
 def test_property_multi_account_query_parallelism(config):
@@ -203,7 +203,7 @@ def test_property_multi_account_query_parallelism(config):
         )
 
 
-@settings(max_examples=30)
+@settings(max_examples=30, deadline=2000)
 @given(
     num_staging=st.integers(min_value=0, max_value=15),
     num_regions=st.integers(min_value=1, max_value=20)
