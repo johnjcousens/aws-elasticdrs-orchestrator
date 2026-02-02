@@ -840,10 +840,12 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                             "isCurrentAccount": False,
                         }
                         print(
-                            f"Found target account {account_id} with role {assume_role_name}")
+                            f"Found target account {account_id} with role {assume_role_name}"
+                        )
                     else:
                         print(
-                            f"WARNING: Account {account_id} not found in target accounts table")
+                            f"WARNING: Account {account_id} not found in target accounts table"
+                        )
                         # Still try with just accountId (will use current
                         # account)
                         account_context = {"accountId": account_id}
@@ -938,7 +940,8 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     pg_account = pg.get("accountId")
 
                     print(
-                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}")
+                        f"DEBUG: PG '{pg_name}' - region={pg_region}, account={pg_account}, target_region={region}, target_account={account_id}"
+                    )
 
                     # Skip if this is the current PG being edited
                     if current_pg_id and pg_id == current_pg_id:
@@ -954,14 +957,16 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     # is enabled)
                     if account_id and pg_account != account_id:
                         print(
-                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})")
+                            f"DEBUG: Skipping PG in different account (PG account: {pg_account}, target: {account_id})"
+                        )
                         continue
 
                     # Check manual server selection (sourceServerIds)
                     server_ids = pg.get("sourceServerIds", [])
                     print(
                         f"DEBUG: PG '{pg_name}' has {
-                            len(server_ids)} manual serverIds")
+                            len(server_ids)} manual serverIds"
+                    )
                     for server_id in server_ids:
                         server_assignments[server_id] = {
                             "protectionGroupId": pg_id,
@@ -971,7 +976,8 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                     # Check tag-based selection (serverSelectionTags)
                     selection_tags = pg.get("serverSelectionTags", {})
                     print(
-                        f"DEBUG: PG '{pg_name}' selection_tags={selection_tags}")
+                        f"DEBUG: PG '{pg_name}' selection_tags={selection_tags}"
+                    )
 
                     if selection_tags:
                         matched = 0
@@ -989,7 +995,8 @@ def get_drs_source_servers(query_params: Dict) -> Dict:
                             if matches_all_tags:
                                 matched += 1
                                 print(
-                                    f"DEBUG: Server {server_id} matches PG '{pg_name}'")
+                                    f"DEBUG: Server {server_id} matches PG '{pg_name}'"
+                                )
                                 server_assignments[server_id] = {
                                     "protectionGroupId": pg_id,
                                     "protectionGroupName": pg_name,
@@ -1854,9 +1861,13 @@ def get_drs_account_capacity(
                 {
                     "totalSourceServers": 0,
                     "replicatingServers": 0,
-                    "maxReplicatingServers": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
+                    "maxReplicatingServers": DRS_LIMITS[
+                        "MAX_REPLICATING_SERVERS"
+                    ],
                     "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],
-                    "availableReplicatingSlots": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
+                    "availableReplicatingSlots": DRS_LIMITS[
+                        "MAX_REPLICATING_SERVERS"
+                    ],
                     "status": "NOT_INITIALIZED",
                     "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",
                 },
@@ -1879,9 +1890,13 @@ def get_drs_account_capacity(
                 {
                     "totalSourceServers": 0,
                     "replicatingServers": 0,
-                    "maxReplicatingServers": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
+                    "maxReplicatingServers": DRS_LIMITS[
+                        "MAX_REPLICATING_SERVERS"
+                    ],
                     "maxSourceServers": DRS_LIMITS["MAX_SOURCE_SERVERS"],
-                    "availableReplicatingSlots": DRS_LIMITS["MAX_REPLICATING_SERVERS"],
+                    "availableReplicatingSlots": DRS_LIMITS[
+                        "MAX_REPLICATING_SERVERS"
+                    ],
                     "status": "NOT_INITIALIZED",
                     "message": f"DRS not initialized in {region}. Initialize DRS in the AWS Console to use this region.",
                 },
@@ -2058,11 +2073,14 @@ def get_ec2_instance_types(query_params: Dict) -> Dict:
                 if ".metal" in instance_type:
                     continue
 
-                types.append({"value": instance_type,
-                              "label": f"{instance_type} ({vcpus} vCPU, {mem_gb} GB)",
-                              "vcpus": vcpus,
-                              "memoryGb": mem_gb,
-                              })
+                types.append(
+                    {
+                        "value": instance_type,
+                        "label": f"{instance_type} ({vcpus} vCPU, {mem_gb} GB)",
+                        "vcpus": vcpus,
+                        "memoryGb": mem_gb,
+                    }
+                )
 
         # Sort by family then by vcpus for better organization
         types.sort(key=lambda x: (x["value"].split(".")[0], x["vcpus"]))
@@ -2223,7 +2241,8 @@ def export_configuration(query_params: Dict) -> Dict:
                         # reference)
                         orphaned_pg_ids.append(pg_id)
                         print(
-                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export")
+                            f"Warning: PG ID '{pg_id}' not found - keeping ID in export"
+                        )
                 exported_waves.append(exported_wave)
 
             exported_rp = {
@@ -2236,7 +2255,8 @@ def export_configuration(query_params: Dict) -> Dict:
         if orphaned_pg_ids:
             print(
                 f"Export contains {
-                    len(orphaned_pg_ids)} orphaned PG references")
+                    len(orphaned_pg_ids)} orphaned PG references"
+            )
 
         # Build export payload with schema v1.1 metadata
         export_data = {
@@ -2703,12 +2723,14 @@ def handle_validate_staging_account(query_params: Dict) -> Dict:
                     },
                 )
             elif error_code == "InvalidClientTokenId":
-                return response(200,
-                                {"valid": False,
-                                 "roleAccessible": False,
-                                 "error": "Invalid credentials. Verify role ARN is correct.",
-                                 },
-                                )
+                return response(
+                    200,
+                    {
+                        "valid": False,
+                        "roleAccessible": False,
+                        "error": "Invalid credentials. Verify role ARN is correct.",
+                    },
+                )
             else:
                 return response(
                     200,
@@ -2860,7 +2882,8 @@ def query_account_capacity(account_config: Dict) -> Dict:
 
         role_arn = construct_role_arn(account_id)
         print(
-            f"Constructed standardized role ARN for account {account_id}: {role_arn}")
+            f"Constructed standardized role ARN for account {account_id}: {role_arn}"
+        )
     elif role_arn:
         print(f"Using provided role ARN for account {account_id}: {role_arn}")
 
@@ -2889,7 +2912,8 @@ def query_account_capacity(account_config: Dict) -> Dict:
                 error_message = e.response["Error"]["Message"]
 
                 print(
-                    f"Failed to assume role in account {account_id}: {error_code} - {error_message}")
+                    f"Failed to assume role in account {account_id}: {error_code} - {error_message}"
+                )
 
                 return {
                     "accountId": account_id,
@@ -2942,7 +2966,8 @@ def query_account_capacity(account_config: Dict) -> Dict:
                     or "not initialized" in error_message.lower()
                 ):
                     print(
-                        f"DRS not initialized in {region} for account {account_id} - treating as zero servers")
+                        f"DRS not initialized in {region} for account {account_id} - treating as zero servers"
+                    )
                     return {
                         "region": region,
                         "totalServers": 0,
@@ -2951,7 +2976,8 @@ def query_account_capacity(account_config: Dict) -> Dict:
                     }
                 else:
                     print(
-                        f"Error querying {region} for account {account_id}: {error_code} - {error_message}")
+                        f"Error querying {region} for account {account_id}: {error_code} - {error_message}"
+                    )
                     return {
                         "region": region,
                         "totalServers": 0,
@@ -2961,7 +2987,8 @@ def query_account_capacity(account_config: Dict) -> Dict:
 
             except Exception as e:
                 print(
-                    f"Unexpected error querying {region} for account {account_id}: {e}")
+                    f"Unexpected error querying {region} for account {account_id}: {e}"
+                )
                 return {
                     "region": region,
                     "totalServers": 0,
@@ -3062,7 +3089,8 @@ def query_all_accounts_parallel(
     print(
         f"Querying capacity for {
             len(staging_accounts) +
-            1} accounts in parallel")
+            1} accounts in parallel"
+    )
 
     # Prepare account configurations
     all_accounts = []
@@ -3464,7 +3492,8 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
             )
 
         print(
-            f"Discovering staging accounts for target account {target_account_id}")
+            f"Discovering staging accounts for target account {target_account_id}"
+        )
 
         # Step 2: Get target account configuration for credentials
         if not target_accounts_table:
@@ -3817,11 +3846,15 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         # Validate account ID format (12 digits)
         if not target_account_id.isdigit() or len(target_account_id) != 12:
             return response(
-                400, {
-                    "error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."}, )
+                400,
+                {
+                    "error": f"Invalid account ID format: {target_account_id}. Must be 12-digit string."
+                },
+            )
 
         print(
-            f"Querying combined capacity for target account {target_account_id}")
+            f"Querying combined capacity for target account {target_account_id}"
+        )
 
         # Step 2: Retrieve target account configuration from DynamoDB
         if not target_accounts_table:
@@ -3836,11 +3869,13 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             )
 
             if "Item" not in account_result:
-                return response(404,
-                                {"error": "TARGET_ACCOUNT_NOT_FOUND",
-                                 "message": f"Target account {target_account_id} not found",
-                                 },
-                                )
+                return response(
+                    404,
+                    {
+                        "error": "TARGET_ACCOUNT_NOT_FOUND",
+                        "message": f"Target account {target_account_id} not found",
+                    },
+                )
 
             target_account = account_result["Item"]
             print(f"Found target account: {target_account.get('accountName')}")
@@ -3865,7 +3900,8 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
         print(
             f"Found {
-                len(staging_accounts)} staging accounts for target {target_account_id}")
+                len(staging_accounts)} staging accounts for target {target_account_id}"
+        )
 
         # Step 4: Query all accounts in parallel (target + staging)
         account_results = query_all_accounts_parallel(
@@ -3952,16 +3988,20 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
             if worst_status == "INFO":
                 account_warnings.append(
-                    f"Monitor capacity in {worst_region} - at {worst_region_count} servers (67-75%)")
+                    f"Monitor capacity in {worst_region} - at {worst_region_count} servers (67-75%)"
+                )
             elif worst_status == "WARNING":
                 account_warnings.append(
-                    f"Plan capacity in {worst_region} - at {worst_region_count} servers (75-83%)")
+                    f"Plan capacity in {worst_region} - at {worst_region_count} servers (75-83%)"
+                )
             elif worst_status == "CRITICAL":
                 account_warnings.append(
-                    f"Add capacity immediately in {worst_region} - at {worst_region_count} servers (83-93%)")
+                    f"Add capacity immediately in {worst_region} - at {worst_region_count} servers (83-93%)"
+                )
             elif worst_status == "HYPER-CRITICAL":
                 account_warnings.append(
-                    f"Immediate action required in {worst_region} - at {worst_region_count} servers (93-100%)")
+                    f"Immediate action required in {worst_region} - at {worst_region_count} servers (93-100%)"
+                )
 
             account["warnings"] = account_warnings
 
