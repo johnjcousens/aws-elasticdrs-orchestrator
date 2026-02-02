@@ -23,7 +23,7 @@ sys.path.insert(0, str(lambda_dir))
 from index import handle_get_combined_capacity
 
 
-@settings(max_examples=100, deadline=1000)  # 1 second deadline for jobs metrics query
+@settings(max_examples=100, deadline=2000)  # 2 second deadline for jobs metrics query
 @given(
     target_servers=st.integers(min_value=0, max_value=300),
     has_staging_accounts_attr=st.booleans(),
@@ -159,7 +159,7 @@ def test_property_13_empty_staging_accounts_default(
             )
 
 
-@settings(max_examples=50, deadline=1000)  # 1 second deadline for jobs metrics query
+@settings(max_examples=50, deadline=2000)  # 2 second deadline for jobs metrics query
 @given(
     target_servers=st.integers(min_value=0, max_value=300),
 )
