@@ -21,6 +21,22 @@ if str(lambda_root) not in sys.path:
 
 
 @pytest.fixture(scope="function", autouse=True)
+def clear_index_module():
+    """
+    Clear the 'index' module from sys.modules before each test.
+    
+    This prevents conflicts when different tests import 'index' from
+    different Lambda handlers (query-handler, data-management-handler, etc.).
+    """
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    yield
+    # Clean up after test
+    if "index" in sys.modules:
+        del sys.modules["index"]
+
+
+@pytest.fixture(scope="function", autouse=True)
 def aws_credentials(monkeypatch):
     """Mocked AWS Credentials for moto."""
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
