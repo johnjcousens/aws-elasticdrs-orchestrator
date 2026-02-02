@@ -34,7 +34,7 @@ WHY VALIDATE:
 Reference: https://docs.aws.amazon.com/general/latest/gr/drs.html
 """
 
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 import boto3
 
@@ -150,7 +150,9 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
     return errors
 
 
-def validate_concurrent_jobs(region: str) -> Dict:
+def validate_concurrent_jobs(
+    region: str, drs_client: Optional[Any] = None
+) -> Dict:
     """
     Validate current DRS job count against 20 concurrent jobs limit.
 
@@ -163,7 +165,13 @@ def validate_concurrent_jobs(region: str) -> Dict:
     Better to check proactively and provide clear error message.
 
     USAGE:
+        # With default credentials
         result = validate_concurrent_jobs('us-east-1')
+
+        # With assumed role credentials
+        drs_client = create_drs_client(region, account_id, role_arn)
+        result = validate_concurrent_jobs('us-east-1', drs_client)
+
         if not result['valid']:
             return response(429, {
                 "error": "CONCURRENT_JOBS_LIMIT_EXCEEDED",
@@ -173,6 +181,7 @@ def validate_concurrent_jobs(region: str) -> Dict:
 
     Args:
         region: AWS region to check (e.g., 'us-east-1')
+        drs_client: Optional boto3 DRS client with credentials
 
     Returns:
         {
@@ -196,7 +205,10 @@ def validate_concurrent_jobs(region: str) -> Dict:
         - API error: Returns valid=True with warning message
     """
     try:
-        regional_drs = boto3.client("drs", region_name=region)
+        if drs_client is None:
+            regional_drs = boto3.client("drs", region_name=region)
+        else:
+            regional_drs = drs_client
 
         # Get active jobs (PENDING or STARTED status)
         active_jobs = []
@@ -261,7 +273,9 @@ def validate_concurrent_jobs(region: str) -> Dict:
         }
 
 
-def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
+def validate_servers_in_all_jobs(
+    region: str, new_server_count: int, drs_client: Optional[Any] = None
+) -> Dict:
     """
     Validate total servers across all jobs against 500 server limit.
 
@@ -274,7 +288,13 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
     Example: 10 jobs with 50 servers each = 500 servers (at limit).
 
     USAGE:
+        # With default credentials
         result = validate_servers_in_all_jobs('us-east-1', 100)
+
+        # With assumed role credentials
+        drs_client = create_drs_client(region, account_id, role_arn)
+        result = validate_servers_in_all_jobs('us-east-1', 100, drs_client)
+
         if not result['valid']:
             return response(429, {
                 "error": "SERVERS_IN_JOBS_LIMIT_EXCEEDED",
@@ -287,6 +307,7 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
     Args:
         region: AWS region to check
         new_server_count: Number of servers in new job to start
+        drs_client: Optional boto3 DRS client with credentials
 
     Returns:
         {
@@ -303,7 +324,10 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
         - API error: Returns valid=True with warning message
     """
     try:
-        regional_drs = boto3.client("drs", region_name=region)
+        if drs_client is None:
+            regional_drs = boto3.client("drs", region_name=region)
+        else:
+            regional_drs = drs_client
 
         # Count servers in active jobs
         servers_in_jobs = 0
@@ -357,7 +381,9 @@ def validate_servers_in_all_jobs(region: str, new_server_count: int) -> Dict:
         }
 
 
-def validate_max_servers_per_job(region: str) -> Dict:
+def validate_max_servers_per_job(
+    region: str, drs_client: Optional[Any] = None
+) -> Dict:
     """
     Get the maximum server count in any single active DRS job.
 
@@ -370,13 +396,20 @@ def validate_max_servers_per_job(region: str) -> Dict:
     the per-job limit, which could cause job failures.
 
     USAGE:
+        # With default credentials
         result = validate_max_servers_per_job('us-east-1')
+
+        # With assumed role credentials
+        drs_client = create_drs_client(region, account_id, role_arn)
+        result = validate_max_servers_per_job('us-east-1', drs_client)
+
         if result['maxServersInSingleJob'] > 90:
             print(f"Warning: Job {result['jobId']} has "
                   f"{result['maxServersInSingleJob']} servers")
 
     Args:
         region: AWS region to check (e.g., 'us-east-1')
+        drs_client: Optional boto3 DRS client with credentials
 
     Returns:
         {
@@ -394,7 +427,10 @@ def validate_max_servers_per_job(region: str) -> Dict:
         - API error: Returns maxServersInSingleJob=0 with warning
     """
     try:
-        regional_drs = boto3.client("drs", region_name=region)
+        if drs_client is None:
+            regional_drs = boto3.client("drs", region_name=region)
+        else:
+            regional_drs = drs_client
 
         # Get active jobs (PENDING or STARTED status)
         max_servers = 0
