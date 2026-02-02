@@ -178,9 +178,7 @@ def _get_protection_groups_table():
     if _protection_groups_table is None:
         table_name = os.environ.get("PROTECTION_GROUPS_TABLE")
         if not table_name:
-            raise ValueError(
-                "PROTECTION_GROUPS_TABLE environment variable not set"
-            )
+            raise ValueError("PROTECTION_GROUPS_TABLE environment variable not set")
         _protection_groups_table = _get_dynamodb_resource().Table(table_name)
     return _protection_groups_table
 
@@ -218,9 +216,7 @@ def get_current_account_id() -> str:
         return "unknown"
 
 
-def get_cross_account_session(
-    role_arn: str, external_id: str = None
-) -> boto3.Session:
+def get_cross_account_session(role_arn: str, external_id: str = None) -> boto3.Session:
     """
     Create a boto3 Session by assuming a cross-account IAM role.
 
@@ -306,9 +302,7 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
             # In test environment, use environment variable fallback
             current_account_id = os.environ.get("AWS_ACCOUNT_ID")
             if not current_account_id:
-                raise ValueError(
-                    f"Unable to determine current account ID: {e}"
-                )
+                raise ValueError(f"Unable to determine current account ID: {e}")
             print(
                 f"Using AWS_ACCOUNT_ID environment variable for current account: {current_account_id}"
             )
@@ -326,17 +320,13 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
             try:
                 # Get Protection Group to check its AccountId
                 protection_groups_table = _get_protection_groups_table()
-                pg_result = protection_groups_table.get_item(
-                    Key={"groupId": pg_id}
-                )
+                pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
                 if "Item" in pg_result:
                     pg = pg_result["Item"]
                     account_id = pg.get("accountId")
                     if account_id and account_id.strip():
                         all_target_account_ids.add(account_id.strip())
-                        print(
-                            f"Found target account {account_id} from Protection Group {pg_id}"
-                        )
+                        print(f"Found target account {account_id} from Protection Group {pg_id}")
             except Exception as e:
                 print(f"Error getting Protection Group {pg_id}: {e}")
                 continue
@@ -351,13 +341,10 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
 
         # Check if all protection groups are in current account
         if not all_target_account_ids or (
-            len(all_target_account_ids) == 1
-            and current_account_id in all_target_account_ids
+            len(all_target_account_ids) == 1 and current_account_id in all_target_account_ids
         ):
             # All protection groups are in current account (or no protection groups found)
-            print(
-                f"All Protection Groups are in current account {current_account_id}"
-            )
+            print(f"All Protection Groups are in current account {current_account_id}")
             return {
                 "accountId": current_account_id,
                 "assumeRoleName": None,  # No role assumption needed for current account
@@ -378,14 +365,10 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                     account_config = account_result["Item"]
                     assume_role_name = (
                         account_config.get("assumeRoleName")
-                        or account_config.get("crossAccountRoleArn", "").split(
-                            "/"
-                        )[-1]
+                        or account_config.get("crossAccountRoleArn", "").split("/")[-1]
                     )
 
-                    print(
-                        f"Using target account {target_account_id} with role {assume_role_name}"
-                    )
+                    print(f"Using target account {target_account_id} with role {assume_role_name}")
                     return {
                         "accountId": target_account_id,
                         "assumeRoleName": assume_role_name,
@@ -396,14 +379,10 @@ def determine_target_account_context(plan: Dict) -> Dict:  # noqa: C901
                         f"WARNING: Target account {target_account_id} not found in target accounts table"
                     )
             except Exception as e:
-                print(
-                    f"Error getting target account configuration for {target_account_id}: {e}"
-                )
+                print(f"Error getting target account configuration for {target_account_id}: {e}")
 
         # Fallback: target account found but no configuration - assume standard role name
-        print(
-            f"Using target account {target_account_id} with default role name"
-        )
+        print(f"Using target account {target_account_id} with default role name")
         return {
             "accountId": target_account_id,
             "assumeRoleName": "DRSOrchestrationCrossAccountRole",  # Default role name
@@ -444,9 +423,7 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
     assume_role_name = account_context.get("assumeRoleName")
 
     if not account_id:
-        raise ValueError(
-            "Cross-account operation requires AccountId in account_context"
-        )
+        raise ValueError("Cross-account operation requires AccountId in account_context")
 
     if not assume_role_name:
         raise ValueError(
@@ -464,16 +441,12 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
         external_id = account_context.get("externalId")
 
         # Use get_cross_account_session to assume role
-        session = get_cross_account_session(
-            role_arn=role_arn, external_id=external_id
-        )
+        session = get_cross_account_session(role_arn=role_arn, external_id=external_id)
 
         # Create DRS client with assumed role session
         drs_client = session.client("drs", region_name=region)
 
-        print(
-            f"Successfully created cross-account DRS client for account {account_id}"
-        )
+        print(f"Successfully created cross-account DRS client for account {account_id}")
         return drs_client
 
     except Exception as e:
@@ -490,7 +463,9 @@ def create_drs_client(region: str, account_context: Optional[Dict] = None):
                 f"Please verify the cross-account role is deployed and configured correctly."
             )
         elif "InvalidUserID.NotFound" in str(e):
-            error_msg += f"\n\nThe role '{assume_role_name}' does not exist in account {account_id}."
+            error_msg += (
+                f"\n\nThe role '{assume_role_name}' does not exist in account {account_id}."
+            )
 
         print(f"Cross-account role assumption failed: {error_msg}")
         raise RuntimeError(error_msg)

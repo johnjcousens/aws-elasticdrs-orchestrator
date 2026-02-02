@@ -77,9 +77,7 @@ except ImportError:
     def construct_role_arn(account_id: str) -> str:
         """Construct standardized role ARN from account ID."""
         if not account_id or len(account_id) != 12 or not account_id.isdigit():
-            raise ValueError(
-                f"Invalid account ID: {account_id}. Must be 12 digits."
-            )
+            raise ValueError(f"Invalid account ID: {account_id}. Must be 12 digits.")
         return f"arn:aws:iam::{account_id}:role/DRSOrchestrationRole"
 
     # Fallback create_drs_client for local testing
@@ -206,25 +204,19 @@ def apply_launch_config_before_recovery(
     try:
         from shared.config_merge import get_effective_launch_config
     except ImportError:
-        print(
-            "Warning: config_merge module not found, per-server configs disabled"
-        )
+        print("Warning: config_merge module not found, per-server configs disabled")
         get_effective_launch_config = None
 
     for server_id in server_ids:
         try:
             # Get effective config (group defaults + per-server overrides)
             if protection_group and get_effective_launch_config:
-                effective_config = get_effective_launch_config(
-                    protection_group, server_id
-                )
+                effective_config = get_effective_launch_config(protection_group, server_id)
             else:
                 effective_config = launch_config
 
             # Get DRS launch configuration to find EC2 launch template
-            current_config = drs_client.get_launch_configuration(
-                sourceServerID=server_id
-            )
+            current_config = drs_client.get_launch_configuration(sourceServerID=server_id)
             template_id = current_config.get("ec2LaunchTemplateID")
 
             if not template_id:
@@ -240,13 +232,11 @@ def apply_launch_config_before_recovery(
             if "licensing" in effective_config:
                 drs_update["licensing"] = effective_config["licensing"]
             if "targetInstanceTypeRightSizingMethod" in effective_config:
-                drs_update["targetInstanceTypeRightSizingMethod"] = (
-                    effective_config["targetInstanceTypeRightSizingMethod"]
-                )
-            if "launchDisposition" in effective_config:
-                drs_update["launchDisposition"] = effective_config[
-                    "launchDisposition"
+                drs_update["targetInstanceTypeRightSizingMethod"] = effective_config[
+                    "targetInstanceTypeRightSizingMethod"
                 ]
+            if "launchDisposition" in effective_config:
+                drs_update["launchDisposition"] = effective_config["launchDisposition"]
 
             if len(drs_update) > 1:
                 drs_client.update_launch_configuration(**drs_update)
@@ -256,9 +246,7 @@ def apply_launch_config_before_recovery(
             template_data = {}
 
             if effective_config.get("instanceType"):
-                template_data["InstanceType"] = effective_config[
-                    "instanceType"
-                ]
+                template_data["InstanceType"] = effective_config["instanceType"]
 
             # Handle network interfaces with static IP support
             if (
@@ -270,21 +258,15 @@ def apply_launch_config_before_recovery(
 
                 # Static private IP takes precedence
                 if effective_config.get("staticPrivateIp"):
-                    network_interface["PrivateIpAddress"] = effective_config[
-                        "staticPrivateIp"
-                    ]
+                    network_interface["PrivateIpAddress"] = effective_config["staticPrivateIp"]
                     print(
                         f"Setting static IP {effective_config['staticPrivateIp']} for {server_id}"
                     )
 
                 if effective_config.get("subnetId"):
-                    network_interface["SubnetId"] = effective_config[
-                        "subnetId"
-                    ]
+                    network_interface["SubnetId"] = effective_config["subnetId"]
                 if effective_config.get("securityGroupIds"):
-                    network_interface["Groups"] = effective_config[
-                        "securityGroupIds"
-                    ]
+                    network_interface["Groups"] = effective_config["securityGroupIds"]
                 template_data["NetworkInterfaces"] = [network_interface]
 
             if effective_config.get("instanceProfileName"):
@@ -301,14 +283,10 @@ def apply_launch_config_before_recovery(
                 ec2_client.modify_launch_template(
                     LaunchTemplateId=template_id, DefaultVersion="$Latest"
                 )
-                print(
-                    f"Updated EC2 launch template {template_id} for {server_id}"
-                )
+                print(f"Updated EC2 launch template {template_id} for {server_id}")
 
         except Exception as e:
-            print(
-                f"Warning: Failed to apply launch config to {server_id}: {e}"
-            )
+            print(f"Warning: Failed to apply launch config to {server_id}: {e}")
             # Continue with other servers - partial success is acceptable
 
 
@@ -514,9 +492,7 @@ def store_task_token(event: Dict) -> Dict:
     task_token = event.get("taskToken")
     execution_id = state.get("execution_id")
     plan_id = state.get("plan_id")
-    paused_before_wave = state.get(
-        "paused_before_wave", state.get("current_wave_number", 0) + 1
-    )
+    paused_before_wave = state.get("paused_before_wave", state.get("current_wave_number", 0) + 1)
 
     print(
         f"⏸️ Storing task token for execution {execution_id}, paused before wave {paused_before_wave}"
@@ -573,9 +549,7 @@ def resume_wave(event: Dict) -> Dict:
     if isinstance(paused_before_wave, Decimal):
         paused_before_wave = int(paused_before_wave)
 
-    print(
-        f"⏯️ Resuming execution {execution_id}, starting wave {paused_before_wave}"
-    )
+    print(f"⏯️ Resuming execution {execution_id}, starting wave {paused_before_wave}")
 
     # Reset status to running
     state["status"] = "running"
@@ -756,16 +730,12 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         return
 
     try:
-        pg_response = get_protection_groups_table().get_item(
-            Key={"groupId": protection_group_id}
-        )
+        pg_response = get_protection_groups_table().get_item(Key={"groupId": protection_group_id})
         if "Item" not in pg_response:
             print(f"Protection Group {protection_group_id} not found")
             state["wave_completed"] = True
             state["status"] = "failed"
-            state["error"] = (
-                f"Protection Group {protection_group_id} not found"
-            )
+            state["error"] = f"Protection Group {protection_group_id} not found"
             return
 
         pg = pg_response["Item"]
@@ -775,25 +745,17 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         selection_tags = pg.get("serverSelectionTags", {})
 
         if selection_tags:
-            print(
-                f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}"
-            )
+            print(f"Resolving servers for PG {protection_group_id} with tags: {selection_tags}")
             account_context = get_account_context(state)
-            server_ids = query_drs_servers_by_tags(
-                region, selection_tags, account_context
-            )
+            server_ids = query_drs_servers_by_tags(region, selection_tags, account_context)
             print(f"Resolved {len(server_ids)} servers from tags")
         else:
             # Fallback: explicit serverIds from wave (legacy support)
             server_ids = wave.get("serverIds", [])
-            print(
-                f"Using explicit serverIds from wave: {len(server_ids)} servers"
-            )
+            print(f"Using explicit serverIds from wave: {len(server_ids)} servers")
 
         if not server_ids:
-            print(
-                f"Wave {wave_number} has no servers (no tags matched), marking complete"
-            )
+            print(f"Wave {wave_number} has no servers (no tags matched), marking complete")
             state["wave_completed"] = True
             return
 
@@ -807,18 +769,12 @@ def start_wave_recovery(state: Dict, wave_number: int) -> None:
         # Apply Protection Group launch config before recovery
         launch_config = pg.get("launchConfig")
         if launch_config:
-            print(
-                f"Applying launchConfig to {len(server_ids)} servers before recovery"
-            )
-            apply_launch_config_before_recovery(
-                drs_client, server_ids, launch_config, region, pg
-            )
+            print(f"Applying launchConfig to {len(server_ids)} servers before recovery")
+            apply_launch_config_before_recovery(drs_client, server_ids, launch_config, region, pg)
 
         source_servers = [{"sourceServerID": sid} for sid in server_ids]
 
-        response = drs_client.start_recovery(
-            isDrill=is_drill, sourceServers=source_servers
-        )
+        response = drs_client.start_recovery(isDrill=is_drill, sourceServers=source_servers)
 
         job_id = response["job"]["jobID"]
         print(f"✅ DRS Job created: {job_id}")
@@ -978,9 +934,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
     max_wait = state.get("current_wave_max_wait_time", 31536000)
     state["current_wave_total_wait_time"] = total_wait
 
-    print(
-        f"Checking status for job {job_id}, wait time: {total_wait}s / {max_wait}s"
-    )
+    print(f"Checking status for job {job_id}, wait time: {total_wait}s / {max_wait}s")
 
     if total_wait >= max_wait:
         print(f"❌ Wave {wave_number} TIMEOUT")
@@ -1006,15 +960,10 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
         job_status = job.get("status")
         participating_servers = job.get("participatingServers", [])
 
-        print(
-            f"Job {job_id} status: {job_status}, servers: {len(participating_servers)}"
-        )
+        print(f"Job {job_id} status: {job_status}, servers: {len(participating_servers)}")
 
         if not participating_servers:
-            if (
-                job_status in DRS_JOB_STATUS_WAIT_STATES
-                or job_status == "STARTED"
-            ):
+            if job_status in DRS_JOB_STATUS_WAIT_STATES or job_status == "STARTED":
                 print("Job still initializing")
                 state["wave_completed"] = False
                 return state
@@ -1022,9 +971,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 print("❌ Job COMPLETED but no servers")
                 state["wave_completed"] = True
                 state["status"] = "failed"
-                state["error"] = (
-                    "DRS job completed but no participating servers"
-                )
+                state["error"] = "DRS job completed but no participating servers"
                 return state
             else:
                 state["wave_completed"] = False
@@ -1096,9 +1043,9 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
 
         # Determine current phase from recent job events
         current_phase = "STARTED"
-        recent_events = sorted(
-            job_events, key=lambda x: x.get("eventDateTime", ""), reverse=True
-        )[:10]
+        recent_events = sorted(job_events, key=lambda x: x.get("eventDateTime", ""), reverse=True)[
+            :10
+        ]
 
         for event in recent_events:
             event_type = event.get("event", "").upper()
@@ -1130,16 +1077,12 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             print("❌ Job COMPLETED but no instances launched")
             state["wave_completed"] = True
             state["status"] = "failed"
-            state["error"] = (
-                "DRS job completed but no recovery instances created"
-            )
+            state["error"] = "DRS job completed but no recovery instances created"
             return state
 
         # All servers launched
         if launched_count == total_servers and failed_count == 0:
-            print(
-                f"✅ Wave {wave_number} COMPLETE - all {launched_count} servers launched"
-            )
+            print(f"✅ Wave {wave_number} COMPLETE - all {launched_count} servers launched")
 
             state["wave_completed"] = True
             state["completed_waves"] = state.get("completed_waves", 0) + 1
@@ -1168,9 +1111,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                     state["status_reason"] = "Execution cancelled by user"
                     state["end_time"] = end_time
                     if state.get("start_time"):
-                        state["duration_seconds"] = (
-                            end_time - state["start_time"]
-                        )
+                        state["duration_seconds"] = end_time - state["start_time"]
                     get_execution_history_table().update_item(
                         Key={"executionId": execution_id, "planId": plan_id},
                         UpdateExpression="SET #status = :status, endTime = :end",
@@ -1246,9 +1187,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
                 )
 
         elif failed_count > 0:
-            print(
-                f"❌ Wave {wave_number} FAILED - {failed_count} servers failed"
-            )
+            print(f"❌ Wave {wave_number} FAILED - {failed_count} servers failed")
             end_time = int(time.time())
             state["wave_completed"] = True
             state["status"] = "failed"
@@ -1264,9 +1203,7 @@ def update_wave_status(event: Dict) -> Dict:  # noqa: C901
             # NOTE: DynamoDB update handled by execution-poller Lambda
 
         else:
-            print(
-                f"⏳ Wave {wave_number} in progress - {launched_count}/{total_servers}"
-            )
+            print(f"⏳ Wave {wave_number} in progress - {launched_count}/{total_servers}")
             state["wave_completed"] = False
 
     except Exception as e:

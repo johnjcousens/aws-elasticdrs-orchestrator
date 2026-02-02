@@ -205,9 +205,7 @@ class DecimalEncoder(json.JSONEncoder):
         return super(DecimalEncoder, self).default(obj)
 
 
-def response(
-    status_code: int, body: Any, headers: Optional[Dict] = None
-) -> Dict:
+def response(status_code: int, body: Any, headers: Optional[Dict] = None) -> Dict:
     """
     Generate API Gateway response with CORS and security headers.
 

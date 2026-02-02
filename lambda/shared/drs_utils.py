@@ -66,10 +66,7 @@ def normalize_drs_response(
         {'recoveryInstanceId': 'i-123', 'sourceServerId': 's-456'}
     """
     if isinstance(drs_data, list):
-        return [
-            normalize_drs_response(item, recursive=recursive)
-            for item in drs_data
-        ]
+        return [normalize_drs_response(item, recursive=recursive) for item in drs_data]
 
     if not isinstance(drs_data, dict):
         return drs_data
@@ -106,11 +103,7 @@ def normalize_drs_response(
             normalized[new_key] = normalize_drs_response(value, recursive=True)
         elif recursive and isinstance(value, list):
             normalized[new_key] = [
-                (
-                    normalize_drs_response(item, recursive=True)
-                    if isinstance(item, dict)
-                    else item
-                )
+                (normalize_drs_response(item, recursive=True) if isinstance(item, dict) else item)
                 for item in value
             ]
         else:
@@ -211,9 +204,7 @@ def build_drs_filter(
     return filters
 
 
-def batch_describe_ec2_instances(
-    instance_ids: List[str], ec2_client
-) -> Dict[str, Dict]:
+def batch_describe_ec2_instances(instance_ids: List[str], ec2_client) -> Dict[str, Dict]:
     """
     Query multiple EC2 instances efficiently.
 
@@ -377,9 +368,7 @@ def transform_drs_server_for_frontend(server: Dict) -> Dict:
     lifecycle = server.get("lifeCycle", {})
     last_launch = lifecycle.get("lastLaunch", {})
     last_launch_type = last_launch.get("initiated", {}).get("type", "")
-    last_launch_time = last_launch.get("initiated", {}).get(
-        "apiCallDateTime", ""
-    )
+    last_launch_time = last_launch.get("initiated", {}).get("apiCallDateTime", "")
     last_launch_status = server.get("lastLaunchResult", "")
 
     return {
@@ -402,9 +391,7 @@ def transform_drs_server_for_frontend(server: Dict) -> Dict:
         "lastLaunchType": last_launch_type,
         "lastLaunchStatus": last_launch_status,
         "lastLaunchTime": last_launch_time,
-        "replicatedStorageBytes": data_replication.get(
-            "replicatedStorageBytes", 0
-        ),
+        "replicatedStorageBytes": data_replication.get("replicatedStorageBytes", 0),
         "hardware": {
             "cpus": [
                 {
@@ -434,9 +421,7 @@ def transform_drs_server_for_frontend(server: Dict) -> Dict:
     }
 
 
-def enrich_server_data(
-    participating_servers: List[Dict], drs_client, ec2_client
-) -> List[Dict]:
+def enrich_server_data(participating_servers: List[Dict], drs_client, ec2_client) -> List[Dict]:
     """
     Enrich server data with DRS source server details.
 
@@ -459,9 +444,7 @@ def enrich_server_data(
 
     # Extract source server IDs
     source_server_ids = [
-        s.get("sourceServerID")
-        for s in participating_servers
-        if s.get("sourceServerID")
+        s.get("sourceServerID") for s in participating_servers if s.get("sourceServerID")
     ]
 
     # Query DRS for source server details
@@ -479,17 +462,13 @@ def enrich_server_data(
 
     # Collect recovery instance IDs for batch query
     recovery_instance_ids = [
-        s.get("recoveryInstanceID")
-        for s in participating_servers
-        if s.get("recoveryInstanceID")
+        s.get("recoveryInstanceID") for s in participating_servers if s.get("recoveryInstanceID")
     ]
 
     # Batch query recovery EC2 instances
     recovery_ec2_instances = {}
     if recovery_instance_ids:
-        recovery_ec2_instances = batch_describe_ec2_instances(
-            recovery_instance_ids, ec2_client
-        )
+        recovery_ec2_instances = batch_describe_ec2_instances(recovery_instance_ids, ec2_client)
 
     # Enrich each server
     for server in participating_servers:
@@ -536,10 +515,7 @@ def enrich_server_data(
 
         # Add recovery instance EC2 details if available
         recovery_instance_id = normalized.get("recoveryInstanceId")
-        if (
-            recovery_instance_id
-            and recovery_instance_id in recovery_ec2_instances
-        ):
+        if recovery_instance_id and recovery_instance_id in recovery_ec2_instances:
             recovery_ec2 = recovery_ec2_instances[recovery_instance_id]
             normalized.update(
                 {
@@ -548,9 +524,7 @@ def enrich_server_data(
                     "privateIp": recovery_ec2.get("privateIpAddress", ""),
                     "hostname": recovery_ec2.get("privateDnsName", ""),
                     "instanceType": recovery_ec2.get("instanceType", ""),
-                    "instanceState": recovery_ec2.get("state", {}).get(
-                        "Name", ""
-                    ),
+                    "instanceState": recovery_ec2.get("state", {}).get("Name", ""),
                 }
             )
 

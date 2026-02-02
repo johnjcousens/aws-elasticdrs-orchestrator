@@ -54,9 +54,7 @@ def discover_staging_accounts_from_drs(
     session = None
     if role_arn:
         try:
-            session = get_cross_account_session(
-                role_arn=role_arn, external_id=external_id
-            )
+            session = get_cross_account_session(role_arn=role_arn, external_id=external_id)
         except Exception as e:
             print(f"Failed to assume role for staging discovery: {e}")
             return []
@@ -93,23 +91,17 @@ def discover_staging_accounts_from_drs(
                     account_name = None
                     try:
                         # Assume role into staging account to get its alias
-                        staging_role_arn = construct_role_arn(
-                            staging_account_id
-                        )
+                        staging_role_arn = construct_role_arn(staging_account_id)
                         staging_session = get_cross_account_session(
                             role_arn=staging_role_arn,
                             external_id=f"drs-orchestration-{staging_account_id}",
                         )
                         iam_client = staging_session.client("iam")
-                        aliases = iam_client.list_account_aliases()[
-                            "AccountAliases"
-                        ]
+                        aliases = iam_client.list_account_aliases()["AccountAliases"]
                         if aliases:
                             account_name = aliases[0]
                     except Exception as e:
-                        print(
-                            f"Could not fetch account alias for {staging_account_id}: {e}"
-                        )
+                        print(f"Could not fetch account alias for {staging_account_id}: {e}")
 
                     # Fallback to placeholder if we couldn't get the real name
                     if not account_name:

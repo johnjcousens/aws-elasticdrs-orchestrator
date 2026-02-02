@@ -87,9 +87,7 @@ class StagingAccount:
     accountName: str
     roleArn: str
     externalId: str
-    addedAt: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z"
-    )
+    addedAt: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
     addedBy: str = "system"
 
     def to_dict(self) -> Dict:
@@ -104,9 +102,7 @@ class StagingAccount:
             accountName=data["accountName"],
             roleArn=data["roleArn"],
             externalId=data["externalId"],
-            addedAt=data.get(
-                "addedAt", datetime.now(timezone.utc).isoformat() + "Z"
-            ),
+            addedAt=data.get("addedAt", datetime.now(timezone.utc).isoformat() + "Z"),
             addedBy=data.get("addedBy", "system"),
         )
 
@@ -138,12 +134,8 @@ class TargetAccount:
     externalId: Optional[str] = None
     stagingAccounts: List[StagingAccount] = field(default_factory=list)
     status: str = "active"
-    createdAt: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z"
-    )
-    updatedAt: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z"
-    )
+    createdAt: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
+    updatedAt: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat() + "Z")
     createdBy: str = "system"
 
     def to_dict(self) -> Dict:
@@ -151,11 +143,7 @@ class TargetAccount:
         data = asdict(self)
         # Convert StagingAccount objects to dicts
         data["stagingAccounts"] = [
-            (
-                account.to_dict()
-                if isinstance(account, StagingAccount)
-                else account
-            )
+            (account.to_dict() if isinstance(account, StagingAccount) else account)
             for account in self.stagingAccounts
         ]
         return data
@@ -164,11 +152,7 @@ class TargetAccount:
     def from_dict(cls, data: Dict) -> "TargetAccount":
         """Create TargetAccount from dictionary."""
         staging_accounts = [
-            (
-                StagingAccount.from_dict(account)
-                if isinstance(account, dict)
-                else account
-            )
+            (StagingAccount.from_dict(account) if isinstance(account, dict) else account)
             for account in data.get("stagingAccounts", [])
         ]
 
@@ -179,12 +163,8 @@ class TargetAccount:
             externalId=data.get("externalId"),
             stagingAccounts=staging_accounts,
             status=data.get("status", "active"),
-            createdAt=data.get(
-                "createdAt", datetime.now(timezone.utc).isoformat() + "Z"
-            ),
-            updatedAt=data.get(
-                "updatedAt", datetime.now(timezone.utc).isoformat() + "Z"
-            ),
+            createdAt=data.get("createdAt", datetime.now(timezone.utc).isoformat() + "Z"),
+            updatedAt=data.get("updatedAt", datetime.now(timezone.utc).isoformat() + "Z"),
             createdBy=data.get("createdBy", "system"),
         )
 
@@ -232,25 +212,17 @@ def validate_staging_account_structure(staging_account: Dict) -> Dict:
     # Validate account ID format (12 digits)
     account_id = staging_account.get("accountId", "")
     if account_id and (not account_id.isdigit() or len(account_id) != 12):
-        errors.append(
-            f"Invalid account ID format: {account_id}. "
-            "Must be 12-digit string."
-        )
+        errors.append(f"Invalid account ID format: {account_id}. " "Must be 12-digit string.")
 
     # Validate role ARN format if provided
     role_arn = staging_account.get("roleArn", "")
     if role_arn and not role_arn.startswith("arn:aws:iam::"):
-        errors.append(
-            f"Invalid role ARN format: {role_arn}. "
-            "Must start with 'arn:aws:iam::'."
-        )
+        errors.append(f"Invalid role ARN format: {role_arn}. " "Must start with 'arn:aws:iam::'.")
 
     return {"valid": len(errors) == 0, "errors": errors}
 
 
-def check_duplicate_staging_account(
-    target_account_id: str, staging_account_id: str
-) -> bool:
+def check_duplicate_staging_account(target_account_id: str, staging_account_id: str) -> bool:
     """
     Check if staging account already exists for target account.
 
@@ -326,10 +298,7 @@ def get_staging_accounts(target_account_id: str) -> List[StagingAccount]:
         staging_accounts_data = response["Item"].get("stagingAccounts", [])
 
         # Convert to StagingAccount objects
-        return [
-            StagingAccount.from_dict(account)
-            for account in staging_accounts_data
-        ]
+        return [StagingAccount.from_dict(account) for account in staging_accounts_data]
 
     except ClientError as e:
         print(f"Error getting staging accounts: {e}")
@@ -383,9 +352,7 @@ def add_staging_account(
     if not staging_account.get("roleArn"):
         from shared.account_utils import construct_role_arn
 
-        staging_account["roleArn"] = construct_role_arn(
-            staging_account["accountId"]
-        )
+        staging_account["roleArn"] = construct_role_arn(staging_account["accountId"])
         print(
             f"Constructed standardized role ARN for staging account "
             f"{staging_account['accountId']}: {staging_account['roleArn']}"
@@ -399,14 +366,10 @@ def add_staging_account(
     # Validate staging account structure
     validation = validate_staging_account_structure(staging_account)
     if not validation["valid"]:
-        raise ValueError(
-            f"Invalid staging account: {', '.join(validation['errors'])}"
-        )
+        raise ValueError(f"Invalid staging account: {', '.join(validation['errors'])}")
 
     # Check for duplicate
-    if check_duplicate_staging_account(
-        target_account_id, staging_account["accountId"]
-    ):
+    if check_duplicate_staging_account(target_account_id, staging_account["accountId"]):
         raise ValueError(
             f"Staging account {staging_account['accountId']} "
             f"already exists for target account {target_account_id}"
@@ -435,9 +398,7 @@ def add_staging_account(
         now = datetime.now(timezone.utc).isoformat() + "Z"
         response = table.update_item(
             Key={"accountId": target_account_id},
-            UpdateExpression=(
-                "SET stagingAccounts = :staging, updatedAt = :updated"
-            ),
+            UpdateExpression=("SET stagingAccounts = :staging, updatedAt = :updated"),
             ExpressionAttributeValues={
                 ":staging": staging_dicts,
                 ":updated": now,
@@ -450,9 +411,7 @@ def add_staging_account(
 
         return {
             "success": True,
-            "message": (
-                f"Added staging account {staging_account['accountName']}"
-            ),
+            "message": (f"Added staging account {staging_account['accountName']}"),
             "stagingAccounts": updated_staging,
         }
 
@@ -463,9 +422,7 @@ def add_staging_account(
         raise
 
 
-def remove_staging_account(
-    target_account_id: str, staging_account_id: str
-) -> Dict:
+def remove_staging_account(target_account_id: str, staging_account_id: str) -> Dict:
     """
     Remove staging account from target account configuration.
 
@@ -526,9 +483,7 @@ def remove_staging_account(
         now = datetime.now(timezone.utc).isoformat() + "Z"
         response = table.update_item(
             Key={"accountId": target_account_id},
-            UpdateExpression=(
-                "SET stagingAccounts = :staging, updatedAt = :updated"
-            ),
+            UpdateExpression=("SET stagingAccounts = :staging, updatedAt = :updated"),
             ExpressionAttributeValues={
                 ":staging": staging_dicts,
                 ":updated": now,
@@ -537,9 +492,7 @@ def remove_staging_account(
             ReturnValues="ALL_NEW",
         )
 
-        updated_staging_dicts = response["Attributes"].get(
-            "stagingAccounts", []
-        )
+        updated_staging_dicts = response["Attributes"].get("stagingAccounts", [])
 
         return {
             "success": True,
@@ -554,9 +507,7 @@ def remove_staging_account(
         raise
 
 
-def update_staging_accounts(
-    target_account_id: str, staging_accounts: List[Dict]
-) -> Dict:
+def update_staging_accounts(target_account_id: str, staging_accounts: List[Dict]) -> Dict:
     """
     Update entire staging accounts list for target account.
 
@@ -593,9 +544,7 @@ def update_staging_accounts(
             )
 
     # Convert to StagingAccount objects
-    staging_objs = [
-        StagingAccount.from_dict(account) for account in staging_accounts
-    ]
+    staging_objs = [StagingAccount.from_dict(account) for account in staging_accounts]
 
     # Convert to dicts for DynamoDB
     staging_dicts = [account.to_dict() for account in staging_objs]
@@ -605,9 +554,7 @@ def update_staging_accounts(
         now = datetime.now(timezone.utc).isoformat() + "Z"
         response = table.update_item(
             Key={"accountId": target_account_id},
-            UpdateExpression=(
-                "SET stagingAccounts = :staging, updatedAt = :updated"
-            ),
+            UpdateExpression=("SET stagingAccounts = :staging, updatedAt = :updated"),
             ExpressionAttributeValues={
                 ":staging": staging_dicts,
                 ":updated": now,

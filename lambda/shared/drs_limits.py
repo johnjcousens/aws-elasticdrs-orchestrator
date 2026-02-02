@@ -61,9 +61,7 @@ INVALID_REPLICATION_STATES = [
 ]
 
 
-def resolve_pg_servers_for_conflict_check(
-    pg_id: str, pg_cache: Dict
-) -> List[str]:
+def resolve_pg_servers_for_conflict_check(pg_id: str, pg_cache: Dict) -> List[str]:
     """
     Helper function to resolve Protection Group servers.
     This is imported from conflict_detection to avoid circular imports.
@@ -120,10 +118,7 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
 
     for idx, wave in enumerate(plan.get("waves", []), start=1):
         # Get Protection Group ID for this wave
-        pg_id = (
-            wave.get("protectionGroupId")
-            or (wave.get("protectionGroupIds", []) or [None])[0]
-        )
+        pg_id = wave.get("protectionGroupId") or (wave.get("protectionGroupIds", []) or [None])[0]
 
         if pg_id:
             # Resolve servers from Protection Group tags
@@ -150,9 +145,7 @@ def validate_wave_sizes(plan: Dict) -> List[Dict]:
     return errors
 
 
-def validate_concurrent_jobs(
-    region: str, drs_client: Optional[Any] = None
-) -> Dict:
+def validate_concurrent_jobs(region: str, drs_client: Optional[Any] = None) -> Dict:
     """
     Validate current DRS job count against 20 concurrent jobs limit.
 
@@ -222,9 +215,7 @@ def validate_concurrent_jobs(
                             "jobId": job.get("jobID"),
                             "status": job.get("status"),
                             "type": job.get("type"),
-                            "serverCount": len(
-                                job.get("participatingServers", [])
-                            ),
+                            "serverCount": len(job.get("participatingServers", [])),
                         }
                     )
 
@@ -381,9 +372,7 @@ def validate_servers_in_all_jobs(
         }
 
 
-def validate_max_servers_per_job(
-    region: str, drs_client: Optional[Any] = None
-) -> Dict:
+def validate_max_servers_per_job(region: str, drs_client: Optional[Any] = None) -> Dict:
     """
     Get the maximum server count in any single active DRS job.
 
@@ -494,9 +483,7 @@ def validate_max_servers_per_job(
         }
 
 
-def validate_server_replication_states(
-    region: str, server_ids: List[str]
-) -> Dict:
+def validate_server_replication_states(region: str, server_ids: List[str]) -> Dict:
     """
     Validate all servers have healthy replication for DR recovery.
 
@@ -572,23 +559,16 @@ def validate_server_replication_states(
         for i in range(0, len(server_ids), 200):
             batch = server_ids[i : i + 200]
 
-            response = regional_drs.describe_source_servers(
-                filters={"sourceServerIDs": batch}
-            )
+            response = regional_drs.describe_source_servers(filters={"sourceServerIDs": batch})
 
             for server in response.get("items", []):
                 server_id = server.get("sourceServerID")
                 replication_state = server.get("dataReplicationInfo", {}).get(
                     "dataReplicationState", "UNKNOWN"
                 )
-                lifecycle_state = server.get("lifeCycle", {}).get(
-                    "state", "UNKNOWN"
-                )
+                lifecycle_state = server.get("lifeCycle", {}).get("state", "UNKNOWN")
 
-                if (
-                    replication_state in INVALID_REPLICATION_STATES
-                    or lifecycle_state == "STOPPED"
-                ):
+                if replication_state in INVALID_REPLICATION_STATES or lifecycle_state == "STOPPED":
                     unhealthy_servers.append(
                         {
                             "serverId": server_id,

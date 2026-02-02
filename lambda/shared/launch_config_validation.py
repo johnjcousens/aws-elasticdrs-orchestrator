@@ -68,8 +68,7 @@ def validate_static_ip(ip: str, subnet_id: str, region: str) -> Dict[str, Any]:
             return {
                 "valid": False,
                 "error": "SUBNET_NOT_FOUND",
-                "message": f"Subnet {subnet_id} not found in region "
-                f"{region}",
+                "message": f"Subnet {subnet_id} not found in region " f"{region}",
                 "field": "subnetId",
             }
 
@@ -98,9 +97,7 @@ def validate_static_ip(ip: str, subnet_id: str, region: str) -> Dict[str, Any]:
 
     # Step 5: Check IP availability in AWS
     try:
-        availability_result = _check_ip_availability(
-            ec2_client, ip, subnet_id, vpc_id
-        )
+        availability_result = _check_ip_availability(ec2_client, ip, subnet_id, vpc_id)
 
         # Add subnet CIDR to success response
         if availability_result.get("valid"):
@@ -201,8 +198,7 @@ def _validate_ip_in_cidr(ip: str, cidr: str) -> Dict[str, Any]:
             return {
                 "valid": False,
                 "error": "IP_OUT_OF_RANGE",
-                "message": f"IP {ip} is not within subnet CIDR range "
-                f"{cidr}",
+                "message": f"IP {ip} is not within subnet CIDR range " f"{cidr}",
                 "field": "staticPrivateIp",
             }
 
@@ -269,8 +265,7 @@ def _validate_ip_not_reserved(ip: str, cidr: str) -> Dict[str, Any]:
                 f"{last_first_four}) and last address ({broadcast}) "
                 "in each subnet.",
                 "field": "staticPrivateIp",
-                "reservedRange": f"{first_reserved} - {last_first_four}, "
-                f"{broadcast}",
+                "reservedRange": f"{first_reserved} - {last_first_four}, " f"{broadcast}",
             }
 
         return {"valid": True}
@@ -284,9 +279,7 @@ def _validate_ip_not_reserved(ip: str, cidr: str) -> Dict[str, Any]:
         }
 
 
-def _check_ip_availability(
-    ec2_client, ip: str, subnet_id: str, vpc_id: str
-) -> Dict[str, Any]:
+def _check_ip_availability(ec2_client, ip: str, subnet_id: str, vpc_id: str) -> Dict[str, Any]:
     """
     Check if IP address is available (not already assigned).
 
@@ -369,20 +362,14 @@ def _get_conflict_info(eni: Dict[str, Any]) -> Dict[str, Any]:
 
         # Try to get instance name from tags
         tags = eni.get("TagSet", [])
-        name_tag = next(
-            (tag for tag in tags if tag.get("Key") == "Name"), None
-        )
+        name_tag = next((tag for tag in tags if tag.get("Key") == "Name"), None)
         if name_tag:
             conflict_info["name"] = name_tag.get("Value")
 
     # Check for DRS-specific tags
     tags = eni.get("TagSet", [])
     drs_tag = next(
-        (
-            tag
-            for tag in tags
-            if tag.get("Key") == "AWSElasticDisasterRecovery"
-        ),
+        (tag for tag in tags if tag.get("Key") == "AWSElasticDisasterRecovery"),
         None,
     )
     if drs_tag:
@@ -523,9 +510,7 @@ def validate_aws_approved_fields(config: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def validate_security_groups(
-    sg_ids: list, vpc_id: str, region: str
-) -> Dict[str, Any]:
+def validate_security_groups(sg_ids: list, vpc_id: str, region: str) -> Dict[str, Any]:
     """
     Validate security group IDs exist and belong to specified VPC.
 
@@ -599,8 +584,7 @@ def validate_security_groups(
             return {
                 "valid": False,
                 "error": "SECURITY_GROUPS_NOT_FOUND",
-                "message": f"Security groups not found: "
-                f"{', '.join(missing_groups)}",
+                "message": f"Security groups not found: " f"{', '.join(missing_groups)}",
                 "field": "securityGroupIds",
                 "invalidGroups": missing_groups,
             }
@@ -643,8 +627,7 @@ def validate_security_groups(
             return {
                 "valid": False,
                 "error": "SECURITY_GROUPS_NOT_FOUND",
-                "message": f"One or more security groups not found: "
-                f"{str(e)}",
+                "message": f"One or more security groups not found: " f"{str(e)}",
                 "field": "securityGroupIds",
             }
 
@@ -705,8 +688,7 @@ def validate_instance_type(instance_type: str, region: str) -> Dict[str, Any]:
             return {
                 "valid": False,
                 "error": "INSTANCE_TYPE_UNAVAILABLE",
-                "message": f"Instance type {instance_type} is not "
-                f"available in region {region}",
+                "message": f"Instance type {instance_type} is not " f"available in region {region}",
                 "field": "instanceType",
                 "details": {"instanceType": instance_type, "region": region},
             }
@@ -714,8 +696,7 @@ def validate_instance_type(instance_type: str, region: str) -> Dict[str, Any]:
         # Instance type is available
         return {
             "valid": True,
-            "message": f"Instance type {instance_type} is available in "
-            f"region {region}",
+            "message": f"Instance type {instance_type} is available in " f"region {region}",
             "details": {"instanceType": instance_type, "region": region},
         }
 
@@ -770,9 +751,7 @@ def validate_iam_profile(profile_name: str, region: str) -> Dict[str, Any]:
         iam_client = boto3.client("iam", region_name=region)
 
         # Query instance profile
-        response = iam_client.get_instance_profile(
-            InstanceProfileName=profile_name
-        )
+        response = iam_client.get_instance_profile(InstanceProfileName=profile_name)
 
         profile = response.get("InstanceProfile", {})
         profile_arn = profile.get("Arn")
@@ -794,8 +773,7 @@ def validate_iam_profile(profile_name: str, region: str) -> Dict[str, Any]:
             return {
                 "valid": False,
                 "error": "IAM_PROFILE_NOT_FOUND",
-                "message": f"IAM instance profile '{profile_name}' does "
-                "not exist",
+                "message": f"IAM instance profile '{profile_name}' does " "not exist",
                 "field": "instanceProfileName",
                 "details": {"profileName": profile_name},
             }
@@ -803,8 +781,7 @@ def validate_iam_profile(profile_name: str, region: str) -> Dict[str, Any]:
         return {
             "valid": False,
             "error": "AWS_API_ERROR",
-            "message": f"Failed to validate IAM instance profile: "
-            f"{str(e)}",
+            "message": f"Failed to validate IAM instance profile: " f"{str(e)}",
             "field": "instanceProfileName",
         }
 
@@ -873,8 +850,7 @@ def validate_subnet(subnet_id: str, region: str) -> Dict[str, Any]:
             return {
                 "valid": False,
                 "error": "SUBNET_NOT_FOUND",
-                "message": f"Subnet {subnet_id} not found in region "
-                f"{region}",
+                "message": f"Subnet {subnet_id} not found in region " f"{region}",
                 "field": "subnetId",
             }
 
@@ -886,15 +862,12 @@ def validate_subnet(subnet_id: str, region: str) -> Dict[str, Any]:
             "cidr": subnet.get("CidrBlock"),
             "vpcId": subnet.get("VpcId"),
             "availabilityZone": subnet.get("AvailabilityZone"),
-            "availableIpAddressCount": subnet.get(
-                "AvailableIpAddressCount", 0
-            ),
+            "availableIpAddressCount": subnet.get("AvailableIpAddressCount", 0),
         }
 
         return {
             "valid": True,
-            "message": f"Subnet {subnet_id} exists in VPC "
-            f"{subnet_details['vpcId']}",
+            "message": f"Subnet {subnet_id} exists in VPC " f"{subnet_details['vpcId']}",
             "details": subnet_details,
         }
 
@@ -905,8 +878,7 @@ def validate_subnet(subnet_id: str, region: str) -> Dict[str, Any]:
             return {
                 "valid": False,
                 "error": "SUBNET_NOT_FOUND",
-                "message": f"Subnet {subnet_id} not found in region "
-                f"{region}",
+                "message": f"Subnet {subnet_id} not found in region " f"{region}",
                 "field": "subnetId",
             }
 
@@ -979,24 +951,16 @@ def validate_no_duplicate_ips(
         # Determine effective subnet for this server
         if use_defaults:
             # Server uses group defaults, may override specific fields
-            server_subnet = server_template.get(
-                "subnetId"
-            ) or group_defaults.get("subnetId")
+            server_subnet = server_template.get("subnetId") or group_defaults.get("subnetId")
         else:
             # Server has full custom config
-            server_subnet = server_template.get(
-                "subnetId"
-            ) or group_defaults.get("subnetId")
+            server_subnet = server_template.get("subnetId") or group_defaults.get("subnetId")
 
         # Determine effective static IP for this server
         server_ip = server_template.get("staticPrivateIp")
 
         # Check for duplicate: same IP in same subnet
-        if (
-            server_ip
-            and server_subnet == new_subnet_id
-            and server_ip == new_ip
-        ):
+        if server_ip and server_subnet == new_subnet_id and server_ip == new_ip:
             # Found duplicate IP in same subnet
             return {
                 "valid": False,
@@ -1016,8 +980,7 @@ def validate_no_duplicate_ips(
     # No duplicate found
     return {
         "valid": True,
-        "message": f"IP {new_ip} is not used by any other server in "
-        f"subnet {new_subnet_id}",
+        "message": f"IP {new_ip} is not used by any other server in " f"subnet {new_subnet_id}",
     }
 
 
@@ -1068,9 +1031,7 @@ def validate_subnet_change_ip_revalidation(
     static_ip = new_config.get("staticPrivateIp")
 
     # Check if subnet changed
-    subnet_changed = (
-        current_subnet and new_subnet and current_subnet != new_subnet
-    )
+    subnet_changed = current_subnet and new_subnet and current_subnet != new_subnet
 
     # If no subnet change, no revalidation needed
     if not subnet_changed:

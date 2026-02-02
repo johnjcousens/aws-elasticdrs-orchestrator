@@ -86,17 +86,11 @@ EXECUTION_HISTORY_TABLE = os.environ.get("EXECUTION_HISTORY_TABLE")
 
 # DynamoDB tables (conditional initialization)
 protection_groups_table = (
-    dynamodb.Table(PROTECTION_GROUPS_TABLE)
-    if PROTECTION_GROUPS_TABLE
-    else None
+    dynamodb.Table(PROTECTION_GROUPS_TABLE) if PROTECTION_GROUPS_TABLE else None
 )
-recovery_plans_table = (
-    dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
-)
+recovery_plans_table = dynamodb.Table(RECOVERY_PLANS_TABLE) if RECOVERY_PLANS_TABLE else None
 execution_history_table = (
-    dynamodb.Table(EXECUTION_HISTORY_TABLE)
-    if EXECUTION_HISTORY_TABLE
-    else None
+    dynamodb.Table(EXECUTION_HISTORY_TABLE) if EXECUTION_HISTORY_TABLE else None
 )
 
 
@@ -172,9 +166,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
     try:
         # Extract Cognito user if event provided
         cognito_user = (
-            get_cognito_user_from_event(event)
-            if event
-            else {"email": "system", "userId": "system"}
+            get_cognito_user_from_event(event) if event else {"email": "system", "userId": "system"}
         )
 
         # Validate required fields with helpful messages
@@ -210,9 +202,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             )
 
         plan_id = body["planId"]
-        execution_type = (
-            body["executionType"].upper() if body["executionType"] else ""
-        )
+        execution_type = body["executionType"].upper() if body["executionType"] else ""
 
         # Validate execution type
         if execution_type not in ["DRILL", "RECOVERY"]:
@@ -254,21 +244,15 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             )
 
         # Check for server conflicts with other running executions OR active DRS jobs
-        account_context = body.get("accountContext") or body.get(
-            "AccountContext"
-        )
+        account_context = body.get("accountContext") or body.get("AccountContext")
         server_conflicts = check_server_conflicts(plan, account_context)
         if server_conflicts:
             # Separate execution conflicts from DRS job conflicts
             execution_conflicts = [
-                c
-                for c in server_conflicts
-                if c.get("conflictSource") == "execution"
+                c for c in server_conflicts if c.get("conflictSource") == "execution"
             ]
             drs_job_conflicts = [
-                c
-                for c in server_conflicts
-                if c.get("conflictSource") == "drs_job"
+                c for c in server_conflicts if c.get("conflictSource") == "drs_job"
             ]
 
             # Group execution conflicts by execution
@@ -282,9 +266,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                         "servers": [],
                     }
                 if exec_id:
-                    conflict_executions[exec_id]["servers"].append(
-                        conflict["serverId"]
-                    )
+                    conflict_executions[exec_id]["servers"].append(conflict["serverId"])
 
             # Group DRS job conflicts by job
             conflict_drs_jobs = {}
@@ -297,13 +279,13 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                         "servers": [],
                     }
                 if job_id:
-                    conflict_drs_jobs[job_id]["servers"].append(
-                        conflict["serverId"]
-                    )
+                    conflict_drs_jobs[job_id]["servers"].append(conflict["serverId"])
 
             # Build appropriate error message
             if drs_job_conflicts and not execution_conflicts:
-                message = f"{len(drs_job_conflicts)} server(s) are being processed by active DRS jobs"
+                message = (
+                    f"{len(drs_job_conflicts)} server(s) are being processed by active DRS jobs"
+                )
             elif execution_conflicts and not drs_job_conflicts:
                 message = f"{len(execution_conflicts)} server(s) are already in active executions"
             else:
@@ -315,9 +297,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                     "error": "SERVER_CONFLICT",
                     "message": message,
                     "conflicts": server_conflicts,
-                    "conflictingExecutions": list(
-                        conflict_executions.values()
-                    ),
+                    "conflictingExecutions": list(conflict_executions.values()),
                     "conflictingDrsJobs": list(conflict_drs_jobs.values()),
                 },
             )
@@ -326,9 +306,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         # ATOMIC CHECK: Query Step Functions directly to prevent race conditions
         active_executions = get_active_executions_for_plan(plan_id)
         truly_active_executions = [
-            e
-            for e in active_executions
-            if e.get("status", "").upper() != "CANCELLING"
+            e for e in active_executions if e.get("status", "").upper() != "CANCELLING"
         ]
         if truly_active_executions:
             exec_ids = [e.get("executionId") for e in truly_active_executions]
@@ -357,18 +335,14 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
                     "planId": {"S": plan_id},
                     "status": {"S": "LOCK"},
                     "startTime": {"N": str(lock_timestamp)},
-                    "lockExpiry": {
-                        "N": str(lock_timestamp + 30)
-                    },  # 30 second TTL
+                    "lockExpiry": {"N": str(lock_timestamp + 30)},  # 30 second TTL
                 },
                 ConditionExpression="attribute_not_exists(executionId) OR lockExpiry < :now",
                 ExpressionAttributeValues={":now": {"N": str(lock_timestamp)}},
             )
             print(f"✅ Acquired execution lock for plan {plan_id}")
         except dynamodb_client.exceptions.ConditionalCheckFailedException:
-            print(
-                f"❌ Failed to acquire lock - another execution is starting for plan {plan_id}"
-            )
+            print(f"❌ Failed to acquire lock - another execution is starting for plan {plan_id}")
             return response(
                 409,
                 {
@@ -384,9 +358,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         first_wave = plan.get("waves", [{}])[0]
         pg_id = first_wave.get("protectionGroupId")
         if pg_id:
-            pg_result = protection_groups_table.get_item(
-                Key={"groupId": pg_id}
-            )
+            pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
             region = pg_result.get("Item", {}).get("region", "us-east-1")
         else:
             region = "us-east-1"  # Default fallback
@@ -425,41 +397,29 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             )
 
         # 3. Validate servers in all jobs (max 500)
-        servers_in_jobs_result = validate_servers_in_all_jobs(
-            region, total_servers_in_plan
-        )
+        servers_in_jobs_result = validate_servers_in_all_jobs(region, total_servers_in_plan)
         if not servers_in_jobs_result.get("valid"):
             return response(
                 429,
                 {
                     "error": "SERVERS_IN_JOBS_LIMIT_EXCEEDED",
                     "message": servers_in_jobs_result.get("message"),
-                    "currentServersInJobs": servers_in_jobs_result.get(
-                        "currentServersInJobs"
-                    ),
-                    "newServerCount": servers_in_jobs_result.get(
-                        "newServerCount"
-                    ),
-                    "totalAfterNew": servers_in_jobs_result.get(
-                        "totalAfterNew"
-                    ),
+                    "currentServersInJobs": servers_in_jobs_result.get("currentServersInJobs"),
+                    "newServerCount": servers_in_jobs_result.get("newServerCount"),
+                    "totalAfterNew": servers_in_jobs_result.get("totalAfterNew"),
                     "maxServers": servers_in_jobs_result.get("maxServers"),
                 },
             )
 
         # 4. Validate server replication states
-        replication_result = validate_server_replication_states(
-            region, all_server_ids
-        )
+        replication_result = validate_server_replication_states(region, all_server_ids)
         if not replication_result.get("valid"):
             return response(
                 400,
                 {
                     "error": "UNHEALTHY_SERVER_REPLICATION",
                     "message": replication_result.get("message"),
-                    "unhealthyServers": replication_result.get(
-                        "unhealthyServers"
-                    ),
+                    "unhealthyServers": replication_result.get("unhealthyServers"),
                     "healthyCount": replication_result.get("healthyCount"),
                     "unhealthyCount": replication_result.get("unhealthyCount"),
                 },
@@ -474,9 +434,7 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
         print(f"Creating async execution {execution_id} for plan {plan_id}")
 
         # Create initial execution history record with PENDING status
-        account_context = body.get("accountContext") or body.get(
-            "AccountContext"
-        )
+        account_context = body.get("accountContext") or body.get("AccountContext")
         if not account_context:
             # Derive from plan if not provided in request
             account_context = determine_target_account_context(plan)
@@ -533,12 +491,8 @@ def execute_recovery_plan(body: Dict, event: Dict = None) -> Dict:
             )
             status_code = invoke_response.get("StatusCode", 0)
             if status_code != 202:
-                raise Exception(
-                    f"Async invocation returned unexpected status: {status_code}"
-                )
-            print(
-                f"Async worker invoked for execution {execution_id}, StatusCode: {status_code}"
-            )
+                raise Exception(f"Async invocation returned unexpected status: {status_code}")
+            print(f"Async worker invoked for execution {execution_id}, StatusCode: {status_code}")
         except Exception as invoke_error:
             print(f"ERROR: Failed to invoke async worker: {str(invoke_error)}")
             execution_history_table.update_item(
@@ -630,9 +584,7 @@ def execute_with_step_functions(
             input=json.dumps(sfn_input, cls=DecimalEncoder),
         )
 
-        print(
-            f"Step Functions execution started: {sfn_response['executionArn']}"
-        )
+        print(f"Step Functions execution started: {sfn_response['executionArn']}")
 
         # Update DynamoDB with Step Functions execution ARN
         execution_history_table.update_item(
@@ -703,9 +655,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
             if not pg_id:
                 continue
 
-            pg_result = protection_groups_table.get_item(
-                Key={"groupId": pg_id}
-            )
+            pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
             pg = pg_result.get("Item", {})
             if not pg:
                 continue
@@ -742,9 +692,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                             server_id = server.get("sourceServerID")
                             if server_id:
                                 all_server_ids.add(server_id)
-                                print(
-                                    f"Added server {server_id} to check list"
-                                )
+                                print(f"Added server {server_id} to check list")
                     except Exception as e:
                         print(f"Error resolving tags for PG {pg_id}: {e}")
 
@@ -806,34 +754,19 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                                 found = False
                                 for wave in exec_waves:
                                     # Check ServerStatuses array
-                                    for server in wave.get(
-                                        "serverStatuses", []
-                                    ):
+                                    for server in wave.get("serverStatuses", []):
                                         # Match by source server ID
-                                        if (
-                                            server.get("sourceServerId")
-                                            == source_server_id
-                                        ):
-                                            source_execution = exec_item.get(
-                                                "executionId"
-                                            )
+                                        if server.get("sourceServerId") == source_server_id:
+                                            source_execution = exec_item.get("executionId")
                                             # Get plan name
-                                            exec_plan_id = exec_item.get(
-                                                "planId"
-                                            )
+                                            exec_plan_id = exec_item.get("planId")
                                             if exec_plan_id:
                                                 plan_lookup = recovery_plans_table.get_item(
-                                                    Key={
-                                                        "planId": exec_plan_id
-                                                    }
+                                                    Key={"planId": exec_plan_id}
                                                 )
-                                                source_plan_name = (
-                                                    plan_lookup.get(
-                                                        "Item", {}
-                                                    ).get(
-                                                        "planName",
-                                                        exec_plan_id,
-                                                    )
+                                                source_plan_name = plan_lookup.get("Item", {}).get(
+                                                    "planName",
+                                                    exec_plan_id,
                                                 )
                                             found = True
                                             break
@@ -842,9 +775,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                                 if found:
                                     break
                         except Exception as e:
-                            print(
-                                f"Error looking up execution for recovery instance: {e}"
-                            )
+                            print(f"Error looking up execution for recovery instance: {e}")
 
                         existing_instances.append(
                             {
@@ -870,9 +801,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
                     if inst.get("ec2InstanceId")
                 ]
                 if ec2_ids:
-                    ec2_response = ec2_client.describe_instances(
-                        InstanceIds=ec2_ids
-                    )
+                    ec2_response = ec2_client.describe_instances(InstanceIds=ec2_ids)
                     ec2_details = {}
                     for reservation in ec2_response.get("Reservations", []):
                         for instance in reservation.get("Instances", []):
@@ -915,9 +844,7 @@ def check_existing_recovery_instances(plan_id: str) -> Dict:
         )
 
     except Exception as e:
-        print(
-            f"Error checking existing recovery instances for plan {plan_id}: {str(e)}"
-        )
+        print(f"Error checking existing recovery instances for plan {plan_id}: {str(e)}")
         import traceback
 
         traceback.print_exc()
@@ -945,9 +872,7 @@ def initiate_wave(
     """Initiate DRS recovery jobs for a wave without waiting for completion"""
     try:
         # Get Protection Group
-        pg_result = protection_groups_table.get_item(
-            Key={"groupId": protection_group_id}
-        )
+        pg_result = protection_groups_table.get_item(Key={"groupId": protection_group_id})
         if "Item" not in pg_result:
             return {
                 "waveName": wave.get("name", "Unknown"),
@@ -988,9 +913,7 @@ def initiate_wave(
                 "startTime": int(time.time()),
             }
 
-        print(
-            f"Initiating recovery for {len(server_ids)} servers in region {region}"
-        )
+        print(f"Initiating recovery for {len(server_ids)} servers in region {region}")
 
         # Launch ALL servers in wave with ONE DRS API call
         wave_job_result = start_drs_recovery_for_wave(
@@ -1039,9 +962,7 @@ def initiate_wave(
         }
 
 
-def get_server_launch_configurations(
-    region: str, server_ids: List[str]
-) -> Dict[str, Dict]:
+def get_server_launch_configurations(region: str, server_ids: List[str]) -> Dict[str, Dict]:
     """
     Fetch launch configurations for all servers in wave from DRS.
 
@@ -1162,9 +1083,7 @@ def get_server_launch_configurations(
 
     for server_id in server_ids:
         try:
-            response = drs_client.get_launch_configuration(
-                sourceServerID=server_id
-            )
+            response = drs_client.get_launch_configuration(sourceServerID=server_id)
 
             configs[server_id] = {
                 "targetInstanceTypeRightSizingMethod": response.get(
@@ -1172,9 +1091,7 @@ def get_server_launch_configurations(
                 ),
                 "copyPrivateIp": response.get("copyPrivateIp", False),
                 "copyTags": response.get("copyTags", True),
-                "launchDisposition": response.get(
-                    "launchDisposition", "STARTED"
-                ),
+                "launchDisposition": response.get("launchDisposition", "STARTED"),
                 "bootMode": response.get("bootMode", "USE_DEFAULT"),
             }
 
@@ -1208,9 +1125,7 @@ def start_drs_recovery_with_retry(
 
     for attempt in range(max_retries):
         try:
-            return start_drs_recovery(
-                server_id, region, is_drill, execution_id
-            )
+            return start_drs_recovery(server_id, region, is_drill, execution_id)
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
 
@@ -1220,9 +1135,7 @@ def start_drs_recovery_with_retry(
                 print(
                     f"ConflictException for server {server_id} (attempt {attempt + 1}/{max_retries})"
                 )
-                print(
-                    f"Server is being processed by another job, retrying in {delay}s..."
-                )
+                print(f"Server is being processed by another job, retrying in {delay}s...")
                 time.sleep(delay)
                 continue
 
@@ -1305,22 +1218,16 @@ def start_drs_recovery_for_wave(
     try:
         drs_client = boto3.client("drs", region_name=region)
 
-        print(
-            f"[DRS API] Starting {execution_type} {'drill' if is_drill else 'recovery'}"
-        )
+        print(f"[DRS API] Starting {execution_type} {'drill' if is_drill else 'recovery'}")
         print(f"[DRS API] Region: {region}, Servers: {len(server_ids)}")
         print(f"[DRS API] Server IDs: {server_ids}")
 
         # Build sourceServers array
         source_servers = [{"sourceServerID": sid} for sid in server_ids]
-        print(
-            f"[DRS API] Built sourceServers array for {len(server_ids)} servers"
-        )
+        print(f"[DRS API] Built sourceServers array for {len(server_ids)} servers")
 
         # Start recovery for ALL servers in ONE API call WITHOUT TAGS
-        print(
-            f"[DRS API] Calling start_recovery() WITHOUT tags (reference implementation pattern)"
-        )
+        print(f"[DRS API] Calling start_recovery() WITHOUT tags (reference implementation pattern)")
         print(f"[DRS API]   sourceServers: {len(source_servers)} servers")
         print(f"[DRS API]   isDrill: {is_drill}")
 
@@ -1346,9 +1253,7 @@ def start_drs_recovery_for_wave(
         print(f"[DRS API]   Job ID: {job_id}")
         print(f"[DRS API]   Status: {job_status}")
         print(f"[DRS API]   Type: {job_type}")
-        print(
-            f"[DRS API]   Servers: {len(server_ids)} (all share this job ID)"
-        )
+        print(f"[DRS API]   Servers: {len(server_ids)} (all share this job ID)")
 
         # Build server results array (all servers share same job ID)
         server_results = []
@@ -1364,9 +1269,7 @@ def start_drs_recovery_for_wave(
                 }
             )
 
-        print(
-            f"[DRS API] Wave initiation complete - ExecutionPoller will track job {job_id}"
-        )
+        print(f"[DRS API] Wave initiation complete - ExecutionPoller will track job {job_id}")
 
         return {
             "jobId": job_id,
@@ -1414,9 +1317,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
         plan_id = payload["planId"]
         is_drill = payload["isDrill"]
         plan = payload["plan"]
-        cognito_user = payload.get(
-            "cognitoUser", {"email": "system", "userId": "system"}
-        )
+        cognito_user = payload.get("cognitoUser", {"email": "system", "userId": "system"})
         resume_from_wave = payload.get("resumeFromWave")
 
         if resume_from_wave is not None:
@@ -1424,9 +1325,7 @@ def execute_recovery_plan_worker(payload: Dict) -> None:
                 f"Worker RESUMING execution {execution_id} from wave {resume_from_wave} (isDrill: {is_drill})"
             )
         else:
-            print(
-                f"Worker initiating NEW execution {execution_id} (isDrill: {is_drill})"
-            )
+            print(f"Worker initiating NEW execution {execution_id} (isDrill: {is_drill})")
         print(f"Initiated by: {cognito_user.get('email')}")
 
         # Always use Step Functions
@@ -1508,13 +1407,11 @@ def list_executions(query_params: Dict) -> Dict:
                 else:
                     plan_id = execution.get("planId")
                     if plan_id:
-                        plan_result = recovery_plans_table.get_item(
-                            Key={"planId": plan_id}
-                        )
+                        plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
                         if "Item" in plan_result:
-                            execution["recoveryPlanName"] = plan_result[
-                                "Item"
-                            ].get("planName", "Unknown")
+                            execution["recoveryPlanName"] = plan_result["Item"].get(
+                                "planName", "Unknown"
+                            )
                         else:
                             execution["recoveryPlanName"] = "Deleted Plan"
                     else:
@@ -1527,9 +1424,7 @@ def list_executions(query_params: Dict) -> Dict:
                 plan_id = execution.get("planId")
                 selection_mode = "PLAN"
                 if plan_id:
-                    plan_result = recovery_plans_table.get_item(
-                        Key={"planId": plan_id}
-                    )
+                    plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
                     if "Item" in plan_result:
                         plan = plan_result["Item"]
                         waves = plan.get("waves", [])
@@ -1542,9 +1437,7 @@ def list_executions(query_params: Dict) -> Dict:
                         # Check each protection group for serverSelectionTags
                         for pg_id in pg_ids:
                             try:
-                                pg_result = protection_groups_table.get_item(
-                                    Key={"groupId": pg_id}
-                                )
+                                pg_result = protection_groups_table.get_item(Key={"groupId": pg_id})
                                 if "Item" in pg_result:
                                     pg = pg_result["Item"]
                                     tags = pg.get("serverSelectionTags", {})
@@ -1552,15 +1445,11 @@ def list_executions(query_params: Dict) -> Dict:
                                         selection_mode = "TAGS"
                                         break
                             except Exception as pg_err:
-                                print(
-                                    f"Error checking PG {pg_id}: {str(pg_err)}"
-                                )
+                                print(f"Error checking PG {pg_id}: {str(pg_err)}")
 
                 execution["selectionMode"] = selection_mode
             except Exception as e:
-                print(
-                    f"Error enriching execution {execution.get('executionId')}: {str(e)}"
-                )
+                print(f"Error enriching execution {execution.get('executionId')}: {str(e)}")
                 if not execution.get("recoveryPlanName"):
                     execution["recoveryPlanName"] = "Unknown"
                 execution["selectionMode"] = "PLAN"
@@ -1576,9 +1465,7 @@ def list_executions(query_params: Dict) -> Dict:
             execution["hasActiveDrsJobs"] = has_active_jobs
 
             # Add termination metadata for frontend button visibility
-            execution["terminationMetadata"] = can_terminate_execution(
-                execution
-            )
+            execution["terminationMetadata"] = can_terminate_execution(execution)
 
         # Build response with pagination
         response_data = {
@@ -1640,18 +1527,12 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
 
             plan_id = execution.get("planId")
             if plan_id:
-                plan_result = recovery_plans_table.get_item(
-                    Key={"planId": plan_id}
-                )
+                plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
                 if "Item" in plan_result:
                     plan = plan_result["Item"]
                     if not execution.get("recoveryPlanName"):
-                        execution["recoveryPlanName"] = plan.get(
-                            "planName", "Unknown"
-                        )
-                    execution["recoveryPlanDescription"] = plan.get(
-                        "description", ""
-                    )
+                        execution["recoveryPlanName"] = plan.get("planName", "Unknown")
+                    execution["recoveryPlanDescription"] = plan.get("description", "")
                     execution["totalWaves"] = len(plan.get("waves", []))
                 elif not execution.get("recoveryPlanName"):
                     execution["recoveryPlanName"] = "Deleted Plan"
@@ -1677,14 +1558,11 @@ def get_execution_details(execution_id: str, query_params: Dict) -> Dict:
         try:
             waves = execution.get("waves", [])
             has_completed_waves = any(
-                wave.get("status", "").upper() in ["COMPLETED", "FAILED"]
-                for wave in waves
+                wave.get("status", "").upper() in ["COMPLETED", "FAILED"] for wave in waves
             )
 
             if has_completed_waves:
-                print(
-                    f"DEBUG: Enriching completed waves with recovery instance data"
-                )
+                print(f"DEBUG: Enriching completed waves with recovery instance data")
                 execution = reconcile_wave_status_with_drs(execution)
         except Exception as enrich_error:
             print(f"Error enriching completed waves: {enrich_error}")
@@ -1765,9 +1643,7 @@ def cancel_execution(execution_id: str, body: Dict) -> Dict:
         # Get recovery plan to find waves that haven't started yet
         plan_waves = []
         try:
-            plan_result = recovery_plans_table.get_item(
-                Key={"planId": plan_id}
-            )
+            plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
             if "Item" in plan_result:
                 plan_waves = plan_result["Item"].get("waves", [])
         except Exception as e:
@@ -1813,9 +1689,7 @@ def cancel_execution(execution_id: str, body: Dict) -> Dict:
             if wave_number not in existing_wave_numbers:
                 cancelled_wave = {
                     "waveNumber": wave_number,
-                    "waveName": plan_wave.get(
-                        "waveName", f"Wave {wave_number + 1}"
-                    ),
+                    "waveName": plan_wave.get("waveName", f"Wave {wave_number + 1}"),
                     "status": "CANCELLED",
                     "endTime": timestamp,
                     "protectionGroupId": plan_wave.get("protectionGroupId"),
@@ -2129,9 +2003,7 @@ def handle_find_operation(event: Dict, context) -> Dict:
             KeyConditionExpression=Key("status").eq("CANCELLING"),
         )
 
-        executions = polling_result.get("Items", []) + cancelling_result.get(
-            "Items", []
-        )
+        executions = polling_result.get("Items", []) + cancelling_result.get("Items", [])
 
         print(f"Found {len(executions)} executions needing polling")
 
@@ -2258,9 +2130,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
             "TERMINATED",
             "TIMEOUT",
         ]:
-            print(
-                f"Execution {execution_id} already {execution_status} - skipping poll"
-            )
+            print(f"Execution {execution_id} already {execution_status} - skipping poll")
             return {
                 "statusCode": 200,
                 "executionId": execution_id,
@@ -2319,9 +2189,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
                     ":endtime": int(time.time()),
                 },
             )
-            print(
-                f"✅ CANCELLING execution {execution_id} finalized to CANCELLED"
-            )
+            print(f"✅ CANCELLING execution {execution_id} finalized to CANCELLED")
             return {
                 "statusCode": 200,
                 "executionId": execution_id,
@@ -2340,9 +2208,7 @@ def handle_poll_operation(event: Dict, context) -> Dict:
             },
         )
 
-        print(
-            f"✅ Polling complete for {execution_id} - waves updated, execution status unchanged"
-        )
+        print(f"✅ Polling complete for {execution_id} - waves updated, execution status unchanged")
 
         return {
             "statusCode": 200,
@@ -2395,9 +2261,7 @@ def poll_wave_with_enrichment(wave: Dict, execution_type: str) -> Dict:
         participating_servers = job.get("participatingServers", [])
         if participating_servers:
             ec2_client = boto3.client("ec2", region_name=region)
-            enriched_servers = enrich_server_data(
-                participating_servers, drs_client, ec2_client
-            )
+            enriched_servers = enrich_server_data(participating_servers, drs_client, ec2_client)
             print(f"DEBUG: Enriched {len(enriched_servers)} servers")
             print(
                 f"DEBUG: First enriched server: {json.dumps(enriched_servers[0] if enriched_servers else {}, cls=DecimalEncoder)}"
@@ -2478,9 +2342,7 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
 
         # Idempotent: if already finalized, return success
         if current_status in ["COMPLETED", "FAILED", "TERMINATED"]:
-            print(
-                f"Execution {execution_id} already finalized with status {current_status}"
-            )
+            print(f"Execution {execution_id} already finalized with status {current_status}")
             return {
                 "statusCode": 200,
                 "executionId": execution_id,
@@ -2491,9 +2353,7 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
 
         # Verify all waves complete (safety check)
         all_complete = all(
-            w.get("status", "").upper()
-            in ["COMPLETED", "FAILED", "TERMINATED"]
-            for w in waves
+            w.get("status", "").upper() in ["COMPLETED", "FAILED", "TERMINATED"] for w in waves
         )
 
         if not all_complete:
@@ -2522,14 +2382,9 @@ def handle_finalize_operation(event: Dict, context) -> Dict:
                 },
             )
         except ClientError as e:
-            if (
-                e.response["Error"]["Code"]
-                == "ConditionalCheckFailedException"
-            ):
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
                 # Already finalized by another invocation - return success
-                print(
-                    f"Execution {execution_id} already finalized by concurrent call"
-                )
+                print(f"Execution {execution_id} already finalized by concurrent call")
                 return {
                     "statusCode": 200,
                     "executionId": execution_id,
@@ -2706,9 +2561,7 @@ def lambda_handler(event, context):
 
         # Check if this is a worker invocation (async background task)
         if isinstance(event, dict) and event.get("worker"):
-            print(
-                "Worker invocation detected - executing recovery plan worker"
-            )
+            print("Worker invocation detected - executing recovery plan worker")
             execute_recovery_plan_worker(event)
             return {"statusCode": 200, "body": "Worker completed"}
 
@@ -2720,9 +2573,7 @@ def lambda_handler(event, context):
 
         # Check if this is an EventBridge scheduled invocation (polling trigger)
         if isinstance(event, dict) and event.get("source") == "aws.events":
-            print(
-                "EventBridge scheduled invocation detected - finding executions to poll"
-            )
+            print("EventBridge scheduled invocation detected - finding executions to poll")
             return handle_find_operation(event, context)
 
         # API Gateway invocation - route based on HTTP method and path
@@ -2743,11 +2594,7 @@ def lambda_handler(event, context):
         if http_method == "POST" and path == "/executions":
             return execute_recovery_plan(body, event)
 
-        elif (
-            http_method == "POST"
-            and "/recovery-plans/" in path
-            and path.endswith("/execute")
-        ):
+        elif http_method == "POST" and "/recovery-plans/" in path and path.endswith("/execute"):
             # Support legacy /recovery-plans/{id}/execute endpoint
             plan_id = path_parameters.get("id")
             if not plan_id:
@@ -2759,22 +2606,14 @@ def lambda_handler(event, context):
             return list_executions(query_parameters)
 
         # Specific execution sub-routes must come before generic execution details
-        elif (
-            http_method == "GET"
-            and "/executions/" in path
-            and "/job-logs" in path
-        ):
+        elif http_method == "GET" and "/executions/" in path and "/job-logs" in path:
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
             job_id = query_parameters.get("jobId")
             return get_job_log_items(execution_id, job_id)
 
-        elif (
-            http_method == "GET"
-            and "/executions/" in path
-            and "/recovery-instances" in path
-        ):
+        elif http_method == "GET" and "/executions/" in path and "/recovery-instances" in path:
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
@@ -2786,62 +2625,38 @@ def lambda_handler(event, context):
                 return response(400, {"error": "Missing execution ID"})
             return get_execution_details(execution_id, query_parameters)
 
-        elif (
-            http_method == "POST"
-            and "/executions/" in path
-            and path.endswith("/cancel")
-        ):
+        elif http_method == "POST" and "/executions/" in path and path.endswith("/cancel"):
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
             return cancel_execution(execution_id, body)
 
-        elif (
-            http_method == "POST"
-            and "/executions/" in path
-            and path.endswith("/pause")
-        ):
+        elif http_method == "POST" and "/executions/" in path and path.endswith("/pause"):
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
             return pause_execution(execution_id, body)
 
         # Batch 2: Instance Management
-        elif (
-            http_method == "POST"
-            and "/executions/" in path
-            and path.endswith("/resume")
-        ):
+        elif http_method == "POST" and "/executions/" in path and path.endswith("/resume"):
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
             return resume_execution(execution_id)
 
-        elif (
-            http_method == "GET"
-            and "/executions/" in path
-            and "/realtime" in path
-        ):
+        elif http_method == "GET" and "/executions/" in path and "/realtime" in path:
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
             return get_execution_details_realtime(execution_id)
 
-        elif (
-            http_method == "POST"
-            and "/executions/" in path
-            and "/terminate-instances" in path
-        ):
+        elif http_method == "POST" and "/executions/" in path and "/terminate-instances" in path:
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
             return terminate_recovery_instances(execution_id)
 
-        elif (
-            http_method == "GET"
-            and "/executions/" in path
-            and "/termination-status" in path
-        ):
+        elif http_method == "GET" and "/executions/" in path and "/termination-status" in path:
             execution_id = path_parameters.get("id")
             if not execution_id:
                 return response(400, {"error": "Missing execution ID"})
@@ -2853,9 +2668,7 @@ def lambda_handler(event, context):
         elif http_method == "DELETE" and path == "/executions":
             # Bulk delete by IDs from query params
             execution_ids_str = query_parameters.get("ids", "")
-            execution_ids = [
-                id.strip() for id in execution_ids_str.split(",") if id.strip()
-            ]
+            execution_ids = [id.strip() for id in execution_ids_str.split(",") if id.strip()]
             return delete_executions_by_ids(execution_ids)
 
         elif http_method == "DELETE" and "/executions/completed" in path:
@@ -2905,25 +2718,17 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
 
         # Only fetch real-time data for active executions
         if execution.get("status") not in ["RUNNING", "PAUSED"]:
-            print(
-                f"Execution {execution_id} is not active, skipping real-time data"
-            )
+            print(f"Execution {execution_id} is not active, skipping real-time data")
             execution["dataSource"] = "cached"
-            execution["lastUpdated"] = execution.get(
-                "updatedAt", int(time.time())
-            )
+            execution["lastUpdated"] = execution.get("updatedAt", int(time.time()))
             # Add termination metadata for frontend button visibility
-            execution["terminationMetadata"] = can_terminate_execution(
-                execution
-            )
+            execution["terminationMetadata"] = can_terminate_execution(execution)
             return response(200, execution)
 
         print(f"Fetching real-time data for active execution {execution_id}")
 
         # REAL-TIME DATA: Get current status from Step Functions if still running
-        if execution.get("status") == "RUNNING" and execution.get(
-            "stateMachineArn"
-        ):
+        if execution.get("status") == "RUNNING" and execution.get("stateMachineArn"):
             try:
                 print(f"Getting real-time Step Functions status for execution")
                 sf_response = stepfunctions.describe_execution(
@@ -2938,9 +2743,7 @@ def get_execution_details_realtime(execution_id: str) -> Dict:
                     "TIMED_OUT",
                     "ABORTED",
                 ]:
-                    print(
-                        f"Step Functions shows completion, updating DynamoDB"
-                    )
+                    print(f"Step Functions shows completion, updating DynamoDB")
                     execution_history_table.update_item(
                         Key={
                             "executionId": execution_id,
@@ -3090,21 +2893,13 @@ def resume_execution(execution_id: str) -> Dict:
         try:
             # Get execution history waves (contains serverStatuses for completed)
             exec_waves = execution.get("waves", [])
-            exec_waves_data = json.loads(
-                json.dumps(exec_waves, cls=DecimalEncoder)
-            )
-            print(
-                f"Loaded {len(exec_waves_data)} waves from execution history"
-            )
+            exec_waves_data = json.loads(json.dumps(exec_waves, cls=DecimalEncoder))
+            print(f"Loaded {len(exec_waves_data)} waves from execution history")
 
             # Get plan waves for any waves not yet in execution history
-            plan_response = recovery_plans_table.get_item(
-                Key={"planId": plan_id}
-            )
+            plan_response = recovery_plans_table.get_item(Key={"planId": plan_id})
             plan_waves = plan_response.get("Item", {}).get("waves", [])
-            plan_waves_data = json.loads(
-                json.dumps(plan_waves, cls=DecimalEncoder)
-            )
+            plan_waves_data = json.loads(json.dumps(plan_waves, cls=DecimalEncoder))
             print(f"Loaded {len(plan_waves_data)} waves from recovery plan")
 
             # Merge: use execution waves (with server data) for completed waves,
@@ -3204,20 +2999,14 @@ def resume_execution(execution_id: str) -> Dict:
             print(f"ERROR calling SendTaskSuccess: {str(sfn_error)}")
             return response(
                 500,
-                {
-                    "error": f"Failed to resume Step Functions: {str(sfn_error)}"
-                },
+                {"error": f"Failed to resume Step Functions: {str(sfn_error)}"},
             )
 
         # Note: The orchestration Lambda (resume_wave action) will update the status to RUNNING
         # and clear the TaskToken when it processes the resume
 
-        wave_display = (
-            paused_before_wave + 1
-        )  # 0-indexed to 1-indexed for display
-        print(
-            f"Resumed execution {execution_id}, wave {wave_display} will start"
-        )
+        wave_display = paused_before_wave + 1  # 0-indexed to 1-indexed for display
+        print(f"Resumed execution {execution_id}, wave {wave_display} will start")
         return response(
             200,
             {
@@ -3270,15 +3059,12 @@ def get_recovery_instances(execution_id: str) -> Dict:
         account_context = None
         if plan_id:
             try:
-                plan_result = recovery_plans_table.get_item(
-                    Key={"planId": plan_id}
-                )
+                plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
                 if "Item" in plan_result:
                     plan = plan_result["Item"]
                     account_context = determine_target_account_context(plan)
                     print(
-                        f"Using account context for get_recovery_instances: "
-                        f"{account_context}"
+                        f"Using account context for get_recovery_instances: " f"{account_context}"
                     )
             except Exception as e:
                 print(f"Could not get Recovery Plan {plan_id}: {e}")
@@ -3311,15 +3097,10 @@ def get_recovery_instances(execution_id: str) -> Dict:
             region = wave.get("region", "us-east-1")
             wave_status = wave.get("status", "")
 
-            print(
-                f"Wave {wave_number}: status={wave_status}, "
-                f"job_id={job_id}, region={region}"
-            )
+            print(f"Wave {wave_number}: status={wave_status}, " f"job_id={job_id}, region={region}")
 
             # Collect source server IDs from wave
-            wave_servers = wave.get("serverStatuses", []) or wave.get(
-                "servers", []
-            )
+            wave_servers = wave.get("serverStatuses", []) or wave.get("servers", [])
             print(f"DEBUG: Wave {wave_number} has {len(wave_servers)} servers")
             print(
                 f"DEBUG: First server structure: {wave_servers[0] if wave_servers else 'No servers'}"
@@ -3328,9 +3109,7 @@ def get_recovery_instances(execution_id: str) -> Dict:
             for srv in wave_servers:
                 srv_id = srv.get("sourceServerId")
                 srv_name = srv.get("serverName") or srv.get("hostname", "")
-                print(
-                    f"DEBUG: Server data: sourceServerId={srv_id}, serverName={srv_name}"
-                )
+                print(f"DEBUG: Server data: sourceServerId={srv_id}, serverName={srv_name}")
                 if srv_id:
                     if region not in source_server_ids_by_region:
                         source_server_ids_by_region[region] = {}
@@ -3347,62 +3126,36 @@ def get_recovery_instances(execution_id: str) -> Dict:
             ]:
                 try:
                     drs_client = create_drs_client(region, account_context)
-                    job_response = drs_client.describe_jobs(
-                        filters={"jobIDs": [job_id]}
-                    )
+                    job_response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
 
                     if job_response.get("items"):
                         job = job_response["items"][0]
-                        participating_servers = job.get(
-                            "participatingServers", []
-                        )
+                        participating_servers = job.get("participatingServers", [])
 
                         for server in participating_servers:
-                            recovery_instance_id = server.get(
-                                "recoveryInstanceID"
-                            )
-                            source_server_id = server.get(
-                                "sourceServerID", "unknown"
-                            )
+                            recovery_instance_id = server.get("recoveryInstanceID")
+                            source_server_id = server.get("sourceServerID", "unknown")
 
                             # Add to source server lookup
-                            if (
-                                source_server_id
-                                and source_server_id != "unknown"
-                            ):
+                            if source_server_id and source_server_id != "unknown":
                                 if region not in source_server_ids_by_region:
                                     source_server_ids_by_region[region] = {}
-                                if (
-                                    source_server_id
-                                    not in source_server_ids_by_region[region]
-                                ):
-                                    source_server_ids_by_region[region][
-                                        source_server_id
-                                    ] = ""
+                                if source_server_id not in source_server_ids_by_region[region]:
+                                    source_server_ids_by_region[region][source_server_id] = ""
 
                             if recovery_instance_id:
                                 try:
-                                    ri_response = (
-                                        drs_client.describe_recovery_instances(
-                                            filters={
-                                                "recoveryInstanceIDs": [
-                                                    recovery_instance_id
-                                                ]
-                                            }
-                                        )
+                                    ri_response = drs_client.describe_recovery_instances(
+                                        filters={"recoveryInstanceIDs": [recovery_instance_id]}
                                     )
                                     if ri_response.get("items"):
                                         ri = ri_response["items"][0]
-                                        ec2_instance_id = ri.get(
-                                            "ec2InstanceID"
-                                        )
+                                        ec2_instance_id = ri.get("ec2InstanceID")
                                         if ec2_instance_id:
                                             # Get server name from lookup
                                             srv_name = source_server_ids_by_region.get(
                                                 region, {}
-                                            ).get(
-                                                source_server_id, ""
-                                            )
+                                            ).get(source_server_id, "")
                                             instances.append(
                                                 {
                                                     "instanceId": ec2_instance_id,
@@ -3423,17 +3176,11 @@ def get_recovery_instances(execution_id: str) -> Dict:
                                     )
 
                 except Exception as drs_err:
-                    print(
-                        f"Could not query DRS job {job_id} in {region}: "
-                        f"{drs_err}"
-                    )
+                    print(f"Could not query DRS job {job_id} in {region}: " f"{drs_err}")
 
         # Alternative: Query by source server IDs if no instances found yet
         if not instances and source_server_ids_by_region:
-            print(
-                "Trying alternative: query recovery instances by source "
-                "server IDs"
-            )
+            print("Trying alternative: query recovery instances by source " "server IDs")
 
             for region, server_map in source_server_ids_by_region.items():
                 source_ids = list(server_map.keys())
@@ -3476,9 +3223,7 @@ def get_recovery_instances(execution_id: str) -> Dict:
                             )
 
                 except Exception as e:
-                    print(
-                        f"Error querying recovery instances in {region}: {e}"
-                    )
+                    print(f"Error querying recovery instances in {region}: {e}")
 
         print(f"Total recovery instances found: {len(instances)}")
 
@@ -3724,26 +3469,16 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         account_context = None
         if plan_id:
             try:
-                plan_result = recovery_plans_table.get_item(
-                    Key={"planId": plan_id}
-                )
+                plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
                 if "Item" in plan_result:
                     plan = plan_result["Item"]
                     account_context = determine_target_account_context(plan)
-                    print(
-                        f"Using account context for terminate: {account_context}"
-                    )
+                    print(f"Using account context for terminate: {account_context}")
                 else:
-                    print(
-                        f"WARNING: Recovery Plan {plan_id} not found, using current account"
-                    )
+                    print(f"WARNING: Recovery Plan {plan_id} not found, using current account")
             except Exception as e:
-                print(
-                    f"ERROR: Could not get Recovery Plan {plan_id} for account context: {e}"
-                )
-                print(
-                    "Falling back to current account for terminate operation"
-                )
+                print(f"ERROR: Could not get Recovery Plan {plan_id} for account context: {e}")
+                print("Falling back to current account for terminate operation")
 
         if not waves:
             return response(
@@ -3770,15 +3505,11 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
             region = wave.get("region", "us-east-1")
             wave_status = wave.get("status", "")
 
-            print(
-                f"Wave {wave_number}: status={wave_status}, job_id={job_id}, region={region}"
-            )
+            print(f"Wave {wave_number}: status={wave_status}, job_id={job_id}, region={region}")
 
             # Collect source server IDs from wave for alternative lookup
             # Check both serverStatuses (current format) and servers (legacy format)
-            wave_servers = wave.get("serverStatuses", []) or wave.get(
-                "servers", []
-            )
+            wave_servers = wave.get("serverStatuses", []) or wave.get("servers", [])
             for srv in wave_servers:
                 srv_id = srv.get("sourceServerId")
                 if srv_id:
@@ -3801,9 +3532,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                     drs_client = create_drs_client(region, account_context)
 
                     # Get recovery instances from DRS job
-                    job_response = drs_client.describe_jobs(
-                        filters={"jobIDs": [job_id]}
-                    )
+                    job_response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
 
                     print(
                         f"DRS describe_jobs response for {job_id}: {len(job_response.get('items', []))} items"
@@ -3811,63 +3540,38 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
 
                     if job_response.get("items"):
                         job = job_response["items"][0]
-                        participating_servers = job.get(
-                            "participatingServers", []
-                        )
+                        participating_servers = job.get("participatingServers", [])
 
                         print(
                             f"Job {job_id} has {len(participating_servers)} participating servers"
                         )
 
                         for server in participating_servers:
-                            recovery_instance_id = server.get(
-                                "recoveryInstanceID"
-                            )
-                            source_server_id = server.get(
-                                "sourceServerID", "unknown"
-                            )
+                            recovery_instance_id = server.get("recoveryInstanceID")
+                            source_server_id = server.get("sourceServerID", "unknown")
 
                             print(
                                 f"Server {source_server_id}: recoveryInstanceID={recovery_instance_id}"
                             )
 
                             # Collect source server ID for alternative lookup
-                            if (
-                                source_server_id
-                                and source_server_id != "unknown"
-                            ):
+                            if source_server_id and source_server_id != "unknown":
                                 if region not in source_server_ids_by_region:
                                     source_server_ids_by_region[region] = []
-                                if (
-                                    source_server_id
-                                    not in source_server_ids_by_region[region]
-                                ):
-                                    source_server_ids_by_region[region].append(
-                                        source_server_id
-                                    )
+                                if source_server_id not in source_server_ids_by_region[region]:
+                                    source_server_ids_by_region[region].append(source_server_id)
 
                             if recovery_instance_id:
                                 # Get EC2 instance ID from recovery instance
                                 try:
-                                    ri_response = (
-                                        drs_client.describe_recovery_instances(
-                                            filters={
-                                                "recoveryInstanceIDs": [
-                                                    recovery_instance_id
-                                                ]
-                                            }
-                                        )
+                                    ri_response = drs_client.describe_recovery_instances(
+                                        filters={"recoveryInstanceIDs": [recovery_instance_id]}
                                     )
                                     if ri_response.get("items"):
-                                        ec2_instance_id = ri_response["items"][
-                                            0
-                                        ].get("ec2InstanceID")
-                                        if (
-                                            ec2_instance_id
-                                            and ec2_instance_id.startswith(
-                                                "i-"
-                                            )
-                                        ):
+                                        ec2_instance_id = ri_response["items"][0].get(
+                                            "ec2InstanceID"
+                                        )
+                                        if ec2_instance_id and ec2_instance_id.startswith("i-"):
                                             instances_to_terminate.append(
                                                 {
                                                     "instanceId": ec2_instance_id,
@@ -3879,32 +3583,21 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                                 }
                                             )
 
-                                            if (
-                                                region
-                                                not in instances_by_region
-                                            ):
-                                                instances_by_region[region] = (
-                                                    []
-                                                )
-                                            instances_by_region[region].append(
-                                                ec2_instance_id
-                                            )
+                                            if region not in instances_by_region:
+                                                instances_by_region[region] = []
+                                            instances_by_region[region].append(ec2_instance_id)
                                 except Exception as ri_err:
                                     print(
                                         f"Could not get EC2 instance for recovery instance {recovery_instance_id}: {ri_err}"
                                     )
 
                 except Exception as drs_err:
-                    print(
-                        f"Could not query DRS job {job_id} in {region}: {drs_err}"
-                    )
+                    print(f"Could not query DRS job {job_id} in {region}: {drs_err}")
 
         # Alternative approach: Query describe_recovery_instances by source server IDs
         # This works even when job's participatingServers doesn't have recoveryInstanceID
         if not instances_to_terminate and source_server_ids_by_region:
-            print(
-                f"Trying alternative approach: query recovery instances by source server IDs"
-            )
+            print(f"Trying alternative approach: query recovery instances by source server IDs")
 
             for region, source_ids in source_server_ids_by_region.items():
                 print(
@@ -3920,9 +3613,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                     )
 
                     recovery_instances = ri_response.get("items", [])
-                    print(
-                        f"Found {len(recovery_instances)} recovery instances for source servers"
-                    )
+                    print(f"Found {len(recovery_instances)} recovery instances for source servers")
 
                     for ri in recovery_instances:
                         ec2_instance_id = ri.get("ec2InstanceID")
@@ -3933,9 +3624,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                             f"Recovery instance: ec2={ec2_instance_id}, ri={recovery_instance_id}, source={source_server_id}"
                         )
 
-                        if ec2_instance_id and ec2_instance_id.startswith(
-                            "i-"
-                        ):
+                        if ec2_instance_id and ec2_instance_id.startswith("i-"):
                             instances_to_terminate.append(
                                 {
                                     "instanceId": ec2_instance_id,
@@ -3948,13 +3637,8 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
 
                             if region not in instances_by_region:
                                 instances_by_region[region] = []
-                            if (
-                                ec2_instance_id
-                                not in instances_by_region[region]
-                            ):
-                                instances_by_region[region].append(
-                                    ec2_instance_id
-                                )
+                            if ec2_instance_id not in instances_by_region[region]:
+                                instances_by_region[region].append(ec2_instance_id)
 
                 except Exception as e:
                     print(
@@ -3986,9 +3670,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                 "instanceId": instance_id,
                                 "region": region,
                                 "waveNumber": wave_number,
-                                "serverId": server.get(
-                                    "sourceServerId", "unknown"
-                                ),
+                                "serverId": server.get("sourceServerId", "unknown"),
                             }
                         )
                         if region not in instances_by_region:
@@ -4017,9 +3699,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                                 "instanceId": instance_id,
                                 "region": server_region,
                                 "waveNumber": wave_number,
-                                "serverId": server.get(
-                                    "sourceServerId", "unknown"
-                                ),
+                                "serverId": server.get("sourceServerId", "unknown"),
                             }
                         )
                         if server_region not in instances_by_region:
@@ -4043,28 +3723,21 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                 },
             )
 
-        print(
-            f"Found {len(instances_to_terminate)} recovery instances to terminate"
-        )
+        print(f"Found {len(instances_to_terminate)} recovery instances to terminate")
 
         # Group recovery instance IDs by region for DRS API call
         recovery_instances_by_region = {}
         for instance_info in instances_to_terminate:
             region = instance_info.get("region", "us-east-1")
             # The recovery instance ID is the same as the EC2 instance ID in DRS
-            recovery_instance_id = instance_info.get(
-                "recoveryInstanceId"
-            ) or instance_info.get("instanceId")
+            recovery_instance_id = instance_info.get("recoveryInstanceId") or instance_info.get(
+                "instanceId"
+            )
             if recovery_instance_id:
                 if region not in recovery_instances_by_region:
                     recovery_instances_by_region[region] = []
-                if (
-                    recovery_instance_id
-                    not in recovery_instances_by_region[region]
-                ):
-                    recovery_instances_by_region[region].append(
-                        recovery_instance_id
-                    )
+                if recovery_instance_id not in recovery_instances_by_region[region]:
+                    recovery_instances_by_region[region].append(recovery_instance_id)
 
         # Use DRS TerminateRecoveryInstances API - this properly terminates via DRS
         # and creates a TERMINATE job in DRS console
@@ -4117,9 +3790,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
             except drs_client.exceptions.ConflictException as e:
                 # Instances already being terminated or don't exist
                 error_msg = str(e)
-                print(
-                    f"ConflictException terminating recovery instances in {region}: {error_msg}"
-                )
+                print(f"ConflictException terminating recovery instances in {region}: {error_msg}")
                 for ri_id in recovery_instance_ids:
                     failed.append(
                         {
@@ -4131,9 +3802,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
                     )
             except Exception as e:
                 error_msg = str(e)
-                print(
-                    f"Error terminating recovery instances in {region}: {error_msg}"
-                )
+                print(f"Error terminating recovery instances in {region}: {error_msg}")
                 for ri_id in recovery_instance_ids:
                     failed.append(
                         {
@@ -4167,17 +3836,13 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
             )
 
         except Exception as e:
-            print(
-                f"ERROR: Could not update execution with termination jobs: {str(e)}"
-            )
+            print(f"ERROR: Could not update execution with termination jobs: {str(e)}")
             import traceback
 
             traceback.print_exc()
 
         # Check if all failures are due to conflict (already terminated)
-        all_conflict = len(failed) > 0 and all(
-            f.get("errorType") == "CONFLICT" for f in failed
-        )
+        all_conflict = len(failed) > 0 and all(f.get("errorType") == "CONFLICT" for f in failed)
 
         if len(terminated) == 0 and all_conflict:
             # All instances already terminated or being processed
@@ -4218,9 +3883,7 @@ def terminate_recovery_instances(execution_id: str) -> Dict:
         return response(500, {"error": str(e)})
 
 
-def get_termination_job_status(
-    execution_id: str, job_ids_str: str, region: str
-) -> Dict:
+def get_termination_job_status(execution_id: str, job_ids_str: str, region: str) -> Dict:
     """Get status of DRS termination jobs for progress tracking.
 
     Args:
@@ -4263,9 +3926,7 @@ def get_termination_job_status(
 
         drs_client = boto3.client("drs", region_name=region)
 
-        jobs_response = drs_client.describe_jobs(
-            filters={"jobIDs": valid_job_ids}
-        )
+        jobs_response = drs_client.describe_jobs(filters={"jobIDs": valid_job_ids})
 
         jobs = jobs_response.get("items", [])
         print(f"Found {len(jobs)} jobs")
@@ -4283,9 +3944,7 @@ def get_termination_job_status(
             job_type = job.get("type", "")
             participating = job.get("participatingServers", [])
 
-            print(
-                f"Job {job_id}: status={status}, type={job_type}, servers={len(participating)}"
-            )
+            print(f"Job {job_id}: status={status}, type={job_type}, servers={len(participating)}")
 
             job_total = len(participating)
             job_completed = 0
@@ -4364,9 +4023,7 @@ def get_termination_job_status(
             "anyFailed": any_failed,
         }
 
-        print(
-            f"Termination progress: {progress_percent}% ({completed_servers}/{total_servers})"
-        )
+        print(f"Termination progress: {progress_percent}% ({completed_servers}/{total_servers})")
 
         # Update execution record when termination completes
         if all_completed:
@@ -4396,9 +4053,7 @@ def get_termination_job_status(
                             },
                         )
             except Exception as update_error:
-                print(
-                    f"Error updating execution with termination completion: {update_error}"
-                )
+                print(f"Error updating execution with termination completion: {update_error}")
 
         return response(200, result)
 
@@ -4450,9 +4105,7 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
             wave_number = wave.get("waveNumber", 0)
 
             # Get region from wave first, then execution, then default
-            wave_region = wave.get("region") or execution.get(
-                "region", "us-east-1"
-            )
+            wave_region = wave.get("region") or execution.get("region", "us-east-1")
 
             # Skip if no job ID or if specific job requested and doesn't match
             if not wave_job_id:
@@ -4466,9 +4119,7 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
                 drs_client = create_drs_client(wave_region, account_context)
 
                 # Get job log items from DRS
-                log_response = drs_client.describe_job_log_items(
-                    jobID=wave_job_id
-                )
+                log_response = drs_client.describe_job_log_items(jobID=wave_job_id)
                 log_items = log_response.get("items", [])
 
                 # Transform log items for frontend
@@ -4492,23 +4143,17 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
                     if "rawError" in event_data:
                         event["error"] = event_data["rawError"]
                     if "conversionServerID" in event_data:
-                        event["conversionServerId"] = event_data[
-                            "conversionServerID"
-                        ]
+                        event["conversionServerId"] = event_data["conversionServerID"]
 
                     wave_logs["events"].append(event)
 
                 # Sort events by timestamp (newest first for display)
-                wave_logs["events"].sort(
-                    key=lambda x: x.get("logDateTime", ""), reverse=True
-                )
+                wave_logs["events"].sort(key=lambda x: x.get("logDateTime", ""), reverse=True)
 
                 all_job_logs.append(wave_logs)
 
             except Exception as e:
-                print(
-                    f"Error getting job log items for job {wave_job_id}: {e}"
-                )
+                print(f"Error getting job log items for job {wave_job_id}: {e}")
                 all_job_logs.append(
                     {
                         "waveNumber": wave_number,
@@ -4518,9 +4163,7 @@ def get_job_log_items(execution_id: str, job_id: str = None) -> Dict:
                     }
                 )
 
-        return response(
-            200, {"executionId": execution_id, "jobLogs": all_job_logs}
-        )
+        return response(200, {"executionId": execution_id, "jobLogs": all_job_logs})
 
     except Exception as e:
         print(f"Error getting job log items: {str(e)}")
@@ -4717,16 +4360,12 @@ def apply_launch_config_to_servers(
         try:
             # Get effective config (merge group defaults with server overrides)
             if protection_group:
-                effective_config = get_effective_launch_config(
-                    protection_group, server_id
-                )
+                effective_config = get_effective_launch_config(protection_group, server_id)
             else:
                 effective_config = launch_config
 
             # Get DRS launch configuration to find template ID
-            drs_config = regional_drs.get_launch_configuration(
-                sourceServerID=server_id
-            )
+            drs_config = regional_drs.get_launch_configuration(sourceServerID=server_id)
             template_id = drs_config.get("ec2LaunchTemplateID")
 
             if not template_id:
@@ -4744,9 +4383,7 @@ def apply_launch_config_to_servers(
             template_data = {}
 
             if effective_config.get("instanceType"):
-                template_data["InstanceType"] = effective_config[
-                    "instanceType"
-                ]
+                template_data["InstanceType"] = effective_config["instanceType"]
 
             # Network interface settings (subnet, security groups, static IP)
             if (
@@ -4758,18 +4395,12 @@ def apply_launch_config_to_servers(
 
                 # Static private IP support
                 if effective_config.get("staticPrivateIp"):
-                    network_interface["PrivateIpAddress"] = effective_config[
-                        "staticPrivateIp"
-                    ]
+                    network_interface["PrivateIpAddress"] = effective_config["staticPrivateIp"]
 
                 if effective_config.get("subnetId"):
-                    network_interface["SubnetId"] = effective_config[
-                        "subnetId"
-                    ]
+                    network_interface["SubnetId"] = effective_config["subnetId"]
                 if effective_config.get("securityGroupIds"):
-                    network_interface["Groups"] = effective_config[
-                        "securityGroupIds"
-                    ]
+                    network_interface["Groups"] = effective_config["securityGroupIds"]
                 template_data["NetworkInterfaces"] = [network_interface]
 
             if effective_config.get("instanceProfileName"):
@@ -4788,13 +4419,11 @@ def apply_launch_config_to_servers(
             if "licensing" in effective_config:
                 drs_update["licensing"] = effective_config["licensing"]
             if "targetInstanceTypeRightSizingMethod" in effective_config:
-                drs_update["targetInstanceTypeRightSizingMethod"] = (
-                    effective_config["targetInstanceTypeRightSizingMethod"]
-                )
-            if "launchDisposition" in effective_config:
-                drs_update["launchDisposition"] = effective_config[
-                    "launchDisposition"
+                drs_update["targetInstanceTypeRightSizingMethod"] = effective_config[
+                    "targetInstanceTypeRightSizingMethod"
                 ]
+            if "launchDisposition" in effective_config:
+                drs_update["launchDisposition"] = effective_config["launchDisposition"]
 
             if len(drs_update) > 1:  # More than just sourceServerID
                 regional_drs.update_launch_configuration(**drs_update)
@@ -4804,9 +4433,7 @@ def apply_launch_config_to_servers(
                 # Build detailed version description for tracking/reuse
                 from datetime import datetime, timezone
 
-                timestamp = datetime.now(timezone.utc).strftime(
-                    "%Y-%m-%d %H:%M:%S UTC"
-                )
+                timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
                 desc_parts = [f"DRS Orchestration | {timestamp}"]
                 if protection_group_name:
                     desc_parts.append(f"PG: {protection_group_name}")
@@ -4815,17 +4442,11 @@ def apply_launch_config_to_servers(
                 # Add config details
                 config_details = []
                 if effective_config.get("staticPrivateIp"):
-                    config_details.append(
-                        f"IP:{effective_config['staticPrivateIp']}"
-                    )
+                    config_details.append(f"IP:{effective_config['staticPrivateIp']}")
                 if effective_config.get("instanceType"):
-                    config_details.append(
-                        f"Type:{effective_config['instanceType']}"
-                    )
+                    config_details.append(f"Type:{effective_config['instanceType']}")
                 if effective_config.get("subnetId"):
-                    config_details.append(
-                        f"Subnet:{effective_config['subnetId'][-8:]}"
-                    )
+                    config_details.append(f"Subnet:{effective_config['subnetId'][-8:]}")
                 if effective_config.get("securityGroupIds"):
                     sg_count = len(effective_config["securityGroupIds"])
                     config_details.append(f"SGs:{sg_count}")
@@ -4844,9 +4465,7 @@ def apply_launch_config_to_servers(
                         f"RightSize:{effective_config['targetInstanceTypeRightSizingMethod']}"
                     )
                 if effective_config.get("launchDisposition"):
-                    config_details.append(
-                        f"Launch:{effective_config['launchDisposition']}"
-                    )
+                    config_details.append(f"Launch:{effective_config['launchDisposition']}")
                 if config_details:
                     desc_parts.append(" | ".join(config_details))
                 # EC2 version description max 255 chars
@@ -4857,9 +4476,7 @@ def apply_launch_config_to_servers(
                     LaunchTemplateData=template_data,
                     VersionDescription=version_desc,
                 )
-                ec2.modify_launch_template(
-                    LaunchTemplateId=template_id, DefaultVersion="$Latest"
-                )
+                ec2.modify_launch_template(LaunchTemplateId=template_id, DefaultVersion="$Latest")
 
             results["applied"] += 1
             results["details"].append(
@@ -4873,9 +4490,7 @@ def apply_launch_config_to_servers(
         except Exception as e:
             print(f"Error applying launchConfig to {server_id}: {e}")
             results["failed"] += 1
-            results["details"].append(
-                {"serverId": server_id, "status": "failed", "error": str(e)}
-            )
+            results["details"].append({"serverId": server_id, "status": "failed", "error": str(e)})
 
     return results
 
@@ -4933,9 +4548,7 @@ def delete_completed_executions() -> Dict:
 
         # Filter to only completed executions
         completed_executions = [
-            ex
-            for ex in all_executions
-            if ex.get("status", "").upper() in terminal_states
+            ex for ex in all_executions if ex.get("status", "").upper() in terminal_states
         ]
 
         # For CANCELLED executions, check if they have active DRS jobs
@@ -4955,9 +4568,7 @@ def delete_completed_executions() -> Dict:
                         region = wave.get("region", "us-east-1")
                         try:
                             drs_client = create_drs_client(region)
-                            job_response = drs_client.describe_jobs(
-                                filters={"jobIDs": [job_id]}
-                            )
+                            job_response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
                             jobs = job_response.get("items", [])
                             if jobs:
                                 job_status = jobs[0].get("status", "")
@@ -5007,12 +4618,8 @@ def delete_completed_executions() -> Dict:
                 print(f"Deleted execution: {execution_id}")
             except Exception as delete_error:
                 error_msg = str(delete_error)
-                print(
-                    f"Failed to delete execution {execution_id}: {error_msg}"
-                )
-                failed_deletes.append(
-                    {"executionId": execution_id, "error": error_msg}
-                )
+                print(f"Failed to delete execution {execution_id}: {error_msg}")
+                failed_deletes.append({"executionId": execution_id, "error": error_msg})
 
         # Build response
         result = {
@@ -5034,13 +4641,9 @@ def delete_completed_executions() -> Dict:
         if failed_deletes:
             result["failedDeletes"] = failed_deletes
             if "warning" in result:
-                result[
-                    "warning"
-                ] += f"; {len(failed_deletes)} execution(s) failed to delete"
+                result["warning"] += f"; {len(failed_deletes)} execution(s) failed to delete"
             else:
-                result["warning"] = (
-                    f"{len(failed_deletes)} execution(s) failed to delete"
-                )
+                result["warning"] = f"{len(failed_deletes)} execution(s) failed to delete"
 
         print(
             f"Bulk delete completed: {deleted_count} deleted, {len(skipped_with_active_jobs)} skipped (active jobs), {len(failed_deletes)} failed"
@@ -5142,9 +4745,7 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
                             "reason": "Execution is still active",
                         }
                     )
-                    print(
-                        f"Skipping active execution {execution_id} (status: {status})"
-                    )
+                    print(f"Skipping active execution {execution_id} (status: {status})")
                     continue
 
                 # For CANCELLED executions, check if they have active DRS jobs
@@ -5202,12 +4803,8 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
 
             except Exception as delete_error:
                 error_msg = str(delete_error)
-                print(
-                    f"Failed to delete execution {execution_id}: {error_msg}"
-                )
-                failed_deletes.append(
-                    {"executionId": execution_id, "error": error_msg}
-                )
+                print(f"Failed to delete execution {execution_id}: {error_msg}")
+                failed_deletes.append({"executionId": execution_id, "error": error_msg})
 
         # Build response
         result = {
@@ -5224,20 +4821,14 @@ def delete_executions_by_ids(execution_ids: List[str]) -> Dict:
 
         if active_executions_skipped:
             result["activeExecutionsSkipped"] = active_executions_skipped
-            result["warning"] = (
-                f"{len(active_executions_skipped)} active execution(s) skipped"
-            )
+            result["warning"] = f"{len(active_executions_skipped)} active execution(s) skipped"
 
         if failed_deletes:
             result["failedDeletes"] = failed_deletes
             if "warning" in result:
-                result[
-                    "warning"
-                ] += f"; {len(failed_deletes)} execution(s) failed to delete"
+                result["warning"] += f"; {len(failed_deletes)} execution(s) failed to delete"
             else:
-                result["warning"] = (
-                    f"{len(failed_deletes)} execution(s) failed to delete"
-                )
+                result["warning"] = f"{len(failed_deletes)} execution(s) failed to delete"
 
         print(
             f"Selective delete completed: {deleted_count} deleted, {len(active_executions_skipped)} skipped (active), {len(failed_deletes)} failed, {len(not_found)} not found"
@@ -5289,9 +4880,7 @@ def get_execution_status(execution_id: str) -> Dict:
                 # Build proper Step Functions execution ARN from execution ID
                 state_machine_arn = execution.get("stateMachineArn")
                 if state_machine_arn:
-                    sf_response = stepfunctions.describe_execution(
-                        executionArn=state_machine_arn
-                    )
+                    sf_response = stepfunctions.describe_execution(executionArn=state_machine_arn)
                     execution["StepFunctionsStatus"] = sf_response["status"]
             except Exception as e:
                 print(f"Error getting Step Functions status: {str(e)}")
@@ -5460,18 +5049,14 @@ def get_execution_history(plan_id: str) -> Dict:
 
         executions = result.get("Items", [])
 
-        return response(
-            200, {"executions": executions, "count": len(executions)}
-        )
+        return response(200, {"executions": executions, "count": len(executions)})
 
     except Exception as e:
         print(f"Error getting execution history: {str(e)}")
         return response(500, {"error": str(e)})
 
 
-def get_server_details_map(
-    server_ids: List[str], region: str = "us-east-1"
-) -> Dict[str, Dict]:
+def get_server_details_map(server_ids: List[str], region: str = "us-east-1") -> Dict[str, Dict]:
     """
     Get DRS source server details for a list of server IDs.
     PERFORMANCE OPTIMIZED: Faster API calls and better error handling.
@@ -5481,9 +5066,7 @@ def get_server_details_map(
     if not server_ids:
         return server_map
 
-    print(
-        f"DEBUG: Getting server details for {len(server_ids)} servers in {region}"
-    )
+    print(f"DEBUG: Getting server details for {len(server_ids)} servers in {region}")
 
     try:
         # Use regional DRS client
@@ -5502,14 +5085,12 @@ def get_server_details_map(
 
                     # Extract hostname and source instance ID from sourceProperties
                     source_props = server.get("sourceProperties", {})
-                    hostname = source_props.get("identificationHints", {}).get(
-                        "hostname", ""
-                    )
+                    hostname = source_props.get("identificationHints", {}).get("hostname", "")
 
                     # Get source EC2 instance ID (the original instance being replicated)
-                    source_instance_id = source_props.get(
-                        "identificationHints", {}
-                    ).get("awsInstanceID", "")
+                    source_instance_id = source_props.get("identificationHints", {}).get(
+                        "awsInstanceID", ""
+                    )
 
                     # Get Name tag if available
                     tags = server.get("tags", {})
@@ -5519,9 +5100,7 @@ def get_server_details_map(
                     source_account_id = ""
                     staging_area = server.get("stagingArea", {})
                     if staging_area:
-                        source_account_id = staging_area.get(
-                            "stagingAccountID", ""
-                        )
+                        source_account_id = staging_area.get("stagingAccountID", "")
 
                     # Fallback: extract from ARN if available
                     if not source_account_id:
@@ -5533,9 +5112,7 @@ def get_server_details_map(
                                 source_account_id = arn_parts[4]
 
                     # Extract source IP from network interfaces
-                    network_interfaces = source_props.get(
-                        "networkInterfaces", []
-                    )
+                    network_interfaces = source_props.get("networkInterfaces", [])
                     source_ip = ""
                     if network_interfaces:
                         # Get first private IP from first interface
@@ -5549,25 +5126,18 @@ def get_server_details_map(
                     data_rep_info = server.get("dataReplicationInfo", {})
 
                     server_map[source_id] = {
-                        "hostname": hostname
-                        or f"server-{source_id[-8:]}",  # Fallback hostname
+                        "hostname": hostname or f"server-{source_id[-8:]}",  # Fallback hostname
                         "nameTag": name_tag,  # Will be updated from EC2 below if needed
                         "region": region,
                         "sourceInstanceId": source_instance_id,
                         "sourceAccountId": source_account_id,
                         "sourceIp": source_ip,
                         "sourceRegion": source_region,
-                        "replicationState": data_rep_info.get(
-                            "dataReplicationState", "UNKNOWN"
-                        ),
-                        "lastLaunchResult": server.get(
-                            "lastLaunchResult", "NOT_STARTED"
-                        ),
+                        "replicationState": data_rep_info.get("dataReplicationState", "UNKNOWN"),
+                        "lastLaunchResult": server.get("lastLaunchResult", "NOT_STARTED"),
                     }
 
-        print(
-            f"DEBUG: Found {servers_found} servers out of {len(server_ids)} requested"
-        )
+        print(f"DEBUG: Found {servers_found} servers out of {len(server_ids)} requested")
 
         # PERFORMANCE OPTIMIZATION: Only fetch EC2 tags if we have source instance IDs
         # and only if we don't already have good name tags from DRS
@@ -5578,9 +5148,7 @@ def get_server_details_map(
 
         if source_instance_ids:
             try:
-                print(
-                    f"DEBUG: Fetching EC2 Name tags for {len(source_instance_ids)} instances"
-                )
+                print(f"DEBUG: Fetching EC2 Name tags for {len(source_instance_ids)} instances")
                 ec2_client = boto3.client("ec2", region_name=region)
 
                 # PERFORMANCE: Batch EC2 describe calls (max 1000 instances per call)
@@ -5589,21 +5157,15 @@ def get_server_details_map(
                     batch_ids = source_instance_ids[i : i + batch_size]
 
                     try:
-                        ec2_response = ec2_client.describe_instances(
-                            InstanceIds=batch_ids
-                        )
+                        ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
                         ec2_name_tags = {}
 
-                        for reservation in ec2_response.get(
-                            "Reservations", []
-                        ):
+                        for reservation in ec2_response.get("Reservations", []):
                             for instance in reservation.get("Instances", []):
                                 instance_id = instance.get("instanceId", "")
                                 for tag in instance.get("Tags", []):
                                     if tag.get("Key") == "Name":
-                                        ec2_name_tags[instance_id] = tag.get(
-                                            "Value", ""
-                                        )
+                                        ec2_name_tags[instance_id] = tag.get("Value", "")
                                         break
 
                         # Update server_map with EC2 Name tags
@@ -5613,9 +5175,7 @@ def get_server_details_map(
                                 details["nameTag"] = ec2_name_tags[instance_id]
 
                     except Exception as batch_error:
-                        print(
-                            f"Error fetching EC2 tags for batch: {batch_error}"
-                        )
+                        print(f"Error fetching EC2 tags for batch: {batch_error}")
                         # Continue with next batch
 
             except Exception as ec2_error:
@@ -5643,9 +5203,7 @@ def get_server_details_map(
     return server_map
 
 
-def get_recovery_instances_for_wave(
-    wave: Dict, server_ids: List[str]
-) -> Dict[str, Dict]:
+def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[str, Dict]:
     """
     Get recovery instance details for servers in a wave.
     PERFORMANCE OPTIMIZED: Faster API calls while maintaining real-time accuracy.
@@ -5700,9 +5258,7 @@ def get_recovery_instances_for_wave(
         # REAL-TIME EC2 DATA: Get current instance states and details
         if instance_ids:
             try:
-                print(
-                    f"DEBUG: Getting real-time EC2 details for {len(instance_ids)} instances"
-                )
+                print(f"DEBUG: Getting real-time EC2 details for {len(instance_ids)} instances")
                 ec2_client = boto3.client("ec2", region_name=region)
 
                 # PERFORMANCE: Batch EC2 calls for better efficiency
@@ -5711,57 +5267,36 @@ def get_recovery_instances_for_wave(
                     batch_ids = instance_ids[i : i + batch_size]
 
                     try:
-                        ec2_response = ec2_client.describe_instances(
-                            InstanceIds=batch_ids
-                        )
+                        ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
 
-                        for reservation in ec2_response.get(
-                            "Reservations", []
-                        ):
+                        for reservation in ec2_response.get("Reservations", []):
                             for instance in reservation.get("Instances", []):
                                 instance_id = instance.get("instanceId", "")
-                                source_server_id = instance_to_source_map.get(
-                                    instance_id
-                                )
+                                source_server_id = instance_to_source_map.get(instance_id)
 
-                                if (
-                                    source_server_id
-                                    and source_server_id in recovery_map
-                                ):
+                                if source_server_id and source_server_id in recovery_map:
                                     # Update with REAL-TIME EC2 data
                                     recovery_map[source_server_id].update(
                                         {
-                                            "ec2State": instance.get(
-                                                "State", {}
-                                            ).get("Name", "unknown"),
-                                            "privateIp": instance.get(
-                                                "PrivateIpAddress", ""
+                                            "ec2State": instance.get("State", {}).get(
+                                                "Name", "unknown"
                                             ),
-                                            "publicIp": instance.get(
-                                                "PublicIpAddress", ""
-                                            ),
+                                            "privateIp": instance.get("PrivateIpAddress", ""),
+                                            "publicIp": instance.get("PublicIpAddress", ""),
                                             "instanceType": instance.get(
                                                 "InstanceType", ""
                                             ),  # AWS API uses PascalCase
-                                            "availabilityZone": instance.get(
-                                                "Placement", {}
-                                            ).get("AvailabilityZone", ""),
+                                            "availabilityZone": instance.get("Placement", {}).get(
+                                                "AvailabilityZone", ""
+                                            ),
                                             "launchTime": (
-                                                instance.get(
-                                                    "LaunchTime", ""
-                                                ).isoformat()
+                                                instance.get("LaunchTime", "").isoformat()
                                                 if instance.get("LaunchTime")
                                                 else ""
                                             ),  # AWS API uses PascalCase
-                                            "platform": instance.get(
-                                                "Platform", "linux"
-                                            ),
-                                            "architecture": instance.get(
-                                                "Architecture", ""
-                                            ),
-                                            "hypervisor": instance.get(
-                                                "Hypervisor", ""
-                                            ),
+                                            "platform": instance.get("Platform", "linux"),
+                                            "architecture": instance.get("Architecture", ""),
+                                            "hypervisor": instance.get("Hypervisor", ""),
                                             "virtualizationType": instance.get(
                                                 "VirtualizationType", ""
                                             ),
@@ -5769,9 +5304,7 @@ def get_recovery_instances_for_wave(
                                     )
 
                     except Exception as batch_error:
-                        print(
-                            f"Error getting EC2 details for batch: {batch_error}"
-                        )
+                        print(f"Error getting EC2 details for batch: {batch_error}")
                         # Continue with next batch - don't fail entire operation
 
             except Exception as ec2_error:
@@ -5780,9 +5313,7 @@ def get_recovery_instances_for_wave(
     except Exception as e:
         print(f"Error getting recovery instances for wave: {e}")
 
-    print(
-        f"DEBUG: Returning recovery details for {len(recovery_map)} instances"
-    )
+    print(f"DEBUG: Returning recovery details for {len(recovery_map)} instances")
     return recovery_map
 
 
@@ -5797,9 +5328,7 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
 
     # PERFORMANCE: Quick check if already enriched (avoid duplicate work)
     if waves and waves[0].get("enrichedServers"):
-        print(
-            "DEBUG: Execution already enriched, skipping duplicate enrichment"
-        )
+        print("DEBUG: Execution already enriched, skipping duplicate enrichment")
         return execution
 
     # Collect all server IDs and regions from waves
@@ -5823,13 +5352,9 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
     for region in regions:
         try:
             print(f"DEBUG: Getting server details for region {region}")
-            region_servers = get_server_details_map(
-                list(all_server_ids), region
-            )
+            region_servers = get_server_details_map(list(all_server_ids), region)
             server_details_map.update(region_servers)
-            print(
-                f"DEBUG: Retrieved {len(region_servers)} server details for {region}"
-            )
+            print(f"DEBUG: Retrieved {len(region_servers)} server details for {region}")
         except Exception as e:
             print(f"Error getting server details for region {region}: {e}")
             # Continue with other regions - don't fail entire enrichment
@@ -5840,16 +5365,12 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
         region = wave.get("region", "us-east-1")
         wave_name = wave.get("waveName", f"Wave-{wave_idx}")
 
-        print(
-            f"DEBUG: Processing wave {wave_name} with {len(server_ids)} servers"
-        )
+        print(f"DEBUG: Processing wave {wave_name} with {len(server_ids)} servers")
 
         # PERFORMANCE FIX: Skip expensive AWS API calls for list function
         # Real-time data available via /executions/{id}/realtime endpoint
         recovery_instances = {}
-        print(
-            f"DEBUG: Wave {wave_name} - using cached data only for performance"
-        )
+        print(f"DEBUG: Wave {wave_name} - using cached data only for performance")
 
         # Build enriched server list with full functionality
         enriched_servers = []
@@ -5882,9 +5403,7 @@ def enrich_execution_with_server_details(execution: Dict) -> Dict:
 
         # Add enriched servers to wave
         wave["enrichedServers"] = enriched_servers
-        print(
-            f"DEBUG: Wave {wave_name} enriched with {len(enriched_servers)} servers"
-        )
+        print(f"DEBUG: Wave {wave_name} enriched with {len(enriched_servers)} servers")
 
     print(f"DEBUG: Execution enrichment completed for {len(waves)} waves")
     return execution
@@ -5920,16 +5439,12 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                     region = wave.get("region", "us-east-1")
                     drs_client = boto3.client("drs", region_name=region)
 
-                    response = drs_client.describe_jobs(
-                        filters={"jobIDs": [job_id]}
-                    )
+                    response = drs_client.describe_jobs(filters={"jobIDs": [job_id]})
 
                     if response.get("items"):
                         job = response["items"][0]
                         drs_status = job.get("status", "UNKNOWN")
-                        participating_servers = job.get(
-                            "participatingServers", []
-                        )
+                        participating_servers = job.get("participatingServers", [])
 
                         print(
                             f"DEBUG: DRS job {job_id} real-time status: {drs_status} (was: {wave_status})"
@@ -5972,9 +5487,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                     f"DEBUG: Wave {wave_name} updated from {wave_status} to FAILED (DRS job failed)"
                                 )
                             wave["status"] = "FAILED"
-                            wave["statusMessage"] = job.get(
-                                "statusMessage", "DRS job failed"
-                            )
+                            wave["statusMessage"] = job.get("statusMessage", "DRS job failed")
                             wave["endTime"] = int(time.time())
 
                         elif drs_status in ["PENDING", "STARTED"]:
@@ -5993,9 +5506,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                         wave["DRSJobDetails"] = {
                             "status": drs_status,
                             "statusMessage": job.get("statusMessage", ""),
-                            "creationDateTime": job.get(
-                                "creationDateTime", ""
-                            ),
+                            "creationDateTime": job.get("creationDateTime", ""),
                             "endDateTime": job.get("endDateTime", ""),
                             "participatingServers": len(participating_servers),
                             "launchedServers": len(
@@ -6022,28 +5533,14 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 "serverId": source_server_id,
                                 "hostname": server.get("hostname", ""),
                                 "serverName": server.get("hostname", ""),
-                                "status": server.get(
-                                    "launchStatus", "pending"
-                                ),
-                                "launchStatus": server.get(
-                                    "launchStatus", "pending"
-                                ),
-                                "recoveredInstanceId": server.get(
-                                    "recoveryInstanceID", ""
-                                ),
-                                "instanceId": server.get(
-                                    "recoveryInstanceID", ""
-                                ),
-                                "ec2InstanceId": server.get(
-                                    "recoveryInstanceID", ""
-                                ),
+                                "status": server.get("launchStatus", "pending"),
+                                "launchStatus": server.get("launchStatus", "pending"),
+                                "recoveredInstanceId": server.get("recoveryInstanceID", ""),
+                                "instanceId": server.get("recoveryInstanceID", ""),
+                                "ec2InstanceId": server.get("recoveryInstanceID", ""),
                                 "region": region,
-                                "sourceInstanceId": server.get(
-                                    "sourceInstanceID", ""
-                                ),
-                                "replicationState": server.get(
-                                    "replicationState", ""
-                                ),
+                                "sourceInstanceId": server.get("sourceInstanceID", ""),
+                                "replicationState": server.get("replicationState", ""),
                                 "launchTime": server.get("launchTime", ""),
                             }
                             print(
@@ -6063,16 +5560,10 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                     f"DEBUG: Querying recovery instances for {len(source_server_ids)} source servers in {region}"
                                 )
                                 ri_response = drs_client.describe_recovery_instances(
-                                    filters={
-                                        "sourceServerIDs": source_server_ids
-                                    }
+                                    filters={"sourceServerIDs": source_server_ids}
                                 )
-                                recovery_instances = ri_response.get(
-                                    "items", []
-                                )
-                                print(
-                                    f"DEBUG: Found {len(recovery_instances)} recovery instances"
-                                )
+                                recovery_instances = ri_response.get("items", [])
+                                print(f"DEBUG: Found {len(recovery_instances)} recovery instances")
 
                                 # Query EC2 for instance details (instance type, state, etc.)
                                 ec2_instance_ids = [
@@ -6084,105 +5575,65 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
 
                                 if ec2_instance_ids:
                                     try:
-                                        ec2_client = boto3.client(
-                                            "ec2", region_name=region
-                                        )
-                                        ec2_response = (
-                                            ec2_client.describe_instances(
-                                                InstanceIds=ec2_instance_ids
-                                            )
+                                        ec2_client = boto3.client("ec2", region_name=region)
+                                        ec2_response = ec2_client.describe_instances(
+                                            InstanceIds=ec2_instance_ids
                                         )
 
                                         # Build map of instance ID to instance details
-                                        for reservation in ec2_response.get(
-                                            "Reservations", []
-                                        ):
-                                            for instance in reservation.get(
-                                                "Instances", []
-                                            ):
-                                                instance_id = instance.get(
-                                                    "InstanceId"
-                                                )
-                                                launch_time = instance.get(
-                                                    "LaunchTime"
-                                                )
+                                        for reservation in ec2_response.get("Reservations", []):
+                                            for instance in reservation.get("Instances", []):
+                                                instance_id = instance.get("InstanceId")
+                                                launch_time = instance.get("LaunchTime")
                                                 # Convert datetime to ISO string for JSON serialization
                                                 if launch_time:
-                                                    launch_time = (
-                                                        launch_time.isoformat()
-                                                    )
+                                                    launch_time = launch_time.isoformat()
 
-                                                ec2_instance_map[
-                                                    instance_id
-                                                ] = {
+                                                ec2_instance_map[instance_id] = {
                                                     "instanceType": instance.get(
                                                         "InstanceType", ""
                                                     ),
-                                                    "state": instance.get(
-                                                        "State", {}
-                                                    ).get("Name", ""),
-                                                    "launchTime": launch_time
-                                                    or "",
+                                                    "state": instance.get("State", {}).get(
+                                                        "Name", ""
+                                                    ),
+                                                    "launchTime": launch_time or "",
                                                 }
                                         print(
                                             f"DEBUG: Queried EC2 for {len(ec2_instance_map)} instances"
                                         )
                                     except Exception as ec2_error:
-                                        print(
-                                            f"ERROR: Failed to query EC2 instances: {ec2_error}"
-                                        )
+                                        print(f"ERROR: Failed to query EC2 instances: {ec2_error}")
 
                                 # Map recovery instance data back to servers
                                 for ri in recovery_instances:
-                                    source_server_id = ri.get(
-                                        "sourceServerID", ""
-                                    )
-                                    ec2_instance_id = ri.get(
-                                        "ec2InstanceID", ""
-                                    )
-                                    ec2_details = ec2_instance_map.get(
-                                        ec2_instance_id, {}
-                                    )
+                                    source_server_id = ri.get("sourceServerID", "")
+                                    ec2_instance_id = ri.get("ec2InstanceID", "")
+                                    ec2_details = ec2_instance_map.get(ec2_instance_id, {})
 
                                     # Find matching server in wave.servers
                                     for server in wave["servers"]:
-                                        if (
-                                            server["sourceServerId"]
-                                            == source_server_id
-                                        ):
+                                        if server["sourceServerId"] == source_server_id:
                                             # Update with recovery instance details
-                                            server["recoveredInstanceId"] = (
-                                                ec2_instance_id
-                                            )
-                                            server["instanceId"] = (
-                                                ec2_instance_id
-                                            )
-                                            server["ec2InstanceId"] = (
-                                                ec2_instance_id
-                                            )
-                                            server["instanceType"] = (
-                                                ec2_details.get(
-                                                    "instanceType", ""
-                                                )
+                                            server["recoveredInstanceId"] = ec2_instance_id
+                                            server["instanceId"] = ec2_instance_id
+                                            server["ec2InstanceId"] = ec2_instance_id
+                                            server["instanceType"] = ec2_details.get(
+                                                "instanceType", ""
                                             )
                                             server["privateIp"] = (
                                                 ri.get(
                                                     "recoveryInstanceProperties",
                                                     {},
                                                 )
-                                                .get(
-                                                    "networkInterfaces", [{}]
-                                                )[0]
+                                                .get("networkInterfaces", [{}])[0]
                                                 .get("ips", [""])[0]
                                             )
-                                            server["launchTime"] = (
-                                                ec2_details.get(
-                                                    "launchTime",
-                                                    ri.get(
-                                                        "pointInTimeSnapshotDateTime",
-                                                        "",
-                                                    ),
-                                                )
+                                            server["launchTime"] = ec2_details.get(
+                                                "launchTime",
+                                                ri.get(
+                                                    "pointInTimeSnapshotDateTime",
+                                                    "",
+                                                ),
                                             )
                                             print(
                                                 f"DEBUG: Enriched {source_server_id}: instanceId={server['instanceId']}, type={server['instanceType']}, ip={server['privateIp']}"
@@ -6194,9 +5645,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                                 )
 
                     else:
-                        print(
-                            f"DEBUG: DRS job {job_id} not found - may have been cleaned up"
-                        )
+                        print(f"DEBUG: DRS job {job_id} not found - may have been cleaned up")
                         if wave_status in [
                             "UNKNOWN",
                             "",
@@ -6204,12 +5653,8 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
                             "POLLING",
                             "IN_PROGRESS",
                         ]:
-                            wave["status"] = (
-                                "COMPLETED"  # Assume completed if job not found
-                            )
-                            wave["statusMessage"] = (
-                                "Job completed (not found in DRS)"
-                            )
+                            wave["status"] = "COMPLETED"  # Assume completed if job not found
+                            wave["statusMessage"] = "Job completed (not found in DRS)"
                             wave["endTime"] = int(time.time())
 
                 except Exception as e:
@@ -6229,9 +5674,7 @@ def reconcile_wave_status_with_drs(execution: Dict) -> Dict:
             updated_waves.append(wave)
 
         execution["waves"] = updated_waves
-        print(
-            f"DEBUG: Wave reconciliation completed - {len(updated_waves)} waves processed"
-        )
+        print(f"DEBUG: Wave reconciliation completed - {len(updated_waves)} waves processed")
         return execution
 
     except Exception as e:
@@ -6303,12 +5746,7 @@ def recalculate_execution_status(execution: Dict) -> Dict:
     elif cancelled_waves and not active_waves and not failed_waves:
         # All waves cancelled
         execution["status"] = "CANCELLED"
-    elif (
-        completed_waves
-        and not active_waves
-        and not failed_waves
-        and not cancelled_waves
-    ):
+    elif completed_waves and not active_waves and not failed_waves and not cancelled_waves:
         # All waves completed successfully
         execution["status"] = "COMPLETED"
 
@@ -6347,18 +5785,12 @@ def get_execution_details_fast(execution_id: str) -> Dict:
 
             plan_id = execution.get("planId")
             if plan_id:
-                plan_result = recovery_plans_table.get_item(
-                    Key={"planId": plan_id}
-                )
+                plan_result = recovery_plans_table.get_item(Key={"planId": plan_id})
                 if "Item" in plan_result:
                     plan = plan_result["Item"]
                     if not execution.get("recoveryPlanName"):
-                        execution["recoveryPlanName"] = plan.get(
-                            "planName", "Unknown"
-                        )
-                    execution["recoveryPlanDescription"] = plan.get(
-                        "description", ""
-                    )
+                        execution["recoveryPlanName"] = plan.get("planName", "Unknown")
+                    execution["recoveryPlanDescription"] = plan.get("description", "")
                     execution["totalWaves"] = len(plan.get("waves", []))
                 elif not execution.get("recoveryPlanName"):
                     execution["recoveryPlanName"] = "Deleted Plan"

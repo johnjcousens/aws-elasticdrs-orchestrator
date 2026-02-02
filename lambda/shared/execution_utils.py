@@ -185,9 +185,7 @@ def can_terminate_execution(execution: Dict) -> Dict[str, Any]:
         return result
 
     # Check for active waves (normalize to uppercase for comparison)
-    has_active = any(
-        wave.get("status", "").upper() in ACTIVE_STATUSES for wave in waves
-    )
+    has_active = any(wave.get("status", "").upper() in ACTIVE_STATUSES for wave in waves)
 
     if has_active:
         result["reason"] = "Waves still active"
@@ -265,11 +263,7 @@ def get_execution_progress(execution: Dict) -> Dict[str, Any]:
         }
 
     completed_statuses = {"completed", "unknown"}
-    completed_waves = sum(
-        1
-        for wave in waves
-        if normalize_wave_status(wave) in completed_statuses
-    )
+    completed_waves = sum(1 for wave in waves if normalize_wave_status(wave) in completed_statuses)
 
     active_statuses = {
         "in_progress",
@@ -286,9 +280,7 @@ def get_execution_progress(execution: Dict) -> Dict[str, Any]:
             active_wave = wave.get("waveNumber")
             break
 
-    percent_complete = (
-        (completed_waves / total_waves * 100) if total_waves > 0 else 0.0
-    )
+    percent_complete = (completed_waves / total_waves * 100) if total_waves > 0 else 0.0
 
     return {
         "totalWaves": total_waves,

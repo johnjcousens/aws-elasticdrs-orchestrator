@@ -70,14 +70,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     print(f"Event received: {json.dumps(event)}")
 
     # Parse event parameters - support both old and new formats
-    source_account_id = event.get("source_account_id") or event.get(
-        "account_id"
-    )
+    source_account_id = event.get("source_account_id") or event.get("account_id")
     staging_account_id = event.get("staging_account_id")
     source_region = event.get("source_region", "us-east-1")
-    target_region = event.get(
-        "target_region", os.environ.get("TARGET_REGION", "us-west-2")
-    )
+    target_region = event.get("target_region", os.environ.get("TARGET_REGION", "us-west-2"))
     source_role_arn = event.get("source_role_arn") or event.get("role_arn")
     staging_role_arn = event.get("staging_role_arn")
 
@@ -99,9 +95,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Determine deployment pattern
     if staging_account_id:
         deployment_pattern = "cross-account"
-        print(
-            f"Cross-account deployment: {source_account_id} → {staging_account_id}"
-        )
+        print(f"Cross-account deployment: {source_account_id} → {staging_account_id}")
     else:
         deployment_pattern = "same-account"
         staging_account_id = source_account_id
@@ -192,17 +186,11 @@ class DRSAgentDeployer:
 
         # Initialize AWS clients
         # EC2 and SSM use source account (where instances are)
-        self.ec2_client = self._get_client(
-            "ec2", source_region, self.source_credentials
-        )
-        self.ssm_client = self._get_client(
-            "ssm", source_region, self.source_credentials
-        )
+        self.ec2_client = self._get_client("ec2", source_region, self.source_credentials)
+        self.ssm_client = self._get_client("ssm", source_region, self.source_credentials)
 
         # DRS uses staging account (where replication goes)
-        self.drs_client = self._get_client(
-            "drs", target_region, self.staging_credentials
-        )
+        self.drs_client = self._get_client("drs", target_region, self.staging_credentials)
 
     def _assume_role(self, role_arn: str, session_name: str) -> Dict[str, str]:
         """
@@ -239,9 +227,7 @@ class DRSAgentDeployer:
             "aws_session_token": credentials["SessionToken"],
         }
 
-    def _get_client(
-        self, service: str, region: str, credentials: Optional[Dict[str, str]]
-    ):
+    def _get_client(self, service: str, region: str, credentials: Optional[Dict[str, str]]):
         """
         Get AWS service client with appropriate credentials.
 
@@ -280,10 +266,7 @@ class DRSAgentDeployer:
             for reservation in response["Reservations"]:
                 for instance in reservation["Instances"]:
                     # Extract tags
-                    tags = {
-                        tag["Key"]: tag["Value"]
-                        for tag in instance.get("Tags", [])
-                    }
+                    tags = {tag["Key"]: tag["Value"] for tag in instance.get("Tags", [])}
 
                     instances.append(
                         {
@@ -325,9 +308,7 @@ class DRSAgentDeployer:
             for inst in waves[wave]:
                 print(f"  - {inst['instance_id']} ({inst['name']})")
 
-    def check_ssm_status(
-        self, instance_ids: List[str], max_wait: int = 300
-    ) -> Dict[str, str]:
+    def check_ssm_status(self, instance_ids: List[str], max_wait: int = 300) -> Dict[str, str]:
         """
         Check SSM agent status for instances.
 
@@ -338,9 +319,7 @@ class DRSAgentDeployer:
         Returns:
             Dict mapping instance_id to ping status
         """
-        print(
-            f"\nChecking SSM agent status for {len(instance_ids)} instances..."
-        )
+        print(f"\nChecking SSM agent status for {len(instance_ids)} instances...")
 
         wait_interval = 15
         elapsed = 0
@@ -356,14 +335,9 @@ class DRSAgentDeployer:
                     for info in response["InstanceInformationList"]
                 }
 
-                online_count = sum(
-                    1 for status in status_map.values() if status == "Online"
-                )
+                online_count = sum(1 for status in status_map.values() if status == "Online")
 
-                print(
-                    f"[{elapsed}s] SSM agents online: "
-                    f"{online_count}/{len(instance_ids)}"
-                )
+                print(f"[{elapsed}s] SSM agents online: " f"{online_count}/{len(instance_ids)}")
 
                 if online_count == len(instance_ids):
                     print("✅ All SSM agents are online")
@@ -376,10 +350,7 @@ class DRSAgentDeployer:
                 print(f"Error checking SSM status: {e}")
                 raise
 
-        print(
-            f"⚠️  Only {online_count}/{len(instance_ids)} "
-            f"SSM agents online after {max_wait}s"
-        )
+        print(f"⚠️  Only {online_count}/{len(instance_ids)} " f"SSM agents online after {max_wait}s")
         return status_map
 
     def deploy_agents(
@@ -424,9 +395,7 @@ class DRSAgentDeployer:
 
         # Check SSM status
         ssm_status = self.check_ssm_status(instance_ids)
-        online_instances = [
-            iid for iid, status in ssm_status.items() if status == "Online"
-        ]
+        online_instances = [iid for iid, status in ssm_status.items() if status == "Online"]
 
         if not online_instances:
             return {
@@ -440,12 +409,8 @@ class DRSAgentDeployer:
             }
 
         # Send SSM command to install DRS agents
-        print(
-            f"\nInstalling DRS agents on {len(online_instances)} instances..."
-        )
-        print(
-            f"Agents will replicate to staging account: {self.staging_account_id}"
-        )
+        print(f"\nInstalling DRS agents on {len(online_instances)} instances...")
+        print(f"Agents will replicate to staging account: {self.staging_account_id}")
         print(f"Target region: {self.target_region}\n")
 
         try:
@@ -515,9 +480,7 @@ class DRSAgentDeployer:
         self, command_id: str, instance_ids: List[str], timeout_seconds: int
     ) -> Dict[str, Any]:
         """Wait for SSM command completion."""
-        print(
-            f"\nWaiting for command completion (timeout: {timeout_seconds}s)..."
-        )
+        print(f"\nWaiting for command completion (timeout: {timeout_seconds}s)...")
 
         wait_interval = 20
         elapsed = 0
@@ -566,10 +529,7 @@ class DRSAgentDeployer:
                     }
 
                 # Check if any failed and none in progress
-                if (
-                    status_counts["Failed"] > 0
-                    and status_counts["InProgress"] == 0
-                ):
+                if status_counts["Failed"] > 0 and status_counts["InProgress"] == 0:
                     print(f"❌ {status_counts['Failed']} installations failed")
                     return {
                         "status": "partial_failure",
@@ -606,9 +566,7 @@ class DRSAgentDeployer:
         that agents from the source account have registered successfully.
         """
         try:
-            print(
-                f"Querying DRS in staging account {self.staging_account_id}..."
-            )
+            print(f"Querying DRS in staging account {self.staging_account_id}...")
             response = self.drs_client.describe_source_servers()
 
             servers = []
@@ -619,18 +577,14 @@ class DRSAgentDeployer:
                         "hostname": item.get("sourceProperties", {})
                         .get("identificationHints", {})
                         .get("hostname", "Unknown"),
-                        "replication_state": item.get(
-                            "dataReplicationInfo", {}
-                        ).get("dataReplicationState", "Unknown"),
-                        "last_launch_result": item.get(
-                            "lastLaunchResult", "NOT_STARTED"
+                        "replication_state": item.get("dataReplicationInfo", {}).get(
+                            "dataReplicationState", "Unknown"
                         ),
+                        "last_launch_result": item.get("lastLaunchResult", "NOT_STARTED"),
                     }
                 )
 
-            print(
-                f"✅ Found {len(servers)} DRS source servers in staging account"
-            )
+            print(f"✅ Found {len(servers)} DRS source servers in staging account")
             return servers
 
         except ClientError as e:
@@ -663,9 +617,7 @@ Duration: {result.get('duration_seconds', 0):.1f} seconds
 Timestamp: {result.get('timestamp')}
 """
 
-        sns_client.publish(
-            TopicArn=topic_arn, Subject=subject, Message=message
-        )
+        sns_client.publish(TopicArn=topic_arn, Subject=subject, Message=message)
 
         print(f"✅ Notification sent to {topic_arn}")
 

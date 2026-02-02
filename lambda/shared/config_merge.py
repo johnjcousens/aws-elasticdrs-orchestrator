@@ -11,9 +11,7 @@ Validates: Requirements 6.1, 6.2, 6.5
 from typing import Dict, Any, List
 
 
-def get_effective_launch_config(
-    protection_group: Dict[str, Any], server_id: str
-) -> Dict[str, Any]:
+def get_effective_launch_config(protection_group: Dict[str, Any], server_id: str) -> Dict[str, Any]:
     """
     Merge group defaults with server-specific overrides.
 
@@ -140,9 +138,7 @@ def get_servers_with_custom_config(
         launch_template = server.get("launchTemplate", {})
 
         # Check if server has custom config
-        has_custom_fields = any(
-            value is not None for value in launch_template.values()
-        )
+        has_custom_fields = any(value is not None for value in launch_template.values())
 
         if not use_defaults or has_custom_fields:
             custom_servers.append(server)
@@ -196,9 +192,7 @@ def get_servers_with_default_config(
         launch_template = server.get("launchTemplate", {})
 
         # Check if server uses only defaults
-        has_custom_fields = any(
-            value is not None for value in launch_template.values()
-        )
+        has_custom_fields = any(value is not None for value in launch_template.values())
 
         if use_defaults and not has_custom_fields:
             default_servers.append(server)
@@ -206,9 +200,7 @@ def get_servers_with_default_config(
     return default_servers
 
 
-def get_custom_fields(
-    protection_group: Dict[str, Any], server_id: str
-) -> List[str]:
+def get_custom_fields(protection_group: Dict[str, Any], server_id: str) -> List[str]:
     """
     Get list of field names that are customized for a server.
 

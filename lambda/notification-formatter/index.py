@@ -47,9 +47,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         Dict containing response status and details
     """
     try:
-        logger.info(
-            f"Processing notification event: {json.dumps(event, default=str)}"
-        )
+        logger.info(f"Processing notification event: {json.dumps(event, default=str)}")
 
         # Determine notification type
         notification_type = event.get("notificationType", "execution")
@@ -64,11 +62,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             logger.error(f"Unknown notification type: {notification_type}")
             return {
                 "statusCode": 400,
-                "body": json.dumps(
-                    {
-                        "error": f"Unknown notification type: {notification_type}"
-                    }
-                ),
+                "body": json.dumps({"error": f"Unknown notification type: {notification_type}"}),
             }
 
     except Exception as e:
@@ -98,9 +92,7 @@ def handle_execution_notification(event: Dict[str, Any]) -> Dict[str, Any]:
         )
 
         # Send notification
-        response = sns.publish(
-            TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message
-        )
+        response = sns.publish(TopicArn=EXECUTION_TOPIC_ARN, Subject=subject, Message=message)
 
         logger.info(f"Execution notification sent: {response['MessageId']}")
 
@@ -141,9 +133,7 @@ def handle_drs_alert_notification(event: Dict[str, Any]) -> Dict[str, Any]:
         )
 
         # Send notification
-        response = sns.publish(
-            TopicArn=DRS_ALERTS_TOPIC_ARN, Subject=subject, Message=message
-        )
+        response = sns.publish(TopicArn=DRS_ALERTS_TOPIC_ARN, Subject=subject, Message=message)
 
         logger.info(f"DRS alert notification sent: {response['MessageId']}")
 
@@ -178,9 +168,7 @@ def handle_pause_notification(event: Dict[str, Any]) -> Dict[str, Any]:
     try:
         pause_data = event.get("pauseData", {})
         execution_id = pause_data.get("executionId", "Unknown")
-        protection_group_name = pause_data.get(
-            "protectionGroupName", "Unknown"
-        )
+        protection_group_name = pause_data.get("protectionGroupName", "Unknown")
         pause_reason = pause_data.get("pauseReason", "Manual pause")
 
         # Format pause message
