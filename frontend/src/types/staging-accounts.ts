@@ -131,6 +131,18 @@ export interface RegionalCapacity {
 
   /** Replicating servers in this region */
   replicatingServers: number;
+
+  /** Maximum replicating servers allowed in this region (300 per region) */
+  maxReplicating?: number;
+
+  /** Percentage of capacity used in this region */
+  percentUsed?: number;
+
+  /** Available slots in this region */
+  availableSlots?: number;
+
+  /** Status for this region (OK, INFO, WARNING, CRITICAL, HYPER-CRITICAL) */
+  status?: CapacityStatus;
 }
 
 /**
