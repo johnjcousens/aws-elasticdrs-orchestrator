@@ -18,8 +18,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './components/cloudscape/AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { Dashboard } from './pages/Dashboard';
-import { GettingStartedPage } from './pages/GettingStartedPage';
-import { SystemStatusPage } from './pages/SystemStatusPage';
+
 import { ProtectionGroupsPage } from './pages/ProtectionGroupsPage';
 import { ExecutionsPage } from './pages/ExecutionsPage';
 import { ExecutionDetailsPage } from './pages/ExecutionDetailsPage';
@@ -55,28 +54,6 @@ function App() {
                         <ProtectedRoute>
                           <AppLayout>
                             <Dashboard />
-                          </AppLayout>
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    <Route
-                      path="/getting-started"
-                      element={
-                        <ProtectedRoute>
-                          <AppLayout>
-                            <GettingStartedPage />
-                          </AppLayout>
-                        </ProtectedRoute>
-                      }
-                    />
-                    
-                    <Route
-                      path="/system-status"
-                      element={
-                        <ProtectedRoute>
-                          <AppLayout>
-                            <SystemStatusPage />
                           </AppLayout>
                         </ProtectedRoute>
                       }

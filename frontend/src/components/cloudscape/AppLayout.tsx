@@ -61,8 +61,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const navigationItems = [
     { type: 'link', text: 'Dashboard', href: '/' },
     { type: 'divider' },
-    { type: 'link', text: 'Getting Started', href: '/getting-started' },
-    { type: 'link', text: 'System Status', href: '/system-status' },
     { type: 'link', text: 'Protection Groups', href: '/protection-groups' },
     { type: 'link', text: 'Recovery Plans', href: '/recovery-plans' },
     { type: 'link', text: 'History', href: '/executions' },
