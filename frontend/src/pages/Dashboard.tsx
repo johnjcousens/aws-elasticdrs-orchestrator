@@ -17,6 +17,8 @@ import {
   PieChart,
   Button,
   Alert,
+  Table,
+  ProgressBar,
 } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -345,15 +347,6 @@ export const Dashboard: React.FC = () => {
               header={
                 <Header
                   variant="h2"
-                  actions={
-                    <Button
-                      iconName="refresh"
-                      onClick={() => fetchCapacityData(getCurrentAccountId()!)}
-                      loading={capacityLoading}
-                    >
-                      Refresh Capacity
-                    </Button>
-                  }
                   description={
                     capacityData
                       ? `Last updated: ${new Date().toLocaleTimeString()}`
@@ -535,6 +528,186 @@ export const Dashboard: React.FC = () => {
                       </div>
                     </ColumnLayout>
                   </SpaceBetween>
+
+                  {/* Per-Account Capacity Breakdown */}
+                  {capacityData.accounts && capacityData.accounts.length > 0 && (
+                    <Container
+                      header={<Header variant="h3">Per-Account Capacity Breakdown</Header>}
+                    >
+                      <Table
+                        columnDefinitions={[
+                          {
+                            id: 'accountName',
+                            header: 'Account',
+                            cell: (item) => (
+                              <div>
+                                <div>
+                                  <strong>{item.accountName}</strong>
+                                </div>
+                                <div style={{ fontSize: '0.875rem', color: '#5f6b7a' }}>
+                                  {item.accountId}
+                                </div>
+                              </div>
+                            ),
+                            sortingField: 'accountName',
+                          },
+                          {
+                            id: 'accountType',
+                            header: 'Type',
+                            cell: (item) => (
+                              <Box
+                                variant="span"
+                                color={
+                                  item.accountType === 'target' ? 'text-status-info' : undefined
+                                }
+                              >
+                                <span style={{ textTransform: 'capitalize' }}>
+                                  {item.accountType}
+                                </span>
+                              </Box>
+                            ),
+                            sortingField: 'accountType',
+                          },
+                          {
+                            id: 'replicatingServers',
+                            header: 'Replicating Servers',
+                            cell: (item) =>
+                              `${item.replicatingServers.toLocaleString()} / ${item.maxReplicating.toLocaleString()}`,
+                            sortingField: 'replicatingServers',
+                          },
+                          {
+                            id: 'percentUsed',
+                            header: 'Percentage Used',
+                            cell: (item) => (
+                              <div>
+                                <div>{item.percentUsed.toFixed(1)}%</div>
+                                <ProgressBar
+                                  value={item.percentUsed}
+                                  status={
+                                    item.percentUsed < 67
+                                      ? 'success'
+                                      : item.percentUsed < 83
+                                        ? 'in-progress'
+                                        : 'error'
+                                  }
+                                  variant="standalone"
+                                />
+                              </div>
+                            ),
+                            sortingField: 'percentUsed',
+                          },
+                          {
+                            id: 'availableSlots',
+                            header: 'Available Slots',
+                            cell: (item) => item.availableSlots.toLocaleString(),
+                            sortingField: 'availableSlots',
+                          },
+                          {
+                            id: 'status',
+                            header: 'Status',
+                            cell: (item) => (
+                              <StatusIndicator
+                                type={
+                                  item.status === 'OK'
+                                    ? 'success'
+                                    : item.status === 'INFO'
+                                      ? 'info'
+                                      : item.status === 'WARNING'
+                                        ? 'warning'
+                                        : 'error'
+                                }
+                              >
+                                {item.status}
+                              </StatusIndicator>
+                            ),
+                            sortingField: 'status',
+                          },
+                          {
+                            id: 'regions',
+                            header: 'Regions',
+                            cell: (item) => (
+                              <div>
+                                {item.regionalBreakdown && item.regionalBreakdown.length > 0 ? (
+                                  item.regionalBreakdown.map((region, idx) => (
+                                    <div
+                                      key={region.region}
+                                      style={{
+                                        fontSize: '0.875rem',
+                                        marginBottom:
+                                          idx < item.regionalBreakdown.length - 1 ? '4px' : '0',
+                                      }}
+                                    >
+                                      <strong>{region.region}:</strong>{' '}
+                                      {region.replicatingServers.toLocaleString()} servers
+                                      {region.status && region.status !== 'OK' && (
+                                        <span style={{ marginLeft: '8px' }}>
+                                          <StatusIndicator
+                                            type={
+                                              region.status === 'INFO'
+                                                ? 'info'
+                                                : region.status === 'WARNING'
+                                                  ? 'warning'
+                                                  : 'error'
+                                            }
+                                          >
+                                            {region.status}
+                                          </StatusIndicator>
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <Box variant="small" color="text-body-secondary">
+                                    No regional data
+                                  </Box>
+                                )}
+                              </div>
+                            ),
+                          },
+                        ]}
+                        items={capacityData.accounts}
+                        sortingDisabled={false}
+                        variant="embedded"
+                        empty={
+                          <Box textAlign="center" color="inherit">
+                            <b>No accounts</b>
+                            <Box variant="p" color="inherit">
+                              No capacity data available
+                            </Box>
+                          </Box>
+                        }
+                      />
+
+                      {/* Account-specific warnings */}
+                      {capacityData.accounts.some((acc) => acc.warnings && acc.warnings.length > 0) && (
+                        <Box margin={{ top: 'm' }}>
+                          <SpaceBetween size="s">
+                            {capacityData.accounts
+                              .filter((acc) => acc.warnings && acc.warnings.length > 0)
+                              .map((acc) =>
+                                acc.warnings.map((warning, idx) => (
+                                  <Alert
+                                    key={`${acc.accountId}-${idx}`}
+                                    type={
+                                      acc.status === 'OK'
+                                        ? 'info'
+                                        : acc.status === 'INFO'
+                                          ? 'info'
+                                          : acc.status === 'WARNING'
+                                            ? 'warning'
+                                            : 'error'
+                                    }
+                                    header={`${acc.accountName} Warning`}
+                                  >
+                                    {warning}
+                                  </Alert>
+                                ))
+                              )}
+                          </SpaceBetween>
+                        </Box>
+                      )}
+                    </Container>
+                  )}
                 </SpaceBetween>
               ) : (
                 <Box textAlign="center" padding="l" color="text-body-secondary">
