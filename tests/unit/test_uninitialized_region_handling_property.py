@@ -95,6 +95,14 @@ def test_property_uninitialized_region_handling(region_status):
     3. Total count should only include initialized regions
     4. No errors should be raised for uninitialized regions
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_account_capacity
     # Create account configuration
     account_config = {
         "accountId": "111111111111",
@@ -156,8 +164,7 @@ def test_property_uninitialized_region_handling(region_status):
             return boto3.client(service, region_name=region_name, **kwargs)
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
-        with patch(
-            "index._count_drs_servers", side_effect=mock_count_drs_servers
+        with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
         ):
             # Query account capacity
             result = query_account_capacity(account_config)
@@ -215,6 +222,14 @@ def test_property_mixed_region_initialization(
     - Query should succeed
     - All regions should be attempted
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_account_capacity
     # Ensure we have enough regions
     assume(num_initialized + num_uninitialized <= len(DRS_REGIONS))
 
@@ -265,8 +280,7 @@ def test_property_mixed_region_initialization(
             return boto3.client(service, region_name=region_name, **kwargs)
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
-        with patch(
-            "index._count_drs_servers", side_effect=mock_count_drs_servers
+        with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
         ):
             result = query_account_capacity(account_config)
 
@@ -288,6 +302,14 @@ def test_property_all_regions_uninitialized(num_regions):
     - Query should still succeed
     - No error should be raised
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_account_capacity
     assume(num_regions <= len(DRS_REGIONS))
 
     selected_regions = DRS_REGIONS[:num_regions]
@@ -322,8 +344,7 @@ def test_property_all_regions_uninitialized(num_regions):
             return boto3.client(service, region_name=region_name, **kwargs)
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
-        with patch(
-            "index._count_drs_servers", side_effect=mock_count_drs_servers
+        with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
         ):
             result = query_account_capacity(account_config)
 
@@ -342,6 +363,14 @@ def test_property_all_regions_uninitialized(num_regions):
 @mock_aws
 def test_edge_case_single_region_uninitialized():
     """Edge case: Only one region, and it's uninitialized."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_account_capacity
     account_config = {
         "accountId": "111111111111",
         "accountName": "Test Account",
@@ -370,8 +399,7 @@ def test_edge_case_single_region_uninitialized():
             return boto3.client(service, region_name=region_name, **kwargs)
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
-        with patch(
-            "index._count_drs_servers", side_effect=mock_count_drs_servers
+        with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
         ):
             result = query_account_capacity(account_config)
 
@@ -382,6 +410,14 @@ def test_edge_case_single_region_uninitialized():
 @mock_aws
 def test_edge_case_alternating_initialization():
     """Edge case: Alternating initialized/uninitialized regions."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_account_capacity
     account_config = {
         "accountId": "111111111111",
         "accountName": "Test Account",
@@ -420,8 +456,7 @@ def test_edge_case_alternating_initialization():
             return boto3.client(service, region_name=region_name, **kwargs)
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
-        with patch(
-            "index._count_drs_servers", side_effect=mock_count_drs_servers
+        with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
         ):
             result = query_account_capacity(account_config)
 
@@ -434,6 +469,14 @@ def test_edge_case_alternating_initialization():
 @mock_aws
 def test_edge_case_uninitialized_with_error_message_variation():
     """Edge case: Different error message formats for uninitialized regions."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_account_capacity
     account_config = {
         "accountId": "111111111111",
         "accountName": "Test Account",
@@ -474,8 +517,7 @@ def test_edge_case_uninitialized_with_error_message_variation():
             return boto3.client(service, region_name=region_name, **kwargs)
 
     with patch("index.boto3.client", side_effect=mock_boto3_client):
-        with patch(
-            "index._count_drs_servers", side_effect=mock_count_drs_servers
+        with patch("index._count_drs_servers", side_effect=mock_count_drs_servers
         ):
             result = query_account_capacity(account_config)
 

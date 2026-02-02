@@ -126,6 +126,14 @@ def test_combined_capacity_constructs_arn_when_not_in_db(
     mock_dynamodb_table, mock_sts_client, mock_drs_client
 ):
     """Test combined capacity constructs ARN when not in DynamoDB"""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
     # Mock target account without roleArn
     mock_dynamodb_table.get_item.return_value = {
         "Item": {
@@ -141,8 +149,8 @@ def test_combined_capacity_constructs_arn_when_not_in_db(
     with patch("boto3.client") as mock_boto_client:
         mock_boto_client.return_value = mock_sts_client
 
-        with patch("index.target_accounts_table", mock_dynamodb_table):
-            with patch("index.create_drs_client") as mock_create_drs:
+        with patch.object(index, "target_accounts_table", mock_dynamodb_table):
+            with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs_client
 
                 # Mock DRS describe_source_servers to return empty
@@ -167,6 +175,14 @@ def test_combined_capacity_uses_explicit_arn_from_db(
     mock_dynamodb_table, mock_sts_client, mock_drs_client
 ):
     """Test combined capacity uses explicit roleArn from DynamoDB"""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
     custom_arn = "arn:aws:iam::123456789012:role/CustomRole"
 
     # Mock target account with explicit roleArn
@@ -184,8 +200,8 @@ def test_combined_capacity_uses_explicit_arn_from_db(
     with patch("boto3.client") as mock_boto_client:
         mock_boto_client.return_value = mock_sts_client
 
-        with patch("index.target_accounts_table", mock_dynamodb_table):
-            with patch("index.create_drs_client") as mock_create_drs:
+        with patch.object(index, "target_accounts_table", mock_dynamodb_table):
+            with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs_client
 
                 # Mock DRS describe_source_servers to return empty
@@ -233,6 +249,14 @@ def test_capacity_query_with_explicit_role_arn():
     Validates: Requirements 1.3, 2.3 (backward compatibility)
     Task: 11.1
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
     custom_arn = "arn:aws:iam::123456789012:role/CustomDRSRole"
     
     # Mock target account with explicit roleArn
@@ -262,11 +286,11 @@ def test_capacity_query_with_explicit_role_arn():
         {"items": []}
     ]
     
-    with patch("index.target_accounts_table", mock_table):
+    with patch.object(index, "target_accounts_table", mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
             
-            with patch("index.create_drs_client") as mock_create_drs:
+            with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs
                 
                 result = handle_get_combined_capacity(
@@ -290,6 +314,14 @@ def test_capacity_query_with_constructed_role_arn():
     Validates: Requirements 1.2, 2.2 (ARN construction)
     Task: 11.2
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
     # Mock target account without roleArn
     mock_table = MagicMock()
     mock_table.get_item.return_value = {
@@ -317,11 +349,11 @@ def test_capacity_query_with_constructed_role_arn():
         {"items": []}
     ]
     
-    with patch("index.target_accounts_table", mock_table):
+    with patch.object(index, "target_accounts_table", mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
             
-            with patch("index.create_drs_client") as mock_create_drs:
+            with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs
                 
                 result = handle_get_combined_capacity(
@@ -348,11 +380,19 @@ def test_capacity_query_missing_account():
     Validates: Error handling for non-existent accounts
     Task: 11.3
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
     # Mock DynamoDB returning no item
     mock_table = MagicMock()
     mock_table.get_item.return_value = {}  # No Item key
     
-    with patch("index.target_accounts_table", mock_table):
+    with patch.object(index, "target_accounts_table", mock_table):
         result = handle_get_combined_capacity(
             {"targetAccountId": "999999999999"}
         )
@@ -416,6 +456,14 @@ def test_capacity_query_drs_api_mocked():
     - Calls AWS APIs (STS, DRS) with proper mocking
     - Returns properly structured response
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
     # Mock target account
     mock_table = MagicMock()
     mock_table.get_item.return_value = {
@@ -468,11 +516,11 @@ def test_capacity_query_drs_api_mocked():
     ]
     mock_drs.get_paginator.return_value = mock_paginator
     
-    with patch("index.target_accounts_table", mock_table):
+    with patch.object(index, "target_accounts_table", mock_table):
         with patch("boto3.client") as mock_boto_client:
             mock_boto_client.return_value = mock_sts
             
-            with patch("index.create_drs_client") as mock_create_drs:
+            with patch.object(index, "create_drs_client") as mock_create_drs:
                 mock_create_drs.return_value = mock_drs
                 
                 result = handle_get_combined_capacity(

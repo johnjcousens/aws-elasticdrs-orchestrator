@@ -41,6 +41,34 @@ def test_combined_capacity_no_staging_accounts():
     - Combined metrics reflect single account
     - Recovery capacity calculated correctly
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    
     target_account_id = "111122223333"
 
     # Target account with NO staging accounts
@@ -51,10 +79,9 @@ def test_combined_capacity_no_staging_accounts():
         "externalId": f"test-external-id-{target_account_id}",
         "stagingAccounts": [],  # Empty list
     }
-
-    # Mock DynamoDB table
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {"Item": target_account}
+    
+    # Put the target account in the table
+    table.put_item(Item=target_account)
 
     # Mock query_all_accounts_parallel
     def mock_query_all_accounts(target, staging_list):
@@ -78,13 +105,8 @@ def test_combined_capacity_no_staging_accounts():
             }
         ]
 
-    with (
-        patch("index.target_accounts_table", mock_table),
-        patch(
-            "index.query_all_accounts_parallel",
-            side_effect=mock_query_all_accounts,
-        ),
-    ):
+    with patch.object(index, "target_accounts_table", table), \
+         patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts):
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
         )
@@ -119,6 +141,33 @@ def test_combined_capacity_multiple_staging_accounts():
     - Combined metrics aggregate correctly
     - Per-account status calculated correctly
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
     target_account_id = "111122223333"
 
     # Target account with 3 staging accounts
@@ -150,8 +199,8 @@ def test_combined_capacity_multiple_staging_accounts():
     }
 
     # Mock DynamoDB table
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {"Item": target_account}
+    # Table created above
+    table.put_item(Item=target_account)
 
     # Mock query_all_accounts_parallel
     def mock_query_all_accounts(target, staging_list):
@@ -223,9 +272,8 @@ def test_combined_capacity_multiple_staging_accounts():
         ]
 
     with (
-        patch("index.target_accounts_table", mock_table),
-        patch(
-            "index.query_all_accounts_parallel",
+        patch.object(index, "target_accounts_table", table),
+        patch.object(index, "query_all_accounts_parallel",
             side_effect=mock_query_all_accounts,
         ),
     ):
@@ -279,6 +327,33 @@ def test_combined_capacity_one_staging_account_inaccessible():
     - Inaccessible account marked with error
     - Combined metrics exclude inaccessible account
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
     target_account_id = "111122223333"
 
     # Target account with 2 staging accounts
@@ -304,8 +379,8 @@ def test_combined_capacity_one_staging_account_inaccessible():
     }
 
     # Mock DynamoDB table
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {"Item": target_account}
+    # Table created above
+    table.put_item(Item=target_account)
 
     # Mock query_all_accounts_parallel
     def mock_query_all_accounts(target, staging_list):
@@ -354,9 +429,8 @@ def test_combined_capacity_one_staging_account_inaccessible():
         ]
 
     with (
-        patch("index.target_accounts_table", mock_table),
-        patch(
-            "index.query_all_accounts_parallel",
+        patch.object(index, "target_accounts_table", table),
+        patch.object(index, "query_all_accounts_parallel",
             side_effect=mock_query_all_accounts,
         ),
     ):
@@ -394,6 +468,33 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
     - Combined metrics reflect only target account
     - All staging accounts marked as inaccessible
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
     target_account_id = "111122223333"
 
     # Target account with 2 staging accounts
@@ -419,8 +520,8 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
     }
 
     # Mock DynamoDB table
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {"Item": target_account}
+    # Table created above
+    table.put_item(Item=target_account)
 
     # Mock query_all_accounts_parallel
     def mock_query_all_accounts(target, staging_list):
@@ -465,9 +566,8 @@ def test_combined_capacity_all_staging_accounts_inaccessible():
         ]
 
     with (
-        patch("index.target_accounts_table", mock_table),
-        patch(
-            "index.query_all_accounts_parallel",
+        patch.object(index, "target_accounts_table", table),
+        patch.object(index, "query_all_accounts_parallel",
             side_effect=mock_query_all_accounts,
         ),
     ):
@@ -527,13 +627,38 @@ def test_combined_capacity_invalid_account_id_format():
 @mock_aws
 def test_combined_capacity_target_account_not_found():
     """Test error handling when target account doesn't exist in DynamoDB."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
     target_account_id = "999999999999"
 
-    # Mock DynamoDB table - account not found
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {}  # No Item
+    # Don't put any item in the table - simulating account not found
 
-    with patch("index.target_accounts_table", mock_table):
+    with patch.object(index, "target_accounts_table", table):
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
         )
