@@ -665,14 +665,21 @@ export const Dashboard: React.FC = () => {
                                 <Box variant="h4" padding={{ bottom: 's' }}>
                                   Regional Breakdown
                                 </Box>
-                                <ColumnLayout columns={3} variant="text-grid">
+                                <ColumnLayout columns={4} variant="text-grid">
                                   {expandedItem.regionalBreakdown
                                     .filter((region: any) => region.replicatingServers > 0)
                                     .map((region: any) => (
-                                      <Container key={region.region}>
-                                        <SpaceBetween size="xs">
+                                      <div key={region.region}>
+                                        <SpaceBetween size="xxs">
                                           <Box>
                                             <strong>{region.region}</strong>
+                                            <Box variant="small" color="text-body-secondary" display="inline" margin={{ left: 'xs' }}>
+                                              {(region.percentUsed || 0) < 67
+                                                ? '✓'
+                                                : (region.percentUsed || 0) < 83
+                                                  ? '⚠'
+                                                  : '✗'}
+                                            </Box>
                                           </Box>
                                           <Box variant="small">
                                             {region.replicatingServers.toLocaleString()} / {region.maxReplicating?.toLocaleString() || '300'} servers
@@ -688,15 +695,8 @@ export const Dashboard: React.FC = () => {
                                             }
                                             variant="standalone"
                                           />
-                                          <Box variant="small" color="text-body-secondary">
-                                            {(region.percentUsed || 0) < 67
-                                              ? 'Healthy'
-                                              : (region.percentUsed || 0) < 83
-                                                ? 'Moderate'
-                                                : 'High usage'}
-                                          </Box>
                                         </SpaceBetween>
-                                      </Container>
+                                      </div>
                                     ))}
                                 </ColumnLayout>
                               </div>
@@ -801,14 +801,21 @@ export const Dashboard: React.FC = () => {
                                     <Box variant="h5" padding={{ bottom: 's' }}>
                                       Regional Breakdown - {stagingItem.accountName}
                                     </Box>
-                                    <ColumnLayout columns={3} variant="text-grid">
+                                    <ColumnLayout columns={4} variant="text-grid">
                                       {stagingItem.regionalBreakdown
                                         ?.filter((region: any) => region.replicatingServers > 0)
                                         .map((region: any) => (
-                                          <Container key={region.region}>
-                                            <SpaceBetween size="xs">
+                                          <div key={region.region}>
+                                            <SpaceBetween size="xxs">
                                               <Box>
                                                 <strong>{region.region}</strong>
+                                                <Box variant="small" color="text-body-secondary" display="inline" margin={{ left: 'xs' }}>
+                                                  {(region.percentUsed || 0) < 67
+                                                    ? '✓'
+                                                    : (region.percentUsed || 0) < 83
+                                                      ? '⚠'
+                                                      : '✗'}
+                                                </Box>
                                               </Box>
                                               <Box variant="small">
                                                 {region.replicatingServers.toLocaleString()} / {region.maxReplicating?.toLocaleString() || '300'} servers
@@ -824,15 +831,8 @@ export const Dashboard: React.FC = () => {
                                                 }
                                                 variant="standalone"
                                               />
-                                              <Box variant="small" color="text-body-secondary">
-                                                {(region.percentUsed || 0) < 67
-                                                  ? 'Healthy'
-                                                  : (region.percentUsed || 0) < 83
-                                                    ? 'Moderate'
-                                                    : 'High usage'}
-                                              </Box>
                                             </SpaceBetween>
-                                          </Container>
+                                          </div>
                                         ))}
                                     </ColumnLayout>
                                   </Container>
