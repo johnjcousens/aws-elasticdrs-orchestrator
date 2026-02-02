@@ -215,3 +215,95 @@ Deploy using the standard workflow:
 ```
 
 This will rebuild and deploy the frontend with the refresh fixes.
+
+## Verification Results (2026-02-02)
+
+### Backend Data Fixed
+
+The root cause was **backend data issue** - the staging account changes weren't properly saved to DynamoDB.
+
+**Actions Taken:**
+1. ✅ Added new staging account **DEMO_ONPREM777788889999** (777788889999) to target account 111122223333
+2. ✅ Removed old staging account **DEMO_STAGING** (444455556666) from target account 111122223333
+
+**Current DynamoDB State:**
+```json
+{
+  "targetAccountId": "111122223333",
+  "accountName": "DEMO_TARGET",
+  "stagingAccounts": [
+    {
+      "accountId": "777788889999",
+      "accountName": "DEMO_ONPREM777788889999",
+      "roleArn": "arn:aws:iam::777788889999:role/DRSOrchestrationRole",
+      "externalId": "drs-orchestration-777788889999",
+      "addedAt": "2026-02-02T22:21:01.653131+00:00Z",
+      "addedBy": "user"
+    }
+  ]
+}
+```
+
+**DRS Extended Source Servers Verification:**
+All 6 extended source servers in us-west-2 are now using staging account **777788889999**:
+- s-57eae3bdae1f0179b (EC2AMAZ-4IMB9PN)
+- s-5d4ac077408e03d02 (EC2AMAZ-RLP9U5V)
+- s-51b12197c9ad51796 (EC2AMAZ-FQTJG64)
+- s-5269b54cb5881e759 (EC2AMAZ-8B7IRHJ)
+- s-569b0c7877c6b6e29 (EC2AMAZ-H0JBE4J)
+- s-5c98c830e6c5e5fea (EC2AMAZ-3B0B3UD)
+
+### Frontend Refresh Verification
+
+**What to Test:**
+1. Log into the dashboard at https://d319nadlgk4oj.cloudfront.net
+2. Select target account **111122223333** (DEMO_TARGET)
+3. Verify the dashboard shows:
+   - New staging account: **DEMO_ONPREM777788889999** (777788889999)
+   - Old staging account **DEMO_STAGING** should NOT appear
+4. Open the Target Account Settings modal
+5. Verify the "Connected Staging Accounts" section shows:
+   - Only **DEMO_ONPREM777788889999** (777788889999)
+   - Count should be (1)
+
+**Expected Behavior:**
+- ✅ Dashboard automatically shows new staging account
+- ✅ Settings modal fetches fresh data when opened
+- ✅ No page refresh required
+- ✅ All capacity gauges reflect the new staging account
+
+### API Commands Used
+
+```bash
+# Add new staging account
+aws lambda invoke \
+  --function-name aws-drs-orchestration-data-management-handler-test \
+  --payload '{
+    "operation": "add_staging_account",
+    "body": {
+      "targetAccountId": "111122223333",
+      "stagingAccount": {
+        "accountId": "777788889999",
+        "accountName": "DEMO_ONPREM777788889999",
+        "roleArn": "arn:aws:iam::777788889999:role/DRSOrchestrationRole",
+        "externalId": "drs-orchestration-777788889999"
+      }
+    }
+  }' response.json
+
+# Remove old staging account
+aws lambda invoke \
+  --function-name aws-drs-orchestration-data-management-handler-test \
+  --payload '{
+    "operation": "remove_staging_account",
+    "body": {
+      "targetAccountId": "111122223333",
+      "stagingAccountId": "444455556666"
+    }
+  }' response.json
+
+# Verify current state
+aws dynamodb get-item \
+  --table-name aws-drs-orchestration-target-accounts-test \
+  --key '{"accountId": {"S": "111122223333"}}'
+```
