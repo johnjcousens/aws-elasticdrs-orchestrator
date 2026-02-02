@@ -84,6 +84,7 @@ export const Dashboard: React.FC = () => {
   const [capacityLoading, setCapacityLoading] = useState(false);
   const [capacityError, setCapacityError] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<any[]>([]);
+  const [expandedStagingItems, setExpandedStagingItems] = useState<any[]>([]);
 
   // Open settings modal if no accounts configured
   useEffect(() => {
@@ -748,15 +749,88 @@ export const Dashboard: React.FC = () => {
                                         </StatusIndicator>
                                       ),
                                     },
+                                    {
+                                      id: 'regions',
+                                      header: 'Regions',
+                                      cell: (item) => {
+                                        const activeRegions = item.regionalBreakdown?.filter(
+                                          (r: any) => r.replicatingServers > 0
+                                        ) || [];
+                                        return (
+                                          <Box variant="span" color="text-body-secondary">
+                                            {activeRegions.length > 0
+                                              ? `${activeRegions.length} active region${activeRegions.length !== 1 ? 's' : ''}`
+                                              : 'No active regions'}
+                                          </Box>
+                                        );
+                                      },
+                                    },
                                   ]}
                                   items={capacityData.accounts.filter((acc) => acc.accountType === 'staging')}
                                   variant="embedded"
+                                  expandableRows={{
+                                    getItemChildren: (item) => [],
+                                    isItemExpandable: (item) => {
+                                      const activeRegions = item.regionalBreakdown?.filter(
+                                        (r: any) => r.replicatingServers > 0
+                                      ) || [];
+                                      return activeRegions.length > 0;
+                                    },
+                                    expandedItems: expandedStagingItems,
+                                    onExpandableItemToggle: (event) => {
+                                      const items = event.detail.item ? [event.detail.item] : [];
+                                      setExpandedStagingItems(items);
+                                    },
+                                  }}
                                   empty={
                                     <Box textAlign="center" color="inherit">
                                       No staging accounts
                                     </Box>
                                   }
                                 />
+                                
+                                {/* Staging Account Regional Breakdown */}
+                                {expandedStagingItems.length > 0 && expandedStagingItems.map((stagingItem) => (
+                                  <Container key={`staging-${stagingItem.accountId}`}>
+                                    <Box variant="h5" padding={{ bottom: 's' }}>
+                                      Regional Breakdown - {stagingItem.accountName}
+                                    </Box>
+                                    <ColumnLayout columns={3} variant="text-grid">
+                                      {stagingItem.regionalBreakdown
+                                        ?.filter((region: any) => region.replicatingServers > 0)
+                                        .map((region: any) => (
+                                          <Container key={region.region}>
+                                            <SpaceBetween size="xs">
+                                              <Box>
+                                                <strong>{region.region}</strong>
+                                              </Box>
+                                              <Box variant="small">
+                                                {region.replicatingServers.toLocaleString()} / {region.maxReplicating?.toLocaleString() || '300'} servers
+                                              </Box>
+                                              <ProgressBar
+                                                value={region.percentUsed || 0}
+                                                status={
+                                                  (region.percentUsed || 0) < 67
+                                                    ? 'success'
+                                                    : (region.percentUsed || 0) < 83
+                                                      ? 'in-progress'
+                                                      : 'error'
+                                                }
+                                                variant="standalone"
+                                              />
+                                              <Box variant="small" color="text-body-secondary">
+                                                {(region.percentUsed || 0) < 67
+                                                  ? 'Healthy'
+                                                  : (region.percentUsed || 0) < 83
+                                                    ? 'Moderate'
+                                                    : 'High usage'}
+                                              </Box>
+                                            </SpaceBetween>
+                                          </Container>
+                                        ))}
+                                    </ColumnLayout>
+                                  </Container>
+                                ))}
                               </div>
                             )}
                           </SpaceBetween>
