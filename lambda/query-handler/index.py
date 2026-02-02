@@ -3308,12 +3308,12 @@ def calculate_recovery_capacity(target_account_servers: int) -> Dict:
     - CRITICAL: > 3,600 servers (> 90%)
 
     Args:
-        target_account_servers: Number of replicating servers in target
-            account only
+        target_account_servers: Total number of servers in target account
+            (includes both replicating and extended source servers)
 
     Returns:
         Dictionary containing:
-        - currentServers: Number of servers in target account
+        - currentServers: Total servers in target account
         - maxRecoveryInstances: Maximum recovery instances (4,000)
         - percentUsed: Percentage of recovery capacity used
         - availableSlots: Available recovery slots
@@ -3684,13 +3684,12 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         )
 
         if target_account_result:
-            target_replicating = target_account_result.get(
-                "replicatingServers", 0
-            )
+            # Use totalServers (replicating + extended) for recovery capacity
+            target_total_servers = target_account_result.get("totalServers", 0)
         else:
-            target_replicating = 0
+            target_total_servers = 0
 
-        recovery_capacity = calculate_recovery_capacity(target_replicating)
+        recovery_capacity = calculate_recovery_capacity(target_total_servers)
 
         # Step 7.5: Get concurrent jobs and servers in jobs metrics
         # Query DRS jobs in target account's primary region (us-west-2)

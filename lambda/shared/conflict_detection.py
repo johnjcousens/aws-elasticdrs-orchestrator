@@ -526,11 +526,182 @@ def get_servers_in_active_executions() -> Dict[str, Dict]:  # noqa: C901
     return servers_in_use
 
 
+def check_concurrent_jobs_limit(
+    region: str, account_context: Optional[Dict] = None
+) -> Dict:
+    """
+    Check if starting a new job would exceed 20 concurrent jobs limit.
+
+    DRS Service Quota: Max 20 concurrent jobs in progress (not adjustable)
+
+    Args:
+        region: AWS region to check
+        account_context: Optional cross-account context
+
+    Returns:
+        Dict with:
+        - canStartJob: Boolean, True if < 20 active jobs
+        - currentJobs: Number of active jobs
+        - maxJobs: 20 (DRS limit)
+        - availableSlots: Remaining job slots
+        - activeJobIds: List of active job IDs
+    """
+    try:
+        drs_client = create_drs_client(region, account_context)
+        jobs_response = drs_client.describe_jobs(maxResults=100)
+
+        active_jobs = [
+            j
+            for j in jobs_response.get("items", [])
+            if j.get("status") in DRS_ACTIVE_JOB_STATUSES
+        ]
+
+        current_count = len(active_jobs)
+        max_jobs = 20
+
+        return {
+            "canStartJob": current_count < max_jobs,
+            "currentJobs": current_count,
+            "maxJobs": max_jobs,
+            "availableSlots": max_jobs - current_count,
+            "activeJobIds": [j.get("jobID") for j in active_jobs],
+        }
+
+    except Exception as e:
+        print(f"Error checking concurrent jobs limit in {region}: {e}")
+        # Return permissive result on error
+        return {
+            "canStartJob": True,
+            "currentJobs": 0,
+            "maxJobs": 20,
+            "availableSlots": 20,
+            "error": str(e),
+        }
+
+
+def validate_wave_server_count(
+    wave: Dict, pg_cache: Dict, account_context: Optional[Dict] = None
+) -> Dict:
+    """
+    Validate wave doesn't exceed 100 servers per job limit.
+
+    DRS Service Quota: Max 100 source servers in a single job (not adjustable)
+
+    Args:
+        wave: Wave dict with protectionGroupId
+        pg_cache: Cache for Protection Group server resolution
+        account_context: Optional cross-account context
+
+    Returns:
+        Dict with:
+        - valid: Boolean, True if ≤ 100 servers
+        - serverCount: Number of servers in wave
+        - maxServers: 100 (DRS limit)
+        - message: Validation message
+    """
+    try:
+        pg_id = (
+            wave.get("protectionGroupId")
+            or (wave.get("protectionGroupIds", []) or [None])[0]
+        )
+
+        if not pg_id:
+            return {
+                "valid": True,
+                "serverCount": 0,
+                "maxServers": 100,
+                "message": "No Protection Group specified",
+            }
+
+        server_ids = resolve_pg_servers_for_conflict_check(
+            pg_id, pg_cache, account_context
+        )
+        server_count = len(server_ids)
+        max_servers = 100
+
+        return {
+            "valid": server_count <= max_servers,
+            "serverCount": server_count,
+            "maxServers": max_servers,
+            "message": (
+                f"Wave has {server_count} servers"
+                if server_count <= max_servers
+                else f"Wave has {server_count} servers (exceeds max {max_servers})"
+            ),
+        }
+
+    except Exception as e:
+        print(f"Error validating wave server count: {e}")
+        return {
+            "valid": False,
+            "serverCount": 0,
+            "maxServers": 100,
+            "message": f"Error validating: {str(e)}",
+            "error": str(e),
+        }
+
+
+def check_total_servers_in_jobs_limit(
+    region: str,
+    new_server_count: int,
+    account_context: Optional[Dict] = None,
+) -> Dict:
+    """
+    Check if adding servers would exceed 500 total servers in jobs limit.
+
+    DRS Service Quota: Max 500 source servers across all jobs (not adjustable)
+
+    Args:
+        region: AWS region to check
+        new_server_count: Number of servers to add
+        account_context: Optional cross-account context
+
+    Returns:
+        Dict with:
+        - valid: Boolean, True if total ≤ 500
+        - currentServers: Servers in active jobs now
+        - newServers: Servers to add
+        - totalAfter: Total after adding new servers
+        - maxServers: 500 (DRS limit)
+        - availableSlots: Remaining capacity
+    """
+    try:
+        servers_in_jobs = get_servers_in_active_drs_jobs(
+            region, account_context
+        )
+        current_total = len(servers_in_jobs)
+        total_after = current_total + new_server_count
+        max_servers = 500
+
+        return {
+            "valid": total_after <= max_servers,
+            "currentServers": current_total,
+            "newServers": new_server_count,
+            "totalAfter": total_after,
+            "maxServers": max_servers,
+            "availableSlots": max_servers - current_total,
+        }
+
+    except Exception as e:
+        print(f"Error checking total servers in jobs limit in {region}: {e}")
+        # Return permissive result on error
+        return {
+            "valid": True,
+            "currentServers": 0,
+            "newServers": new_server_count,
+            "totalAfter": new_server_count,
+            "maxServers": 500,
+            "availableSlots": 500,
+            "error": str(e),
+        }
+
+
 def check_server_conflicts(
     plan: Dict, account_context: Optional[Dict] = None
 ) -> List[Dict]:
     """
     Validate no servers in Recovery Plan are in active executions or DRS jobs.
+    Also validates DRS job-level quotas (20 concurrent, 100 per job, 500 total).
 
     DUAL-SOURCE VALIDATION:
     1. DynamoDB execution records (fast, may be slightly stale)
@@ -539,6 +710,11 @@ def check_server_conflicts(
     2. Live DRS API job queries (authoritative, real-time)
        - Queries DescribeJobs for PENDING, STARTED jobs
        - Detects jobs started outside orchestration
+
+    DRS JOB QUOTA VALIDATION:
+    3. Concurrent jobs limit (20 max)
+    4. Servers per job limit (100 max per wave)
+    5. Total servers in jobs limit (500 max across all jobs)
 
     WHY DUAL-SOURCE: DynamoDB may be stale if job started externally.
     DRS API is authoritative but slower. Checking both ensures accuracy.
@@ -556,7 +732,8 @@ def check_server_conflicts(
                 "message": f"{len(conflicts)} server(s) in use",
                 "conflicts": conflicts,
                 "conflictingExecutions": [...],
-                "conflictingDrsJobs": [...]
+                "conflictingDrsJobs": [...],
+                "quotaViolations": [...]
             })
 
     Args:
@@ -568,12 +745,14 @@ def check_server_conflicts(
         [
             {
                 "serverId": "s-123",
-                "conflictSource": "execution",  # or "drs_job"
+                "conflictSource": "execution",  # or "drs_job" or "quota_violation"
                 "conflictingExecutionId": "uuid",
                 "conflictingPlanId": "uuid",
                 "conflictingWave": "DatabaseWave",
                 "conflictingJobId": "job-456",  # if drs_job source
-                "conflictingJobStatus": "STARTED"  # if drs_job source
+                "conflictingJobStatus": "STARTED",  # if drs_job source
+                "quotaType": "concurrent_jobs",  # if quota_violation
+                "quotaMessage": "..."  # if quota_violation
             }
         ]
     """
@@ -591,6 +770,10 @@ def check_server_conflicts(
     pg_cache = {}
     checked_regions = set()
     drs_servers_by_region = {}
+    quota_violations = []
+
+    # Calculate total servers across all waves for quota validation
+    total_plan_servers = 0
 
     for wave in plan.get("waves", []):
         wave_name = wave.get("waveName", "Unknown")
@@ -604,24 +787,66 @@ def check_server_conflicts(
 
         if pg_id:
             # Get PG to find region
-            if pg_id not in pg_cache:
-                try:
-                    pg_result = protection_groups_table.get_item(
-                        Key={"groupId": pg_id}
-                    )
-                    pg_cache[pg_id] = pg_result.get("Item", {})
-                except Exception as e:
-                    print(f"[Conflict Check] Error fetching PG {pg_id}: {e}")
-                    pg_cache[pg_id] = {}
+            pg_metadata = {}
+            try:
+                pg_result = protection_groups_table.get_item(
+                    Key={"groupId": pg_id}
+                )
+                pg_metadata = pg_result.get("Item", {})
+            except Exception as e:
+                print(f"[Conflict Check] Error fetching PG {pg_id}: {e}")
 
-            pg = pg_cache.get(pg_id, {})
-            region = pg.get("region", "us-east-1")
+            region = pg_metadata.get("region", "us-east-1")
             print(f"[Conflict Check] PG {pg_id} is in region {region}")
+
+            # QUOTA CHECK 1: Validate wave doesn't exceed 100 servers per job
+            wave_validation = validate_wave_server_count(
+                wave, pg_cache, account_context
+            )
+            if not wave_validation["valid"]:
+                print(
+                    f"[Conflict Check] Wave '{wave_name}' exceeds 100 servers per job limit"
+                )
+                quota_violations.append(
+                    {
+                        "quotaType": "servers_per_job",
+                        "waveName": wave_name,
+                        "serverCount": wave_validation["serverCount"],
+                        "maxServers": wave_validation["maxServers"],
+                        "message": wave_validation["message"],
+                        "conflictSource": "quota_violation",
+                    }
+                )
+
+            # Accumulate total servers for cross-wave quota check
+            total_plan_servers += wave_validation.get("serverCount", 0)
 
             # Check DRS jobs for this region (once per region)
             if region not in checked_regions:
                 checked_regions.add(region)
                 print(f"[Conflict Check] Checking DRS jobs in region {region}")
+
+                # QUOTA CHECK 2: Check concurrent jobs limit (20 max)
+                concurrent_jobs_check = check_concurrent_jobs_limit(
+                    region, account_context
+                )
+                if not concurrent_jobs_check["canStartJob"]:
+                    print(
+                        f"[Conflict Check] Region {region} at concurrent jobs limit"
+                    )
+                    quota_violations.append(
+                        {
+                            "quotaType": "concurrent_jobs",
+                            "region": region,
+                            "currentJobs": concurrent_jobs_check[
+                                "currentJobs"
+                            ],
+                            "maxJobs": concurrent_jobs_check["maxJobs"],
+                            "message": f"Cannot start new job - {concurrent_jobs_check['currentJobs']}/20 concurrent jobs active",
+                            "conflictSource": "quota_violation",
+                        }
+                    )
+
                 drs_servers_by_region[region] = get_servers_in_active_drs_jobs(
                     region, account_context
                 )
@@ -630,7 +855,9 @@ def check_server_conflicts(
                 )
 
             # Resolve servers from Protection Group tags
-            server_ids = resolve_pg_servers_for_conflict_check(pg_id, pg_cache)
+            server_ids = resolve_pg_servers_for_conflict_check(
+                pg_id, pg_cache, account_context
+            )
             print(
                 f"[Conflict Check] Resolved {len(server_ids)} servers from PG {pg_id}: {server_ids}"
             )
@@ -678,8 +905,36 @@ def check_server_conflicts(
                         }
                     )
 
-    print(f"[Conflict Check] Total conflicts found: {len(conflicts)}")
-    return conflicts
+    # QUOTA CHECK 3: Validate total servers across all jobs doesn't exceed 500
+    # Check each region that was touched
+    for region in checked_regions:
+        total_servers_check = check_total_servers_in_jobs_limit(
+            region, total_plan_servers, account_context
+        )
+        if not total_servers_check["valid"]:
+            print(
+                f"[Conflict Check] Region {region} would exceed 500 total servers in jobs"
+            )
+            quota_violations.append(
+                {
+                    "quotaType": "total_servers_in_jobs",
+                    "region": region,
+                    "currentServers": total_servers_check["currentServers"],
+                    "newServers": total_servers_check["newServers"],
+                    "totalAfter": total_servers_check["totalAfter"],
+                    "maxServers": total_servers_check["maxServers"],
+                    "message": f"Would exceed 500 servers in jobs ({total_servers_check['totalAfter']}/500)",
+                    "conflictSource": "quota_violation",
+                }
+            )
+
+    # Combine server conflicts and quota violations
+    all_conflicts = conflicts + quota_violations
+
+    print(
+        f"[Conflict Check] Total conflicts found: {len(conflicts)}, quota violations: {len(quota_violations)}"
+    )
+    return all_conflicts
 
 
 def check_server_conflicts_for_create(server_ids: List[str]) -> List[Dict]:
