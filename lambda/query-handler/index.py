@@ -3690,6 +3690,11 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
             target_total_servers = 0
 
         recovery_capacity = calculate_recovery_capacity(target_total_servers)
+        print(
+            f"Recovery capacity calculated: {recovery_capacity.get('currentServers')}/"
+            f"{recovery_capacity.get('maxRecoveryInstances')} "
+            f"(using totalServers={target_total_servers})"
+        )
 
         # Step 7.5: Get concurrent jobs and servers in jobs metrics
         # Query DRS jobs in target account's primary region (us-west-2)
