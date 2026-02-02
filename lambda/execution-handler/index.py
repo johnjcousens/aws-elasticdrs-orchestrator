@@ -5154,7 +5154,7 @@ def get_server_details_map(server_ids: List[str], region: str = "us-east-1") -> 
                 # PERFORMANCE: Batch EC2 describe calls (max 1000 instances per call)
                 batch_size = 200  # Conservative batch size
                 for i in range(0, len(source_instance_ids), batch_size):
-                    batch_ids = source_instance_ids[i: i + batch_size]
+                    batch_ids = source_instance_ids[i : i + batch_size]
 
                     try:
                         ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
@@ -5264,7 +5264,7 @@ def get_recovery_instances_for_wave(wave: Dict, server_ids: List[str]) -> Dict[s
                 # PERFORMANCE: Batch EC2 calls for better efficiency
                 batch_size = 100  # EC2 describe_instances supports up to 1000
                 for i in range(0, len(instance_ids), batch_size):
-                    batch_ids = instance_ids[i: i + batch_size]
+                    batch_ids = instance_ids[i : i + batch_size]
 
                     try:
                         ec2_response = ec2_client.describe_instances(InstanceIds=batch_ids)
