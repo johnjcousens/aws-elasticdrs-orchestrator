@@ -22,15 +22,20 @@ import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError
 from moto import mock_aws
 
-# Add query-handler to path (conftest.py adds shared)
-sys.path.insert(
-    0, str(Path(__file__).parent.parent.parent / "lambda" / "query-handler")
-)
-
 # Set environment variables before importing
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
 os.environ["PROTECTION_GROUPS_TABLE"] = "test-protection-groups-table"
 os.environ["RECOVERY_PLANS_TABLE"] = "test-recovery-plans-table"
+
+# Clear any existing index module to avoid conflicts
+if "index" in sys.modules:
+    del sys.modules["index"]
+
+# Add query-handler to path - query-handler FIRST
+query_handler_dir = (
+    Path(__file__).parent.parent.parent / "lambda" / "query-handler"
+)
+sys.path.insert(0, str(query_handler_dir))
 
 from index import handle_validate_staging_account
 
