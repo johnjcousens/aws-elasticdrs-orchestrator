@@ -98,8 +98,6 @@ export const SystemStatusPage: React.FC = () => {
     try {
       setCapacityLoading(true);
       const data = await getCombinedCapacity(accountId, true);
-      console.log('Capacity data received:', data);
-      console.log('maxServersPerJob field:', data.maxServersPerJob);
       setCapacityData(data);
       setLastRefresh(new Date());
     } catch (err) {
