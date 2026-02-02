@@ -118,6 +118,15 @@ def test_property_failed_account_resilience(scenario):
     4. Query should return results for all accounts (failed + successful)
     5. Total number of results should equal total number of accounts
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account, staging_accounts, failed_account_ids = scenario
     
     def mock_query_account_capacity(account_config):
@@ -150,10 +159,7 @@ def test_property_failed_account_resilience(scenario):
                 "accessible": True,
             }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
     
     # Property 1: Should return results for all accounts
@@ -218,6 +224,15 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
     - Return results for all accounts
     - Not raise exceptions
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     assume(num_failed < num_staging)  # At least one account succeeds
     
     # Generate unique account IDs
@@ -268,10 +283,7 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
                 "accessible": True,
             }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
     
     # Verify all accounts returned results
@@ -298,6 +310,15 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
     - Target should be accessible
     - All staging accounts should be inaccessible
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     account_ids = [f"{i:012d}" for i in range(num_staging + 1)]
     
     target_account = {
@@ -345,10 +366,7 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
                 "error": "Access Denied"
             }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
     
     # Verify all accounts returned results
@@ -374,6 +392,15 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
 @mock_aws
 def test_edge_case_target_fails_all_staging_succeed():
     """Edge case: Target account fails, all staging accounts succeed."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
@@ -424,10 +451,7 @@ def test_edge_case_target_fails_all_staging_succeed():
                 "accessible": True,
             }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
     
     assert len(results) == 3
@@ -446,6 +470,15 @@ def test_edge_case_target_fails_all_staging_succeed():
 @mock_aws
 def test_edge_case_different_error_types():
     """Edge case: Different types of errors for different accounts."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
@@ -525,10 +558,7 @@ def test_edge_case_different_error_types():
                 "error": "Network timeout"
             }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
     
     assert len(results) == 4

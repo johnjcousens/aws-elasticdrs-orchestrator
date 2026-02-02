@@ -22,23 +22,17 @@ from hypothesis import given, settings, strategies as st
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
 os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
 
-# Clear any existing index module to avoid conflicts
-if "index" in sys.modules:
-    del sys.modules["index"]
-
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
-from index import handle_get_combined_capacity
 
-
+@mock_aws
 @settings(max_examples=100, deadline=2000)  # 2 second deadline for jobs metrics query
 @given(
     target_servers=st.integers(min_value=0, max_value=300),
     has_staging_accounts_attr=st.booleans(),
 )
-@mock_aws
 def test_property_13_empty_staging_accounts_default(
     target_servers, has_staging_accounts_attr
 ):
@@ -50,6 +44,34 @@ def test_property_13_empty_staging_accounts_default(
 
     **Validates: Requirements 8.5**
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    
     # Mock target account ID
     target_account_id = "111122223333"
 
@@ -65,10 +87,9 @@ def test_property_13_empty_staging_accounts_default(
     if has_staging_accounts_attr:
         # When attribute exists, it could be empty list or have accounts
         target_account["stagingAccounts"] = []
-
-    # Mock DynamoDB table
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {"Item": target_account}
+    
+    # Put the target account in the table
+    table.put_item(Item=target_account)
 
     # Mock query_all_accounts_parallel to return predictable results
     def mock_query_all_accounts(target, staging_list):
@@ -110,12 +131,9 @@ def test_property_13_empty_staging_accounts_default(
 
         return results
 
-    with patch(
-        "index.target_accounts_table", mock_table
-    ), patch(
-        "index.query_all_accounts_parallel",
-        side_effect=mock_query_all_accounts
-    ):
+    # Patch the query function and table to use mocked versions
+    with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
+         patch.object(index, "target_accounts_table", table):
         # Call handle_get_combined_capacity
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}
@@ -170,11 +188,11 @@ def test_property_13_empty_staging_accounts_default(
             )
 
 
+@mock_aws
 @settings(max_examples=50, deadline=2000)  # 2 second deadline for jobs metrics query
 @given(
     target_servers=st.integers(min_value=0, max_value=300),
 )
-@mock_aws
 def test_property_13_missing_staging_accounts_attribute(target_servers):
     """
     Specific test case: stagingAccounts attribute completely missing from
@@ -183,6 +201,34 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
     This tests the edge case where the attribute was never set (not even
     to an empty list).
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import handle_get_combined_capacity
+    
+    # Create mock DynamoDB table using moto
+    dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+    
+    # Delete existing table if it exists
+    try:
+        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table.delete()
+        existing_table.wait_until_not_exists()
+    except:
+        pass
+    
+    # Create fresh table
+    table = dynamodb.create_table(
+        TableName="test-target-accounts-table",
+        KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    
     # Mock target account ID
     target_account_id = "111122223333"
 
@@ -194,10 +240,9 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
         "externalId": f"test-external-id-{target_account_id}",
         # NOTE: stagingAccounts attribute is intentionally missing
     }
-
-    # Mock DynamoDB table
-    mock_table = MagicMock()
-    mock_table.get_item.return_value = {"Item": target_account}
+    
+    # Put the target account in the table
+    table.put_item(Item=target_account)
 
     # Track what was passed to query_all_accounts_parallel
     staging_list_passed = None
@@ -235,12 +280,8 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
             "accessible": True,
         }]
 
-    with patch(
-        "index.target_accounts_table", mock_table
-    ), patch(
-        "index.query_all_accounts_parallel",
-        side_effect=mock_query_all_accounts
-    ):
+    with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
+         patch.object(index, "target_accounts_table", table):
         # Call handle_get_combined_capacity
         result = handle_get_combined_capacity(
             {"targetAccountId": target_account_id}

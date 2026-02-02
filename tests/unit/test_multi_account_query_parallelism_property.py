@@ -119,6 +119,15 @@ def test_property_multi_account_query_parallelism(config):
     2. Each account query should query all DRS regions
     3. All queries should execute in parallel (not sequentially)
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account, staging_accounts = config
     
     # Track calls to query_account_capacity
@@ -143,10 +152,7 @@ def test_property_multi_account_query_parallelism(config):
         }
     
     # Patch query_account_capacity
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         # Execute the parallel query
         results = query_all_accounts_parallel(target_account, staging_accounts)
         
@@ -212,6 +218,15 @@ def test_property_concurrent_region_queries_per_account(
     This test verifies that query_account_capacity queries multiple regions
     in parallel for each account.
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     # Create account configuration
     target_account = {
         "accountId": "111111111111",
@@ -253,10 +268,7 @@ def test_property_concurrent_region_queries_per_account(
             "accessible": True,
         }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
         
         # Property: Each account should query all regions
@@ -282,6 +294,15 @@ def test_property_parallel_execution_not_sequential(config):
     This test verifies that all account queries are submitted to the
     ThreadPoolExecutor concurrently, not one after another.
     """
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account, staging_accounts = config
     
     # Track the order of query submissions
@@ -302,10 +323,7 @@ def test_property_parallel_execution_not_sequential(config):
             "accessible": True,
         }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
         
         # Property: All accounts should be queried
@@ -328,6 +346,15 @@ def test_property_parallel_execution_not_sequential(config):
 @mock_aws
 def test_edge_case_no_staging_accounts():
     """Edge case: Only target account, no staging accounts."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
@@ -351,10 +378,7 @@ def test_edge_case_no_staging_accounts():
             "accessible": True,
         }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
         
         # Should query only the target account
@@ -366,6 +390,15 @@ def test_edge_case_no_staging_accounts():
 @mock_aws
 def test_edge_case_many_staging_accounts():
     """Edge case: Target account with many staging accounts (20)."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
@@ -397,10 +430,7 @@ def test_edge_case_many_staging_accounts():
             "accessible": True,
         }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
         
         # Should query all 21 accounts (1 target + 20 staging)
@@ -411,6 +441,15 @@ def test_edge_case_many_staging_accounts():
 @mock_aws
 def test_edge_case_query_failure_continues():
     """Edge case: One account query fails, others continue."""
+    # Import boto3 and reload index INSIDE the test after @mock_aws is active
+    import boto3
+    
+    # Clear and reload index module to use mocked AWS
+    if "index" in sys.modules:
+        del sys.modules["index"]
+    import index
+    from index import query_all_accounts_parallel
+    
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
@@ -450,10 +489,7 @@ def test_edge_case_query_failure_continues():
             "accessible": True,
         }
     
-    with patch(
-        "index.query_account_capacity",
-        side_effect=mock_query_account_capacity
-    ):
+    with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         results = query_all_accounts_parallel(target_account, staging_accounts)
         
         # Should still return results for all 3 accounts
