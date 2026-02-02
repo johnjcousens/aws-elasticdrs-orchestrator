@@ -49,9 +49,20 @@ Parameters:
     Type: String
     Description: ARN of the API Handler Lambda function for tag sync
 
+  QueryHandlerFunctionArn:
+    Type: String
+    Description: ARN of the Query Handler Lambda function for staging account sync
+
+  EnableStagingAccountSync:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Enable automatic staging account discovery and sync
+
 Conditions:
   EnableWeeklyDrillCondition: !Equals [!Ref EnableWeeklyDrill, 'true']
   EnableTagSyncCondition: !Equals [!Ref EnableTagSync, 'true']
+  EnableStagingAccountSyncCondition: !Equals [!Ref EnableStagingAccountSync, 'true']
 
 Resources:
   # IAM Role for EventBridge to invoke Step Functions and Lambda
@@ -82,7 +93,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - lambda:InvokeFunction
-                Resource: !Ref ApiHandlerFunctionArn
+                Resource:
+                  - !Ref ApiHandlerFunctionArn
+                  - !Ref QueryHandlerFunctionArn
 
   # Weekly Drill Rule - Wave 1
   WeeklyDrillWave1Rule:
@@ -185,6 +198,31 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt TagSyncScheduleRule.Arn
 
+  # Scheduled Staging Account Sync Rule
+  StagingAccountSyncScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: EnableStagingAccountSyncCondition
+    Properties:
+      Name: !Sub '${ProjectName}-staging-account-sync-${Environment}'
+      Description: 'Automatic staging account discovery and sync every 15 minutes'
+      ScheduleExpression: 'rate(15 minutes)'
+      State: ENABLED
+      Targets:
+        - Id: StagingAccountSyncTarget
+          Arn: !Ref QueryHandlerFunctionArn
+          RoleArn: !GetAtt EventBridgeInvokeRole.Arn
+          Input: '{"operation": "sync_staging_accounts"}'
+
+  # Permission for EventBridge to invoke Query Handler for staging account sync
+  StagingAccountSyncSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableStagingAccountSyncCondition
+    Properties:
+      FunctionName: !Ref QueryHandlerFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt StagingAccountSyncScheduleRule.Arn
+
 Outputs:
   EventBridgeInvokeRoleArn:
     Description: ARN of the EventBridge invoke role
@@ -214,3 +252,13 @@ Outputs:
     Condition: EnableTagSyncCondition
     Description: Schedule expression for tag sync
     Value: 'rate(1 hour)'
+
+  StagingAccountSyncScheduleRuleName:
+    Condition: EnableStagingAccountSyncCondition
+    Description: Name of the staging account sync schedule rule
+    Value: !Ref StagingAccountSyncScheduleRule
+
+  StagingAccountSyncScheduleExpression:
+    Condition: EnableStagingAccountSyncCondition
+    Description: Schedule expression for staging account sync
+    Value: 'rate(15 minutes)'

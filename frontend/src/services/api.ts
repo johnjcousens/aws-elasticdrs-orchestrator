@@ -1025,6 +1025,31 @@ class ApiClient {
     return this.post<{ message: string; functionName: string; statusCode: number }>('/drs/tag-sync', body);
   }
 
+  /**
+   * Discover staging accounts from DRS extended source servers
+   * 
+   * Automatically finds staging accounts by querying DRS for extended source servers
+   * and extracting their staging account IDs. This should be called when:
+   * - Extended source servers are added/removed in DRS
+   * - User wants to refresh staging account list
+   * - Opening settings modal to show current state
+   * 
+   * @param targetAccountId - Target account ID to discover staging accounts for
+   * @returns List of discovered staging accounts with server counts
+   */
+  public async discoverStagingAccounts(targetAccountId: string): Promise<{
+    targetAccountId: string;
+    stagingAccounts: Array<{
+      accountId: string;
+      accountName: string;
+      serverCount: number;
+    }>;
+    totalServers: number;
+    message: string;
+  }> {
+    return this.get(`/accounts/targets/${targetAccountId}/staging-accounts/discover`);
+  }
+
   // ============================================================================
   // Per-Server Launch Configuration API
   // ============================================================================

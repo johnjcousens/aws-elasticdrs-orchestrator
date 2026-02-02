@@ -588,6 +588,7 @@ def handle_direct_invocation(event, context):
         "get_combined_capacity": lambda: handle_get_combined_capacity(
             query_params
         ),
+        "sync_staging_accounts": lambda: handle_sync_staging_accounts(),
     }
 
     if operation in operations:
@@ -3570,6 +3571,169 @@ def handle_discover_staging_accounts(query_params: Dict) -> Dict:
             500,
             {"error": f"Failed to discover staging accounts: {str(e)}"},
         )
+
+
+def handle_sync_staging_accounts() -> Dict:
+    """
+    Scheduled sync of staging accounts for all target accounts.
+    
+    Called by EventBridge every 15 minutes to automatically discover and update
+    staging accounts from DRS extended source servers.
+    
+    Workflow:
+    1. Get all target accounts from DynamoDB
+    2. For each target account:
+       - Discover staging accounts from DRS
+       - Compare with current staging accounts
+       - Update if changes detected
+    3. Return sync summary
+    
+    Returns:
+        Dict with sync results:
+        {
+            "timestamp": str,
+            "totalAccounts": int,
+            "accountsProcessed": int,
+            "accountsUpdated": int,
+            "accountsSkipped": int,
+            "accountsFailed": int,
+            "details": [...]
+        }
+    """
+    from datetime import datetime, timezone
+    from shared.staging_account_discovery import discover_staging_accounts_from_drs
+    from shared.staging_account_models import update_staging_accounts
+    
+    print("Starting staging account sync...")
+    
+    sync_results = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "totalAccounts": 0,
+        "accountsProcessed": 0,
+        "accountsUpdated": 0,
+        "accountsSkipped": 0,
+        "accountsFailed": 0,
+        "details": []
+    }
+    
+    try:
+        # Get all target accounts
+        target_accounts_response = target_accounts_table.scan()
+        target_accounts = target_accounts_response.get("Items", [])
+        
+        # Handle pagination
+        while "LastEvaluatedKey" in target_accounts_response:
+            target_accounts_response = target_accounts_table.scan(
+                ExclusiveStartKey=target_accounts_response["LastEvaluatedKey"]
+            )
+            target_accounts.extend(target_accounts_response.get("Items", []))
+        
+        sync_results["totalAccounts"] = len(target_accounts)
+        print(f"Found {len(target_accounts)} target accounts to sync")
+        
+        for account in target_accounts:
+            account_id = account.get("accountId")
+            account_name = account.get("accountName", "Unknown")
+            is_current = account.get("isCurrentAccount", False)
+            
+            print(f"\nProcessing account {account_id} ({account_name})...")
+            
+            try:
+                # Skip current account (no staging accounts)
+                if is_current:
+                    print(f"Skipping current account {account_id}")
+                    sync_results["accountsSkipped"] += 1
+                    sync_results["details"].append({
+                        "accountId": account_id,
+                        "accountName": account_name,
+                        "status": "skipped",
+                        "reason": "Current account - no staging accounts"
+                    })
+                    continue
+                
+                # Get role ARN and external ID
+                role_arn = account.get("roleArn")
+                external_id = account.get("externalId")
+                
+                if not role_arn:
+                    print(f"No role ARN for account {account_id}, skipping")
+                    sync_results["accountsSkipped"] += 1
+                    sync_results["details"].append({
+                        "accountId": account_id,
+                        "accountName": account_name,
+                        "status": "skipped",
+                        "reason": "No role ARN configured"
+                    })
+                    continue
+                
+                # Discover staging accounts from DRS
+                discovered = discover_staging_accounts_from_drs(
+                    target_account_id=account_id,
+                    role_arn=role_arn,
+                    external_id=external_id
+                )
+                
+                # Get current staging accounts from DynamoDB
+                current_staging = account.get("stagingAccounts", [])
+                current_ids = {sa.get("accountId") for sa in current_staging}
+                discovered_ids = {sa.get("accountId") for sa in discovered}
+                
+                # Check if update needed
+                if current_ids == discovered_ids:
+                    print(f"No changes for account {account_id}")
+                    sync_results["accountsSkipped"] += 1
+                    sync_results["details"].append({
+                        "accountId": account_id,
+                        "accountName": account_name,
+                        "status": "unchanged",
+                        "stagingAccountCount": len(current_ids)
+                    })
+                else:
+                    # Update staging accounts
+                    added = discovered_ids - current_ids
+                    removed = current_ids - discovered_ids
+                    
+                    print(f"Updating account {account_id}: +{len(added)} -{len(removed)}")
+                    
+                    update_staging_accounts(account_id, discovered)
+                    
+                    sync_results["accountsUpdated"] += 1
+                    sync_results["details"].append({
+                        "accountId": account_id,
+                        "accountName": account_name,
+                        "status": "updated",
+                        "added": list(added),
+                        "removed": list(removed),
+                        "totalStaging": len(discovered_ids)
+                    })
+                
+                sync_results["accountsProcessed"] += 1
+                
+            except Exception as e:
+                print(f"Error processing account {account_id}: {e}")
+                sync_results["accountsFailed"] += 1
+                sync_results["details"].append({
+                    "accountId": account_id,
+                    "accountName": account_name,
+                    "status": "failed",
+                    "error": str(e)
+                })
+        
+        print(f"\nSync complete: {sync_results['accountsUpdated']} updated, "
+              f"{sync_results['accountsSkipped']} skipped, "
+              f"{sync_results['accountsFailed']} failed")
+        
+        return response(200, sync_results)
+        
+    except Exception as e:
+        print(f"Fatal error in staging account sync: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return response(500, {
+            "error": str(e),
+            "syncResults": sync_results
+        })
 
 
 def handle_get_combined_capacity(query_params: Dict) -> Dict:
