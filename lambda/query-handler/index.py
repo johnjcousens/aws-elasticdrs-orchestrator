@@ -2907,26 +2907,26 @@ def query_staging_accounts_from_target(
 ) -> List[Dict]:
     """
     Query staging account capacity by counting extended source servers in target account.
-    
+
     Extended source servers exist in the target account but have stagingAccountID
     pointing to the staging account. We query the target account and group servers
     by staging account ID.
-    
+
     Args:
         target_account: Target account configuration
         staging_accounts: List of staging account configurations
-        
+
     Returns:
         List of staging account capacity results
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    
+
     target_id = target_account.get("accountId")
     role_arn = target_account.get("roleArn")
     external_id = target_account.get("externalId")
-    
+
     print(f"Querying extended source servers in target account {target_id}")
-    
+
     try:
         # Assume role in target account
         if role_arn and external_id:
@@ -2940,7 +2940,7 @@ def query_staging_accounts_from_target(
             credentials = assumed_role["Credentials"]
         else:
             credentials = None
-        
+
         # Query all regions to find extended source servers
         def query_region_for_staging(region: str) -> Dict:
             """Query a region for extended source servers grouped by staging account."""
@@ -2955,26 +2955,23 @@ def query_staging_accounts_from_target(
                     )
                 else:
                     drs_client = boto3.client("drs", region_name=region)
-                
+
                 # Count servers by staging account
                 staging_counts = {}
                 paginator = drs_client.get_paginator("describe_source_servers")
-                
+
                 for page in paginator.paginate():
                     for server in page.get("items", []):
                         staging_area = server.get("stagingArea", {})
                         staging_account_id = staging_area.get("stagingAccountID", "")
-                        
+
                         # Only count extended source servers (staging account != target account)
                         if staging_account_id and staging_account_id != target_id:
                             if staging_account_id not in staging_counts:
-                                staging_counts[staging_account_id] = {
-                                    "total": 0,
-                                    "replicating": 0
-                                }
-                            
+                                staging_counts[staging_account_id] = {"total": 0, "replicating": 0}
+
                             staging_counts[staging_account_id]["total"] += 1
-                            
+
                             # Check if replicating
                             replication_state = server.get("dataReplicationInfo", {}).get(
                                 "dataReplicationState", ""
@@ -2988,9 +2985,9 @@ def query_staging_accounts_from_target(
                                 "BACKLOG",
                             ]:
                                 staging_counts[staging_account_id]["replicating"] += 1
-                
+
                 return {"region": region, "staging_counts": staging_counts}
-                
+
             except ClientError as e:
                 error_code = e.response["Error"]["Code"]
                 if error_code == "UninitializedAccountException" or "not initialized" in str(e):
@@ -3000,83 +2997,85 @@ def query_staging_accounts_from_target(
             except Exception as e:
                 print(f"Unexpected error querying {region}: {e}")
                 return {"region": region, "staging_counts": {}}
-        
+
         # Query all regions in parallel
         regional_results = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {
-                executor.submit(query_region_for_staging, region): region 
-                for region in DRS_REGIONS
+                executor.submit(query_region_for_staging, region): region for region in DRS_REGIONS
             }
-            
+
             for future in as_completed(futures):
                 try:
                     result = future.result()
                     regional_results.append(result)
                 except Exception as e:
                     print(f"Failed to get regional result: {e}")
-        
+
         # Aggregate by staging account
         staging_totals = {}
         for regional_result in regional_results:
             region = regional_result["region"]
             for staging_id, counts in regional_result["staging_counts"].items():
                 if staging_id not in staging_totals:
-                    staging_totals[staging_id] = {
-                        "total": 0,
-                        "replicating": 0,
-                        "regions": []
-                    }
+                    staging_totals[staging_id] = {"total": 0, "replicating": 0, "regions": []}
                 staging_totals[staging_id]["total"] += counts["total"]
                 staging_totals[staging_id]["replicating"] += counts["replicating"]
                 if counts["total"] > 0:
-                    staging_totals[staging_id]["regions"].append({
-                        "region": region,
-                        "totalServers": counts["total"],
-                        "replicatingServers": counts["replicating"]
-                    })
-        
+                    staging_totals[staging_id]["regions"].append(
+                        {
+                            "region": region,
+                            "totalServers": counts["total"],
+                            "replicatingServers": counts["replicating"],
+                        }
+                    )
+
         # Build results for each staging account
         results = []
         for staging in staging_accounts:
             staging_id = staging.get("accountId")
             staging_name = staging.get("accountName", "Unknown Staging")
-            
+
             if staging_id in staging_totals:
                 totals = staging_totals[staging_id]
-                results.append({
-                    "accountId": staging_id,
-                    "accountName": staging_name,
-                    "accountType": "staging",
-                    "replicatingServers": totals["replicating"],
-                    "totalServers": totals["total"],
-                    "regionalBreakdown": totals["regions"],
-                    "accessible": True,
-                })
+                results.append(
+                    {
+                        "accountId": staging_id,
+                        "accountName": staging_name,
+                        "accountType": "staging",
+                        "replicatingServers": totals["replicating"],
+                        "totalServers": totals["total"],
+                        "regionalBreakdown": totals["regions"],
+                        "accessible": True,
+                    }
+                )
                 print(
                     f"Staging account {staging_id} ({staging_name}): "
                     f"{totals['replicating']} replicating, {totals['total']} total"
                 )
             else:
                 # No extended source servers from this staging account
-                results.append({
-                    "accountId": staging_id,
-                    "accountName": staging_name,
-                    "accountType": "staging",
-                    "replicatingServers": 0,
-                    "totalServers": 0,
-                    "regionalBreakdown": [],
-                    "accessible": True,
-                })
+                results.append(
+                    {
+                        "accountId": staging_id,
+                        "accountName": staging_name,
+                        "accountType": "staging",
+                        "replicatingServers": 0,
+                        "totalServers": 0,
+                        "regionalBreakdown": [],
+                        "accessible": True,
+                    }
+                )
                 print(f"Staging account {staging_id} ({staging_name}): 0 servers")
-        
+
         return results
-        
+
     except Exception as e:
         print(f"Error querying staging accounts from target: {e}")
         import traceback
+
         traceback.print_exc()
-        
+
         # Return error results for all staging accounts
         return [
             {
@@ -3135,9 +3134,9 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
         "roleArn": target_account.get("roleArn"),
         "externalId": target_account.get("externalId"),
     }
-    
+
     target_result = query_account_capacity(target_config)
-    
+
     # Step 2: Query staging accounts directly in parallel
     staging_results = []
     if staging_accounts:
@@ -3152,12 +3151,12 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
                     "externalId": staging.get("externalId"),
                 }
                 staging_configs.append(staging_config)
-            
+
             futures = {
-                executor.submit(query_account_capacity, config): config 
+                executor.submit(query_account_capacity, config): config
                 for config in staging_configs
             }
-            
+
             for future in as_completed(futures):
                 config = futures[future]
                 try:
@@ -3165,37 +3164,36 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
                     staging_results.append(result)
                 except Exception as e:
                     print(f"Failed to query staging account {config.get('accountId')}: {e}")
-                    staging_results.append({
-                        "accountId": config.get("accountId"),
-                        "accountName": config.get("accountName", "Unknown"),
-                        "accountType": "staging",
-                        "replicatingServers": 0,
-                        "totalServers": 0,
-                        "regionalBreakdown": [],
-                        "accessible": False,
-                        "error": f"Query failed: {str(e)}",
-                    })
-        
+                    staging_results.append(
+                        {
+                            "accountId": config.get("accountId"),
+                            "accountName": config.get("accountName", "Unknown"),
+                            "accountType": "staging",
+                            "replicatingServers": 0,
+                            "totalServers": 0,
+                            "regionalBreakdown": [],
+                            "accessible": False,
+                            "error": f"Query failed: {str(e)}",
+                        }
+                    )
+
         # Step 3: Query extended source servers from target account
-        extended_results = query_staging_accounts_from_target(
-            target_account, staging_accounts
-        )
-        
+        extended_results = query_staging_accounts_from_target(target_account, staging_accounts)
+
         # Step 4: Merge direct + extended capacity for each staging account
         for staging_result in staging_results:
             staging_id = staging_result["accountId"]
-            
+
             # Find matching extended result
             extended_result = next(
-                (r for r in extended_results if r["accountId"] == staging_id),
-                None
+                (r for r in extended_results if r["accountId"] == staging_id), None
             )
-            
+
             if extended_result and extended_result.get("accessible", False):
                 # Add extended servers to the staging account's totals
                 staging_result["replicatingServers"] += extended_result["replicatingServers"]
                 staging_result["totalServers"] += extended_result["totalServers"]
-                
+
                 # Merge regional breakdowns
                 extended_regions = extended_result.get("regionalBreakdown", [])
                 if extended_regions:
@@ -3203,14 +3201,14 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
                     for region_data in extended_regions:
                         region_data["isExtended"] = True
                     staging_result["regionalBreakdown"].extend(extended_regions)
-                
+
                 print(
                     f"Staging account {staging_id}: "
                     f"direct={staging_result['replicatingServers'] - extended_result['replicatingServers']}, "
                     f"extended={extended_result['replicatingServers']}, "
                     f"total={staging_result['replicatingServers']}"
                 )
-    
+
     # Combine results
     all_results = [target_result] + staging_results
 
@@ -3825,15 +3823,15 @@ def handle_sync_staging_accounts() -> Dict:
 def auto_extend_staging_servers(target_accounts: List[Dict]) -> Dict:
     """
     Auto-extend new DRS source servers from staging accounts to target accounts.
-    
+
     For each target account:
     1. Query staging accounts for their DRS source servers
     2. Check if those servers are already extended to the target
     3. Extend any missing servers
-    
+
     Args:
         target_accounts: List of target account configurations from DynamoDB
-        
+
     Returns:
         Dict with extend results:
         {
@@ -3851,64 +3849,64 @@ def auto_extend_staging_servers(target_accounts: List[Dict]) -> Dict:
         "serversFailed": 0,
         "details": [],
     }
-    
+
     for account in target_accounts:
         account_id = account.get("accountId")
         account_name = account.get("accountName", "Unknown")
         is_current = account.get("isCurrentAccount", False)
         staging_accounts = account.get("stagingAccounts", [])
-        
+
         # Skip if no staging accounts
         if not staging_accounts or is_current:
             continue
-        
+
         print(f"\nChecking account {account_id} ({account_name}) for servers to extend...")
-        
+
         try:
             role_arn = account.get("roleArn")
             external_id = account.get("externalId")
-            
+
             if not role_arn:
                 print(f"No role ARN for account {account_id}, skipping")
                 continue
-            
+
             # Get existing extended source servers in target account
             existing_extended = get_extended_source_servers(account_id, role_arn, external_id)
-            
+
             # For each staging account, check for new servers to extend
             servers_extended_count = 0
             servers_failed_count = 0
-            
+
             for staging in staging_accounts:
                 staging_id = staging.get("accountId")
                 staging_name = staging.get("accountName", "Unknown")
                 staging_role_arn = staging.get("roleArn")
                 staging_external_id = staging.get("externalId")
-                
+
                 if not staging_role_arn:
                     print(f"No role ARN for staging account {staging_id}, skipping")
                     continue
-                
+
                 # Get source servers in staging account
                 staging_servers = get_staging_account_servers(
                     staging_id, staging_role_arn, staging_external_id
                 )
-                
+
                 # Find servers not yet extended
                 for server in staging_servers:
                     server_id = server.get("sourceServerID")
                     server_arn = server.get("arn")
-                    
+
                     # Check if already extended
                     if server_arn in existing_extended:
                         continue
-                    
+
                     # Extend the server
                     print(
                         f"Extending server {server_id} from staging {staging_id} "
                         f"to target {account_id}"
                     )
-                    
+
                     try:
                         extend_source_server(
                             target_account_id=account_id,
@@ -3922,39 +3920,41 @@ def auto_extend_staging_servers(target_accounts: List[Dict]) -> Dict:
                         print(f"Failed to extend server {server_id}: {e}")
                         servers_failed_count += 1
                         extend_results["serversFailed"] += 1
-            
+
             if servers_extended_count > 0 or servers_failed_count > 0:
-                extend_results["details"].append({
-                    "accountId": account_id,
-                    "accountName": account_name,
-                    "serversExtended": servers_extended_count,
-                    "serversFailed": servers_failed_count,
-                })
-            
+                extend_results["details"].append(
+                    {
+                        "accountId": account_id,
+                        "accountName": account_name,
+                        "serversExtended": servers_extended_count,
+                        "serversFailed": servers_failed_count,
+                    }
+                )
+
             extend_results["accountsProcessed"] += 1
-            
+
         except Exception as e:
             print(f"Error processing account {account_id} for auto-extend: {e}")
-            extend_results["details"].append({
-                "accountId": account_id,
-                "accountName": account_name,
-                "error": str(e),
-            })
-    
+            extend_results["details"].append(
+                {
+                    "accountId": account_id,
+                    "accountName": account_name,
+                    "error": str(e),
+                }
+            )
+
     print(
         f"\nAuto-extend complete: {extend_results['serversExtended']} extended, "
         f"{extend_results['serversFailed']} failed"
     )
-    
+
     return extend_results
 
 
-def get_extended_source_servers(
-    target_account_id: str, role_arn: str, external_id: str
-) -> set:
+def get_extended_source_servers(target_account_id: str, role_arn: str, external_id: str) -> set:
     """Get set of extended source server ARNs in target account."""
     extended_arns = set()
-    
+
     try:
         # Assume role in target account
         sts_client = boto3.client("sts")
@@ -3965,7 +3965,7 @@ def get_extended_source_servers(
             DurationSeconds=900,
         )
         credentials = assumed_role["Credentials"]
-        
+
         # Query DRS in primary region (us-west-2)
         drs_client = boto3.client(
             "drs",
@@ -3974,7 +3974,7 @@ def get_extended_source_servers(
             aws_secret_access_key=credentials["SecretAccessKey"],
             aws_session_token=credentials["SessionToken"],
         )
-        
+
         # Get all source servers
         paginator = drs_client.get_paginator("describe_source_servers")
         for page in paginator.paginate():
@@ -3982,17 +3982,17 @@ def get_extended_source_servers(
                 staging_area = server.get("stagingArea", {})
                 staging_account_id = staging_area.get("stagingAccountID", "")
                 staging_server_arn = staging_area.get("stagingSourceServerArn", "")
-                
+
                 # If extended (staging account != target account), add ARN
                 if staging_account_id and staging_account_id != target_account_id:
                     if staging_server_arn:
                         extended_arns.add(staging_server_arn)
-        
+
         print(f"Found {len(extended_arns)} extended source servers in {target_account_id}")
-        
+
     except Exception as e:
         print(f"Error getting extended source servers: {e}")
-    
+
     return extended_arns
 
 
@@ -4001,7 +4001,7 @@ def get_staging_account_servers(
 ) -> List[Dict]:
     """Get DRS source servers in staging account."""
     servers = []
-    
+
     try:
         # Assume role in staging account
         sts_client = boto3.client("sts")
@@ -4012,7 +4012,7 @@ def get_staging_account_servers(
             DurationSeconds=900,
         )
         credentials = assumed_role["Credentials"]
-        
+
         # Query DRS in primary region
         drs_client = boto3.client(
             "drs",
@@ -4021,17 +4021,17 @@ def get_staging_account_servers(
             aws_secret_access_key=credentials["SecretAccessKey"],
             aws_session_token=credentials["SessionToken"],
         )
-        
+
         # Get all source servers
         paginator = drs_client.get_paginator("describe_source_servers")
         for page in paginator.paginate():
             servers.extend(page.get("items", []))
-        
+
         print(f"Found {len(servers)} source servers in staging account {staging_account_id}")
-        
+
     except Exception as e:
         print(f"Error getting staging account servers: {e}")
-    
+
     return servers
 
 
@@ -4051,7 +4051,7 @@ def extend_source_server(
         DurationSeconds=900,
     )
     credentials = assumed_role["Credentials"]
-    
+
     # Create DRS client
     drs_client = boto3.client(
         "drs",
@@ -4060,12 +4060,12 @@ def extend_source_server(
         aws_secret_access_key=credentials["SecretAccessKey"],
         aws_session_token=credentials["SessionToken"],
     )
-    
+
     # Create extended source server
     drs_client.create_extended_source_server(
         sourceServerArn=staging_server_arn,
     )
-    
+
     print(f"Successfully extended server {staging_server_arn} to account {target_account_id}")
 
 
