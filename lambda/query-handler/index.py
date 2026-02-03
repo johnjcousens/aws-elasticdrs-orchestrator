@@ -3903,8 +3903,8 @@ def auto_extend_staging_servers(target_accounts: List[Dict]) -> Dict:
 
                     # Extend the server
                     print(
-                        f"Extending server {server_id} from staging {staging_id} "
-                        f"to target {account_id}"
+                        f"Extending server {server_id} from staging "
+                        f"{staging_name} ({staging_id}) to target {account_id}"
                     )
 
                     try:
