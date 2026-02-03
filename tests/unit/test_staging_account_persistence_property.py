@@ -15,6 +15,7 @@ preserves all fields exactly.
 """
 
 import os  # noqa: E402
+import pytest
 from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
 from hypothesis import given, strategies as st, settings  # noqa: E402
@@ -72,6 +73,7 @@ staging_account_strategy = st.fixed_dictionaries({
 )
 @patch('staging_account_models._get_target_accounts_table')
 @patch('staging_account_models.check_duplicate_staging_account')
+@pytest.mark.property
 def test_property_staging_account_persistence_round_trip(
     mock_check_dup,
     mock_get_table,
@@ -144,6 +146,7 @@ def test_property_staging_account_persistence_round_trip(
 )
 @patch('staging_account_models._get_target_accounts_table')
 @patch('staging_account_models.check_duplicate_staging_account')
+@pytest.mark.property
 def test_property_multiple_staging_accounts_persistence(
     mock_check_dup,
     mock_get_table,
@@ -217,6 +220,7 @@ def test_property_multiple_staging_accounts_persistence(
     staging_account=staging_account_strategy
 )
 @patch('staging_account_models._get_target_accounts_table')
+@pytest.mark.property
 def test_property_empty_staging_accounts_default(
     mock_get_table,
     target_account_id,

@@ -14,6 +14,7 @@ breakdown.
 import json  # noqa: F401
 import os  # noqa: E402
 import sys  # noqa: E402
+import pytest
 from pathlib import Path  # noqa: E402
 from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 import importlib  # noqa: F401
@@ -55,6 +56,7 @@ def account_config_strategy():
         max_size=10
     ),
 )
+@pytest.mark.property
 def test_property_12_account_breakdown_completeness(
     num_staging_accounts, target_servers, staging_servers
 ):

@@ -235,6 +235,10 @@ Parameters:
     Type: String
     Description: DRS Recovery Snapshots Resource ID from Resources Stack
 
+  AccountsCapacityAllResourceId:
+    Type: String
+    Description: Accounts Capacity All Resource ID from Resources Stack
+
 Resources:
   # ============================================================================
   # Methods - DRS
@@ -1250,6 +1254,50 @@ Resources:
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref AccountsTargetCapacityResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /accounts/capacity/all - Get capacity for ALL target accounts (universal dashboard)
+  AccountsCapacityAllGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AccountsCapacityAllResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref ApiAuthorizerId
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${QueryHandlerArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  AccountsCapacityAllOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AccountsCapacityAllResourceId
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:

@@ -87,6 +87,7 @@ def dynamodb_setup():
     ),
     removal_index=st.integers(min_value=0, max_value=4),
 )
+@pytest.mark.property
 def test_property_staging_account_removal_completeness(
     dynamodb_setup, target_account_id, staging_accounts, removal_index
 ):
@@ -200,6 +201,7 @@ def test_property_staging_account_removal_completeness(
         staging_account_strategy, min_size=1, max_size=3, unique_by=lambda x: x["accountId"]
     ),
 )
+@pytest.mark.property
 def test_property_remove_all_staging_accounts_sequentially(
     dynamodb_setup, target_account_id, staging_accounts
 ):
@@ -239,6 +241,7 @@ def test_property_remove_all_staging_accounts_sequentially(
     ), f"Expected empty staging accounts list, got {len(final_staging_accounts)}"
 
 
+@pytest.mark.property
 def test_remove_nonexistent_staging_account(dynamodb_setup):
     """
     Edge case: Removing a staging account that doesn't exist should fail
@@ -263,6 +266,7 @@ def test_remove_nonexistent_staging_account(dynamodb_setup):
         remove_staging_account(target_account_id, nonexistent_staging_id)
 
 
+@pytest.mark.property
 def test_remove_from_nonexistent_target_account(dynamodb_setup):
     """
     Edge case: Removing staging account from non-existent target account

@@ -34,8 +34,8 @@ export default defineConfig({
       },
     },
     
-    // Chunk size warning limit (500KB)
-    chunkSizeWarningLimit: 500,
+    // Chunk size warning limit (1000KB for CloudScape)
+    chunkSizeWarningLimit: 1000,
     
     // Source maps for production debugging (optional)
     // Set to false to disable, 'hidden' to generate but not expose in browser

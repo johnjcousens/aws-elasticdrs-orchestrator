@@ -34,6 +34,7 @@ from index import calculate_account_status  # noqa: E402
 
 @settings(max_examples=100)
 @given(replicating_servers=st.integers(min_value=0, max_value=300))
+@pytest.mark.property
 def test_property_per_account_status_calculation(replicating_servers):
     """
     Property 4: Per-Account Status Calculation
@@ -71,6 +72,7 @@ def test_property_per_account_status_calculation(replicating_servers):
 
 @settings(max_examples=100)
 @given(servers_in_range=st.integers(min_value=0, max_value=199))
+@pytest.mark.property
 def test_property_ok_status_range(servers_in_range):
     """Property: OK status for 0-199 servers."""
     status = calculate_account_status(servers_in_range)
@@ -79,6 +81,7 @@ def test_property_ok_status_range(servers_in_range):
 
 @settings(max_examples=100)
 @given(servers_in_range=st.integers(min_value=200, max_value=224))
+@pytest.mark.property
 def test_property_info_status_range(servers_in_range):
     """Property: INFO status for 200-224 servers."""
     status = calculate_account_status(servers_in_range)
@@ -87,6 +90,7 @@ def test_property_info_status_range(servers_in_range):
 
 @settings(max_examples=100)
 @given(servers_in_range=st.integers(min_value=225, max_value=249))
+@pytest.mark.property
 def test_property_warning_status_range(servers_in_range):
     """Property: WARNING status for 225-249 servers."""
     status = calculate_account_status(servers_in_range)
@@ -95,6 +99,7 @@ def test_property_warning_status_range(servers_in_range):
 
 @settings(max_examples=100)
 @given(servers_in_range=st.integers(min_value=250, max_value=279))
+@pytest.mark.property
 def test_property_critical_status_range(servers_in_range):
     """Property: CRITICAL status for 250-279 servers."""
     status = calculate_account_status(servers_in_range)
@@ -103,6 +108,7 @@ def test_property_critical_status_range(servers_in_range):
 
 @settings(max_examples=100)
 @given(servers_in_range=st.integers(min_value=280, max_value=300))
+@pytest.mark.property
 def test_property_hyper_critical_status_range(servers_in_range):
     """Property: HYPER-CRITICAL status for 280-300 servers."""
     status = calculate_account_status(servers_in_range)
@@ -114,24 +120,28 @@ def test_property_hyper_critical_status_range(servers_in_range):
 # ============================================================================
 
 
+@pytest.mark.property
 def test_boundary_ok_to_info():
     """Test boundary between OK and INFO status (200 servers)."""
     assert calculate_account_status(199) == "OK"
     assert calculate_account_status(200) == "INFO"
 
 
+@pytest.mark.property
 def test_boundary_info_to_warning():
     """Test boundary between INFO and WARNING status (225 servers)."""
     assert calculate_account_status(224) == "INFO"
     assert calculate_account_status(225) == "WARNING"
 
 
+@pytest.mark.property
 def test_boundary_warning_to_critical():
     """Test boundary between WARNING and CRITICAL status (250 servers)."""
     assert calculate_account_status(249) == "WARNING"
     assert calculate_account_status(250) == "CRITICAL"
 
 
+@pytest.mark.property
 def test_boundary_critical_to_hyper_critical():
     """
     Test boundary between CRITICAL and HYPER-CRITICAL status
@@ -146,26 +156,31 @@ def test_boundary_critical_to_hyper_critical():
 # ============================================================================
 
 
+@pytest.mark.property
 def test_edge_case_zero_servers():
     """Edge case: Zero servers should be OK."""
     assert calculate_account_status(0) == "OK"
 
 
+@pytest.mark.property
 def test_edge_case_max_servers():
     """Edge case: Maximum 300 servers should be HYPER-CRITICAL."""
     assert calculate_account_status(300) == "HYPER-CRITICAL"
 
 
+@pytest.mark.property
 def test_edge_case_operational_limit():
     """Edge case: Operational limit (250 servers) should be CRITICAL."""
     assert calculate_account_status(250) == "CRITICAL"
 
 
+@pytest.mark.property
 def test_edge_case_near_operational_limit():
     """Edge case: Just below operational limit should be WARNING."""
     assert calculate_account_status(249) == "WARNING"
 
 
+@pytest.mark.property
 def test_edge_case_near_hard_limit():
     """Edge case: Near hard limit (299 servers) should be HYPER-CRITICAL."""
     assert calculate_account_status(299) == "HYPER-CRITICAL"
@@ -176,6 +191,7 @@ def test_edge_case_near_hard_limit():
 # ============================================================================
 
 
+@pytest.mark.property
 def test_status_progression_monotonic():
     """
     Test that status severity increases monotonically with server count.
@@ -198,6 +214,7 @@ def test_status_progression_monotonic():
         )
 
 
+@pytest.mark.property
 def test_status_all_thresholds_covered():
     """Test that all status levels are reachable."""
     # Test one value from each range

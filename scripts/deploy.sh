@@ -16,10 +16,11 @@
 #   All paths are relative to the repository root.
 #
 # Examples:
-#   ./scripts/deploy.sh dev                                    # Full pipeline: validate, test, push, deploy
+#   ./scripts/deploy.sh dev                                    # Full pipeline: validate, test, push, deploy (fast tests)
 #   ./scripts/deploy.sh dev --lambda-only                      # Just update Lambda code
 #   ./scripts/deploy.sh dev --frontend-only                    # Just rebuild frontend
-#   ./scripts/deploy.sh dev --validate-only                    # Run validation/tests only (no deployment)
+#   ./scripts/deploy.sh dev --validate-only                    # Run validation/tests only (no deployment, runs FULL tests)
+#   ./scripts/deploy.sh dev --full-tests                       # Run all tests including slow property-based tests
 #   ./scripts/deploy.sh dev --no-frontend                      # API-only deployment (no S3/CloudFront)
 #   ./scripts/deploy.sh dev --orchestration-role arn:aws:iam::123456789012:role/MyRole  # Use external role
 #
@@ -92,6 +93,7 @@ FORCE=false
 DEPLOY_FRONTEND="true"
 ORCHESTRATION_ROLE_ARN=""
 VALIDATE_ONLY=false
+FULL_TESTS=false  # Run all tests including slow property-based tests
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -113,6 +115,7 @@ while [[ $# -gt 0 ]]; do
         --frontend-only) FRONTEND_ONLY=true ;;
         --validate-only) VALIDATE_ONLY=true ;;
         --force) FORCE=true ;;
+        --full-tests) FULL_TESTS=true ;;
         --no-frontend) DEPLOY_FRONTEND="false" ;;
         --orchestration-role)
             ORCHESTRATION_ROLE_ARN="$2"
@@ -460,8 +463,19 @@ echo -e "${BLUE}[3/5] Tests${NC}"
         
         if [ -d "tests/unit" ] && find tests/unit -name "test_*.py" -o -name "*_test.py" 2>/dev/null | grep -q .; then
             echo -e "${BLUE}  Running unit tests...${NC}"
-            if ! $PYTEST_CMD tests/unit/ -q --tb=no; then
-                TEST_FAILED=true
+            # Skip slow property-based tests by default for faster development
+            # Use --full-tests flag or --validate-only to run all tests including property-based tests
+            if [ "$FULL_TESTS" = true ] || [ "$VALIDATE_ONLY" = true ]; then
+                echo -e "${YELLOW}  Running FULL test suite (including property-based tests)...${NC}"
+                if ! $PYTEST_CMD tests/unit/ -q --tb=no; then
+                    TEST_FAILED=true
+                fi
+            else
+                echo -e "${BLUE}  Running fast tests (skipping property-based tests)${NC}"
+                echo -e "${BLUE}  Use --full-tests to run complete test suite${NC}"
+                if ! $PYTEST_CMD tests/unit/ -m "not property" -q --tb=no; then
+                    TEST_FAILED=true
+                fi
             fi
         fi
         

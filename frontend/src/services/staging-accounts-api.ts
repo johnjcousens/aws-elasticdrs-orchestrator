@@ -143,6 +143,32 @@ export async function removeStagingAccount(
 // ============================================================================
 
 /**
+ * Get combined capacity for ALL target accounts (universal dashboard view).
+ *
+ * This endpoint returns capacity data for all target accounts in a single call,
+ * making the dashboard load much faster than fetching each account separately.
+ *
+ * Validates: Requirement 4.1
+ *
+ * @returns Combined capacity data for all target accounts
+ * @throws Error if capacity query fails
+ */
+export async function getAllAccountsCapacity(): Promise<CombinedCapacityData> {
+  try {
+    const response = await apiClient["get"]<CombinedCapacityData>(
+      `/accounts/capacity/all`
+    );
+    return response;
+  } catch (error) {
+    // Re-throw with context for better error messages
+    const err = error as Error;
+    throw new Error(
+      `Failed to get all accounts capacity: ${err.message || "Unknown error"}`
+    );
+  }
+}
+
+/**
  * Get combined capacity metrics across target and staging accounts.
  *
  * Queries DRS capacity concurrently across:
@@ -192,4 +218,5 @@ export default {
   addStagingAccount,
   removeStagingAccount,
   getCombinedCapacity,
+  getAllAccountsCapacity,
 };

@@ -60,6 +60,7 @@ launch_config_fields = st.sampled_from(
     ),
     use_group_defaults=st.booleans(),
 )
+@pytest.mark.property
 def test_configuration_merge_correctness(
     group_defaults, server_overrides, use_group_defaults
 ):
@@ -119,6 +120,7 @@ def test_configuration_merge_correctness(
         max_size=5,
     )
 )
+@pytest.mark.property
 def test_no_server_config_returns_group_defaults(group_defaults):
     """
     Property 1 (Edge Case): No Server Config
@@ -152,6 +154,7 @@ def test_no_server_config_returns_group_defaults(group_defaults):
         max_size=3,
     ),
 )
+@pytest.mark.property
 def test_merge_idempotence(group_defaults, server_overrides):
     """
     Property 12: Configuration Merge Idempotence
@@ -181,6 +184,7 @@ def test_merge_idempotence(group_defaults, server_overrides):
     )
 
 
+@pytest.mark.property
 def test_configuration_merge_specific_examples():
     """Unit test examples for configuration merge"""
     # Example 1: Partial override with useGroupDefaults=True

@@ -82,6 +82,7 @@ def account_results_list_strategy(draw):
 
 @settings(max_examples=100)
 @given(account_results=account_results_list_strategy())
+@pytest.mark.property
 def test_property_combined_capacity_aggregation(account_results):
     """
     Property 3: Combined Capacity Aggregation (Staging Account Model)
@@ -167,6 +168,7 @@ def test_property_combined_capacity_aggregation(account_results):
     num_accounts=st.integers(min_value=1, max_value=20),
     servers_per_account=st.integers(min_value=0, max_value=300),
 )
+@pytest.mark.property
 def test_property_uniform_capacity_distribution(
     num_accounts, servers_per_account
 ):
@@ -202,6 +204,7 @@ def test_property_uniform_capacity_distribution(
 
 @settings(max_examples=100)
 @given(account_results=account_results_list_strategy())
+@pytest.mark.property
 def test_property_inaccessible_accounts_excluded(account_results):
     """
     Property: Inaccessible accounts are excluded from capacity calculations (Staging Account Model)
@@ -238,6 +241,7 @@ def test_property_inaccessible_accounts_excluded(account_results):
 # ============================================================================
 
 
+@pytest.mark.property
 def test_edge_case_no_accounts():
     """Edge case: Empty account list."""
     result = calculate_combined_metrics([])  # noqa: F841
@@ -253,6 +257,7 @@ def test_edge_case_no_accounts():
     assert result["totalAccounts"] == 0
 
 
+@pytest.mark.property
 def test_edge_case_all_accounts_inaccessible():
     """Edge case: All accounts are inaccessible."""
     account_results = [  # noqa: F841
@@ -279,6 +284,7 @@ def test_edge_case_all_accounts_inaccessible():
     assert result["totalAccounts"] == 5
 
 
+@pytest.mark.property
 def test_edge_case_at_max_capacity():
     """Edge case: All accounts at maximum capacity (300 servers each)."""
     # Multi-account model: each account has 300 limit
@@ -322,6 +328,7 @@ def test_edge_case_at_max_capacity():
     assert result["availableSlots"] == 0
 
 
+@pytest.mark.property
 def test_edge_case_mixed_accessibility():
     """Edge case: Mix of accessible and inaccessible accounts."""
     account_results = [  # noqa: F841

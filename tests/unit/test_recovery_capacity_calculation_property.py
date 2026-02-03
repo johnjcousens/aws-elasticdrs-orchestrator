@@ -52,6 +52,7 @@ def target_account_servers_strategy(draw):
 
 @settings(max_examples=100)
 @given(target_servers=target_account_servers_strategy())
+@pytest.mark.property
 def test_property_recovery_capacity_status_calculation(target_servers):
     """
     Property 11: Recovery Capacity Status Calculation
@@ -129,6 +130,7 @@ def test_property_recovery_capacity_status_calculation(target_servers):
     target_servers=st.integers(min_value=0, max_value=300),
     staging_servers=st.integers(min_value=0, max_value=3000)
 )
+@pytest.mark.property
 def test_property_recovery_capacity_excludes_staging_accounts(
     target_servers, staging_servers
 ):
@@ -157,6 +159,7 @@ def test_property_recovery_capacity_excludes_staging_accounts(
 
 @settings(max_examples=50)
 @given(servers=st.integers(min_value=0, max_value=3199))
+@pytest.mark.property
 def test_property_ok_status_threshold(servers):
     """Test OK status threshold (< 80% = < 3,200 servers)."""
     result = calculate_recovery_capacity(servers)  # noqa: F841
@@ -167,6 +170,7 @@ def test_property_ok_status_threshold(servers):
 
 @settings(max_examples=50)
 @given(servers=st.integers(min_value=3200, max_value=3599))
+@pytest.mark.property
 def test_property_warning_status_threshold(servers):
     """Test WARNING status threshold (80-90% = 3,200-3,599 servers)."""
     result = calculate_recovery_capacity(servers)  # noqa: F841
@@ -177,6 +181,7 @@ def test_property_warning_status_threshold(servers):
 
 @settings(max_examples=50)
 @given(servers=st.integers(min_value=3600, max_value=4500))
+@pytest.mark.property
 def test_property_critical_status_threshold(servers):
     """Test CRITICAL status threshold (>= 90% = >= 3,600 servers)."""
     result = calculate_recovery_capacity(servers)  # noqa: F841
@@ -190,6 +195,7 @@ def test_property_critical_status_threshold(servers):
 # ============================================================================
 
 
+@pytest.mark.property
 def test_edge_case_zero_servers():
     """Test with zero servers."""
     result = calculate_recovery_capacity(0)  # noqa: F841
@@ -199,6 +205,7 @@ def test_edge_case_zero_servers():
     assert result["status"] == "OK"
 
 
+@pytest.mark.property
 def test_edge_case_exactly_80_percent():
     """Test exactly at 80% threshold (3,200 servers)."""
     result = calculate_recovery_capacity(3200)  # noqa: F841
@@ -206,6 +213,7 @@ def test_edge_case_exactly_80_percent():
     assert result["status"] == "WARNING"
 
 
+@pytest.mark.property
 def test_edge_case_exactly_90_percent():
     """Test exactly at 90% threshold (3,600 servers)."""
     result = calculate_recovery_capacity(3600)  # noqa: F841
@@ -213,6 +221,7 @@ def test_edge_case_exactly_90_percent():
     assert result["status"] == "CRITICAL"
 
 
+@pytest.mark.property
 def test_edge_case_at_limit():
     """Test at the 4,000 server limit."""
     result = calculate_recovery_capacity(4000)  # noqa: F841
@@ -222,6 +231,7 @@ def test_edge_case_at_limit():
     assert result["status"] == "CRITICAL"
 
 
+@pytest.mark.property
 def test_edge_case_beyond_limit():
     """Test beyond the 4,000 server limit."""
     result = calculate_recovery_capacity(4500)  # noqa: F841
@@ -245,6 +255,7 @@ def target_account_servers_strategy(draw):
 
 @settings(max_examples=100)
 @given(target_servers=target_account_servers_strategy())
+@pytest.mark.property
 def test_property_recovery_capacity_status_calculation(target_servers):
     """
     Property 11: Recovery Capacity Status Calculation
@@ -322,6 +333,7 @@ def test_property_recovery_capacity_status_calculation(target_servers):
     target_servers=st.integers(min_value=0, max_value=300),
     staging_servers=st.integers(min_value=0, max_value=3000)
 )
+@pytest.mark.property
 def test_property_recovery_capacity_excludes_staging_accounts(
     target_servers, staging_servers
 ):
@@ -350,6 +362,7 @@ def test_property_recovery_capacity_excludes_staging_accounts(
 
 @settings(max_examples=50)
 @given(servers=st.integers(min_value=0, max_value=3199))
+@pytest.mark.property
 def test_property_ok_status_threshold(servers):
     """Test OK status threshold (< 80% = < 3,200 servers)."""
     result = calculate_recovery_capacity(servers)  # noqa: F841
@@ -360,6 +373,7 @@ def test_property_ok_status_threshold(servers):
 
 @settings(max_examples=50)
 @given(servers=st.integers(min_value=3200, max_value=3599))
+@pytest.mark.property
 def test_property_warning_status_threshold(servers):
     """Test WARNING status threshold (80-90% = 3,200-3,599 servers)."""
     result = calculate_recovery_capacity(servers)  # noqa: F841
@@ -370,6 +384,7 @@ def test_property_warning_status_threshold(servers):
 
 @settings(max_examples=50)
 @given(servers=st.integers(min_value=3600, max_value=4500))
+@pytest.mark.property
 def test_property_critical_status_threshold(servers):
     """Test CRITICAL status threshold (>= 90% = >= 3,600 servers)."""
     result = calculate_recovery_capacity(servers)  # noqa: F841
@@ -383,6 +398,7 @@ def test_property_critical_status_threshold(servers):
 # ============================================================================
 
 
+@pytest.mark.property
 def test_edge_case_zero_servers():
     """Test with zero servers."""
     result = calculate_recovery_capacity(0)  # noqa: F841
@@ -392,6 +408,7 @@ def test_edge_case_zero_servers():
     assert result["status"] == "OK"
 
 
+@pytest.mark.property
 def test_edge_case_exactly_80_percent():
     """Test exactly at 80% threshold (3,200 servers)."""
     result = calculate_recovery_capacity(3200)  # noqa: F841
@@ -399,6 +416,7 @@ def test_edge_case_exactly_80_percent():
     assert result["status"] == "WARNING"
 
 
+@pytest.mark.property
 def test_edge_case_exactly_90_percent():
     """Test exactly at 90% threshold (3,600 servers)."""
     result = calculate_recovery_capacity(3600)  # noqa: F841
@@ -406,6 +424,7 @@ def test_edge_case_exactly_90_percent():
     assert result["status"] == "CRITICAL"
 
 
+@pytest.mark.property
 def test_edge_case_at_limit():
     """Test at the 4,000 server limit."""
     result = calculate_recovery_capacity(4000)  # noqa: F841
@@ -415,6 +434,7 @@ def test_edge_case_at_limit():
     assert result["status"] == "CRITICAL"
 
 
+@pytest.mark.property
 def test_edge_case_beyond_limit():
     """Test beyond the 4,000 server limit."""
     result = calculate_recovery_capacity(4500)  # noqa: F841

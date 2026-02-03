@@ -480,11 +480,16 @@ def handle_api_gateway_request(event, context):
         body = json.loads(event.get("body", "{}"))
         return handle_validate_staging_account(body)
 
-    # Combined capacity endpoint
+    # Combined capacity endpoint - ALL accounts (NEW - universal dashboard)
+    elif path == "/accounts/capacity/all" and method == "GET":
+        return handle_get_all_accounts_capacity()
+
+    # Combined capacity endpoint - single account
     # Supports both:
     # - /accounts/{targetAccountId}/capacity
     # - /accounts/targets/{targetAccountId}/capacity
     elif path.startswith("/accounts/") and path.endswith("/capacity") and method == "GET":
+
         # Extract target account ID from path
         path_parts = path.split("/")
 
@@ -2738,8 +2743,18 @@ def query_account_capacity(account_config: Dict) -> Dict:
     print(f"Querying capacity for account {account_id} ({account_name})")
 
     try:
-        # Step 1: Get credentials for the account
-        if role_arn and external_id:
+        # Step 1: Detect if this is the current account
+        from shared.cross_account import get_current_account_id
+
+        current_account_id = get_current_account_id()
+        is_current_account = account_id == current_account_id
+
+        # Step 2: Get credentials for the account
+        if is_current_account:
+            # Current account - use default credentials (no role assumption needed)
+            credentials = None
+            print(f"Using default credentials for current account {account_id}")
+        elif role_arn and external_id:
             # Cross-account access - assume role
             print(f"Assuming role {role_arn} in account {account_id}")
 
@@ -2774,9 +2789,9 @@ def query_account_capacity(account_config: Dict) -> Dict:
                     "error": f"Role assumption failed: {error_message}",
                 }
         else:
-            # Current account - use default credentials
+            # No role ARN/external ID provided for cross-account access
             credentials = None
-            print(f"Using default credentials for account {account_id}")
+            print(f"Using default credentials for account {account_id} (no role ARN provided)")
 
         # Step 2: Query all DRS regions concurrently
         def query_region(region: str) -> Dict:
@@ -3190,23 +3205,32 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
             )
 
             if extended_result and extended_result.get("accessible", False):
-                # Add extended servers to the staging account's totals
-                staging_result["replicatingServers"] += extended_result["replicatingServers"]
-                staging_result["totalServers"] += extended_result["totalServers"]
+                # NOTE: Extended servers are the SAME servers as direct servers,
+                # just viewed from the target account. We should NOT add them to totals.
+                # We only use extended_result to mark which regions have extended servers.
 
-                # Merge regional breakdowns
+                # Merge regional breakdowns - mark regions that have extended servers
                 extended_regions = extended_result.get("regionalBreakdown", [])
                 if extended_regions:
-                    # Add note about extended servers
-                    for region_data in extended_regions:
-                        region_data["isExtended"] = True
-                    staging_result["regionalBreakdown"].extend(extended_regions)
+                    # Create a map of existing regions
+                    region_map = {r["region"]: r for r in staging_result["regionalBreakdown"]}
+
+                    # Mark regions that have extended servers
+                    for ext_region in extended_regions:
+                        region_name = ext_region["region"]
+                        if region_name in region_map:
+                            # Region exists - mark that it has extended servers
+                            region_map[region_name]["hasExtended"] = True
+                        else:
+                            # Extended servers in a region not in direct query
+                            # This shouldn't happen but handle it gracefully
+                            ext_region["isExtended"] = True
+                            staging_result["regionalBreakdown"].append(ext_region)
 
                 print(
                     f"Staging account {staging_id}: "
-                    f"direct={staging_result['replicatingServers'] - extended_result['replicatingServers']}, "
-                    f"extended={extended_result['replicatingServers']}, "
-                    f"total={staging_result['replicatingServers']}"
+                    f"direct={staging_result['replicatingServers']}, "
+                    f"extended_verified={extended_result['replicatingServers']}"
                 )
 
     # Combine results
@@ -3463,34 +3487,57 @@ def generate_warnings(account_results: List[Dict], combined_metrics: Dict) -> Li
     return warnings
 
 
-def calculate_recovery_capacity(target_account_servers: int) -> Dict:
+def calculate_recovery_capacity(
+    target_account_servers: int, regional_breakdown: List[Dict] = None
+) -> Dict:
     """
     Calculate recovery capacity metrics for the target account.
 
     Recovery capacity is based only on the target account (not staging
-    accounts) and measures against the 4,000 instance recovery limit.
+    accounts) and measures against the 4,000 instance recovery limit
+    PER REGION.
 
-    Status thresholds:
-    - OK: < 3,200 servers (< 80% of 4,000)
-    - WARNING: 3,200-3,600 servers (80-90%)
-    - CRITICAL: > 3,600 servers (> 90%)
+    AWS DRS Service Quota (L-E28BE5E0):
+    - 4,000 source servers per account PER REGION
+    - Source: https://docs.aws.amazon.com/general/latest/gr/drs.html
+    - If you have servers in 2 regions, total capacity = 8,000
+    - If you have servers in 3 regions, total capacity = 12,000
+
+    Status thresholds (based on total capacity across all regions):
+    - OK: < 80% of total capacity
+    - WARNING: 80-90% of total capacity
+    - CRITICAL: > 90% of total capacity
 
     Args:
         target_account_servers: Total number of servers in target account
             (includes both replicating and extended source servers)
+        regional_breakdown: List of regional capacity dicts with 'region' key
+            Used to count active regions for capacity calculation
 
     Returns:
         Dictionary containing:
         - currentServers: Total servers in target account
-        - maxRecoveryInstances: Maximum recovery instances (4,000)
+        - maxRecoveryInstances: Maximum recovery instances (4,000 × regions)
         - percentUsed: Percentage of recovery capacity used
         - availableSlots: Available recovery slots
         - status: OK, WARNING, or CRITICAL
 
     Requirements: 10.1, 10.2, 10.3, 10.4, 10.5
     """
-    max_recovery_instances = 4000
-    percent_used = (target_account_servers / max_recovery_instances) * 100
+    # Count active regions (regions with servers)
+    if regional_breakdown:
+        active_regions = len(regional_breakdown)
+    else:
+        # Fallback: assume 1 region if no breakdown provided
+        active_regions = 1
+
+    # AWS DRS limit: 4,000 source servers per account per region
+    max_per_region = 4000
+    max_recovery_instances = max_per_region * active_regions
+
+    percent_used = (
+        (target_account_servers / max_recovery_instances) * 100 if max_recovery_instances > 0 else 0
+    )
     available_slots = max_recovery_instances - target_account_servers
 
     # Determine status based on thresholds
@@ -4306,14 +4353,20 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
         if target_account_result:
             # Use totalServers (replicating + extended) for recovery capacity
             target_total_servers = target_account_result.get("totalServers", 0)
+            # Pass regional breakdown to calculate capacity per region
+            target_regional_breakdown = target_account_result.get("regionalBreakdown", [])
         else:
             target_total_servers = 0
+            target_regional_breakdown = []
 
-        recovery_capacity = calculate_recovery_capacity(target_total_servers)
+        recovery_capacity = calculate_recovery_capacity(
+            target_total_servers, target_regional_breakdown
+        )
         print(
             f"Recovery capacity calculated: {recovery_capacity.get('currentServers')}/"
             f"{recovery_capacity.get('maxRecoveryInstances')} "
-            f"(using totalServers={target_total_servers})"
+            f"({len(target_regional_breakdown)} regions × 4,000 per region, "
+            f"using totalServers={target_total_servers})"
         )
 
         # Step 7.5: Get concurrent jobs and servers in jobs metrics
@@ -4481,6 +4534,213 @@ def handle_get_combined_capacity(query_params: Dict) -> Dict:
 
     except Exception as e:
         print(f"Error in handle_get_combined_capacity: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+        return response(
+            500,
+            {
+                "error": "Internal error",
+                "message": str(e),
+            },
+        )
+
+
+def handle_get_all_accounts_capacity() -> Dict:
+    """
+    Get combined capacity across ALL target accounts.
+
+    This is the universal dashboard endpoint that returns capacity for all
+    target accounts in a single API call, making the dashboard load much faster.
+
+    Returns:
+        Dict with aggregated capacity data for all target accounts
+    """
+    try:
+        print("Querying capacity for ALL target accounts")
+
+        # Step 1: Get all target accounts from DynamoDB
+        if not target_accounts_table:
+            return response(
+                500,
+                {"error": "Target accounts table not configured"},
+            )
+
+        try:
+            scan_result = target_accounts_table.scan()
+            all_target_accounts = scan_result.get("Items", [])
+
+            print(f"Found {len(all_target_accounts)} target accounts")
+
+            if len(all_target_accounts) == 0:
+                return response(
+                    200,
+                    {
+                        "combined": {
+                            "totalReplicating": 0,
+                            "maxReplicating": 0,
+                            "percentUsed": 0.0,
+                            "availableSlots": 0,
+                            "status": "OK",
+                            "message": "No target accounts configured",
+                        },
+                        "accounts": [],
+                        "recoveryCapacity": {
+                            "currentServers": 0,
+                            "maxRecoveryInstances": 0,
+                            "percentUsed": 0.0,
+                            "availableSlots": 0,
+                            "status": "OK",
+                        },
+                        "concurrentJobs": {"current": 0, "max": 20},
+                        "serversInJobs": {"current": 0, "max": 500},
+                        "maxServersPerJob": {"current": 0, "max": 100},
+                        "warnings": [],
+                    },
+                )
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+            print(f"DynamoDB error: {error_code} - {error_message}")
+
+            return response(
+                500,
+                {
+                    "error": "Failed to retrieve target accounts",
+                    "message": error_message,
+                },
+            )
+
+        # Step 2: Query capacity for each target account
+        all_accounts = []
+        all_warnings = []
+        total_replicating = 0
+        total_max_replicating = 0
+        total_recovery_servers = 0
+        total_recovery_max = 0
+        total_concurrent_jobs = 0
+        total_servers_in_jobs = 0
+        max_servers_per_job = 0
+
+        for target_account in all_target_accounts:
+            target_account_id = target_account.get("accountId")
+            print(f"Querying capacity for account {target_account_id}")
+
+            # Get staging accounts for this target
+            staging_accounts = target_account.get("stagingAccounts", [])
+
+            # Query all accounts in parallel (target + staging)
+            account_results = query_all_accounts_parallel(target_account, staging_accounts)
+
+            # Calculate combined metrics for this target
+            combined_metrics = calculate_combined_metrics(account_results)
+
+            # Add to aggregated totals
+            total_replicating += combined_metrics.get("totalReplicating", 0)
+            total_max_replicating += combined_metrics.get("maxReplicating", 0)
+
+            # Add all accounts from this target
+            all_accounts.extend(account_results)
+
+            # Calculate recovery capacity for this target
+            target_account_data = next(
+                (acc for acc in account_results if acc.get("accountType") == "target"), None
+            )
+            if target_account_data:
+                total_recovery_servers += target_account_data.get("totalServers", 0)
+                # Each target account has 4,000 recovery instance limit
+                total_recovery_max += 4000
+
+        # Step 3: Calculate overall metrics
+        combined_percent_used = (
+            (total_replicating / total_max_replicating * 100) if total_max_replicating > 0 else 0.0
+        )
+
+        available_slots = total_max_replicating - total_replicating
+
+        # Determine overall status
+        if combined_percent_used >= 93:
+            combined_status = "HYPER-CRITICAL"
+            status_message = f"Replication capacity critically high: {combined_percent_used:.1f}%"
+        elif combined_percent_used >= 83:
+            combined_status = "CRITICAL"
+            status_message = f"Replication capacity critical: {combined_percent_used:.1f}%"
+        elif combined_percent_used >= 75:
+            combined_status = "WARNING"
+            status_message = f"Replication capacity high: {combined_percent_used:.1f}%"
+        elif combined_percent_used >= 67:
+            combined_status = "INFO"
+            status_message = f"Replication capacity moderate: {combined_percent_used:.1f}%"
+        else:
+            combined_status = "OK"
+            status_message = f"Replication capacity healthy: {combined_percent_used:.1f}%"
+
+        # Recovery capacity
+        recovery_percent_used = (
+            (total_recovery_servers / total_recovery_max * 100) if total_recovery_max > 0 else 0.0
+        )
+
+        if recovery_percent_used >= 90:
+            recovery_status = "CRITICAL"
+        elif recovery_percent_used >= 75:
+            recovery_status = "WARNING"
+        else:
+            recovery_status = "OK"
+
+        recovery_capacity = {
+            "currentServers": total_recovery_servers,
+            "maxRecoveryInstances": total_recovery_max,
+            "percentUsed": recovery_percent_used,
+            "availableSlots": total_recovery_max - total_recovery_servers,
+            "status": recovery_status,
+        }
+
+        # Jobs metrics (aggregate across all accounts)
+        # Note: These are account-level limits, not per-region
+        concurrent_jobs_data = {
+            "current": total_concurrent_jobs,
+            "max": 20 * len(all_target_accounts),  # 20 per account
+        }
+
+        servers_in_jobs_data = {
+            "current": total_servers_in_jobs,
+            "max": 500 * len(all_target_accounts),  # 500 per account
+        }
+
+        max_per_job_data = {
+            "current": max_servers_per_job,
+            "max": 100,  # Global limit
+        }
+
+        response_data = {
+            "combined": {
+                "totalReplicating": total_replicating,
+                "maxReplicating": total_max_replicating,
+                "percentUsed": combined_percent_used,
+                "availableSlots": available_slots,
+                "status": combined_status,
+                "message": status_message,
+            },
+            "accounts": all_accounts,
+            "recoveryCapacity": recovery_capacity,
+            "concurrentJobs": concurrent_jobs_data,
+            "serversInJobs": servers_in_jobs_data,
+            "maxServersPerJob": max_per_job_data,
+            "warnings": all_warnings,
+        }
+
+        print(
+            f"All accounts combined capacity: {response_data['combined']['totalReplicating']}/"
+            f"{response_data['combined']['maxReplicating']} "
+            f"({response_data['combined']['percentUsed']:.1f}%)"
+        )
+
+        return response(200, response_data)
+
+    except Exception as e:
+        print(f"Error in handle_get_all_accounts_capacity: {e}")
         import traceback
 
         traceback.print_exc()

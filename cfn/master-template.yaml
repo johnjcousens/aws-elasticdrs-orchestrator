@@ -808,6 +808,7 @@ Resources:
         AccountsTargetStagingAccountsSyncResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountsSyncResourceId
         AccountsTargetStagingAccountResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetStagingAccountResourceId
         AccountsTargetCapacityResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsTargetCapacityResourceId
+        AccountsCapacityAllResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.AccountsCapacityAllResourceId
         # Comprehensive DRS Infrastructure Resource IDs from Resources Stack
         DrsReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSReplicationResourceId
         DrsStartReplicationResourceId: !GetAtt ApiGatewayResourcesStack.Outputs.DRSStartReplicationResourceId

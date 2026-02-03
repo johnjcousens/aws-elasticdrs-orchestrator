@@ -76,6 +76,7 @@ server_count_strategy = st.integers(min_value=0, max_value=300)
     total_servers=server_count_strategy,
     replicating_servers=server_count_strategy,
 )
+@pytest.mark.property
 def test_property_validation_result_completeness_success(
     account_id, role_arn, external_id, region, total_servers, replicating_servers
 ):
@@ -203,6 +204,7 @@ def test_property_validation_result_completeness_success(
     region=region_strategy,
     error_code=st.sampled_from(["AccessDenied", "InvalidClientTokenId"]),
 )
+@pytest.mark.property
 def test_property_validation_result_completeness_role_failure(
     account_id, role_arn, external_id, region, error_code
 ):
@@ -266,6 +268,7 @@ def test_property_validation_result_completeness_role_failure(
     external_id=external_id_strategy,
     region=region_strategy,
 )
+@pytest.mark.property
 def test_property_validation_result_completeness_drs_uninitialized(
     account_id, role_arn, external_id, region
 ):

@@ -71,6 +71,7 @@ account_name_strategy = st.text(
     account_name=account_name_strategy,
     explicit_arn=st.text(min_size=20, max_size=100),
 )
+@pytest.mark.property
 def test_property_explicit_arn_precedence(
     account_id, account_name, explicit_arn
 ):
@@ -125,6 +126,7 @@ def test_property_explicit_arn_precedence(
     account_name=account_name_strategy,
     include_role_arn=st.booleans(),
 )
+@pytest.mark.property
 def test_property_optional_role_arn_acceptance(
     account_id, account_name, include_role_arn
 ):
@@ -170,6 +172,7 @@ def test_property_optional_role_arn_acceptance(
     account_id=account_id_strategy,
     account_name=account_name_strategy,
 )
+@pytest.mark.property
 def test_property_api_response_includes_role_arn(
     account_id, account_name
 ):
@@ -213,6 +216,7 @@ def test_property_api_response_includes_role_arn(
             )
 
 
+@pytest.mark.property
 def test_account_addition_without_role_arn():
     """Unit test: Adding account without roleArn constructs ARN"""
     with mock_aws():
@@ -247,6 +251,7 @@ def test_account_addition_without_role_arn():
         )
 
 
+@pytest.mark.property
 def test_account_addition_with_explicit_role_arn():
     """Unit test: Adding account with explicit roleArn uses provided ARN"""
     with mock_aws():

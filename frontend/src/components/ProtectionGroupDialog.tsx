@@ -465,6 +465,7 @@ export const ProtectionGroupDialog: React.FC<ProtectionGroupDialogProps> = ({
     <Modal
       visible={open}
       onDismiss={handleCancel}
+      closeAriaLabel="Close dialog"
       header={isEditMode ? 'Edit Protection Group' : 'Create Protection Group'}
       size="large"
       footer={

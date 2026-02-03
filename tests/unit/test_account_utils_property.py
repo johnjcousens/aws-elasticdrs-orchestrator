@@ -32,6 +32,7 @@ account_id_strategy = st.text(alphabet="0123456789", min_size=12, max_size=12)
 
 @settings(max_examples=100)
 @given(account_id=account_id_strategy)
+@pytest.mark.property
 def test_property_arn_construction_pattern(account_id):
     """
     Property 1: ARN construction follows standardized pattern.
@@ -75,6 +76,7 @@ def test_property_arn_construction_pattern(account_id):
 
 @settings(max_examples=100)
 @given(account_id=account_id_strategy)
+@pytest.mark.property
 def test_property_account_id_extraction_inverse(account_id):
     """
     Property 7: Account ID extraction is inverse of construction.
@@ -115,6 +117,7 @@ def test_property_account_id_extraction_inverse(account_id):
         max_size=64,
     ),
 )
+@pytest.mark.property
 def test_property_extraction_works_for_any_role_name(account_id, role_name):
     """
     Property: Account ID extraction works for any valid role name.
@@ -152,6 +155,7 @@ def test_property_extraction_works_for_any_role_name(account_id, role_name):
         max_size=10,
     ),
 )
+@pytest.mark.property
 def test_property_validation_rejects_invalid_formats(
     account_id, prefix, suffix
 ):
@@ -182,6 +186,7 @@ def test_property_validation_rejects_invalid_formats(
         )
 
 
+@pytest.mark.property
 def test_arn_construction_specific_examples():
     """Unit test examples for ARN construction"""
     # Example 1: Standard account ID
@@ -197,6 +202,7 @@ def test_arn_construction_specific_examples():
     assert arn == "arn:aws:iam::000000000001:role/DRSOrchestrationRole"
 
 
+@pytest.mark.property
 def test_arn_construction_invalid_inputs():
     """Unit test examples for invalid inputs"""
     # Too short
@@ -220,6 +226,7 @@ def test_arn_construction_invalid_inputs():
         construct_role_arn(None)
 
 
+@pytest.mark.property
 def test_account_id_validation_specific_examples():
     """Unit test examples for account ID validation"""
     # Valid
@@ -247,6 +254,7 @@ def test_account_id_validation_specific_examples():
     assert validate_account_id("123 456 789 012") is False
 
 
+@pytest.mark.property
 def test_account_id_extraction_specific_examples():
     """Unit test examples for account ID extraction"""
     # Standard ARN

@@ -98,6 +98,7 @@ def account_results_with_warnings_strategy(draw):
 
 @settings(max_examples=100)
 @given(account_results=account_results_with_warnings_strategy())
+@pytest.mark.property
 def test_property_warning_generation_per_account(account_results):
     """
     Property 5: Warning Generation Based on Thresholds
@@ -149,6 +150,7 @@ def test_property_warning_generation_per_account(account_results):
     num_accounts=st.integers(min_value=1, max_value=10),
     servers_per_account=st.integers(min_value=0, max_value=300),
 )
+@pytest.mark.property
 def test_property_combined_warnings(num_accounts, servers_per_account):
     """
     Property: Combined capacity warnings are generated when appropriate.
@@ -191,6 +193,7 @@ def test_property_combined_warnings(num_accounts, servers_per_account):
 
 @settings(max_examples=100)
 @given(replicating_servers=st.integers(min_value=0, max_value=199))
+@pytest.mark.property
 def test_property_no_warnings_for_ok_status(replicating_servers):
     """
     Property: No warnings should be generated for accounts in OK status.
@@ -221,6 +224,7 @@ def test_property_no_warnings_for_ok_status(replicating_servers):
 # ============================================================================
 
 
+@pytest.mark.property
 def test_warning_contains_actionable_guidance():
     """Test that warnings contain actionable guidance."""
     account_results = [  # noqa: F841
@@ -251,6 +255,7 @@ def test_warning_contains_actionable_guidance():
     ), "Warning should contain actionable guidance"
 
 
+@pytest.mark.property
 def test_warning_includes_server_count():
     """Test that warnings include the server count."""
     account_results = [  # noqa: F841
@@ -279,6 +284,7 @@ def test_warning_includes_server_count():
     assert "210" in warning, "Warning should include server count"
 
 
+@pytest.mark.property
 def test_warning_includes_account_identification():
     """Test that warnings include account name and ID."""
     account_results = [  # noqa: F841
@@ -315,6 +321,7 @@ def test_warning_includes_account_identification():
 # ============================================================================
 
 
+@pytest.mark.property
 def test_edge_case_no_warnings_all_ok():
     """Edge case: No warnings when all accounts are OK."""
     account_results = [  # noqa: F841
@@ -339,6 +346,7 @@ def test_edge_case_no_warnings_all_ok():
     ), "Should have no warnings when all accounts are OK"
 
 
+@pytest.mark.property
 def test_edge_case_multiple_warnings_same_account():
     """
     Edge case: Account can trigger both per-account and combined warnings.
@@ -368,6 +376,7 @@ def test_edge_case_multiple_warnings_same_account():
     ), "Should have CRITICAL warning for account"
 
 
+@pytest.mark.property
 def test_edge_case_inaccessible_accounts_no_warnings():
     """Edge case: Inaccessible accounts should not generate warnings."""
     account_results = [  # noqa: F841
@@ -401,6 +410,7 @@ def test_edge_case_inaccessible_accounts_no_warnings():
     ), "Should not generate warnings for inaccessible accounts"
 
 
+@pytest.mark.property
 def test_edge_case_all_accounts_at_limit():
     """Edge case: All accounts at hard limit (300 servers)."""
     account_results = [  # noqa: F841
@@ -431,6 +441,7 @@ def test_edge_case_all_accounts_at_limit():
 # ============================================================================
 
 
+@pytest.mark.property
 def test_warning_severity_levels_distinct():
     """Test that different severity levels produce distinct warnings."""
     # Create accounts at each severity level

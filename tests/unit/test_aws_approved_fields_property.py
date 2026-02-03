@@ -40,6 +40,7 @@ from shared.launch_config_validation import (  # noqa: E402
         max_size=5,
     )
 )
+@pytest.mark.property
 def test_allowed_fields_accepted(config):
     """
     Property 3: AWS-Approved Fields Enforcement (Positive Case)
@@ -62,6 +63,7 @@ def test_allowed_fields_accepted(config):
     blocked_field=st.sampled_from(BLOCKED_FIELDS),
     value=st.text(min_size=1, max_size=50),
 )
+@pytest.mark.property
 def test_blocked_fields_rejected(blocked_field, value):
     """
     Property 3: AWS-Approved Fields Enforcement (Negative Case)
@@ -93,6 +95,7 @@ def test_blocked_fields_rejected(blocked_field, value):
     blocked_field=st.sampled_from(BLOCKED_FIELDS),
     blocked_value=st.text(min_size=1, max_size=50),
 )
+@pytest.mark.property
 def test_mixed_fields_rejected(allowed_config, blocked_field, blocked_value):
     """
     Property 3: AWS-Approved Fields Enforcement (Mixed Case)
@@ -123,6 +126,7 @@ def test_mixed_fields_rejected(allowed_config, blocked_field, blocked_value):
     ).filter(lambda x: x not in ALLOWED_FIELDS and x not in BLOCKED_FIELDS),
     value=st.text(min_size=1, max_size=50),
 )
+@pytest.mark.property
 def test_unknown_fields_handling(unknown_field, value):
     """
     Property 3 (Edge Case): Unknown Fields
@@ -142,6 +146,7 @@ def test_unknown_fields_handling(unknown_field, value):
     )
 
 
+@pytest.mark.property
 def test_aws_approved_fields_specific_examples():
     """Unit test examples for AWS-approved fields enforcement"""
     # Example 1: All allowed fields
@@ -200,6 +205,7 @@ def test_aws_approved_fields_specific_examples():
     assert "keyName" in result8["blockedFields"]
 
 
+@pytest.mark.property
 def test_blocked_fields_list_completeness():
     """Verify BLOCKED_FIELDS contains all DRS-managed fields"""
     expected_blocked = ["imageId", "userData", "blockDeviceMappings", "keyName"]
@@ -210,6 +216,7 @@ def test_blocked_fields_list_completeness():
         )
 
 
+@pytest.mark.property
 def test_allowed_fields_list_completeness():
     """Verify ALLOWED_FIELDS contains all AWS-approved fields"""
     expected_allowed = [

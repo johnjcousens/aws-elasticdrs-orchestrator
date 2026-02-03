@@ -91,7 +91,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   return (
     <>
       {/* Top Navigation Bar - AWS Console Style */}
-      <div id="top-nav" style={{ position: 'sticky', top: 0, zIndex: 1002 }}>
+      <div id="top-nav">
         <TopNavigation
           identity={{
             href: '/',
