@@ -3229,12 +3229,13 @@ def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
     Per AWS DRS service quotas:
     - Max replicating servers: 300 per account per region (not adjustable)
     - With multiple staging accounts: capacity = num_accounts × 300
-    
+
     Example:
     - 1 target account + 1 staging account = 2 × 300 = 600 max replicating
     - 1 target account + 2 staging accounts = 3 × 300 = 900 max replicating
 
-    Reference: https://aws.amazon.com/about-aws/whats-new/2022/06/aws-elastic-disaster-recovery-multiple-staging-target-accounts/
+    Reference:
+    https://aws.amazon.com/about-aws/whats-new/2022/06/aws-elastic-disaster-recovery-multiple-staging-target-accounts/  # noqa: E501
 
     Args:
         account_results: List of account capacity results from query_all_accounts_parallel
@@ -3288,6 +3289,7 @@ def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
         "accessibleAccounts": len(accessible_accounts),
         "totalAccounts": total_accounts,
     }
+
 
 def calculate_account_status(replicating_servers: int) -> str:
     """
