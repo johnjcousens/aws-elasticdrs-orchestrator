@@ -75,6 +75,7 @@ region_strategy = st.sampled_from([
         "InvalidParameterValue",
     ]),
 )
+@pytest.mark.property
 def test_property_validation_error_handling_role_failures(
     account_id, role_arn, external_id, region, error_code
 ):
@@ -150,6 +151,7 @@ def test_property_validation_error_handling_role_failures(
     external_id=external_id_strategy,
     region=region_strategy,
 )
+@pytest.mark.property
 def test_property_validation_error_handling_drs_uninitialized(
     account_id, role_arn, external_id, region
 ):
@@ -249,6 +251,7 @@ def test_property_validation_error_handling_drs_uninitialized(
         "ServiceQuotaExceededException",
     ]),
 )
+@pytest.mark.property
 def test_property_validation_error_handling_drs_other_errors(
     account_id, role_arn, external_id, region, drs_error_code
 ):
@@ -332,6 +335,7 @@ def test_property_validation_error_handling_drs_other_errors(
     external_id=external_id_strategy,
     region=region_strategy,
 )
+@pytest.mark.property
 def test_property_validation_error_handling_invalid_account_id(
     account_id, role_arn, external_id, region
 ):
@@ -379,6 +383,7 @@ def test_property_validation_error_handling_invalid_account_id(
     external_id=external_id_strategy,
     # Missing region - will be None
 )
+@pytest.mark.property
 def test_property_validation_error_handling_missing_required_fields(
     account_id, role_arn, external_id
 ):

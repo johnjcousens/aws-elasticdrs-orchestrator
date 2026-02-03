@@ -571,6 +571,8 @@ The solution implements comprehensive RBAC with 5 granular DRS-specific roles:
 - [Software Requirements Specification](docs/requirements/SOFTWARE_REQUIREMENTS_SPECIFICATION.md) - Technical specifications
 - [UX/UI Design Specifications](docs/requirements/UX_UI_DESIGN_SPECIFICATIONS.md) - User interface design
 - [Architecture](docs/architecture/ARCHITECTURE.md) - System architecture and AWS service integration
+- [Lambda Handlers Architecture](docs/architecture/LAMBDA_HANDLERS_ARCHITECTURE.md) - Detailed Lambda handler architecture with Mermaid diagrams and direct invocation examples
+- [Lambda Handlers Complete Analysis](docs/analysis/LAMBDA_HANDLERS_COMPLETE_ANALYSIS.md) - Comprehensive analysis of all three Lambda handlers (15,000+ lines of code)
 
 ### Reference Documentation
 - [API Endpoints Reference](docs/reference/API_ENDPOINTS_CURRENT.md) - Complete API endpoint documentation (44 endpoints)
@@ -656,10 +658,44 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
 ```
 
+## Upcoming Features
+
+### DRS AllowLaunchingIntoThisInstance Pattern (In Development)
+
+A comprehensive implementation of AWS DRS AllowLaunchingIntoThisInstance pattern that enables launching recovery instances into pre-provisioned EC2 instances, preserving instance identity (instance ID, private IP, network configuration) through complete disaster recovery cycles.
+
+**Key Benefits**:
+- **88-92% RTO Reduction**: Target RTO <30 minutes for 100 instances (vs 2-4 hours with standard DRS)
+- **Instance Identity Preservation**: Maintains instance ID, private IP, and network configuration through failover/failback
+- **Zero DNS Changes**: Eliminates need for DNS updates and application reconfiguration during failback
+- **True Round-Trip DR**: Enables complete failover + failback to original instances
+
+**Architecture**:
+- Integrates with 3 existing Lambda handlers (data-management, execution, query)
+- 4 new shared modules: instance_matcher, drs_client, drs_job_monitor, drs_error_handler
+- 3 DynamoDB tables for configuration and state tracking
+- 15+ new API Gateway endpoints
+- Dual invocation pattern support (API Gateway + Direct Lambda)
+
+**Implementation Status**:
+- ✅ Requirements complete (13 user stories, 12 acceptance criteria)
+- ✅ Design complete (2,738 lines, comprehensive architecture)
+- ✅ Tasks defined (234 tasks across 9 phases)
+- 🚧 Implementation in progress (9-week timeline)
+
+**Test Coverage**: 104 tests planned (59 unit + 37 integration + 8 E2E)
+
+**Documentation**: See [.kiro/specs/drs-allow-launching-into-instance/](.kiro/specs/drs-allow-launching-into-instance/) for complete requirements, design, and implementation tasks.
+
 ## Directory Structure
 
 ```text
 aws-elasticdrs-orchestrator/
+├── .kiro/                        # Kiro AI development specs and steering
+│   ├── specs/                    # Feature specifications
+│   │   └── drs-allow-launching-into-instance/  # AllowLaunchingIntoThisInstance spec
+│   ├── settings/                 # Kiro configuration
+│   └── steering/                 # Development guidelines
 ├── cfn/                          # CloudFormation IaC (16 templates)
 │   ├── master-template.yaml      # Root orchestrator for nested stacks
 │   └── github-oidc-stack.yaml    # OIDC integration (optional)
@@ -682,6 +718,10 @@ aws-elasticdrs-orchestrator/
 │   ├── deployment/               # Deployment guides
 │   ├── requirements/             # Product and software requirements
 │   └── troubleshooting/          # Troubleshooting guides
+├── tests/                        # Test suites (unit, integration, E2E)
+│   ├── unit/                     # Unit tests with property-based testing
+│   ├── integration/              # Integration tests
+│   └── e2e/                      # End-to-end tests
 ├── archive/                      # Historical reference materials
 ├── mise.toml                     # Tool version management
 ├── pyproject.toml                # Python project configuration

@@ -107,6 +107,7 @@ def account_failure_scenario_strategy(draw):
 @settings(max_examples=100, deadline=None)
 @given(scenario=account_failure_scenario_strategy())
 @mock_aws
+@pytest.mark.property
 def test_property_failed_account_resilience(scenario):
     """
     Property 10: Failed Account Resilience
@@ -215,6 +216,7 @@ def test_property_failed_account_resilience(scenario):
     num_failed=st.integers(min_value=1, max_value=5)
 )
 @mock_aws
+@pytest.mark.property
 def test_property_partial_failure_continues_query(num_staging, num_failed):
     """
     Property: Partial failure continues query
@@ -301,6 +303,7 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
 @settings(max_examples=50, deadline=None)
 @given(num_staging=st.integers(min_value=1, max_value=10))
 @mock_aws
+@pytest.mark.property
 def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
     """
     Property: All staging accounts fail, target succeeds
@@ -390,6 +393,7 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
 
 
 @mock_aws
+@pytest.mark.property
 def test_edge_case_target_fails_all_staging_succeed():
     """Edge case: Target account fails, all staging accounts succeed."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
@@ -468,6 +472,7 @@ def test_edge_case_target_fails_all_staging_succeed():
 
 
 @mock_aws
+@pytest.mark.property
 def test_edge_case_different_error_types():
     """Edge case: Different types of errors for different accounts."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active

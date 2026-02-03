@@ -110,6 +110,7 @@ def multi_account_config_strategy(draw):
 @settings(max_examples=50, deadline=2000)
 @given(config=multi_account_config_strategy())
 @mock_aws
+@pytest.mark.property
 def test_property_multi_account_query_parallelism(config):
     """
     Property 8: Multi-Account Query Parallelism
@@ -209,6 +210,7 @@ def test_property_multi_account_query_parallelism(config):
     num_regions=st.integers(min_value=1, max_value=20)
 )
 @mock_aws
+@pytest.mark.property
 def test_property_concurrent_region_queries_per_account(
     num_staging, num_regions
 ):
@@ -287,6 +289,7 @@ def test_property_concurrent_region_queries_per_account(
 @settings(max_examples=50, deadline=3000)
 @given(config=multi_account_config_strategy())
 @mock_aws
+@pytest.mark.property
 def test_property_parallel_execution_not_sequential(config):
     """
     Property: Queries should execute in parallel, not sequentially
@@ -359,6 +362,7 @@ def test_property_parallel_execution_not_sequential(config):
 
 
 @mock_aws
+@pytest.mark.property
 def test_edge_case_no_staging_accounts():
     """Edge case: Only target account, no staging accounts."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
@@ -403,6 +407,7 @@ def test_edge_case_no_staging_accounts():
 
 
 @mock_aws
+@pytest.mark.property
 def test_edge_case_many_staging_accounts():
     """Edge case: Target account with many staging accounts (20)."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
@@ -454,6 +459,7 @@ def test_edge_case_many_staging_accounts():
 
 
 @mock_aws
+@pytest.mark.property
 def test_edge_case_query_failure_continues():
     """Edge case: One account query fails, others continue."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active

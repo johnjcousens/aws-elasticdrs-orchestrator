@@ -698,6 +698,22 @@ Resources:
       ParentId: !Ref AccountsTargetResource
       PathPart: capacity
 
+  # /accounts/capacity resource (for universal capacity queries)
+  AccountsCapacityResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsResource
+      PathPart: capacity
+
+  # /accounts/capacity/all resource (get all accounts capacity in one call)
+  AccountsCapacityAllResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsCapacityResource
+      PathPart: all
+
 # ============================================================================
 # OUTPUTS - All Resource IDs for Methods Stack
 # ============================================================================
@@ -1247,3 +1263,15 @@ Outputs:
     Value: !Ref AccountsTargetCapacityResource
     Export:
       Name: !Sub '${AWS::StackName}-AccountsTargetCapacityResourceId'
+
+  AccountsCapacityResourceId:
+    Description: 'Accounts Capacity Resource ID'
+    Value: !Ref AccountsCapacityResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsCapacityResourceId'
+
+  AccountsCapacityAllResourceId:
+    Description: 'Accounts Capacity All Resource ID'
+    Value: !Ref AccountsCapacityAllResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsCapacityAllResourceId'

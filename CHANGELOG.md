@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] - 2026-02-03 - DRS AllowLaunchingIntoThisInstance Spec & Staging Accounts Management
+
+### Added
+- **DRS AllowLaunchingIntoThisInstance Specification**: Complete requirements, design, and implementation tasks
+  - Requirements document with 13 user stories covering failover, failback, and reverse replication
+  - Comprehensive design document (2,738 lines) detailing integration with existing Lambda handlers
+  - Implementation tasks file (516 lines, 234 tasks) organized into 9 phases over 9 weeks
+  - Integration strategy: Extends 3 existing handlers (data-management, execution, query) rather than creating new handler
+  - 4 new shared modules: instance_matcher.py, drs_client.py, drs_job_monitor.py, drs_error_handler.py
+  - 3 DynamoDB tables for configuration and state tracking
+  - 15+ API Gateway endpoints across 3 handlers
+  - Performance target: RTO <30 minutes for 100 instances (88-92% improvement vs standard DRS)
+  - Test coverage: 104 tests (59 unit + 37 integration + 8 E2E)
+
+- **Staging Accounts Management API**: Complete backend implementation for staging account CRUD operations
+  - `POST /staging-accounts` - Add staging account with validation
+  - `GET /staging-accounts` - List all staging accounts
+  - `GET /staging-accounts/{accountId}` - Get specific staging account
+  - `DELETE /staging-accounts/{accountId}` - Remove staging account
+  - DynamoDB integration with StagingAccountsTable
+  - Cross-account validation and IAM role verification
+  - Frontend API client integration in staging-accounts-api.ts
+
+- **Regional Capacity Display**: New UI component for per-region DRS capacity visualization
+  - RegionalCapacitySection.tsx component with CloudScape design
+  - Displays capacity by region with progress bars and status indicators
+  - Shows available vs used capacity with percentage calculations
+  - Integrated into Dashboard with collapsible sections
+
+- **Lambda Handlers Architecture Documentation**: Comprehensive analysis of existing handler patterns
+  - LAMBDA_HANDLERS_ARCHITECTURE.md with detailed handler responsibilities
+  - Analysis of data-management-handler (4,200 lines, 18 operations)
+  - Analysis of execution-handler (5,826 lines, 6 operations)
+  - Analysis of query-handler (4,755 lines, 11 operations)
+  - Integration decision rationale for AllowLaunchingIntoThisInstance
+
+- **DRS Cross-Account KMS Documentation**: Complete validation and troubleshooting guides
+  - DRS_CROSS_ACCOUNT_KMS_VALIDATION.md with validation procedures
+  - DRS_KMS_CROSS_ACCOUNT_VALIDATION.md with troubleshooting steps
+  - DRS_KMS_KEY_AUTHORIZATION_FIX.md with remediation guidance
+  - KMS policy fix scripts (apply-kms-fix.py, fix-kms-drs-permissions.py)
+  - Verification script (verify-drs-kms-setup.py)
+
+- **GitHub Actions CI/CD**: Initial workflow configuration
+  - .github/ directory structure created
+  - Placeholder for automated testing and deployment workflows
+
+### Changed
+- **Dashboard UI Refactoring**: Simplified and improved dashboard layout
+  - Removed 734 lines of redundant code
+  - Improved component organization and readability
+  - Enhanced CloudScape AppLayout integration
+  - Better separation of concerns between components
+
+- **Query Handler Enhancement**: Extended with staging accounts operations
+  - Added 314 lines for staging account management
+  - Integrated with existing query handler pattern
+  - Maintains dual invocation support (API Gateway + Direct Lambda)
+
+- **Deploy Script Improvements**: Enhanced deployment workflow
+  - Better virtual environment activation
+  - Improved error handling and validation
+  - Enhanced logging and progress indicators
+
+- **API Gateway Configuration**: Extended with new resources and methods
+  - Added staging accounts resources to api-gateway-resources-stack.yaml
+  - Added staging accounts methods to api-gateway-infrastructure-methods-stack.yaml
+  - Updated master template with new stack references
+
+### Fixed
+- **Property-Based Tests**: Updated all PBT tests with proper imports and structure
+  - Fixed 17 property-based test files with correct hypothesis imports
+  - Added proper test annotations and validation
+  - Improved test coverage and reliability
+
+### Removed
+- **Obsolete Files**: Cleaned up unused assets and configurations
+  - Removed dashboard-current-state.png (64KB)
+  - Removed dashboard-login.png (64KB)
+  - Removed kms-policy.json (45 lines)
+  - Removed uninstall-drs-agents.json (18 lines)
+  - Removed test_uninitialized_region_handling_property.py (526 lines)
+
+---
+
 ## [1.1.0] - 2026-01-29 - Per-Server Launch Configuration & Recovery Instance Data
 
 ### Added

@@ -12,6 +12,7 @@ accounts rather than null or undefined.
 import json  # noqa: F401
 import os  # noqa: E402
 import sys  # noqa: E402
+import pytest
 from pathlib import Path  # noqa: E402
 from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
@@ -33,6 +34,7 @@ sys.path.insert(0, str(lambda_dir))
     target_servers=st.integers(min_value=0, max_value=300),
     has_staging_accounts_attr=st.booleans(),
 )
+@pytest.mark.property
 def test_property_13_empty_staging_accounts_default(
     target_servers, has_staging_accounts_attr
 ):
@@ -193,6 +195,7 @@ def test_property_13_empty_staging_accounts_default(
 @given(
     target_servers=st.integers(min_value=0, max_value=300),
 )
+@pytest.mark.property
 def test_property_13_missing_staging_accounts_attribute(target_servers):
     """
     Specific test case: stagingAccounts attribute completely missing from

@@ -201,6 +201,7 @@ def dynamodb_setup():
     target_account_id=account_id_strategy,
     staging_account=staging_account_strategy,
 )
+@pytest.mark.property
 def test_property_add_staging_account_response_structure(
     dynamodb_setup, target_account_id, staging_account
 ):
@@ -264,6 +265,7 @@ def test_property_add_staging_account_response_structure(
     ),
     removal_index=st.integers(min_value=0, max_value=2),
 )
+@pytest.mark.property
 def test_property_remove_staging_account_response_structure(
     dynamodb_setup, target_account_id, staging_accounts, removal_index
 ):
@@ -339,6 +341,7 @@ def test_property_remove_staging_account_response_structure(
     validation_succeeds=st.booleans(),
     server_count=st.integers(min_value=0, max_value=300),
 )
+@pytest.mark.property
 def test_property_validate_staging_account_response_structure(
     account_id, role_arn, external_id, region, validation_succeeds, server_count
 ):
@@ -460,6 +463,7 @@ def test_property_validate_staging_account_response_structure(
         "invalid_staging_account_format",
     ]),
 )
+@pytest.mark.property
 def test_property_error_responses_have_descriptive_messages(
     dynamodb_setup, target_account_id, invalid_input
 ):
@@ -559,6 +563,7 @@ def test_property_error_responses_have_descriptive_messages(
         )
 
 
+@pytest.mark.property
 def test_response_structure_consistency_across_operations():
     """
     Property 14e: Response Structure Consistency

@@ -198,8 +198,8 @@ Resources:
       StackName: !Ref AWS::StackName
       # Force update on every stack update using StackId
       ForceUpdate: !Ref AWS::StackId
-      # Force replacement due to PROJECT_NAME change
-      Version: "2026-01-10-project-name-fix"
+      # Force replacement - increment version to trigger new deployment
+      Version: "2026-02-03-capacity-all-endpoint"
 
   # ============================================================================
   # API STAGE WITH ENTERPRISE CONFIGURATION

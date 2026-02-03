@@ -17,15 +17,14 @@ import {
   PieChart,
   Button,
   Alert,
-  Table,
-  ProgressBar,
 } from '@cloudscape-design/components';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ContentLayout } from '../components/cloudscape/ContentLayout';
 import { PageTransition } from '../components/PageTransition';
+import { RegionalCapacitySection } from '../components/RegionalCapacitySection';
 import { CapacityGauge } from '../components/CapacityGauge';
-import { getCombinedCapacity } from '../services/staging-accounts-api';
+import { getAllAccountsCapacity } from '../services/staging-accounts-api';
 import type { CombinedCapacityData } from '../types/staging-accounts';
 import { AccountRequiredWrapper } from '../components/AccountRequiredWrapper';
 import { useAccount } from '../contexts/AccountContext';
@@ -33,7 +32,6 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useStagingAccountRefresh } from '../hooks/useStagingAccountRefresh';
 import apiClient from '../services/api';
 import type { ExecutionListItem } from '../types';
-import type { DRSQuotaStatus } from '../services/drsQuotaService';
 
 // Status colors for the pie chart (CloudScape AWS marketing approved colors)
 // Green: Success/Completed, Blue: In Progress, Red: Failed/Error
@@ -85,27 +83,59 @@ export const Dashboard: React.FC = () => {
   const [capacityData, setCapacityData] = useState<CombinedCapacityData | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
   const [capacityError, setCapacityError] = useState<string | null>(null);
-  const [expandedItems, setExpandedItems] = useState<any[]>([]);
-  const [expandedStagingItems, setExpandedStagingItems] = useState<any[]>([]);
+
+  // Fetch capacity data for ALL accounts (universal dashboard)
+  const fetchCapacityData = useCallback(async (bustCache = false) => {
+    // Dashboard shows ALL accounts - single API call for better performance
+    if (availableAccounts.length === 0) {
+      setCapacityData(null);
+      return;
+    }
+
+    // Only show loading spinner on initial load (when no data exists) or when busting cache
+    if (!capacityData || bustCache) {
+      setCapacityLoading(true);
+    }
+    setCapacityError(null);
+    
+    try {
+      // Fetch capacity for ALL target accounts in a single API call
+      const data = await getAllAccountsCapacity();
+      setCapacityData(data);
+    } catch (err) {
+      console.error('Error fetching capacity data:', err);
+      setCapacityError('Unable to fetch capacity data');
+      setCapacityData(null);
+    } finally {
+      setCapacityLoading(false);
+    }
+  }, [availableAccounts.length, capacityData]);
 
   // Refresh capacity data callback for staging account changes
   const refreshCapacityData = useCallback(() => {
-    const accountId = getCurrentAccountId();
-    if (accountId) {
-      fetchCapacityData(accountId, true); // Force cache bust
+    if (availableAccounts.length > 0) {
+      fetchCapacityData(true); // Force cache bust
     }
-  }, [getCurrentAccountId]);
+  }, [availableAccounts.length, fetchCapacityData]);
 
   // Setup staging account refresh coordination
   useStagingAccountRefresh({
     onRefreshCapacity: refreshCapacityData,
   });
   // Open settings modal if no accounts configured
+  // Only open settings modal if accounts have finished loading AND there are no accounts
   useEffect(() => {
     if (!accountsLoading && availableAccounts.length === 0) {
-      openSettingsModal('accounts');
+      // Add a small delay to avoid race conditions with account loading
+      const timer = setTimeout(() => {
+        if (availableAccounts.length === 0) {
+          openSettingsModal('accounts');
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  }, [accountsLoading, availableAccounts, openSettingsModal]);
+  }, [accountsLoading, availableAccounts.length, openSettingsModal]);
 
   const fetchExecutions = useCallback(async () => {
     const accountId = getCurrentAccountId();
@@ -135,26 +165,6 @@ export const Dashboard: React.FC = () => {
     }
   }, [getCurrentAccountId, executions.length]);
 
-  const fetchCapacityData = useCallback(async (accountId: string, bustCache = false) => {
-    // Only show loading spinner on initial load (when no data exists) or when busting cache
-    if (!capacityData || bustCache) {
-      setCapacityLoading(true);
-    }
-    setCapacityError(null);
-    try {
-      // Add timestamp to bust browser cache when explicitly requested
-      const timestamp = bustCache ? `?_t=${Date.now()}` : '';
-      const data = await getCombinedCapacity(accountId, false); // Don't need regional breakdown for summary
-      setCapacityData(data);
-    } catch (err) {
-      console.error('Error fetching capacity data:', err);
-      setCapacityError('Unable to fetch capacity data');
-      setCapacityData(null);
-    } finally {
-      setCapacityLoading(false);
-    }
-  }, [capacityData]);
-
   // Fetch executions when account changes
   useEffect(() => {
     fetchExecutions();
@@ -162,19 +172,18 @@ export const Dashboard: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchExecutions]);
 
-  // Fetch DRS capacity when account changes
+  // Fetch DRS capacity for ALL accounts (dashboard is universal)
   useEffect(() => {
-    const accountId = getCurrentAccountId();
-    if (accountId) {
-      fetchCapacityData(accountId);
+    if (availableAccounts.length > 0) {
+      fetchCapacityData();
       const interval = setInterval(() => {
-        fetchCapacityData(accountId);
+        fetchCapacityData();
       }, 30000);
       return () => clearInterval(interval);
     } else {
       setCapacityData(null);
     }
-  }, [selectedAccount, getCurrentAccountId, fetchCapacityData]);
+  }, [availableAccounts.length, fetchCapacityData]);
 
   const handleTagSync = async () => {
     const accountId = getCurrentAccountId();
@@ -200,15 +209,15 @@ export const Dashboard: React.FC = () => {
   const handleRefresh = async () => {
     const accountId = getCurrentAccountId();
     
-    // Refresh executions
+    // Refresh executions (still per-account)
     fetchExecutions();
     
-    // Refresh capacity data
-    if (accountId) {
-      fetchCapacityData(accountId, true); // Force cache bust
+    // Refresh capacity data (all accounts)
+    if (availableAccounts.length > 0) {
+      fetchCapacityData(true); // Force cache bust
     }
     
-    // Sync staging accounts in background
+    // Sync staging accounts in background for current account
     if (accountId) {
       setStagingSyncLoading(true);
       try {
@@ -226,7 +235,7 @@ export const Dashboard: React.FC = () => {
           toast.success(`Staging accounts updated. ${changeMsg}`);
           
           // Refresh capacity data again to show updated staging accounts
-          fetchCapacityData(accountId, true);
+          fetchCapacityData(true);
         }
       } catch (err) {
         console.error('Error syncing staging accounts:', err);
@@ -395,6 +404,17 @@ export const Dashboard: React.FC = () => {
               </Container>
             </ColumnLayout>
 
+            {/* Regional Replication Capacity Section */}
+            {capacityData && (
+              <RegionalCapacitySection 
+                accounts={capacityData.accounts}
+                combinedTotal={capacityData.combined.totalReplicating}
+                combinedMax={capacityData.combined.maxReplicating}
+                combinedPercent={capacityData.combined.percentUsed}
+                combinedStatus={capacityData.combined.status}
+              />
+            )}
+
             <Container
               header={
                 <Header variant="h2">
@@ -432,121 +452,63 @@ export const Dashboard: React.FC = () => {
                     </SpaceBetween>
                   )}
 
-                  {/* Visual Capacity Gauges */}
-                  <SpaceBetween size="l">
-                    <ColumnLayout columns={3} variant="text-grid">
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Replication Capacity
-                        </Box>
-                        <CapacityGauge
-                          used={capacityData.combined.totalReplicating}
-                          total={capacityData.combined.maxReplicating}
-                          size="medium"
-                          label={`${capacityData.combined.totalReplicating.toLocaleString()} / ${capacityData.combined.maxReplicating.toLocaleString()} servers`}
-                        />
-                        <Box textAlign="center" padding={{ top: 's' }}>
-                          <StatusIndicator
-                            type={
-                              capacityData.combined.status === 'OK'
-                                ? 'success'
-                                : capacityData.combined.status === 'INFO'
-                                  ? 'info'
-                                  : capacityData.combined.status === 'WARNING'
-                                    ? 'warning'
-                                    : 'error'
-                            }
-                          >
-                            {capacityData.combined.status}
-                          </StatusIndicator>
-                        </Box>
-                      </div>
-
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Recovery Capacity
-                        </Box>
-                        <CapacityGauge
-                          used={capacityData.recoveryCapacity.currentServers}
-                          total={capacityData.recoveryCapacity.maxRecoveryInstances}
-                          size="medium"
-                          label={`${capacityData.recoveryCapacity.currentServers.toLocaleString()} / ${capacityData.recoveryCapacity.maxRecoveryInstances.toLocaleString()} instances`}
-                        />
-                        <Box textAlign="center" padding={{ top: 's' }}>
-                          <StatusIndicator
-                            type={
-                              capacityData.recoveryCapacity.status === 'OK'
-                                ? 'success'
-                                : capacityData.recoveryCapacity.status === 'WARNING'
-                                  ? 'warning'
-                                  : 'error'
-                            }
-                          >
-                            {capacityData.recoveryCapacity.status}
-                          </StatusIndicator>
-                        </Box>
-                      </div>
-
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Available Slots
-                        </Box>
-                        <Box textAlign="center" padding={{ top: 'xl', bottom: 'xl' }}>
-                          <Box variant="awsui-value-large" color="text-status-success">
-                            {capacityData.combined.availableSlots.toLocaleString()}
-                          </Box>
-                          <Box variant="small" color="text-body-secondary" padding={{ top: 'xs' }}>
-                            slots available
-                          </Box>
-                        </Box>
-                        <Box textAlign="center" padding={{ top: 's' }}>
+                  {/* 1x3 Grid Layout for Job-Related Capacity Gauges */}
+                  <ColumnLayout columns={3} variant="text-grid">
+                    {/* Concurrent Recovery Jobs */}
+                    <Container>
+                      <SpaceBetween size="s">
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 'xxs' }}>Concurrent Recovery Jobs</Box>
                           <Box variant="small" color="text-body-secondary">
-                            {capacityData.accounts.length} account{capacityData.accounts.length !== 1 ? 's' : ''} monitored
+                            Number of recovery jobs that can run at the same time. AWS DRS limit: 20 concurrent jobs per account.
                           </Box>
-                        </Box>
-                      </div>
-                    </ColumnLayout>
-
-                    {/* DRS Service Limits */}
-                    <ColumnLayout columns={3} variant="text-grid">
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Concurrent Recovery Jobs
-                        </Box>
+                        </div>
                         <CapacityGauge
                           used={capacityData.concurrentJobs?.current ?? 0}
                           total={capacityData.concurrentJobs?.max ?? 20}
                           size="medium"
                           label={`${(capacityData.concurrentJobs?.current ?? 0).toLocaleString()} / ${(capacityData.concurrentJobs?.max ?? 20).toLocaleString()} jobs`}
                         />
-                        <Box textAlign="center" padding={{ top: 's' }}>
+                        <Box textAlign="center">
                           <Box variant="small" color="text-body-secondary">
                             {((capacityData.concurrentJobs?.max ?? 20) - (capacityData.concurrentJobs?.current ?? 0)).toLocaleString()} jobs available
                           </Box>
                         </Box>
-                      </div>
+                      </SpaceBetween>
+                    </Container>
 
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Servers in Active Jobs
-                        </Box>
+                    {/* Servers in Active Jobs */}
+                    <Container>
+                      <SpaceBetween size="s">
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 'xxs' }}>Servers in Active Jobs</Box>
+                          <Box variant="small" color="text-body-secondary">
+                            Total servers across all active recovery jobs. AWS DRS limit: 500 servers in all jobs combined per account.
+                          </Box>
+                        </div>
                         <CapacityGauge
                           used={capacityData.serversInJobs?.current ?? 0}
                           total={capacityData.serversInJobs?.max ?? 500}
                           size="medium"
                           label={`${(capacityData.serversInJobs?.current ?? 0).toLocaleString()} / ${(capacityData.serversInJobs?.max ?? 500).toLocaleString()} servers`}
                         />
-                        <Box textAlign="center" padding={{ top: 's' }}>
+                        <Box textAlign="center">
                           <Box variant="small" color="text-body-secondary">
                             {((capacityData.serversInJobs?.max ?? 500) - (capacityData.serversInJobs?.current ?? 0)).toLocaleString()} slots available
                           </Box>
                         </Box>
-                      </div>
+                      </SpaceBetween>
+                    </Container>
 
-                      <div>
-                        <Box variant="h3" padding={{ bottom: 's' }}>
-                          Max Servers Per Job
-                        </Box>
+                    {/* Max Servers Per Job */}
+                    <Container>
+                      <SpaceBetween size="s">
+                        <div>
+                          <Box variant="h3" padding={{ bottom: 'xxs' }}>Max Servers Per Job</Box>
+                          <Box variant="small" color="text-body-secondary">
+                            Maximum servers allowed in a single recovery job. AWS DRS limit: 100 servers per job.
+                          </Box>
+                        </div>
                         {capacityData.maxServersPerJob ? (
                           <>
                             <CapacityGauge
@@ -555,7 +517,7 @@ export const Dashboard: React.FC = () => {
                               size="medium"
                               label={`${(capacityData.maxServersPerJob.current ?? 0).toLocaleString()} / ${(capacityData.maxServersPerJob.max ?? 100).toLocaleString()} servers`}
                             />
-                            <Box textAlign="center" padding={{ top: 's' }}>
+                            <Box textAlign="center">
                               <Box variant="small" color="text-body-secondary">
                                 {capacityData.maxServersPerJob.current > 0
                                   ? `Largest job: ${capacityData.maxServersPerJob.current.toLocaleString()} servers`
@@ -564,358 +526,15 @@ export const Dashboard: React.FC = () => {
                             </Box>
                           </>
                         ) : (
-                          <Box textAlign="center" padding={{ top: 'xl', bottom: 'xl' }}>
+                          <Box textAlign="center" padding={{ top: 'l', bottom: 'l' }}>
                             <Box variant="small" color="text-status-error">
                               Data not available
                             </Box>
                           </Box>
                         )}
-                      </div>
-                    </ColumnLayout>
-                  </SpaceBetween>
-
-                  {/* Per-Account Capacity Breakdown */}
-                  {capacityData.accounts && capacityData.accounts.length > 0 && (
-                    <Container
-                      header={<Header variant="h3">Target Account Capacity</Header>}
-                    >
-                      <Table
-                        columnDefinitions={[
-                          {
-                            id: 'accountName',
-                            header: 'Account',
-                            cell: (item) => (
-                              <div>
-                                <div>
-                                  <strong>{item.accountName}</strong>
-                                </div>
-                                <div style={{ fontSize: '0.875rem', color: '#5f6b7a' }}>
-                                  {item.accountId}
-                                </div>
-                              </div>
-                            ),
-                            sortingField: 'accountName',
-                          },
-                          {
-                            id: 'replicatingServers',
-                            header: 'Replicating Servers',
-                            cell: (item) =>
-                              `${item.replicatingServers.toLocaleString()} / ${item.maxReplicating.toLocaleString()}`,
-                            sortingField: 'replicatingServers',
-                          },
-                          {
-                            id: 'percentUsed',
-                            header: 'Percentage Used',
-                            cell: (item) => (
-                              <div>
-                                <div>{item.percentUsed.toFixed(1)}%</div>
-                                <ProgressBar
-                                  value={item.percentUsed}
-                                  status={
-                                    item.percentUsed < 67
-                                      ? 'success'
-                                      : item.percentUsed < 83
-                                        ? 'in-progress'
-                                        : 'error'
-                                  }
-                                  variant="standalone"
-                                />
-                              </div>
-                            ),
-                            sortingField: 'percentUsed',
-                          },
-                          {
-                            id: 'availableSlots',
-                            header: 'Available Slots',
-                            cell: (item) => item.availableSlots.toLocaleString(),
-                            sortingField: 'availableSlots',
-                          },
-                          {
-                            id: 'status',
-                            header: 'Status',
-                            cell: (item) => (
-                              <StatusIndicator
-                                type={
-                                  item.status === 'OK'
-                                    ? 'success'
-                                    : item.status === 'INFO'
-                                      ? 'info'
-                                      : item.status === 'WARNING'
-                                        ? 'warning'
-                                        : 'error'
-                                }
-                              >
-                                {item.status}
-                              </StatusIndicator>
-                            ),
-                            sortingField: 'status',
-                          },
-                          {
-                            id: 'regions',
-                            header: 'Regions',
-                            cell: (item) => {
-                              const activeRegions = item.regionalBreakdown?.filter(
-                                (r: any) => r.replicatingServers > 0
-                              ) || [];
-                              return (
-                                <Box variant="span" color="text-body-secondary">
-                                  {activeRegions.length > 0
-                                    ? `${activeRegions.length} active region${activeRegions.length !== 1 ? 's' : ''}`
-                                    : 'No active regions'}
-                                </Box>
-                              );
-                            },
-                          },
-                        ]}
-                        items={capacityData.accounts.filter((acc) => acc.accountType === 'target')}
-                        sortingDisabled={false}
-                        variant="embedded"
-                        expandableRows={{
-                          getItemChildren: (item) => {
-                            // Return empty array - we'll show custom content instead
-                            return [];
-                          },
-                          isItemExpandable: (item) => {
-                            // Always expandable to show regional breakdown
-                            return true;
-                          },
-                          expandedItems: expandedItems,
-                          onExpandableItemToggle: (event) => {
-                            const item = event.detail.item;
-                            const isCurrentlyExpanded = expandedItems.some(
-                              (expandedItem) => expandedItem.accountId === item.accountId
-                            );
-                            setExpandedItems(isCurrentlyExpanded ? [] : [item]);
-                          },
-                        }}
-                        empty={
-                          <Box textAlign="center" color="inherit">
-                            <b>No accounts</b>
-                            <Box variant="p" color="inherit">
-                              No capacity data available
-                            </Box>
-                          </Box>
-                        }
-                      />
-
-                      {/* Expanded Content: Regional Breakdown & Staging Accounts */}
-                      {expandedItems.length > 0 && expandedItems.map((expandedItem) => (
-                        <Container key={expandedItem.accountId}>
-                          <SpaceBetween size="m">
-                            {/* Regional Breakdown */}
-                            {expandedItem.regionalBreakdown && expandedItem.regionalBreakdown.length > 0 && (
-                              <div>
-                                <Box variant="h4" padding={{ bottom: 's' }}>
-                                  Regional Breakdown
-                                </Box>
-                                <ColumnLayout columns={4} variant="text-grid">
-                                  {expandedItem.regionalBreakdown
-                                    .filter((region: any) => region.replicatingServers > 0)
-                                    .map((region: any) => (
-                                      <div key={region.region}>
-                                        <SpaceBetween size="xxs">
-                                          <Box>
-                                            <strong>{region.region}</strong>
-                                            <Box variant="small" color="text-body-secondary" display="inline" margin={{ left: 'xs' }}>
-                                              {(region.percentUsed || 0) < 67
-                                                ? '✓'
-                                                : (region.percentUsed || 0) < 83
-                                                  ? '⚠'
-                                                  : '✗'}
-                                            </Box>
-                                          </Box>
-                                          <Box variant="small">
-                                            {region.replicatingServers.toLocaleString()} / {region.maxReplicating?.toLocaleString() || '300'} servers
-                                          </Box>
-                                          <ProgressBar
-                                            value={region.percentUsed || 0}
-                                            status={
-                                              (region.percentUsed || 0) < 67
-                                                ? 'success'
-                                                : (region.percentUsed || 0) < 83
-                                                  ? 'in-progress'
-                                                  : 'error'
-                                            }
-                                            variant="standalone"
-                                          />
-                                        </SpaceBetween>
-                                      </div>
-                                    ))}
-                                </ColumnLayout>
-                              </div>
-                            )}
-
-                            {/* Staging Accounts */}
-                            {capacityData.accounts.filter((acc) => acc.accountType === 'staging').length > 0 && (
-                              <div>
-                                <Box variant="h4" padding={{ bottom: 's' }}>
-                                  Staging Accounts
-                                </Box>
-                                <Table
-                                  columnDefinitions={[
-                                    {
-                                      id: 'accountName',
-                                      header: 'Account',
-                                      cell: (item) => (
-                                        <div>
-                                          <div><strong>{item.accountName}</strong></div>
-                                          <div style={{ fontSize: '0.875rem', color: '#5f6b7a' }}>
-                                            {item.accountId}
-                                          </div>
-                                        </div>
-                                      ),
-                                    },
-                                    {
-                                      id: 'replicatingServers',
-                                      header: 'Servers',
-                                      cell: (item) =>
-                                        `${item.replicatingServers.toLocaleString()} / ${item.maxReplicating.toLocaleString()}`,
-                                    },
-                                    {
-                                      id: 'percentUsed',
-                                      header: '% Used',
-                                      cell: (item) => `${item.percentUsed.toFixed(1)}%`,
-                                    },
-                                    {
-                                      id: 'status',
-                                      header: 'Status',
-                                      cell: (item) => (
-                                        <StatusIndicator
-                                          type={
-                                            item.status === 'OK'
-                                              ? 'success'
-                                              : item.status === 'INFO'
-                                                ? 'info'
-                                                : item.status === 'WARNING'
-                                                  ? 'warning'
-                                                  : 'error'
-                                          }
-                                        >
-                                          {item.status}
-                                        </StatusIndicator>
-                                      ),
-                                    },
-                                    {
-                                      id: 'regions',
-                                      header: 'Regions',
-                                      cell: (item) => {
-                                        const activeRegions = item.regionalBreakdown?.filter(
-                                          (r: any) => r.replicatingServers > 0
-                                        ) || [];
-                                        return (
-                                          <Box variant="span" color="text-body-secondary">
-                                            {activeRegions.length > 0
-                                              ? `${activeRegions.length} active region${activeRegions.length !== 1 ? 's' : ''}`
-                                              : 'No active regions'}
-                                          </Box>
-                                        );
-                                      },
-                                    },
-                                  ]}
-                                  items={capacityData.accounts.filter((acc) => acc.accountType === 'staging')}
-                                  variant="embedded"
-                                  expandableRows={{
-                                    getItemChildren: (item) => [],
-                                    isItemExpandable: (item) => {
-                                      const activeRegions = item.regionalBreakdown?.filter(
-                                        (r: any) => r.replicatingServers > 0
-                                      ) || [];
-                                      return activeRegions.length > 0;
-                                    },
-                                    expandedItems: expandedStagingItems,
-                                    onExpandableItemToggle: (event) => {
-                                      const item = event.detail.item;
-                                      const isCurrentlyExpanded = expandedStagingItems.some(
-                                        (expandedItem) => expandedItem.accountId === item.accountId
-                                      );
-                                      setExpandedStagingItems(isCurrentlyExpanded ? [] : [item]);
-                                    },
-                                  }}
-                                  empty={
-                                    <Box textAlign="center" color="inherit">
-                                      No staging accounts
-                                    </Box>
-                                  }
-                                />
-                                
-                                {/* Staging Account Regional Breakdown */}
-                                {expandedStagingItems.length > 0 && expandedStagingItems.map((stagingItem) => (
-                                  <Container key={`staging-${stagingItem.accountId}`}>
-                                    <Box variant="h5" padding={{ bottom: 's' }}>
-                                      Regional Breakdown
-                                    </Box>
-                                    <ColumnLayout columns={4} variant="text-grid">
-                                      {stagingItem.regionalBreakdown
-                                        ?.filter((region: any) => region.replicatingServers > 0)
-                                        .map((region: any) => (
-                                          <div key={region.region}>
-                                            <SpaceBetween size="xxs">
-                                              <Box>
-                                                <strong>{region.region}</strong>
-                                                <Box variant="small" color="text-body-secondary" display="inline" margin={{ left: 'xs' }}>
-                                                  {(region.percentUsed || 0) < 67
-                                                    ? '✓'
-                                                    : (region.percentUsed || 0) < 83
-                                                      ? '⚠'
-                                                      : '✗'}
-                                                </Box>
-                                              </Box>
-                                              <Box variant="small">
-                                                {region.replicatingServers.toLocaleString()} / {region.maxReplicating?.toLocaleString() || '300'} servers
-                                              </Box>
-                                              <ProgressBar
-                                                value={region.percentUsed || 0}
-                                                status={
-                                                  (region.percentUsed || 0) < 67
-                                                    ? 'success'
-                                                    : (region.percentUsed || 0) < 83
-                                                      ? 'in-progress'
-                                                      : 'error'
-                                                }
-                                                variant="standalone"
-                                              />
-                                            </SpaceBetween>
-                                          </div>
-                                        ))}
-                                    </ColumnLayout>
-                                  </Container>
-                                ))}
-                              </div>
-                            )}
-                          </SpaceBetween>
-                        </Container>
-                      ))}
-
-                      {/* Account-specific warnings */}
-                      {capacityData.accounts.some((acc) => acc.warnings && acc.warnings.length > 0) && (
-                        <Box margin={{ top: 'm' }}>
-                          <SpaceBetween size="s">
-                            {capacityData.accounts
-                              .filter((acc) => acc.warnings && acc.warnings.length > 0)
-                              .map((acc) =>
-                                acc.warnings.map((warning, idx) => (
-                                  <Alert
-                                    key={`${acc.accountId}-${idx}`}
-                                    type={
-                                      acc.status === 'OK'
-                                        ? 'info'
-                                        : acc.status === 'INFO'
-                                          ? 'info'
-                                          : acc.status === 'WARNING'
-                                            ? 'warning'
-                                            : 'error'
-                                    }
-                                    header={`${acc.accountName} Warning`}
-                                  >
-                                    {warning}
-                                  </Alert>
-                                ))
-                              )}
-                          </SpaceBetween>
-                        </Box>
-                      )}
+                      </SpaceBetween>
                     </Container>
-                  )}
+                  </ColumnLayout>
                 </SpaceBetween>
               ) : (
                 <Box textAlign="center" padding="l" color="text-body-secondary">
@@ -924,132 +543,37 @@ export const Dashboard: React.FC = () => {
               )}
             </Container>
 
-            <ColumnLayout columns={2}>
-              <Container header={<Header variant="h2">Execution Status</Header>}>
-                {pieData.length > 0 ? (
-                  <PieChart
-                    data={pieData}
-                    detailPopoverContent={(datum) => [
-                      { key: 'Count', value: datum.value },
-                      {
-                        key: 'Percentage',
-                        value: `${Math.round((datum.value / executions.length) * 100)}%`,
-                      },
-                    ]}
-                    segmentDescription={(datum) => `${datum.value} executions`}
-                    size="medium"
-                    variant="donut"
-                    innerMetricDescription="total"
-                    innerMetricValue={executions.length.toString()}
-                    hideFilter
-                    hideLegend={false}
-                    empty={
-                      <Box textAlign="center" color="inherit">
-                        No execution data
-                      </Box>
-                    }
-                  />
-                ) : (
-                  <Box textAlign="center" padding="l" color="text-body-secondary">
-                    No executions yet.{' '}
-                    <Link onFollow={() => navigate('/recovery-plans')}>
-                      Create a Recovery Plan
-                    </Link>{' '}
-                    to get started.
-                  </Box>
-                )}
-              </Container>
-
-              <Container
-                header={
-                  <Header
-                    variant="h2"
-                    counter={`(${activeExecutions.length})`}
-                    actions={
-                      <Link onFollow={() => navigate('/executions')}>
-                        View all
-                      </Link>
-                    }
-                  >
-                    Active Executions
-                  </Header>
-                }
-              >
-                {activeExecutions.length > 0 ? (
-                  <SpaceBetween size="s">
-                    {activeExecutions.slice(0, 5).map((exec) => (
-                      <Box key={exec.executionId} padding="s">
-                        <SpaceBetween direction="horizontal" size="xs">
-                          <StatusIndicator type={getStatusType(exec.status)}>
-                            {STATUS_LABELS[exec.status] || exec.status}
-                          </StatusIndicator>
-                          <Link
-                            onFollow={() =>
-                              navigate(`/executions/${exec.executionId}`)
-                            }
-                          >
-                            {exec.recoveryPlanName || exec.recoveryPlanId}
-                          </Link>
-                        </SpaceBetween>
-                      </Box>
-                    ))}
-                  </SpaceBetween>
-                ) : (
-                  <Box textAlign="center" padding="l" color="text-body-secondary">
-                    No active executions
-                  </Box>
-                )}
-              </Container>
-            </ColumnLayout>
-
-            <Container
-              header={
-                <Header
-                  variant="h2"
-                  actions={
-                    <Link onFollow={() => navigate('/executions')}>
-                      View history
-                    </Link>
-                  }
-                >
-                  Recent Activity
-                </Header>
-              }
-            >
-              {executions.length > 0 ? (
-                <SpaceBetween size="xs">
-                  {executions.slice(0, 5).map((exec) => {
-                    // Sanitize user-controlled data to prevent command injection
-                    const sanitizedExecutionId = String(exec.executionId || '').replace(/[^a-zA-Z0-9-]/g, '');
-                    const sanitizedStatus = String(exec.status || '').replace(/[^a-zA-Z0-9_]/g, '');
-                    const sanitizedPlanName = String(exec.recoveryPlanName || exec.recoveryPlanId || '').replace(/[<>"'&]/g, '');
-                    
-                    return (
-                    <Box key={sanitizedExecutionId} padding="xs">
-                      <SpaceBetween direction="horizontal" size="m">
-                        <StatusIndicator type={getStatusType(sanitizedStatus)}>
-                          {STATUS_LABELS[sanitizedStatus] || sanitizedStatus}
-                        </StatusIndicator>
-                        <Link
-                          onFollow={() =>
-                            navigate(`/executions/${sanitizedExecutionId}`)
-                          }
-                        >
-                          {sanitizedPlanName}
-                        </Link>
-                        <Box color="text-body-secondary" fontSize="body-s">
-                          {exec.startTime
-                            ? new Date(Number(exec.startTime) * 1000).toLocaleString()
-                            : 'Not started'}
-                        </Box>
-                      </SpaceBetween>
+            <Container header={<Header variant="h2">Execution Status</Header>}>
+              {pieData.length > 0 ? (
+                <PieChart
+                  data={pieData}
+                  detailPopoverContent={(datum) => [
+                    { key: 'Count', value: datum.value },
+                    {
+                      key: 'Percentage',
+                      value: `${Math.round((datum.value / executions.length) * 100)}%`,
+                    },
+                  ]}
+                  segmentDescription={(datum) => `${datum.value} executions`}
+                  size="medium"
+                  variant="donut"
+                  innerMetricDescription="total"
+                  innerMetricValue={executions.length.toString()}
+                  hideFilter
+                  hideLegend={false}
+                  empty={
+                    <Box textAlign="center" color="inherit">
+                      No execution data
                     </Box>
-                    );
-                  })}
-                </SpaceBetween>
+                  }
+                />
               ) : (
                 <Box textAlign="center" padding="l" color="text-body-secondary">
-                  No execution history yet
+                  No executions yet.{' '}
+                  <Link onFollow={() => navigate('/recovery-plans')}>
+                    Create a Recovery Plan
+                  </Link>{' '}
+                  to get started.
                 </Box>
               )}
             </Container>

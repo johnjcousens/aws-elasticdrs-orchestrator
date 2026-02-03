@@ -244,6 +244,7 @@ export const RecoveryPlanDialog: React.FC<RecoveryPlanDialogProps> = ({
     <Modal
       visible={open}
       onDismiss={handleClose}
+      closeAriaLabel="Close dialog"
       header={plan ? 'Edit Recovery Plan' : 'Create Recovery Plan'}
       size="large"
       footer={
