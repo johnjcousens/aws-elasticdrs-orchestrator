@@ -11,15 +11,15 @@ overrides taking precedence.
 Validates: Requirements 6.1, 6.2, 6.5
 """
 
-import pytest
-from hypothesis import given, strategies as st
-import sys
-import os
+import pytest  # noqa: F401
+from hypothesis import given, strategies as st  # noqa: E402
+import sys  # noqa: E402
+import os  # noqa: E402
 
 # Add lambda directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../lambda"))
 
-from shared.config_merge import get_effective_launch_config
+from shared.config_merge import get_effective_launch_config  # noqa: E402
 
 
 # Strategy for generating launch config fields

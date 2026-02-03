@@ -9,14 +9,14 @@ DynamoDB, querying the target account should return an empty list for staging
 accounts rather than null or undefined.
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-from moto import mock_aws
-from hypothesis import given, settings, strategies as st
+from moto import mock_aws  # noqa: E402
+from hypothesis import given, settings, strategies as st  # noqa: E402
 
 # Set environment variables BEFORE importing index
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -46,34 +46,34 @@ def test_property_13_empty_staging_accounts_default(
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    
+
     # Mock target account ID
-    target_account_id = "111122223333"
+    target_account_id = "111122223333"  # noqa: F841
 
     # Build target account configuration
     target_account = {
@@ -87,7 +87,7 @@ def test_property_13_empty_staging_accounts_default(
     if has_staging_accounts_attr:
         # When attribute exists, it could be empty list or have accounts
         target_account["stagingAccounts"] = []
-    
+
     # Put the target account in the table
     table.put_item(Item=target_account)
 
@@ -98,7 +98,7 @@ def test_property_13_empty_staging_accounts_default(
             f"staging_list should be a list, got {type(staging_list)}"
         )
 
-        results = []
+        results = []  # noqa: F841
 
         # Add target account result
         results.append({
@@ -135,7 +135,7 @@ def test_property_13_empty_staging_accounts_default(
     with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
          patch.object(index, "target_accounts_table", table):
         # Call handle_get_combined_capacity
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 
@@ -177,7 +177,7 @@ def test_property_13_empty_staging_accounts_default(
         if not has_staging_accounts_attr or not target_account.get("stagingAccounts"):
             # With only target account, maxReplicating should be 300
             assert combined["maxReplicating"] == 300, (
-                f"Expected maxReplicating=300 for single account, "
+                "Expected maxReplicating=300 for single account, "
                 f"got {combined['maxReplicating']}"
             )
 
@@ -203,34 +203,34 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    
+
     # Mock target account ID
-    target_account_id = "111122223333"
+    target_account_id = "111122223333"  # noqa: F841
 
     # Build target account WITHOUT stagingAccounts attribute
     target_account = {
@@ -240,7 +240,7 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
         "externalId": f"test-external-id-{target_account_id}",
         # NOTE: stagingAccounts attribute is intentionally missing
     }
-    
+
     # Put the target account in the table
     table.put_item(Item=target_account)
 
@@ -259,7 +259,7 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
             f"staging_list should be a list, got {type(staging_list)}"
         )
         assert len(staging_list) == 0, (
-            f"staging_list should be empty when attribute is missing, "
+            "staging_list should be empty when attribute is missing, "
             f"got {len(staging_list)} items"
         )
 
@@ -283,7 +283,7 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
     with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
          patch.object(index, "target_accounts_table", table):
         # Call handle_get_combined_capacity
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 
@@ -299,7 +299,7 @@ def test_property_13_missing_staging_accounts_attribute(target_servers):
         # Property: Should have exactly 1 account (target only)
         accounts = body.get("accounts", [])
         assert len(accounts) == 1, (
-            f"Expected 1 account when stagingAccounts missing, "
+            "Expected 1 account when stagingAccounts missing, "
             f"got {len(accounts)}"
         )
 

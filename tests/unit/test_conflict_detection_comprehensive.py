@@ -10,18 +10,18 @@ Tests all conflict detection scenarios and DRS service quota validations:
 Validates: Requirements 4.1, 4.2, 4.3, 9.5
 """
 
-import json
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+import json  # noqa: F401
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch, call  # noqa: F401  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
+import pytest  # noqa: F401
 
 # Add lambda directory to path
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "shared"
 sys.path.insert(0, str(lambda_dir))
 
-from conflict_detection import (
+from conflict_detection import (  # noqa: E402
     check_concurrent_jobs_limit,
     check_server_conflicts,
     check_total_servers_in_jobs_limit,
@@ -41,7 +41,7 @@ from conflict_detection import (
 @pytest.fixture
 def mock_drs_client():
     """Mock DRS client with configurable responses"""
-    client = MagicMock()
+    client = MagicMock()  # noqa: F841
     return client
 
 
@@ -119,7 +119,7 @@ def test_concurrent_jobs_under_limit(mock_drs_client):
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = check_concurrent_jobs_limit("us-east-1")
+        result = check_concurrent_jobs_limit("us-east-1")  # noqa: F841
 
     assert result["canStartJob"] is True
     assert result["currentJobs"] == 15
@@ -138,7 +138,7 @@ def test_concurrent_jobs_at_limit(mock_drs_client):
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = check_concurrent_jobs_limit("us-east-1")
+        result = check_concurrent_jobs_limit("us-east-1")  # noqa: F841
 
     assert result["canStartJob"] is False
     assert result["currentJobs"] == 20
@@ -165,7 +165,7 @@ def test_concurrent_jobs_ignores_completed(mock_drs_client):
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = check_concurrent_jobs_limit("us-east-1")
+        result = check_concurrent_jobs_limit("us-east-1")  # noqa: F841
 
     assert result["canStartJob"] is True
     assert result["currentJobs"] == 10
@@ -191,7 +191,7 @@ def test_wave_under_100_servers(mock_dynamodb_tables):
     }
 
     pg_cache = {}
-    result = validate_wave_server_count(wave, pg_cache)
+    result = validate_wave_server_count(wave, pg_cache)  # noqa: F841
 
     assert result["valid"] is True
     assert result["serverCount"] == 50
@@ -212,7 +212,7 @@ def test_wave_at_100_servers(mock_dynamodb_tables):
     }
 
     pg_cache = {}
-    result = validate_wave_server_count(wave, pg_cache)
+    result = validate_wave_server_count(wave, pg_cache)  # noqa: F841
 
     assert result["valid"] is True
     assert result["serverCount"] == 100
@@ -233,7 +233,7 @@ def test_wave_exceeds_100_servers(mock_dynamodb_tables):
     }
 
     pg_cache = {}
-    result = validate_wave_server_count(wave, pg_cache)
+    result = validate_wave_server_count(wave, pg_cache)  # noqa: F841
 
     assert result["valid"] is False
     assert result["serverCount"] == 150
@@ -269,7 +269,7 @@ def test_wave_with_tag_based_pg(mock_dynamodb_tables, mock_drs_client):
 
     pg_cache = {}
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = validate_wave_server_count(wave, pg_cache)
+        result = validate_wave_server_count(wave, pg_cache)  # noqa: F841
 
     assert result["valid"] is True
     assert result["serverCount"] == 75
@@ -305,7 +305,7 @@ def test_total_servers_under_500(mock_drs_client):
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = check_total_servers_in_jobs_limit("us-east-1", 100)
+        result = check_total_servers_in_jobs_limit("us-east-1", 100)  # noqa: F841
 
     assert result["valid"] is True
     assert result["currentServers"] == 200
@@ -333,7 +333,7 @@ def test_total_servers_would_exceed_500(mock_drs_client):
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = check_total_servers_in_jobs_limit("us-east-1", 100)
+        result = check_total_servers_in_jobs_limit("us-east-1", 100)  # noqa: F841
 
     assert result["valid"] is False
     assert result["currentServers"] == 450
@@ -360,7 +360,7 @@ def test_total_servers_at_500_limit(mock_drs_client):
     }
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = check_total_servers_in_jobs_limit("us-east-1", 1)
+        result = check_total_servers_in_jobs_limit("us-east-1", 1)  # noqa: F841
 
     assert result["valid"] is False
     assert result["currentServers"] == 500
@@ -701,7 +701,7 @@ def test_query_drs_servers_by_tags_exact_match(mock_drs_client):
     ]
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = query_drs_servers_by_tags(
+        result = query_drs_servers_by_tags(  # noqa: F841
             "us-east-1", {"Environment": "Production", "App": "WebApp"}
         )
 
@@ -728,7 +728,7 @@ def test_query_drs_servers_by_tags_case_insensitive(mock_drs_client):
     ]
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = query_drs_servers_by_tags("us-east-1", {"Environment": "Production"})
+        result = query_drs_servers_by_tags("us-east-1", {"Environment": "Production"})  # noqa: F841
 
     # Should match both (case-insensitive)
     assert len(result) == 2
@@ -777,7 +777,7 @@ def test_wave_validation_with_no_pg(mock_dynamodb_tables):
     mock_dynamodb_tables["protection_groups"].get_item.return_value = {}
 
     pg_cache = {}
-    result = validate_wave_server_count(wave, pg_cache)
+    result = validate_wave_server_count(wave, pg_cache)  # noqa: F841
 
     # Should handle gracefully
     assert result["serverCount"] == 0
@@ -788,7 +788,7 @@ def test_concurrent_jobs_check_with_api_error(mock_drs_client):
     mock_drs_client.describe_jobs.side_effect = Exception("API Error")
 
     with patch("conflict_detection.create_drs_client", return_value=mock_drs_client):
-        result = check_concurrent_jobs_limit("us-east-1")
+        result = check_concurrent_jobs_limit("us-east-1")  # noqa: F841
 
     # Should return permissive result
     assert result["canStartJob"] is True

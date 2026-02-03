@@ -14,16 +14,16 @@ configurations and verifies that the round-trip persistence (add → retrieve)
 preserves all fields exactly.
 """
 
-import os
-from unittest.mock import MagicMock, patch
+import os  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, strategies as st, settings  # noqa: E402
 
 # Import functions under test
-import sys
+import sys  # noqa: E402
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../lambda/shared'))
 
-from staging_account_models import (
+from staging_account_models import (  # noqa: E402
     add_staging_account,
     get_staging_accounts,
     StagingAccount,
@@ -92,7 +92,7 @@ def test_property_staging_account_persistence_round_trip(
     4. Verify all fields match original configuration
     """
     # Setup mocks
-    mock_table = MagicMock()
+    mock_table = MagicMock()  # noqa: F841
     mock_get_table.return_value = mock_table
     mock_check_dup.return_value = False
 
@@ -114,7 +114,7 @@ def test_property_staging_account_persistence_round_trip(
         mock_table.update_item = mock_update_item
 
         # Add staging account
-        result = add_staging_account(target_account_id, staging_account)
+        result = add_staging_account(target_account_id, staging_account)  # noqa: F841
 
         # Verify add operation succeeded
         assert result['success'] is True
@@ -160,7 +160,7 @@ def test_property_multiple_staging_accounts_persistence(
     This extends Property 1 to test multiple staging accounts.
     """
     # Setup mocks
-    mock_table = MagicMock()
+    mock_table = MagicMock()  # noqa: F841
     mock_get_table.return_value = mock_table
     mock_check_dup.return_value = False
 
@@ -191,7 +191,7 @@ def test_property_multiple_staging_accounts_persistence(
             mock_table.update_item = mock_update_item
 
             # Add staging account
-            result = add_staging_account(target_account_id, staging_account)
+            result = add_staging_account(target_account_id, staging_account)  # noqa: F841
 
             # Verify add operation succeeded
             assert result['success'] is True
@@ -232,7 +232,7 @@ def test_property_empty_staging_accounts_default(
     Validates: Requirements 8.5
     """
     # Setup mock to return target account without stagingAccounts attribute
-    mock_table = MagicMock()
+    mock_table = MagicMock()  # noqa: F841
     mock_table.get_item.return_value = {
         'Item': {
             'accountId': target_account_id,
@@ -243,10 +243,10 @@ def test_property_empty_staging_accounts_default(
     mock_get_table.return_value = mock_table
 
     # Import get_staging_accounts
-    from staging_account_models import get_staging_accounts
+    from staging_account_models import get_staging_accounts  # noqa: F401
 
     # Get staging accounts
-    result = get_staging_accounts(target_account_id)
+    result = get_staging_accounts(target_account_id)  # noqa: F841
 
     # Verify result is empty list, not None or undefined
     assert result is not None

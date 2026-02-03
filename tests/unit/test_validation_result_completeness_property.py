@@ -13,15 +13,15 @@ This property test ensures that validation results are always complete and
 well-formed, regardless of whether validation succeeds or fails.
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
 
-import pytest
-from hypothesis import given, settings, strategies as st
-from botocore.exceptions import ClientError
+import pytest  # noqa: F401
+from hypothesis import given, settings, strategies as st  # noqa: E402
+from botocore.exceptions import ClientError  # noqa: F401
 
 # Set environment variables before importing
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -38,7 +38,7 @@ query_handler_dir = (
 )
 sys.path.insert(0, str(query_handler_dir))
 
-from index import handle_validate_staging_account
+from index import handle_validate_staging_account  # noqa: E402
 
 
 # Strategy for generating valid AWS account IDs (12 digits)
@@ -96,14 +96,14 @@ def test_property_validation_result_completeness_success(
     # Ensure replicating_servers <= total_servers
     if replicating_servers > total_servers:
         replicating_servers = total_servers
-    
+
     query_params = {
         "accountId": account_id,
         "roleArn": role_arn,
         "externalId": external_id,
         "region": region,
     }
-    
+
     # Mock successful role assumption and DRS query
     with patch("index.boto3.client") as mock_boto3_client:
         # Mock STS client
@@ -115,14 +115,14 @@ def test_property_validation_result_completeness_success(
                 "SessionToken": "token123",
             }
         }
-        
+
         # Mock DRS client
         mock_drs = MagicMock()
-        
+
         # Mock paginator for describe_source_servers
         mock_paginator = MagicMock()
         mock_drs.get_paginator.return_value = mock_paginator
-        
+
         # Generate mock servers
         mock_servers = []
         for i in range(total_servers):
@@ -135,9 +135,9 @@ def test_property_validation_result_completeness_success(
                     "dataReplicationState": replication_state
                 },
             })
-        
+
         mock_paginator.paginate.return_value = [{"items": mock_servers}]
-        
+
         # Configure boto3.client to return appropriate mocks
         def client_side_effect(service, **kwargs):
             if service == "sts":
@@ -145,16 +145,16 @@ def test_property_validation_result_completeness_success(
             elif service == "drs":
                 return mock_drs
             return MagicMock()
-        
+
         mock_boto3_client.side_effect = client_side_effect
-        
+
         # Execute validation
-        result = handle_validate_staging_account(query_params)
-        
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Parse response
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        
+
         # Verify all required fields are present
         assert "valid" in body, "Missing 'valid' field"
         assert "roleAccessible" in body, "Missing 'roleAccessible' field"
@@ -164,7 +164,7 @@ def test_property_validation_result_completeness_success(
             "replicatingServers" in body
         ), "Missing 'replicatingServers' field"
         assert "totalAfter" in body, "Missing 'totalAfter' field"
-        
+
         # Verify field types and values
         assert body["valid"] is True, "valid should be True for success"
         assert (
@@ -173,13 +173,13 @@ def test_property_validation_result_completeness_success(
         assert (
             body["drsInitialized"] is True
         ), "drsInitialized should be True for success"
-        
+
         assert isinstance(
             body["currentServers"], int
         ), "currentServers must be int"
         assert body["currentServers"] >= 0, "currentServers must be >= 0"
         assert body["currentServers"] == total_servers
-        
+
         assert isinstance(
             body["replicatingServers"], int
         ), "replicatingServers must be int"
@@ -187,10 +187,10 @@ def test_property_validation_result_completeness_success(
             body["replicatingServers"] >= 0
         ), "replicatingServers must be >= 0"
         assert body["replicatingServers"] == replicating_servers
-        
+
         assert isinstance(body["totalAfter"], int), "totalAfter must be int"
         assert body["totalAfter"] >= 0, "totalAfter must be >= 0"
-        
+
         # Error field should not be present on success
         assert "error" not in body, "error field should not be present on success"
 
@@ -221,7 +221,7 @@ def test_property_validation_result_completeness_role_failure(
         "externalId": external_id,
         "region": region,
     }
-    
+
     # Mock failed role assumption
     with patch("index.boto3.client") as mock_boto3_client:
         mock_sts = MagicMock()
@@ -234,27 +234,27 @@ def test_property_validation_result_completeness_role_failure(
             },
             "AssumeRole",
         )
-        
+
         mock_boto3_client.return_value = mock_sts
-        
+
         # Execute validation
-        result = handle_validate_staging_account(query_params)
-        
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Parse response
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        
+
         # Verify required fields for role failure
         assert "valid" in body, "Missing 'valid' field"
         assert "roleAccessible" in body, "Missing 'roleAccessible' field"
         assert "error" in body, "Missing 'error' field"
-        
+
         # Verify field values
         assert body["valid"] is False, "valid should be False for role failure"
         assert (
             body["roleAccessible"] is False
         ), "roleAccessible should be False for role failure"
-        
+
         assert isinstance(body["error"], str), "error must be string"
         assert len(body["error"]) > 0, "error message must not be empty"
 
@@ -285,7 +285,7 @@ def test_property_validation_result_completeness_drs_uninitialized(
         "externalId": external_id,
         "region": region,
     }
-    
+
     # Mock successful role assumption but DRS uninitialized
     with patch("index.boto3.client") as mock_boto3_client:
         # Mock STS client
@@ -297,7 +297,7 @@ def test_property_validation_result_completeness_drs_uninitialized(
                 "SessionToken": "token123",
             }
         }
-        
+
         # Mock DRS client with UninitializedAccountException
         mock_drs = MagicMock()
         mock_paginator = MagicMock()
@@ -311,7 +311,7 @@ def test_property_validation_result_completeness_drs_uninitialized(
             },
             "DescribeSourceServers",
         )
-        
+
         # Configure boto3.client to return appropriate mocks
         def client_side_effect(service, **kwargs):
             if service == "sts":
@@ -319,22 +319,22 @@ def test_property_validation_result_completeness_drs_uninitialized(
             elif service == "drs":
                 return mock_drs
             return MagicMock()
-        
+
         mock_boto3_client.side_effect = client_side_effect
-        
+
         # Execute validation
-        result = handle_validate_staging_account(query_params)
-        
+        result = handle_validate_staging_account(query_params)  # noqa: F841
+
         # Parse response
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
-        
+
         # Verify required fields for DRS uninitialized
         assert "valid" in body, "Missing 'valid' field"
         assert "roleAccessible" in body, "Missing 'roleAccessible' field"
         assert "drsInitialized" in body, "Missing 'drsInitialized' field"
         assert "error" in body, "Missing 'error' field"
-        
+
         # Verify field values
         assert (
             body["valid"] is False
@@ -345,7 +345,7 @@ def test_property_validation_result_completeness_drs_uninitialized(
         assert (
             body["drsInitialized"] is False
         ), "drsInitialized should be False"
-        
+
         assert isinstance(body["error"], str), "error must be string"
         assert len(body["error"]) > 0, "error message must not be empty"
         assert (

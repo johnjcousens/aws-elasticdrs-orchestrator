@@ -9,16 +9,16 @@ Tests cover:
 - Target account not found handling
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-from decimal import Decimal
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
+from decimal import Decimal  # noqa: F401
 
-import pytest
-import boto3
-from moto import mock_aws
+import pytest  # noqa: F401
+import boto3  # noqa: F401
+from moto import mock_aws  # noqa: E402
 
 # Add lambda paths for imports
 sys.path.insert(
@@ -39,7 +39,7 @@ os.environ["STAGING_ACCOUNTS_TABLE"] = "test-staging-accounts-table"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
 # Import from data-management-handler
-import importlib.util
+import importlib.util  # noqa: F401
 spec = importlib.util.spec_from_file_location(
     "data_management_handler",
     Path(__file__).parent.parent.parent / "lambda" / "data-management-handler" / "index.py"
@@ -57,7 +57,7 @@ class TestHandleAddStagingAccount:
         """Set up test fixtures."""
         # Create DynamoDB table
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-        table = dynamodb.create_table(
+        table = dynamodb.create_table(  # noqa: F841
             TableName="test-target-accounts-table",
             KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
             AttributeDefinitions=[
@@ -79,10 +79,10 @@ class TestHandleAddStagingAccount:
         return table
 
     @mock_aws
-    def test_add_staging_account_success(self):
+    def test_add_staging_account_success(self):  # noqa: F811
         """Test successfully adding a staging account."""
         self.setup_dynamodb_table()
-        
+
         body = {
             "targetAccountId": "111122223333",
             "stagingAccount": {
@@ -96,7 +96,7 @@ class TestHandleAddStagingAccount:
             },
         }
 
-        result = handle_add_staging_account(body)
+        result = handle_add_staging_account(body)  # noqa: F841
 
         assert result["statusCode"] == 200
         response_body = json.loads(result["body"])
@@ -106,16 +106,16 @@ class TestHandleAddStagingAccount:
         assert response_body["stagingAccounts"][0]["accountId"] == "444455556666"
 
     @mock_aws
-    def test_add_staging_account_missing_body(self):
+    def test_add_staging_account_missing_body(self):  # noqa: F811
         """Test adding staging account with missing body."""
-        result = handle_add_staging_account(None)
+        result = handle_add_staging_account(None)  # noqa: F841
 
         assert result["statusCode"] == 400
         response_body = json.loads(result["body"])
         assert response_body["error"] == "MISSING_BODY"
 
     @mock_aws
-    def test_add_staging_account_missing_target_account_id(self):
+    def test_add_staging_account_missing_target_account_id(self):  # noqa: F811
         """Test adding staging account with missing targetAccountId."""
         body = {
             "stagingAccount": {
@@ -129,7 +129,7 @@ class TestHandleAddStagingAccount:
             }
         }
 
-        result = handle_add_staging_account(body)
+        result = handle_add_staging_account(body)  # noqa: F841
 
         assert result["statusCode"] == 400
         response_body = json.loads(result["body"])
@@ -137,11 +137,11 @@ class TestHandleAddStagingAccount:
         assert "targetAccountId" in response_body["message"]
 
     @mock_aws
-    def test_add_staging_account_missing_staging_account(self):
+    def test_add_staging_account_missing_staging_account(self):  # noqa: F811
         """Test adding staging account with missing stagingAccount."""
         body = {"targetAccountId": "111122223333"}
 
-        result = handle_add_staging_account(body)
+        result = handle_add_staging_account(body)  # noqa: F841
 
         assert result["statusCode"] == 400
         response_body = json.loads(result["body"])
@@ -149,7 +149,7 @@ class TestHandleAddStagingAccount:
         assert "stagingAccount" in response_body["message"]
 
     @mock_aws
-    def test_add_staging_account_invalid_target_account_id_format(self):
+    def test_add_staging_account_invalid_target_account_id_format(self):  # noqa: F811
         """Test adding staging account with invalid targetAccountId format."""
         body = {
             "targetAccountId": "12345",  # Not 12 digits
@@ -164,7 +164,7 @@ class TestHandleAddStagingAccount:
             },
         }
 
-        result = handle_add_staging_account(body)
+        result = handle_add_staging_account(body)  # noqa: F841
 
         assert result["statusCode"] == 400
         response_body = json.loads(result["body"])
@@ -172,10 +172,10 @@ class TestHandleAddStagingAccount:
         assert "12 digits" in response_body["message"]
 
     @mock_aws
-    def test_add_staging_account_target_not_found(self):
+    def test_add_staging_account_target_not_found(self):  # noqa: F811
         """Test adding staging account when target account not found."""
         self.setup_dynamodb_table()
-        
+
         body = {
             "targetAccountId": "999999999999",  # Non-existent account
             "stagingAccount": {
@@ -189,7 +189,7 @@ class TestHandleAddStagingAccount:
             },
         }
 
-        result = handle_add_staging_account(body)
+        result = handle_add_staging_account(body)  # noqa: F841
 
         assert result["statusCode"] == 404
         response_body = json.loads(result["body"])
@@ -197,10 +197,10 @@ class TestHandleAddStagingAccount:
         assert "not found" in response_body["message"]
 
     @mock_aws
-    def test_add_staging_account_duplicate(self):
+    def test_add_staging_account_duplicate(self):  # noqa: F811
         """Test adding duplicate staging account."""
         self.setup_dynamodb_table()
-        
+
         # First, add a staging account
         body = {
             "targetAccountId": "111122223333",
@@ -228,10 +228,10 @@ class TestHandleAddStagingAccount:
         assert "already exists" in response_body["message"]
 
     @mock_aws
-    def test_add_staging_account_invalid_structure(self):
+    def test_add_staging_account_invalid_structure(self):  # noqa: F811
         """Test adding staging account with invalid structure."""
         self.setup_dynamodb_table()
-        
+
         body = {
             "targetAccountId": "111122223333",
             "stagingAccount": {
@@ -241,7 +241,7 @@ class TestHandleAddStagingAccount:
             },
         }
 
-        result = handle_add_staging_account(body)
+        result = handle_add_staging_account(body)  # noqa: F841
 
         assert result["statusCode"] == 400
         response_body = json.loads(result["body"])

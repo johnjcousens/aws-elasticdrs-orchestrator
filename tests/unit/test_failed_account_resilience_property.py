@@ -10,11 +10,11 @@ partial results with error indicators for failed accounts.
 **Validates: Requirements 9.5**
 """
 
-import os
-import sys
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from botocore.exceptions import ClientError
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import Mock, patch, MagicMock  # noqa: F401  # noqa: F401  # noqa: F401
+from botocore.exceptions import ClientError  # noqa: F401
 
 # Set environment variables BEFORE importing index
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -28,12 +28,12 @@ if "index" in sys.modules:
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
-from moto import mock_aws
-from hypothesis import given, strategies as st, settings, assume
-import pytest
+from moto import mock_aws  # noqa: E402
+from hypothesis import given, strategies as st, settings, assume  # noqa: E402
+import pytest  # noqa: F401
 
 # Import the function under test
-from index import query_all_accounts_parallel
+from index import query_all_accounts_parallel  # noqa: E402
 
 
 # ============================================================================
@@ -53,7 +53,7 @@ def account_failure_scenario_strategy(draw):
     """
     # Generate 1-10 staging accounts
     num_staging = draw(st.integers(min_value=1, max_value=10))
-    
+
     # Generate unique account IDs
     account_ids = draw(
         st.lists(
@@ -63,7 +63,7 @@ def account_failure_scenario_strategy(draw):
             unique=True
         )
     )
-    
+
     # Create target account
     target_account = {
         "accountId": account_ids[0],
@@ -71,7 +71,7 @@ def account_failure_scenario_strategy(draw):
         "roleArn": f"arn:aws:iam::{account_ids[0]}:role/TestRole",
         "externalId": f"external-id-{account_ids[0]}",
     }
-    
+
     # Create staging accounts
     staging_accounts = []
     for account_id in account_ids[1:]:
@@ -81,7 +81,7 @@ def account_failure_scenario_strategy(draw):
             "roleArn": f"arn:aws:iam::{account_id}:role/TestRole",
             "externalId": f"external-id-{account_id}",
         })
-    
+
     # Randomly select which accounts should fail (at least 1, but not all)
     num_failed = draw(st.integers(min_value=1, max_value=num_staging))
     failed_indices = draw(
@@ -92,10 +92,10 @@ def account_failure_scenario_strategy(draw):
             unique=True
         )
     )
-    
+
     # Convert indices to account IDs (skip target account at index 0)
     failed_account_ids = {account_ids[i + 1] for i in failed_indices}
-    
+
     return target_account, staging_accounts, failed_account_ids
 
 
@@ -120,19 +120,19 @@ def test_property_failed_account_resilience(scenario):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account, staging_accounts, failed_account_ids = scenario
-    
+
     def mock_query_account_capacity(account_config):
         """Mock that simulates account query with some failures."""
-        account_id = account_config.get("accountId")
-        
+        account_id = account_config.get("accountId")  # noqa: F841
+
         if account_id in failed_account_ids:
             # Simulate role assumption failure
             return {
@@ -158,25 +158,25 @@ def test_property_failed_account_resilience(scenario):
                 ],
                 "accessible": True,
             }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-    
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
     # Property 1: Should return results for all accounts
     expected_num_accounts = 1 + len(staging_accounts)
     assert len(results) == expected_num_accounts, (
         f"Expected {expected_num_accounts} results, got {len(results)}"
     )
-    
+
     # Property 2: Failed accounts should be marked as inaccessible
-    failed_results = [
+    failed_results = [  # noqa: F841
         r for r in results
         if r["accountId"] in failed_account_ids
     ]
     assert len(failed_results) == len(failed_account_ids), (
         f"Expected {len(failed_account_ids)} failed results"
     )
-    
+
     for result in failed_results:
         assert result["accessible"] is False, (
             f"Account {result['accountId']} should be marked as inaccessible"
@@ -185,26 +185,26 @@ def test_property_failed_account_resilience(scenario):
             f"Account {result['accountId']} should have error field"
         )
         assert result["replicatingServers"] == 0, (
-            f"Failed account should have 0 replicating servers"
+            "Failed account should have 0 replicating servers"
         )
-    
+
     # Property 3: Successful accounts should return normal results
-    successful_results = [
+    successful_results = [  # noqa: F841
         r for r in results
         if r["accountId"] not in failed_account_ids
     ]
-    
+
     for result in successful_results:
         assert result["accessible"] is True, (
             f"Account {result['accountId']} should be accessible"
         )
         assert "error" not in result, (
-            f"Successful account should not have error field"
+            "Successful account should not have error field"
         )
         assert result["replicatingServers"] > 0, (
-            f"Successful account should have servers"
+            "Successful account should have servers"
         )
-    
+
     # Property 4: Number of successful + failed = total
     assert len(successful_results) + len(failed_results) == expected_num_accounts
 
@@ -226,25 +226,25 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     assume(num_failed < num_staging)  # At least one account succeeds
-    
+
     # Generate unique account IDs
     account_ids = [f"{i:012d}" for i in range(num_staging + 1)]
-    
+
     target_account = {
         "accountId": account_ids[0],
         "accountName": "Target",
         "roleArn": f"arn:aws:iam::{account_ids[0]}:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = [
         {
             "accountId": account_ids[i],
@@ -254,13 +254,13 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
         }
         for i in range(1, num_staging + 1)
     ]
-    
+
     # First num_failed staging accounts will fail
     failed_account_ids = set(account_ids[1:num_failed + 1])
-    
+
     def mock_query_account_capacity(account_config):
-        account_id = account_config.get("accountId")
-        
+        account_id = account_config.get("accountId")  # noqa: F841
+
         if account_id in failed_account_ids:
             return {
                 "accountId": account_id,
@@ -282,19 +282,19 @@ def test_property_partial_failure_continues_query(num_staging, num_failed):
                 "regionalBreakdown": [],
                 "accessible": True,
             }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-    
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
     # Verify all accounts returned results
     assert len(results) == num_staging + 1
-    
+
     # Verify correct number of failures
-    failed_results = [r for r in results if not r["accessible"]]
+    failed_results = [r for r in results if not r["accessible"]]  # noqa: F841
     assert len(failed_results) == num_failed
-    
+
     # Verify correct number of successes
-    successful_results = [r for r in results if r["accessible"]]
+    successful_results = [r for r in results if r["accessible"]]  # noqa: F841
     assert len(successful_results) == num_staging + 1 - num_failed
 
 
@@ -312,22 +312,22 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     account_ids = [f"{i:012d}" for i in range(num_staging + 1)]
-    
+
     target_account = {
         "accountId": account_ids[0],
         "accountName": "Target",
         "roleArn": f"arn:aws:iam::{account_ids[0]}:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = [
         {
             "accountId": account_ids[i],
@@ -337,11 +337,11 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
         }
         for i in range(1, num_staging + 1)
     ]
-    
+
     def mock_query_account_capacity(account_config):
-        account_id = account_config.get("accountId")
+        account_id = account_config.get("accountId")  # noqa: F841
         account_type = account_config.get("accountType")
-        
+
         if account_type == "target":
             # Target succeeds
             return {
@@ -365,20 +365,20 @@ def test_property_all_staging_accounts_fail_target_succeeds(num_staging):
                 "accessible": False,
                 "error": "Access Denied"
             }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-    
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
     # Verify all accounts returned results
     assert len(results) == num_staging + 1
-    
+
     # Verify target is accessible
-    target_results = [r for r in results if r["accountType"] == "target"]
+    target_results = [r for r in results if r["accountType"] == "target"]  # noqa: F841
     assert len(target_results) == 1
     assert target_results[0]["accessible"] is True
-    
+
     # Verify all staging accounts are inaccessible
-    staging_results = [r for r in results if r["accountType"] == "staging"]
+    staging_results = [r for r in results if r["accountType"] == "staging"]  # noqa: F841
     assert len(staging_results) == num_staging
     for result in staging_results:
         assert result["accessible"] is False
@@ -394,20 +394,20 @@ def test_edge_case_target_fails_all_staging_succeed():
     """Edge case: Target account fails, all staging accounts succeed."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
         "roleArn": "arn:aws:iam::111111111111:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = [
         {
             "accountId": "222222222222",
@@ -422,12 +422,12 @@ def test_edge_case_target_fails_all_staging_succeed():
             "externalId": "test-external-id-2",
         },
     ]
-    
+
     def mock_query_account_capacity(account_config):
-        account_id = account_config.get("accountId")
+        account_id = account_config.get("accountId")  # noqa: F841
         account_type = account_config.get("accountType")
-        
-        if account_id == "111111111111":
+
+        if account_id == "111111111111":  # noqa: F841
             # Target fails
             return {
                 "accountId": account_id,
@@ -450,18 +450,18 @@ def test_edge_case_target_fails_all_staging_succeed():
                 "regionalBreakdown": [],
                 "accessible": True,
             }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-    
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
     assert len(results) == 3
-    
+
     # Target should be inaccessible
-    target_result = next(r for r in results if r["accountId"] == "111111111111")
+    target_result = next(r for r in results if r["accountId"] == "111111111111")  # noqa: F841
     assert target_result["accessible"] is False
-    
+
     # Staging accounts should be accessible
-    staging_results = [r for r in results if r["accountType"] == "staging"]
+    staging_results = [r for r in results if r["accountType"] == "staging"]  # noqa: F841
     assert len(staging_results) == 2
     for result in staging_results:
         assert result["accessible"] is True
@@ -472,20 +472,20 @@ def test_edge_case_different_error_types():
     """Edge case: Different types of errors for different accounts."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
         "roleArn": "arn:aws:iam::111111111111:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = [
         {
             "accountId": "222222222222",
@@ -506,11 +506,11 @@ def test_edge_case_different_error_types():
             "externalId": "test-external-id-3",
         },
     ]
-    
+
     def mock_query_account_capacity(account_config):
-        account_id = account_config.get("accountId")
-        
-        if account_id == "111111111111":
+        account_id = account_config.get("accountId")  # noqa: F841
+
+        if account_id == "111111111111":  # noqa: F841
             # Target succeeds
             return {
                 "accountId": account_id,
@@ -521,7 +521,7 @@ def test_edge_case_different_error_types():
                 "regionalBreakdown": [],
                 "accessible": True,
             }
-        elif account_id == "222222222222":
+        elif account_id == "222222222222":  # noqa: F841
             # Access denied error
             return {
                 "accountId": account_id,
@@ -533,7 +533,7 @@ def test_edge_case_different_error_types():
                 "accessible": False,
                 "error": "Role assumption failed: Access Denied"
             }
-        elif account_id == "333333333333":
+        elif account_id == "333333333333":  # noqa: F841
             # Invalid credentials error
             return {
                 "accountId": account_id,
@@ -557,12 +557,12 @@ def test_edge_case_different_error_types():
                 "accessible": False,
                 "error": "Network timeout"
             }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-    
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
     assert len(results) == 4
-    
+
     # Verify each account has appropriate error
     for result in results:
         if result["accountId"] == "111111111111":

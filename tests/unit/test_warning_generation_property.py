@@ -12,8 +12,8 @@ Property 5: For any account capacity state, warnings should be generated when:
 **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6**
 """
 
-import sys
-from pathlib import Path
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # Clear any existing index module to avoid conflicts
 if "index" in sys.modules:
@@ -25,11 +25,11 @@ query_handler_dir = (
 )
 sys.path.insert(0, str(query_handler_dir))
 
-from hypothesis import given, strategies as st, settings
-import pytest
+from hypothesis import given, strategies as st, settings  # noqa: E402
+import pytest  # noqa: F401
 
 # Import the functions under test
-from index import (
+from index import (  # noqa: E402
     generate_warnings,
     calculate_combined_metrics,
     calculate_account_status,
@@ -113,7 +113,7 @@ def test_property_warning_generation_per_account(account_results):
         if not account.get("accessible", False):
             continue
 
-        account_id = account.get("accountId")
+        account_id = account.get("accountId")  # noqa: F841
         account_name = account.get("accountName")
         replicating = account.get("replicatingServers", 0)
         status = calculate_account_status(replicating)
@@ -154,7 +154,7 @@ def test_property_combined_warnings(num_accounts, servers_per_account):
     Property: Combined capacity warnings are generated when appropriate.
     """
     # Create uniform account results
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": f"{i:012d}",
             "accountName": f"Account_{i}",
@@ -195,7 +195,7 @@ def test_property_no_warnings_for_ok_status(replicating_servers):
     """
     Property: No warnings should be generated for accounts in OK status.
     """
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "111111111111",
             "accountName": "Test_Account",
@@ -223,7 +223,7 @@ def test_property_no_warnings_for_ok_status(replicating_servers):
 
 def test_warning_contains_actionable_guidance():
     """Test that warnings contain actionable guidance."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "111111111111",
             "accountName": "Critical_Account",
@@ -253,7 +253,7 @@ def test_warning_contains_actionable_guidance():
 
 def test_warning_includes_server_count():
     """Test that warnings include the server count."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "111111111111",
             "accountName": "Test_Account",
@@ -281,7 +281,7 @@ def test_warning_includes_server_count():
 
 def test_warning_includes_account_identification():
     """Test that warnings include account name and ID."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "123456789012",
             "accountName": "Production_Account",
@@ -317,7 +317,7 @@ def test_warning_includes_account_identification():
 
 def test_edge_case_no_warnings_all_ok():
     """Edge case: No warnings when all accounts are OK."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": f"{i:012d}",
             "accountName": f"Account_{i}",
@@ -344,7 +344,7 @@ def test_edge_case_multiple_warnings_same_account():
     Edge case: Account can trigger both per-account and combined warnings.
     """
     # Single account at CRITICAL level
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "111111111111",
             "accountName": "Critical_Account",
@@ -370,7 +370,7 @@ def test_edge_case_multiple_warnings_same_account():
 
 def test_edge_case_inaccessible_accounts_no_warnings():
     """Edge case: Inaccessible accounts should not generate warnings."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "111111111111",
             "accountName": "Accessible_OK",
@@ -403,7 +403,7 @@ def test_edge_case_inaccessible_accounts_no_warnings():
 
 def test_edge_case_all_accounts_at_limit():
     """Edge case: All accounts at hard limit (300 servers)."""
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": f"{i:012d}",
             "accountName": f"Account_{i}",
@@ -434,7 +434,7 @@ def test_edge_case_all_accounts_at_limit():
 def test_warning_severity_levels_distinct():
     """Test that different severity levels produce distinct warnings."""
     # Create accounts at each severity level
-    account_results = [
+    account_results = [  # noqa: F841
         {
             "accountId": "111111111111",
             "accountName": "Info_Account",

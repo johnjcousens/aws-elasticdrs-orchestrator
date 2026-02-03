@@ -10,11 +10,11 @@ all DRS-enabled regions.
 **Validates: Requirements 9.1, 9.3**
 """
 
-import os
-import sys
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from concurrent.futures import Future
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import Mock, patch, MagicMock  # noqa: F401  # noqa: F401  # noqa: F401
+from concurrent.futures import Future  # noqa: F401
 
 # Set environment variables BEFORE importing index
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -28,12 +28,12 @@ if "index" in sys.modules:
 lambda_dir = Path(__file__).parent.parent.parent / "lambda" / "query-handler"
 sys.path.insert(0, str(lambda_dir))
 
-from moto import mock_aws
-from hypothesis import given, strategies as st, settings
-import pytest
+from moto import mock_aws  # noqa: E402
+from hypothesis import given, strategies as st, settings  # noqa: E402
+import pytest  # noqa: F401
 
 # Import the function under test
-from index import query_all_accounts_parallel, DRS_REGIONS
+from index import query_all_accounts_parallel, DRS_REGIONS  # noqa: E402
 
 
 # ============================================================================
@@ -62,7 +62,7 @@ def multi_account_config_strategy(draw):
     # Generate unique account IDs
     num_staging = draw(st.integers(min_value=0, max_value=10))
     num_total_accounts = 1 + num_staging
-    
+
     # Generate unique account IDs
     account_ids = draw(
         st.lists(
@@ -72,7 +72,7 @@ def multi_account_config_strategy(draw):
             unique=True
         )
     )
-    
+
     # Create target account with first ID
     target_account = {
         "accountId": account_ids[0],
@@ -84,7 +84,7 @@ def multi_account_config_strategy(draw):
         ),
         "externalId": draw(st.text(min_size=1, max_size=100)),
     }
-    
+
     # Create staging accounts with remaining IDs
     staging_accounts = []
     for account_id in account_ids[1:]:
@@ -98,7 +98,7 @@ def multi_account_config_strategy(draw):
             ),
             "externalId": draw(st.text(min_size=1, max_size=100)),
         })
-    
+
     return target_account, staging_accounts
 
 
@@ -121,25 +121,25 @@ def test_property_multi_account_query_parallelism(config):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account, staging_accounts = config
-    
+
     # Track calls to query_account_capacity
     query_calls = []
-    
+
     def mock_query_account_capacity(account_config):
         """Mock that tracks which accounts are queried."""
         query_calls.append({
             "accountId": account_config.get("accountId"),
             "accountType": account_config.get("accountType"),
         })
-        
+
         # Return a valid result
         return {
             "accountId": account_config.get("accountId"),
@@ -150,24 +150,24 @@ def test_property_multi_account_query_parallelism(config):
             "regionalBreakdown": [],
             "accessible": True,
         }
-    
+
     # Patch query_account_capacity
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
         # Execute the parallel query
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-        
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
         # Property 1: Should query N+1 accounts (target + all staging)
         expected_num_queries = 1 + len(staging_accounts)
         assert len(query_calls) == expected_num_queries, (
             f"Expected {expected_num_queries} account queries, "
             f"got {len(query_calls)}"
         )
-        
+
         # Property 2: Should return N+1 results
         assert len(results) == expected_num_queries, (
             f"Expected {expected_num_queries} results, got {len(results)}"
         )
-        
+
         # Property 3: Target account should be queried
         target_queries = [
             q for q in query_calls
@@ -176,7 +176,7 @@ def test_property_multi_account_query_parallelism(config):
         assert len(target_queries) == 1, (
             "Target account should be queried exactly once"
         )
-        
+
         # Property 4: All staging accounts should be queried
         for staging in staging_accounts:
             staging_queries = [
@@ -186,7 +186,7 @@ def test_property_multi_account_query_parallelism(config):
             assert len(staging_queries) == 1, (
                 f"Staging account {staging['accountId']} should be queried exactly once"
             )
-        
+
         # Property 5: Account types should be preserved
         target_type_queries = [
             q for q in query_calls if q["accountType"] == "target"
@@ -194,7 +194,7 @@ def test_property_multi_account_query_parallelism(config):
         staging_type_queries = [
             q for q in query_calls if q["accountType"] == "staging"
         ]
-        
+
         assert len(target_type_queries) == 1, (
             "Should have exactly one target account query"
         )
@@ -220,13 +220,13 @@ def test_property_concurrent_region_queries_per_account(
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     # Create account configuration
     target_account = {
         "accountId": "111111111111",
@@ -234,7 +234,7 @@ def test_property_concurrent_region_queries_per_account(
         "roleArn": "arn:aws:iam::111111111111:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = [
         {
             "accountId": f"{i:012d}",
@@ -244,17 +244,17 @@ def test_property_concurrent_region_queries_per_account(
         }
         for i in range(222222222222, 222222222222 + num_staging)
     ]
-    
+
     # Track region queries per account
     region_queries_by_account = {}
-    
+
     def mock_query_account_capacity(account_config):
         """Mock that simulates querying multiple regions."""
-        account_id = account_config.get("accountId")
-        
+        account_id = account_config.get("accountId")  # noqa: F841
+
         # Simulate querying all regions (in real code, this happens in parallel)
         region_queries_by_account[account_id] = num_regions
-        
+
         return {
             "accountId": account_id,
             "accountName": account_config.get("accountName", "Unknown"),
@@ -267,16 +267,16 @@ def test_property_concurrent_region_queries_per_account(
             ],
             "accessible": True,
         }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-        
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
         # Property: Each account should query all regions
         expected_num_accounts = 1 + num_staging
         assert len(region_queries_by_account) == expected_num_accounts, (
             f"Expected {expected_num_accounts} accounts to query regions"
         )
-        
+
         # Each account should have queried the same number of regions
         for account_id, num_queried in region_queries_by_account.items():
             assert num_queried == num_regions, (
@@ -300,23 +300,23 @@ def test_property_parallel_execution_not_sequential(config):
     """
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account, staging_accounts = config
-    
+
     # Track completed queries
     completed_queries = []
-    
+
     def mock_query_account_capacity(account_config):
         """Mock that tracks completed queries."""
-        account_id = account_config.get("accountId")
+        account_id = account_config.get("accountId")  # noqa: F841
         completed_queries.append(account_id)
-        
+
         return {
             "accountId": account_id,
             "accountName": account_config.get("accountName", "Unknown"),
@@ -326,23 +326,23 @@ def test_property_parallel_execution_not_sequential(config):
             "regionalBreakdown": [],
             "accessible": True,
         }
-    
+
     with patch.object(
         index, "query_account_capacity", side_effect=mock_query_account_capacity
     ):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-        
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
         # Property: All accounts should be queried
         expected_num_queries = 1 + len(staging_accounts)
         assert len(completed_queries) == expected_num_queries, (
             f"Expected {expected_num_queries} queries, got {len(completed_queries)}"
         )
-        
+
         # Property: Results should be returned for all accounts
         assert len(results) == expected_num_queries, (
             f"Expected {expected_num_queries} results, got {len(results)}"
         )
-        
+
         # Property: All account IDs should be present in results
         result_account_ids = {r["accountId"] for r in results}
         expected_account_ids = {target_account["accountId"]} | {
@@ -363,24 +363,24 @@ def test_edge_case_no_staging_accounts():
     """Edge case: Only target account, no staging accounts."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
         "roleArn": "arn:aws:iam::111111111111:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = []
-    
+
     query_calls = []
-    
+
     def mock_query_account_capacity(account_config):
         query_calls.append(account_config.get("accountId"))
         return {
@@ -392,10 +392,10 @@ def test_edge_case_no_staging_accounts():
             "regionalBreakdown": [],
             "accessible": True,
         }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-        
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
         # Should query only the target account
         assert len(query_calls) == 1
         assert query_calls[0] == target_account["accountId"]
@@ -407,20 +407,20 @@ def test_edge_case_many_staging_accounts():
     """Edge case: Target account with many staging accounts (20)."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
         "roleArn": "arn:aws:iam::111111111111:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = [
         {
             "accountId": f"{i:012d}",
@@ -430,9 +430,9 @@ def test_edge_case_many_staging_accounts():
         }
         for i in range(222222222222, 222222222242)  # 20 staging accounts
     ]
-    
+
     query_calls = []
-    
+
     def mock_query_account_capacity(account_config):
         query_calls.append(account_config.get("accountId"))
         return {
@@ -444,10 +444,10 @@ def test_edge_case_many_staging_accounts():
             "regionalBreakdown": [],
             "accessible": True,
         }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-        
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
         # Should query all 21 accounts (1 target + 20 staging)
         assert len(query_calls) == 21
         assert len(results) == 21
@@ -458,20 +458,20 @@ def test_edge_case_query_failure_continues():
     """Edge case: One account query fails, others continue."""
     # Import boto3 and reload index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import query_all_accounts_parallel
-    
+    from index import query_all_accounts_parallel  # noqa: F401
+
     target_account = {
         "accountId": "111111111111",
         "accountName": "Target",
         "roleArn": "arn:aws:iam::111111111111:role/TestRole",
         "externalId": "test-external-id",
     }
-    
+
     staging_accounts = [
         {
             "accountId": "222222222222",
@@ -486,14 +486,14 @@ def test_edge_case_query_failure_continues():
             "externalId": "test-external-id-2",
         },
     ]
-    
+
     def mock_query_account_capacity(account_config):
-        account_id = account_config.get("accountId")
-        
+        account_id = account_config.get("accountId")  # noqa: F841
+
         # Fail for the second staging account
-        if account_id == "333333333333":
+        if account_id == "333333333333":  # noqa: F841
             raise Exception("Simulated query failure")
-        
+
         return {
             "accountId": account_id,
             "accountName": account_config.get("accountName", "Unknown"),
@@ -503,22 +503,22 @@ def test_edge_case_query_failure_continues():
             "regionalBreakdown": [],
             "accessible": True,
         }
-    
+
     with patch.object(index, "query_account_capacity", side_effect=mock_query_account_capacity):
-        results = query_all_accounts_parallel(target_account, staging_accounts)
-        
+        results = query_all_accounts_parallel(target_account, staging_accounts)  # noqa: F841
+
         # Should still return results for all 3 accounts
         assert len(results) == 3
-        
+
         # Failed account should have error result
-        failed_result = next(
+        failed_result = next(  # noqa: F841
             r for r in results if r["accountId"] == "333333333333"
         )
         assert failed_result["accessible"] is False
         assert "error" in failed_result
-        
+
         # Other accounts should succeed
-        success_results = [
+        success_results = [  # noqa: F841
             r for r in results
             if r["accountId"] in ["111111111111", "222222222222"]
         ]

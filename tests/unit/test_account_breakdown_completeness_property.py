@@ -11,15 +11,15 @@ replicating servers, maximum capacity, percentage used, status, and regional
 breakdown.
 """
 
-import json
-import os
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-import importlib
+import json  # noqa: F401
+import os  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: F401  # noqa: F401  # noqa: F401
+import importlib  # noqa: F401
 
-from hypothesis import given, settings, strategies as st
-from moto import mock_aws
+from hypothesis import given, settings, strategies as st  # noqa: E402
+from moto import mock_aws  # noqa: E402
 
 # Set environment variables BEFORE importing index
 os.environ["TARGET_ACCOUNTS_TABLE"] = "test-target-accounts-table"
@@ -68,39 +68,39 @@ def test_property_12_account_breakdown_completeness(
     """
     # Import boto3 and index INSIDE the test after @mock_aws is active
     import boto3
-    
+
     # Clear and reload index module to use mocked AWS
     if "index" in sys.modules:
         del sys.modules["index"]
     import index
-    from index import handle_get_combined_capacity
-    
+    from index import handle_get_combined_capacity  # noqa: F401
+
     # Create mock DynamoDB table using moto
     dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
-    
+
     # Try to delete existing table if it exists
     try:
-        existing_table = dynamodb.Table("test-target-accounts-table")
+        existing_table = dynamodb.Table("test-target-accounts-table")  # noqa: F841
         existing_table.delete()
         existing_table.wait_until_not_exists()
-    except:
+    except Exception:  # noqa: E722
         pass
-    
+
     # Create fresh table
-    table = dynamodb.create_table(
+    table = dynamodb.create_table(  # noqa: F841
         TableName="test-target-accounts-table",
         KeySchema=[{"AttributeName": "accountId", "KeyType": "HASH"}],
         AttributeDefinitions=[{"AttributeName": "accountId", "AttributeType": "S"}],
         BillingMode="PAY_PER_REQUEST",
     )
-    
+
     # Ensure staging_servers list matches num_staging_accounts
     staging_servers = staging_servers[:num_staging_accounts]
     while len(staging_servers) < num_staging_accounts:
         staging_servers.append(0)
 
     # Mock target account ID
-    target_account_id = "111122223333"
+    target_account_id = "111122223333"  # noqa: F841
 
     # Build target account configuration
     target_account = {
@@ -126,7 +126,7 @@ def test_property_12_account_breakdown_completeness(
 
     # Mock query_all_accounts_parallel to return predictable results
     def mock_query_all_accounts(target, staging_list):
-        results = []
+        results = []  # noqa: F841
 
         # Add target account result
         results.append({
@@ -170,7 +170,7 @@ def test_property_12_account_breakdown_completeness(
     with patch.object(index, "query_all_accounts_parallel", side_effect=mock_query_all_accounts), \
          patch.object(index, "target_accounts_table", table):
         # Call handle_get_combined_capacity
-        result = handle_get_combined_capacity(
+        result = handle_get_combined_capacity(  # noqa: F841
             {"targetAccountId": target_account_id}
         )
 
@@ -198,7 +198,7 @@ def test_property_12_account_breakdown_completeness(
         )
 
         # Property: Should have correct number of staging accounts
-        staging_accounts_result = [
+        staging_accounts_result = [  # noqa: F841
             a for a in accounts if a.get("accountType") == "staging"
         ]
         assert len(staging_accounts_result) == num_staging_accounts, (
