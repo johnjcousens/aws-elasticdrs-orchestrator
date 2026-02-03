@@ -2902,15 +2902,212 @@ def query_account_capacity(account_config: Dict) -> Dict:
         }
 
 
+def query_staging_accounts_from_target(
+    target_account: Dict, staging_accounts: List[Dict]
+) -> List[Dict]:
+    """
+    Query staging account capacity by counting extended source servers in target account.
+    
+    Extended source servers exist in the target account but have stagingAccountID
+    pointing to the staging account. We query the target account and group servers
+    by staging account ID.
+    
+    Args:
+        target_account: Target account configuration
+        staging_accounts: List of staging account configurations
+        
+    Returns:
+        List of staging account capacity results
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    target_id = target_account.get("accountId")
+    role_arn = target_account.get("roleArn")
+    external_id = target_account.get("externalId")
+    
+    print(f"Querying extended source servers in target account {target_id}")
+    
+    try:
+        # Assume role in target account
+        if role_arn and external_id:
+            sts_client = boto3.client("sts")
+            assumed_role = sts_client.assume_role(
+                RoleArn=role_arn,
+                RoleSessionName="drs-orchestration-staging-query",
+                ExternalId=external_id,
+                DurationSeconds=900,
+            )
+            credentials = assumed_role["Credentials"]
+        else:
+            credentials = None
+        
+        # Query all regions to find extended source servers
+        def query_region_for_staging(region: str) -> Dict:
+            """Query a region for extended source servers grouped by staging account."""
+            try:
+                if credentials:
+                    drs_client = boto3.client(
+                        "drs",
+                        region_name=region,
+                        aws_access_key_id=credentials["AccessKeyId"],
+                        aws_secret_access_key=credentials["SecretAccessKey"],
+                        aws_session_token=credentials["SessionToken"],
+                    )
+                else:
+                    drs_client = boto3.client("drs", region_name=region)
+                
+                # Count servers by staging account
+                staging_counts = {}
+                paginator = drs_client.get_paginator("describe_source_servers")
+                
+                for page in paginator.paginate():
+                    for server in page.get("items", []):
+                        staging_area = server.get("stagingArea", {})
+                        staging_account_id = staging_area.get("stagingAccountID", "")
+                        
+                        # Only count extended source servers (staging account != target account)
+                        if staging_account_id and staging_account_id != target_id:
+                            if staging_account_id not in staging_counts:
+                                staging_counts[staging_account_id] = {
+                                    "total": 0,
+                                    "replicating": 0
+                                }
+                            
+                            staging_counts[staging_account_id]["total"] += 1
+                            
+                            # Check if replicating
+                            replication_state = server.get("dataReplicationInfo", {}).get(
+                                "dataReplicationState", ""
+                            )
+                            if replication_state in [
+                                "CONTINUOUS",
+                                "INITIAL_SYNC",
+                                "RESCAN",
+                                "INITIATING",
+                                "CREATING_SNAPSHOT",
+                                "BACKLOG",
+                            ]:
+                                staging_counts[staging_account_id]["replicating"] += 1
+                
+                return {"region": region, "staging_counts": staging_counts}
+                
+            except ClientError as e:
+                error_code = e.response["Error"]["Code"]
+                if error_code == "UninitializedAccountException" or "not initialized" in str(e):
+                    return {"region": region, "staging_counts": {}}
+                print(f"Error querying {region}: {e}")
+                return {"region": region, "staging_counts": {}}
+            except Exception as e:
+                print(f"Unexpected error querying {region}: {e}")
+                return {"region": region, "staging_counts": {}}
+        
+        # Query all regions in parallel
+        regional_results = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {
+                executor.submit(query_region_for_staging, region): region 
+                for region in DRS_REGIONS
+            }
+            
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    regional_results.append(result)
+                except Exception as e:
+                    print(f"Failed to get regional result: {e}")
+        
+        # Aggregate by staging account
+        staging_totals = {}
+        for regional_result in regional_results:
+            region = regional_result["region"]
+            for staging_id, counts in regional_result["staging_counts"].items():
+                if staging_id not in staging_totals:
+                    staging_totals[staging_id] = {
+                        "total": 0,
+                        "replicating": 0,
+                        "regions": []
+                    }
+                staging_totals[staging_id]["total"] += counts["total"]
+                staging_totals[staging_id]["replicating"] += counts["replicating"]
+                if counts["total"] > 0:
+                    staging_totals[staging_id]["regions"].append({
+                        "region": region,
+                        "totalServers": counts["total"],
+                        "replicatingServers": counts["replicating"]
+                    })
+        
+        # Build results for each staging account
+        results = []
+        for staging in staging_accounts:
+            staging_id = staging.get("accountId")
+            staging_name = staging.get("accountName", "Unknown Staging")
+            
+            if staging_id in staging_totals:
+                totals = staging_totals[staging_id]
+                results.append({
+                    "accountId": staging_id,
+                    "accountName": staging_name,
+                    "accountType": "staging",
+                    "replicatingServers": totals["replicating"],
+                    "totalServers": totals["total"],
+                    "regionalBreakdown": totals["regions"],
+                    "accessible": True,
+                })
+                print(
+                    f"Staging account {staging_id} ({staging_name}): "
+                    f"{totals['replicating']} replicating, {totals['total']} total"
+                )
+            else:
+                # No extended source servers from this staging account
+                results.append({
+                    "accountId": staging_id,
+                    "accountName": staging_name,
+                    "accountType": "staging",
+                    "replicatingServers": 0,
+                    "totalServers": 0,
+                    "regionalBreakdown": [],
+                    "accessible": True,
+                })
+                print(f"Staging account {staging_id} ({staging_name}): 0 servers")
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error querying staging accounts from target: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Return error results for all staging accounts
+        return [
+            {
+                "accountId": staging.get("accountId"),
+                "accountName": staging.get("accountName", "Unknown Staging"),
+                "accountType": "staging",
+                "replicatingServers": 0,
+                "totalServers": 0,
+                "regionalBreakdown": [],
+                "accessible": False,
+                "error": f"Query failed: {str(e)}",
+            }
+            for staging in staging_accounts
+        ]
+
+
 def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dict]) -> List[Dict]:
     """
     Query DRS capacity for target account and all staging accounts in parallel.
 
     This function:
-    1. Queries target account and all staging accounts concurrently
-    2. Handles role assumption failures gracefully (marks as inaccessible)
-    3. Continues querying remaining accounts on individual failures
-    4. Returns list of account capacity results
+    1. Queries target account to get all servers (including extended)
+    2. Extracts staging account capacity from extended source servers
+    3. Handles role assumption failures gracefully (marks as inaccessible)
+    4. Continues querying remaining accounts on individual failures
+    5. Returns list of account capacity results
+
+    IMPORTANT: Staging accounts are NOT queried directly. Instead, we query
+    the target account and count extended source servers by staging account ID.
+    This is because extended source servers exist in the target account, not
+    the staging account.
 
     Args:
         target_account: Dict with target account configuration
@@ -2929,10 +3126,7 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
             1} accounts in parallel"
     )
 
-    # Prepare account configurations
-    all_accounts = []
-
-    # Add target account
+    # Step 1: Query target account to get all servers
     target_config = {
         "accountId": target_account.get("accountId"),
         "accountName": target_account.get("accountName", "Target Account"),
@@ -2940,49 +3134,21 @@ def query_all_accounts_parallel(target_account: Dict, staging_accounts: List[Dic
         "roleArn": target_account.get("roleArn"),
         "externalId": target_account.get("externalId"),
     }
-    all_accounts.append(target_config)
+    
+    target_result = query_account_capacity(target_config)
+    
+    # Step 2: Query target account again to get extended source servers by staging account
+    staging_results = []
+    if staging_accounts:
+        staging_results = query_staging_accounts_from_target(
+            target_account, staging_accounts
+        )
+    
+    # Combine results
+    all_results = [target_result] + staging_results
 
-    # Add staging accounts
-    for staging in staging_accounts:
-        staging_config = {
-            "accountId": staging.get("accountId"),
-            "accountName": staging.get("accountName", "Unknown Staging"),
-            "accountType": "staging",
-            "roleArn": staging.get("roleArn"),
-            "externalId": staging.get("externalId"),
-        }
-        all_accounts.append(staging_config)
-
-    # Query all accounts in parallel
-    results = []
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {
-            executor.submit(query_account_capacity, account): account for account in all_accounts
-        }
-
-        for future in as_completed(futures):
-            account = futures[future]
-            try:
-                result = future.result()
-                results.append(result)
-            except Exception as e:
-                print(f"Failed to query account {account.get('accountId')}: {e}")
-                # Return error result for this account
-                results.append(
-                    {
-                        "accountId": account.get("accountId"),
-                        "accountName": account.get("accountName", "Unknown"),
-                        "accountType": account.get("accountType", "staging"),
-                        "replicatingServers": 0,
-                        "totalServers": 0,
-                        "regionalBreakdown": [],
-                        "accessible": False,
-                        "error": f"Query failed: {str(e)}",
-                    }
-                )
-
-    print(f"Completed querying {len(results)} accounts")
-    return results
+    print(f"Completed querying {len(all_results)} accounts")
+    return all_results
 
 
 def calculate_combined_metrics(account_results: List[Dict]) -> Dict:
