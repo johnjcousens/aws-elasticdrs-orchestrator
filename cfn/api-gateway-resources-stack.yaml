@@ -677,6 +677,13 @@ Resources:
       ParentId: !Ref AccountsTargetStagingAccountsResource
       PathPart: discover
 
+  AccountsTargetStagingAccountsSyncResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AccountsTargetStagingAccountsResource
+      PathPart: sync
+
   AccountsTargetStagingAccountResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -1222,6 +1229,12 @@ Outputs:
     Value: !Ref AccountsTargetStagingAccountsDiscoverResource
     Export:
       Name: !Sub '${AWS::StackName}-AccountsTargetStagingAccountsDiscoverResourceId'
+
+  AccountsTargetStagingAccountsSyncResourceId:
+    Description: 'Accounts Target Staging Accounts Sync Resource ID'
+    Value: !Ref AccountsTargetStagingAccountsSyncResource
+    Export:
+      Name: !Sub '${AWS::StackName}-AccountsTargetStagingAccountsSyncResourceId'
 
   AccountsTargetStagingAccountResourceId:
     Description: 'Accounts Target Staging Account Resource ID'
